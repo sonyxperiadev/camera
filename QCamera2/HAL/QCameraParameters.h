@@ -1,21 +1,31 @@
-/*
-** Copyright 2008, The Android Open Source Project
-** Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
-** Not a Contribution. Apache license notifications and license are
-** retained for attribution purposes only.
-**
-** Licensed under the Apache License, Version 2.0 (the "License");
-** you may not use this file except in compliance with the License.
-** You may obtain a copy of the License at
-**
-**     http://www.apache.org/licenses/LICENSE-2.0
-**
-** Unless required by applicable law or agreed to in writing, software
-** distributed under the License is distributed on an "AS IS" BASIS,
-** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-** See the License for the specific language governing permissions and
-** limitations under the License.
-*/
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ */
 #ifndef ANDROID_HARDWARE_QCAMERA_PARAMETERS_H
 #define ANDROID_HARDWARE_QCAMERA_PARAMETERS_H
 
@@ -152,7 +162,13 @@ public:
     static const char KEY_QC_SELECTABLE_ZONE_AF[];
 
     static const char KEY_QC_ISO_MODE[];
+    static const char KEY_QC_CONTINUOUS_ISO[];
+    static const char KEY_QC_MIN_ISO[];
+    static const char KEY_QC_MAX_ISO[];
     static const char KEY_QC_SUPPORTED_ISO_MODES[];
+    static const char KEY_QC_EXPOSURE_TIME[];
+    static const char KEY_QC_MIN_EXPOSURE_TIME[];
+    static const char KEY_QC_MAX_EXPOSURE_TIME[];
     static const char KEY_QC_LENSSHADE[] ;
     static const char KEY_QC_SUPPORTED_LENSSHADE_MODES[] ;
     static const char KEY_QC_AUTO_EXPOSURE[];
@@ -204,6 +220,42 @@ public:
     static const char KEY_QC_SUPPORTED_VIDEO_TNR_MODES[];
 
     static const char KEY_INTERNAL_PERVIEW_RESTART[];
+    static const char KEY_QC_WB_MANUAL_CCT[];
+    static const char KEY_QC_MIN_WB_CCT[];
+    static const char KEY_QC_MAX_WB_CCT[];
+    static const char KEY_QC_MANUAL_WB_GAINS[];
+    static const char KEY_QC_MIN_WB_GAIN[];
+    static const char KEY_QC_MAX_WB_GAIN[];
+    static const char WHITE_BALANCE_MANUAL[];
+    static const char FOCUS_MODE_MANUAL_POSITION[];
+
+    static const char KEY_QC_MANUAL_FOCUS_POSITION[];
+    static const char KEY_QC_MANUAL_FOCUS_POS_TYPE[];
+    static const char KEY_QC_MIN_FOCUS_POS_INDEX[];
+    static const char KEY_QC_MAX_FOCUS_POS_INDEX[];
+    static const char KEY_QC_MIN_FOCUS_POS_DAC[];
+    static const char KEY_QC_MAX_FOCUS_POS_DAC[];
+    static const char KEY_QC_MIN_FOCUS_POS_RATIO[];
+    static const char KEY_QC_MAX_FOCUS_POS_RATIO[];
+    static const char KEY_QC_MIN_FOCUS_POS_DIOPTER[];
+    static const char KEY_QC_MAX_FOCUS_POS_DIOPTER[];
+    static const char KEY_QC_FOCUS_POSITION_SCALE[];
+    static const char KEY_QC_FOCUS_POSITION_DIOPTER[];
+
+    static const char KEY_QC_SUPPORTED_MANUAL_FOCUS_MODES[];
+    static const char KEY_QC_SUPPORTED_MANUAL_EXPOSURE_MODES[];
+    static const char KEY_QC_SUPPORTED_MANUAL_WB_MODES[];
+    static const char KEY_QC_FOCUS_SCALE_MODE[];
+    static const char KEY_QC_FOCUS_DIOPTER_MODE[];
+    static const char KEY_QC_ISO_PRIORITY[];
+    static const char KEY_QC_EXP_TIME_PRIORITY[];
+    static const char KEY_QC_USER_SETTING[];
+    static const char KEY_QC_WB_CCT_MODE[];
+    static const char KEY_QC_WB_GAIN_MODE[];
+    static const char KEY_QC_MANUAL_WB_TYPE[];
+    static const char KEY_QC_MANUAL_WB_VALUE[];
+    static const char KEY_QC_CURRENT_EXPOSURE_TIME[];
+    static const char KEY_QC_CURRENT_ISO[];
 
     // DENOISE
     static const char KEY_QC_DENOISE[];
@@ -390,6 +442,8 @@ public:
     static const char ISO_400[];
     static const char ISO_800[];
     static const char ISO_1600[];
+    static const char ISO_3200[];
+    static const char ISO_MANUAL[];
 
     // Values for auto exposure settings.
     static const char AUTO_EXPOSURE_FRAME_AVG[];
@@ -647,6 +701,7 @@ public:
     bool isVideoFlipChanged() { return m_bVideoFlipChanged; };
     bool isSnapshotFlipChanged() { return m_bSnapshotFlipChanged; };
     void setHDRSceneEnable(bool bflag);
+    int32_t updateAWBParams(cam_awb_params_t &awb_params);
 
     const char *getASDStateString(cam_auto_scene_t scene);
     bool isHDRThumbnailProcessNeeded() { return m_bHDRThumbnailProcessNeeded; };
@@ -685,6 +740,8 @@ public:
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus()
             || isHDREnabled() || isStillMoreEnabled(); }
+    void updateCurrentFocusPosition(cam_focus_pos_info_t &cur_pos_info);
+    void updateAEInfo(cam_3a_params_t &ae_params);
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
     bool isAdvCamFeaturesEnabled() {return isUbiFocusEnabled() ||
@@ -712,6 +769,7 @@ public:
     int8_t  getCurPPCount(){return mCurPPCount;};
     void    setReprocCount();
     void    setCurPPCount(int8_t count) {mCurPPCount = count;};
+    int32_t  updateCurrentFocusPosition(int32_t pos);
 
 private:
     int32_t setPreviewSize(const QCameraParameters& );
@@ -729,6 +787,7 @@ private:
     int32_t setEffect(const QCameraParameters& );
     int32_t setBrightness(const QCameraParameters& );
     int32_t setFocusMode(const QCameraParameters& );
+    int32_t setFocusPosition(const QCameraParameters& );
     int32_t setSharpness(const QCameraParameters& );
     int32_t setSaturation(const QCameraParameters& );
     int32_t setContrast(const QCameraParameters& );
@@ -738,6 +797,8 @@ private:
     int32_t setVtEnable(const QCameraParameters& );
     int32_t setZoom(const QCameraParameters& );
     int32_t setISOValue(const QCameraParameters& );
+    int32_t setContinuousISO(const QCameraParameters& );
+    int32_t setExposureTime(const QCameraParameters& );
     int32_t setRotation(const QCameraParameters& );
     int32_t setVideoRotation(const QCameraParameters& );
     int32_t setFlash(const QCameraParameters& );
@@ -748,6 +809,7 @@ private:
     int32_t setLensShadeValue(const QCameraParameters& );
     int32_t setExposureCompensation(const QCameraParameters& );
     int32_t setWhiteBalance(const QCameraParameters& );
+    int32_t setManualWhiteBalance(const QCameraParameters& );
     int32_t setAntibanding(const QCameraParameters& );
     int32_t setFocusAreas(const QCameraParameters& );
     int32_t setMeteringAreas(const QCameraParameters& );
@@ -793,6 +855,7 @@ private:
     int32_t setEffect(const char *effect);
     int32_t setBrightness(int brightness);
     int32_t setFocusMode(const char *focusMode);
+    int32_t setFocusPosition(const char *typeStr, const char *posStr);
     int32_t setSharpness(int sharpness);
     int32_t setSaturation(int saturation);
     int32_t setContrast(int contrast);
@@ -803,6 +866,8 @@ private:
     int32_t setVtEnable(const char *vtEnable);
     int32_t setZoom(int zoom_level);
     int32_t setISOValue(const char *isoValue);
+    int32_t setContinuousISO(const char *isoValue);
+    int32_t setExposureTime(const char *expTimeStr);
     int32_t setFlash(const char *flashStr);
     int32_t setAwbLock(const char *awbStr);
     int32_t setMCEValue(const char *mceStr);
@@ -811,6 +876,8 @@ private:
     int32_t setLensShadeValue(const char *lensShadeStr);
     int32_t setExposureCompensation(int expComp);
     int32_t setWhiteBalance(const char *wbStr);
+    int32_t setWBManualCCT(const char *cctStr);
+    int32_t setManualWBGains(const char *gainStr);
     int32_t setAntibanding(const char *antiBandingStr);
     int32_t setFocusAreas(const char *focusAreasStr);
     int32_t setMeteringAreas(const char *meteringAreasStr);
@@ -834,6 +901,8 @@ private:
     int32_t setRdiMode(const char *str);
     int32_t setSecureMode(const char *str);
 
+    int32_t parseGains(const char *gainStr, float &r_gain,
+            float &g_gain, float &b_gain);
     int32_t parse_pair(const char *str, int *first, int *second,
                        char delim, char **endptr);
     void parseSizesList(const char *sizesStr, Vector<Size> &sizes);
