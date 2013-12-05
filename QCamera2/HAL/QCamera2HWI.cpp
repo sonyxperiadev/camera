@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -4228,6 +4228,42 @@ int32_t QCamera2HardwareInterface::sendEvtNotify(int32_t msg_type,
 }
 
 /*===========================================================================
+ * FUNCTION   : processAEInfo
+ *
+ * DESCRIPTION: process AE updates
+ *
+ * PARAMETERS :
+ *   @ae_params: current AE parameters
+ *
+ * RETURN     : None
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::processAEInfo(cam_3a_params_t &ae_params)
+{
+    pthread_mutex_lock(&m_parm_lock);
+    mParameters.updateAEInfo(ae_params);
+    pthread_mutex_unlock(&m_parm_lock);
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : processFocusPositionInfo
+ *
+ * DESCRIPTION: process AF updates
+ *
+ * PARAMETERS :
+ *   @cur_pos_info: current lens position
+ *
+ * RETURN     : None
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::processFocusPositionInfo(cam_focus_pos_info_t &cur_pos_info)
+{
+    pthread_mutex_lock(&m_parm_lock);
+    mParameters.updateCurrentFocusPosition(cur_pos_info);
+    pthread_mutex_unlock(&m_parm_lock);
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : processAutoFocusEvent
  *
  * DESCRIPTION: process auto focus event
@@ -4437,6 +4473,26 @@ int32_t QCamera2HardwareInterface::processHDRData(cam_asd_hdr_scene_data_t hdr_s
 }
 
 /*===========================================================================
+ * FUNCTION   : transAwbMetaToParams
+ *
+ * DESCRIPTION: translate awb params from metadata callback to QCameraParameters
+ *
+ * PARAMETERS :
+ *   @awb_params : awb params from metadata callback
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::transAwbMetaToParams(cam_awb_params_t &awb_params)
+{
+    pthread_mutex_lock(&m_parm_lock);
+    mParameters.updateAWBParams(awb_params);
+    pthread_mutex_unlock(&m_parm_lock);
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : processPrepSnapshotDone
  *
  * DESCRIPTION: process prep snapshot done event
@@ -4524,7 +4580,6 @@ int32_t QCamera2HardwareInterface::processASDUpdate(cam_auto_scene_t scene)
     return NO_ERROR;
 
 }
-
 
 /*===========================================================================
  * FUNCTION   : processJpegNotify
