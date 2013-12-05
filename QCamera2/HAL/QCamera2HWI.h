@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -368,6 +368,9 @@ private:
     int32_t processJpegNotify(qcamera_jpeg_evt_payload_t *jpeg_job);
     int32_t processHDRData(cam_asd_hdr_scene_data_t hdr_scene);
     int32_t processSceneData(cam_scene_mode_type scene);
+    int32_t transAwbMetaToParams(cam_awb_params_t &awb_params);
+    int32_t processFocusPositionInfo(cam_focus_pos_info_t &cur_pos_info);
+    int32_t processAEInfo(cam_3a_params_t &ae_params);
 
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
     int32_t sendDataNotify(int32_t msg_type,
