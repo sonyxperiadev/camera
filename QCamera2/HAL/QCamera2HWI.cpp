@@ -3321,18 +3321,57 @@ void QCamera2HardwareInterface::clearIntPendingEvents()
  *==========================================================================*/
 int QCamera2HardwareInterface::takeLiveSnapshot_internal()
 {
-    int rc;
+    int rc = NO_ERROR;
 
     getOrientation();
+    QCameraChannel *pChannel = NULL;
 
     // start post processor
     rc = m_postprocessor.start(m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
-
-    // start snapshot channel
-    if (rc == NO_ERROR) {
-        rc = startChannel(QCAMERA_CH_TYPE_SNAPSHOT);
+    if (NO_ERROR != rc) {
+        ALOGE("%s: Post-processor start failed %d", __func__, rc);
+        goto end;
     }
 
+    pChannel = m_channels[QCAMERA_CH_TYPE_SNAPSHOT];
+    if (NULL == pChannel) {
+        ALOGE("%s: Snapshot channel not initialized", __func__);
+        rc = NO_INIT;
+        goto end;
+    }
+
+    // start snapshot channel
+    if ((rc == NO_ERROR) && (NULL != pChannel)) {
+
+        // Find and try to link a metadata stream from preview channel
+        QCameraChannel *pMetaChannel = NULL;
+        QCameraStream *pMetaStream = NULL;
+
+        if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
+            pMetaChannel = m_channels[QCAMERA_CH_TYPE_PREVIEW];
+            uint32_t streamNum = pMetaChannel->getNumOfStreams();
+            QCameraStream *pStream = NULL;
+            for (uint32_t i = 0 ; i < streamNum ; i++ ) {
+                pStream = pMetaChannel->getStreamByIndex(i);
+                if ((NULL != pStream) &&
+                        (CAM_STREAM_TYPE_METADATA == pStream->getMyType())) {
+                    pMetaStream = pStream;
+                    break;
+                }
+            }
+        }
+
+        if ((NULL != pMetaChannel) && (NULL != pMetaStream)) {
+            rc = pChannel->linkStream(pMetaChannel, pMetaStream);
+            if (NO_ERROR != rc) {
+                ALOGE("%s : Metadata stream link failed %d", __func__, rc);
+            }
+        }
+
+        rc = pChannel->start();
+    }
+
+end:
     if (rc != NO_ERROR) {
         rc = processAPI(QCAMERA_SM_EVT_CANCEL_PICTURE, NULL);
         rc = sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
@@ -4611,7 +4650,14 @@ int32_t QCamera2HardwareInterface::addSnapshotChannel()
         return NO_MEMORY;
     }
 
-    rc = pChannel->init(NULL, NULL, NULL);
+    mm_camera_channel_attr_t attr;
+    memset(&attr, 0, sizeof(mm_camera_channel_attr_t));
+    attr.notify_mode = MM_CAMERA_SUPER_BUF_NOTIFY_CONTINUOUS;
+    attr.look_back = mParameters.getZSLBackLookCount();
+    attr.post_frame_skip = mParameters.getZSLBurstInterval();
+    attr.water_mark = mParameters.getZSLQueueDepth();
+    attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
+    rc = pChannel->init(&attr, snapshot_channel_cb_routine, this);
     if (rc != NO_ERROR) {
         ALOGE("%s: init snapshot channel failed, ret = %d", __func__, rc);
         delete pChannel;
@@ -4619,7 +4665,7 @@ int32_t QCamera2HardwareInterface::addSnapshotChannel()
     }
 
     rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_SNAPSHOT,
-                            snapshot_stream_cb_routine, this);
+            NULL, NULL);
     if (rc != NO_ERROR) {
         ALOGE("%s: add snapshot stream failed, ret = %d", __func__, rc);
         delete pChannel;

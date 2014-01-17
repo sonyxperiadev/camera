@@ -477,9 +477,8 @@ private:
     static void video_stream_cb_routine(mm_camera_super_buf_t *frame,
                                         QCameraStream *stream,
                                         void *userdata);
-    static void snapshot_stream_cb_routine(mm_camera_super_buf_t *frame,
-                                           QCameraStream *stream,
-                                           void *userdata);
+    static void snapshot_channel_cb_routine(mm_camera_super_buf_t *frame,
+           void *userdata);
     static void raw_stream_cb_routine(mm_camera_super_buf_t *frame,
                                       QCameraStream *stream,
                                       void *userdata);

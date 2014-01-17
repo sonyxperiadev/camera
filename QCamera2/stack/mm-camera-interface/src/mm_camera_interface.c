@@ -575,6 +575,47 @@ static int32_t mm_camera_intf_qbuf(uint32_t camera_handle,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_intf_link_stream
+ *
+ * DESCRIPTION: link a stream into a new channel
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *   @ch_id        : channel handle
+ *   @stream_id    : stream id
+ *   @linked_ch_id : channel in which the stream will be linked
+ *
+ * RETURN     : int32_t type of stream handle
+ *              0  -- invalid stream handle, meaning the op failed
+ *              >0 -- successfully linked a stream with a valid handle
+ *==========================================================================*/
+static int32_t mm_camera_intf_link_stream(uint32_t camera_handle,
+        uint32_t ch_id,
+        uint32_t stream_id,
+        uint32_t linked_ch_id)
+{
+    uint32_t id = 0;
+    mm_camera_obj_t * my_obj = NULL;
+
+    CDBG("%s : E handle = %d ch_id = %d",
+         __func__, camera_handle, ch_id);
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        id = mm_camera_link_stream(my_obj, ch_id, stream_id, linked_ch_id);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+
+    CDBG("%s :X stream_id = %d", __func__, stream_id);
+    return id;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_intf_add_stream
  *
  * DESCRIPTION: add a stream into a channel
@@ -1570,6 +1611,7 @@ static mm_camera_ops_t mm_camera_ops = {
     .delete_channel = mm_camera_intf_del_channel,
     .get_bundle_info = mm_camera_intf_get_bundle_info,
     .add_stream = mm_camera_intf_add_stream,
+    .link_stream = mm_camera_intf_link_stream,
     .delete_stream = mm_camera_intf_del_stream,
     .config_stream = mm_camera_intf_config_stream,
     .qbuf = mm_camera_intf_qbuf,

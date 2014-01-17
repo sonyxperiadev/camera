@@ -852,6 +852,51 @@ int32_t mm_camera_get_bundle_info(mm_camera_obj_t *my_obj,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_link_stream
+ *
+ * DESCRIPTION: link a stream into a channel
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *   @ch_id        : channel handle
+ *   @stream_id    : stream that will be linked
+ *   @linked_ch_id : channel in which the stream will be linked
+ *
+ * RETURN     : uint32_t type of stream handle
+ *              0  -- invalid stream handle, meaning the op failed
+ *              >0 -- successfully linked a stream with a valid handle
+ *==========================================================================*/
+uint32_t mm_camera_link_stream(mm_camera_obj_t *my_obj,
+        uint32_t ch_id,
+        uint32_t stream_id,
+        uint32_t linked_ch_id)
+{
+    uint32_t s_hdl = 0;
+    mm_channel_t * ch_obj =
+            mm_camera_util_get_channel_by_handler(my_obj, linked_ch_id);
+    mm_channel_t * owner_obj =
+            mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+
+    if ((NULL != ch_obj) && (NULL != owner_obj)) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+
+        mm_camera_stream_link_t stream_link;
+        memset(&stream_link, 0, sizeof(mm_camera_stream_link_t));
+        stream_link.ch = owner_obj;
+        stream_link.stream_id = stream_id;
+        mm_channel_fsm_fn(ch_obj,
+                          MM_CHANNEL_EVT_LINK_STREAM,
+                          (void*)&stream_link,
+                          (void*)&s_hdl);
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+    }
+
+    return s_hdl;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_add_stream
  *
  * DESCRIPTION: add a stream into a channel
