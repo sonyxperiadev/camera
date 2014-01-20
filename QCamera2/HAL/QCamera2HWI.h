@@ -243,22 +243,18 @@ public:
                                    void *img_ptr,
                                    cam_pp_offline_src_config_t *config);
 public:
-    QCamera2HardwareInterface(int cameraId);
+    QCamera2HardwareInterface(uint32_t cameraId);
     virtual ~QCamera2HardwareInterface();
     int openCamera(struct hw_device_t **hw_device);
 
-    static int getCapabilities(int cameraId, struct camera_info *info);
-    static int initCapabilities(int cameraId,mm_camera_vtbl_t *cameraHandle);
+    static int getCapabilities(uint32_t cameraId, struct camera_info *info);
+    static int initCapabilities(uint32_t cameraId, mm_camera_vtbl_t *cameraHandle);
 
     // Implementation of QCameraAllocator
     virtual QCameraMemory *allocateStreamBuf(cam_stream_type_t stream_type,
-                                             int size,
-                                             int stride,
-                                             int scanline,
-                                             uint8_t &bufferCnt);
+            size_t size, int stride, int scanline, uint8_t &bufferCnt);
     virtual int32_t allocateMoreStreamBuf(QCameraMemory *mem_obj,
-                                          int size,
-                                          uint8_t &bufferCnt);
+            size_t size, uint8_t &bufferCnt);
 
     virtual QCameraHeapMemory *allocateStreamInfoBuf(cam_stream_type_t stream_type);
 
@@ -325,12 +321,9 @@ private:
     void signalAPIResult(qcamera_api_result_t *result);
     void signalEvtResult(qcamera_api_result_t *result);
 
-    int calcThermalLevel(
-                qcamera_thermal_level_enum_t level,
-                const int minFPS,
-                const int maxFPS,
-                cam_fps_range_t &adjustedRange,
-                enum msm_vfe_frame_skip_pattern &skipPattern);
+    int calcThermalLevel(qcamera_thermal_level_enum_t level,
+            const int minFPSi, const int maxFPSi, cam_fps_range_t &adjustedRange,
+            enum msm_vfe_frame_skip_pattern &skipPattern);
     int updateThermalLevel(qcamera_thermal_level_enum_t level);
 
     // update entris to set parameters and check if restart is needed
@@ -350,17 +343,16 @@ private:
     bool needScaleReprocess();
     void debugShowVideoFPS();
     void debugShowPreviewFPS();
-    void dumpJpegToFile(const void *data, uint32_t size, int index);
+    void dumpJpegToFile(const void *data, size_t size, uint32_t index);
     void dumpFrameToFile(QCameraStream *stream,
-                         mm_camera_buf_def_t *frame,
-                         int dump_type);
+            mm_camera_buf_def_t *frame, uint32_t dump_type);
     void dumpMetadataToFile(QCameraStream *stream,
                             mm_camera_buf_def_t *frame,char *type);
     void releaseSuperBuf(mm_camera_super_buf_t *super_buf);
     void playShutter();
     void getThumbnailSize(cam_dimension_t &dim);
-    int getJpegQuality();
-    int getJpegRotation();
+    uint32_t getJpegQuality();
+    uint32_t getJpegRotation();
     void getOrientation();
     inline bool getCancelAutoFocus(){ return mCancelAutoFocus; }
     inline void setCancelAutoFocus(bool flag){ mCancelAutoFocus = flag; }
@@ -382,7 +374,7 @@ private:
                            camera_frame_metadata_t *metadata);
 
     int32_t sendPreviewCallback(QCameraStream *stream,
-            QCameraGrallocMemory *memory, int32_t idx);
+            QCameraGrallocMemory *memory, uint32_t idx);
     int32_t selectScene(QCameraChannel *pChannel,
             mm_camera_super_buf_t *recvd_frame);
 
@@ -509,11 +501,11 @@ private:
     static void returnStreamBuffer(void *data,
                                    void *cookie,
                                    int32_t cbStatus);
-    static int32_t getEffectValue(const char *effect);
     static void getLogLevel();
+
 private:
     camera_device_t   mCameraDevice;
-    uint8_t           mCameraId;
+    uint32_t          mCameraId;
     mm_camera_vtbl_t *mCameraHandle;
     bool mCameraOpened;
 
@@ -562,8 +554,8 @@ private:
 
     power_module_t *m_pPowerModule;   // power module
 
-    int mDumpFrmCnt;  // frame dump count
-    int mDumpSkipCnt; // frame skip count
+    uint32_t mDumpFrmCnt;  // frame dump count
+    uint32_t mDumpSkipCnt; // frame skip count
     mm_jpeg_exif_params_t mExifParams;
     qcamera_thermal_level_enum_t mThermalLevel;
     bool mCancelAutoFocus;
@@ -574,8 +566,8 @@ private:
     int32_t m_max_pic_height;
     pthread_t mLiveSnapshotThread;
     pthread_t mIntPicThread;
-    uint8_t mFlashNeeded;
-    int mCaptureRotation;
+    bool mFlashNeeded;
+    uint32_t mCaptureRotation;
     int32_t mFlash;
     int32_t mRedEye;
     int32_t mFlashPresence;
@@ -587,7 +579,7 @@ private:
     bool m_bIntJpegEvtPending;
     bool m_bIntRawEvtPending;
     char m_BackendFileName[QCAMERA_MAX_FILEPATH_LENGTH];
-    int32_t mBackendFileSize;
+    size_t mBackendFileSize;
     pthread_mutex_t m_int_lock;
     pthread_cond_t m_int_cond;
 
@@ -639,7 +631,7 @@ private:
     int32_t mMetadataJob;
     int32_t mReprocJob;
     int32_t mRawdataJob;
-    int32_t mOutputCount;
+    uint32_t mOutputCount;
 };
 
 }; // namespace qcamera

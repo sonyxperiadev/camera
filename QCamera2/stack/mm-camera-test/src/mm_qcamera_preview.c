@@ -302,11 +302,11 @@ static void mm_app_zsl_notify_cb(mm_camera_super_buf_t *bufs,
         return;
     }
 
-    CDBG("%s: ZSL CB with fb_fd = %d, m_frame = 0x%x, p_frame = 0x%x \n",
+    CDBG("%s: ZSL CB with fb_fd = %d, m_frame = %p, p_frame = %p \n",
          __func__,
          pme->fb_fd,
-         (uint32_t )m_frame,
-         (uint32_t )p_frame);
+         m_frame,
+         p_frame);
 
     if ( 0 < pme->fb_fd ) {
         mm_app_overlay_display(pme, p_frame->fd);
@@ -514,8 +514,8 @@ mm_camera_stream_t * mm_app_add_raw_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
         stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     } else {
-        stream->s_config.stream_info->dim.width = test_obj->buffer_width;
-        stream->s_config.stream_info->dim.height = test_obj->buffer_height;
+        stream->s_config.stream_info->dim.width = (int32_t)test_obj->buffer_width;
+        stream->s_config.stream_info->dim.height = (int32_t)test_obj->buffer_height;
     }
     stream->s_config.padding_info = cam_cap->padding_info;
 
@@ -569,8 +569,8 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
         stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     } else {
-        stream->s_config.stream_info->dim.width = test_obj->buffer_width;
-        stream->s_config.stream_info->dim.height = test_obj->buffer_height;
+        stream->s_config.stream_info->dim.width = (int32_t)test_obj->buffer_width;
+        stream->s_config.stream_info->dim.height = (int32_t)test_obj->buffer_height;
     }
     stream->s_config.padding_info = cam_cap->padding_info;
 
@@ -915,7 +915,7 @@ int mm_app_initialize_fb(mm_camera_test_obj_t *test_obj)
     }
 
     munmap(fb_base, test_obj->slice_size);
-    test_obj->data_overlay.id = MSMFB_NEW_REQUEST;
+    test_obj->data_overlay.id = (uint32_t)MSMFB_NEW_REQUEST;
     rc = ioctl(test_obj->fb_fd, MSMFB_OVERLAY_SET, &test_obj->data_overlay);
     if (rc < 0) {
         CDBG_ERROR("%s : MSMFB_OVERLAY_SET failed! err=%d\n",

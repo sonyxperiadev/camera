@@ -110,10 +110,17 @@ int32_t QCamera3PostProcessor::init(QCamera3Memory* mMemory,
     mJpegUserData = user_data;
     mm_dimension max_size;
 
+    if ((0 > m_parent->m_max_pic_dim.width) ||
+            (0 > m_parent->m_max_pic_dim.height)) {
+        ALOGE("%s : Negative dimension %dx%d", __func__,
+                m_parent->m_max_pic_dim.width, m_parent->m_max_pic_dim.height);
+        return BAD_VALUE;
+    }
+
     //set max pic size
     memset(&max_size, 0, sizeof(mm_dimension));
-    max_size.w =  m_parent->m_max_pic_dim.width;
-    max_size.h =  m_parent->m_max_pic_dim.height;
+    max_size.w = (uint32_t)m_parent->m_max_pic_dim.width;
+    max_size.h = (uint32_t)m_parent->m_max_pic_dim.height;
 
     mJpegClientHandle = jpeg_open(&mJpegHandle,max_size);
     mJpegMem = mMemory;
@@ -260,6 +267,13 @@ int32_t QCamera3PostProcessor::getFWKJpegEncodeConfig(
         return BAD_VALUE;
     }
 
+    ssize_t bufSize = mJpegMem->getSize(jpeg_settings->out_buf_index);
+    if (BAD_INDEX == bufSize) {
+        ALOGE("%s: cannot retrieve buffer size for buffer %u", __func__,
+                jpeg_settings->out_buf_index);
+        return BAD_VALUE;
+    }
+
     encode_parm.jpeg_cb = mJpegCB;
     encode_parm.userdata = mJpegUserData;
 
@@ -305,8 +319,7 @@ int32_t QCamera3PostProcessor::getFWKJpegEncodeConfig(
     //mJpegMem is allocated by framework.
     encode_parm.num_dst_bufs = 1;
     encode_parm.dest_buf[0].index = 0;
-    encode_parm.dest_buf[0].buf_size = mJpegMem->getSize(
-            jpeg_settings->out_buf_index);
+    encode_parm.dest_buf[0].buf_size = (size_t)bufSize;
     encode_parm.dest_buf[0].buf_vaddr = (uint8_t *)mJpegMem->getPtr(
             jpeg_settings->out_buf_index);
     encode_parm.dest_buf[0].fd = mJpegMem->getFd(
@@ -343,6 +356,7 @@ int32_t QCamera3PostProcessor::getJpegEncodeConfig(
 {
     CDBG("%s : E", __func__);
     int32_t ret = NO_ERROR;
+    ssize_t bufSize = 0;
 
     encode_parm.jpeg_cb = mJpegCB;
     encode_parm.userdata = mJpegUserData;
@@ -384,7 +398,13 @@ int32_t QCamera3PostProcessor::getJpegEncodeConfig(
     for (uint32_t i = 0; i < encode_parm.num_src_bufs; i++) {
         if (pStreamMem != NULL) {
             encode_parm.src_main_buf[i].index = i;
-            encode_parm.src_main_buf[i].buf_size = pStreamMem->getSize(i);
+            bufSize = pStreamMem->getSize(i);
+            if (BAD_INDEX == bufSize) {
+            ALOGE("%s: cannot retrieve buffer size for buffer %u", __func__, i);
+                ret = BAD_VALUE;
+                goto on_error;
+            }
+            encode_parm.src_main_buf[i].buf_size = (size_t)bufSize;
             encode_parm.src_main_buf[i].buf_vaddr = (uint8_t *)pStreamMem->getPtr(i);
             encode_parm.src_main_buf[i].fd = pStreamMem->getFd(i);
             encode_parm.src_main_buf[i].format = MM_JPEG_FMT_YUV;
@@ -405,10 +425,16 @@ int32_t QCamera3PostProcessor::getJpegEncodeConfig(
         memset(&thumb_offset, 0, sizeof(cam_frame_len_offset_t));
         main_stream->getFrameOffset(thumb_offset);
         encode_parm.num_tmb_bufs = pStreamMem->getCnt();
-        for (int i = 0; i < pStreamMem->getCnt(); i++) {
+        for (uint32_t i = 0; i < pStreamMem->getCnt(); i++) {
             if (pStreamMem != NULL) {
                 encode_parm.src_thumb_buf[i].index = i;
-                encode_parm.src_thumb_buf[i].buf_size = pStreamMem->getSize(i);
+                bufSize = pStreamMem->getSize(i);
+                if (BAD_INDEX == bufSize) {
+                    ALOGE("%s: cannot retrieve buffer size for buffer %u", __func__, i);
+                    ret = BAD_VALUE;
+                    goto on_error;
+                }
+                encode_parm.src_thumb_buf[i].buf_size = (uint32_t)bufSize;
                 encode_parm.src_thumb_buf[i].buf_vaddr = (uint8_t *)pStreamMem->getPtr(i);
                 encode_parm.src_thumb_buf[i].fd = pStreamMem->getFd(i);
                 encode_parm.src_thumb_buf[i].format = MM_JPEG_FMT_YUV;
@@ -419,10 +445,16 @@ int32_t QCamera3PostProcessor::getJpegEncodeConfig(
 
     //Pass output jpeg buffer info to encoder.
     //mJpegMem is allocated by framework.
+    bufSize = mJpegMem->getSize(jpeg_settings->out_buf_index);
+    if (BAD_INDEX == bufSize) {
+        ALOGE("%s: cannot retrieve buffer size for buffer %u", __func__,
+                jpeg_settings->out_buf_index);
+        ret = BAD_VALUE;
+        goto on_error;
+    }
     encode_parm.num_dst_bufs = 1;
     encode_parm.dest_buf[0].index = 0;
-    encode_parm.dest_buf[0].buf_size = mJpegMem->getSize(
-            jpeg_settings->out_buf_index);
+    encode_parm.dest_buf[0].buf_size = (size_t)bufSize;
     encode_parm.dest_buf[0].buf_vaddr = (uint8_t *)mJpegMem->getPtr(
             jpeg_settings->out_buf_index);
     encode_parm.dest_buf[0].fd = mJpegMem->getFd(
@@ -1071,10 +1103,8 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
                 jpeg_settings->thumbnail_size;
 
         if (!hal_obj->needRotationReprocess()) {
-            jpg_job.encode_job.rotation =
-                    jpeg_settings->jpeg_orientation;
-            CDBG_HIGH("%s: jpeg rotation is set to %d", __func__,
-                    jpg_job.encode_job.rotation);
+            jpg_job.encode_job.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
+            CDBG_HIGH("%s: jpeg rotation is set to %u", __func__, jpg_job.encode_job.rotation);
         } else if (jpeg_settings->jpeg_orientation  == 90 ||
                 jpeg_settings->jpeg_orientation == 270) {
             //swap the thumbnail destination width and height if it has
@@ -1256,7 +1286,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     memset(&jpg_job, 0, sizeof(mm_jpeg_job_t));
     jpg_job.job_type = JPEG_JOB_TYPE_ENCODE;
     jpg_job.encode_job.session_id = mJpegSessionId;
-    jpg_job.encode_job.src_index = main_frame->buf_idx;
+    jpg_job.encode_job.src_index = (int32_t)main_frame->buf_idx;
     jpg_job.encode_job.dst_index = 0;
 
     cam_rect_t crop;
@@ -1286,7 +1316,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
                 jpeg_settings->thumbnail_size;
 
         if (!hal_obj->needRotationReprocess()) {
-            jpg_job.encode_job.rotation =
+            jpg_job.encode_job.rotation = (uint32_t)
                     jpeg_settings->jpeg_orientation;
             CDBG_HIGH("%s: jpeg rotation is set to %d", __func__,
                     jpg_job.encode_job.rotation);

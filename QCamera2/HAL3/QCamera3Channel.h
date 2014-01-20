@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -89,8 +89,8 @@ public:
 
     QCamera3Stream *getStreamByHandle(uint32_t streamHandle);
     uint32_t getMyHandle() const {return m_handle;};
-    uint8_t getNumOfStreams() const {return m_numStreams;};
-    QCamera3Stream *getStreamByIndex(uint8_t index);
+    uint32_t getNumOfStreams() const {return m_numStreams;};
+    QCamera3Stream *getStreamByIndex(uint32_t index);
 
     static void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                 QCamera3Stream *stream, void *userdata);
@@ -100,7 +100,7 @@ public:
     void *mUserData;
     cam_padding_info_t *mPaddingInfo;
     QCamera3Stream *mStreams[MAX_STREAM_NUM_IN_BUNDLE];
-    uint8_t m_numStreams;
+    uint32_t m_numStreams;
 protected:
 
    virtual int32_t init(mm_camera_channel_attr_t *attr,
@@ -152,14 +152,14 @@ public:
     virtual int32_t registerBuffer(buffer_handle_t *buffer);
 
 public:
-    static int kMaxBuffers;
+    static uint32_t kMaxBuffers;
 protected:
     QCamera3GrallocMemory mMemory;
 private:
     int32_t initialize(struct private_handle_t *priv_handle);
 
     camera3_stream_t *mCamera3Stream;
-    uint32_t mNumBufs;
+    uint8_t mNumBufs;
     cam_stream_type_t mStreamType; // Stream type
 };
 
@@ -211,7 +211,7 @@ public:
                             QCamera3Stream *stream);
 
 public:
-    static int kMaxBuffers;
+    static uint32_t kMaxBuffers;
 
 private:
     bool mRawDump;
@@ -247,7 +247,7 @@ public:
     void dumpRawSnapshot(mm_camera_buf_def_t *frame);
 
 public:
-    static int kMaxBuffers;
+    static uint32_t kMaxBuffers;
     cam_dimension_t mDim;
 
 private:
@@ -300,10 +300,10 @@ public:
     int32_t queueReprocMetadata(mm_camera_super_buf_t *metadata);
 
 private:
-    int32_t queueJpegSetting(int32_t out_buf_index, metadata_buffer_t *metadata);
+    int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata);
 
 public:
-    static int kMaxBuffers;
+    static uint32_t kMaxBuffers;
     QCamera3PostProcessor m_postprocessor; // post processor
     cam_dimension_t m_max_pic_dim;
 
@@ -312,7 +312,7 @@ private:
     uint32_t mNumBufsRegistered;
     uint32_t mNumSnapshotBufs;
     uint32_t mYuvWidth, mYuvHeight;
-    int32_t mCurrentBufIndex;
+    uint32_t mCurrentBufIndex;
     cam_stream_type_t mStreamType;
     cam_format_t mStreamFormat;
     bool m_bWNROn;
@@ -346,7 +346,7 @@ public:
     virtual ~QCamera3ReprocessChannel();
     // offline reprocess
     int32_t doReprocessOffline(qcamera_fwk_input_pp_data_t *frame);
-    int32_t doReprocess(int buf_fd, uint32_t buf_length, int32_t &ret_val,
+    int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val,
                         mm_camera_super_buf_t *meta_buf);
     int32_t extractFrameAndCrop(mm_camera_super_buf_t *frame,
             mm_camera_buf_def_t *meta_buffer,
@@ -376,7 +376,7 @@ private:
     typedef struct {
         QCamera3Stream *stream;
         cam_mapping_buf_type type;
-        int index;
+        uint32_t index;
     } OfflineBuffer;
 
     android::List<OfflineBuffer> mOfflineBuffers;

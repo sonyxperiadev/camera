@@ -299,9 +299,15 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_dimension picture_size)
 
   memset(prop, 0x0, sizeof(prop));
   property_get("persist.camera.hal.debug", prop, "0");
-  gMmJpegIntfLogLevel = atoi(prop);
+  int val = atoi(prop);
+  if (0 <= val) {
+      gMmJpegIntfLogLevel = (uint32_t)val;
+  }
   property_get("persist.camera.global.debug", prop, "0");
-  globalLogLevel = atoi(prop);
+  val = atoi(prop);
+  if (0 <= val) {
+      globalLogLevel = (uint32_t)val;
+  }
 
   /* Highest log level among hal.logs and global.logs is selected */
   if (gMmJpegIntfLogLevel < globalLogLevel)

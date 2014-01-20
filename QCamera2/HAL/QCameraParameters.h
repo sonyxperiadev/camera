@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <utils/Errors.h>
 #include "cam_intf.h"
+#include "cam_types.h"
 #include "QCameraMem.h"
 #include "QCameraThermalAdapter.h"
 
@@ -66,16 +67,18 @@ public:
     virtual ~QCameraReprocScaleParam();
 
     virtual void setScaleEnable(bool enabled);
-    virtual int32_t setScaleSizeTbl(uint8_t scale_cnt, cam_dimension_t *scale_tbl, uint8_t org_cnt, cam_dimension_t *org_tbl);
+    virtual int32_t setScaleSizeTbl(size_t scale_cnt,
+            cam_dimension_t *scale_tbl, size_t org_cnt,
+            cam_dimension_t *org_tbl);
     virtual int32_t setValidatePicSize(int &width, int &height);
 
     virtual bool isScaleEnabled();
     virtual bool isUnderScaling();
 
 
-    virtual uint8_t getScaleSizeTblCnt();
+    virtual size_t getScaleSizeTblCnt();
     virtual cam_dimension_t *getScaledSizeTbl();
-    virtual uint8_t getTotalSizeTblCnt();
+    virtual size_t getTotalSizeTblCnt();
     virtual cam_dimension_t *getTotalSizeTbl();
     virtual int32_t getPicSizeFromAPK(int &width, int &height);
     virtual int32_t getPicSizeSetted(int &width, int &height);
@@ -84,7 +87,8 @@ private:
     bool isScalePicSize(int width, int height);
     bool isValidatePicSize(int width, int height);
     int32_t setSensorSupportedPicSize();
-    uint8_t checkScaleSizeTable(uint8_t scale_cnt, cam_dimension_t *scale_tbl, uint8_t org_cnt, cam_dimension_t *org_tbl);
+    size_t checkScaleSizeTable(size_t scale_cnt, cam_dimension_t *scale_tbl,
+            size_t org_cnt, cam_dimension_t *org_tbl);
 
     QCameraParameters *mParent;
     bool mScaleEnabled;
@@ -92,15 +96,15 @@ private:
     bool mScaleDirection;   // 0: Upscaling; 1: Downscaling
 
     // picture size cnt that need scale operation
-    uint8_t mNeedScaleCnt;
+    size_t mNeedScaleCnt;
     cam_dimension_t mNeedScaledSizeTbl[MAX_SCALE_SIZES_CNT];
 
     // sensor supported size cnt and table
-    uint8_t mSensorSizeTblCnt;
+    size_t mSensorSizeTblCnt;
     cam_dimension_t *mSensorSizeTbl;
 
     // Total size cnt (sensor supported + need scale cnt)
-    uint8_t mTotalSizeTblCnt;
+    size_t mTotalSizeTblCnt;
     cam_dimension_t mTotalSizeTbl[MAX_SIZES_CNT];
 
     cam_dimension_t mPicSizeFromAPK;   // dimension that APK is expected
@@ -493,14 +497,14 @@ public:
         CAMERA_ORIENTATION_PORTRAIT = 1,
         CAMERA_ORIENTATION_LANDSCAPE = 2,
     };
-    typedef struct {
+
+    template <typename valueType> struct QCameraMap {
         const char *const desc;
-        int val;
-    } QCameraMap;
+        valueType val;
+    };
 
     friend class QCameraReprocScaleParam;
     QCameraReprocScaleParam m_reprocScaleParam;
-    static const QCameraMap EFFECT_MODES_MAP[];
 
     void getSupportedHfrSizes(Vector<Size> &sizes);
     void setPreviewFrameRateMode(const char *mode);
@@ -529,10 +533,10 @@ public:
                                 cam_dimension_t &dim);
     void getThumbnailSize(int *width, int *height) const;
 
-    int getZSLBurstInterval();
-    int getZSLQueueDepth();
-    int getZSLBackLookCount();
-    int getMaxUnmatchedFramesInQueue();
+    uint8_t getZSLBurstInterval();
+    uint8_t getZSLQueueDepth();
+    uint8_t getZSLBackLookCount();
+    uint8_t getMaxUnmatchedFramesInQueue();
     bool isZSLMode() {return m_bZslMode;};
     bool isRdiMode() {return m_bRdiMode;};
     bool isSecureMode() {return m_bSecureMode;};
@@ -546,17 +550,17 @@ public:
     uint8_t getNumOfRetroSnapshots();
     uint8_t getNumOfExtraHDRInBufsIfNeeded();
     uint8_t getNumOfExtraHDROutBufsIfNeeded();
-    int getBurstNum();
+    uint8_t getBurstNum();
     int getBurstLEDOnPeriod();
     int getRetroActiveBurstNum();
     bool getRecordingHintValue() {return m_bRecordingHint;}; // return local copy of video hint
     int setRecordingHintValue(int32_t value); // set local copy of video hint and send to server
                                               // no change in parameters value
-    int getJpegQuality();
-    int getJpegRotation();
+    uint32_t getJpegQuality();
+    uint32_t getJpegRotation();
+    int32_t getEffectValue();
 
-    int32_t getExifDateTime(char *dateTime, char *subsecTime,
-        uint32_t &count, uint32_t &subsecCount);
+    int32_t getExifDateTime(String8 &dateTime, String8 &subsecTime);
     int32_t getExifFocalLength(rat_t *focalLenght);
     uint16_t getExifIsoSpeed();
     int32_t getExifGpsProcessingMethod(char *gpsProcessingMethod, uint32_t &count);
@@ -633,11 +637,11 @@ public:
     int32_t setLongshotEnable(bool enable);
     String8 dump();
     inline bool isUbiRefocus() {return m_bReFocusOn &&
-        (m_pCapability->refocus_af_bracketing_need.output_count > 1);};
-    inline uint32_t UfOutputCount() {
-        return m_pCapability->refocus_af_bracketing_need.output_count;};
+            (m_pCapability->refocus_af_bracketing_need.output_count > 1);};
+    inline uint8_t UfOutputCount() {
+            return m_pCapability->refocus_af_bracketing_need.output_count;};
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
-        isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus(); }
+            isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus(); }
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
     bool isAdvCamFeaturesEnabled() {return isUbiFocusEnabled() ||
@@ -761,7 +765,7 @@ private:
     int32_t setHDRNeed1x(const char *optiZoomStr);
     int32_t setRedeyeReduction(const char *redeyeStr);
     int32_t setWaveletDenoise(const char *wnrStr);
-    int32_t setFaceRecognition(const char *faceRecog, int maxFaces);
+    int32_t setFaceRecognition(const char *faceRecog, uint32_t maxFaces);
     int32_t setTintlessValue(const char *tintStr);
     bool UpdateHFRFrameRate(const QCameraParameters& params);
     int32_t setRdiMode(const char *str);
@@ -776,28 +780,20 @@ private:
     bool validateCameraAreas(cam_area_t *areas, int num_areas);
     int parseGPSCoordinate(const char *coord_str, rat_t *coord);
     int32_t getRational(rat_t *rat, int num, int denom);
-    String8 createSizesString(const cam_dimension_t *sizes, int len);
-    String8 createValuesString(const int *values, int len,
-                               const QCameraMap *map, int map_len);
-    String8 createValuesStringFromMap(const QCameraMap *map,
-                                      int map_len);
-    String8 createHfrValuesString(const cam_hfr_info_t *values, int len,
-                                  const QCameraMap *map, int map_len);
-    String8 createHfrSizesString(const cam_hfr_info_t *values, int len);
+    String8 createSizesString(const cam_dimension_t *sizes, size_t len);
+    String8 createHfrValuesString(const cam_hfr_info_t *values, size_t len,
+            const QCameraMap<cam_hfr_mode_t> *map, size_t map_len);
+    String8 createHfrSizesString(const cam_hfr_info_t *values, size_t len);
     String8 createFpsRangeString(const cam_fps_range_t *fps,
-                                 int len,
-                                 int &default_fps_index);
+            size_t len, int &default_fps_index);
     String8 createFpsString(cam_fps_range_t &fps);
     String8 createZoomRatioValuesString(uint32_t *zoomRatios, size_t length);
-    int lookupAttr(const QCameraMap arr[], int len, const char *name);
-    const char *lookupNameByValue(const QCameraMap arr[], int len, int value);
 
     // ops for batch set/get params with server
     int32_t initBatchUpdate(parm_buffer_t *p_table);
     int32_t AddSetParmEntryToBatch(parm_buffer_t *p_table,
-                                   cam_intf_parm_type_t paramType,
-                                   uint32_t paramLength,
-                                   void *paramValue);
+            cam_intf_parm_type_t paramType,
+            size_t paramLength, void *paramValue);
     int32_t commitSetBatch();
     int32_t AddGetParmEntryToBatch(parm_buffer_t *p_table,
                                    cam_intf_parm_type_t paramType);
@@ -809,33 +805,32 @@ private:
 
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
-    static const QCameraMap AUTO_EXPOSURE_MAP[];
-    static const QCameraMap PREVIEW_FORMATS_MAP[];
-    static const QCameraMap PICTURE_TYPES_MAP[];
-    static const QCameraMap RAW_FORMATS_MAP[];
-    static const QCameraMap FOCUS_MODES_MAP[];
-    static const QCameraMap SCENE_MODES_MAP[];
-    static const QCameraMap FLASH_MODES_MAP[];
-    static const QCameraMap FOCUS_ALGO_MAP[];
-    static const QCameraMap WHITE_BALANCE_MODES_MAP[];
-    static const QCameraMap ANTIBANDING_MODES_MAP[];
-    static const QCameraMap ISO_MODES_MAP[];
-    static const QCameraMap HFR_MODES_MAP[];
-    static const QCameraMap BRACKETING_MODES_MAP[];
-    static const QCameraMap ON_OFF_MODES_MAP[];
-    static const QCameraMap ENABLE_DISABLE_MODES_MAP[];
-    static const QCameraMap DENOISE_ON_OFF_MODES_MAP[];
-    static const QCameraMap TRUE_FALSE_MODES_MAP[];
-    static const QCameraMap TOUCH_AF_AEC_MODES_MAP[];
-    static const QCameraMap FLIP_MODES_MAP[];
-    static const QCameraMap AF_BRACKETING_MODES_MAP[];
-    static const QCameraMap RE_FOCUS_MODES_MAP[];
-    static const QCameraMap CHROMA_FLASH_MODES_MAP[];
-    static const QCameraMap OPTI_ZOOM_MODES_MAP[];
-    static const QCameraMap RDI_MODES_MAP[];
-    static const QCameraMap CDS_MODES_MAP[];
-    static const QCameraMap HDR_MODES_MAP[];
-    static const QCameraMap VIDEO_ROTATION_MODES_MAP[];
+    static const QCameraMap<cam_auto_exposure_mode_type> AUTO_EXPOSURE_MAP[];
+    static const QCameraMap<cam_format_t> PREVIEW_FORMATS_MAP[];
+    static const QCameraMap<cam_format_t> PICTURE_TYPES_MAP[];
+    static const QCameraMap<cam_focus_mode_type> FOCUS_MODES_MAP[];
+    static const QCameraMap<cam_effect_mode_type> EFFECT_MODES_MAP[];
+    static const QCameraMap<cam_scene_mode_type> SCENE_MODES_MAP[];
+    static const QCameraMap<cam_flash_mode_t> FLASH_MODES_MAP[];
+    static const QCameraMap<cam_focus_algorithm_type> FOCUS_ALGO_MAP[];
+    static const QCameraMap<cam_wb_mode_type> WHITE_BALANCE_MODES_MAP[];
+    static const QCameraMap<cam_antibanding_mode_type> ANTIBANDING_MODES_MAP[];
+    static const QCameraMap<cam_iso_mode_type> ISO_MODES_MAP[];
+    static const QCameraMap<cam_hfr_mode_t> HFR_MODES_MAP[];
+    static const QCameraMap<cam_bracket_mode> BRACKETING_MODES_MAP[];
+    static const QCameraMap<int> ON_OFF_MODES_MAP[];
+    static const QCameraMap<int> ENABLE_DISABLE_MODES_MAP[];
+    static const QCameraMap<int> DENOISE_ON_OFF_MODES_MAP[];
+    static const QCameraMap<int> TRUE_FALSE_MODES_MAP[];
+    static const QCameraMap<int> TOUCH_AF_AEC_MODES_MAP[];
+    static const QCameraMap<cam_flip_t> FLIP_MODES_MAP[];
+    static const QCameraMap<int> AF_BRACKETING_MODES_MAP[];
+    static const QCameraMap<int> RE_FOCUS_MODES_MAP[];
+    static const QCameraMap<int> CHROMA_FLASH_MODES_MAP[];
+    static const QCameraMap<int> OPTI_ZOOM_MODES_MAP[];
+    static const QCameraMap<cam_cds_mode_type_t> CDS_MODES_MAP[];
+    static const QCameraMap<int> HDR_MODES_MAP[];
+    static const QCameraMap<int> VIDEO_ROTATION_MODES_MAP[];
 
     cam_capability_t *m_pCapability;
     mm_camera_vtbl_t *m_pCamOpsTbl;
@@ -848,7 +843,7 @@ private:
     bool m_bRecordingHint;          // local copy of recording hint
     bool m_bRecordingHint_new;
     bool m_bHistogramEnabled;       // if histogram is enabled
-    int  m_nFaceProcMask;           // face process mask
+    uint32_t m_nFaceProcMask;       // face process mask
     bool m_bFaceDetectionOn;        //  if face Detection turned on by user
     bool m_bDebugFps;               // if FPS need to be logged
     cam_focus_mode_type mFocusMode;
@@ -860,7 +855,7 @@ private:
     bool m_bTNRPreviewOn;
     bool m_bTNRVideoOn;
     bool m_bInited;
-    int m_nBurstNum;
+    uint8_t m_nBurstNum;
     int m_nRetroBurstNum;
     int m_nBurstLEDOnPeriod;
     cam_exp_bracketing_t m_AEBracketingClient;

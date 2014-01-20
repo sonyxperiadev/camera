@@ -670,7 +670,7 @@ int mm_app_take_picture(mm_camera_test_obj_t *test_obj, uint8_t is_burst_mode)
 {
     CDBG_HIGH("\nEnter %s!!\n",__func__);
     int rc = MM_CAMERA_OK;
-    int num_snapshot = 1;
+    uint8_t num_snapshot = 1;
     int num_rcvd_snapshot = 0;
 
     if (is_burst_mode)

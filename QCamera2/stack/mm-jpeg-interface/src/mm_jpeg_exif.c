@@ -37,7 +37,8 @@
 #define LOWER(a)               ((a) & 0xFFFF)
 #define UPPER(a)               (((a)>>16) & 0xFFFF)
 #define CHANGE_ENDIAN_16(a)  ((0x00FF & ((a)>>8)) | (0xFF00 & ((a)<<8)))
-#define ROUND(a)((a >= 0) ? (long)(a + 0.5) : (long)(a - 0.5))
+#define ROUND(a) \
+        ((a >= 0) ? (uint32_t)(a + 0.5) : (uint32_t)(a - 0.5))
 
 
 /** addExifEntry:
@@ -62,7 +63,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
   exif_tag_type_t type, uint32_t count, void *data)
 {
     int32_t rc = 0;
-    int32_t numOfEntries = p_exif_info->numOfEntries;
+    uint32_t numOfEntries = (uint32_t)p_exif_info->numOfEntries;
     QEXIF_INFO_DATA *p_info_data = p_exif_info->exif_data;
     if(numOfEntries >= MAX_EXIF_TABLE_ENTRIES) {
         ALOGE("%s: Number of entries exceeded limit", __func__);
@@ -297,7 +298,6 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
 {
   int rc = 0;
   rat_t val_rat;
-  double av;
 
   if (NULL == p_sensor_params) {
     ALOGE("%s %d: Sensor params are null", __func__, __LINE__);
@@ -326,11 +326,12 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
   }
 
   /*Flash*/
-  short val_short, flash_mode_exif;
+  short val_short;
+  int flash_mode_exif, flash_fired;
   if (p_sensor_params->flash_state == CAM_FLASH_STATE_FIRED) {
-    val_short = 1;
+    flash_fired = 1;
   } else {
-    val_short = 0;
+    flash_fired = 0;
   }
   CDBG_HIGH("%s: Flash value %d flash mode %d flash state %d", __func__, val_short,
     p_sensor_params->flash_mode, p_sensor_params->flash_state);
@@ -349,14 +350,14 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
     flash_mode_exif = MM_JPEG_EXIF_FLASH_MODE_AUTO;
     ALOGE("%s:%d]: Unsupported flash mode", __func__, __LINE__);
   }
-  val_short |= flash_mode_exif << 3;
+  val_short = (short)(flash_fired | (flash_mode_exif << 3));
 
   rc = addExifEntry(exif_info, EXIFTAGID_FLASH, EXIF_SHORT, 1, &val_short);
   if (rc) {
     ALOGE("%s %d]: Error adding flash exif entry", __func__, __LINE__);
   }
   /* Sensing Method */
-  val_short = p_sensor_params->sensing_method;
+  val_short = (short) p_sensor_params->sensing_method;
   rc = addExifEntry(exif_info, EXIFTAGID_SENSING_METHOD, EXIF_SHORT,
     sizeof(val_short)/2, &val_short);
   if (rc) {
@@ -364,7 +365,8 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
   }
 
   /*Focal Length in 35 MM Film */
-  val_short = (short) p_sensor_params->focal_length*p_sensor_params->crop_factor;
+  val_short =
+    (short) (p_sensor_params->focal_length * p_sensor_params->crop_factor);
   rc = addExifEntry(exif_info, EXIFTAGID_FOCAL_LENGTH_35MM, EXIF_SHORT, 1, &val_short);
   if (rc) {
     ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
@@ -411,14 +413,15 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
     p_3a_params->exp_time, p_3a_params->iso_value, p_3a_params->wb_mode);
 
   /*Exposure time*/
-  if (p_3a_params->exp_time == 0) {
+  if (0.0f >= p_3a_params->exp_time) {
       val_rat.num = 0;
       val_rat.denom = 0;
   } else {
       val_rat.num = 1;
       val_rat.denom = ROUND(1.0/p_3a_params->exp_time);
   }
-  CDBG_HIGH("%s: numer %d denom %d %d", __func__, val_rat.num, val_rat.denom, sizeof(val_rat)/(8));
+  CDBG_HIGH("%s: numer %d denom %d %zd", __func__, val_rat.num, val_rat.denom,
+      sizeof(val_rat) / (8));
 
   rc = addExifEntry(exif_info, EXIFTAGID_EXPOSURE_TIME, EXIF_RATIONAL,
     (sizeof(val_rat)/(8)), &val_rat);
@@ -430,7 +433,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   /* Shutter Speed*/
   if (p_3a_params->exp_time > 0) {
     shutter_speed_value = log10(1/p_3a_params->exp_time)/log10(2);
-    val_srat.num = shutter_speed_value * 1000;
+    val_srat.num = (int32_t)(shutter_speed_value * 1000);
     val_srat.denom = 1000;
   } else {
     val_srat.num = 0;
@@ -444,7 +447,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
 
   /*ISO*/
   short val_short;
-  val_short = p_3a_params->iso_value;
+  val_short = (short)p_3a_params->iso_value;
   rc = addExifEntry(exif_info, EXIFTAGID_ISO_SPEED_RATING, EXIF_SHORT,
     sizeof(val_short)/2, &val_short);
   if (rc) {
@@ -463,7 +466,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   }
 
   /* Metering Mode   */
-  val_short = (unsigned short) p_3a_params->metering_mode;
+  val_short = (short) p_3a_params->metering_mode;
   rc = addExifEntry(exif_info,EXIFTAGID_METERING_MODE, EXIF_SHORT,
      sizeof(val_short)/2, &val_short);
   if (rc) {
@@ -471,7 +474,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
    }
 
   /*Exposure Program*/
-   val_short = (unsigned short) p_3a_params->exposure_program;
+   val_short = (short) p_3a_params->exposure_program;
    rc = addExifEntry(exif_info,EXIFTAGID_EXPOSURE_PROGRAM, EXIF_SHORT,
       sizeof(val_short)/2, &val_short);
    if (rc) {
@@ -479,7 +482,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
     }
 
    /*Exposure Mode */
-    val_short = (unsigned short) p_3a_params->exposure_mode;
+    val_short = (short) p_3a_params->exposure_mode;
     rc = addExifEntry(exif_info,EXIFTAGID_EXPOSURE_MODE, EXIF_SHORT,
        sizeof(val_short)/2, &val_short);
     if (rc) {
@@ -499,7 +502,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
        p_3a_params->brightness);
 
     /* Brightness Value*/
-     val_srat.num = p_3a_params->brightness*100;
+     val_srat.num = (int32_t) (p_3a_params->brightness * 100.0f);
      val_srat.denom = 100;
      rc = addExifEntry(exif_info,EXIFTAGID_BRIGHTNESS, EXIF_SRATIONAL,
                  (sizeof(val_srat)/(8)), &val_srat);
@@ -569,13 +572,14 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
     int64_t *sensor_exposure_time =
       (int64_t *)POINTER_OF_META(CAM_INTF_META_SENSOR_EXPOSURE_TIME, p_meta);
     if (NULL != sensor_exposure_time) {
-      p_3a_params.exp_time = (double)(*sensor_exposure_time / 1000000000.0);
+      p_3a_params.exp_time =
+        (float)((double)(*sensor_exposure_time) / 1000000000.0);
     } else {
       ALOGE("%s: Cannot extract Exp time value", __func__);
     }
 
-    cam_wb_mode_type *wb_mode =
-      (cam_wb_mode_type *)POINTER_OF_META(CAM_INTF_PARM_WHITE_BALANCE, p_meta);
+    int32_t *wb_mode =
+      (int32_t *)POINTER_OF_META(CAM_INTF_PARM_WHITE_BALANCE, p_meta);
     if (NULL != wb_mode) {
       p_3a_params.wb_mode = *wb_mode;
     } else {
@@ -597,10 +601,10 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
       ALOGE("%s: Cannot extract flash mode value", __func__);
     }
 
-    uint8_t *flash_state =
-      (uint8_t *) POINTER_OF_META(CAM_INTF_META_FLASH_STATE, p_meta);
+    int32_t *flash_state =
+      (int32_t *) POINTER_OF_META(CAM_INTF_META_FLASH_STATE, p_meta);
     if (NULL != flash_state) {
-      p_sensor_params.flash_state = *flash_state;
+      p_sensor_params.flash_state = (cam_flash_state_t)*flash_state;
     } else {
       ALOGE("%s: Cannot extract flash state value", __func__);
     }
