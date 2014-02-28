@@ -37,7 +37,7 @@ static void jpeg_encode_cb(jpeg_job_status_t status,
                            mm_jpeg_output_t *p_buf,
                            void *userData)
 {
-    int i = 0;
+    uint32_t i = 0;
     mm_camera_test_obj_t *pme = NULL;
     CDBG("%s: BEGIN\n", __func__);
 
@@ -180,7 +180,7 @@ int createEncodingSession(mm_camera_test_obj_t *test_obj,
 static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   void *user_data)
 {
-  int i = 0;
+  uint32_t i = 0;
   mm_camera_channel_t *channel = NULL;
   mm_camera_stream_t *p_stream = NULL;
   mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
@@ -267,7 +267,7 @@ static void mm_app_snapshot_notify_cb_raw(mm_camera_super_buf_t *bufs,
 {
 
     int rc;
-    int i = 0;
+    uint32_t i = 0;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
     mm_camera_channel_t *channel = NULL;
     mm_camera_stream_t *m_stream = NULL;
@@ -335,7 +335,7 @@ static void mm_app_snapshot_notify_cb(mm_camera_super_buf_t *bufs,
 {
 
     int rc = 0;
-    int i = 0;
+    uint32_t i = 0;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
     mm_camera_channel_t *channel = NULL;
     mm_camera_stream_t *p_stream = NULL;

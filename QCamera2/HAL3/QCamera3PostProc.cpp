@@ -1176,7 +1176,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
 
     // find snapshot frame and thumnail frame
     //Note: In this version we will receive only snapshot frame.
-    for (int i = 0; i < recvd_frame->num_bufs; i++) {
+    for (uint32_t i = 0; i < recvd_frame->num_bufs; i++) {
         QCamera3Stream *srcStream =
             srcChannel->getStreamByHandle(recvd_frame->bufs[i]->stream_id);
         if (srcStream != NULL) {

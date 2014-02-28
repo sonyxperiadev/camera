@@ -63,52 +63,52 @@ typedef struct{
 
     uint16_t isWnrSupported;
     /* supported iso modes */
-    uint8_t supported_iso_modes_cnt;
+    size_t supported_iso_modes_cnt;
     cam_iso_mode_type supported_iso_modes[CAM_ISO_MODE_MAX];
 
     /* supported flash modes */
-    uint8_t supported_flash_modes_cnt;
+    size_t supported_flash_modes_cnt;
     cam_flash_mode_t supported_flash_modes[CAM_FLASH_MODE_MAX];
 
-    uint8_t zoom_ratio_tbl_cnt;                             /* table size for zoom ratios */
-    int zoom_ratio_tbl[MAX_ZOOMS_CNT];                      /* zoom ratios table */
+    size_t zoom_ratio_tbl_cnt;                              /* table size for zoom ratios */
+    uint32_t zoom_ratio_tbl[MAX_ZOOMS_CNT];                 /* zoom ratios table */
 
     /* supported effect modes */
-    uint8_t supported_effects_cnt;
+    size_t supported_effects_cnt;
     cam_effect_mode_type supported_effects[CAM_EFFECT_MODE_MAX];
 
     /* supported scene modes */
-    uint8_t supported_scene_modes_cnt;
+    size_t supported_scene_modes_cnt;
     cam_scene_mode_type supported_scene_modes[CAM_SCENE_MODE_MAX];
 
     /* supported auto exposure modes */
-    uint8_t supported_aec_modes_cnt;
+    size_t supported_aec_modes_cnt;
     cam_auto_exposure_mode_type supported_aec_modes[CAM_AEC_MODE_MAX];
 
-    uint8_t fps_ranges_tbl_cnt;                             /* fps ranges table size */
+    size_t fps_ranges_tbl_cnt;                              /* fps ranges table size */
     cam_fps_range_t fps_ranges_tbl[MAX_SIZES_CNT];          /* fps ranges table */
 
     /* supported antibanding modes */
-    uint8_t supported_antibandings_cnt;
+    size_t supported_antibandings_cnt;
     cam_antibanding_mode_type supported_antibandings[CAM_ANTIBANDING_MODE_MAX];
 
     /* supported white balance modes */
-    uint8_t supported_white_balances_cnt;
+    size_t supported_white_balances_cnt;
     cam_wb_mode_type supported_white_balances[CAM_WB_MODE_MAX];
 
     /* supported focus modes */
-    uint8_t supported_focus_modes_cnt;
+    size_t supported_focus_modes_cnt;
     cam_focus_mode_type supported_focus_modes[CAM_FOCUS_MODE_MAX];
 
-    int exposure_compensation_min;       /* min value of exposure compensation index */
-    int exposure_compensation_max;       /* max value of exposure compensation index */
-    int exposure_compensation_default;   /* default value of exposure compensation index */
+    int32_t exposure_compensation_min;       /* min value of exposure compensation index */
+    int32_t exposure_compensation_max;       /* max value of exposure compensation index */
+    int32_t exposure_compensation_default;   /* default value of exposure compensation index */
     float exposure_compensation_step;
     cam_rational_type_t exp_compensation_step;    /* exposure compensation step value */
 
     uint8_t video_stablization_supported; /* flag id video stablization is supported */
 
-    uint8_t picture_sizes_tbl_cnt;                          /* picture sizes table size */
+    size_t picture_sizes_tbl_cnt;                           /* picture sizes table size */
     cam_dimension_t picture_sizes_tbl[MAX_SIZES_CNT];       /* picture sizes table */
     /* The minimum frame duration that is supported for each
      * resolution in availableProcessedSizes. Should correspond
@@ -118,47 +118,47 @@ typedef struct{
 
     /* capabilities specific to HAL 1 */
 
-    int modes_supported;                                    /* mask of modes supported: 2D, 3D */
+    int32_t modes_supported;                                /* mask of modes supported: 2D, 3D */
     uint32_t sensor_mount_angle;                            /* sensor mount angle */
 
     float focal_length;                                     /* focal length */
     float hor_view_angle;                                   /* horizontal view angle */
     float ver_view_angle;                                   /* vertical view angle */
 
-    uint8_t preview_sizes_tbl_cnt;                          /* preview sizes table size */
+    size_t preview_sizes_tbl_cnt;                           /* preview sizes table size */
     cam_dimension_t preview_sizes_tbl[MAX_SIZES_CNT];       /* preiew sizes table */
 
-    uint8_t video_sizes_tbl_cnt;                            /* video sizes table size */
+    size_t video_sizes_tbl_cnt;                             /* video sizes table size */
     cam_dimension_t video_sizes_tbl[MAX_SIZES_CNT];         /* video sizes table */
 
 
-    uint8_t livesnapshot_sizes_tbl_cnt;                     /* livesnapshot sizes table size */
+    size_t livesnapshot_sizes_tbl_cnt;                      /* livesnapshot sizes table size */
     cam_dimension_t livesnapshot_sizes_tbl[MAX_SIZES_CNT];  /* livesnapshot sizes table */
 
-    uint8_t hfr_tbl_cnt;                                    /* table size for HFR */
+    size_t hfr_tbl_cnt;                                     /* table size for HFR */
     cam_hfr_info_t hfr_tbl[CAM_HFR_MODE_MAX];               /* HFR table */
 
     /* supported preview formats */
-    uint8_t supported_preview_fmt_cnt;
+    size_t supported_preview_fmt_cnt;
     cam_format_t supported_preview_fmts[CAM_FORMAT_MAX];
 
     /* supported picture formats */
-    uint8_t supported_picture_fmt_cnt;
+    size_t supported_picture_fmt_cnt;
     cam_format_t supported_picture_fmts[CAM_FORMAT_MAX];
 
     uint8_t max_downscale_factor;
 
     /* dimension and supported output format of raw dump from camif */
-    uint8_t supported_raw_dim_cnt;
+    size_t supported_raw_dim_cnt;
     cam_dimension_t raw_dim[MAX_SIZES_CNT];
-    uint8_t supported_raw_fmt_cnt;
+    size_t supported_raw_fmt_cnt;
     cam_format_t supported_raw_fmts[CAM_FORMAT_MAX];
     /* The minimum frame duration that is supported for above
        raw resolution */
     int64_t raw_min_duration[MAX_SIZES_CNT];
 
     /* supported focus algorithms */
-    uint8_t supported_focus_algos_cnt;
+    size_t supported_focus_algos_cnt;
     cam_focus_algorithm_type supported_focus_algos[CAM_FOCUS_ALGO_MAX];
 
 
@@ -186,7 +186,7 @@ typedef struct{
     uint32_t qcom_supported_feature_mask; /* mask of qcom specific features supported:
                                            * such as CAM_QCOM_FEATURE_SUPPORTED_FACE_DETECTION*/
     cam_padding_info_t padding_info;      /* padding information from PP */
-    int8_t min_num_pp_bufs;               /* minimum number of buffers needed by postproc module */
+    uint32_t min_num_pp_bufs;             /* minimum number of buffers needed by postproc module */
     uint32_t min_required_pp_mask;        /* min required pp feature masks for ZSL.
                                            * depends on hardware limitation, i.e. for 8974,
                                            * sharpness is required for all ZSL snapshot frames */
@@ -248,7 +248,7 @@ typedef struct{
     int64_t flash_charge_duration;
 
     /* flash firing power */
-    uint8_t supported_flash_firing_level_cnt;
+    size_t supported_flash_firing_level_cnt;
     cam_format_t supported_firing_levels[CAM_FLASH_FIRING_LEVEL_MAX];
 
     /* Flash Firing Time */
@@ -265,7 +265,7 @@ typedef struct{
     int32_t max_tone_map_curve_points;
 
     /* supported formats */
-    uint8_t supported_scalar_format_cnt;
+    size_t supported_scalar_format_cnt;
     cam_format_t supported_scalar_fmts[CAM_FORMAT_MAX];
 
     uint32_t max_face_detection_count;
@@ -282,7 +282,7 @@ typedef struct{
     int32_t max_sharpness_map_value;
 
     /*Autoexposure modes for camera 3 api*/
-    uint8_t supported_ae_modes_cnt;
+    size_t supported_ae_modes_cnt;
     cam_ae_mode_type supported_ae_modes[CAM_AE_MODE_MAX];
 
 
@@ -291,7 +291,7 @@ typedef struct{
 
     /* picture sizes need scale*/
     cam_scene_mode_overrides_t scene_mode_overrides[CAM_SCENE_MODE_MAX];
-    uint8_t scale_picture_sizes_cnt;
+    size_t scale_picture_sizes_cnt;
     cam_dimension_t scale_picture_sizes[MAX_SCALE_SIZES_CNT];
 
     uint8_t flash_available;
@@ -355,14 +355,14 @@ typedef enum {
 } cam_stream_param_type_e;
 
 typedef struct {
-    uint8_t buf_index;            /* buf index to the source frame buffer that needs reprocess,
+    uint32_t buf_index;           /* buf index to the source frame buffer that needs reprocess,
                                     (assume buffer is already mapped)*/
     uint32_t frame_idx;           /* frame id of source frame to be reprocessed */
     int32_t ret_val;              /* return value from reprocess. Could have different meanings.
                                      i.e., faceID in the case of face registration. */
     uint8_t meta_present;         /* if there is meta data associated with this reprocess frame */
     uint32_t meta_stream_handle;  /* meta data stream ID. only valid if meta_present != 0 */
-    uint8_t meta_buf_index;       /* buf index to meta data buffer. only valid if meta_present != 0 */
+    uint32_t meta_buf_index;      /* buf index to meta data buffer. only valid if meta_present != 0 */
 
     cam_per_frame_pp_config_t frame_pp_config; /* per frame post-proc configuration */
 
@@ -381,9 +381,9 @@ typedef struct {
     cam_dimension_t input; /* input dimension of the image */
     cam_dimension_t output; /* output dimension of the image */
     char name[IMG_NAME_SIZE]; /* optional name of the ext*/
-    int is_raw_image; /* image is raw */
+    uint32_t is_raw_image; /* image is raw */
     cam_format_t format; /* image format */
-    int analysis_image; /* image is used for analysis. hence skip thumbnail */
+    uint32_t analysis_image; /* image is used for analysis. hence skip thumbnail */
     uint32_t size; /* size of the image */
 } cam_stream_img_prop_t;
 
@@ -418,7 +418,7 @@ typedef struct {
     cam_stream_buf_plane_info_t buf_planes;
 
     /* number of stream bufs will be allocated */
-    uint8_t num_bufs;
+    uint32_t num_bufs;
 
     /* streaming type */
     cam_streaming_mode_t streaming_mode;
