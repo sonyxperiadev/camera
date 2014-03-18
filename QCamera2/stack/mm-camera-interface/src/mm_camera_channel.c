@@ -2389,8 +2389,10 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
         }
     }
     if ( found_super_buf ) {
+            if(super_buf->super_buf[buf_s_idx].frame_idx != 0) {
+               CDBG_ERROR(" %s : **** ERROR CASE Same stream is already in queue! **** ", __func__);
+            }
             super_buf->super_buf[buf_s_idx] = *buf_info;
-
             /* check if superbuf is all matched */
             super_buf->matched = 1;
             for (i=0; i < super_buf->num_of_bufs; i++) {
