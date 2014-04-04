@@ -2813,7 +2813,7 @@ int QCamera2HardwareInterface::takePicture()
             stopChannel(QCAMERA_CH_TYPE_PREVIEW);
             delChannel(QCAMERA_CH_TYPE_PREVIEW);
 
-            rc = mParameters.updateRAW(gCamCaps[mCameraId]->raw_dim);
+            rc = mParameters.updateRAW(gCamCaps[mCameraId]->raw_dim[0]);
             if (NO_ERROR != rc) {
                 ALOGE("%s: Raw dimension update failed %d", __func__, rc);
                 return rc;
