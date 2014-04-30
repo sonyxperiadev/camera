@@ -3036,14 +3036,31 @@ int QCamera2HardwareInterface::cancelPicture()
     if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         configureAFBracketing(false);
     }
+
     if (mParameters.isChromaFlashEnabled()) {
       configureFlashBracketing(false);
     }
-    if(mParameters.isOptiZoomEnabled()) {
-        CDBG_HIGH("%s: Restoring previous zoom value!!",__func__);
-        mParameters.setAndCommitZoom(mZoomLevel);
-    }
     return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : captureDone
+ *
+ * DESCRIPTION: Function called when the capture is completed before encoding
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera2HardwareInterface::captureDone()
+{
+    if (mParameters.isOptiZoomEnabled() &&
+            ++mOutputCount >= mParameters.getBurstCountForAdvancedCapture()) {
+        CDBG_HIGH("%s:%d] Restoring previous zoom value!!", __func__,
+                __LINE__);
+        mParameters.setAndCommitZoom(mZoomLevel);
+        mOutputCount = 0;
+    }
 }
 
 /*===========================================================================

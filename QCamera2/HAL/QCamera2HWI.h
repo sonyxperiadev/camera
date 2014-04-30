@@ -449,6 +449,7 @@ private:
     inline void setOutputImageCount(uint32_t aCount) {mOutputCount = aCount;}
     inline uint32_t getOutputImageCount() {return mOutputCount;}
     bool processUFDumps(qcamera_jpeg_evt_payload_t *evt);
+    void captureDone();
 
     static void copyList(cam_dimension_t* src_list,
                    cam_dimension_t* dst_list, uint8_t len);

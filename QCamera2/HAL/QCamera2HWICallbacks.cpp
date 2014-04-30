@@ -118,6 +118,9 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
       }
     }
 
+    /* indicate the parent that capture is done */
+    pme->captureDone();
+
     // save a copy for the superbuf
     mm_camera_super_buf_t* frame =
                (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
