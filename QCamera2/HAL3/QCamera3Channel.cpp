@@ -1013,7 +1013,7 @@ void QCamera3RawChannel::convertLegacyToRaw16(mm_camera_buf_def_t *frame)
     for (int32_t ys = dim.height - 1; ys >= 0; ys--) {
         uint32_t y = (uint32_t)ys;
         uint64_t* row_start = (uint64_t *)frame->buffer +
-            y * (uint32_t)offset.mp[0].stride / 6;
+            y * (uint32_t)offset.mp[0].stride_in_bytes / 8;
         for (int32_t xs = dim.width - 1; xs >= 0; xs--) {
             uint32_t x = (uint32_t)xs;
             uint16_t raw16_pixel = 0x3FF & (row_start[x/6] >> (10*(x%6)));
@@ -1051,7 +1051,7 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
     for (int32_t ys = dim.height - 1; ys >= 0; ys--) {
         uint32_t y = (uint32_t)ys;
         uint8_t* row_start = (uint8_t *)frame->buffer +
-            y * (uint32_t)offset.mp[0].stride;
+            y * (uint32_t)offset.mp[0].stride_in_bytes;
         for (int32_t xs = dim.width - 1; xs >= 0; xs--) {
             uint32_t x = (uint32_t)xs;
             uint8_t upper_8bit = row_start[5*(x/4)+x%4];

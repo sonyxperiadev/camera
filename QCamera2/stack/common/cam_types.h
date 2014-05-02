@@ -345,6 +345,7 @@ typedef struct{
     int32_t offset_x;
     int32_t offset_y;
     int32_t stride;
+    int32_t stride_in_bytes;
     int32_t scanline;
     int32_t width;    /* width without padding */
     int32_t height;   /* height without padding */
