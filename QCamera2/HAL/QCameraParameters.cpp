@@ -35,6 +35,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <gralloc_priv.h>
+#include <sys/sysinfo.h>
 #include "QCamera2HWI.h"
 #include "QCameraParameters.h"
 
@@ -130,6 +131,8 @@ const char QCameraParameters::KEY_QC_SUPPORTED_RDI_MODES[] = "rdi-mode-values";
 const char QCameraParameters::KEY_QC_SECURE_MODE[] = "secure-mode";
 const char QCameraParameters::KEY_QC_SUPPORTED_SECURE_MODES[] = "secure-mode-values";
 const char QCameraParameters::KEY_QC_AUTO_HDR_SUPPORTED[] = "auto-hdr-supported";
+const char QCameraParameters::KEY_QC_LONGSHOT_SUPPORTED[] = "longshot-supported";
+const char QCameraParameters::KEY_QC_ZSL_HDR_SUPPORTED[] = "zsl-hdr-supported";
 
 // Values for effect settings.
 const char QCameraParameters::EFFECT_EMBOSS[] = "emboss";
@@ -601,6 +604,7 @@ const QCameraParameters::QCameraMap QCameraParameters::CDS_MODES_MAP[] = {
 
 #define DEFAULT_CAMERA_AREA "(0, 0, 0, 0, 0)"
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
+#define TOTAL_RAM_SIZE_512MB 536870912
 
 /*===========================================================================
  * FUNCTION   : QCameraParameters
@@ -4528,6 +4532,20 @@ int32_t QCameraParameters::initDefaultParameters()
     // Set default burst number
     set(KEY_QC_SNAPSHOT_BURST_NUM, 0);
     set(KEY_QC_NUM_RETRO_BURST_PER_SHUTTER, 0);
+
+    //Get RAM size and disable features which are memory rich
+    struct sysinfo info;
+    sysinfo(&info);
+
+    CDBG_HIGH("%s: totalram = %ld, freeram = %ld ", __func__, info.totalram,
+        info.freeram);
+    if (info.totalram > TOTAL_RAM_SIZE_512MB) {
+        set(KEY_QC_LONGSHOT_SUPPORTED, VALUE_TRUE);
+        set(KEY_QC_ZSL_HDR_SUPPORTED, VALUE_TRUE);
+    } else {
+        set(KEY_QC_LONGSHOT_SUPPORTED, VALUE_FALSE);
+        set(KEY_QC_ZSL_HDR_SUPPORTED, VALUE_FALSE);
+    }
 
     int32_t rc = commitParameters();
     if (rc == NO_ERROR) {

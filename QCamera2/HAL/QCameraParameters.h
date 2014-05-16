@@ -260,6 +260,11 @@ public:
 
     // Auto HDR supported
     static const char KEY_QC_AUTO_HDR_SUPPORTED[];
+    //Longshot
+    static const char KEY_QC_LONGSHOT_SUPPORTED[];
+
+    //ZSL+HDR
+    static const char KEY_QC_ZSL_HDR_SUPPORTED[];
 
     // Values for Touch AF/AEC
     static const char TOUCH_AF_AEC_OFF[];
