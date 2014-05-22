@@ -359,6 +359,7 @@ private:
     inline bool getCancelAutoFocus(){ return mCancelAutoFocus; }
     inline void setCancelAutoFocus(bool flag){ mCancelAutoFocus = flag; }
     QCameraExif *getExifData();
+    cam_sensor_t getSensorType();
 
     int32_t processAutoFocusEvent(cam_auto_focus_data_t &focus_data);
     int32_t processZoomEvent(cam_crop_data_t &crop_info);

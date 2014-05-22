@@ -587,9 +587,11 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
       ALOGE("%s: Cannot extract flash state value", __func__);
     }
   }
-  rc = process_3a_data(&p_3a_params, exif_info);
-  if (rc) {
-    ALOGE("%s %d: Failed to add 3a exif params", __func__, __LINE__);
+  if ((hal_version != CAM_HAL_V1) || (p_sensor_params.sens_type != CAM_SENSOR_YUV)) {
+    rc = process_3a_data(&p_3a_params, exif_info);
+    if (rc) {
+      ALOGE("%s %d: Failed to add 3a exif params", __func__, __LINE__);
+    }
   }
 
   rc = process_sensor_data(&p_sensor_params, exif_info);

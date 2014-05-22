@@ -327,6 +327,9 @@ typedef struct{
     cam_rational_type_t calibration_transform1[3][3];
     cam_rational_type_t calibration_transform2[3][3];
     uint16_t isCacSupported;
+
+    /* Sensor type information */
+    cam_sensor_type_t sensor_type;
 } cam_capability_t;
 
 typedef enum {
