@@ -369,7 +369,7 @@ typedef struct{
     /* Max size supported by ISP viewfinder path */
     cam_dimension_t max_viewfinder_size;
 
-    /*Analysis recommended size*/
+    /* Analysis recommended size */
     cam_dimension_t analysis_recommended_res;
 
     /* This is set to 'true' if sensor cannot guarantee per frame control */
@@ -377,12 +377,12 @@ typedef struct{
     /* control is supported */
     uint8_t no_per_frame_control_support;
 
-    /*EIS information*/
+    /* EIS information */
     uint8_t supported_is_types_cnt;
     uint32_t supported_is_types[IS_TYPE_MAX];
     /*for each type, specify the margin needed. Margin will be
       the decimal representation of a percentage
-      ex: 10% margin = 0.1*/
+      ex: 10% margin = 0.1 */
     float supported_is_type_margins[IS_TYPE_MAX];
 } cam_capability_t;
 
@@ -493,17 +493,64 @@ typedef struct {
         DATATYPE member_variable_##PARAM_ID[ COUNT ]
 
 #define POINTER_OF_META(META_ID, TABLE_PTR) \
-        &TABLE_PTR->data.member_variable_##META_ID
-
-#define POINTER_OF_PARAM POINTER_OF_META
-
-#define IS_META_AVAILABLE(META_ID, TABLE_PTR) \
-        TABLE_PTR->is_valid[META_ID]
-
-#define IS_PARAM_AVAILABLE IS_META_AVAILABLE
+        ((NULL != TABLE_PTR) ? \
+            (&TABLE_PTR->data.member_variable_##META_ID[ 0 ]) : (NULL))
 
 #define SIZE_OF_PARAM(META_ID, TABLE_PTR) \
-         sizeof(TABLE_PTR->data.member_variable_##META_ID)
+        sizeof(TABLE_PTR->data.member_variable_##META_ID)
+
+#define IF_META_AVAILABLE(META_TYPE, META_PTR_NAME, META_ID, TABLE_PTR) \
+        META_TYPE *META_PTR_NAME = \
+        (((NULL != TABLE_PTR) && (TABLE_PTR->is_valid[META_ID])) ? \
+            (&TABLE_PTR->data.member_variable_##META_ID[ 0 ]) : \
+            (NULL)); \
+        if (NULL != META_PTR_NAME) \
+
+#define ADD_SET_PARAM_ENTRY_TO_BATCH(TABLE_PTR, META_ID, DATA) \
+    ((NULL != TABLE_PTR) ? \
+    ((TABLE_PTR->data.member_variable_##META_ID[ 0 ] = DATA), \
+    (TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
+    ((ALOGE("%s: %d, Unable to set metadata TABLE_PTR:%p META_ID:%d", \
+    __func__, __LINE__, TABLE_PTR, META_ID)), (-1))) \
+
+#define ADD_SET_PARAM_ARRAY_TO_BATCH(TABLE_PTR, META_ID, PDATA, COUNT, RCOUNT) \
+{ \
+    if ((NULL != TABLE_PTR) && \
+            (0 < COUNT) && \
+            ((sizeof(TABLE_PTR->data.member_variable_##META_ID) / \
+            sizeof(TABLE_PTR->data.member_variable_##META_ID[ 0 ])) \
+            >= COUNT))  { \
+        for (size_t _i = 0; _i < COUNT ; _i++) { \
+            TABLE_PTR->data.member_variable_##META_ID[ _i ] = PDATA [ _i ]; \
+        } \
+        TABLE_PTR->is_valid[META_ID] = 1; \
+        RCOUNT = COUNT; \
+    } else { \
+        ALOGE("%s: %d, Unable to set metadata TABLE_PTR:%p META_ID:%d COUNT:%zu", \
+                __func__, __LINE__, TABLE_PTR, META_ID, COUNT); \
+        RCOUNT = 0; \
+    } \
+}
+
+#define ADD_GET_PARAM_ENTRY_TO_BATCH(TABLE_PTR, META_ID) \
+{ \
+    if (NULL != TABLE_PTR) { \
+        TABLE_PTR->is_reqd[META_ID] = 1; \
+    } else { \
+        ALOGE("%s: %d, Unable to get metadata TABLE_PTR:%p META_ID:%d", \
+                __func__, __LINE__, TABLE_PTR, META_ID); \
+    } \
+}
+
+#define READ_PARAM_ENTRY(TABLE_PTR, META_ID, DATA) \
+{ \
+    if (NULL != TABLE_PTR) { \
+        DATA = TABLE_PTR->data.member_variable_##META_ID[ 0 ]; \
+    } else { \
+        ALOGE("%s: %d, Unable to read metadata TABLE_PTR:%p META_ID:%d", \
+                __func__, __LINE__, TABLE_PTR, META_ID); \
+    } \
+}
 
 typedef struct {
 /**************************************************************************************
@@ -644,6 +691,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_HDR_NEED_1X,                  int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_LOCK_CAF,                     int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_VIDEO_HDR,                    int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_SENSOR_HDR,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_VT,                           int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_GET_CHROMATIX,                tune_chromatix_t,            1);
     INCLUDE(CAM_INTF_PARM_SET_RELOAD_CHROMATIX,         tune_chromatix_t,            1);
@@ -685,7 +733,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_FOCUS_BRACKETING,             cam_af_bracketing_t,         1);
     INCLUDE(CAM_INTF_PARM_FLASH_BRACKETING,             cam_flash_bracketing_t,      1);
     INCLUDE(CAM_INTF_META_JPEG_GPS_COORDINATES,         double,                      3);
-    INCLUDE(CAM_INTF_META_JPEG_GPS_PROC_METHODS,        uint32_t,                    GPS_PROCESSING_METHOD_SIZE_IN_WORD);
+    INCLUDE(CAM_INTF_META_JPEG_GPS_PROC_METHODS,        uint8_t,                     GPS_PROCESSING_METHOD_SIZE);
     INCLUDE(CAM_INTF_META_JPEG_GPS_TIMESTAMP,           int64_t,                     1);
     INCLUDE(CAM_INTF_META_JPEG_ORIENTATION,             int32_t,                     1);
     INCLUDE(CAM_INTF_META_JPEG_QUALITY,                 uint32_t,                    1);
@@ -698,9 +746,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_NEUTRAL_COL_POINT,            cam_neutral_col_point_t,     1);
     INCLUDE(CAM_INTF_PARM_ROTATION,                     cam_rotation_info_t,         1);
     INCLUDE(CAM_INTF_META_IMGLIB,                       cam_intf_meta_imglib_t,      1);
-} parm_data_t;
-
-typedef parm_data_t metadata_data_t;
+} metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
  * or removed from this structure */
@@ -743,11 +789,6 @@ typedef metadata_buffer_t parm_buffer_t;
 #ifdef  __cplusplus
 extern "C" {
 #endif
-
-void *get_pointer_of(cam_intf_parm_type_t meta_id,
-        const metadata_buffer_t* metadata);
-
-uint32_t get_size_of(cam_intf_parm_type_t param_id);
 
 /* Update this inline function when a new is_xxx_valid is added to
  * or removed from metadata_buffer_t */

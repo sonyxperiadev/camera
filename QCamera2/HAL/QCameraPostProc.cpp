@@ -112,7 +112,8 @@ QCameraPostProcessor::~QCameraPostProcessor()
             pChannel->stop();
             delete pChannel;
             pChannel = NULL;
-            m_parent->mParameters.setCurPPCount(m_parent->mParameters.getCurPPCount() - 1);
+            m_parent->mParameters.setCurPPCount((int8_t)
+                    (m_parent->mParameters.getCurPPCount() - 1));
         }
     }
     mTotalNumReproc = 0;
@@ -236,7 +237,8 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
                 pChannel->stop();
                 delete pChannel;
                 pChannel = NULL;
-                m_parent->mParameters.setCurPPCount(m_parent->mParameters.getCurPPCount() - 1);
+                m_parent->mParameters.setCurPPCount((int8_t)
+                        (m_parent->mParameters.getCurPPCount() - 1));
             }
         }
 
@@ -249,7 +251,7 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
 
         // Create all reproc channels and start channel
         for (int8_t i = 0; i < mTotalNumReproc; i++) {
-            m_parent->mParameters.setCurPPCount(i+1);
+            m_parent->mParameters.setCurPPCount((int8_t) (i + 1));
             mPPChannels[i] = m_parent->addReprocChannel(pInputChannel);
             if (mPPChannels[i] == NULL) {
                 ALOGE("%s: cannot add multi reprocess channel i = %d", __func__, i);
@@ -380,7 +382,8 @@ int32_t QCameraPostProcessor::stop()
             pChannel->stop();
             delete pChannel;
             pChannel = NULL;
-            m_parent->mParameters.setCurPPCount(m_parent->mParameters.getCurPPCount() - 1);
+            m_parent->mParameters.setCurPPCount((int8_t)
+                    (m_parent->mParameters.getCurPPCount() - 1));
         }
     }
     mTotalNumReproc = 0;
@@ -1908,16 +1911,16 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
                     reinterpret_cast<cam_misc_buf_t *>(miscBufHandler->getPtr(0));
             uint32_t resultSize = refocusResult->header_size +
                     refocusResult->width * refocusResult->height;
-            camera_memory_t *mem = m_parent->mGetMemory(-1, resultSize,
+            camera_memory_t *dataMem = m_parent->mGetMemory(-1, resultSize,
                     1, m_parent->mCallbackCookie);
 
             CDBG_HIGH("%s:%d] Refocus result header %u dims %dx%d", __func__, __LINE__,
                     resultSize, refocusResult->width, refocusResult->height);
 
-            if (mem && mem->data) {
-                memcpy(mem->data, refocusResult->data, resultSize);
+            if (dataMem && dataMem->data) {
+                memcpy(dataMem->data, refocusResult->data, resultSize);
                 //save mem pointer for depth map
-                m_DataMem = mem;
+                m_DataMem = dataMem;
             }
         }
     } else if ((reproc_stream != NULL) && (m_parent->mParameters.isTruePortraitEnabled())) {
@@ -2615,14 +2618,15 @@ int32_t QCameraPostProcessor::doReprocess()
             QCameraStream *pStream =
                     m_pSrcChannel->getStreamByHandle(src_reproc_frame->bufs[i]->stream_id);
             if (pStream != NULL && pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
-                meta_buf_index = src_reproc_frame->bufs[i]->buf_idx;
+                meta_buf_index = (uint8_t) src_reproc_frame->bufs[i]->buf_idx;
                 pMetaStream = pStream;
                 meta_buf = src_reproc_frame->bufs[i];
                 break;
             }
         }
         if (i < src_reproc_frame->num_bufs) {
-            CDBG(" %s: Found Meta data info for reprocessing index = %d",__func__,meta_buf_index);
+            CDBG(" %s: Found Meta data info for reprocessing index = %d", __func__,
+                    (int)meta_buf_index);
             break;
         }
     }
@@ -2636,7 +2640,7 @@ int32_t QCameraPostProcessor::doReprocess()
             // add into ongoing PP job Q
             pp_job->src_frame = src_frame;
             pp_job->src_reproc_frame = src_reproc_frame;
-            pp_job->reprocCount = mCurReprocCount + 1;
+            pp_job->reprocCount = (int8_t) (mCurReprocCount + 1);
 
             if (m_parent->isRegularCapture()) {
                 if ((NULL != pp_job->src_frame) &&
@@ -2683,7 +2687,7 @@ int32_t QCameraPostProcessor::doReprocess()
                     goto end;
                 }
 
-                int32_t numRequiredPPQBufsForSingleOutput =
+                int32_t numRequiredPPQBufsForSingleOutput = (int32_t)
                         m_parent->mParameters.getNumberInBufsForSingleShot();
 
                 if (m_bufCountPPQ % numRequiredPPQBufsForSingleOutput == 0) {

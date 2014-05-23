@@ -162,7 +162,7 @@ typedef struct {
     int                     main_ion_fd;
     ion_user_handle_t       handle;
     size_t                  size;
-    void *                  data;
+    parm_buffer_t          *data;
 } mm_camera_app_meminfo_t;
 
 typedef struct {
