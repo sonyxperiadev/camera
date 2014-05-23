@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1947,9 +1947,9 @@ Size CameraContext::getPreviewSizeFromVideoSizes(Size currentVideoSize)
     Size tmpPreviewSize;
     Size PreviewSize;
     Size PreviewSizes[mSupportedPreviewSizes.size()];
-    float tolerance = 0.00001;
-    float videoRatio;
-    float previewRatio;
+    double tolerance = 0.00001;
+    double videoRatio;
+    double previewRatio;
     size_t i = 0;
     size_t j = 0;
     int delta;
@@ -3518,8 +3518,12 @@ status_t TestContext::FunctionalTest()
 
         case Interpreter::DELAY:
         {
-            if ( command.arg )
-                usleep(1000LU * (long unsigned int)atoi(command.arg));
+            if ( command.arg ) {
+                int delay = atoi(command.arg);
+                if (0 < delay) {
+                    usleep(1000U * (unsigned int)delay);
+                }
+            }
         }
             break;
 

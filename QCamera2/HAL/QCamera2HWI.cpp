@@ -1058,7 +1058,6 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       m_postprocessor(this),
       m_thermalAdapter(QCameraThermalAdapter::getInstance()),
       m_cbNotifier(this),
-      m_bShutterSoundPlayed(false),
       m_bPreviewStarted(false),
       m_bRecordStarted(false),
       m_currentFocusState(CAM_AF_SCANNING),
@@ -1804,7 +1803,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
         break;
     case CAM_STREAM_TYPE_VIDEO:
         {
-            char value[PROPERTY_VALUE_MAX];
             property_get("persist.camera.mem.usecache", value, "0");
             if (atoi(value) == 0) {
                 bCachedMem = QCAMERA_ION_USE_NOCACHE;
@@ -1888,8 +1886,8 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateMiscBuf(
         cam_stream_info_t *streamInfo)
 {
     int rc = NO_ERROR;
-    int bufNum = 0;
-    int bufSize = 0;
+    uint8_t bufNum = 0;
+    size_t bufSize = 0;
     QCameraHeapMemory *miscBuf = NULL;
     uint32_t feature_mask =
             streamInfo->reprocess_config.pp_feature_config.feature_mask;
@@ -2044,8 +2042,9 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     // Update pp config
     if (streamInfo->pp_config.feature_mask & CAM_QCOM_FEATURE_FLIP) {
         int flipMode = mParameters.getFlipMode(stream_type);
-        if (flipMode > 0)
-            streamInfo->pp_config.flip = flipMode;
+        if (flipMode > 0) {
+            streamInfo->pp_config.flip = (uint32_t)flipMode;
+        }
     }
     if (streamInfo->pp_config.feature_mask & CAM_QCOM_FEATURE_SHARPNESS) {
         streamInfo->pp_config.sharpness = mParameters.getInt(QCameraParameters::KEY_QC_SHARPNESS);
@@ -5699,6 +5698,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
     CDBG_HIGH("%s: Minimum pproc feature mask required = %x", __func__,
             gCamCaps[mCameraId]->min_required_pp_mask);
     uint32_t required_mask = gCamCaps[mCameraId]->min_required_pp_mask;
+    int32_t zoomLevel = 0;
 
     switch(curCount) {
         case 1:
@@ -5787,9 +5787,10 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
             }
 
-            if(mParameters.isOptiZoomEnabled()) {
+            zoomLevel = mParameters.getParmZoomLevel();
+            if(mParameters.isOptiZoomEnabled() && (0 <= zoomLevel)) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_OPTIZOOM;
-                pp_config.zoom_level = mParameters.getParmZoomLevel();
+                pp_config.zoom_level = (uint8_t) zoomLevel;
             } else {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_OPTIZOOM;
             }
@@ -6181,7 +6182,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
     }
     pthread_mutex_unlock(&m_parm_lock);
 
-    if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() !=true) {
+    if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
         rc = addChannel(QCAMERA_CH_TYPE_ZSL);
         if (rc != NO_ERROR) {
             ALOGE("%s[%d]: failed!! rc = %d", __func__, __LINE__, rc);

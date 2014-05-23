@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -252,9 +252,9 @@ public:
     };
 
     struct Command {
-        Command( Commands_e cmd, char *arg = NULL)
-        : cmd(cmd)
-        , arg(arg) {}
+        Command( Commands_e cmd_, char *arg_ = NULL)
+        : cmd(cmd_)
+        , arg(arg_) {}
         Command()
         : cmd(INVALID_CMD)
         , arg(NULL) {}

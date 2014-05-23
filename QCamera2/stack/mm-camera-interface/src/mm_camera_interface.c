@@ -630,7 +630,7 @@ static int32_t mm_camera_intf_link_stream(uint32_t camera_handle,
     uint32_t id = 0;
     mm_camera_obj_t * my_obj = NULL;
 
-    CDBG("%s : E handle = %d ch_id = %d",
+    CDBG("%s : E handle = %u ch_id = %u",
          __func__, camera_handle, ch_id);
 
     pthread_mutex_lock(&g_intf_lock);
@@ -644,8 +644,8 @@ static int32_t mm_camera_intf_link_stream(uint32_t camera_handle,
         pthread_mutex_unlock(&g_intf_lock);
     }
 
-    CDBG("%s :X stream_id = %d", __func__, stream_id);
-    return id;
+    CDBG("%s :X stream_id = %u", __func__, stream_id);
+    return (int32_t)id;
 }
 
 /*===========================================================================
