@@ -3602,7 +3602,8 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
             break;
         }
 
-        if (focus_data.focus_state == CAM_AF_SCANNING) {
+        if (focus_data.focus_state == CAM_AF_SCANNING ||
+            focus_data.focus_state == CAM_AF_INACTIVE) {
             // in the middle of focusing, just ignore it
             break;
         }
