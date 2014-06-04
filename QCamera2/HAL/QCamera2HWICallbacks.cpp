@@ -1508,6 +1508,7 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             ALOGE("%s: No memory for asd_update qcamera_sm_internal_evt_payload_t", __func__);
         }
     }
+
     if (IS_META_AVAILABLE(CAM_INTF_META_FLASH_MODE, pMetaData)) {
         uint8_t *flash_mode =
             (uint8_t *)POINTER_OF_META(CAM_INTF_META_FLASH_MODE, pMetaData);
@@ -1534,6 +1535,37 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         cam_sensor_params_t* sensor_params = (cam_sensor_params_t*)
             POINTER_OF_META(CAM_INTF_META_SENSOR_INFO, pMetaData);
         pme->mExifParams.sensor_params = *sensor_params;
+    }
+    if (IS_META_AVAILABLE(CAM_INTF_META_EXIF_DEBUG_AE, pMetaData)) {
+        cam_ae_exif_debug_t* ae_exif_debug_params = (cam_ae_exif_debug_t*)
+                POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_AE, pMetaData);
+        pme->mExifParams.ae_debug_params = *ae_exif_debug_params;
+        pme->mExifParams.ae_debug_params_valid = TRUE;
+    }
+    if (IS_META_AVAILABLE(CAM_INTF_META_EXIF_DEBUG_AWB, pMetaData)) {
+        cam_awb_exif_debug_t* awb_exif_debug_params = (cam_awb_exif_debug_t*)
+                POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_AWB, pMetaData);
+        pme->mExifParams.awb_debug_params = *awb_exif_debug_params;
+        pme->mExifParams.awb_debug_params_valid = TRUE;
+    }
+    if (IS_META_AVAILABLE(CAM_INTF_META_EXIF_DEBUG_AF, pMetaData)) {
+        cam_af_exif_debug_t* af_exif_debug_params = (cam_af_exif_debug_t*)
+                POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_AF, pMetaData);
+        pme->mExifParams.af_debug_params = *af_exif_debug_params;
+        pme->mExifParams.af_debug_params_valid = TRUE;
+    }
+    if (IS_META_AVAILABLE(CAM_INTF_META_EXIF_DEBUG_ASD, pMetaData)) {
+        cam_asd_exif_debug_t* asd_exif_debug_params = (cam_asd_exif_debug_t*)
+                POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_ASD, pMetaData);
+        pme->mExifParams.asd_debug_params = *asd_exif_debug_params;
+        pme->mExifParams.asd_debug_params_valid = TRUE;
+    }
+    if (IS_META_AVAILABLE(CAM_INTF_META_EXIF_DEBUG_STATS, pMetaData)) {
+        cam_stats_buffer_exif_debug_t* stats_exif_debug_params =
+                (cam_stats_buffer_exif_debug_t*)
+                POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_STATS, pMetaData);
+        pme->mExifParams.stats_debug_params = *stats_exif_debug_params;
+        pme->mExifParams.stats_debug_params_valid = TRUE;
     }
 
     stream->bufDone(frame->buf_idx);

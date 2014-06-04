@@ -611,6 +611,7 @@ OMX_ERRORTYPE mm_jpeg_metadata(
 
   lMeta.metadata = (OMX_U8 *)p_jobparams->p_metadata;
   lMeta.metaPayloadSize = sizeof(*p_jobparams->p_metadata);
+  lMeta.mobicat_mask = p_jobparams->mobicat_mask;
 
   rc = OMX_SetConfig(p_session->omx_handle, indexType, &lMeta);
   if (rc != OMX_ErrorNone) {

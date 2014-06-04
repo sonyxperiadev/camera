@@ -224,6 +224,7 @@ typedef struct {
 typedef struct {
   OMX_U8  *metadata;
   OMX_U32 metaPayloadSize;
+  OMX_U8 mobicat_mask;
 } QOMX_METADATA;
 
 /**QOMX_META_ENC_KEY
