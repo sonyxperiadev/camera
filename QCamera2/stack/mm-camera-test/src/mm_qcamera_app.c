@@ -2587,3 +2587,19 @@ int mm_camera_lib_set_preview_usercb(
     handle->test_obj.user_preview_cb = *cb;
     return 0;
 }
+
+int mm_app_set_preview_fps_range(mm_camera_test_obj_t *test_obj,
+                        cam_fps_range_t *fpsRange)
+{
+    int rc = MM_CAMERA_OK;
+    CDBG_HIGH("%s: preview fps range: min=%f, max=%f.", __func__,
+        fpsRange->min_fps, fpsRange->max_fps);
+    rc = setFPSRange(test_obj, *fpsRange);
+
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: add_parm_entry_tobatch failed !!", __func__);
+        return rc;
+    }
+
+    return rc;
+}

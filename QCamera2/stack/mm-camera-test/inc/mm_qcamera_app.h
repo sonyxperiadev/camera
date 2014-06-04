@@ -455,9 +455,11 @@ extern int mm_app_fb_write(mm_camera_test_obj_t *test_obj, char *buffer);
 extern int mm_app_overlay_display(mm_camera_test_obj_t *test_obj, int bufferFd);
 extern int mm_app_allocate_ion_memory(mm_camera_app_buf_t *buf, int ion_type);
 extern int mm_app_deallocate_ion_memory(mm_camera_app_buf_t *buf);
-int mm_app_set_params(mm_camera_test_obj_t *test_obj,
+extern int mm_app_set_params(mm_camera_test_obj_t *test_obj,
                       cam_intf_parm_type_t param_type,
                       int32_t value);
+extern int mm_app_set_preview_fps_range(mm_camera_test_obj_t *test_obj,
+                        cam_fps_range_t *fpsRange);
 /* JIG camera lib interface */
 
 int mm_camera_lib_open(mm_camera_lib_handle *handle, int cam_id);
