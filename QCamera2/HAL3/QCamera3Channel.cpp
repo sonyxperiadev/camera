@@ -1015,25 +1015,29 @@ void QCameraRawChannel::putStreamBufs()
 void QCameraRawChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
 {
    QCamera3Stream *stream = getStreamByIndex(0);
-   char buf[32];
-   memset(buf, 0, sizeof(buf));
-   cam_dimension_t dim;
-   memset(&dim, 0, sizeof(dim));
-   stream->getFrameDimension(dim);
+   if (stream != NULL) {
+       char buf[32];
+       memset(buf, 0, sizeof(buf));
+       cam_dimension_t dim;
+       memset(&dim, 0, sizeof(dim));
+       stream->getFrameDimension(dim);
 
-   cam_frame_len_offset_t offset;
-   memset(&offset, 0, sizeof(cam_frame_len_offset_t));
-   stream->getFrameOffset(offset);
-   snprintf(buf, sizeof(buf), "/data/r_%d_%dx%d.raw",
-            frame->frame_idx, offset.mp[0].stride, offset.mp[0].scanline);
+       cam_frame_len_offset_t offset;
+       memset(&offset, 0, sizeof(cam_frame_len_offset_t));
+       stream->getFrameOffset(offset);
+       snprintf(buf, sizeof(buf), "/data/r_%d_%dx%d.raw",
+                frame->frame_idx, offset.mp[0].stride, offset.mp[0].scanline);
 
-   int file_fd = open(buf, O_RDWR| O_CREAT, 0777);
-   if (file_fd) {
-      int written_len = write(file_fd, frame->buffer, frame->frame_len);
-      ALOGE("%s: written number of bytes %d", __func__, written_len);
-      close(file_fd);
+       int file_fd = open(buf, O_RDWR| O_CREAT, 0777);
+       if (file_fd) {
+          int written_len = write(file_fd, frame->buffer, frame->frame_len);
+          ALOGE("%s: written number of bytes %d", __func__, written_len);
+          close(file_fd);
+       } else {
+          ALOGE("%s: failed to open file to dump image", __func__);
+       }
    } else {
-      ALOGE("%s: failed to open file to dump image", __func__);
+       ALOGE("%s: Could not find stream", __func__);
    }
 
 }
@@ -1612,16 +1616,21 @@ int32_t getExifDateTime(char *dateTime, char *subsecTime,
     timeinfo = localtime(&tv.tv_sec);
     //Write datetime according to EXIF Spec
     //"YYYY:MM:DD HH:MM:SS" (20 chars including \0)
-    snprintf(dateTime, 20, "%04d:%02d:%02d %02d:%02d:%02d",
-             timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,
-             timeinfo->tm_mday, timeinfo->tm_hour,
-             timeinfo->tm_min, timeinfo->tm_sec);
-    count = 20;
+    if (timeinfo != NULL) {
+        snprintf(dateTime, 20, "%04d:%02d:%02d %02d:%02d:%02d",
+                 timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,
+                 timeinfo->tm_mday, timeinfo->tm_hour,
+                 timeinfo->tm_min, timeinfo->tm_sec);
+        count = 20;
 
-    //Write subsec according to EXIF Sepc
-    snprintf(subsecTime, 7, "%06ld", tv.tv_usec);
-    subsecCount = 7;
-    return NO_ERROR;
+        //Write subsec according to EXIF Sepc
+        snprintf(subsecTime, 7, "%06ld", tv.tv_usec);
+        subsecCount = 7;
+        return NO_ERROR;
+    } else {
+        ALOGE("%s: Could not get the local time", __func__);
+        return BAD_VALUE;
+    }
 }
 
 /*===========================================================================
@@ -1818,14 +1827,17 @@ int32_t getExifGpsDateTimeStamp(char *gpsDateStamp,
     if(str != NULL) {
         time_t unixTime = (time_t)atol(str);
         struct tm *UTCTimestamp = gmtime(&unixTime);
+        if (UTCTimestamp != NULL) {
+            strftime(gpsDateStamp, bufLen, "%Y:%m:%d", UTCTimestamp);
 
-        strftime(gpsDateStamp, bufLen, "%Y:%m:%d", UTCTimestamp);
-
-        getRational(&gpsTimeStamp[0], UTCTimestamp->tm_hour, 1);
-        getRational(&gpsTimeStamp[1], UTCTimestamp->tm_min, 1);
-        getRational(&gpsTimeStamp[2], UTCTimestamp->tm_sec, 1);
-
-        return NO_ERROR;
+            getRational(&gpsTimeStamp[0], UTCTimestamp->tm_hour, 1);
+            getRational(&gpsTimeStamp[1], UTCTimestamp->tm_min, 1);
+            getRational(&gpsTimeStamp[2], UTCTimestamp->tm_sec, 1);
+            return NO_ERROR;
+        } else {
+            ALOGE("%s: Could not get the timestamp", __func__);
+            return BAD_VALUE;
+        }
     } else {
         return BAD_VALUE;
     }
