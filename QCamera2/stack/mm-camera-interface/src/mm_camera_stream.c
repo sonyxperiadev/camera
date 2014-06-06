@@ -1244,7 +1244,7 @@ int32_t mm_stream_request_buf(mm_stream_t * my_obj)
     CDBG("%s: E, my_handle = 0x%x, fd = %d, state = %d",
          __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
 
-    CDBG_ERROR("%s: buf_num = %d, stream type = %d",
+    CDBG("%s: buf_num = %d, stream type = %d",
          __func__, buf_num, my_obj->stream_info->stream_type);
 
     if(buf_num > MM_CAMERA_MAX_NUM_FRAMES) {
