@@ -1068,6 +1068,8 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
     camera3_jpeg_blob_t jpegHeader;
     char* jpeg_eof = 0;
     int maxJpegSize;
+    int32_t bufIdx;
+
     QCamera3PicChannel *obj = (QCamera3PicChannel *)userdata;
     if (obj) {
 
@@ -1087,6 +1089,8 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             ALOGE("%s: Error in jobId: (%d) with status: %d", __func__, jobId, status);
             resultStatus = CAMERA3_BUFFER_STATUS_ERROR;
         }
+        bufIdx = job->jpeg_settings->out_buf_index;
+        CDBG("%s: jpeg out_buf_index: %d", __func__, bufIdx);
 
         //Construct jpeg transient header of type camera3_jpeg_blob_t
         //Append at the end of jpeg image of buf_filled_len size
@@ -1103,20 +1107,20 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
 
         //Handle same as resultBuffer, but for readablity
         jpegBufferHandle =
-            (buffer_handle_t *)obj->mMemory.getBufferHandle(obj->mCurrentBufIndex);
+            (buffer_handle_t *)obj->mMemory.getBufferHandle(bufIdx);
 
         maxJpegSize = ((private_handle_t*)(*jpegBufferHandle))->width;
-        if (maxJpegSize > obj->mMemory.getSize(obj->mCurrentBufIndex)) {
-            maxJpegSize = obj->mMemory.getSize(obj->mCurrentBufIndex);
+        if (maxJpegSize > obj->mMemory.getSize(bufIdx)) {
+            maxJpegSize = obj->mMemory.getSize(bufIdx);
         }
 
         jpeg_eof = &jpeg_buf[maxJpegSize-sizeof(jpegHeader)];
         memcpy(jpeg_eof, &jpegHeader, sizeof(jpegHeader));
-        obj->mMemory.cleanInvalidateCache(obj->mCurrentBufIndex);
+        obj->mMemory.cleanInvalidateCache(bufIdx);
 
         ////Use below data to issue framework callback
-        resultBuffer = (buffer_handle_t *)obj->mMemory.getBufferHandle(obj->mCurrentBufIndex);
-        resultFrameNumber = obj->mMemory.getFrameNumber(obj->mCurrentBufIndex);
+        resultBuffer = (buffer_handle_t *)obj->mMemory.getBufferHandle(bufIdx);
+        resultFrameNumber = obj->mMemory.getFrameNumber(bufIdx);
 
         result.stream = obj->mCamera3Stream;
         result.buffer = resultBuffer;
@@ -1132,7 +1136,6 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             obj->m_postprocessor.releaseJpegJobData(job);
             free(job);
         }
-
 
         return;
         // }
@@ -1153,6 +1156,7 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                         mCamera3Stream(stream),
                         mNumBufs(0),
                         mCurrentBufIndex(-1),
+                        mPostProcStarted(false),
                         mYuvMemory(NULL),
                         mMetaFrame(NULL)
 {
@@ -1211,10 +1215,9 @@ int32_t QCamera3PicChannel::initialize()
     streamDim.width = mYuvWidth;
     streamDim.height = mYuvHeight;
 
-    int num_buffers = 1;
     mNumBufs = CAM_MAX_NUM_BUFS_PER_STREAM;
     rc = QCamera3Channel::addStream(streamType, streamFormat, streamDim,
-            num_buffers);
+            (uint8_t)mCamera3Stream->max_buffers);
 
     return rc;
 }
@@ -1234,9 +1237,6 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         return NO_INIT;
     }
 
-    if (pInputBuffer == NULL)
-        mStreams[0]->bufDone(0);
-
     index = mMemory.getMatchBufIndex((void*)buffer);
     if(index < 0) {
         rc = registerBuffer(buffer);
@@ -1252,19 +1252,24 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
             return DEAD_OBJECT;
         }
     }
+    CDBG("%s: buffer index %d, frameNumber: %u", __func__, index, frameNumber);
+
     rc = mMemory.markFrameNumber(index, frameNumber);
 
     //Start the postprocessor for jpeg encoding. Pass mMemory as destination buffer
     mCurrentBufIndex = index;
 
     // Start postprocessor
-    m_postprocessor.start(this, metadata);
+    if(!mPostProcStarted) {
+        m_postprocessor.start(this, metadata);
+        mPostProcStarted = true;
+    }
 
     // Queue jpeg settings
     rc = queueJpegSetting(index, metadata);
 
     if (pInputBuffer == NULL)
-        mStreams[0]->bufDone(0);
+        mStreams[0]->bufDone(index);
     else {
         mm_camera_super_buf_t *src_frame = NULL;
         src_frame = (mm_camera_super_buf_t *)malloc(
@@ -1396,6 +1401,8 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
     }
 
     frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
+    CDBG("%s: recvd buf_idx: %u for further processing",
+        __func__, (uint32_t)frameIndex);
     if(frameIndex >= mNumBufs) {
          ALOGE("%s: Error, Invalid index for buffer",__func__);
          if(stream) {
@@ -1430,7 +1437,7 @@ QCamera3Memory* QCamera3PicChannel::getStreamBufs(uint32_t len)
     }
 
     //Queue YUV buffers in the beginning mQueueAll = true
-    rc = mYuvMemory->allocate(1, len, false);
+    rc = mYuvMemory->allocate(mCamera3Stream->max_buffers, len, false);
     if (rc < 0) {
         ALOGE("%s: unable to allocate metadata memory", __func__);
         delete mYuvMemory;
@@ -2067,7 +2074,9 @@ QCamera3Exif *QCamera3PicChannel::getExifData(metadata_buffer_t *metadata,
     return exif;
 }
 
-int QCamera3PicChannel::kMaxBuffers = 1;
+/* There can be kMaxInFlight number of requests that could get queued up. Hence
+ allocating same number of picture channel buffers */
+int QCamera3PicChannel::kMaxBuffers = QCamera3HardwareInterface::kMaxInFlight;
 
 void QCamera3PicChannel::overrideYuvSize(uint32_t width, uint32_t height)
 {
@@ -2176,6 +2185,8 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
        }
        return;
     }
+    CDBG("%s: bufIndex: %u recvd from post proc",
+        __func__, (uint32_t)frameIndex);
     *frame = *super_frame;
     obj->m_postprocessor.processPPData(frame);
     free(super_frame);
@@ -2217,7 +2228,9 @@ QCamera3Memory* QCamera3ReprocessChannel::getStreamBufs(uint32_t len)
     }
 
     //Queue YUV buffers in the beginning mQueueAll = true
-    rc = mMemory->allocate(2, len, true);
+    /* There can be kMaxInFlight number of requests that could get queued up.
+     * Hence allocating same number of reprocess channel's output buffers */
+    rc = mMemory->allocate(QCamera3HardwareInterface::kMaxInFlight, len, true);
     if (rc < 0) {
         ALOGE("%s: unable to allocate reproc memory", __func__);
         delete mMemory;
@@ -2355,6 +2368,7 @@ int32_t QCamera3ReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *fram
         metadata_buffer_t *metadata)
 {
     int32_t rc = 0;
+    CDBG("%s: E", __func__);
     if (m_numStreams < 1) {
         ALOGE("%s: No reprocess stream is created", __func__);
         return -1;
@@ -2372,7 +2386,7 @@ int32_t QCamera3ReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *fram
 
             rc = mStreams[i]->mapBuf(
                     CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF,
-                    buf_idx, -1,
+                    frame->bufs[i]->buf_idx, -1,
                     frame->bufs[i]->fd, frame->bufs[i]->frame_len);
 
             if (rc == NO_ERROR) {
@@ -2398,6 +2412,8 @@ int32_t QCamera3ReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *fram
                         break;
                     }
                 }
+                CDBG("%s: reprocess.buf_index: %u", __func__,
+                    (uint32_t)param.reprocess.buf_index);
                 rc = pStream->setParameter(param);
                 if (rc != NO_ERROR) {
                     ALOGE("%s: stream setParameter for reprocess failed", __func__);
@@ -2495,7 +2511,9 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
     cam_stream_type_t streamType;
     cam_format_t streamFormat;
     cam_frame_len_offset_t frameOffset;
-    int num_buffers = 2;
+    /* There can be kMaxInFlight number of requests that could get queued up.
+     * Hence allocating same number of reprocess channel's output buffers */
+    int num_buffers = QCamera3HardwareInterface::kMaxInFlight;
 
     streamType = CAM_STREAM_TYPE_OFFLINE_PROC;
     pSrcStream->getFormat(streamFormat);

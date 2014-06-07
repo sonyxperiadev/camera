@@ -281,6 +281,7 @@ private:
     uint32_t mYuvWidth, mYuvHeight;
     int32_t mCurrentBufIndex;
     bool m_bWNROn;
+    bool mPostProcStarted;
 
     QCamera3GrallocMemory mMemory;
     QCamera3HeapMemory *mYuvMemory;
