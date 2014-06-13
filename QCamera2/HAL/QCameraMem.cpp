@@ -26,17 +26,20 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
+#define ATRACE_TAG ATRACE_TAG_CAMERA
+#define MEMLOG_THRESH 102400
 #define LOG_TAG "QCameraHWI_Mem"
 
 #include <string.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <utils/Errors.h>
+#include <utils/Trace.h>
 #include <gralloc_priv.h>
 #include <QComOMXMetadata.h>
 #include "QCamera2HWI.h"
 #include "QCameraMem.h"
+#include "QCameraParameters.h"
 
 extern "C" {
 #include <mm_camera_interface.h>
@@ -225,6 +228,55 @@ void QCameraMemory::getBufDef(const cam_frame_len_offset_t &offset,
 }
 
 /*===========================================================================
+ * FUNCTION   : traceLogAllocStart
+ *
+ * DESCRIPTION: query detailed buffer information
+ *
+ * PARAMETERS :
+ *   @size  : [input] alloc
+ *   @count  : [input] number of buffers
+ *   @allocName   : [input] name for the alloc
+ *
+ * RETURN     : none
+ *==========================================================================*/
+inline void QCameraMemory::traceLogAllocStart(int size, int count, const char *allocName)
+{
+    ALOGD("%s : alloc E count=%d size=%d", __func__, count, size);
+#ifdef ATRACE_TAG_CAMERA
+    char atracer[30];
+    if ((size * count) > MEMLOG_THRESH) {
+        snprintf(atracer,sizeof(atracer), "%s %d",allocName, size);
+        ATRACE_BEGIN(atracer);
+        ALOGE("%s:%s", __func__, atracer);
+    } else {
+        ATRACE_CALL();
+    }
+#endif
+}
+
+/*===========================================================================
+ * FUNCTION   : traceLogAllocEnd
+ *
+ * DESCRIPTION: query detailed buffer information
+ *
+ * PARAMETERS :
+ *   @size  : [input] alloc
+ *   @count  : [input] number of buffers
+ *
+ * RETURN     : none
+ *==========================================================================*/
+inline void QCameraMemory::traceLogAllocEnd(int size)
+{
+    ALOGD(" %s : X", __func__);
+#ifdef ATRACE_TAG_CAMERA
+    if (size > MEMLOG_THRESH) {
+        ATRACE_END();
+        ALOGE("%s %d", __func__, size);
+    }
+#endif
+}
+
+/*===========================================================================
  * FUNCTION   : alloc
  *
  * DESCRIPTION: allocate requested number of buffers of certain size
@@ -247,6 +299,7 @@ int QCameraMemory::alloc(int count, int size, int heap_id, uint32_t secure_mode)
     }
 
     int new_bufCnt = mBufferCount + count;
+    traceLogAllocStart(size, count, "Memsize");
 
     if (new_bufCnt > MM_CAMERA_MAX_NUM_FRAMES) {
         ALOGE("%s: Buffer count %d out of bound. Max is %d",
@@ -282,6 +335,7 @@ int QCameraMemory::alloc(int count, int size, int heap_id, uint32_t secure_mode)
         }
 
     }
+    traceLogAllocEnd((size * count));
     return rc;
 }
 
@@ -649,6 +703,7 @@ void *QCameraHeapMemory::getPtr(int index) const
 int QCameraHeapMemory::allocate(int count, int size, uint32_t isSecure)
 {
     int rc = -1;
+    traceLogAllocStart(size, count, "HeapMemsize");
     int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
     if (isSecure == SECURE) {
         int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
@@ -681,6 +736,7 @@ int QCameraHeapMemory::allocate(int count, int size, uint32_t isSecure)
     if (rc == 0) {
         mBufferCount = count;
     }
+    traceLogAllocEnd((size * count));
     return OK;
 }
 
@@ -699,6 +755,7 @@ int QCameraHeapMemory::allocate(int count, int size, uint32_t isSecure)
  *==========================================================================*/
 int QCameraHeapMemory::allocateMore(int count, int size)
 {
+    traceLogAllocStart(size, count, "HeapMemsize");
     int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
     int rc = alloc(count, size, heap_id_mask, NON_SECURE);
     if (rc < 0)
@@ -722,6 +779,7 @@ int QCameraHeapMemory::allocateMore(int count, int size)
         }
     }
     mBufferCount += count;
+    traceLogAllocEnd((size * count));
     return OK;
 }
 
@@ -878,6 +936,7 @@ QCameraStreamMemory::~QCameraStreamMemory()
  *==========================================================================*/
 int QCameraStreamMemory::allocate(int count, int size, uint32_t isSecure)
 {
+    traceLogAllocStart(size, count, "StreamMemsize");
     int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
     int rc = alloc(count, size, heap_id_mask, isSecure);
     if (rc < 0)
@@ -891,6 +950,7 @@ int QCameraStreamMemory::allocate(int count, int size, uint32_t isSecure)
         }
     }
     mBufferCount = count;
+    traceLogAllocEnd((size * count));
     return NO_ERROR;
 }
 
@@ -909,6 +969,7 @@ int QCameraStreamMemory::allocate(int count, int size, uint32_t isSecure)
  *==========================================================================*/
 int QCameraStreamMemory::allocateMore(int count, int size)
 {
+    traceLogAllocStart(size, count, "StreamMemsize");
     int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
     int rc = alloc(count, size, heap_id_mask, NON_SECURE);
     if (rc < 0)
@@ -918,6 +979,7 @@ int QCameraStreamMemory::allocateMore(int count, int size)
         mCameraMemory[i] = mGetMemory(mMemInfo[i].fd, mMemInfo[i].size, 1, this);
     }
     mBufferCount += count;
+    traceLogAllocEnd((size * count));
     return NO_ERROR;
 }
 
@@ -1096,6 +1158,7 @@ QCameraVideoMemory::~QCameraVideoMemory()
  *==========================================================================*/
 int QCameraVideoMemory::allocate(int count, int size, uint32_t isSecure)
 {
+    traceLogAllocStart(size, count, "VideoMemsize");
     int rc = QCameraStreamMemory::allocate(count, size, isSecure);
     if (rc < 0)
         return rc;
@@ -1121,6 +1184,7 @@ int QCameraVideoMemory::allocate(int count, int size, uint32_t isSecure)
         nh->data[3] = private_handle_t::PRIV_FLAGS_ITU_R_709;
     }
     mBufferCount = count;
+    traceLogAllocEnd((size * count));
     return NO_ERROR;
 }
 
@@ -1139,6 +1203,7 @@ int QCameraVideoMemory::allocate(int count, int size, uint32_t isSecure)
  *==========================================================================*/
 int QCameraVideoMemory::allocateMore(int count, int size)
 {
+    traceLogAllocStart(size, count, "VideoMemsize");
     int rc = QCameraStreamMemory::allocateMore(count, size);
     if (rc < 0)
         return rc;
@@ -1166,6 +1231,7 @@ int QCameraVideoMemory::allocateMore(int count, int size)
         nh->data[2] = mMemInfo[i].size;
     }
     mBufferCount += count;
+    traceLogAllocEnd((size * count));
     return NO_ERROR;
 }
 
@@ -1388,6 +1454,7 @@ int QCameraGrallocMemory::displayBuffer(int index)
  *==========================================================================*/
 int QCameraGrallocMemory::allocate(int count, int /*size*/, uint32_t /*isSecure*/)
 {
+    traceLogAllocStart(0,count, "Grallocbufcnt");
     int err = 0;
     status_t ret = NO_ERROR;
     int gralloc_usage = 0;
@@ -1551,6 +1618,7 @@ int QCameraGrallocMemory::allocate(int count, int /*size*/, uint32_t /*isSecure*
 
 end:
     CDBG(" %s : X ",__func__);
+    traceLogAllocEnd(count);
     return ret;
 }
 

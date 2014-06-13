@@ -47,6 +47,7 @@
 #define MM_CAMERA_DEV_NAME_LEN 32
 #define MM_CAMERA_DEV_OPEN_TRIES 2
 #define MM_CAMERA_DEV_OPEN_RETRY_SLEEP 20
+#define THREAD_NAME_SIZE 15
 
 #ifndef TRUE
 #define TRUE 1
@@ -122,6 +123,7 @@ typedef struct {
     cam_semaphore_t cmd_sem;     /* semaphore for cmd thread */
     mm_camera_cmd_cb_t cb;       /* cb for cmd */
     void* user_data;             /* user_data for cb */
+    char threadName[THREAD_NAME_SIZE];
 } mm_camera_cmd_thread_t;
 
 typedef enum {
@@ -157,6 +159,7 @@ typedef struct {
     pthread_mutex_t mutex;
     pthread_cond_t cond_v;
     int32_t status;
+    char threadName[THREAD_NAME_SIZE];
     //void *my_obj;
 } mm_camera_poll_thread_t;
 
@@ -391,6 +394,7 @@ typedef struct mm_channel {
     uint8_t isFlashBracketingEnabled;
     uint8_t isZoom1xFrameRequested;
     uint32_t burstSnapNum;
+    char threadName[THREAD_NAME_SIZE];
 } mm_channel_t;
 
 /* struct to store information about pp cookie*/
