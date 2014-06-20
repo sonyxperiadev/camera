@@ -260,7 +260,7 @@ public:
             void *userdata, void *data);
 
     virtual int recalcFPSRange(int &minFPS, int &maxFPS,
-            int &vidMinFps, int &vidMaxFps);
+            cam_fps_range_t &adjustedRange);
 
     // Implementation of QCameraTorchInterface
     virtual int prepareTorchCamera();
