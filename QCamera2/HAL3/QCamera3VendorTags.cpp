@@ -184,7 +184,7 @@ const char* QCamera3VendorTags::get_section_name(
     const char *ret;
     uint32_t section = tag >> 16;
 
-    if (section < VENDOR_SECTION || section > QCAMERA3_SECTIONS_END)
+    if (section < VENDOR_SECTION || section >= QCAMERA3_SECTIONS_END)
         ret = NULL;
     else
         ret = qcamera3_ext_section_names[section - VENDOR_SECTION];
@@ -222,7 +222,7 @@ const char* QCamera3VendorTags::get_tag_name(
         goto done;
     }
 
-    if (section < VENDOR_SECTION || section > QCAMERA3_SECTIONS_END)
+    if (section < VENDOR_SECTION || section >= QCAMERA3_SECTIONS_END)
         ret = NULL;
     else if (tag >= (uint32_t)qcamera3_ext3_section_bounds[section_index])
         ret = NULL;
@@ -263,7 +263,7 @@ int QCamera3VendorTags::get_tag_type(
         ret = -1;
         goto done;
     }
-    if (section < VENDOR_SECTION || section > QCAMERA3_SECTIONS_END)
+    if (section < VENDOR_SECTION || section >= QCAMERA3_SECTIONS_END)
         ret = -1;
     else if (tag >= (uint32_t )qcamera3_ext3_section_bounds[section_index])
         ret = -1;
