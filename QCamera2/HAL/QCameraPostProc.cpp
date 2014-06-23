@@ -83,6 +83,7 @@ QCameraPostProcessor::QCameraPostProcessor(QCamera2HardwareInterface *cam_ctrl)
 {
     memset(&mJpegHandle, 0, sizeof(mJpegHandle));
     memset(&m_pJpegOutputMem, 0, sizeof(m_pJpegOutputMem));
+    m_DataMem = NULL ;
 }
 
 /*===========================================================================
@@ -771,19 +772,6 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
                                   evt->jobId);
         CDBG_HIGH("%s: Dump jpeg_size=%d", __func__, evt->out_data.buf_filled_len);
 
-        /* check if the all the captures are done */
-        if (m_parent->mParameters.isUbiRefocus() &&
-            (m_parent->getOutputImageCount() <
-            m_parent->mParameters.UfOutputCount())) {
-            jpeg_out  = (omx_jpeg_ouput_buf_t*) evt->out_data.buf_vaddr;
-            jpeg_mem = (camera_memory_t *)jpeg_out->mem_hdl;
-            if (NULL != jpeg_mem) {
-                jpeg_mem->release(jpeg_mem);
-                jpeg_mem = NULL;
-            }
-            goto end;
-        }
-
         if (!mJpegMemOpt) {
             // alloc jpeg memory to pass to upper layer
             jpeg_mem = m_parent->mGetMemory(-1, evt->out_data.buf_filled_len,
@@ -820,6 +808,31 @@ end:
             if (NULL != jpeg_mem) {
                 jpeg_mem->release(jpeg_mem);
                 jpeg_mem = NULL;
+            }
+        }
+
+        /* check whether to send callback for depth map */
+        if (m_parent->mParameters.isUbiRefocus() &&
+           (m_parent->getOutputImageCount() ==
+            m_parent->mParameters.UfOutputCount()-1)) {
+            m_parent->setOutputImageCount(m_parent->getOutputImageCount() + 1);
+            jpeg_mem = m_DataMem;
+            release_data.data = jpeg_mem;
+            CDBG_HIGH("[KPI Perf] %s: send jpeg callback for depthmap ",__func__);
+            rc = sendDataNotify(CAMERA_MSG_COMPRESSED_IMAGE,
+                jpeg_mem,
+                0,
+                NULL,
+                &release_data);
+            if (rc != NO_ERROR) {
+            // send error msg to upper layer
+                sendEvtNotify(CAMERA_MSG_ERROR,
+                UNKNOWN_ERROR,
+                0);
+                if (NULL != jpeg_mem) {
+                    jpeg_mem->release(jpeg_mem);
+                    jpeg_mem = NULL;
+                }
             }
         }
     }
@@ -1624,18 +1637,18 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         crop = imgProp.crop;
         thumb_stream = NULL; /* use thumbnail from main image */
         if (imgProp.is_raw_image) {
-           camera_memory_t *mem = memObj->getMemory(
-               main_frame->buf_idx, false);
-           ALOGE("%s:%d] Process raw image %p %d", __func__, __LINE__,
-               mem, imgProp.size);
-           /* dump image */
-           if (mem && mem->data) {
-               CAM_DUMP_TO_FILE("/data/local/ubifocus", "DepthMapImage",
-                                -1, "y",
-                                (uint8_t *)mem->data,
-                                imgProp.size);
-           }
-           return NO_ERROR;
+            camera_memory_t *temp = memObj->getMemory(main_frame->buf_idx, false);
+            camera_memory_t *mem = m_parent->mGetMemory(-1, imgProp.size,
+                    1, m_parent->mCallbackCookie);
+            /* dump image */
+            if (mem && mem->data) {
+                memcpy(mem->data, temp->data, imgProp.size);
+                //save mem pointer for depth map
+                m_DataMem = mem;
+                CAM_DUMP_TO_FILE("/data/local/ubifocus", "DepthMapImage",
+                        -1, "y", (uint8_t *)mem->data, imgProp.size);
+            }
+            return NO_ERROR;
         }
     }
 

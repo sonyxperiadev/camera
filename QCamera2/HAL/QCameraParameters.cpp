@@ -3213,6 +3213,12 @@ int32_t QCameraParameters::setNumOfSnapshot()
         }
     }
 
+    if (isUbiRefocus()) {
+       //nBurstNum = m_pCapability->ubifocus_af_bracketing_need.output_count;
+       nBurstNum = 7;
+       nExpnum = 1;
+    }
+
     CDBG_HIGH("%s: nBurstNum = %d, nExpnum = %d", __func__, nBurstNum, nExpnum);
     set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, nBurstNum * nExpnum);
     return NO_ERROR;
@@ -7259,10 +7265,6 @@ uint8_t QCameraParameters::getNumOfSnapshots()
     if (numOfSnapshot <= 0) {
         numOfSnapshot = 1; // set to default value
     }
-
-    /* update the count for refocus */
-    if (isUbiRefocus())
-       numOfSnapshot += UfOutputCount();
 
     return (uint8_t)numOfSnapshot;
 }
