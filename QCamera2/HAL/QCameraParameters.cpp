@@ -3197,7 +3197,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
                 if ((str_val != NULL) && (strlen(str_val) > 0)) {
                     char prop[PROPERTY_VALUE_MAX];
                     memset(prop, 0, sizeof(prop));
-                    strcpy(prop, str_val);
+                    strncpy(prop, str_val, PROPERTY_VALUE_MAX);
                     char *saveptr = NULL;
                     char *token = strtok_r(prop, ",", &saveptr);
                     while (token != NULL) {
@@ -7343,7 +7343,7 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
       if ((str_val != NULL) && (strlen(str_val) > 0)) {
           char prop[PROPERTY_VALUE_MAX];
           memset(prop, 0, sizeof(prop));
-          strcpy(prop, str_val);
+          strncpy(prop, str_val, PROPERTY_VALUE_MAX);
           char *saveptr = NULL;
           char *token = strtok_r(prop, ",", &saveptr);
           while (token != NULL) {
@@ -7786,6 +7786,11 @@ int32_t QCameraParameters::getExifGpsDateTimeStamp(char *gpsDateStamp,
     if(str != NULL) {
         time_t unixTime = (time_t)atol(str);
         struct tm *UTCTimestamp = gmtime(&unixTime);
+
+        if(!UTCTimestamp) {
+            ALOGE("%s: UTCTimestamp is null\n", __func__);
+            return BAD_VALUE;
+        }
 
         strftime(gpsDateStamp, bufLen, "%Y:%m:%d", UTCTimestamp);
 
@@ -8666,6 +8671,13 @@ int32_t QCameraReprocScaleParam::setScaleSizeTbl(uint8_t scale_cnt, cam_dimensio
 
     //get the total picture size table
     mTotalSizeTblCnt = mNeedScaleCnt + org_cnt;
+
+    if (mNeedScaleCnt > MAX_SCALE_SIZES_CNT) {
+        ALOGE("%s: Error!! mNeedScaleCnt (%d) is more than MAX_SCALE_SIZES_CNT",
+                __func__, mNeedScaleCnt);
+        return BAD_VALUE;
+    }
+
     for(i = 0; i < mNeedScaleCnt; i++){
         mTotalSizeTbl[i].width = mNeedScaledSizeTbl[i].width;
         mTotalSizeTbl[i].height = mNeedScaledSizeTbl[i].height;

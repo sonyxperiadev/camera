@@ -227,6 +227,7 @@ SkBitmap * CameraContext::PiPCopyToOneFile(
     unsigned int srcOffset;
 
     if (bitmap0 == NULL || bitmap1 == NULL) {
+        ALOGE("%s: bitmap0 : %p, bitmap1 : %p\n", __func__, bitmap0, bitmap1);
         return NULL;
     }
 
@@ -360,6 +361,10 @@ status_t CameraContext::encodeJPEG(SkWStream * stream,
     unsigned char temp;
 
     skJpegEnc = SkImageEncoder::Create(SkImageEncoder::kJPEG_Type);
+    if (!skJpegEnc) {
+        ALOGE("%s: skJpegEnc is NULL\n", __func__);
+        return BAD_VALUE;
+    }
 
     if (skJpegEnc->encodeStream(stream, *bitmap, qFactor) == false) {
         return BAD_VALUE;
@@ -475,6 +480,10 @@ status_t CameraContext::ReadSectionsFromBuffer (unsigned char *buffer,
     mSectionsAllocated = 10;
 
     mSections = (Sections_t *)malloc(sizeof(Sections_t) * mSectionsAllocated);
+    if (!mSections) {
+        printf("%s: not enough memory\n", __func__);
+        return BAD_VALUE;
+    }
 
     if (!buffer) {
         printf("Input buffer is null\n");
@@ -871,15 +880,34 @@ void CameraContext::postData(int32_t msgType,
                     }
 
                     mJEXIFTmp = FindSection(M_EXIF);
+                    if (!mJEXIFTmp) {
+                        ALOGE("%s:skBMDec is null\n", __func__);
+                        DiscardData();
+                        DiscardSections();
+                        return;
+                    }
                     mJEXIFSection = *mJEXIFTmp;
                     mJEXIFSection.Data = (unsigned char*)malloc(mJEXIFTmp->Size);
-                    memcpy(mJEXIFSection.Data, mJEXIFTmp->Data, mJEXIFTmp->Size);
+                    if (!mJEXIFSection.Data) {
+                        ALOGE("%s: Not enough memory\n", __func__);
+                        DiscardData();
+                        DiscardSections();
+                        return;
+                    }
+                    memcpy(mJEXIFSection.Data,
+                        mJEXIFTmp->Data, mJEXIFTmp->Size);
                     DiscardData();
                     DiscardSections();
 
                     wStream = new SkFILEWStream(jpegPath.string());
                     skBMDec = PiPCopyToOneFile(&mInterpr->camera[0]->skBMtmp,
                             &mInterpr->camera[1]->skBMtmp);
+                    if (!skBMDec) {
+                        ALOGE("%s:skBMDec is null\n", __func__);
+                        delete wStream;
+                        return;
+                    }
+
                     if (encodeJPEG(wStream, skBMDec, jpegPath) != false) {
                         printf("%s():%d:: Failed during jpeg encode\n", __FUNCTION__,__LINE__);
                         mInterpr->PiPUnlock();

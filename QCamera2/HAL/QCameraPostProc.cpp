@@ -1728,8 +1728,11 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
            }
         }
 
+
         jpg_job.encode_job.thumb_dim.crop = crop;
-        jpg_job.encode_job.thumb_index = thumb_frame->buf_idx;
+        if (thumb_frame != NULL) {
+            jpg_job.encode_job.thumb_index = thumb_frame->buf_idx;
+        }
         CDBG_HIGH("%s, thumbnail src w/h (%dx%d), dst w/h (%dx%d)", __func__,
             jpg_job.encode_job.thumb_dim.src_dim.width,
             jpg_job.encode_job.thumb_dim.src_dim.height,
