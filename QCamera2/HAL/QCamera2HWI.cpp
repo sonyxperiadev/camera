@@ -2320,7 +2320,7 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
 
     setOutputImageCount(0);
     mParameters.setDisplayFrame(FALSE);
-    if (mParameters.isUbiFocusEnabled()) {
+    if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = configureAFBracketing();
     } else if (mParameters.isOptiZoomEnabled()) {
         rc = configureOptiZoom();
@@ -2354,8 +2354,14 @@ int32_t QCamera2HardwareInterface::configureAFBracketing(bool enable)
     CDBG_HIGH("%s: E",__func__);
     int32_t rc = NO_ERROR;
     cam_af_bracketing_t *af_bracketing_need;
-    af_bracketing_need =
-        &gCamCaps[mCameraId]->ubifocus_af_bracketing_need;
+
+    if (mParameters.isUbiRefocus()) {
+        af_bracketing_need =
+                &gCamCaps[mCameraId]->refocus_af_bracketing_need;
+    } else {
+        af_bracketing_need =
+                &gCamCaps[mCameraId]->ubifocus_af_bracketing_need;
+    }
 
     //Enable AF Bracketing.
     cam_af_bracketing_t afBracket;
@@ -2541,7 +2547,7 @@ int32_t QCamera2HardwareInterface::startAdvancedCapture(
     CDBG_HIGH("%s: Start bracketig",__func__);
     int32_t rc = NO_ERROR;
 
-    if(mParameters.isUbiFocusEnabled()) {
+    if(mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = pChannel->startAdvancedCapture(MM_CAMERA_AF_BRACKETING);
     } else if (mParameters.isChromaFlashEnabled()) {
         rc = pChannel->startAdvancedCapture(MM_CAMERA_FLASH_BRACKETING);
@@ -2583,6 +2589,7 @@ int QCamera2HardwareInterface::takePicture()
       CDBG_HIGH("%s: [ZSL Retro] Reset retro snaphot count to zero", __func__);
     }
     if (mParameters.isUbiFocusEnabled() ||
+            mParameters.isUbiRefocus() ||
             mParameters.isOptiZoomEnabled() ||
             mParameters.isHDREnabled() ||
             mParameters.isChromaFlashEnabled() ||
@@ -2607,6 +2614,7 @@ int QCamera2HardwareInterface::takePicture()
                 return rc;
             }
             if (mParameters.isUbiFocusEnabled() ||
+                    mParameters.isUbiRefocus() ||
                     mParameters.isOptiZoomEnabled() ||
                     mParameters.isHDREnabled() ||
                     mParameters.isChromaFlashEnabled() ||
@@ -2719,8 +2727,9 @@ int QCamera2HardwareInterface::takePicture()
                 QCameraPicChannel *pCapChannel =
                     (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_CAPTURE];
                 if (NULL != pCapChannel) {
-                    if (mParameters.isUbiFocusEnabled()|
-                        mParameters.isChromaFlashEnabled()) {
+                    if (mParameters.isUbiFocusEnabled() ||
+                            mParameters.isUbiRefocus() ||
+                            mParameters.isChromaFlashEnabled()) {
                         rc = startAdvancedCapture(pCapChannel);
                         if (rc != NO_ERROR) {
                             ALOGE("%s: cannot start advanced capture", __func__);
@@ -2909,7 +2918,7 @@ int QCamera2HardwareInterface::cancelPicture()
         mParameters.set3ALock(QCameraParameters::VALUE_FALSE);
         mIs3ALocked = false;
     }
-    if (mParameters.isUbiFocusEnabled()) {
+    if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         configureAFBracketing(false);
     }
     if (mParameters.isChromaFlashEnabled()) {
@@ -4646,6 +4655,12 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         pp_config.feature_mask &= ~CAM_QCOM_FEATURE_UBIFOCUS;
     }
 
+    if(mParameters.isUbiRefocus()) {
+        pp_config.feature_mask |= CAM_QCOM_FEATURE_REFOCUS;
+    } else {
+        pp_config.feature_mask &= ~CAM_QCOM_FEATURE_REFOCUS;
+    }
+
     if(mParameters.isChromaFlashEnabled()) {
         pp_config.feature_mask |= CAM_QCOM_FEATURE_CHROMA_FLASH;
         //TODO: check flash value for captured image, then assign.
@@ -4679,7 +4694,6 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         // buffers assuming number of capture is already added
         minStreamBufNum += imglib_extra_bufs + 1;
     }
-
     bool offlineReproc = isRegularCapture();
     rc = pChannel->addReprocStreamsFromSource(*this,
                                               pp_config,
@@ -5747,9 +5761,10 @@ bool QCamera2HardwareInterface::needReprocess()
     }
 
     if (mParameters.isUbiFocusEnabled() |
-        mParameters.isChromaFlashEnabled() |
-        mParameters.isHDREnabled() |
-        mParameters.isOptiZoomEnabled()) {
+            mParameters.isUbiRefocus() |
+            mParameters.isChromaFlashEnabled() |
+            mParameters.isHDREnabled() |
+            mParameters.isOptiZoomEnabled()) {
         CDBG_HIGH("%s: need reprocess for |UbiFocus=%d|ChramaFlash=%d|OptiZoom=%d|",
                                          __func__,
                                          mParameters.isUbiFocusEnabled(),
