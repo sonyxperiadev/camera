@@ -693,6 +693,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
             ret = apiResult.status;
             CDBG_HIGH("%s: [ZSL Retro] Prep Snapshot done", __func__);
         }
+        hw->mPrepSnapRun = true;
     }
     else {
         hw->setRetroPicture(0);
@@ -1083,6 +1084,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(int cameraId)
       mFlashNeeded(false),
       mCaptureRotation(0),
       mIs3ALocked(false),
+      mPrepSnapRun(false),
       mZoomLevel(0),
       m_bIntJpegEvtPending(false),
       m_bIntRawEvtPending(false),
@@ -2703,7 +2705,7 @@ int QCamera2HardwareInterface::takePicture()
                     return rc;
                 }
             }
-            if ( mLongshotEnabled ) {
+            if (mLongshotEnabled && mPrepSnapRun) {
                 mCameraHandle->ops->start_zsl_snapshot(
                         mCameraHandle->camera_handle,
                         pZSLChannel->getMyHandle());
@@ -3474,6 +3476,7 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
                 }
             }
             //
+            mPrepSnapRun = false;
         } else {
             rc = NO_INIT;
         }
@@ -3483,12 +3486,13 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
             cancelPicture();
             processEvt(QCAMERA_SM_EVT_SNAPSHOT_DONE, NULL);
             QCameraChannel *pZSLChannel = m_channels[QCAMERA_CH_TYPE_ZSL];
-            if (isZSLMode() && (NULL != pZSLChannel)) {
+            if (isZSLMode() && (NULL != pZSLChannel) && mPrepSnapRun) {
                 mCameraHandle->ops->stop_zsl_snapshot(
                         mCameraHandle->camera_handle,
                         pZSLChannel->getMyHandle());
             }
         }
+        mPrepSnapRun = false;
         mLongshotEnabled = false;
         mParameters.setLongshotEnable(mLongshotEnabled);
         break;
