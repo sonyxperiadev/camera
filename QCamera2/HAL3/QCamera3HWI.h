@@ -143,7 +143,7 @@ public:
     int flush();
 
     int setFrameParameters(camera3_capture_request_t *request,
-            cam_stream_ID_t streamID);
+            cam_stream_ID_t streamID, int blob_request);
     int setReprocParameters(camera3_capture_request_t *request);
     int translateToHalMetadata(const camera3_capture_request_t *request,
             metadata_buffer_t *parm);
@@ -236,6 +236,7 @@ private:
     bool mFirstRequest;
     QCamera3HeapMemory *mParamHeap;
     metadata_buffer_t* mParameters;
+    metadata_buffer_t* mPrevParameters;
     bool m_bWNROn;
 
     /* Data structure to store pending request */

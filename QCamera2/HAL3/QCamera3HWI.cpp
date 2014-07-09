@@ -236,6 +236,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(int cameraId,
       mFirstRequest(false),
       mParamHeap(NULL),
       mParameters(NULL),
+      mPrevParameters(NULL),
       mLoopBackResult(NULL),
       mMinProcessedFrameDuration(0),
       mMinJpegFrameDuration(0),
@@ -1519,7 +1520,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
     }
 
     if(request->input_buffer == NULL) {
-       rc = setFrameParameters(request, streamID);
+        rc = setFrameParameters(request, streamID, blob_request);
         if (rc < 0) {
             ALOGE("%s: fail to set frame parameters", __func__);
             pthread_mutex_unlock(&mMutex);
@@ -1608,9 +1609,17 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     pthread_mutex_unlock(&mMutex);
                     return rc;
                 }
-            } else
-                rc = channel->request(output.buffer, frameNumber,
-                            NULL, mParameters);
+            } else{
+                 CDBG("%s: %d, snapshot request with buffer %p, frame_number %d", __func__,
+                       __LINE__, output.buffer, frameNumber);
+                 if (!request->settings) {
+                   rc = channel->request(output.buffer, frameNumber,
+                               NULL, mPrevParameters);
+                 } else {
+                    rc = channel->request(output.buffer, frameNumber,
+                               NULL, mParameters);
+                 }
+            }
 
             // Notify RAW when we receive a BLOB request and RAW setprop is set
             if (mRawDump)
@@ -2953,6 +2962,8 @@ int QCamera3HardwareInterface::initParameters()
     }
 
     mParameters = (metadata_buffer_t*) DATA_PTR(mParamHeap,0);
+
+    mPrevParameters = (metadata_buffer_t*)malloc(sizeof(metadata_buffer_t));
     return rc;
 }
 
@@ -2975,6 +2986,9 @@ void QCamera3HardwareInterface::deinitParameters()
     mParamHeap = NULL;
 
     mParameters = NULL;
+
+    free(mPrevParameters);
+    mPrevParameters = NULL;
 }
 
 /*===========================================================================
@@ -4379,13 +4393,14 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
  * PARAMETERS :
  *   @request   : request that needs to be serviced
  *   @streamID : Stream ID of all the requested streams
+ *   @blob_request: Whether this request is a blob request or not
  *
  * RETURN     : success: NO_ERROR
  *              failure:
  *==========================================================================*/
 int QCamera3HardwareInterface::setFrameParameters(
                     camera3_capture_request_t *request,
-                    cam_stream_ID_t streamID)
+                    cam_stream_ID_t streamID, int blob_request)
 {
     /*translate from camera_metadata_t type to parm_type_t*/
     int rc = 0;
@@ -4418,6 +4433,8 @@ int QCamera3HardwareInterface::setFrameParameters(
 
     if(request->settings != NULL){
         rc = translateToHalMetadata(request, mParameters);
+        if (blob_request)
+            memcpy(mPrevParameters, mParameters, sizeof(metadata_buffer_t));
     }
 
     return rc;
@@ -4474,7 +4491,6 @@ int QCamera3HardwareInterface::setReprocParameters(
         ALOGE("%s: Failed to queue reprocessing metadata", __func__);
         delete reprocParam;
     }
-
     return rc;
 }
 
