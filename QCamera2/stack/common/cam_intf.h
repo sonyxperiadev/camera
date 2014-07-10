@@ -565,7 +565,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_HISTOGRAM,                    int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ASD_ENABLE,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_RECORDING_HINT,               int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_HDR,                          cam_hdr_param_t,             1);
+    INCLUDE(CAM_INTF_PARM_HDR,                          cam_exp_bracketing_t,        1);
     INCLUDE(CAM_INTF_PARM_FRAMESKIP,                    int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ZSL_MODE,                     int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_HDR_NEED_1X,                  int32_t,                     1);
