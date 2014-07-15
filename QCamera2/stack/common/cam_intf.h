@@ -418,8 +418,6 @@ typedef struct {
 
     cam_stream_parm_buffer_t parm_buf;    /* stream based parameters */
 
-    uint8_t useAVTimer; /*flag to indicate use of AVTimer for TimeStamps*/
-
     uint8_t dis_enable;
 
     /* Image Stabilization type */
