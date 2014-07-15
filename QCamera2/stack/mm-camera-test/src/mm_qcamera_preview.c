@@ -96,11 +96,11 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   pMetadata = (metadata_buffer_t *)frame->buffer;
   IF_META_AVAILABLE(cam_auto_focus_data_t, focus_data, CAM_INTF_META_AUTOFOCUS_DATA,
         pMetadata) {
-    if (focus_data->focus_state == CAM_AF_FOCUSED ||
-      focus_data->focus_state == CAM_AF_NOT_FOCUSED) {
+    if (focus_data->focus_state == CAM_AF_STATE_FOCUSED_LOCKED ||
+      focus_data->focus_state == CAM_AF_STATE_NOT_FOCUSED_LOCKED) {
       CDBG_ERROR("%s: AutoFocus Done Call Back Received\n",__func__);
       mm_camera_app_done();
-    } else if (focus_data->focus_state == CAM_AF_NOT_FOCUSED) {
+    } else if (focus_data->focus_state == CAM_AF_STATE_NOT_FOCUSED_LOCKED) {
       CDBG_ERROR("%s: AutoFocus failed\n",__func__);
       mm_camera_app_done();
     }

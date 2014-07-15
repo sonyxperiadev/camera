@@ -349,7 +349,6 @@ private:
     bool isRegularCapture();
     bool isCACEnabled();
     bool is4k2kResolution(cam_dimension_t* resolution);
-    bool isAFRunning();
     bool isPreviewRestartEnabled();
     bool needReprocess();
     bool needRotationReprocess();
@@ -365,8 +364,6 @@ private:
     void playShutter();
     void getThumbnailSize(cam_dimension_t &dim);
     uint32_t getJpegQuality();
-    inline bool getCancelAutoFocus(){ return mCancelAutoFocus; }
-    inline void setCancelAutoFocus(bool flag){ mCancelAutoFocus = flag; }
     QCameraExif *getExifData();
     cam_sensor_t getSensorType();
 
@@ -567,7 +564,7 @@ private:
     bool bRetroPicture;
     // Signifies AEC locked during zsl snapshots
     bool m_bLedAfAecLock;
-    cam_autofocus_state_t m_currentFocusState;
+    cam_af_state_t m_currentFocusState;
 
     power_module_t *m_pPowerModule;   // power module
 
@@ -575,7 +572,7 @@ private:
     uint32_t mDumpSkipCnt; // frame skip count
     mm_jpeg_exif_params_t mExifParams;
     qcamera_thermal_level_enum_t mThermalLevel;
-    bool mCancelAutoFocus;
+    bool mActiveAF;
     bool m_HDRSceneEnabled;
     bool mLongshotEnabled;
 
