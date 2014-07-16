@@ -1717,7 +1717,7 @@ int32_t mm_stream_calc_offset_preview(cam_format_t fmt,
         /* 2 planes: Y + CbCr */
         buf_planes->plane_info.num_planes = 2;
 
-        stride = PAD_TO_SIZE(dim->width, CAM_PAD_TO_16);
+        stride = PAD_TO_SIZE(dim->width, CAM_PAD_TO_32);
         scanline = PAD_TO_SIZE(dim->height, CAM_PAD_TO_2);
 
         buf_planes->plane_info.mp[0].offset = 0;
@@ -1729,7 +1729,7 @@ int32_t mm_stream_calc_offset_preview(cam_format_t fmt,
         buf_planes->plane_info.mp[0].width = dim->width;
         buf_planes->plane_info.mp[0].height = dim->height;
 
-        stride = PAD_TO_SIZE(dim->width, CAM_PAD_TO_16);
+        stride = PAD_TO_SIZE(dim->width, CAM_PAD_TO_32);
         scanline = PAD_TO_SIZE(dim->height / 2, CAM_PAD_TO_2);
         buf_planes->plane_info.mp[1].offset = 0;
         buf_planes->plane_info.mp[1].len =
