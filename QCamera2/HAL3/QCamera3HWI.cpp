@@ -1510,7 +1510,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         streamID.streamID[i]=channel->getStreamID(channel->getStreamTypeMask());
     }
     streamID.num_streams=request->num_output_buffers;
-    if (mRawDump && blob_request) {
+    if (mRawChannel && mRawDump && blob_request) {
         streamID.streamID[streamID.num_streams]=
             mRawChannel->getStreamID(mRawChannel->getStreamTypeMask());
         streamID.num_streams++;
