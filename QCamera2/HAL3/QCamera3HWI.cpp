@@ -543,6 +543,41 @@ int QCamera3HardwareInterface::configureStreams(
         return BAD_VALUE;
     }
 
+    pthread_mutex_lock(&mMutex);
+
+    /* Check whether we have video stream */
+    m_bIs4KVideo = false;
+    m_bIsVideo = false;
+    bool isZsl = false;
+    size_t videoWidth = 0;
+    size_t videoHeight = 0;
+    /* Check whether we have zsl stream or 4k video case */
+    for (size_t i = 0; i < streamList->num_streams; i++) {
+        camera3_stream_t *newStream = streamList->streams[i];
+        if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL &&
+                newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
+            isZsl = true;
+        }
+        if ((HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == newStream->format) &&
+                (newStream->usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER)) {
+            m_bIsVideo = true;
+            if ((VIDEO_4K_WIDTH <= newStream->width) &&
+                    (VIDEO_4K_HEIGHT <= newStream->height)) {
+                videoWidth = newStream->width;
+                videoHeight = newStream->height;
+                m_bIs4KVideo = true;
+            }
+        }
+    }
+
+    if (isZsl && m_bIsVideo) {
+        ALOGE("%s: Currently invalid configuration ZSL&Video!", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return -EINVAL;
+    }
+
+    pthread_mutex_unlock(&mMutex);
+
     /* first invalidate all the steams in the mStreamList
      * if they appear again, they will be validated */
     for (List<stream_info_t*>::iterator it = mStreamInfo.begin();
@@ -557,8 +592,6 @@ int QCamera3HardwareInterface::configureStreams(
     }
 
     pthread_mutex_lock(&mMutex);
-
-    bool isZsl = false;
     camera3_stream_t *inputStream = NULL;
     camera3_stream_t *jpegStream = NULL;
     cam_stream_size_info_t stream_config_info;
@@ -634,29 +667,6 @@ int QCamera3HardwareInterface::configureStreams(
         mMetadataChannel = NULL;
         pthread_mutex_unlock(&mMutex);
         return rc;
-    }
-
-    m_bIs4KVideo = false;
-    m_bIsVideo = false;
-    size_t videoWidth = 0;
-    size_t videoHeight = 0;
-    /* Check whether we have 4k video case */
-    for (size_t i = 0; i < streamList->num_streams; i++) {
-        camera3_stream_t *newStream = streamList->streams[i];
-        if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL &&
-                newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED && jpegStream){
-            isZsl = true;
-        }
-        if ((HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == newStream->format) &&
-                (newStream->usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER)) {
-            m_bIsVideo = true;
-            if ((VIDEO_4K_WIDTH <= newStream->width) &&
-                    (VIDEO_4K_HEIGHT <= newStream->height)) {
-                videoWidth = newStream->width;
-                videoHeight = newStream->height;
-                m_bIs4KVideo = true;
-            }
-        }
     }
 
     /* Create dummy stream if there is one single raw stream */
