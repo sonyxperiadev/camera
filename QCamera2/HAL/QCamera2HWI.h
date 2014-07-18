@@ -413,7 +413,7 @@ private:
     bool isZSLMode() {return mParameters.isZSLMode();};
     bool isRdiMode() {return mParameters.isRdiMode();};
     uint8_t numOfSnapshotsExpected() {
-        return mParameters.isUbiRefocus() ? 1 : mParameters.getNumOfSnapshots();};
+        return mParameters.getNumOfSnapshots();};
     bool isSecureMode() {return mParameters.isSecureMode();};
     bool isLongshotEnabled() { return mLongshotEnabled; };
     bool isHFRMode() {return mParameters.isHfrMode();};
