@@ -594,7 +594,7 @@ public:
     bool setStreamConfigure(bool isCapture, bool previewAsPostview);
     uint8_t getNumOfExtraBuffersForImageProc();
     bool needThumbnailReprocess(uint32_t *pFeatureMask);
-    inline bool isUbiFocusEnabled() {return m_bAFBracketingOn;};
+    inline bool isUbiFocusEnabled() {return m_bAFBracketingOn && !m_bReFocusOn;};
     inline bool isChromaFlashEnabled() {return m_bChromaFlashOn;};
     bool isOptiZoomEnabled();
     int32_t commitAFBracket(cam_af_bracketing_t afBracket);
@@ -604,16 +604,17 @@ public:
     uint8_t getBurstCountForAdvancedCapture();
     int32_t setLongshotEnable(bool enable);
     String8 dump();
-    inline bool isUbiRefocus() {return isUbiFocusEnabled() &&
-        (m_pCapability->ubifocus_af_bracketing_need.output_count > 1);};
+    inline bool isUbiRefocus() {return m_bReFocusOn &&
+        (m_pCapability->refocus_af_bracketing_need.output_count > 1);};
     inline uint32_t UfOutputCount() {
-        return m_pCapability->ubifocus_af_bracketing_need.output_count;};
+        return m_pCapability->refocus_af_bracketing_need.output_count;};
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
-        isChromaFlashEnabled() || isOptiZoomEnabled(); }
+        isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus(); }
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
     bool isAdvCamFeaturesEnabled() {return isUbiFocusEnabled() ||
-        isChromaFlashEnabled() || m_bOptiZoomOn || isHDREnabled();}
+            isChromaFlashEnabled() || m_bOptiZoomOn || isHDREnabled() ||
+            isHDREnabled();}
     int32_t setAecLock(const char *aecStr);
     bool is4k2kVideoResolution();
 
@@ -661,6 +662,7 @@ private:
     int32_t setSelectableZoneAf(const QCameraParameters& );
     int32_t setAEBracket(const QCameraParameters& );
     int32_t setAFBracket(const QCameraParameters& );
+    int32_t setReFocus(const QCameraParameters& );
     int32_t setChromaFlash(const QCameraParameters& );
     int32_t setOptiZoom(const QCameraParameters& );
     int32_t setRedeyeReduction(const QCameraParameters& );
@@ -717,6 +719,7 @@ private:
     int32_t setSelectableZoneAf(const char *selZoneAFStr);
     int32_t setAEBracket(const char *aecBracketStr);
     int32_t setAFBracket(const char *afBracketStr);
+    int32_t setReFocus(const char *reFocusStr);
     int32_t setChromaFlash(const char *chromaFlashStr);
     int32_t setOptiZoom(const char *optiZoomStr);
     int32_t setRedeyeReduction(const char *redeyeStr);
@@ -844,6 +847,7 @@ private:
     DefaultKeyedVector<String8,String8> m_tempMap; // map for temororily store parameters to be set
     cam_fps_range_t m_default_fps_range;
     bool m_bAFBracketingOn;
+    bool m_bReFocusOn;
     bool m_bChromaFlashOn;
     bool m_bOptiZoomOn;
     bool m_bSceneSelection;

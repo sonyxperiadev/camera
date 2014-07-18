@@ -653,6 +653,7 @@ QCameraParameters::QCameraParameters()
       m_bHDROutputCropEnabled(false),
       m_tempMap(),
       m_bAFBracketingOn(false),
+      m_bReFocusOn(false),
       m_bChromaFlashOn(false),
       m_bOptiZoomOn(false),
       m_bSceneSelection(false),
@@ -738,6 +739,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bHDROutputCropEnabled(false),
     m_tempMap(),
     m_bAFBracketingOn(false),
+    m_bReFocusOn(false),
     m_bChromaFlashOn(false),
     m_bOptiZoomOn(false),
     m_bSceneSelection(false),
@@ -3007,7 +3009,7 @@ int32_t QCameraParameters::setAEBracket(const QCameraParameters& params)
 int32_t QCameraParameters::setAFBracket(const QCameraParameters& params)
 {
     if ((m_pCapability->qcom_supported_feature_mask &
-        CAM_QCOM_FEATURE_UBIFOCUS) == 0){
+            (CAM_QCOM_FEATURE_REFOCUS | CAM_QCOM_FEATURE_UBIFOCUS)) == 0) {
         CDBG_HIGH("%s: AF Bracketing is not supported",__func__);
         return NO_ERROR;
     }
@@ -3019,6 +3021,38 @@ int32_t QCameraParameters::setAFBracket(const QCameraParameters& params)
             strcmp(str, prev_str) != 0) {
             m_bNeedRestart = true;
             return setAFBracket(str);
+        }
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setReFocus
+ *
+ * DESCRIPTION: set refocus from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setReFocus(const QCameraParameters& params)
+{
+    if ((m_pCapability->qcom_supported_feature_mask &
+            (CAM_QCOM_FEATURE_REFOCUS | CAM_QCOM_FEATURE_UBIFOCUS)) == 0) {
+        ALOGD("%s: AF Bracketing is not supported",__func__);
+        return NO_ERROR;
+    }
+    const char *str = params.get(KEY_QC_RE_FOCUS);
+    const char *prev_str = get(KEY_QC_RE_FOCUS);
+    CDBG_HIGH("%s: str =%s & prev_str =%s",__func__, str, prev_str);
+    if (str != NULL) {
+        if (prev_str == NULL ||
+            strcmp(str, prev_str) != 0) {
+            m_bNeedRestart = true;
+            return setReFocus(str);
         }
     }
     return NO_ERROR;
@@ -3242,9 +3276,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
     }
 
     if (isUbiRefocus()) {
-       //nBurstNum = m_pCapability->ubifocus_af_bracketing_need.output_count;
-       nBurstNum = 7;
-       nExpnum = 1;
+       nBurstNum = m_pCapability->refocus_af_bracketing_need.output_count + 1;
     }
 
     CDBG_HIGH("%s: nBurstNum = %d, nExpnum = %d", __func__, nBurstNum, nExpnum);
@@ -3868,6 +3900,7 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setVideoHDR(params)))                     final_rc = rc;
     if ((rc = setVtEnable(params)))                     final_rc = rc;
     if ((rc = setAFBracket(params)))                    final_rc = rc;
+    if ((rc = setReFocus(params)))                      final_rc = rc;
     if ((rc = setChromaFlash(params)))                  final_rc = rc;
     if ((rc = setOptiZoom(params)))                     final_rc = rc;
     if ((rc = setBurstNum(params)))                     final_rc = rc;
@@ -4317,12 +4350,16 @@ int32_t QCameraParameters::initDefaultParameters()
 
     //Set Refocus.
     //Re-use ubifocus flag for now.
-    if ((m_pCapability->qcom_supported_feature_mask &
-        CAM_QCOM_FEATURE_UBIFOCUS) > 0){
+    for(int i = 0; i < m_pCapability->supported_focus_modes_cnt; i++) {
+        if ((CAM_FOCUS_MODE_AUTO == m_pCapability->supported_focus_modes[i]) &&
+                (m_pCapability->qcom_supported_feature_mask &
+                    CAM_QCOM_FEATURE_REFOCUS) > 0) {
             String8 reFocusValues = createValuesStringFromMap(
                 RE_FOCUS_MODES_MAP,
                 sizeof(RE_FOCUS_MODES_MAP) / sizeof(QCameraMap));
             set(KEY_QC_SUPPORTED_RE_FOCUS_MODES, reFocusValues);
+            setReFocus(RE_FOCUS_OFF);
+        }
     }
 
     //Set Chroma Flash.
@@ -6132,7 +6169,7 @@ int32_t QCameraParameters::set3ALock(const char *lockStr)
             }
             int32_t focus_mode;
             if (value == 1) {
-                if (isUbiFocusEnabled()) {
+                if (isUbiFocusEnabled() || isUbiRefocus()) {
                     //For Ubi focus move focus to infinity.
                     focus_mode = CAM_FOCUS_MODE_INFINITY;
                 } else if (isOptiZoomEnabled()){
@@ -6358,6 +6395,38 @@ int32_t QCameraParameters::setAFBracket(const char *afBracketStr)
 }
 
 /*===========================================================================
+ * FUNCTION   : setReFocus
+ *
+ * DESCRIPTION: set refocus value
+ *
+ * PARAMETERS :
+ *   @afBracketStr : refocus value string
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setReFocus(const char *reFocusStr)
+{
+    CDBG_HIGH("%s: reFocusStr =%s",__func__,reFocusStr);
+
+    if(reFocusStr != NULL) {
+        int value = lookupAttr(RE_FOCUS_MODES_MAP,
+                sizeof(RE_FOCUS_MODES_MAP)/
+                        sizeof(QCameraMap),
+                reFocusStr);
+        if (value != NAME_NOT_FOUND) {
+            m_bAFBracketingOn = (value != 0);
+            m_bReFocusOn = (value != 0);
+            updateParamEntry(KEY_QC_RE_FOCUS, reFocusStr);
+            return NO_ERROR;
+        }
+    }
+
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : setChromaFlash
  *
  * DESCRIPTION: set chroma flash value
@@ -6540,7 +6609,7 @@ int32_t QCameraParameters::updateFlash(bool commitSettings)
     }
 
     if (isHDREnabled() || m_bAeBracketingEnabled || m_bAFBracketingOn ||
-          m_bOptiZoomOn) {
+          m_bOptiZoomOn || m_bReFocusOn) {
         value = CAM_FLASH_MODE_OFF;
     } else if (m_bChromaFlashOn) {
         value = CAM_FLASH_MODE_ON;
@@ -7313,6 +7382,9 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
     if (isUbiFocusEnabled()) {
         //number of snapshots required for Ubi Focus.
         burstCount = m_pCapability->ubifocus_af_bracketing_need.burst_count;
+    } else if (isUbiRefocus()) {
+        //number of snapshots required for Opti Zoom.
+        burstCount = m_pCapability->refocus_af_bracketing_need.burst_count;
     } else if (isOptiZoomEnabled()) {
         //number of snapshots required for Opti Zoom.
         burstCount = m_pCapability->opti_zoom_settings_need.burst_count;
@@ -7338,7 +7410,6 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
           }
       }
     }
-
     if (burstCount <= 0) {
         burstCount = 1;
     }
@@ -9183,9 +9254,10 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
 bool QCameraParameters::needThumbnailReprocess(uint32_t *pFeatureMask)
 {
     if (isUbiFocusEnabled() || isChromaFlashEnabled() ||
-        isOptiZoomEnabled()) {
+        isOptiZoomEnabled() || isUbiRefocus()) {
         *pFeatureMask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_UBIFOCUS;
+        *pFeatureMask &= ~CAM_QCOM_FEATURE_REFOCUS;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_OPTIZOOM;
         return false;
     } else {
@@ -9207,12 +9279,10 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
 {
     uint8_t numOfBufs = 0;
 
-    if (isUbiFocusEnabled()) {
-        numOfBufs += m_pCapability->ubifocus_af_bracketing_need.burst_count - 1;
-        if (isUbiRefocus()) {
-            numOfBufs +=
-                m_pCapability->ubifocus_af_bracketing_need.burst_count + 1;
-        }
+    if (isUbiRefocus()) {
+        return m_pCapability->ubifocus_af_bracketing_need.burst_count - 1;
+    } else if (isUbiFocusEnabled()) {
+        numOfBufs += m_pCapability->refocus_af_bracketing_need.burst_count - 1;
     } else if (m_bOptiZoomOn) {
         numOfBufs += m_pCapability->opti_zoom_settings_need.burst_count - 1;
     } else if (isChromaFlashEnabled()) {
