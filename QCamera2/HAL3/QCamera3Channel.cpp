@@ -2399,7 +2399,7 @@ int32_t QCamera3ReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *fram
                 char* private_data = (char *)POINTER_OF_PARAM(
                         CAM_INTF_META_PRIVATE_DATA, metadata);
                 memcpy(param.reprocess.private_data, private_data,
-                        MAX_METADATA_PRIVATE_PAYLOAD_SIZE);
+                        MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES);
 
                 // Find crop info for reprocess stream
                 cam_crop_data_t *crop_data = (cam_crop_data_t *)

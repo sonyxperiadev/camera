@@ -2296,7 +2296,7 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         int32_t *privateData = (int32_t *)
                 POINTER_OF_META(CAM_INTF_META_PRIVATE_DATA, metadata);
         camMetadata.update(QCAMERA3_PRIVATEDATA_REPROCESS,
-            privateData, MAX_METADATA_PRIVATE_PAYLOAD_SIZE);
+                privateData, MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES / 4);
     }
     if (IS_META_AVAILABLE(CAM_INTF_META_NEUTRAL_COL_POINT, metadata)) {
         cam_neutral_col_point_t *neuColPoint = (cam_neutral_col_point_t*)
@@ -5152,7 +5152,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
         int32_t* privatedata =
             frame_settings.find(QCAMERA3_PRIVATEDATA_REPROCESS).data.i32;
         rc = AddSetParmEntryToBatch(hal_metadata, CAM_INTF_META_PRIVATE_DATA,
-            sizeof(int32_t) * MAX_METADATA_PRIVATE_PAYLOAD_SIZE, privatedata);
+                MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES / 4, privatedata);
     }
 
     // EV step
