@@ -806,7 +806,7 @@ int QCamera3HardwareInterface::configureStreams(
                             mCameraHandle->ops, captureResultCb,
                             &gCamCapability[mCameraId]->padding_info, this, newStream,
                             stream_config_info.postprocess_mask[i],
-                            m_bIs4KVideo);
+                            m_bIs4KVideo, mMetadataChannel);
                     if (mPictureChannel == NULL) {
                         ALOGE("%s: allocation of channel failed", __func__);
                         pthread_mutex_unlock(&mMutex);
@@ -1312,19 +1312,13 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     }
                 }
 
-                //If it is a blob request then send the metadata to the picture channel
-                metadata_buffer_t *reproc_meta =
-                        (metadata_buffer_t *)malloc(sizeof(metadata_buffer_t));
-                if (reproc_meta == NULL) {
-                    ALOGE("%s: Failed to allocate memory for reproc data.", __func__);
-                    goto done_metadata;
-                }
-                *reproc_meta = *metadata;
-                mPictureChannel->queueReprocMetadata(reproc_meta);
+
+                mPictureChannel->queueReprocMetadata(metadata_buf);
+            } else {
+                // Return metadata buffer
+                mMetadataChannel->bufDone(metadata_buf);
+                free(metadata_buf);
             }
-            // Return metadata buffer
-            mMetadataChannel->bufDone(metadata_buf);
-            free(metadata_buf);
         }
         if (!result.result) {
             ALOGE("%s: metadata is NULL", __func__);
@@ -5717,7 +5711,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     // Internal metadata
     if (frame_settings.exists(QCAMERA3_PRIVATEDATA_REPROCESS)) {
         int32_t* privatedata =
-            frame_settings.find(QCAMERA3_PRIVATEDATA_REPROCESS).data.i32;
+                frame_settings.find(QCAMERA3_PRIVATEDATA_REPROCESS).data.i32;
         rc = AddSetParmEntryToBatch(hal_metadata, CAM_INTF_META_PRIVATE_DATA,
                 MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES / 4, privatedata);
     }
