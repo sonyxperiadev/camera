@@ -328,6 +328,8 @@ typedef struct mm_jpeg_job_session {
 
   mm_jpeg_queue_t *session_handle_q;
   mm_jpeg_queue_t *out_buf_q;
+
+  int thumb_from_main;
 } mm_jpeg_job_session_t;
 
 typedef struct {
@@ -369,8 +371,8 @@ typedef struct mm_jpeg_obj_t {
   int num_clients;                                /* num of clients */
   mm_jpeg_client_t clnt_mgr[MAX_JPEG_CLIENT_NUM]; /* client manager */
 
-  /* JobMkr */
   pthread_mutex_t job_lock;                       /* job lock */
+  /* JobMkr */
   mm_jpeg_job_cmd_thread_t job_mgr;               /* job mgr thread including todo_q*/
   mm_jpeg_queue_t ongoing_job_q;                  /* queue for ongoing jobs */
   buffer_t ionBuffer[MM_JPEG_CONCURRENT_SESSIONS_COUNT];
@@ -386,7 +388,6 @@ typedef struct mm_jpeg_obj_t {
   int work_buf_cnt;
 
   int num_sessions;
-
 } mm_jpeg_obj;
 
 /** mm_jpeg_pending_func_t:
