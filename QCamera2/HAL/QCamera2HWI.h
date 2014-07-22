@@ -297,7 +297,7 @@ private:
     int cancelLiveSnapshot();
     char* getParameters();
     int putParameters(char *);
-    int sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
+    int sendCommand(int32_t cmd, int32_t &arg1, int32_t &arg2);
     int release();
     int dump(int fd);
     int registerFaceImage(void *img_ptr,
