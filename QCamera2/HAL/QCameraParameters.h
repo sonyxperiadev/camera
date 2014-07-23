@@ -236,6 +236,7 @@ public:
     static const char KEY_QC_AUTO_HDR_ENABLE[];
     // video rotation
     static const char KEY_QC_VIDEO_ROTATION[];
+    static const char KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES[];
 
     //Redeye Reduction
     static const char KEY_QC_REDEYE_REDUCTION[];
@@ -479,6 +480,12 @@ public:
     static const char CDS_MODE_AUTO[];
 
     static const char KEY_SELECTED_AUTO_SCENE[];
+
+    // Values for Video rotation
+    static const char VIDEO_ROTATION_0[];
+    static const char VIDEO_ROTATION_90[];
+    static const char VIDEO_ROTATION_180[];
+    static const char VIDEO_ROTATION_270[];
 
     enum {
         CAMERA_ORIENTATION_UNKNOWN = 0,
@@ -823,6 +830,7 @@ private:
     static const QCameraMap RDI_MODES_MAP[];
     static const QCameraMap CDS_MODES_MAP[];
     static const QCameraMap HDR_MODES_MAP[];
+    static const QCameraMap VIDEO_ROTATION_MODES_MAP[];
 
     cam_capability_t *m_pCapability;
     mm_camera_vtbl_t *m_pCamOpsTbl;

@@ -119,6 +119,7 @@ const char QCameraParameters::KEY_QC_TINTLESS_ENABLE[] = "tintless";
 const char QCameraParameters::KEY_QC_SCENE_SELECTION[] = "scene-selection";
 const char QCameraParameters::KEY_QC_CDS_MODE[] = "cds-mode";
 const char QCameraParameters::KEY_QC_VIDEO_ROTATION[] = "video-rotation";
+const char QCameraParameters::KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES[] = "video-rotation-values";
 const char QCameraParameters::KEY_QC_AF_BRACKET[] = "af-bracket";
 const char QCameraParameters::KEY_QC_SUPPORTED_AF_BRACKET_MODES[] = "af-bracket-values";
 const char QCameraParameters::KEY_QC_RE_FOCUS[] = "re-focus";
@@ -339,6 +340,12 @@ const char QCameraParameters::CDS_MODE_ON[] = "on";
 const char QCameraParameters::CDS_MODE_AUTO[] = "auto";
 
 const char QCameraParameters::KEY_SELECTED_AUTO_SCENE[] = "selected-auto-scene";
+
+// Values for video rotation settings.
+const char QCameraParameters::VIDEO_ROTATION_0[] = "0";
+const char QCameraParameters::VIDEO_ROTATION_90[] = "90";
+const char QCameraParameters::VIDEO_ROTATION_180[] = "180";
+const char QCameraParameters::VIDEO_ROTATION_270[] = "270";
 
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
@@ -614,6 +621,13 @@ const QCameraParameters::QCameraMap QCameraParameters::CDS_MODES_MAP[] = {
 const QCameraParameters::QCameraMap QCameraParameters::HDR_MODES_MAP[] = {
     { HDR_MODE_SENSOR, 0 },
     { HDR_MODE_MULTI_FRAME, 1 }
+};
+
+const QCameraParameters::QCameraMap QCameraParameters::VIDEO_ROTATION_MODES_MAP[] = {
+    { VIDEO_ROTATION_0, 0 },
+    { VIDEO_ROTATION_90, 90 },
+    { VIDEO_ROTATION_180, 180 },
+    { VIDEO_ROTATION_270, 270 }
 };
 
 #define DEFAULT_CAMERA_AREA "(0, 0, 0, 0, 0)"
@@ -2503,15 +2517,20 @@ int32_t  QCameraParameters::setISOValue(const QCameraParameters& params)
  *==========================================================================*/
 int32_t QCameraParameters::setVideoRotation(const QCameraParameters& params)
 {
-    int rotation = params.getInt(KEY_QC_VIDEO_ROTATION);
-    if (rotation != -1) {
-        if (rotation == 0 || rotation == 90 ||
-            rotation == 180 || rotation == 270) {
-            set(KEY_QC_VIDEO_ROTATION, rotation);
+    const char *str = params.get(KEY_QC_VIDEO_ROTATION);
+    if(str != NULL) {
+        int value = lookupAttr(VIDEO_ROTATION_MODES_MAP,
+                sizeof(VIDEO_ROTATION_MODES_MAP)/
+                sizeof(QCameraMap),
+                str);
+        if (value != NAME_NOT_FOUND) {
+            updateParamEntry(KEY_QC_VIDEO_ROTATION, str);
+            ALOGV("setVideoRotation: %s:  %d: ", str, value);
         } else {
-            ALOGE("Invalid rotation value: %d", rotation);
+            ALOGE("Invalid rotation value: %d", value);
             return BAD_VALUE;
         }
+
     }
     return NO_ERROR;
 }
@@ -4662,6 +4681,13 @@ int32_t QCameraParameters::initDefaultParameters()
     if (rc == NO_ERROR) {
         rc = setNumOfSnapshot();
     }
+
+    //Set Video Rotation
+    String8 videoRotationValues = createValuesStringFromMap(
+       VIDEO_ROTATION_MODES_MAP, sizeof(VIDEO_ROTATION_MODES_MAP) / sizeof(QCameraMap));
+
+    set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, videoRotationValues.string());
+    set(KEY_QC_VIDEO_ROTATION, VIDEO_ROTATION_0);
     return rc;
 }
 
@@ -7160,39 +7186,42 @@ int32_t QCameraParameters::getStreamRotation(cam_stream_type_t streamType,
                                             cam_dimension_t &dim)
 {
     int32_t ret = NO_ERROR;
-    int rotationParam = getInt(KEY_QC_VIDEO_ROTATION);
+    const char *str = get(KEY_QC_VIDEO_ROTATION);
+    int rotationParam = lookupAttr(VIDEO_ROTATION_MODES_MAP,
+            sizeof(VIDEO_ROTATION_MODES_MAP)/sizeof(QCameraMap),
+            str);
     featureConfig.rotation = ROTATE_0;
     int swapDim = 0;
     switch (streamType) {
-    case CAM_STREAM_TYPE_VIDEO:
-           switch(rotationParam) {
-            case 90:
-               featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-               featureConfig.rotation = ROTATE_90;
-               swapDim = 1;
-               break;
-            case 180:
-               featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-               featureConfig.rotation = ROTATE_180;
-               break;
-            case 270:
-               featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-               featureConfig.rotation = ROTATE_270;
-               swapDim = 1;
-              break;
-            default:
-               featureConfig.rotation = ROTATE_0;
-        }
-        break;
-    case CAM_STREAM_TYPE_PREVIEW:
-    case CAM_STREAM_TYPE_POSTVIEW:
-    case CAM_STREAM_TYPE_SNAPSHOT:
-    case CAM_STREAM_TYPE_RAW:
-    case CAM_STREAM_TYPE_METADATA:
-    case CAM_STREAM_TYPE_OFFLINE_PROC:
-    case CAM_STREAM_TYPE_DEFAULT:
-    default:
-        break;
+        case CAM_STREAM_TYPE_VIDEO:
+            switch(rotationParam) {
+                case 90:
+                    featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
+                    featureConfig.rotation = ROTATE_90;
+                    swapDim = 1;
+                    break;
+                case 180:
+                    featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
+                    featureConfig.rotation = ROTATE_180;
+                    break;
+                case 270:
+                    featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
+                    featureConfig.rotation = ROTATE_270;
+                    swapDim = 1;
+                    break;
+                default:
+                    featureConfig.rotation = ROTATE_0;
+            }
+            break;
+        case CAM_STREAM_TYPE_PREVIEW:
+        case CAM_STREAM_TYPE_POSTVIEW:
+        case CAM_STREAM_TYPE_SNAPSHOT:
+        case CAM_STREAM_TYPE_RAW:
+        case CAM_STREAM_TYPE_METADATA:
+        case CAM_STREAM_TYPE_OFFLINE_PROC:
+        case CAM_STREAM_TYPE_DEFAULT:
+        default:
+            break;
     }
 
     if (swapDim > 0) {
