@@ -5386,7 +5386,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       supported_indexes,
                       cameraId);
 
-    if (gCamCapability[cameraId]->hfr_tbl_cnt > 0) {
+    if (hfrEnable && gCamCapability[cameraId]->hfr_tbl_cnt > 0) {
         avail_scene_modes[supported_scene_modes_cnt] =
                 ANDROID_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO;
         scene_mode_overrides[3 * supported_scene_modes_cnt] =
@@ -7764,7 +7764,7 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
         uint8_t fwk_sceneMode = entry.data.u8[0];
 
         if (fwk_sceneMode != ANDROID_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO) {
-            uint8_t sceneMode = lookupHalName(SCENE_MODES_MAP,
+            sceneMode = lookupHalName(SCENE_MODES_MAP,
                     sizeof(SCENE_MODES_MAP)/sizeof(SCENE_MODES_MAP[0]),
                     fwk_sceneMode);
             hfrMode = CAM_HFR_MODE_OFF;
