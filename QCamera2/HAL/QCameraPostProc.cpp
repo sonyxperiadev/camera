@@ -1683,6 +1683,19 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             }
             return NO_ERROR;
         }
+    } else if ((reproc_stream != NULL) && (m_parent->mParameters.isTruePortraitEnabled())) {
+
+        QCameraHeapMemory* miscBufHandler = reproc_stream->getMiscBuf();
+        cam_true_portrait_misc_buf_t* tpResult =
+                reinterpret_cast<cam_true_portrait_misc_buf_t *>(miscBufHandler->getPtr(0));
+        uint32_t tp_meta_size = tpResult->header_size +
+                tpResult->body_mask_width * tpResult->body_mask_height;
+
+        CDBG_HIGH("%s:%d] True portrait result header %d% dims dx%d", __func__, __LINE__,
+                tp_meta_size, tpResult->body_mask_width, tpResult->body_mask_height);
+
+        CAM_DUMP_TO_FILE("/data/camera/local/tp", "bm", -1, "y",
+                &tpResult->mask_data, tp_meta_size);
     }
 
     cam_dimension_t dst_dim;

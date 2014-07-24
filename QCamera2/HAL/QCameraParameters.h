@@ -636,6 +636,9 @@ public:
     bool needThumbnailReprocess(uint32_t *pFeatureMask);
     inline bool isUbiFocusEnabled() {return m_bAFBracketingOn && !m_bReFocusOn;};
     inline bool isChromaFlashEnabled() {return m_bChromaFlashOn;};
+    inline bool isTruePortraitEnabled() {return m_bTruePortraitOn;};
+    inline uint32_t getTPMaxMetaSize() {
+        return m_pCapability->true_portrait_settings_need.meta_max_size;};
     bool isOptiZoomEnabled();
     int32_t commitAFBracket(cam_af_bracketing_t afBracket);
     int32_t commitFlashBracket(cam_flash_bracketing_t flashBracket);
@@ -913,6 +916,8 @@ private:
     int32_t mHfrMode;
     bool m_bHDRModeSensor;
     bool mOfflineRAW;
+    bool m_bTruePortraitOn;
+
 };
 
 }; // namespace qcamera

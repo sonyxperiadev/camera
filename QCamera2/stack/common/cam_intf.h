@@ -335,6 +335,9 @@ typedef struct{
 
     cam_opaque_raw_format_t opaque_raw_fmt;
 
+    /* true Portrait info */
+    cam_true_portrait_t  true_portrait_settings_need;
+
     /* Sensor type information */
     cam_sensor_type_t sensor_type;
 

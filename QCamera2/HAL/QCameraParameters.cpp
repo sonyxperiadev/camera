@@ -734,7 +734,8 @@ QCameraParameters::QCameraParameters()
       mFlashDaemonValue(CAM_FLASH_MODE_OFF),
       mHfrMode(CAM_HFR_MODE_OFF),
       m_bHDRModeSensor(true),
-      mOfflineRAW(false)
+      mOfflineRAW(false),
+      m_bTruePortraitOn(false)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -825,7 +826,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mFlashDaemonValue(CAM_FLASH_MODE_OFF),
     mHfrMode(CAM_HFR_MODE_OFF),
     m_bHDRModeSensor(true),
-    mOfflineRAW(false)
+    mOfflineRAW(false),
+    m_bTruePortraitOn(false)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));

@@ -46,6 +46,7 @@ public:
     virtual int32_t allocateMoreStreamBuf(QCameraMemory *mem_obj,
             size_t size, uint8_t &bufferCnt) = 0;
     virtual QCameraHeapMemory *allocateStreamInfoBuf(cam_stream_type_t stream_type) = 0;
+    virtual QCameraHeapMemory *allocateMiscBuf(cam_stream_info_t *streamInfo) = 0;
     virtual ~QCameraAllocator() {}
 };
 
