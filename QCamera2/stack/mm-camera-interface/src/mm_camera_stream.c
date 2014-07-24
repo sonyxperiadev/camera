@@ -686,6 +686,7 @@ int32_t mm_stream_fsm_reg(mm_stream_t * my_obj,
             pthread_mutex_unlock(&my_obj->cb_lock);
 
             if (has_cb) {
+                snprintf(my_obj->cmd_thread.threadName, THREAD_NAME_SIZE, "CAM_StrmAppData");
                 mm_camera_cmd_thread_launch(&my_obj->cmd_thread,
                                             mm_stream_dispatch_app_data,
                                             (void *)my_obj);
