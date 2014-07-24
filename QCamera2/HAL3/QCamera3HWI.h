@@ -306,6 +306,7 @@ private:
     static const QCameraMap SCENE_MODES_MAP[];
     static const QCameraMap FOCUS_MODES_MAP[];
     static const QCameraMap ANTIBANDING_MODES_MAP[];
+    static const QCameraMap LENS_STATE_MAP[];
     static const QCameraMap AE_FLASH_MODE_MAP[];
     static const QCameraMap FLASH_MODES_MAP[];
     static const QCameraMap FACEDETECT_MODES_MAP[];
