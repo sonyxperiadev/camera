@@ -75,6 +75,13 @@ class QCamera3Channel;
         cam_padding_info_t *padding;
         QCamera3Channel *src_channel;
     } reprocess_config_t;
+
+    //Extended scene mode is scene mode defined by Android by not by
+    //cam_scene_mode_type. One such example is HIGH_SPEED_VIDEO scene mode.
+    typedef enum {
+        CAM_EXT_SCENE_MODE_HSV = 0,
+        CAM_EXT_SCENE_MODE_MAX
+    } cam_ext_scene_mode_type;
 };//namespace qcamera
 
 #endif
