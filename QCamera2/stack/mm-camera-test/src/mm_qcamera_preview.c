@@ -56,17 +56,16 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
           break;
       }
   }
+
+  if (NULL == channel) {
+      CDBG_ERROR("%s: Channel object is NULL ", __func__);
+      return;
+  }
+
   /* find preview stream */
   for (i = 0; i < channel->num_streams; i++) {
       if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_METADATA) {
           p_stream = &channel->streams[i];
-          break;
-      }
-  }
-  /* find preview frame */
-  for (i = 0; i < bufs->num_bufs; i++) {
-      if (bufs->bufs[i]->stream_id == p_stream->s_id) {
-          frame = bufs->bufs[i];
           break;
       }
   }
@@ -75,6 +74,15 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
       CDBG_ERROR("%s: cannot find metadata stream", __func__);
       return;
   }
+
+  /* find preview frame */
+  for (i = 0; i < bufs->num_bufs; i++) {
+      if (bufs->bufs[i]->stream_id == p_stream->s_id) {
+          frame = bufs->bufs[i];
+          break;
+      }
+  }
+
   if (pme->metadata == NULL) {
     /* The app will free the meta data, we don't need to bother here */
     pme->metadata = malloc(sizeof(metadata_buffer_t));
@@ -118,7 +126,7 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
 
     CDBG_ERROR("%s: BEGIN - length=%d, frame idx = %d\n",
-         __func__, frame->frame_len, frame->frame_idx);
+            __func__, frame->frame_len, frame->frame_idx);
 
     if (NULL == bufs || NULL == user_data) {
         CDBG_ERROR("%s: bufs or user_data are not valid ", __func__);
@@ -132,17 +140,14 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
             break;
         }
     }
+    if (NULL == channel) {
+        CDBG_ERROR("%s: Channel object is NULL ", __func__);
+        return;
+    }
     /* find preview stream */
     for (i = 0; i < channel->num_streams; i++) {
         if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_PREVIEW) {
             p_stream = &channel->streams[i];
-            break;
-        }
-    }
-    /* find preview frame */
-    for (i = 0; i < bufs->num_bufs; i++) {
-        if (bufs->bufs[i]->stream_id == p_stream->s_id) {
-            frame = bufs->bufs[i];
             break;
         }
     }
@@ -152,14 +157,22 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
         return;
     }
 
+    /* find preview frame */
+    for (i = 0; i < bufs->num_bufs; i++) {
+        if (bufs->bufs[i]->stream_id == p_stream->s_id) {
+            frame = bufs->bufs[i];
+            break;
+        }
+    }
+
     if ( 0 < pme->fb_fd ) {
         mm_app_overlay_display(pme, frame->fd);
     }
 #ifdef DUMP_PRV_IN_FILE
     {
-      char file_name[64];
-      snprintf(file_name, sizeof(file_name), "P_C%d", pme->cam->camera_handle);
-      mm_app_dump_frame(frame, file_name, "yuv", frame->frame_idx);
+        char file_name[64];
+        snprintf(file_name, sizeof(file_name), "P_C%d", pme->cam->camera_handle);
+        mm_app_dump_frame(frame, file_name, "yuv", frame->frame_idx);
     }
 #endif
     if (pme->user_preview_cb) {
@@ -167,12 +180,12 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
         pme->user_preview_cb(frame);
     }
     if (MM_CAMERA_OK != pme->cam->ops->qbuf(bufs->camera_handle,
-                                            bufs->ch_id,
-                                            frame)) {
+                bufs->ch_id,
+                frame)) {
         CDBG_ERROR("%s: Failed in Preview Qbuf\n", __func__);
     }
     mm_app_cache_ops((mm_camera_app_meminfo_t *)frame->mem_info,
-                     ION_IOC_INV_CACHES);
+            ION_IOC_INV_CACHES);
 
     CDBG("%s: END\n", __func__);
 }

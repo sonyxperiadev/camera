@@ -200,17 +200,16 @@ static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
       break;
     }
   }
+
+  if (NULL == channel) {
+    CDBG_ERROR("%s: Channel object is null", __func__);
+    return;
+  }
+
   /* find meta stream */
   for (i = 0; i < channel->num_streams; i++) {
     if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_METADATA) {
       p_stream = &channel->streams[i];
-      break;
-    }
-  }
-  /* find meta frame */
-  for (i = 0; i < bufs->num_bufs; i++) {
-    if (bufs->bufs[i]->stream_id == p_stream->s_id) {
-      frame = bufs->bufs[i];
       break;
     }
   }
@@ -219,10 +218,24 @@ static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
     CDBG_ERROR("%s: cannot find metadata stream", __func__);
     return;
   }
+
+  /* find meta frame */
+  for (i = 0; i < bufs->num_bufs; i++) {
+    if (bufs->bufs[i]->stream_id == p_stream->s_id) {
+      frame = bufs->bufs[i];
+      break;
+    }
+  }
+
   if (!pme->metadata) {
     /* The app will free the metadata, we don't need to bother here */
     pme->metadata = malloc(sizeof(metadata_buffer_t));
+    if (NULL == pme->metadata) {
+        CDBG_ERROR("%s: malloc failed", __func__);
+        return;
+    }
   }
+
   memcpy(pme->metadata , frame->buffer, sizeof(metadata_buffer_t));
 
   pMetadata = (metadata_buffer_t *)frame->buffer;

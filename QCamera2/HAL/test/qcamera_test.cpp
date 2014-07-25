@@ -226,7 +226,7 @@ SkBitmap * CameraContext::PiPCopyToOneFile(
     unsigned int dstOffset;
     unsigned int srcOffset;
 
-    if (bitmap0 == NULL && bitmap1 == NULL) {
+    if (bitmap0 == NULL || bitmap1 == NULL) {
         return NULL;
     }
 
