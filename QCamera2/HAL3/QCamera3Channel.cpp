@@ -694,12 +694,6 @@ int32_t QCamera3RegularChannel::registerBuffer(buffer_handle_t *buffer)
 {
     int rc = 0;
 
-    if ((uint32_t)mMemory.getCnt() > (mNumBufs - 1)) {
-        ALOGE("%s: Trying to register more buffers than initially requested",
-                __func__);
-        return BAD_VALUE;
-    }
-
     if (0 == m_numStreams) {
         rc = initialize();
         if (rc != NO_ERROR) {
@@ -707,6 +701,12 @@ int32_t QCamera3RegularChannel::registerBuffer(buffer_handle_t *buffer)
                     __func__, rc);
             return rc;
         }
+    }
+
+    if (((uint32_t)mMemory.getCnt() + 1) > mNumBufs) {
+        ALOGE("%s: Trying to register more buffers than initially requested",
+                __func__);
+        return BAD_VALUE;
     }
 
     rc = mMemory.registerBuffer(buffer);
@@ -1348,12 +1348,6 @@ int32_t QCamera3PicChannel::registerBuffer(buffer_handle_t *buffer)
 {
     int rc = 0;
 
-    if ((uint32_t)mMemory.getCnt() > (mNumBufs - 1)) {
-        ALOGE("%s: Trying to register more buffers than initially requested",
-                __func__);
-        return BAD_VALUE;
-    }
-
     if (0 == m_numStreams) {
         rc = initialize();
         if (rc != NO_ERROR) {
@@ -1362,6 +1356,13 @@ int32_t QCamera3PicChannel::registerBuffer(buffer_handle_t *buffer)
             return rc;
         }
     }
+
+    if (((uint32_t)mMemory.getCnt() + 1) > (mNumBufs)) {
+        ALOGE("%s: Trying to register more buffers than initially requested",
+                __func__);
+        return BAD_VALUE;
+    }
+
     rc = mMemory.registerBuffer(buffer);
     if (ALREADY_EXISTS == rc) {
         return NO_ERROR;
