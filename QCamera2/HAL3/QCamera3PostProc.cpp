@@ -783,8 +783,13 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     metadata_buffer_t *metadata = NULL;
     jpeg_settings_t *jpeg_settings = NULL;
     QCamera3HardwareInterface* hal_obj = NULL;
+    if (m_parent != NULL) {
+       hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+    } else {
+       ALOGE("%s: m_parent is NULL, Error",__func__);
+       return BAD_VALUE;
+    }
 
-    hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
     recvd_frame = jpeg_job_data->src_frame;
     metadata = jpeg_job_data->metadata;
     jpeg_settings = jpeg_job_data->jpeg_settings;
@@ -794,8 +799,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
 
     QCamera3Channel *pChannel = NULL;
     // first check picture channel
-    if (m_parent != NULL &&
-        m_parent->getMyHandle() == recvd_frame->ch_id) {
+    if (m_parent->getMyHandle() == recvd_frame->ch_id) {
         pChannel = m_parent;
     }
     // check reprocess channel if not found
@@ -856,7 +860,9 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
 
     cam_dimension_t dst_dim;
     memset(&dst_dim, 0, sizeof(cam_dimension_t));
-    srcChannel->getStreamByIndex(0)->getFrameDimension(dst_dim);
+    if (srcChannel->getStreamByIndex(0)) {
+       srcChannel->getStreamByIndex(0)->getFrameDimension(dst_dim);
+    }
 
     CDBG_HIGH("%s: Need new session?:%d",__func__, needNewSess);
     if (needNewSess) {
