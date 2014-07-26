@@ -669,7 +669,8 @@ QCameraParameters::QCameraParameters()
       m_bSecureMode(false),
       m_bAeBracketingEnabled(false),
       mFlashValue(CAM_FLASH_MODE_OFF),
-      mFlashDaemonValue(CAM_FLASH_MODE_OFF)
+      mFlashDaemonValue(CAM_FLASH_MODE_OFF),
+      mHfrMode(CAM_HFR_MODE_OFF)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -754,7 +755,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bSecureMode(false),
     m_bAeBracketingEnabled(false),
     mFlashValue(CAM_FLASH_MODE_OFF),
-    mFlashDaemonValue(CAM_FLASH_MODE_OFF)
+    mFlashDaemonValue(CAM_FLASH_MODE_OFF),
+    mHfrMode(CAM_HFR_MODE_OFF)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -1271,9 +1273,12 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
     cam_hfr_mode_t hfrMode = CAM_HFR_MODE_OFF;
     const char *hsrStr = params.get(KEY_QC_VIDEO_HIGH_SPEED_RECORDING);
 
-    if (hsrStr != NULL && !strcmp(hsrStr, "on")) {
+    if (hsrStr != NULL && strcmp(hsrStr, "off")) {
+        int32_t value = lookupAttr(HFR_MODES_MAP,
+                                   sizeof(HFR_MODES_MAP)/sizeof(QCameraMap),
+                                   hsrStr);
         for (int i = 0; i < m_pCapability->hfr_tbl_cnt; i++) {
-            if (m_pCapability->hfr_tbl[i].mode == CAM_HFR_MODE_120FPS) {
+            if (m_pCapability->hfr_tbl[i].mode == value) {
                 livesnapshot_sizes_tbl_cnt =
                     m_pCapability->hfr_tbl[i].livesnapshot_sizes_tbl_cnt;
                 livesnapshot_sizes_tbl =
@@ -1283,7 +1288,7 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
             }
         }
     }
-    else if (hfrStr != NULL) {
+    else if (hfrStr != NULL && strcmp(hfrStr, "off")) {
         int32_t value = lookupAttr(HFR_MODES_MAP,
                                    sizeof(HFR_MODES_MAP)/sizeof(QCameraMap),
                                    hfrStr);
@@ -1703,6 +1708,11 @@ int32_t QCameraParameters::setPreviewFpsRange(const QCameraParameters& params)
 
     //first check if we need to change fps because of HFR mode change
     updateNeeded = UpdateHFRFrameRate(params);
+    if (updateNeeded) {
+        m_bNeedRestart = true;
+        rc = setHighFrameRate(mHfrMode);
+        if (rc !=  NO_ERROR) goto end;
+    }
     CDBG_HIGH("%s: UpdateHFRFrameRate %d", __func__, updateNeeded);
 
     vidMinFps = m_hfrFpsRange.video_min_fps;
@@ -1768,6 +1778,7 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
     bool updateNeeded = false;
     int min_fps, max_fps;
     int32_t hfrMode = CAM_HFR_MODE_OFF;
+    int32_t newHfrMode = CAM_HFR_MODE_OFF;
 
     int parm_minfps,parm_maxfps;
     int prevMinFps, prevMaxFps;
@@ -1778,80 +1789,74 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
     CDBG_HIGH("%s: Requested params - : minFps = %d, maxFps = %d ",
                 __func__, parm_minfps, parm_maxfps);
 
-    // check if HFR is enabled
     const char *hfrStr = params.get(KEY_QC_VIDEO_HIGH_FRAME_RATE);
-    const char *prev_hfrStr = get(KEY_QC_VIDEO_HIGH_FRAME_RATE);
-    CDBG_HIGH("%s: prevHfrStr - %s, hfrStr = %s ",
-                __func__, prev_hfrStr, hfrStr);
-    if(hfrStr != NULL){
+    const char *hsrStr = params.get(KEY_QC_VIDEO_HIGH_SPEED_RECORDING);
+
+    const char *prev_hfrStr = CameraParameters::get(KEY_QC_VIDEO_HIGH_FRAME_RATE);
+    const char *prev_hsrStr = CameraParameters::get(KEY_QC_VIDEO_HIGH_SPEED_RECORDING);
+
+    if (hfrStr != NULL && strcmp(hfrStr, prev_hfrStr)) {
+        updateParamEntry(KEY_QC_VIDEO_HIGH_FRAME_RATE, hfrStr);
+    }
+
+    if (hsrStr != NULL && strcmp(hsrStr, prev_hsrStr)) {
+        updateParamEntry(KEY_QC_VIDEO_HIGH_SPEED_RECORDING, hsrStr);
+
+    }
+
+    // check if HFR is enabled
+    if (hfrStr != NULL && strcmp(hfrStr, "off")) {
         hfrMode = lookupAttr(HFR_MODES_MAP,
                                sizeof(HFR_MODES_MAP)/sizeof(QCameraMap),
                                hfrStr);
+        if (NAME_NOT_FOUND != hfrMode) newHfrMode = hfrMode;
     }
     // check if HSR is enabled
-    const char *hsrStr = params.get(KEY_QC_VIDEO_HIGH_SPEED_RECORDING);
-    const char *prev_hsrStr = get(KEY_QC_VIDEO_HIGH_SPEED_RECORDING);
-
-    if (hsrStr != NULL && !strcmp(hsrStr, "on")) {
-        CDBG_HIGH("%s: HSR mode enabled ", __func__);
-        hfrMode = CAM_HFR_MODE_120FPS;
+    else if (hsrStr != NULL && strcmp(hsrStr, "off")) {
+        hfrMode = lookupAttr(HFR_MODES_MAP,
+                               sizeof(HFR_MODES_MAP)/sizeof(QCameraMap),
+                               hsrStr);
+        if (NAME_NOT_FOUND != hfrMode) newHfrMode = hfrMode;
     }
+    CDBG_HIGH("%s: prevHfrMode - %d, currentHfrMode = %d ",
+                __func__, mHfrMode, newHfrMode);
 
-    // if HSR is made ON just now
-    if(hsrStr != NULL && (prev_hsrStr == NULL || (strcmp(hsrStr, prev_hsrStr))) &&
-        !strcmp(hsrStr, "on")) {
-        min_fps = 120000;
-        max_fps = 120000;
+    if (mHfrMode != newHfrMode) {
+        updateNeeded = true;
+        mHfrMode = newHfrMode;
+        switch (mHfrMode) {
+            case CAM_HFR_MODE_60FPS:
+                min_fps = 60000;
+                max_fps = 60000;
+                break;
+            case CAM_HFR_MODE_90FPS:
+                min_fps = 90000;
+                max_fps = 90000;
+                break;
+            case CAM_HFR_MODE_120FPS:
+                min_fps = 120000;
+                max_fps = 120000;
+                break;
+            case CAM_HFR_MODE_150FPS:
+                min_fps = 150000;
+                max_fps = 150000;
+                break;
+            case CAM_HFR_MODE_OFF:
+            default:
+                // Set Video Fps to zero
+                min_fps = 0;
+                max_fps = 0;
+                break;
+        }
         m_hfrFpsRange.video_min_fps = min_fps;
         m_hfrFpsRange.video_max_fps = max_fps;
 
-        CDBG_HIGH("%s: HFR mode change - Set FPS : minFps = %d, maxFps = %d ",
-               __func__,min_fps,max_fps);
-        updateNeeded = true;
+        CDBG_HIGH("%s: HFR mode (%d) Set video FPS : minFps = %d, maxFps = %d ",
+                __func__, mHfrMode, min_fps, max_fps);
     }
 
-    // else if HSR is made OFF just now or HSR is OFF for some time
-    // and HFR is changed just now
-    else if (hfrStr != NULL && ((prev_hfrStr == NULL || strcmp(hfrStr,prev_hfrStr)) ||
-        (hsrStr != NULL && (prev_hsrStr == NULL || strcmp(hsrStr, prev_hsrStr)))) &&
-        ((hsrStr != NULL && strcmp(hsrStr, "on"))|| hsrStr == NULL)) {
-        if (hfrMode != NAME_NOT_FOUND) {
-            // if HFR is enabled, change fps range
-            switch(hfrMode){
-                case CAM_HFR_MODE_60FPS:
-                    min_fps = 60000;
-                    max_fps = 60000;
-                    break;
-                case CAM_HFR_MODE_90FPS:
-                    min_fps = 90000;
-                    max_fps = 90000;
-                    break;
-                case CAM_HFR_MODE_120FPS:
-                    min_fps = 120000;
-                    max_fps = 120000;
-                    break;
-                case CAM_HFR_MODE_150FPS:
-                    min_fps = 150000;
-                    max_fps = 150000;
-                    break;
-                case CAM_HFR_MODE_OFF:
-                default:
-                    // Set Video Fps to zero
-                    min_fps = 0;
-                    max_fps = 0;
-                    break;
-            }
-            m_hfrFpsRange.video_min_fps = min_fps;
-            m_hfrFpsRange.video_max_fps = max_fps;
-
-            CDBG_HIGH("%s: HFR mode (%d) Set video FPS : minFps = %d, maxFps = %d ",
-                   __func__, hfrMode, min_fps, max_fps);
-            // Signifies that there is a change in video FPS and need to set Fps
-            updateNeeded = true;
-        }
-    }
     // Remember if HFR mode is ON
-    if ((hfrMode > CAM_HFR_MODE_OFF) && (hfrMode < CAM_HFR_MODE_MAX)){
+    if ((mHfrMode > CAM_HFR_MODE_OFF) && (mHfrMode < CAM_HFR_MODE_MAX)) {
         CDBG_HIGH("HFR mode is ON");
         m_bHfrMode = true;
     }
@@ -2689,74 +2694,6 @@ int32_t QCameraParameters::setDISValue(const QCameraParameters& params)
         if (prev_str == NULL ||
             strcmp(str, prev_str) != 0) {
             return setDISValue(str);
-        }
-    }
-    return NO_ERROR;
-}
-
-/*===========================================================================
- * FUNCTION   : setHighFrameRate
- *
- * DESCRIPTION: set hight frame rate value from user setting
- *
- * PARAMETERS :
- *   @params  : user setting parameters
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCameraParameters::setHighFrameRate(const QCameraParameters& params)
-{
-    const char *str = params.get(KEY_QC_VIDEO_HIGH_FRAME_RATE);
-    const char *prev_str = get(KEY_QC_VIDEO_HIGH_FRAME_RATE);
-    if (str != NULL) {
-        if (prev_str == NULL ||
-            strcmp(str, prev_str) != 0) {
-            return setHighFrameRate(str);
-        }
-    }
-    return NO_ERROR;
-}
-
-/*===========================================================================
- * FUNCTION   : setHighSpeedRecording
- *
- * DESCRIPTION: set high speed recording value from user setting
- *
- * PARAMETERS :
- *   @params  : user setting parameters
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCameraParameters::setHighSpeedRecording(const QCameraParameters& params)
-{
-    const char *str = params.get(KEY_QC_VIDEO_HIGH_SPEED_RECORDING);
-    const char *prev_str = get(KEY_QC_VIDEO_HIGH_SPEED_RECORDING);
-    const char *hfr_str = params.get(KEY_QC_VIDEO_HIGH_FRAME_RATE);
-    int32_t hfr_mode = CAM_HFR_MODE_OFF;
-    if (hfr_str != NULL) {
-        hfr_mode = lookupAttr(HFR_MODES_MAP,
-                sizeof(HFR_MODES_MAP)/sizeof(QCameraMap),
-                hfr_str);
-    }
-    if (str != NULL) {
-        if (prev_str == NULL ||
-            strcmp(str, prev_str) != 0) {
-            int32_t value;
-            // if HSR is off, take HFR fps value
-            if (!strcmp(str,"on")) value = CAM_HFR_MODE_120FPS;
-            else value = hfr_mode;
-            // HFR value changed, need to restart preview
-            m_bNeedRestart = true;
-            // Set HFR value
-            updateParamEntry(KEY_QC_VIDEO_HIGH_SPEED_RECORDING, str);
-            return AddSetParmEntryToBatch(m_pParamBuf,
-                                          CAM_INTF_PARM_HFR,
-                                          sizeof(value),
-                                          &value);
         }
     }
     return NO_ERROR;
@@ -3885,8 +3822,6 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setLensShadeValue(params)))               final_rc = rc;
     if ((rc = setMCEValue(params)))                     final_rc = rc;
     if ((rc = setDISValue(params)))                     final_rc = rc;
-    if ((rc = setHighFrameRate(params)))                final_rc = rc;
-    if ((rc = setHighSpeedRecording(params)))           final_rc = rc;
     if ((rc = setAntibanding(params)))                  final_rc = rc;
     if ((rc = setExposureCompensation(params)))         final_rc = rc;
     if ((rc = setWhiteBalance(params)))                 final_rc = rc;
@@ -4300,11 +4235,12 @@ int32_t QCameraParameters::initDefaultParameters()
             sizeof(HFR_MODES_MAP) / sizeof(QCameraMap));
     set(KEY_QC_SUPPORTED_VIDEO_HIGH_FRAME_RATE_MODES, hfrValues.string());
     set(KEY_QC_VIDEO_HIGH_SPEED_RECORDING, "off");
+    set(KEY_QC_VIDEO_HIGH_FRAME_RATE, "off");
     String8 hfrSizeValues = createHfrSizesString(
             m_pCapability->hfr_tbl,
             m_pCapability->hfr_tbl_cnt);
     set(KEY_QC_SUPPORTED_HFR_SIZES, hfrSizeValues.string());
-    setHighFrameRate(VIDEO_HFR_OFF);
+    setHighFrameRate(CAM_HFR_MODE_OFF);
 
     // Set Focus algorithms
     String8 focusAlgoValues = createValuesString(
@@ -5677,32 +5613,20 @@ int32_t QCameraParameters::setDISValue(const char *disStr)
  * DESCRIPTION: set high frame rate
  *
  * PARAMETERS :
- *   @hfrStr : HFR value string
+ *   @hfrMode : HFR mode
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setHighFrameRate(const char *hfrStr)
+int32_t QCameraParameters::setHighFrameRate(const int32_t hfrMode)
 {
-    if (hfrStr != NULL) {
-        int32_t value = lookupAttr(HFR_MODES_MAP,
-                                   sizeof(HFR_MODES_MAP)/sizeof(QCameraMap),
-                                   hfrStr);
-        if (value != NAME_NOT_FOUND) {
-            // HFR value changed, need to restart preview
-            m_bNeedRestart = true;
-            // Set HFR value
-            CDBG_HIGH("%s: Setting HFR value %s", __func__, hfrStr);
-            updateParamEntry(KEY_QC_VIDEO_HIGH_FRAME_RATE, hfrStr);
-            return AddSetParmEntryToBatch(m_pParamBuf,
-                                          CAM_INTF_PARM_HFR,
-                                          sizeof(value),
-                                          &value);
-        }
-    }
-    ALOGE("Invalid HFR value: %s", (hfrStr == NULL) ? "NULL" : hfrStr);
-    return BAD_VALUE;
+    int32_t value;
+    value = hfrMode;
+    return AddSetParmEntryToBatch(m_pParamBuf,
+                                  CAM_INTF_PARM_HFR,
+                                  sizeof(value),
+                                  &value);
 }
 
 /*===========================================================================
