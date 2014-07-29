@@ -2705,6 +2705,9 @@ int QCamera2HardwareInterface::takePicture()
                 // need to stop preview channel
                 stopChannel(QCAMERA_CH_TYPE_PREVIEW);
                 delChannel(QCAMERA_CH_TYPE_PREVIEW);
+                if (rc != NO_ERROR) {
+                    return rc;
+                }
 
                 rc = declareSnapshotStreams();
                 if (NO_ERROR != rc) {
