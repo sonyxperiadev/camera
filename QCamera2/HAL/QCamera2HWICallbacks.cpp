@@ -1959,6 +1959,33 @@ bool QCameraCbNotifier::matchSnapshotNotifications(void *data,
 }
 
 /*===========================================================================
+ * FUNCTION   : matchPreviewNotifications
+ *
+ * DESCRIPTION: matches preview data callbacks
+ *
+ * PARAMETERS :
+ *   @data      : data to match
+ *   @user_data : context data
+ *
+ * RETURN     : bool match
+ *              true - match found
+ *              false- match not found
+ *==========================================================================*/
+bool QCameraCbNotifier::matchPreviewNotifications(void *data,
+        void */*user_data*/)
+{
+    qcamera_callback_argm_t *arg = ( qcamera_callback_argm_t * ) data;
+    if (NULL != arg) {
+        if ((QCAMERA_DATA_CALLBACK == arg->cb_type) &&
+                (CAMERA_MSG_PREVIEW_FRAME == arg->msg_type)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*===========================================================================
  * FUNCTION   : cbNotifyRoutine
  *
  * DESCRIPTION: callback thread which interfaces with the upper layers
@@ -2206,6 +2233,30 @@ void QCameraCbNotifier::setCallbacks(camera_notify_callback notifyCb,
         ALOGE("%s : Camera callback notifier already initialized!",
               __func__);
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : flushPreviewNotifications
+ *
+ * DESCRIPTION: flush all pending preview notifications
+ *              from the notifier queue
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraCbNotifier::flushPreviewNotifications()
+{
+    if (!mActive) {
+        ALOGE("%s: notify thread is not active", __func__);
+        return UNKNOWN_ERROR;
+    }
+
+    mDataQ.flushNodes(matchPreviewNotifications);
+
+    return NO_ERROR;
 }
 
 /*===========================================================================
