@@ -238,6 +238,7 @@ private:
     int32_t setBatchMetaStreamID(cam_stream_ID_t &streamID);
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
+    void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;

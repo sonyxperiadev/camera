@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <qdMetaData.h>
 #include <utils/Log.h>
 #include <utils/Errors.h>
 #include <utils/Trace.h>
@@ -915,6 +916,41 @@ void QCamera3HardwareInterface::updatePowerHint(bool bWasVideo, bool bIsVideo)
                     POWER_HINT_VIDEO_ENCODE, (void *)"state=0");
      }
 #endif
+}
+
+/*==============================================================================
+ * FUNCTION   : updateFpsInPreviewBuffer
+ *
+ * DESCRIPTION: update FPS information in preview buffer.
+ *
+ * PARAMETERS :
+ *   @metadata    : pointer to metadata buffer
+ *   @frame_number: frame_number to look for in pending buffer list
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::updateFpsInPreviewBuffer(metadata_buffer_t *metadata,
+        uint32_t frame_number)
+{
+    // Mark all pending buffers for this particular request
+    // with corresponding framerate information
+    for (List<PendingBufferInfo>::iterator j =
+            mPendingBuffersMap.mPendingBufferList.begin();
+            j != mPendingBuffersMap.mPendingBufferList.end(); j++) {
+        QCamera3Channel *channel = (QCamera3Channel *)j->stream->priv;
+        if ((j->frame_number == frame_number) &&
+                (channel->getStreamTypeMask() &
+                (1U << CAM_STREAM_TYPE_PREVIEW))) {
+            IF_META_AVAILABLE(cam_fps_range_t, float_range,
+                    CAM_INTF_PARM_FPS_RANGE, metadata) {
+                int32_t cameraFps = float_range->max_fps;
+                struct private_handle_t *priv_handle =
+                        (struct private_handle_t *)(*(j->buffer));
+                setMetaData(priv_handle, UPDATE_REFRESH_RATE, &cameraFps);
+            }
+        }
+    }
 }
 
 /*===========================================================================
@@ -2193,6 +2229,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 result.num_output_buffers++;
             }
         }
+
+        updateFpsInPreviewBuffer(metadata, i->frame_number);
 
         if (result.num_output_buffers > 0) {
             camera3_stream_buffer_t *result_buffers =
