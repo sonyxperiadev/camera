@@ -98,6 +98,11 @@ camera_device_ops_t QCamera2HardwareInterface::mCameraOps = {
 int32_t QCamera2HardwareInterface::getEffectValue(const char *effect)
 {
     uint32_t cnt = 0;
+    if(!effect) {
+        ALOGE("%s: effect is null\n", __func__);
+        return -1;
+    }
+
     while(NULL != QCameraParameters::EFFECT_MODES_MAP[cnt].desc) {
         if(!strcmp(QCameraParameters::EFFECT_MODES_MAP[cnt].desc, effect)) {
             return QCameraParameters::EFFECT_MODES_MAP[cnt].val;
@@ -1792,7 +1797,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     cam_stream_type_t stream_type)
 {
     int rc = NO_ERROR;
-    const char *effect;
+    const char *effect = NULL;
     char value[PROPERTY_VALUE_MAX];
     bool raw_yuv = false;
 
@@ -1906,7 +1911,11 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
         if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_EFFECT) {
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_EFFECT;
             effect = mParameters.get(CameraParameters::KEY_EFFECT);
-            streamInfo->pp_config.effect = getEffectValue(effect);
+            if (effect != NULL) {
+                streamInfo->pp_config.effect = getEffectValue(effect);
+            } else {
+                streamInfo->pp_config.effect = CAM_EFFECT_MODE_OFF;
+            }
         }
         if (mParameters.isWNREnabled() && (mParameters.getRecordingHintValue() == false)) {
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
@@ -4660,7 +4669,11 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_EFFECT) {
             pp_config.feature_mask |= CAM_QCOM_FEATURE_EFFECT;
             effect = mParameters.get(CameraParameters::KEY_EFFECT);
-            pp_config.effect = getEffectValue(effect);
+            if (effect != NULL) {
+                pp_config.effect = getEffectValue(effect);
+            } else {
+                pp_config.effect = CAM_EFFECT_MODE_OFF;
+            }
         }
         if ((gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_SHARPNESS) &&
                 !mParameters.isOptiZoomEnabled()) {

@@ -40,7 +40,7 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   mm_camera_channel_t *channel = NULL;
   mm_camera_stream_t *p_stream = NULL;
   mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
-  mm_camera_buf_def_t *frame = bufs->bufs[0];
+  mm_camera_buf_def_t *frame;
   metadata_buffer_t *pMetadata;
   cam_auto_focus_data_t *focus_data;
 
@@ -48,6 +48,7 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
       CDBG_ERROR("%s: bufs or user_data are not valid ", __func__);
       return;
   }
+  frame = bufs->bufs[0];
 
   /* find channel */
   for (i = 0; i < MM_CHANNEL_TYPE_MAX; i++) {
@@ -122,7 +123,7 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
     int i = 0;
     mm_camera_channel_t *channel = NULL;
     mm_camera_stream_t *p_stream = NULL;
-    mm_camera_buf_def_t *frame = bufs->bufs[0];
+    mm_camera_buf_def_t *frame = NULL;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
 
     CDBG_ERROR("%s: BEGIN - length=%d, frame idx = %d\n",
@@ -132,6 +133,8 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
         CDBG_ERROR("%s: bufs or user_data are not valid ", __func__);
         return;
     }
+
+    frame = bufs->bufs[0];
 
     /* find channel */
     for (i = 0; i < MM_CHANNEL_TYPE_MAX; i++) {
@@ -274,10 +277,19 @@ static void mm_app_zsl_notify_cb(mm_camera_super_buf_t *bufs,
               break;
           }
       }
+      if (!md_frame) {
+          ALOGE("%s: md_frame is null\n", __func__);
+          return;
+      }
       if (!pme->metadata) {
           /* App will free the metadata */
           pme->metadata = malloc(sizeof(metadata_buffer_t));
+          if (!pme->metadata) {
+              ALOGE("%s: not enough memory\n", __func__);
+              return;
+          }
       }
+
       memcpy(pme->metadata , md_frame->buffer, sizeof(metadata_buffer_t));
     }
     /* find snapshot frame */

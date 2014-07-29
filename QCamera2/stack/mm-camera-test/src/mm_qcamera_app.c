@@ -363,6 +363,9 @@ int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
          frame_offset_info->num_planes,
          frame_offset_info->mp[1].offset);
 
+    if (stream->num_of_bufs > CAM_MAX_NUM_BUFS_PER_STREAM)
+        stream->num_of_bufs = CAM_MAX_NUM_BUFS_PER_STREAM;
+
     pBufs = (mm_camera_buf_def_t *)malloc(sizeof(mm_camera_buf_def_t) * stream->num_of_bufs);
     reg_flags = (uint8_t *)malloc(sizeof(uint8_t) * stream->num_of_bufs);
     if (pBufs == NULL || reg_flags == NULL) {

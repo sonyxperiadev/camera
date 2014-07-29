@@ -2760,6 +2760,7 @@ mm_jpeg_job_q_node_t* mm_jpeg_queue_remove_job_by_job_id(
 
     if(NULL == data) {
       CDBG_ERROR("%s:%d] Data is NULL", __func__, __LINE__);
+      pthread_mutex_unlock(&queue->lock);
       return NULL;
     }
 

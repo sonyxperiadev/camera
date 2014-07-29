@@ -184,7 +184,7 @@ static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   mm_camera_channel_t *channel = NULL;
   mm_camera_stream_t *p_stream = NULL;
   mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
-  mm_camera_buf_def_t *frame = bufs->bufs[0];
+  mm_camera_buf_def_t *frame;
   metadata_buffer_t *pMetadata;
   cam_auto_focus_data_t *focus_data;
 
@@ -192,6 +192,7 @@ static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
     CDBG_ERROR("%s: bufs or user_data are not valid ", __func__);
     return;
   }
+  frame = bufs->bufs[0];
 
   /* find channel */
   for (i = 0; i < MM_CHANNEL_TYPE_MAX; i++) {
