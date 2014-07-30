@@ -196,6 +196,7 @@ private:
     static cam_cds_mode_type_t lookupProp(const QCameraPropMap arr[],
             int len, const char *name);
     static int calcMaxJpegSize(uint8_t camera_id);
+    cam_dimension_t getMaxRawSize(uint8_t camera_id);
 
     int validateCaptureRequest(camera3_capture_request_t *request);
 
@@ -240,10 +241,12 @@ private:
     QCamera3PicChannel *mPictureChannel;
     QCamera3RawChannel *mRawChannel;
     QCamera3SupportChannel *mSupportChannel;
+    QCamera3RawDumpChannel *mRawDumpChannel;
 
      //First request yet to be processed after configureStreams
     bool mFirstRequest;
     bool mFlush;
+    bool mEnableRawDump;
     QCamera3HeapMemory *mParamHeap;
     metadata_buffer_t* mParameters;
     metadata_buffer_t* mPrevParameters;
