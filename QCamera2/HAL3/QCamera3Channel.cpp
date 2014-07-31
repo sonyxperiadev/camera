@@ -2608,6 +2608,13 @@ QCamera3Exif *QCamera3PicChannel::getExifData(metadata_buffer_t *metadata,
         ALOGE("%s: getExifModel failed", __func__);
     }
 
+    if (property_get("ro.build.description", value, "QCAM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_SOFTWARE, EXIF_ASCII,
+                (uint32_t)(strlen(value) + 1), (void *)value);
+    } else {
+        ALOGE("%s: getExifSoftware failed", __func__);
+    }
+
     return exif;
 }
 

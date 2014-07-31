@@ -364,10 +364,11 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
     ALOGE("%s:%d]: Error adding flash Exif Entry", __func__, __LINE__);
   }
 
-  /*Focal Length in 35 MM Film */
-  val_short =
-    (short) (p_sensor_params->focal_length * p_sensor_params->crop_factor);
-  rc = addExifEntry(exif_info, EXIFTAGID_FOCAL_LENGTH_35MM, EXIF_SHORT, 1, &val_short);
+  /* Focal Length in 35 MM Film */
+  val_short = (short)
+    ((p_sensor_params->focal_length * p_sensor_params->crop_factor) + 0.5f);
+  rc = addExifEntry(exif_info, EXIFTAGID_FOCAL_LENGTH_35MM, EXIF_SHORT,
+    1, &val_short);
   if (rc) {
     ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
   }
@@ -548,11 +549,11 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
     } else {
       p_sensor_params.focal_length = 0;
       p_sensor_params.f_number = 0;
-      p_sensor_params.sensing_method = 1;
+      p_sensor_params.sensing_method = 2;
       p_sensor_params.crop_factor = 0;
       p_3a_params.exp_time = 0.0;
       p_3a_params.iso_value = 0;
-      p_3a_params.metering_mode = 0;
+      p_3a_params.metering_mode = CAM_METERING_MODE_UNKNOWN;
       p_3a_params.exposure_program = 0;
       p_3a_params.exposure_mode = 255;
       p_3a_params.scenetype = 1;
