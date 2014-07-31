@@ -635,6 +635,7 @@ public:
             isChromaFlashEnabled() || m_bOptiZoomOn || isHDREnabled() ||
             isHDREnabled();}
     int32_t setAecLock(const char *aecStr);
+    int32_t updateDebugLevel();
     bool is4k2kVideoResolution();
     int getBrightness();
 

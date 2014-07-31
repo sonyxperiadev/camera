@@ -39,6 +39,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_META_FACE_DETECTION, metadata);
         case CAM_INTF_META_AUTOFOCUS_DATA:
             return POINTER_OF_META(CAM_INTF_META_AUTOFOCUS_DATA, metadata);
+        case CAM_INTF_PARM_UPDATE_DEBUG_LEVEL:
+            return POINTER_OF_META(CAM_INTF_PARM_UPDATE_DEBUG_LEVEL, metadata);
         case CAM_INTF_META_CROP_DATA:
             return POINTER_OF_META(CAM_INTF_META_CROP_DATA, metadata);
         case CAM_INTF_META_PREP_SNAPSHOT_DONE:
@@ -360,6 +362,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_META_FACE_DETECTION, metadata);
         case CAM_INTF_META_AUTOFOCUS_DATA:
             return SIZE_OF_PARAM(CAM_INTF_META_AUTOFOCUS_DATA, metadata);
+        case CAM_INTF_PARM_UPDATE_DEBUG_LEVEL:
+            return SIZE_OF_PARAM(CAM_INTF_PARM_UPDATE_DEBUG_LEVEL, metadata);
         case CAM_INTF_META_CROP_DATA:
             return SIZE_OF_PARAM(CAM_INTF_META_CROP_DATA, metadata);
         case CAM_INTF_META_PREP_SNAPSHOT_DONE:
