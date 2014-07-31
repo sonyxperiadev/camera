@@ -9095,6 +9095,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
     cam_stream_size_info_t stream_config_info;
     char value[PROPERTY_VALUE_MAX];
     bool raw_yuv = false;
+    bool raw_capture = false;
 
     if ( m_pParamBuf == NULL ) {
         return NO_INIT;
@@ -9162,9 +9163,16 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
                     stream_config_info.stream_sizes[stream_config_info.num_streams]);
                 stream_config_info.num_streams++;
             }
+        } else {
+            raw_capture = true;
+            stream_config_info.type[stream_config_info.num_streams] =
+                    CAM_STREAM_TYPE_RAW;
+            getStreamDimension(CAM_STREAM_TYPE_RAW,
+                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            stream_config_info.num_streams++;
         }
     }
-    if (raw_yuv) {
+    if (raw_yuv && !raw_capture) {
         stream_config_info.type[stream_config_info.num_streams] =
             CAM_STREAM_TYPE_RAW;
         getStreamDimension(CAM_STREAM_TYPE_RAW,
