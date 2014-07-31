@@ -1571,11 +1571,6 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         m_parent->m_cbNotifier.notifyCallback(cbArg);
     }
 
-    if (thumb_frame != NULL) {
-        // dump thumbnail frame if enabled
-        m_parent->dumpFrameToFile(thumb_stream, thumb_frame, QCAMERA_DUMP_FRM_THUMBNAIL);
-    }
-
     if (mJpegClientHandle <= 0) {
         ALOGE("%s: Error: bug here, mJpegClientHandle is 0", __func__);
         return UNKNOWN_ERROR;
@@ -1738,6 +1733,11 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             jpg_job.encode_job.thumb_dim.src_dim.height,
             jpg_job.encode_job.thumb_dim.dst_dim.width,
             jpg_job.encode_job.thumb_dim.dst_dim.height);
+    }
+
+    if (thumb_frame != NULL) {
+        // dump thumbnail frame if enabled
+        m_parent->dumpFrameToFile(thumb_stream, thumb_frame, QCAMERA_DUMP_FRM_THUMBNAIL);
     }
 
     if (jpeg_job_data->metadata != NULL) {
