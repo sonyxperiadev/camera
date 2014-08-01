@@ -5559,26 +5559,21 @@ int QCamera2HardwareInterface::calcThermalLevel(
  * PARAMETERS :
  *   @minFPS   : minimum configured fps range
  *   @maxFPS   : maximum configured fps range
+ *   @adjustedRange : target fps range
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int QCamera2HardwareInterface::recalcFPSRange(int &minFPS, int &maxFPS,
-        int &vidMinFps, int &vidMaxFps)
+        cam_fps_range_t &adjustedRange)
 {
-    cam_fps_range_t adjustedRange;
     enum msm_vfe_frame_skip_pattern skipPattern;
     calcThermalLevel(mThermalLevel,
                      minFPS,
                      maxFPS,
                      adjustedRange,
                      skipPattern);
-    minFPS = adjustedRange.min_fps;
-    maxFPS = adjustedRange.max_fps;
-    vidMinFps = adjustedRange.video_min_fps;
-    vidMaxFps = adjustedRange.video_max_fps;
-
     return NO_ERROR;
 }
 

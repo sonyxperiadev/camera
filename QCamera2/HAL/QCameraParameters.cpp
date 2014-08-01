@@ -4760,7 +4760,7 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
     property_get("persist.debug.set.fixedfps", value, "0");
     fixedFpsValue = atoi(value);
 
-    CDBG_HIGH("%s: E minFps = %d, maxFps = %d , vid minFps = %d, vid maxFps = %d",
+    CDBG("%s: E minFps = %d, maxFps = %d , vid minFps = %d, vid maxFps = %d",
                 __func__, min_fps, max_fps, vid_min_fps, vid_max_fps);
 
     if(fixedFpsValue != 0) {
@@ -4783,16 +4783,10 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
             __func__, min_fps, max_fps, vid_min_fps, vid_max_fps);
 
     if ( NULL != m_AdjustFPS ) {
-        m_AdjustFPS->recalcFPSRange(min_fps, max_fps, vid_min_fps, vid_max_fps);
-        CDBG_HIGH("%s: Thermal adjusted preview fps range %d,%d, %d, %d",
-              __func__,
-              min_fps,
-              max_fps, vid_min_fps, vid_max_fps);
-        fps_range.min_fps = min_fps;
-        fps_range.max_fps = max_fps;
-        fps_range.video_min_fps = vid_min_fps;
-        fps_range.video_max_fps = vid_max_fps;
-
+        m_AdjustFPS->recalcFPSRange(min_fps, max_fps, fps_range);
+        CDBG_HIGH("%s: Thermal adjusted Preview fps range %3.2f,%3.2f, %3.2f, %3.2f",
+              __func__, fps_range.min_fps, fps_range.max_fps,
+              fps_range.video_min_fps, fps_range.video_max_fps);
     }
 
     return AddSetParmEntryToBatch(m_pParamBuf,
