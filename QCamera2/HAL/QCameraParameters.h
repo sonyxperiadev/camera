@@ -519,6 +519,8 @@ public:
     bool isSecureMode() {return m_bSecureMode;};
     bool isNoDisplayMode() {return m_bNoDisplayMode;};
     bool isWNREnabled() {return m_bWNROn;};
+    bool isTNRPreviewEnabled() {return m_bTNRPreviewOn;};
+    bool isTNRVideoEnabled() {return m_bTNRVideoOn;};
     bool isHfrMode() {return m_bHfrMode;};
     void getHfrFps(cam_fps_range_t &pFpsRange) { pFpsRange = m_hfrFpsRange;};
     uint8_t getNumOfSnapshots();
@@ -574,7 +576,7 @@ public:
     bool isJpegPictureFormat() {return (mPictureFormat == CAM_FORMAT_JPEG);};
     bool isNV16PictureFormat() {return (mPictureFormat == CAM_FORMAT_YUV_422_NV16);};
     bool isNV21PictureFormat() {return (mPictureFormat == CAM_FORMAT_YUV_420_NV21);};
-    cam_denoise_process_type_t getWaveletDenoiseProcessPlate();
+    cam_denoise_process_type_t getDenoiseProcessPlate(cam_intf_parm_type_t type);
     int32_t getLiveSnapshotSize(cam_dimension_t &dim) {dim = m_LiveSnapshotSize; return NO_ERROR;};
     int32_t getRawSize(cam_dimension_t &dim) {dim = m_rawSize; return NO_ERROR;};
     int32_t setRawSize(cam_dimension_t &dim);
@@ -673,6 +675,7 @@ private:
     int32_t setRecordingHint(const QCameraParameters& );
     int32_t setNoDisplayMode(const QCameraParameters& );
     int32_t setWaveletDenoise(const QCameraParameters& );
+    int32_t setTemporalDenoise();
     int32_t setZslMode(const QCameraParameters& );
     int32_t setZslAttributes(const QCameraParameters& );
     int32_t setAutoHDR(const QCameraParameters& params);
@@ -820,6 +823,8 @@ private:
     bool m_bNeedRestart;            // if preview needs restart after parameters updated
     bool m_bNoDisplayMode;
     bool m_bWNROn;
+    bool m_bTNRPreviewOn;
+    bool m_bTNRVideoOn;
     bool m_bInited;
     int m_nBurstNum;
     int m_nRetroBurstNum;

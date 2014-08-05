@@ -564,6 +564,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_HFR,                          int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_REDEYE_REDUCTION,             int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_WAVELET_DENOISE,              cam_denoise_param_t,         1);
+    INCLUDE(CAM_INTF_PARM_TEMPORAL_DENOISE,             cam_denoise_param_t,         1);
     INCLUDE(CAM_INTF_PARM_HISTOGRAM,                    int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ASD_ENABLE,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_RECORDING_HINT,               int32_t,                     1);

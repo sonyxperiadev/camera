@@ -229,6 +229,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_REDEYE_REDUCTION, metadata);
         case CAM_INTF_PARM_WAVELET_DENOISE:
             return POINTER_OF_META(CAM_INTF_PARM_WAVELET_DENOISE, metadata);
+        case CAM_INTF_PARM_TEMPORAL_DENOISE:
+            return POINTER_OF_META(CAM_INTF_PARM_TEMPORAL_DENOISE, metadata);
         case CAM_INTF_PARM_HISTOGRAM:
             return POINTER_OF_META(CAM_INTF_PARM_HISTOGRAM, metadata);
         case CAM_INTF_PARM_ASD_ENABLE:
@@ -542,6 +544,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_PARM_REDEYE_REDUCTION, metadata);
         case CAM_INTF_PARM_WAVELET_DENOISE:
             return SIZE_OF_PARAM(CAM_INTF_PARM_WAVELET_DENOISE, metadata);
+        case CAM_INTF_PARM_TEMPORAL_DENOISE:
+            return SIZE_OF_PARAM(CAM_INTF_PARM_TEMPORAL_DENOISE, metadata);
         case CAM_INTF_PARM_HISTOGRAM:
             return SIZE_OF_PARAM(CAM_INTF_PARM_HISTOGRAM, metadata);
         case CAM_INTF_PARM_ASD_ENABLE:
