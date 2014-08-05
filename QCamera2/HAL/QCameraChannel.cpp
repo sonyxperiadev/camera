@@ -797,10 +797,18 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(QCameraAllocator& al
     for (int i = 0; i < pSrcChannel->getNumOfStreams(); i++) {
         pStream = pSrcChannel->getStreamByIndex(i);
         if (pStream != NULL) {
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA) ||
-                pStream->isTypeOf(CAM_STREAM_TYPE_RAW)) {
-                // Skip metadata&raw for reprocess now because PP module cannot handle
+            if (param.getofflineRAW() && !pStream->isTypeOf(CAM_STREAM_TYPE_RAW)) {
+                //Skip all the stream other than RAW incase of offline of RAW
+                continue;
+            }
+            if (pStream->isTypeOf(CAM_STREAM_TYPE_RAW) && !param.getofflineRAW()) {
+                // Skip raw for reprocess now because PP module cannot handle
                 // meta data&raw. May need furthur discussion if Imaginglib need meta data
+                continue;
+            }
+
+            if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
+                // Skip metadata
                 continue;
             }
 
@@ -813,9 +821,10 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(QCameraAllocator& al
             }
 
             if(pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
-               pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-               pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
-               pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
+                    pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
+                    (param.getofflineRAW() && pStream->isTypeOf(CAM_STREAM_TYPE_RAW))) {
                   uint32_t feature_mask = config.feature_mask;
 
                   if ((feature_mask & ~CAM_QCOM_FEATURE_HDR) == 0
@@ -851,7 +860,11 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(QCameraAllocator& al
             streamInfo = (cam_stream_info_t *)pStreamInfoBuf->getPtr(0);
             memset(streamInfo, 0, sizeof(cam_stream_info_t));
             streamInfo->stream_type = CAM_STREAM_TYPE_OFFLINE_PROC;
-            rc = pStream->getFormat(streamInfo->fmt);
+            if (param.getofflineRAW() && pStream->isTypeOf(CAM_STREAM_TYPE_RAW)) {
+                streamInfo->fmt = CAM_FORMAT_YUV_420_NV21;
+            } else {
+                rc = pStream->getFormat(streamInfo->fmt);
+            }
             rc = pStream->getFrameDimension(streamInfo->dim);
             if ( contStream ) {
                 streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
@@ -1160,7 +1173,8 @@ int32_t QCameraReprocessChannel::doReprocessOffline(
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame)
+int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
+        QCameraParameters &mParameter)
 {
     int32_t rc = 0;
     if (m_numStreams < 1) {
@@ -1189,6 +1203,10 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame)
     for (int i = 0; i < frame->num_bufs; i++) {
         QCameraStream *pStream = getStreamBySrouceHandle(frame->bufs[i]->stream_id);
         if (pStream != NULL) {
+            if (mParameter.getofflineRAW() &&
+                    !pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW)) {
+                continue;
+            }
             if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
                 // Skip metadata for reprocess now because PP module cannot handle meta data
                 // May need furthur discussion if Imaginglib need meta data

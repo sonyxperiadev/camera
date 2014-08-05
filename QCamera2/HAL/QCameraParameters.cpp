@@ -685,7 +685,8 @@ QCameraParameters::QCameraParameters()
       mFlashValue(CAM_FLASH_MODE_OFF),
       mFlashDaemonValue(CAM_FLASH_MODE_OFF),
       mHfrMode(CAM_HFR_MODE_OFF),
-      m_bHDRModeSensor(true)
+      m_bHDRModeSensor(true),
+      mOfflineRAW(false)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -774,7 +775,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mFlashValue(CAM_FLASH_MODE_OFF),
     mFlashDaemonValue(CAM_FLASH_MODE_OFF),
     mHfrMode(CAM_HFR_MODE_OFF),
-    m_bHDRModeSensor(true)
+    m_bHDRModeSensor(true),
+    mOfflineRAW(false)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -4662,6 +4664,8 @@ int32_t QCameraParameters::initDefaultParameters()
         set(KEY_QC_ZSL_HDR_SUPPORTED, VALUE_FALSE);
     }
 
+    setOfflineRAW();
+
     int32_t rc = commitParameters();
     if (rc == NO_ERROR) {
         rc = setNumOfSnapshot();
@@ -7257,6 +7261,8 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             format = m_pCapability->rdi_mode_stream_fmt;
         } else if (mPictureFormat >= CAM_FORMAT_YUV_RAW_8BIT_YUYV) {
             format = (cam_format_t)mPictureFormat;
+        } else if (getofflineRAW()) {
+            format = CAM_FORMAT_BAYER_MIPI_RAW_10BPP_BGGR;
         } else {
             char raw_format[PROPERTY_VALUE_MAX];
             int rawFormat;
@@ -9682,6 +9688,32 @@ int32_t QCameraParameters::updateDebugLevel()
     return NO_ERROR;
 }
 
+/*===========================================================================
+ * FUNCTION   : setOfflineRAW
+ *
+ * DESCRIPTION: Function to decide Offline RAW feature.
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::setOfflineRAW()
+{
+   char value[PROPERTY_VALUE_MAX];
+   bool raw_yuv = false;
+   bool offlineRaw = false;
+
+   property_get("persist.camera.raw_yuv", value, "0");
+   raw_yuv = atoi(value) > 0 ? true : false;
+   property_get("persist.camera.offlineraw", value, "0");
+   offlineRaw = atoi(value) > 0 ? true : false;
+   if((raw_yuv || isRdiMode()) && offlineRaw){
+       mOfflineRAW = true;
+   }else{
+       mOfflineRAW = false;
+   }
+   CDBG_HIGH("%s: Offline Raw  %d",__func__, mOfflineRAW);
+}
 
 /*===========================================================================
  * FUNCTION   : dump

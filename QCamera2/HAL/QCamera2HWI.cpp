@@ -1854,8 +1854,8 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     case CAM_STREAM_TYPE_RAW:
         property_get("persist.camera.raw_yuv", value, "0");
         raw_yuv = atoi(value) > 0 ? true : false;
-
-        if (mParameters.isZSLMode() || isRdiMode() || raw_yuv) {
+        if ((mParameters.isZSLMode() || isRdiMode() || raw_yuv) &&
+                !mParameters.getofflineRAW()) {
             CDBG_HIGH("RDI_DEBUG %s[%d]: CAM_STREAM_TYPE_RAW",
               __func__, __LINE__);
             streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
@@ -4846,21 +4846,29 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
         }
     }
 
-    rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_SNAPSHOT,
-                            NULL, this);
-    if (rc != NO_ERROR) {
-        ALOGE("%s: add snapshot stream failed, ret = %d", __func__, rc);
-        delete pChannel;
-        return rc;
+    if (!mParameters.getofflineRAW()) {
+        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_SNAPSHOT,
+                NULL, this);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: add snapshot stream failed, ret = %d", __func__, rc);
+            delete pChannel;
+            return rc;
+        }
     }
-
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
     if ( raw_yuv ) {
-        rc = addStreamToChannel(pChannel,
-                                CAM_STREAM_TYPE_RAW,
-                                snapshot_raw_stream_cb_routine,
-                                this);
+        if (!mParameters.getofflineRAW()) {
+            rc = addStreamToChannel(pChannel,
+                    CAM_STREAM_TYPE_RAW,
+                    snapshot_raw_stream_cb_routine,
+                    this);
+        } else {
+            rc = addStreamToChannel(pChannel,
+                    CAM_STREAM_TYPE_RAW,
+                    NULL,
+                    this);
+        }
         if (rc != NO_ERROR) {
             ALOGE("%s: add raw stream failed, ret = %d", __func__, rc);
             delete pChannel;
@@ -5128,6 +5136,11 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         // 1 is added because getNumOfExtraBuffersForImageProc returns extra
         // buffers assuming number of capture is already added
         minStreamBufNum += imglib_extra_bufs + 1;
+    }
+
+    if (mParameters.getofflineRAW()) {
+        memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
+        pp_config.feature_mask |= CAM_QCOM_FEATURE_RAW_PROCESSING;
     }
     bool offlineReproc = isRegularCapture();
     rc = pChannel->addReprocStreamsFromSource(*this,
@@ -6164,6 +6177,11 @@ bool QCamera2HardwareInterface::isPreviewRestartEnabled()
 bool QCamera2HardwareInterface::needReprocess()
 {
     pthread_mutex_lock(&m_parm_lock);
+
+    if (mParameters.getofflineRAW()) {
+        pthread_mutex_unlock(&m_parm_lock);
+        return true;
+    }
     if (!mParameters.isJpegPictureFormat() &&
         !mParameters.isNV21PictureFormat()) {
         // RAW image, no need to reprocess
@@ -6855,7 +6873,7 @@ bool QCamera2HardwareInterface::isRegularCapture()
     if (numOfSnapshotsExpected() == 1 &&
         !isLongshotEnabled() &&
         !mParameters.getRecordingHintValue() &&
-        !isZSLMode()) {
+        !isZSLMode() && !mParameters.getofflineRAW()) {
             ret = true;
     }
     return ret;

@@ -127,7 +127,9 @@ public:
                                        bool contStream,
                                        bool offline);
     // online reprocess
-    int32_t doReprocess(mm_camera_super_buf_t *frame);
+    int32_t doReprocess(mm_camera_super_buf_t *frame,
+            QCameraParameters &param);
+
     // offline reprocess
     int32_t doReprocess(int buf_fd, uint32_t buf_length, int32_t &ret_val);
     int32_t doReprocessOffline(mm_camera_super_buf_t *frame);
