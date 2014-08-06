@@ -56,6 +56,7 @@
 //for the output of pproc
 #define CAMERA_PPROC_OUT_BUFFER_MULTIPLIER 2
 
+#define CAMERA_ISP_PING_PONG_BUFFERS     2
 
 #define HDR_CONFIDENCE_THRESHOLD 0.4
 
@@ -1595,6 +1596,10 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                     bufferCnt = zslQBuffers + minCircularBufNum +
                             mParameters.getNumOfExtraBuffersForImageProc();
                 }
+                if (getSensorType() == CAM_SENSOR_YUV && bufferCnt > CAMERA_ISP_PING_PONG_BUFFERS) {
+                    //ISP allocates native buffers in YUV case
+                    bufferCnt -= CAMERA_ISP_PING_PONG_BUFFERS;
+                }
             } else {
                 bufferCnt = minCaptureBuffers*CAMERA_PPROC_OUT_BUFFER_MULTIPLIER +
                             mParameters.getNumOfExtraHDRInBufsIfNeeded() -
@@ -1617,6 +1622,11 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             bufferCnt = zslQBuffers + minCircularBufNum;
         } else if (mParameters.isZSLMode()) {
             bufferCnt = zslQBuffers + minCircularBufNum;
+            if (getSensorType() == CAM_SENSOR_YUV && bufferCnt > CAMERA_ISP_PING_PONG_BUFFERS) {
+                //ISP allocates native buffers in YUV case
+                bufferCnt -= CAMERA_ISP_PING_PONG_BUFFERS;
+            }
+
         } else {
             bufferCnt = minCaptureBuffers*CAMERA_PPROC_OUT_BUFFER_MULTIPLIER +
                         mParameters.getNumOfExtraHDRInBufsIfNeeded() -
