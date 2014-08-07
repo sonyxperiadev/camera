@@ -126,9 +126,6 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
     mm_camera_buf_def_t *frame = NULL;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
 
-    CDBG_ERROR("%s: BEGIN - length=%d, frame idx = %d\n",
-            __func__, frame->frame_len, frame->frame_idx);
-
     if (NULL == bufs || NULL == user_data) {
         CDBG_ERROR("%s: bufs or user_data are not valid ", __func__);
         return;
