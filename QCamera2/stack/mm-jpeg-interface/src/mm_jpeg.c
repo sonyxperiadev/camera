@@ -278,6 +278,7 @@ OMX_ERRORTYPE mm_jpeg_session_create(mm_jpeg_job_session_t* p_session)
   mm_jpeg_cirq_t *p_cirq = NULL;
   mm_jpeg_obj *my_obj = (mm_jpeg_obj *) p_session->jpeg_obj;
   int i = 0;
+  char *omx_lib = "OMX.qcom.image.jpeg.encoder";
 
   pthread_mutex_init(&p_session->lock, NULL);
   pthread_cond_init(&p_session->cond, NULL);
@@ -296,9 +297,14 @@ OMX_ERRORTYPE mm_jpeg_session_create(mm_jpeg_job_session_t* p_session)
   p_session->omx_callbacks.FillBufferDone = mm_jpeg_fbd;
   p_session->omx_callbacks.EventHandler = mm_jpeg_event_handler;
 
+  p_session->thumb_from_main = 0;
+#ifdef MM_JPEG_USE_PIPELINE
+  p_session->thumb_from_main = 1;
+  omx_lib = "OMX.qcom.image.jpeg.encoder_pipeline";
+#endif
 
   rc = OMX_GetHandle(&p_session->omx_handle,
-      "OMX.qcom.image.jpeg.encoder",
+      omx_lib,
       (void *)p_session,
       &p_session->omx_callbacks);
   if (OMX_ErrorNone != rc) {
@@ -780,6 +786,7 @@ OMX_ERRORTYPE mm_jpeg_session_config_ports(mm_jpeg_job_session_t* p_session)
     p_session->inputTmbPort.nBufferSize =
       p_params->src_thumb_buf[0].buf_size;
     p_session->inputTmbPort.nBufferCountActual = p_params->num_tmb_bufs;
+
     ret = OMX_SetParameter(p_session->omx_handle, OMX_IndexParamPortDefinition,
       &p_session->inputTmbPort);
 
@@ -913,21 +920,29 @@ OMX_ERRORTYPE mm_jpeg_session_config_thumbnail(mm_jpeg_job_session_t* p_session)
   thumbnail_info.crop_info.nLeft = p_thumb_dim->crop.left;
   thumbnail_info.crop_info.nTop = p_thumb_dim->crop.top;
   thumbnail_info.rotation = p_params->thumb_rotation;
-  thumbnail_info.quality = p_params->thumb_quality;
 
-  if ((p_thumb_dim->dst_dim.width > p_thumb_dim->src_dim.width)
-    || (p_thumb_dim->dst_dim.height > p_thumb_dim->src_dim.height)) {
+  thumbnail_info.quality = p_params->thumb_quality;
+  thumbnail_info.output_width = p_thumb_dim->dst_dim.width;
+  thumbnail_info.output_height = p_thumb_dim->dst_dim.height;
+
+  if (p_session->thumb_from_main) {
+    if ((p_session->params.thumb_rotation == 90 ||
+      p_session->params.thumb_rotation == 270) &&
+      (p_session->params.rotation == 0 ||
+      p_session->params.rotation == 180)) {
+
+      thumbnail_info.output_width = p_thumb_dim->dst_dim.height;
+      thumbnail_info.output_height = p_thumb_dim->dst_dim.width;
+      thumbnail_info.rotation = p_session->params.rotation;
+    }
+  } else if ((p_thumb_dim->dst_dim.width > p_thumb_dim->src_dim.width) ||
+    (p_thumb_dim->dst_dim.height > p_thumb_dim->src_dim.height)) {
     CDBG_ERROR("%s:%d] Incorrect thumbnail dim %dx%d resetting to %dx%d",
-      __func__, __LINE__,
-      p_thumb_dim->dst_dim.width,
-      p_thumb_dim->dst_dim.height,
-      p_thumb_dim->src_dim.width,
+      __func__, __LINE__, p_thumb_dim->dst_dim.width,
+      p_thumb_dim->dst_dim.height, p_thumb_dim->src_dim.width,
       p_thumb_dim->src_dim.height);
     thumbnail_info.output_width = p_thumb_dim->src_dim.width;
     thumbnail_info.output_height = p_thumb_dim->src_dim.height;
-  } else {
-    thumbnail_info.output_width = p_thumb_dim->dst_dim.width;
-    thumbnail_info.output_height = p_thumb_dim->dst_dim.height;
   }
 
   memset(p_frame_info, 0x0, sizeof(*p_frame_info));
@@ -1424,6 +1439,11 @@ static OMX_ERRORTYPE mm_jpeg_session_encode(mm_jpeg_job_session_t *p_session)
   p_session->abort_state = MM_JPEG_ABORT_NONE;
   p_session->encoding = OMX_FALSE;
   pthread_mutex_unlock(&p_session->lock);
+
+  if (p_session->thumb_from_main) {
+    p_jobparams->thumb_index = p_jobparams->src_index;
+    p_jobparams->thumb_dim.crop = p_jobparams->main_dim.crop;
+  }
 
   if (OMX_FALSE == p_session->config) {
     ret = mm_jpeg_session_configure(p_session);
@@ -1986,6 +2006,12 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
 
   memset(node, 0, sizeof(mm_jpeg_job_q_node_t));
   node->enc_info.encode_job = job->encode_job;
+  if (p_session->thumb_from_main) {
+    node->enc_info.encode_job.thumb_dim.src_dim =
+      node->enc_info.encode_job.main_dim.src_dim;
+    node->enc_info.encode_job.thumb_dim.crop =
+      node->enc_info.encode_job.main_dim.crop;
+  }
   node->enc_info.job_id = *job_id;
   node->enc_info.client_handle = p_session->client_hdl;
   node->type = MM_JPEG_CMD_TYPE_JOB;
@@ -2230,6 +2256,16 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
 
     /*copy the params*/
     p_session->params = *p_params;
+    if (p_session->thumb_from_main) {
+      memcpy(p_session->params.src_thumb_buf, p_session->params.src_main_buf,
+        sizeof(p_session->params.src_thumb_buf));
+      p_session->params.num_tmb_bufs =  p_session->params.num_src_bufs;
+      if (!p_session->params.encode_thumbnail) {
+         p_session->params.num_tmb_bufs = 0;
+      }
+      p_session->params.thumb_dim.src_dim = p_session->params.main_dim.src_dim;
+      p_session->params.thumb_dim.crop = p_session->params.main_dim.crop;
+    }
     p_session->client_hdl = client_hdl;
     p_session->sessionId = session_id;
     p_session->session_handle_q = p_session_handle_q;

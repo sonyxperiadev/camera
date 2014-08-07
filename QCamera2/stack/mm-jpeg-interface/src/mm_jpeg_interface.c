@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <cutils/properties.h>
+#include <stdlib.h>
 
 #include "mm_jpeg_dbg.h"
 #include "mm_jpeg_interface.h"
@@ -294,6 +295,7 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_dimension picture_size)
   mm_jpeg_obj* jpeg_obj = NULL;
   char prop[PROPERTY_VALUE_MAX];
 
+  memset(prop, 0x0, sizeof(prop));
   property_get("persist.camera.logs", prop, "0");
   gMmJpegIntfLogLevel = atoi(prop);
 
