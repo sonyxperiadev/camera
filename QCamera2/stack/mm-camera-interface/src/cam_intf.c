@@ -279,6 +279,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_RETRO_BURST_NUM, metadata);
         case CAM_INTF_PARM_BURST_LED_ON_PERIOD:
             return POINTER_OF_META(CAM_INTF_PARM_BURST_LED_ON_PERIOD, metadata);
+        case CAM_INTF_PARM_LONGSHOT_ENABLE:
+            return POINTER_OF_META(CAM_INTF_PARM_LONGSHOT_ENABLE, metadata);
         case CAM_INTF_META_STREAM_INFO:
             return POINTER_OF_META(CAM_INTF_META_STREAM_INFO, metadata);
         case CAM_INTF_META_AEC_MODE:
@@ -592,6 +594,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_PARM_RETRO_BURST_NUM, metadata);
         case CAM_INTF_PARM_BURST_LED_ON_PERIOD:
             return SIZE_OF_PARAM(CAM_INTF_PARM_BURST_LED_ON_PERIOD, metadata);
+        case CAM_INTF_PARM_LONGSHOT_ENABLE:
+            return SIZE_OF_PARAM(CAM_INTF_PARM_LONGSHOT_ENABLE, metadata);
         case CAM_INTF_META_STREAM_INFO:
             return SIZE_OF_PARAM(CAM_INTF_META_STREAM_INFO, metadata);
         case CAM_INTF_META_AEC_MODE:
