@@ -483,6 +483,16 @@ mm_jpeg_job_q_node_t* mm_jpeg_queue_remove_job_unlk(
  **/
 typedef void (*mm_jpeg_queue_func_t)(void *);
 
+/** mm_jpeg_exif_flash_mode:
+ *
+ * Exif flash mode values
+ **/
+typedef enum {
+  MM_JPEG_EXIF_FLASH_MODE_ON   = 0x1,
+  MM_JPEG_EXIF_FLASH_MODE_OFF  = 0x2,
+  MM_JPEG_EXIF_FLASH_MODE_AUTO = 0x3,
+  MM_JPEG_EXIF_FLASH_MODE_MAX
+} mm_jpeg_exif_flash_mode;
 
 #endif /* MM_JPEG_H_ */
 
