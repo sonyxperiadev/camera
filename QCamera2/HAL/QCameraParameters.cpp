@@ -1543,7 +1543,7 @@ int32_t QCameraParameters::setBurstLEDOnPeriod(const QCameraParameters& params)
         property_get("persist.camera.led.on.period", prop, "0");
         nBurstLEDOnPeriod = atoi(prop);
         if (nBurstLEDOnPeriod <= 0) {
-            nBurstLEDOnPeriod = 100;
+            nBurstLEDOnPeriod = 300;
         }
     }
 

@@ -310,7 +310,6 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
       ch_obj->startZSlSnapshotCalled = TRUE;
       ch_obj->burstSnapNum = ch_obj->pending_cnt;
       ch_obj->bWaitForPrepSnapshotDone = 0;
-      ch_obj->needLEDFlash = FALSE;
     } else if (((ch_obj->pending_cnt == 0) || (ch_obj->stopZslSnapshot == 1))
             && (ch_obj->manualZSLSnapshot == FALSE)
             && (ch_obj->startZSlSnapshotCalled == TRUE)) {
@@ -1948,6 +1947,7 @@ int32_t mm_channel_handle_metadata(
             queue->expected_frame_id = queue->led_off_start_frame_id + queue->frame_skip_count;
             queue->once = 1;
             ch_obj->stopZslSnapshot = 1;
+            ch_obj->needLEDFlash = FALSE;
             CDBG("%s:[ZSL Retro]Reached max led on frames = %d , expected id = %d",
             __func__,  buf_info->frame_idx, queue->expected_frame_id);
          }
