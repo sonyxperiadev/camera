@@ -376,6 +376,8 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
     encode_parm.main_dim.src_dim = src_dim;
     encode_parm.main_dim.dst_dim = dst_dim;
 
+    m_dst_dim = dst_dim;
+
     encode_parm.jpeg_cb = mJpegCB;
     encode_parm.userdata = mJpegUserData;
 
@@ -755,8 +757,9 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
 
         CDBG_HIGH("[KPI Perf] %s : jpeg job %d", __func__, evt->jobId);
 
-        if (m_parent->mDataCb == NULL ||
-            m_parent->msgTypeEnabledWithLock(CAMERA_MSG_COMPRESSED_IMAGE) == 0 ) {
+        if ((false == m_parent->m_bIntJpegEvtPending) &&
+             (m_parent->mDataCb == NULL ||
+              m_parent->msgTypeEnabledWithLock(CAMERA_MSG_COMPRESSED_IMAGE) == 0 )) {
             CDBG_HIGH("%s: No dataCB or CAMERA_MSG_COMPRESSED_IMAGE not enabled",
                   __func__);
             rc = NO_ERROR;
@@ -774,6 +777,15 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
                                   evt->out_data.buf_filled_len,
                                   evt->jobId);
         CDBG_HIGH("%s: Dump jpeg_size=%d", __func__, evt->out_data.buf_filled_len);
+
+        if(true == m_parent->m_bIntJpegEvtPending) {
+            //Sending JPEG snapshot taken notification to HAL
+            pthread_mutex_lock(&m_parent->m_int_lock);
+            pthread_cond_signal(&m_parent->m_int_cond);
+            pthread_mutex_unlock(&m_parent->m_int_lock);
+            m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+            return rc;
+        }
 
         if (!mJpegMemOpt) {
             // alloc jpeg memory to pass to upper layer
@@ -1845,7 +1857,19 @@ int32_t QCameraPostProcessor::processRawImageImpl(mm_camera_super_buf_t *recvd_f
             // for YUV422 NV16 case
             m_parent->dumpFrameToFile(pStream, frame, QCAMERA_DUMP_FRM_SNAPSHOT);
         } else {
+            //Received RAW snapshot taken notification
             m_parent->dumpFrameToFile(pStream, frame, QCAMERA_DUMP_FRM_RAW);
+
+            if(true == m_parent->m_bIntRawEvtPending) {
+              //Sending RAW snapshot taken notification to HAL
+              memset(&m_dst_dim, 0, sizeof(m_dst_dim));
+              pStream->getFrameDimension(m_dst_dim);
+              pthread_mutex_lock(&m_parent->m_int_lock);
+              pthread_cond_signal(&m_parent->m_int_cond);
+              pthread_mutex_unlock(&m_parent->m_int_lock);
+              raw_mem->release(raw_mem);
+              return rc;
+            }
         }
 
         // send data callback / notify for RAW_IMAGE

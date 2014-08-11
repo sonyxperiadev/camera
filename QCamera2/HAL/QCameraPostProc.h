@@ -118,6 +118,7 @@ public:
     int32_t getJpegPaddingReq(cam_padding_info_t &padding_info);
     QCameraReprocessChannel * getReprocChannel() {return m_pReprocChannel;};
     inline bool getJpegMemOpt() {return mJpegMemOpt;}
+    inline void setJpegMemOpt(bool val) {mJpegMemOpt = val;}
 
 private:
     int32_t sendDataNotify(int32_t msg_type,
@@ -197,6 +198,9 @@ private:
     bool mJpegMemOpt;
     uint32_t   m_JpegOutputMemCount;
     uint8_t mNewJpegSessionNeeded;
+
+public:
+    cam_dimension_t m_dst_dim;
 };
 
 }; // namespace qcamera

@@ -1079,10 +1079,13 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(int cameraId)
       m_max_pic_width(0),
       m_max_pic_height(0),
       mLiveSnapshotThread(0),
+      mIntPicThread(0),
       mFlashNeeded(false),
       mCaptureRotation(0),
       mIs3ALocked(false),
       mZoomLevel(0),
+      m_bIntJpegEvtPending(false),
+      m_bIntRawEvtPending(false),
       mSnapshotJob(-1),
       mPostviewJob(-1),
       mMetadataJob(-1),
@@ -1108,8 +1111,13 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(int cameraId)
 
     pthread_mutex_init(&m_parm_lock, NULL);
 
+    pthread_mutex_init(&m_int_lock, NULL);
+    pthread_cond_init(&m_int_cond, NULL);
+
     memset(m_channels, 0, sizeof(m_channels));
     memset(&mExifParams, 0, sizeof(mm_jpeg_exif_params_t));
+
+    memset(m_BackendFileName, 0, QCAMERA_MAX_FILEPATH_LENGTH);
 
 #ifdef HAS_MULTIMEDIA_HINTS
     if (hw_get_module(POWER_HARDWARE_MODULE_ID, (const hw_module_t **)&m_pPowerModule)) {
@@ -1143,6 +1151,8 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     pthread_mutex_destroy(&m_evtLock);
     pthread_cond_destroy(&m_evtCond);
     pthread_mutex_destroy(&m_parm_lock);
+    pthread_mutex_destroy(&m_int_lock);
+    pthread_cond_destroy(&m_int_cond);
 }
 
 /*===========================================================================
@@ -3027,6 +3037,39 @@ void* Live_Snapshot_thread (void* data)
 }
 
 /*===========================================================================
+ * FUNCTION   : Int_Pic_thread
+ *
+ * DESCRIPTION: Seperate thread for taking snapshot triggered by camera backend
+ *
+ * PARAMETERS : @data - pointer to QCamera2HardwareInterface class object
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void* Int_Pic_thread (void* data)
+{
+    int rc = NO_ERROR;
+
+    QCamera2HardwareInterface *hw = reinterpret_cast<QCamera2HardwareInterface *>(data);
+
+    if (!hw) {
+        ALOGE("take_picture_thread: NULL camera device");
+        return (void *)BAD_VALUE;
+    }
+
+    bool JpegMemOpt = false;
+
+    rc = hw->takeBackendPic_internal(&JpegMemOpt);
+    if (rc == NO_ERROR) {
+        hw->checkIntPicPending(JpegMemOpt);
+    } else {
+        //Snapshot attempt not successful, we need to do cleanup here
+        hw->clearIntPendingEvents();
+    }
+
+    return (void* )NULL;
+}
+
+/*===========================================================================
  * FUNCTION   : takeLiveSnapshot
  *
  * DESCRIPTION: take live snapshot during recording
@@ -3042,6 +3085,185 @@ int QCamera2HardwareInterface::takeLiveSnapshot()
     int rc = NO_ERROR;
     rc= pthread_create(&mLiveSnapshotThread, NULL, Live_Snapshot_thread, (void *) this);
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : takePictureInternal
+ *
+ * DESCRIPTION: take snapshot triggered by backend
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::takePictureInternal()
+{
+    int rc = NO_ERROR;
+    rc= pthread_create(&mIntPicThread, NULL, Int_Pic_thread, (void *) this);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : checkIntPicPending
+ *
+ * DESCRIPTION: timed wait for jpeg completion event, and send
+ *                        back completion event to backend
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt)
+{
+    bool bSendToBackend = true;
+    cam_int_evt_params_t params;
+    int rc = NO_ERROR;
+
+    struct timespec   ts;
+    struct timeval    tp;
+    gettimeofday(&tp, NULL);
+    ts.tv_sec  = tp.tv_sec;
+    ts.tv_nsec = tp.tv_usec * 1000 + 5000 * 1000000LL;
+
+    if (true == m_bIntJpegEvtPending ||
+        (true == m_bIntRawEvtPending)) {
+        //Waiting in HAL for snapshot taken notification
+        pthread_mutex_lock(&m_int_lock);
+        rc = pthread_cond_timedwait(&m_int_cond, &m_int_lock, &ts);
+        if (ETIMEDOUT == rc || 0x0 == m_BackendFileName[0]) {
+            //Hit a timeout, or some spurious activity
+            bSendToBackend = false;
+        }
+
+        if (true == m_bIntJpegEvtPending) {
+            params.event_type = 0;
+        } else if (true == m_bIntRawEvtPending) {
+            params.event_type = 1;
+        }
+        pthread_mutex_unlock(&m_int_lock);
+
+        if (true == m_bIntJpegEvtPending) {
+            //Attempting to restart preview after taking JPEG snapshot
+            lockAPI();
+            rc = processAPI(QCAMERA_SM_EVT_SNAPSHOT_DONE, NULL);
+            unlockAPI();
+            if (false == mParameters.isZSLMode()) {
+                lockAPI();
+                rc = processAPI(QCAMERA_SM_EVT_START_PREVIEW, NULL);
+                unlockAPI();
+            }
+            m_postprocessor.setJpegMemOpt(JpegMemOpt);
+        } else if (true == m_bIntRawEvtPending) {
+            //Attempting to restart preview after taking RAW snapshot
+            stopChannel(QCAMERA_CH_TYPE_RAW);
+            delChannel(QCAMERA_CH_TYPE_RAW);
+
+            lockAPI();
+            rc = processAPI(QCAMERA_SM_EVT_START_PREVIEW, NULL);
+            unlockAPI();
+        }
+
+        if (true == bSendToBackend) {
+            //send event back to server with the file path
+            params.dim = m_postprocessor.m_dst_dim;
+            memcpy(&params.path[0], &m_BackendFileName[0], QCAMERA_MAX_FILEPATH_LENGTH);
+            memset(&m_BackendFileName[0], 0x0, QCAMERA_MAX_FILEPATH_LENGTH);
+            params.size = mBackendFileSize;
+            pthread_mutex_lock(&m_parm_lock);
+            rc = mParameters.setIntEvent(params);
+            pthread_mutex_unlock(&m_parm_lock);
+        }
+
+        clearIntPendingEvents();
+    }
+
+    return;
+}
+
+/*===========================================================================
+ * FUNCTION   : takeBackendPic_internal
+ *
+ * DESCRIPTION: take snapshot triggered by backend
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt)
+{
+    int rc = NO_ERROR;
+
+    if (true == m_bIntJpegEvtPending) {
+        //Attempting to take JPEG snapshot
+        *JpegMemOpt = m_postprocessor.getJpegMemOpt();
+        m_postprocessor.setJpegMemOpt(false);
+
+        lockAPI();
+        rc = processAPI(QCAMERA_SM_EVT_TAKE_PICTURE, NULL);
+        unlockAPI();
+    } else if (true == m_bIntRawEvtPending) {
+        //Attempting to take RAW snapshot
+        (void)JpegMemOpt;
+        lockAPI();
+        rc = processAPI(QCAMERA_SM_EVT_STOP_PREVIEW, NULL);
+        unlockAPI();
+
+        rc = addRawChannel();
+        if (rc == NO_ERROR) {
+            // start postprocessor
+            rc = m_postprocessor.start(m_channels[QCAMERA_CH_TYPE_RAW]);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: cannot start postprocessor", __func__);
+                delChannel(QCAMERA_CH_TYPE_RAW);
+                return rc;
+            }
+
+            rc = startChannel(QCAMERA_CH_TYPE_RAW);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: cannot start raw channel", __func__);
+                m_postprocessor.stop();
+                delChannel(QCAMERA_CH_TYPE_RAW);
+                return rc;
+            }
+        } else {
+            ALOGE("%s: cannot add raw channel", __func__);
+            return rc;
+        }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : clearIntPendingEvents
+ *
+ * DESCRIPTION: clear internal pending events pertaining to backend
+ *                        snapshot requests
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+void QCamera2HardwareInterface::clearIntPendingEvents()
+{
+    lockAPI();
+    processAPI(QCAMERA_SM_EVT_START_PREVIEW, NULL);
+    unlockAPI();
+
+    pthread_mutex_lock(&m_int_lock);
+    if (true == m_bIntJpegEvtPending) {
+        m_bIntJpegEvtPending = false;
+    } else if (true == m_bIntRawEvtPending) {
+        m_bIntRawEvtPending = false;
+    }
+    pthread_mutex_unlock(&m_int_lock);
+    return;
 }
 
 /*===========================================================================
@@ -3490,7 +3712,34 @@ void QCamera2HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
             (mm_camera_event_t *)malloc(sizeof(mm_camera_event_t));
         if (NULL != payload) {
             *payload = *evt;
-            obj->processEvt(QCAMERA_SM_EVT_EVT_NOTIFY, payload);
+            //peek into the event, if this is an eztune event from server,
+            //then we don't need to post it to the SM Qs, we shud directly
+            //spawn a thread and get the job done (jpeg or raw snapshot)
+            switch (payload->server_event_type) {
+                case CAM_EVENT_TYPE_INT_TAKE_JPEG:
+                    //Received JPEG trigger from eztune
+                    if (false == obj->m_bIntJpegEvtPending) {
+                        pthread_mutex_lock(&obj->m_int_lock);
+                        obj->m_bIntJpegEvtPending = true;
+                        pthread_mutex_unlock(&obj->m_int_lock);
+                        obj->takePictureInternal();
+                    }
+                    free(payload);
+                    break;
+                case CAM_EVENT_TYPE_INT_TAKE_RAW:
+                    //Received RAW trigger from eztune
+                    if (false == obj->m_bIntRawEvtPending) {
+                        pthread_mutex_lock(&obj->m_int_lock);
+                        obj->m_bIntRawEvtPending = true;
+                        pthread_mutex_unlock(&obj->m_int_lock);
+                        obj->takePictureInternal();
+                    }
+                    free(payload);
+                    break;
+                default:
+                    obj->processEvt(QCAMERA_SM_EVT_EVT_NOTIFY, payload);
+                    break;
+            }
         }
     } else {
         ALOGE("%s: NULL user_data", __func__);

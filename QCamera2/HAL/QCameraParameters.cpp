@@ -7994,6 +7994,50 @@ int32_t QCameraParameters::setHistogram(bool enabled)
 }
 
 /*===========================================================================
+ * FUNCTION   : setIntEvent
+ *
+ * DESCRIPTION: set setIntEvent
+ *
+ * PARAMETERS :
+ *   @params : image size and dimensions
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setIntEvent(cam_int_evt_params_t params)
+{
+    int32_t rc = NO_ERROR;
+
+    if ( m_pParamBuf == NULL ) {
+        return NO_INIT;
+    }
+
+    if(initBatchUpdate(m_pParamBuf) < 0 ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return BAD_TYPE;
+    }
+
+    //Sending snapshot taken notification back to Eztune"
+    rc = AddSetParmEntryToBatch(m_pParamBuf,
+                                CAM_INTF_PARM_INT_EVT,
+                                sizeof(params),
+                                &params);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update table", __func__);
+        return rc;
+    }
+
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to set frameskip info parm", __func__);
+        return rc;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setFaceDetectionOption
  *
  * DESCRIPTION: set if face detection is enabled by SendCommand

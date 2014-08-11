@@ -125,6 +125,7 @@ typedef struct {
 #define QCAMERA_ION_USE_CACHE   true
 #define QCAMERA_ION_USE_NOCACHE false
 #define MAX_ONGOING_JOBS 25
+#define QCAMERA_MAX_FILEPATH_LENGTH 50
 
 extern volatile uint32_t gCamHalLogLevel;
 
@@ -224,6 +225,9 @@ public:
     static int cancel_auto_focus(struct camera_device *);
     static int take_picture(struct camera_device *);
     int takeLiveSnapshot_internal();
+    int takeBackendPic_internal(bool *JpegMemOpt);
+    void clearIntPendingEvents();
+    void checkIntPicPending(bool JpegMemOpt);
     static int cancel_picture(struct camera_device *);
     static int set_parameters(struct camera_device *, const char *parms);
     static char* get_parameters(struct camera_device *);
@@ -296,6 +300,7 @@ private:
     int stopCaptureChannel(bool destroy);
     int cancelPicture();
     int takeLiveSnapshot();
+    int takePictureInternal();
     int cancelLiveSnapshot();
     char* getParameters();
     int putParameters(char *);
@@ -565,6 +570,7 @@ private:
     int32_t m_max_pic_width;
     int32_t m_max_pic_height;
     pthread_t mLiveSnapshotThread;
+    pthread_t mIntPicThread;
     uint8_t mFlashNeeded;
     int mCaptureRotation;
     int32_t mFlash;
@@ -572,6 +578,14 @@ private:
     int32_t mFlashPresence;
     bool mIs3ALocked;
     int32_t mZoomLevel;
+
+    //eztune variables for communication with eztune server at backend
+    bool m_bIntJpegEvtPending;
+    bool m_bIntRawEvtPending;
+    char m_BackendFileName[QCAMERA_MAX_FILEPATH_LENGTH];
+    int32_t mBackendFileSize;
+    pthread_mutex_t m_int_lock;
+    pthread_cond_t m_int_cond;
 
     enum DefferedWorkCmd {
         CMD_DEFF_ALLOCATE_BUFF,
