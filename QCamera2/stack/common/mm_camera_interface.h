@@ -708,5 +708,10 @@ int32_t mm_stream_calc_offset_postproc(cam_stream_info_t *stream_info,
         cam_padding_info_t *padding,
         cam_stream_buf_plane_info_t *buf_planes);
 
+int32_t mm_stream_calc_offset_analysis(cam_format_t fmt,
+        cam_dimension_t *dim,
+        cam_padding_info_t *padding,
+        cam_stream_buf_plane_info_t *buf_planes);
+
 struct camera_info *get_cam_info(int camera_id);
 #endif /*__MM_CAMERA_INTERFACE_H__*/
