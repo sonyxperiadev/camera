@@ -104,6 +104,7 @@ typedef enum {
     QCAMERA_CH_TYPE_SNAPSHOT,
     QCAMERA_CH_TYPE_RAW,
     QCAMERA_CH_TYPE_METADATA,
+    QCAMERA_CH_TYPE_ANALYSIS,
     QCAMERA_CH_TYPE_MAX
 } qcamera_ch_type_enum_t;
 
@@ -391,6 +392,7 @@ private:
     int32_t addCaptureChannel();
     int32_t addRawChannel();
     int32_t addMetaDataChannel();
+    int32_t addAnalysisChannel();
     QCameraReprocessChannel *addReprocChannel(QCameraChannel *pInputChannel);
     QCameraReprocessChannel *addOfflineReprocChannel(
                                                 cam_pp_offline_src_config_t &img_config,
