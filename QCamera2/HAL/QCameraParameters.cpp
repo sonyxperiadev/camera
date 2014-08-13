@@ -1989,6 +1989,23 @@ int32_t QCameraParameters::setBrightness(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : getBrightness
+ *
+ * DESCRIPTION: get brightness control value from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCameraParameters::getBrightness()
+{
+    return getInt(KEY_QC_BRIGHTNESS);
+}
+
+/*===========================================================================
  * FUNCTION   : setSharpness
  *
  * DESCRIPTION: set sharpness control value from user setting

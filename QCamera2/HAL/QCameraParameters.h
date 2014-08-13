@@ -622,6 +622,7 @@ public:
             isHDREnabled();}
     int32_t setAecLock(const char *aecStr);
     bool is4k2kVideoResolution();
+    int getBrightness();
 
 private:
     int32_t setPreviewSize(const QCameraParameters& );
