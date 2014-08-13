@@ -1938,7 +1938,7 @@ int32_t mm_channel_handle_metadata(
         }
 
        if((ch_obj->burstSnapNum > 1) && (ch_obj->needLEDFlash == TRUE) &&
-               !ch_obj->isFlashBracketingEnabled) {
+                !ch_obj->isFlashBracketingEnabled && !ch_obj->need3ABracketing) {
          if((buf_info->frame_idx >= queue->led_off_start_frame_id)
             &&  !queue->once) {
             CDBG("%s: [ZSL Retro]Burst snap num = %d ",
