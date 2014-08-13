@@ -46,7 +46,7 @@
 #define MAX_EXIF_TABLE_ENTRIES 50
 #define MAX_JPEG_SIZE 20000000
 #define MAX_OMX_HANDLES (5)
-
+#define MM_JPEG_UNUSED(x)   ((void)(x))
 
 /** mm_jpeg_abort_state_t:
  *  @MM_JPEG_ABORT_NONE: Abort is not issued
