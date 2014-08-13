@@ -962,9 +962,6 @@ OMX_ERRORTYPE mm_jpegdec_ebd(OMX_HANDLETYPE hComponent,
 {
   OMX_ERRORTYPE ret = OMX_ErrorNone;
   mm_jpeg_job_session_t *p_session = (mm_jpeg_job_session_t *) pAppData;
-  MM_JPEG_UNUSED(hComponent);
-  MM_JPEG_UNUSED(pBuffer);
-
 
   CDBG("%s:%d] count %d ", __func__, __LINE__, p_session->ebd_count);
   pthread_mutex_lock(&p_session->lock);
@@ -982,7 +979,6 @@ OMX_ERRORTYPE mm_jpegdec_fbd(OMX_HANDLETYPE hComponent,
   uint32_t i = 0;
   int rc = 0;
   mm_jpeg_output_t output_buf;
-  MM_JPEG_UNUSED(hComponent);
 
   CDBG("%s:%d] count %d ", __func__, __LINE__, p_session->fbd_count);
 
@@ -1024,8 +1020,6 @@ OMX_ERRORTYPE mm_jpegdec_event_handler(OMX_HANDLETYPE hComponent,
   OMX_PTR pEventData)
 {
   mm_jpeg_job_session_t *p_session = (mm_jpeg_job_session_t *) pAppData;
-  MM_JPEG_UNUSED(hComponent);
-  MM_JPEG_UNUSED(pEventData);
 
   CDBG("%s:%d] %d %d %d state %d", __func__, __LINE__, eEvent, (int)nData1,
     (int)nData2, p_session->abort_state);
