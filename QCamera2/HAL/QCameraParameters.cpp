@@ -726,6 +726,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bNeedRestart(false),
     m_bNoDisplayMode(false),
     m_bWNROn(false),
+    m_bTNRPreviewOn(false),
+    m_bTNRVideoOn(false),
     m_bInited(false),
     m_nBurstNum(1),
     m_nRetroBurstNum(0),
@@ -3387,6 +3389,50 @@ int32_t QCameraParameters::setWaveletDenoise(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : setTemporalDenoise
+ *
+ * DESCRIPTION: set temporal denoise value from properties
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setTemporalDenoise()
+{
+    if ((m_pCapability->qcom_supported_feature_mask & CAM_QCOM_FEATURE_CPP_TNR) == 0) {
+        CDBG_HIGH("%s: TNR is not supported",__func__);
+        return NO_ERROR;
+    }
+
+    char value[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.tnr.preview", value, "0");
+
+    if (0 < atoi(value))
+        m_bTNRPreviewOn = true;
+    else
+        m_bTNRPreviewOn = false;
+
+    property_get("persist.camera.tnr.video", value, "0");
+    if (0 < atoi(value))
+        m_bTNRVideoOn = true;
+    else
+        m_bTNRVideoOn = false;
+
+    cam_denoise_param_t temp;
+    memset(&temp, 0, sizeof(temp));
+    if (m_bTNRPreviewOn || m_bTNRVideoOn) {
+        temp.denoise_enable = 1;
+        temp.process_plates = getDenoiseProcessPlate(CAM_INTF_PARM_TEMPORAL_DENOISE);
+    }
+    CDBG("%s: TNR enable=%d, plates=%d", __func__,
+            temp.denoise_enable, temp.process_plates);
+    return AddSetParmEntryToBatch(m_pParamBuf, CAM_INTF_PARM_TEMPORAL_DENOISE,
+            sizeof(temp), &temp);
+}
+
+/*===========================================================================
  * FUNCTION   : setCameraMode
  *
  * DESCRIPTION: set camera mode from user setting
@@ -3851,6 +3897,7 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setAutoHDR(params)))                      final_rc = rc;
     if ((rc = setGpsLocation(params)))                  final_rc = rc;
     if ((rc = setWaveletDenoise(params)))               final_rc = rc;
+    if ((rc = setTemporalDenoise()))                    final_rc = rc;
     if ((rc = setFaceRecognition(params)))              final_rc = rc;
     if ((rc = setFlip(params)))                         final_rc = rc;
     if ((rc = setVideoHDR(params)))                     final_rc = rc;
@@ -6631,20 +6678,28 @@ int32_t QCameraParameters::setRedeyeReduction(const char *redeyeStr)
 }
 
 /*===========================================================================
- * FUNCTION   : getWaveletDenoiseProcessPlate
+ * FUNCTION   : getDenoiseProcessPlate
  *
- * DESCRIPTION: query wavelet denoise process plate
+ * DESCRIPTION: query denoise process plate
  *
  * PARAMETERS : None
  *
- * RETURN     : WNR prcocess plate vlaue
+ * RETURN     : NR process plate vlaue
  *==========================================================================*/
-cam_denoise_process_type_t QCameraParameters::getWaveletDenoiseProcessPlate()
+cam_denoise_process_type_t
+        QCameraParameters::getDenoiseProcessPlate(cam_intf_parm_type_t type)
 {
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
     cam_denoise_process_type_t processPlate = CAM_WAVELET_DENOISE_CBCR_ONLY;
-    property_get("persist.denoise.process.plates", prop, "");
+    if (CAM_INTF_PARM_WAVELET_DENOISE == type) {
+        property_get("persist.denoise.process.plates", prop, "");
+    } else if (CAM_INTF_PARM_TEMPORAL_DENOISE == type) {
+        property_get("persist.tnr.process.plates", prop, "");
+    } else {
+        ALOGE("%s: Type not supported", __func__);
+        prop[0] = '\0';
+    }
     if (strlen(prop) > 0) {
         switch(atoi(prop)) {
         case 0:
@@ -6698,7 +6753,7 @@ int32_t QCameraParameters::setWaveletDenoise(const char *wnrStr)
             temp.denoise_enable = value;
             m_bWNROn = (value != 0);
             if (m_bWNROn) {
-                temp.process_plates = getWaveletDenoiseProcessPlate();
+                temp.process_plates = getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
             }
             CDBG("%s: Denoise enable=%d, plates=%d",
                   __func__, temp.denoise_enable, temp.process_plates);

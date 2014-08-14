@@ -1920,7 +1920,13 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
         if (mParameters.isWNREnabled() && (mParameters.getRecordingHintValue() == false)) {
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
             streamInfo->pp_config.denoise2d.denoise_enable = 1;
-            streamInfo->pp_config.denoise2d.process_plates = mParameters.getWaveletDenoiseProcessPlate();
+            streamInfo->pp_config.denoise2d.process_plates =
+                    mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
+        }
+        if (mParameters.isTNRPreviewEnabled() && (CAM_STREAM_TYPE_PREVIEW == stream_type)) {
+            streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
+        } else if (mParameters.isTNRVideoEnabled() && (CAM_STREAM_TYPE_VIDEO == stream_type)) {
+            streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
         }
     }
     return streamInfoBuf;
@@ -4705,7 +4711,8 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         if (mParameters.isWNREnabled()) {
             pp_config.feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
             pp_config.denoise2d.denoise_enable = 1;
-            pp_config.denoise2d.process_plates = mParameters.getWaveletDenoiseProcessPlate();
+            pp_config.denoise2d.process_plates =
+                    mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
         }
     }
 
