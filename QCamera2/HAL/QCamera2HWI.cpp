@@ -2807,6 +2807,20 @@ int QCamera2HardwareInterface::takePicture()
             stopChannel(QCAMERA_CH_TYPE_PREVIEW);
             delChannel(QCAMERA_CH_TYPE_PREVIEW);
 
+            rc = mParameters.updateRAW(gCamCaps[mCameraId]->raw_dim);
+            if (NO_ERROR != rc) {
+                ALOGE("%s: Raw dimension update failed %d", __func__, rc);
+                return rc;
+            }
+
+            rc = declareSnapshotStreams();
+            if (NO_ERROR != rc) {
+                ALOGE("%s: RAW stream info configuration failed %d",
+                        __func__,
+                        rc);
+                return rc;
+            }
+
             rc = addRawChannel();
             if (rc == NO_ERROR) {
                 // start postprocessor
