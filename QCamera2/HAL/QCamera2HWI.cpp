@@ -6503,9 +6503,16 @@ bool QCamera2HardwareInterface::isRegularCapture()
 void QCamera2HardwareInterface::getLogLevel()
 {
     char prop[PROPERTY_VALUE_MAX];
+    uint32_t globalLogLevel = 0;
 
-    property_get("persist.camera.logs", prop, "0");
+    property_get("persist.camera.hal.debug", prop, "0");
     gCamHalLogLevel = atoi(prop);
+    property_get("persist.camera.global.debug", prop, "0");
+    globalLogLevel = atoi(prop);
+
+    /* Highest log level among hal.logs and global.logs is selected */
+    if (gCamHalLogLevel < globalLogLevel)
+        gCamHalLogLevel = globalLogLevel;
 
     return;
 }

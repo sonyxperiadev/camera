@@ -294,10 +294,17 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_dimension picture_size)
   uint32_t clnt_hdl = 0;
   mm_jpeg_obj* jpeg_obj = NULL;
   char prop[PROPERTY_VALUE_MAX];
+  uint32_t globalLogLevel = 0;
 
   memset(prop, 0x0, sizeof(prop));
-  property_get("persist.camera.logs", prop, "0");
+  property_get("persist.camera.hal.debug", prop, "0");
   gMmJpegIntfLogLevel = atoi(prop);
+  property_get("persist.camera.global.debug", prop, "0");
+  globalLogLevel = atoi(prop);
+
+  /* Highest log level among hal.logs and global.logs is selected */
+  if (gMmJpegIntfLogLevel < globalLogLevel)
+      gMmJpegIntfLogLevel = globalLogLevel;
 
   pthread_mutex_lock(&g_intf_lock);
   /* first time open */

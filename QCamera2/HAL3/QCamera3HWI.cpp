@@ -5680,9 +5680,16 @@ bool  QCamera3HardwareInterface::isCACEnabled() {
 void QCamera3HardwareInterface::getLogLevel()
 {
     char prop[PROPERTY_VALUE_MAX];
+    uint32_t globalLogLevel = 0;
 
-    property_get("persist.camera.logs", prop, "0");
+    property_get("persist.camera.hal.debug", prop, "0");
     gCamHal3LogLevel = atoi(prop);
+    property_get("persist.camera.global.debug", prop, "0");
+    globalLogLevel = atoi(prop);
+
+    /* Highest log level among hal.logs and global.logs is selected */
+    if (gCamHal3LogLevel < globalLogLevel)
+        gCamHal3LogLevel = globalLogLevel;
 
     return;
 }

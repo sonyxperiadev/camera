@@ -1355,9 +1355,16 @@ uint8_t get_num_of_cameras()
     int32_t sd_fd = 0;
     struct sensor_init_cfg_data cfg;
     char prop[PROPERTY_VALUE_MAX];
+    uint32_t globalLogLevel = 0;
 
-    property_get("persist.camera.logs", prop, "0");
+    property_get("persist.camera.hal.debug", prop, "0");
     gMmCameraIntfLogLevel = atoi(prop);
+    property_get("persist.camera.global.debug", prop, "0");
+    globalLogLevel = atoi(prop);
+
+    /* Highest log level among hal.logs and global.logs is selected */
+    if (gMmCameraIntfLogLevel < globalLogLevel)
+        gMmCameraIntfLogLevel = globalLogLevel;
 
     CDBG("%s : E", __func__);
 

@@ -34,6 +34,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <cutils/properties.h>
+#include <stdlib.h>
 
 #include <cam_semaphore.h>
 
@@ -238,6 +240,17 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     uint8_t sleep_msec=MM_CAMERA_DEV_OPEN_RETRY_SLEEP;
     unsigned int cam_idx = 0;
     const char *dev_name_value = NULL;
+    char prop[PROPERTY_VALUE_MAX];
+    uint32_t globalLogLevel = 0;
+
+    property_get("persist.camera.hal.debug", prop, "0");
+    gMmCameraIntfLogLevel = atoi(prop);
+    property_get("persist.camera.global.debug", prop, "0");
+    globalLogLevel = atoi(prop);
+
+    /* Highest log level among hal.logs and global.logs is selected */
+    if (gMmCameraIntfLogLevel < globalLogLevel)
+        gMmCameraIntfLogLevel = globalLogLevel;
 
     CDBG("%s:  begin\n", __func__);
 
