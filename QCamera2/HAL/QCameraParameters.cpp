@@ -7590,18 +7590,23 @@ int QCameraParameters::parseGPSCoordinate(const char *coord_str, rat_t* coord)
  * DESCRIPTION: query exif date time
  *
  * PARAMETERS :
- *   @dateTime : string to store exif date time
- *   @count    : lenght of the dateTime string
+ *   @dateTime    : string to store exif date time
+ *   @subsecTime  : subsecond time
+ *   @count       : lenght of the dateTime string
+ *   @subsecCount : lenght of the subsecTime string
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::getExifDateTime(char *dateTime, uint32_t &count)
+int32_t QCameraParameters::getExifDateTime(char *dateTime, char *subsecTime,
+        uint32_t &count, uint32_t &subsecCount)
 {
     //get time and date from system
     time_t rawtime;
+    struct timeval tv;
     struct tm * timeinfo = NULL;
+    gettimeofday(&tv, NULL);
     memset(&rawtime, 0, sizeof(rawtime));
     time(&rawtime);
     timeinfo = localtime (&rawtime);
@@ -7613,6 +7618,8 @@ int32_t QCameraParameters::getExifDateTime(char *dateTime, uint32_t &count)
                  timeinfo->tm_mday, timeinfo->tm_hour,
                  timeinfo->tm_min, timeinfo->tm_sec);
         count = 20;
+        snprintf(subsecTime, 7, "%06ld", tv.tv_usec);
+        subsecCount = 7;
         return NO_ERROR;
     }
     return UNKNOWN_ERROR;

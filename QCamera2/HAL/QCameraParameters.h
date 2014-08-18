@@ -536,7 +536,8 @@ public:
     int getJpegQuality();
     int getJpegRotation();
 
-    int32_t getExifDateTime(char *dateTime, uint32_t &count);
+    int32_t getExifDateTime(char *dateTime, char *subsecTime,
+        uint32_t &count, uint32_t &subsecCount);
     int32_t getExifFocalLength(rat_t *focalLenght);
     uint16_t getExifIsoSpeed();
     int32_t getExifGpsProcessingMethod(char *gpsProcessingMethod, uint32_t &count);

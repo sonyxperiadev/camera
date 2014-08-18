@@ -6026,19 +6026,40 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
 
     int32_t rc = NO_ERROR;
     uint32_t count = 0;
+    uint32_t subSecCount = 0;
 
     pthread_mutex_lock(&m_parm_lock);
 
     // add exif entries
     char dateTime[20];
+    char subSecTime[7];
     memset(dateTime, 0, sizeof(dateTime));
     count = 20;
-    rc = mParameters.getExifDateTime(dateTime, count);
+    memset(subSecTime, 0, sizeof(subSecTime));
+    subSecCount = 7;
+
+    rc = mParameters.getExifDateTime(dateTime, subSecTime,count, subSecCount);
     if(rc == NO_ERROR) {
         exif->addEntry(EXIFTAGID_EXIF_DATE_TIME_ORIGINAL,
                        EXIF_ASCII,
                        count,
                        (void *)dateTime);
+        exif->addEntry(EXIFTAGID_EXIF_DATE_TIME_DIGITIZED,
+                       EXIF_ASCII,
+                       count,
+                       (void *)dateTime);
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME,
+                       EXIF_ASCII,
+                       subSecCount,
+                       (void *)subSecTime);
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME_ORIGINAL,
+                       EXIF_ASCII,
+                       subSecCount,
+                       (void *)subSecTime);
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME_DIGITIZED,
+                       EXIF_ASCII,
+                       subSecCount,
+                       (void *)subSecTime);
     } else {
         ALOGE("%s: getExifDateTime failed", __func__);
     }
