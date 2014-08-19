@@ -1637,6 +1637,9 @@ void QCamera2HardwareInterface::dumpMetadataToFile(QCameraStream *stream,
                 data = (void *)((uint8_t *)&metadata->tuning_params.tuning_cac_data_size);
                 CDBG_HIGH("tuning_cac_data_size %d",(int)(*(int *)data));
                 written_len += write(file_fd, data, sizeof(uint32_t));
+                data = (void *)((uint8_t *)&metadata->tuning_params.tuning_cac_data_size2);
+                CDBG_HIGH("%s < skrajago >tuning_cac_data_size %d",__func__,(int)(*(int *)data));
+                written_len += write(file_fd, data, sizeof(uint32_t));
                 int total_size = metadata->tuning_params.tuning_sensor_data_size;
                 data = (void *)((uint8_t *)&metadata->tuning_params.data);
                 written_len += write(file_fd, data, total_size);
