@@ -32,6 +32,7 @@
 
 #include <time.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <utils/Errors.h>
 #include <utils/Trace.h>
 #include <utils/Timers.h>
@@ -1540,7 +1541,8 @@ void QCamera2HardwareInterface::dumpJpegToFile(const void *data,
     memset(buf, 0, sizeof(buf));
     memset(&dim, 0, sizeof(dim));
 
-    if((enabled & QCAMERA_DUMP_FRM_JPEG) && data) {
+    if(((enabled & QCAMERA_DUMP_FRM_JPEG) && data) ||
+        ((true == m_bIntJpegEvtPending) && data)) {
         frm_num = ((enabled & 0xffff0000) >> 16);
         if(frm_num == 0) {
             frm_num = 10; //default 10 frames
@@ -1560,17 +1562,24 @@ void QCamera2HardwareInterface::dumpJpegToFile(const void *data,
             }
             if (mDumpFrmCnt >= 0 && mDumpFrmCnt <= frm_num) {
                 snprintf(buf, sizeof(buf), "/data/%d_%d.jpg", mDumpFrmCnt, index);
+                if (true == m_bIntJpegEvtPending) {
+                    strncpy(m_BackendFileName, buf, sizeof(buf));
+                    mBackendFileSize = size;
+                }
 
                 int file_fd = open(buf, O_RDWR | O_CREAT, 0777);
                 if (file_fd > 0) {
-                    int written_len = write(file_fd, data, size);
-                    CDBG_HIGH("%s: written number of bytes %d\n",
-                        __func__, written_len);
+                    ssize_t written_len = write(file_fd, data, size);
+                    fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                    CDBG_HIGH("%s: written number of bytes %ld\n",
+                            __func__, written_len);
                     close(file_fd);
                 } else {
                     ALOGE("%s: fail t open file for image dumping", __func__);
                 }
-                mDumpFrmCnt++;
+                if (false == m_bIntJpegEvtPending) {
+                    mDumpFrmCnt++;
+                }
             }
         }
         mDumpSkipCnt++;
@@ -1695,7 +1704,8 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
 
     mDumpFrmCnt = stream->mDumpFrame;
 
-    if(enabled & QCAMERA_DUMP_FRM_MASK_ALL) {
+    if((enabled & QCAMERA_DUMP_FRM_MASK_ALL) ||
+        (true == m_bIntRawEvtPending && dump_type == QCAMERA_DUMP_FRM_RAW)) {
         if((enabled & dump_type) && stream && frame) {
             frm_num = ((enabled & 0xffff0000) >> 16);
             if(frm_num == 0) {
@@ -1795,11 +1805,12 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                     }
 
                     filePath.append(buf);
+                    ssize_t written_len = 0;
                     int file_fd = open(filePath.string(), O_RDWR | O_CREAT, 0777);
                     if (file_fd > 0) {
                         void *data = NULL;
-                        int written_len = 0;
 
+                        fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
                         for (int i = 0; i < offset.num_planes; i++) {
                             uint32_t index = offset.mp[i].offset;
                             if (i > 0) {
@@ -1812,13 +1823,18 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                             }
                         }
 
-                        CDBG_HIGH("%s: written number of bytes %d\n",
+                        CDBG_HIGH("%s: written number of bytes %ld\n",
                             __func__, written_len);
                         close(file_fd);
                     } else {
                         ALOGE("%s: fail t open file for image dumping", __func__);
                     }
-                    mDumpFrmCnt++;
+                    if (true == m_bIntRawEvtPending) {
+                        strncpy(m_BackendFileName, filePath.string(), QCAMERA_MAX_FILEPATH_LENGTH);
+                        mBackendFileSize = written_len;
+                    } else {
+                        mDumpFrmCnt++;
+                    }
                 }
             }
             stream->mDumpSkipCnt++;

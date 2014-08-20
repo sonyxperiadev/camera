@@ -273,6 +273,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_TINTLESS, metadata);
         case CAM_INTF_PARM_EZTUNE_CMD:
             return POINTER_OF_META(CAM_INTF_PARM_EZTUNE_CMD, metadata);
+        case CAM_INTF_PARM_INT_EVT:
+            return POINTER_OF_META(CAM_INTF_PARM_INT_EVT, metadata);
         case CAM_INTF_PARM_RDI_MODE:
             return POINTER_OF_META(CAM_INTF_PARM_RDI_MODE, metadata);
         case CAM_INTF_PARM_BURST_NUM:
@@ -590,6 +592,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_PARM_TINTLESS, metadata);
         case CAM_INTF_PARM_EZTUNE_CMD:
             return SIZE_OF_PARAM(CAM_INTF_PARM_EZTUNE_CMD, metadata);
+        case CAM_INTF_PARM_INT_EVT:
+            return SIZE_OF_PARAM(CAM_INTF_PARM_INT_EVT, metadata);
         case CAM_INTF_PARM_RDI_MODE:
             return SIZE_OF_PARAM(CAM_INTF_PARM_RDI_MODE, metadata);
         case CAM_INTF_PARM_BURST_NUM:
