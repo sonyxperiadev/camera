@@ -508,6 +508,12 @@ int32_t QCameraStream::calcOffset(cam_stream_info_t *streamInfo)
                 &mPaddingInfo,
                 &streamInfo->buf_planes);
         break;
+    case CAM_STREAM_TYPE_ANALYSIS:
+        rc = mm_stream_calc_offset_analysis(streamInfo->fmt,
+                &dim,
+                &mPaddingInfo,
+                &streamInfo->buf_planes);
+        break;
     case CAM_STREAM_TYPE_METADATA:
         rc = mm_stream_calc_offset_metadata(&dim,
                 &mPaddingInfo,

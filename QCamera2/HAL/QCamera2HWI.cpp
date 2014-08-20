@@ -1635,6 +1635,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             }
         }
         break;
+    case CAM_STREAM_TYPE_ANALYSIS:
+        bufferCnt = CAMERA_MIN_STREAMING_BUFFERS;
+        break;
     case CAM_STREAM_TYPE_DEFAULT:
     case CAM_STREAM_TYPE_MAX:
     default:
@@ -1718,6 +1721,7 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(cam_stream_type_t st
             }
         }
         break;
+    case CAM_STREAM_TYPE_ANALYSIS:
     case CAM_STREAM_TYPE_SNAPSHOT:
     case CAM_STREAM_TYPE_RAW:
     case CAM_STREAM_TYPE_METADATA:
@@ -2083,8 +2087,14 @@ int QCamera2HardwareInterface::startPreview()
     // start preview stream
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() !=true) {
         rc = startChannel(QCAMERA_CH_TYPE_ZSL);
+        if (rc == NO_ERROR) {
+            startChannel(QCAMERA_CH_TYPE_ANALYSIS);
+        }
     } else {
         rc = startChannel(QCAMERA_CH_TYPE_PREVIEW);
+        if ((rc == NO_ERROR) && (mParameters.getRecordingHintValue() != true)) {
+            startChannel(QCAMERA_CH_TYPE_ANALYSIS);
+        }
         /*
           CAF needs cancel auto focus to resume after snapshot.
           Focus should be locked till take picture is done.
@@ -2115,6 +2125,7 @@ int QCamera2HardwareInterface::stopPreview()
     ATRACE_CALL();
     CDBG_HIGH("%s: E", __func__);
     // stop preview stream
+    stopChannel(QCAMERA_CH_TYPE_ANALYSIS);
     stopChannel(QCAMERA_CH_TYPE_ZSL);
     stopChannel(QCAMERA_CH_TYPE_PREVIEW);
 
@@ -2719,8 +2730,11 @@ int QCamera2HardwareInterface::takePicture()
                 rc = addCaptureChannel();
                 // normal capture case
                 // need to stop preview channel
+                stopChannel(QCAMERA_CH_TYPE_ANALYSIS);
                 stopChannel(QCAMERA_CH_TYPE_PREVIEW);
+
                 delChannel(QCAMERA_CH_TYPE_PREVIEW);
+                delChannel(QCAMERA_CH_TYPE_ANALYSIS);
                 if (rc != NO_ERROR) {
                     return rc;
                 }
@@ -2757,7 +2771,11 @@ int QCamera2HardwareInterface::takePicture()
             } else {
                 // normal capture case
                 // need to stop preview channel
+
+                stopChannel(QCAMERA_CH_TYPE_ANALYSIS);
                 stopChannel(QCAMERA_CH_TYPE_PREVIEW);
+
+                delChannel(QCAMERA_CH_TYPE_ANALYSIS);
                 delChannel(QCAMERA_CH_TYPE_PREVIEW);
 
                 rc = declareSnapshotStreams();
@@ -2819,9 +2837,11 @@ int QCamera2HardwareInterface::takePicture()
                 return rc;
             }
         } else {
-
+            stopChannel(QCAMERA_CH_TYPE_ANALYSIS);
             stopChannel(QCAMERA_CH_TYPE_PREVIEW);
+
             delChannel(QCAMERA_CH_TYPE_PREVIEW);
+            delChannel(QCAMERA_CH_TYPE_ANALYSIS);
 
             rc = mParameters.updateRAW(gCamCaps[mCameraId]->raw_dim[0]);
             if (NO_ERROR != rc) {
@@ -4374,6 +4394,14 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
                 }
             }
         }
+    } else if (streamType == CAM_STREAM_TYPE_ANALYSIS) {
+        rc = pChannel->addStream(*this,
+                pStreamInfo,
+                minStreamBufNum,
+                &gCamCaps[mCameraId]->analysis_padding_info,
+                streamCB, userData,
+                bDynAllocBuf,
+                false);
     } else {
         rc = pChannel->addStream(*this,
                 pStreamInfo,
@@ -4456,6 +4484,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
                                     preview_stream_cb_routine, this);
         }
     }
+
     if (rc != NO_ERROR) {
         ALOGE("%s: add preview stream failed, ret = %d", __func__, rc);
         delete pChannel;
@@ -4888,6 +4917,53 @@ int32_t QCamera2HardwareInterface::addMetaDataChannel()
 }
 
 /*===========================================================================
+ * FUNCTION   : addAnalysisChannel
+ *
+ * DESCRIPTION: add a analysis channel that contains a analysis stream
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::addAnalysisChannel()
+{
+    int32_t rc = NO_ERROR;
+    QCameraChannel *pChannel = NULL;
+
+    if (m_channels[QCAMERA_CH_TYPE_ANALYSIS] != NULL) {
+        delete m_channels[QCAMERA_CH_TYPE_ANALYSIS];
+        m_channels[QCAMERA_CH_TYPE_ANALYSIS] = NULL;
+    }
+
+    pChannel = new QCameraChannel(mCameraHandle->camera_handle,
+                                  mCameraHandle->ops);
+    if (NULL == pChannel) {
+        ALOGE("%s: no mem for metadata channel", __func__);
+        return NO_MEMORY;
+    }
+
+    rc = pChannel->init(NULL, NULL, this);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: init Analysis channel failed, ret = %d", __func__, rc);
+        delete pChannel;
+        return rc;
+    }
+
+    rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_ANALYSIS,
+                            NULL, this);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: add Analysis stream failed, ret = %d", __func__, rc);
+        delete pChannel;
+        return rc;
+    }
+
+    m_channels[QCAMERA_CH_TYPE_ANALYSIS] = pChannel;
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : addReprocChannel
  *
  * DESCRIPTION: add a reprocess channel that will do reprocess on frames
@@ -5176,6 +5252,9 @@ int32_t QCamera2HardwareInterface::addChannel(qcamera_ch_type_enum_t ch_type)
     case QCAMERA_CH_TYPE_METADATA:
         rc = addMetaDataChannel();
         break;
+    case QCAMERA_CH_TYPE_ANALYSIS:
+        rc = addAnalysisChannel();
+        break;
     default:
         break;
     }
@@ -5288,6 +5367,13 @@ int32_t QCamera2HardwareInterface::preparePreview()
             ALOGE("%s[%d]: failed!! rc = %d", __func__, __LINE__, rc);
             return rc;
         }
+
+        rc = addChannel(QCAMERA_CH_TYPE_ANALYSIS);
+        if (rc != NO_ERROR) {
+            delChannel(QCAMERA_CH_TYPE_ZSL);
+            ALOGE("%s[%d]:failed!! rc = %d", __func__, __LINE__, rc);
+            return rc;
+        }
     } else {
         bool recordingHint = mParameters.getRecordingHintValue();
         if(!isRdiMode() && recordingHint) {
@@ -5316,6 +5402,16 @@ int32_t QCamera2HardwareInterface::preparePreview()
         }
 
         if (!recordingHint) {
+            rc = addChannel(QCAMERA_CH_TYPE_ANALYSIS);
+            if (rc != NO_ERROR) {
+                delChannel(QCAMERA_CH_TYPE_PREVIEW);
+                if (!isRdiMode()) {
+                    delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
+                    delChannel(QCAMERA_CH_TYPE_VIDEO);
+                }
+                ALOGE("%s[%d]:failed!! rc = %d", __func__, __LINE__, rc);
+                return rc;
+            }
             waitDefferedWork(mMetadataJob);
         }
     }
@@ -5334,6 +5430,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
  *==========================================================================*/
 void QCamera2HardwareInterface::unpreparePreview()
 {
+    delChannel(QCAMERA_CH_TYPE_ANALYSIS);
     delChannel(QCAMERA_CH_TYPE_ZSL);
     delChannel(QCAMERA_CH_TYPE_PREVIEW);
     delChannel(QCAMERA_CH_TYPE_VIDEO);

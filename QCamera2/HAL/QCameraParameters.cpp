@@ -7146,6 +7146,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
 
     format = CAM_FORMAT_MAX;
     switch (streamType) {
+    case CAM_STREAM_TYPE_ANALYSIS:
     case CAM_STREAM_TYPE_PREVIEW:
     case CAM_STREAM_TYPE_POSTVIEW:
         format = mPreviewFormat;
@@ -7308,6 +7309,35 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         break;
     case CAM_STREAM_TYPE_OFFLINE_PROC:
         break;
+    case CAM_STREAM_TYPE_ANALYSIS:
+        cam_dimension_t prv_dim, max_dim;
+
+        /* Analysis stream need aspect ratio as preview stream */
+        getPreviewSize(&prv_dim.width, &prv_dim.height);
+
+        max_dim.width = m_pCapability->analysis_max_res.width;
+        max_dim.height = m_pCapability->analysis_max_res.height;
+
+        if (prv_dim.width > max_dim.width || prv_dim.height > max_dim.height) {
+            double max_ratio, requested_ratio;
+
+            max_ratio = (double)max_dim.width / (double)max_dim.height;
+            requested_ratio = (double)prv_dim.width / (double)prv_dim.height;
+
+            if (max_ratio < requested_ratio) {
+                dim.width = max_dim.width;
+                dim.height = (int32_t)((double)dim.width / requested_ratio);
+            } else {
+                dim.height = max_dim.height;
+                dim.width = (int32_t)((double)max_dim.height * requested_ratio);
+            }
+            dim.width &= ~0x1;
+            dim.height &= ~0x1;
+        } else {
+            dim.width = prv_dim.width;
+            dim.height = prv_dim.height;
+        }
+      break;
     case CAM_STREAM_TYPE_DEFAULT:
     default:
         ALOGE("%s: no dimension for unsupported stream type %d",
@@ -9346,6 +9376,12 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
+                CAM_STREAM_TYPE_ANALYSIS;
+        getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
+                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+        stream_config_info.num_streams++;
+
+        stream_config_info.type[stream_config_info.num_streams] =
             CAM_STREAM_TYPE_SNAPSHOT;
         getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
             stream_config_info.stream_sizes[stream_config_info.num_streams]);
@@ -9368,11 +9404,21 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
             stream_config_info.num_streams++;
         }
 
+        if (getRecordingHintValue() != true) {
+            /* Analysis stream is used only in capture usecase */
+            stream_config_info.type[stream_config_info.num_streams] =
+                CAM_STREAM_TYPE_ANALYSIS;
+            getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
+                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            stream_config_info.num_streams++;
+        }
+
         stream_config_info.type[stream_config_info.num_streams] =
             CAM_STREAM_TYPE_PREVIEW;
         getStreamDimension(CAM_STREAM_TYPE_PREVIEW,
             stream_config_info.stream_sizes[stream_config_info.num_streams]);
         stream_config_info.num_streams++;
+
     } else {
         if (isJpegPictureFormat() || isNV16PictureFormat() || isNV21PictureFormat()) {
             stream_config_info.type[stream_config_info.num_streams] =
