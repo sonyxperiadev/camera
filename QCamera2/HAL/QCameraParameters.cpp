@@ -125,6 +125,8 @@ const char QCameraParameters::KEY_QC_CHROMA_FLASH[] = "chroma-flash";
 const char QCameraParameters::KEY_QC_SUPPORTED_CHROMA_FLASH_MODES[] = "chroma-flash-values";
 const char QCameraParameters::KEY_QC_OPTI_ZOOM[] = "opti-zoom";
 const char QCameraParameters::KEY_QC_SUPPORTED_OPTI_ZOOM_MODES[] = "opti-zoom-values";
+const char QCameraParameters::KEY_QC_HDR_MODE[] = "hdr-mode";
+const char QCameraParameters::KEY_QC_SUPPORTED_KEY_QC_HDR_MODES[] = "hdr-mode-values";
 const char QCameraParameters::KEY_INTERNAL_PERVIEW_RESTART[] = "internal-restart";
 const char QCameraParameters::KEY_QC_RDI_MODE[] = "rdi-mode";
 const char QCameraParameters::KEY_QC_SUPPORTED_RDI_MODES[] = "rdi-mode-values";
@@ -319,6 +321,10 @@ const char QCameraParameters::CHROMA_FLASH_ON[] = "chroma-flash-on";
 // Values for Opti Zoom setting.
 const char QCameraParameters::OPTI_ZOOM_OFF[] = "opti-zoom-off";
 const char QCameraParameters::OPTI_ZOOM_ON[] = "opti-zoom-on";
+
+// Values for HDR mode setting.
+const char QCameraParameters::HDR_MODE_SENSOR[] = "hdr-mode-sensor";
+const char QCameraParameters::HDR_MODE_MULTI_FRAME[] = "hdr-mode-multiframe";
 
 // Values for FLIP settings.
 const char QCameraParameters::FLIP_MODE_OFF[] = "off";
@@ -602,6 +608,11 @@ const QCameraParameters::QCameraMap QCameraParameters::CDS_MODES_MAP[] = {
     { CDS_MODE_AUTO, CAM_CDS_MODE_AUTO}
 };
 
+const QCameraParameters::QCameraMap QCameraParameters::HDR_MODES_MAP[] = {
+    { HDR_MODE_SENSOR, 0 },
+    { HDR_MODE_MULTI_FRAME, 1 }
+};
+
 #define DEFAULT_CAMERA_AREA "(0, 0, 0, 0, 0)"
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
 #define TOTAL_RAM_SIZE_512MB 536870912
@@ -670,7 +681,8 @@ QCameraParameters::QCameraParameters()
       m_bAeBracketingEnabled(false),
       mFlashValue(CAM_FLASH_MODE_OFF),
       mFlashDaemonValue(CAM_FLASH_MODE_OFF),
-      mHfrMode(CAM_HFR_MODE_OFF)
+      mHfrMode(CAM_HFR_MODE_OFF),
+      m_bHDRModeSensor(true)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -758,7 +770,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bAeBracketingEnabled(false),
     mFlashValue(CAM_FLASH_MODE_OFF),
     mFlashDaemonValue(CAM_FLASH_MODE_OFF),
-    mHfrMode(CAM_HFR_MODE_OFF)
+    mHfrMode(CAM_HFR_MODE_OFF),
+    m_bHDRModeSensor(true)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -2831,18 +2844,14 @@ int32_t QCameraParameters::setSceneMode(const QCameraParameters& params)
                 m_bSceneTransitionAuto = true;
             }
             if (strcmp(str, SCENE_MODE_HDR) == 0) {
+
                 // If HDR is set from client  and the feature is not enabled in the backend, ignore it.
-                if (m_pCapability->qcom_supported_feature_mask & CAM_QCOM_FEATURE_SENSOR_HDR) {
+                if (m_bHDRModeSensor) {
                     m_bSensorHDREnabled = true;
                     CDBG_HIGH("%s: Sensor HDR mode Enabled",__func__);
-
-                }
-                else if (m_pCapability->qcom_supported_feature_mask & CAM_QCOM_FEATURE_HDR) {
+                } else {
                     m_bHDREnabled = true;
                     CDBG_HIGH("%s: S/W HDR Enabled",__func__);
-                }
-                else {
-                    return NO_ERROR;
                 }
             } else {
                 m_bHDREnabled = false;
@@ -3082,6 +3091,47 @@ int32_t QCameraParameters::setOptiZoom(const QCameraParameters& params)
     return NO_ERROR;
 }
 
+/*===========================================================================
+ * FUNCTION   : setHDRMode
+ *
+ * DESCRIPTION: set HDR mode from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setHDRMode(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_HDR_MODE);
+    const char *prev_str = get(KEY_QC_HDR_MODE);
+    uint32_t supported_hdr_modes = m_pCapability->qcom_supported_feature_mask &
+          (CAM_QCOM_FEATURE_SENSOR_HDR | CAM_QCOM_FEATURE_HDR);
+
+    CDBG_HIGH("%s: str =%s & prev_str =%s",__func__, str, prev_str);
+    if (str != NULL) {
+        if ((CAM_QCOM_FEATURE_SENSOR_HDR == supported_hdr_modes) &&
+                (strncmp(str, HDR_MODE_SENSOR, strlen(HDR_MODE_SENSOR)))) {
+            CDBG_HIGH("%s: Only sensor HDR is supported",__func__);
+            return NO_ERROR;
+        } else if  ((CAM_QCOM_FEATURE_HDR == supported_hdr_modes) &&
+                (strncmp(str, HDR_MODE_SENSOR, strlen(HDR_MODE_MULTI_FRAME)))) {
+            CDBG_HIGH("%s: Only multi frame HDR is supported",__func__);
+            return NO_ERROR;
+        } else if (!supported_hdr_modes) {
+            CDBG_HIGH("%s: HDR is not supported",__func__);
+            return NO_ERROR;
+        }
+        if (prev_str == NULL ||
+                strcmp(str, prev_str) != 0) {
+            return setHDRMode(str);
+        }
+    }
+
+    return NO_ERROR;
+}
 
 /*===========================================================================
  * FUNCTION   : setRedeyeReduction
@@ -3888,6 +3938,7 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setAntibanding(params)))                  final_rc = rc;
     if ((rc = setExposureCompensation(params)))         final_rc = rc;
     if ((rc = setWhiteBalance(params)))                 final_rc = rc;
+    if ((rc = setHDRMode(params)))                      final_rc = rc;
     if ((rc = setSceneMode(params)))                    final_rc = rc;
     if ((rc = setFocusAreas(params)))                   final_rc = rc;
     if ((rc = setMeteringAreas(params)))                final_rc = rc;
@@ -4388,6 +4439,29 @@ int32_t QCameraParameters::initDefaultParameters()
         setOptiZoom(OPTI_ZOOM_OFF);
     }
 
+    //Set HDR Type
+    uint32_t supported_hdr_modes = m_pCapability->qcom_supported_feature_mask &
+            (CAM_QCOM_FEATURE_SENSOR_HDR | CAM_QCOM_FEATURE_HDR);
+    if (supported_hdr_modes) {
+        if (CAM_QCOM_FEATURE_SENSOR_HDR == supported_hdr_modes) {
+            String8 hdrModeValues;
+            hdrModeValues.append(HDR_MODE_SENSOR);
+            set(KEY_QC_SUPPORTED_KEY_QC_HDR_MODES, hdrModeValues);
+            setHDRMode(HDR_MODE_SENSOR);
+        } else if (CAM_QCOM_FEATURE_HDR == supported_hdr_modes) {
+            String8 hdrModeValues;
+            hdrModeValues.append(HDR_MODE_MULTI_FRAME);
+            set(KEY_QC_SUPPORTED_KEY_QC_HDR_MODES, hdrModeValues);
+            setHDRMode(HDR_MODE_MULTI_FRAME);
+        } else {
+            String8 hdrModeValues = createValuesStringFromMap(
+                    HDR_MODES_MAP,
+                    sizeof(HDR_MODES_MAP) / sizeof(HDR_MODES_MAP));
+            set(KEY_QC_SUPPORTED_KEY_QC_HDR_MODES, hdrModeValues);
+            setHDRMode(HDR_MODE_SENSOR);
+        }
+    }
+
     // Set Denoise
     if ((m_pCapability->qcom_supported_feature_mask & CAM_QCOM_FEATURE_DENOISE2D) > 0){
     String8 denoiseValues = createValuesStringFromMap(
@@ -4407,7 +4481,6 @@ int32_t QCameraParameters::initDefaultParameters()
     // Set Lens Shading
     set(KEY_QC_SUPPORTED_LENSSHADE_MODES, enableDisableValues);
     setLensShadeValue(VALUE_ENABLE);
-
     // Set MCE
     set(KEY_QC_SUPPORTED_MEM_COLOR_ENHANCE_MODES, enableDisableValues);
     setMCEValue(VALUE_ENABLE);
@@ -6486,6 +6559,47 @@ int32_t QCameraParameters::setOptiZoom(const char *optiZoomStr)
     }
     ALOGE("Invalid opti zoom value: %s",
         (optiZoomStr == NULL) ? "NULL" : optiZoomStr);
+    return BAD_VALUE;
+}
+
+/*===========================================================================
+ * FUNCTION   : setHDRMode
+ *
+ * DESCRIPTION: set hdr mode value
+ *
+ * PARAMETERS :
+ *   @hdrModeStr : hdr mode value string
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setHDRMode(const char *hdrModeStr)
+{
+    CDBG_HIGH("%s: hdrModeStr =%s", __func__, hdrModeStr);
+    if (hdrModeStr != NULL) {
+        int value = lookupAttr(HDR_MODES_MAP,
+                sizeof(HDR_MODES_MAP)/sizeof(QCameraMap),
+                hdrModeStr);
+        if (value != NAME_NOT_FOUND) {
+            const char *str = get(KEY_SCENE_MODE);
+
+            m_bHDRModeSensor = !strncmp(hdrModeStr, HDR_MODE_SENSOR, strlen(HDR_MODE_SENSOR));
+
+            updateParamEntry(KEY_QC_HDR_MODE, hdrModeStr);
+
+            // If hdr is already selected, need to deselect it in local cache
+            // So the new hdr mode will be applied
+            if (str && !strncmp(str, SCENE_MODE_HDR, strlen(SCENE_MODE_HDR))) {
+                updateParamEntry(KEY_SCENE_MODE, SCENE_MODE_AUTO);
+                m_bNeedRestart = true;
+            }
+
+            return NO_ERROR;
+        }
+    }
+    CDBG_HIGH("Invalid hdr mode value: %s",
+            (hdrModeStr == NULL) ? "NULL" : hdrModeStr);
     return BAD_VALUE;
 }
 
