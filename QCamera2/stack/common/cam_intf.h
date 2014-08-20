@@ -329,6 +329,11 @@ typedef struct{
 
     /* Sensor type information */
     cam_sensor_type_t sensor_type;
+
+    /* Analysis stream max supported size */
+    cam_dimension_t analysis_max_res;
+    /* Analysis stream padding info */
+    cam_padding_info_t analysis_padding_info;
 } cam_capability_t;
 
 typedef enum {

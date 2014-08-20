@@ -272,6 +272,7 @@ typedef enum {
     CAM_STREAM_TYPE_RAW,           /* raw dump from camif */
     CAM_STREAM_TYPE_OFFLINE_PROC,  /* offline process */
     CAM_STREAM_TYPE_PARM,         /* mct internal stream */
+    CAM_STREAM_TYPE_ANALYSIS,     /* analysis stream */
     CAM_STREAM_TYPE_MAX,
 } cam_stream_type_t;
 
@@ -365,6 +366,8 @@ typedef struct {
     uint32_t width_padding;
     uint32_t height_padding;
     uint32_t plane_padding;
+    uint32_t min_stride;
+    uint32_t min_scanline;
 } cam_padding_info_t;
 
 typedef struct {
