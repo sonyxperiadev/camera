@@ -346,6 +346,7 @@ const cam_dimension_t QCameraParameters::THUMBNAIL_SIZES_MAP[] = {
     { 480, 288 }, //1.666667
     { 256, 154 }, //1.66233
     { 432, 288 }, //1.5
+    { 320, 320 }, //1.0
     { 320, 240 }, //1.33333
     { 176, 144 }, //1.222222
     { 0, 0 }      // required by Android SDK
