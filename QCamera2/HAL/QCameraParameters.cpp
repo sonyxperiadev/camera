@@ -5529,7 +5529,7 @@ int32_t QCameraParameters::setTintlessValue(const QCameraParameters& params)
     char prop[PROPERTY_VALUE_MAX];
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.tintless", prop, VALUE_DISABLE);
+    property_get("persist.camera.tintless", prop, VALUE_ENABLE);
     if (str != NULL) {
         if (prev_str == NULL ||
             strcmp(str, prev_str) != 0) {
