@@ -1175,7 +1175,8 @@ int QCameraVideoMemory::allocate(int count, int size, uint32_t isSecure)
         }
         struct encoder_media_buffer_type * packet =
             (struct encoder_media_buffer_type *)mMetadata[i]->data;
-        packet->meta_handle = native_handle_create(1, 2); //1 fd, 1 offset and 1 size
+        //1 fd, 1 offset, 1 size, 1 color transform
+        packet->meta_handle = native_handle_create(1, 3);
         packet->buffer_type = kMetadataBufferTypeCameraSource;
         native_handle_t * nh = const_cast<native_handle_t *>(packet->meta_handle);
         nh->data[0] = mMemInfo[i].fd;
