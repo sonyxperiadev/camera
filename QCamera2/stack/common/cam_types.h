@@ -713,6 +713,7 @@ typedef struct {
     uint8_t snapchromatixData[CHROMATIX_SIZE];
     uint8_t common_chromatixData[COMMONCHROMATIX_SIZE];
     uint8_t cpp_chromatixData[CPPCHROMATIX_SIZE];
+    uint8_t cpp_chromatixSnapData[CPPCHROMATIX_SIZE];
     uint8_t postproc_chromatixData[SWPOSTPROCCHROMATIX_SIZE];
 } tune_chromatix_t;
 
