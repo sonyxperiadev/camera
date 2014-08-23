@@ -81,6 +81,7 @@
 #define CHROMATIX_SIZE 60000
 #define COMMONCHROMATIX_SIZE 45000
 #define CPPCHROMATIX_SIZE 36000
+#define SWPOSTPROCCHROMATIX_SIZE 36000
 #define AFTUNE_SIZE  4608
 #define MAX_SCALE_SIZES_CNT 8
 #define MAX_SAMP_DECISION_CNT     64
@@ -704,6 +705,7 @@ typedef struct {
     uint8_t snapchromatixData[CHROMATIX_SIZE];
     uint8_t common_chromatixData[COMMONCHROMATIX_SIZE];
     uint8_t cpp_chromatixData[CPPCHROMATIX_SIZE];
+    uint8_t postproc_chromatixData[SWPOSTPROCCHROMATIX_SIZE];
 } tune_chromatix_t;
 
 typedef struct {
