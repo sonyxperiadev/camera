@@ -1760,4 +1760,9 @@ typedef enum {
     CAM_AWB_INVALID_ALL_LIGHT,
 } cam_illuminat_t;
 
+typedef enum {
+    LEGACY_RAW,
+    MIPI_RAW,
+} cam_opaque_raw_format_t;
+
 #endif /* __QCAMERA_TYPES_H__ */
