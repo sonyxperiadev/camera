@@ -1110,6 +1110,8 @@ typedef enum {
     CAM_INTF_PARM_LED_MODE,
     CAM_INTF_META_HISTOGRAM, /* 10 */
     CAM_INTF_META_FACE_DETECTION,
+    /* Whether optical image stabilization is enabled. */
+    CAM_INTF_META_LENS_OPT_STAB_MODE,
 
     /* specific to HAl1 */
     CAM_INTF_META_AUTOFOCUS_DATA,
@@ -1275,8 +1277,6 @@ typedef enum {
     CAM_INTF_META_LENS_FOCUS_DISTANCE,
     /* The range of scene distances that are in sharp focus (depth of field) */
     CAM_INTF_META_LENS_FOCUS_RANGE,
-    /* Whether optical image stabilization is enabled. */
-    CAM_INTF_META_LENS_OPT_STAB_MODE,
     /*Whether the hal needs to output the lens shading map*/
     CAM_INTF_META_LENS_SHADING_MAP_MODE,
     /* Current lens status */

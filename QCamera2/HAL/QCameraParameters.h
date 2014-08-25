@@ -161,7 +161,9 @@ public:
     static const char KEY_QC_MEMORY_COLOR_ENHANCEMENT[];
     static const char KEY_QC_SUPPORTED_MEM_COLOR_ENHANCE_MODES[];
     static const char KEY_QC_DIS[];
+    static const char KEY_QC_OIS[];
     static const char KEY_QC_SUPPORTED_DIS_MODES[];
+    static const char KEY_QC_SUPPORTED_OIS_MODES[];
 
     static const char KEY_QC_ZSL[];
     static const char KEY_QC_SUPPORTED_ZSL_MODES[];
@@ -670,6 +672,7 @@ private:
     int32_t setAwbLock(const QCameraParameters& );
     int32_t setMCEValue(const QCameraParameters& );
     int32_t setDISValue(const QCameraParameters& params);
+    int32_t setOISValue(const QCameraParameters& params);
     int32_t setLensShadeValue(const QCameraParameters& );
     int32_t setExposureCompensation(const QCameraParameters& );
     int32_t setWhiteBalance(const QCameraParameters& );
@@ -728,6 +731,7 @@ private:
     int32_t setAwbLock(const char *awbStr);
     int32_t setMCEValue(const char *mceStr);
     int32_t setDISValue(const char *disStr);
+    int32_t setOISValue(const char *oisStr);
     int32_t setHighFrameRate(const int32_t hfrMode);
     int32_t setLensShadeValue(const char *lensShadeStr);
     int32_t setExposureCompensation(int expComp);
@@ -858,6 +862,7 @@ private:
     bool m_bHDREnabled;             // if HDR is enabled
     bool m_bAVTimerEnabled;    //if AVTimer is enabled
     bool m_bDISEnabled;
+    bool m_bOISEnabled;
 
     QCameraAdjustFPS *m_AdjustFPS;
     bool m_bHDR1xFrameEnabled;          // if frame with exposure compensation 0 during HDR is enabled
