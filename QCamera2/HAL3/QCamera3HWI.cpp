@@ -346,6 +346,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 
     mPendingBuffersMap.mPendingBufferList.clear();
     mPendingRequestsList.clear();
+    mPendingReprocessResultList.clear();
 
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         if (mDefaultMetadata[i])
@@ -873,6 +874,7 @@ int QCamera3HardwareInterface::configureStreams(
     // Initialize/Reset the pending buffers list
     mPendingBuffersMap.num_buffers = 0;
     mPendingBuffersMap.mPendingBufferList.clear();
+    mPendingReprocessResultList.clear();
 
     mFirstRequest = true;
 
@@ -1089,6 +1091,58 @@ int64_t QCamera3HardwareInterface::getMinFrameDuration(const camera3_capture_req
         return MAX(mMinRawFrameDuration, mMinProcessedFrameDuration);
     else
         return MAX(MAX(mMinRawFrameDuration, mMinProcessedFrameDuration), mMinJpegFrameDuration);
+}
+
+/*===========================================================================
+ * FUNCTION   : handlePendingReprocResults
+ *
+ * DESCRIPTION: check and notify on any pending reprocess results
+ *
+ * PARAMETERS :
+ *   @frame_number   : Pending request frame number
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_number)
+{
+    for (List<PendingReprocessResult>::iterator j = mPendingReprocessResultList.begin();
+            j != mPendingReprocessResultList.end(); j++) {
+        if (j->frame_number == frame_number) {
+            mCallbackOps->notify(mCallbackOps, &j->notify_msg);
+
+            CDBG("%s: Delayed reprocess notify %d", __func__,
+                    frame_number);
+
+            for (List<PendingRequestInfo>::iterator k = mPendingRequestsList.begin();
+                k != mPendingRequestsList.end(); k++) {
+
+                if (k->frame_number == j->frame_number) {
+                    CDBG("%s: Found reprocess frame number %d in pending reprocess List "
+                            "Take it out!!", __func__,
+                            k->frame_number);
+
+                    camera3_capture_result result;
+                    memset(&result, 0, sizeof(camera3_capture_result));
+                    result.frame_number = frame_number;
+                    result.num_output_buffers = 1;
+                    result.output_buffers =  &j->buffer;
+                    result.input_buffer = k->input_buffer;
+                    result.result = k->settings;
+                    result.partial_result = PARTIAL_RESULT_COUNT;
+                    mCallbackOps->process_capture_result(mCallbackOps, &result);
+
+                    mPendingRequestsList.erase(k);
+                    mPendingRequest--;
+                    break;
+                }
+            }
+            mPendingReprocessResultList.erase(j);
+            break;
+        }
+    }
+    return NO_ERROR;
 }
 
 /*===========================================================================
@@ -1341,6 +1395,10 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         }
         // erase the element from the list
         i = mPendingRequestsList.erase(i);
+
+        if (!mPendingReprocessResultList.empty()) {
+            handlePendingReprocResults(frame_number + 1);
+        }
     }
 
 done_metadata:
@@ -1442,22 +1500,12 @@ void QCamera3HardwareInterface::handleBufferWithLock(
             notify_msg.type = CAMERA3_MSG_SHUTTER;
             notify_msg.message.shutter.frame_number = frame_number;
             notify_msg.message.shutter.timestamp = capture_time;
-            mCallbackOps->notify(mCallbackOps, &notify_msg);
 
             sp<Fence> releaseFence = new Fence(i->input_buffer->release_fence);
             int32_t rc = releaseFence->wait(Fence::TIMEOUT_NEVER);
             if (rc != OK) {
                 ALOGE("%s: input buffer fence wait failed %d", __func__, rc);
             }
-
-            camera3_capture_result result;
-            memset(&result, 0, sizeof(camera3_capture_result));
-            result.frame_number = frame_number;
-            result.result = settings.release();
-            result.input_buffer = i->input_buffer;
-            result.num_output_buffers = 1;
-            result.output_buffers = buffer;
-            result.partial_result = PARTIAL_RESULT_COUNT;
 
             for (List<PendingBufferInfo>::iterator k =
                     mPendingBuffersMap.mPendingBufferList.begin();
@@ -1474,9 +1522,40 @@ void QCamera3HardwareInterface::handleBufferWithLock(
             CDBG("%s: mPendingBuffersMap.num_buffers = %d",
                 __func__, mPendingBuffersMap.num_buffers);
 
-            mCallbackOps->process_capture_result(mCallbackOps, &result);
-            i = mPendingRequestsList.erase(i);
-            mPendingRequest--;
+            bool notifyNow = true;
+            for (List<PendingRequestInfo>::iterator j = mPendingRequestsList.begin();
+                    j != mPendingRequestsList.end(); j++) {
+                if (j->frame_number < frame_number) {
+                    notifyNow = false;
+                    break;
+                }
+            }
+
+            if (notifyNow) {
+                camera3_capture_result result;
+                memset(&result, 0, sizeof(camera3_capture_result));
+                result.frame_number = frame_number;
+                result.result = settings.release();
+                result.input_buffer = i->input_buffer;
+                result.num_output_buffers = 1;
+                result.output_buffers = buffer;
+                result.partial_result = PARTIAL_RESULT_COUNT;
+
+                mCallbackOps->notify(mCallbackOps, &notify_msg);
+                mCallbackOps->process_capture_result(mCallbackOps, &result);
+                CDBG("%s: Notify reprocess now %d!", __func__, frame_number);
+                i = mPendingRequestsList.erase(i);
+                mPendingRequest--;
+            } else {
+                // Cache reprocess result for later
+                PendingReprocessResult pendingResult;
+                memset(&pendingResult, 0, sizeof(PendingReprocessResult));
+                pendingResult.notify_msg = notify_msg;
+                pendingResult.buffer = *buffer;
+                pendingResult.frame_number = frame_number;
+                mPendingReprocessResultList.push_back(pendingResult);
+                CDBG("%s: Cache reprocess result %d!", __func__, frame_number);
+            }
         } else {
             for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
                 j != i->buffers.end(); j++) {
@@ -2052,6 +2131,7 @@ int QCamera3HardwareInterface::flush()
     flushMap.clear();
     mPendingBuffersMap.num_buffers = 0;
     mPendingBuffersMap.mPendingBufferList.clear();
+    mPendingReprocessResultList.clear();
     CDBG("%s: Cleared all the pending buffers ", __func__);
 
     mFlush = false;
