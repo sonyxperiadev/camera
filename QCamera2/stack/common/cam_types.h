@@ -976,6 +976,7 @@ typedef struct {
     uint32_t tuning_cpp_data_size;
     uint32_t tuning_cac_data_size;
     uint32_t tuning_cac_data_size2;
+    uint32_t tuning_mod3_data_size;
     uint8_t  data[TUNING_DATA_MAX];
 }tuning_params_t;
 
