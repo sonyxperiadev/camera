@@ -1630,7 +1630,16 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
         {
             bufferCnt = minCaptureBuffers;
             if (mLongshotEnabled) {
-                bufferCnt = CAMERA_LONGSHOT_STAGES;
+                char prop[PROPERTY_VALUE_MAX];
+                memset(prop, 0, sizeof(prop));
+                property_get("persist.camera.longshot.stages", prop, "0");
+                int longshotStages = atoi(prop);
+                if (longshotStages > 0 && longshotStages < CAMERA_LONGSHOT_STAGES) {
+                    bufferCnt = longshotStages;
+                }
+                else {
+                    bufferCnt = CAMERA_LONGSHOT_STAGES;
+                }
             }
         }
         break;

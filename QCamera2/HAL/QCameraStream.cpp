@@ -843,6 +843,27 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
 }
 
 /*===========================================================================
+ * FUNCTION   : getNumQueuedBuf
+ *
+ * DESCRIPTION: return queued buffer count
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : queued buffer count
+ *==========================================================================*/
+int32_t QCameraStream::getNumQueuedBuf()
+{
+    int32_t rc = -1;
+    if (mHandle > 0) {
+        rc = mCamOps->get_queued_buf_count(mCamHandle, mChannelHandle, mHandle);
+    }
+    if (rc == -1) {
+        ALOGE("%s: stream is not in active state. Invalid operation", __func__);
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : getBufs
  *
  * DESCRIPTION: allocate stream buffers

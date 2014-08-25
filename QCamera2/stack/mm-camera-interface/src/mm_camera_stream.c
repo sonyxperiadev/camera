@@ -71,6 +71,8 @@ int32_t mm_stream_config(mm_stream_t *my_obj,
 int32_t mm_stream_reg_buf(mm_stream_t * my_obj);
 int32_t mm_stream_buf_done(mm_stream_t * my_obj,
                            mm_camera_buf_def_t *frame);
+int32_t mm_stream_get_queued_buf_count(mm_stream_t * my_obj);
+
 int32_t mm_stream_calc_offset(mm_stream_t *my_obj);
 int32_t mm_stream_calc_offset_preview(cam_format_t fmt,
                                       cam_dimension_t *dim,
@@ -814,6 +816,9 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
     case MM_STREAM_EVT_QBUF:
         rc = mm_stream_buf_done(my_obj, (mm_camera_buf_def_t *)in_val);
         break;
+    case MM_STREAM_EVT_GET_QUEUED_BUF_COUNT:
+        rc = mm_stream_get_queued_buf_count(my_obj);
+        break;
     case MM_STREAM_EVT_STOP:
         {
             uint8_t has_cb = 0;
@@ -1047,7 +1052,6 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
             CDBG_HIGH("%s: Stopped poll on stream %p type: %d", __func__,
                 my_obj, my_obj->stream_info->stream_type);
         }
-        pthread_mutex_unlock(&my_obj->buf_lock);
         uint32_t idx = vb.index;
         buf_info->buf = &my_obj->buf[idx];
         buf_info->frame_idx = vb.sequence;
@@ -1065,6 +1069,10 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
         buf_info->buf->is_uv_subsampled =
             (vb.reserved == V4L2_PIX_FMT_NV14 || vb.reserved == V4L2_PIX_FMT_NV41);
 
+        CDBG_HIGH("%s: VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, queued cnt %d\n",
+                __func__, vb.index, buf_info->buf->frame_idx,
+                my_obj->stream_info->stream_type,my_obj->queued_buffer_count);
+        pthread_mutex_unlock(&my_obj->buf_lock);
         if ( NULL != my_obj->mem_vtbl.clean_invalidate_buf ) {
             rc = my_obj->mem_vtbl.clean_invalidate_buf(idx,
                 my_obj->mem_vtbl.user_data);
@@ -3222,6 +3230,28 @@ int32_t mm_stream_buf_done(mm_stream_t * my_obj,
                  my_obj, frame->buf_idx);
         }
     }
+    pthread_mutex_unlock(&my_obj->buf_lock);
+    return rc;
+}
+
+
+/*===========================================================================
+ * FUNCTION   : mm_stream_get_queued_buf_count
+ *
+ * DESCRIPTION: return queued buffer count
+ *
+ * PARAMETERS :
+ *   @my_obj       : stream object
+ *
+ * RETURN     : queued buffer count
+ *==========================================================================*/
+int32_t mm_stream_get_queued_buf_count(mm_stream_t *my_obj)
+{
+    int32_t rc = 0;
+    CDBG("%s: E, my_handle = 0x%x, fd = %d, state = %d",
+            __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
+    pthread_mutex_lock(&my_obj->buf_lock);
+    rc = my_obj->queued_buffer_count;
     pthread_mutex_unlock(&my_obj->buf_lock);
     return rc;
 }

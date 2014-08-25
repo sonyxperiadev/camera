@@ -77,6 +77,9 @@ int32_t mm_channel_superbuf_flush(mm_channel_t* my_obj,
         mm_channel_queue_t * queue, cam_stream_type_t cam_type);
 int32_t mm_channel_set_stream_parm(mm_channel_t *my_obj,
                                    mm_evt_paylod_set_get_stream_parms_t *payload);
+int32_t mm_channel_get_queued_buf_count(mm_channel_t *my_obj,
+        uint32_t stream_id);
+
 int32_t mm_channel_get_stream_parm(mm_channel_t *my_obj,
                                    mm_evt_paylod_set_get_stream_parms_t *payload);
 int32_t mm_channel_do_stream_action(mm_channel_t *my_obj,
@@ -594,6 +597,12 @@ int32_t mm_channel_fsm_fn_stopped(mm_channel_t *my_obj,
             rc = mm_channel_set_stream_parm(my_obj, payload);
         }
         break;
+    case MM_CHANNEL_EVT_GET_STREAM_QUEUED_BUF_COUNT:
+        {
+            uint32_t stream_id = *((uint32_t *)in_val);
+            rc = mm_channel_get_queued_buf_count(my_obj, stream_id);
+        }
+        break;
     case MM_CHANNEL_EVT_GET_STREAM_PARM:
         {
             mm_evt_paylod_set_get_stream_parms_t *payload =
@@ -703,6 +712,12 @@ int32_t mm_channel_fsm_fn_active(mm_channel_t *my_obj,
             mm_evt_paylod_set_get_stream_parms_t *payload =
                 (mm_evt_paylod_set_get_stream_parms_t *)in_val;
             rc = mm_channel_set_stream_parm(my_obj, payload);
+        }
+        break;
+    case MM_CHANNEL_EVT_GET_STREAM_QUEUED_BUF_COUNT:
+        {
+            uint32_t stream_id = *((uint32_t *)in_val);
+            rc = mm_channel_get_queued_buf_count(my_obj, stream_id);
         }
         break;
     case MM_CHANNEL_EVT_GET_STREAM_PARM:
@@ -1679,6 +1694,40 @@ int32_t mm_channel_qbuf(mm_channel_t *my_obj,
             rc = mm_stream_fsm_fn(s_obj,
                     MM_STREAM_EVT_QBUF,
                     (void *)buf,
+                    NULL);
+        }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_channel_get_queued_buf_count
+ *
+ * DESCRIPTION: return queued buffer count
+ *
+ * PARAMETERS :
+ *   @my_obj       : channel object
+ *   @stream_id    : steam_id
+ *
+ * RETURN     : queued buffer count
+ *==========================================================================*/
+int32_t mm_channel_get_queued_buf_count(mm_channel_t *my_obj, uint32_t stream_id)
+{
+    int32_t rc = -1;
+    mm_stream_t* s_obj = mm_channel_util_get_stream_by_handler(my_obj, stream_id);
+
+    if (NULL != s_obj) {
+        if (s_obj->ch_obj != my_obj) {
+            /* Redirect to linked stream */
+            rc = mm_stream_fsm_fn(s_obj->linked_stream,
+                    MM_STREAM_EVT_GET_QUEUED_BUF_COUNT,
+                    NULL,
+                    NULL);
+        } else {
+            rc = mm_stream_fsm_fn(s_obj,
+                    MM_STREAM_EVT_GET_QUEUED_BUF_COUNT,
+                    NULL,
                     NULL);
         }
     }

@@ -575,6 +575,39 @@ static int32_t mm_camera_intf_qbuf(uint32_t camera_handle,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_intf_get_queued_buf_count
+ *
+ * DESCRIPTION: returns the queued buffer count
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *   @ch_id        : channel handle
+ *   @stream_id : stream id
+ *
+ * RETURN     : int32_t - queued buffer count
+ *
+ *==========================================================================*/
+static int32_t mm_camera_intf_get_queued_buf_count(uint32_t camera_handle,
+        uint32_t ch_id, uint32_t stream_id)
+{
+    int32_t rc = -1;
+    mm_camera_obj_t * my_obj = NULL;
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_get_queued_buf_count(my_obj, ch_id, stream_id);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+    CDBG("%s :X queued buffer count = %d",__func__,rc);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_intf_link_stream
  *
  * DESCRIPTION: link a stream into a new channel
@@ -1615,6 +1648,7 @@ static mm_camera_ops_t mm_camera_ops = {
     .delete_stream = mm_camera_intf_del_stream,
     .config_stream = mm_camera_intf_config_stream,
     .qbuf = mm_camera_intf_qbuf,
+    .get_queued_buf_count = mm_camera_intf_get_queued_buf_count,
     .map_stream_buf = mm_camera_intf_map_stream_buf,
     .unmap_stream_buf = mm_camera_intf_unmap_stream_buf,
     .set_stream_parms = mm_camera_intf_set_stream_parms,
