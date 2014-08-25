@@ -333,6 +333,10 @@ typedef struct{
     cam_aberration_mode_t aberration_modes[CAM_COLOR_CORRECTION_ABERRATION_MAX];
     uint32_t aberration_modes_count;
 
+    /* Can the sensor timestamp be compared to
+     * timestamps from other sub-systems (gyro, accelerometer etc.) */
+    uint8_t isTimestampCalibrated;
+
     /* Analysis stream max supported size */
     cam_dimension_t analysis_max_res;
     /* Analysis stream padding info */
