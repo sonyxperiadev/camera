@@ -4490,7 +4490,7 @@ int32_t QCameraParameters::initDefaultParameters()
         } else {
             String8 hdrModeValues = createValuesStringFromMap(
                     HDR_MODES_MAP,
-                    sizeof(HDR_MODES_MAP) / sizeof(HDR_MODES_MAP));
+                    sizeof(HDR_MODES_MAP) / sizeof(QCameraMap));
             set(KEY_QC_SUPPORTED_KEY_QC_HDR_MODES, hdrModeValues);
             setHDRMode(HDR_MODE_SENSOR);
         }
