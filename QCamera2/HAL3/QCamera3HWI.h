@@ -246,6 +246,8 @@ private:
     metadata_buffer_t* mParameters;
     metadata_buffer_t* mPrevParameters;
     bool m_bWNROn;
+    bool m_bIsVideo;
+    bool m_bIs4KVideo;
 
     /* Data structure to store pending request */
     typedef struct {
