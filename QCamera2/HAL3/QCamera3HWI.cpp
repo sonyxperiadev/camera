@@ -27,6 +27,7 @@
 *
 */
 
+#define ATRACE_TAG ATRACE_TAG_CAMERA
 #define LOG_TAG "QCamera3HWI"
 //#define LOG_NDEBUG 0
 
@@ -40,6 +41,7 @@
 #include <stdint.h>
 #include <utils/Log.h>
 #include <utils/Errors.h>
+#include <utils/Trace.h>
 #include <ui/Fence.h>
 #include <gralloc_priv.h>
 #include "QCamera3HWI.h"
@@ -474,6 +476,7 @@ int QCamera3HardwareInterface::openCamera()
 {
     int rc = 0;
 
+    ATRACE_CALL();
     if (mCameraHandle) {
         ALOGE("Failure: Camera already opened");
         return ALREADY_EXISTS;
@@ -511,6 +514,7 @@ int QCamera3HardwareInterface::openCamera()
  *==========================================================================*/
 int QCamera3HardwareInterface::closeCamera()
 {
+    ATRACE_CALL();
     int rc = NO_ERROR;
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
@@ -545,6 +549,7 @@ int QCamera3HardwareInterface::closeCamera()
 int QCamera3HardwareInterface::initialize(
         const struct camera3_callback_ops *callback_ops)
 {
+    ATRACE_CALL();
     int rc;
 
     pthread_mutex_lock(&mMutex);
@@ -580,6 +585,7 @@ err1:
 int QCamera3HardwareInterface::configureStreams(
         camera3_stream_configuration_t *streamList)
 {
+    ATRACE_CALL();
     int rc = 0;
 
     // Sanity check stream_list
@@ -1271,6 +1277,7 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
 void QCamera3HardwareInterface::handleMetadataWithLock(
     mm_camera_super_buf_t *metadata_buf)
 {
+    ATRACE_CALL();
     metadata_buffer_t *metadata = (metadata_buffer_t *)metadata_buf->bufs[0]->buffer;
     int32_t frame_number_valid = *(int32_t *)
         POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
@@ -1530,6 +1537,7 @@ done_metadata:
 void QCamera3HardwareInterface::handleBufferWithLock(
     camera3_stream_buffer_t *buffer, uint32_t frame_number)
 {
+    ATRACE_CALL();
     // If the frame number doesn't exist in the pending request list,
     // directly send the buffer to the frameworks, and update pending buffers map
     // Otherwise, book-keep the buffer.
@@ -1711,6 +1719,7 @@ void QCamera3HardwareInterface::unblockRequestIfNecessary()
 int QCamera3HardwareInterface::processCaptureRequest(
                     camera3_capture_request_t *request)
 {
+    ATRACE_CALL();
     int rc = NO_ERROR;
     int32_t request_id;
     CameraMetadata meta;
@@ -2121,7 +2130,7 @@ void QCamera3HardwareInterface::dump(int fd)
  *==========================================================================*/
 int QCamera3HardwareInterface::flush()
 {
-
+    ATRACE_CALL();
     unsigned int frameNum = 0;
     camera3_notify_msg_t notify_msg;
     camera3_capture_result_t result;
@@ -4880,6 +4889,7 @@ cam_cds_mode_type_t QCamera3HardwareInterface::lookupProp(const QCameraPropMap a
 int QCamera3HardwareInterface::getCamInfo(int cameraId,
                                     struct camera_info *info)
 {
+    ATRACE_CALL();
     int rc = 0;
 
     if (NULL == gCamCapability[cameraId]) {
