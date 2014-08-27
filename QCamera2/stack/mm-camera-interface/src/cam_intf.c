@@ -145,6 +145,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_META_SENSOR_SENSITIVITY, metadata);
         case CAM_INTF_META_SENSOR_TIMESTAMP:
             return POINTER_OF_META(CAM_INTF_META_SENSOR_TIMESTAMP, metadata);
+        case CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW:
+            return POINTER_OF_META(CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW, metadata);
         case CAM_INTF_META_SHADING_MODE:
             return POINTER_OF_META(CAM_INTF_META_SHADING_MODE, metadata);
         case CAM_INTF_META_STATS_FACEDETECT_MODE:
@@ -466,6 +468,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_SENSITIVITY, metadata);
         case CAM_INTF_META_SENSOR_TIMESTAMP:
             return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_TIMESTAMP, metadata);
+        case CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW:
+            return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW, metadata);
         case CAM_INTF_META_SHADING_MODE:
             return SIZE_OF_PARAM(CAM_INTF_META_SHADING_MODE, metadata);
         case CAM_INTF_META_STATS_FACEDETECT_MODE:
