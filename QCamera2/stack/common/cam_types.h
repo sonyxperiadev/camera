@@ -1560,9 +1560,10 @@ typedef struct {
 #define CAM_QCOM_FEATURE_SENSOR_HDR     (1<<15)
 #define CAM_QCOM_FEATURE_REFOCUS        (1<<16)
 #define CAM_QCOM_FEATURE_CPP_TNR        (1<<17)
-#define CAM_QCOM_FEATURE_PP_SUPERSET (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
-                                      CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
-                                      CAM_QCOM_FEATURE_SCALE)
+#define CAM_QCOM_FEATURE_RAW_PROCESSING (1<<18)
+#define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
+                                         CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
+                                         CAM_QCOM_FEATURE_SCALE)
 
 // Counter clock wise
 typedef enum {
