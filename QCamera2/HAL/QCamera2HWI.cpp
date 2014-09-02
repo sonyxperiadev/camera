@@ -6753,7 +6753,7 @@ void *QCamera2HardwareInterface::defferedWorkRoutine(void *obj)
                             Mutex::Autolock l(pme->mDeffLock);
                             pme->mDeffOngoingJobs[dw->id] = false;
                             delete dw;
-                            pme->mDeffCond.signal();
+                            pme->mDeffCond.broadcast();
                         }
                     }
                     break;
@@ -6830,7 +6830,6 @@ int32_t QCamera2HardwareInterface::waitDefferedWork(int32_t &job_id)
         mDeffCond.wait(mDeffLock);
     }
 
-    job_id = MAX_ONGOING_JOBS;
     return NO_ERROR;
 }
 
