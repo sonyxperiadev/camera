@@ -215,6 +215,7 @@ private:
     int queueReprocMetadata(metadata_buffer_t *metadata);
     void extractJpegMetadata(CameraMetadata& jpegMetadata,
             const camera3_capture_request_t *request);
+
 public:
     cam_dimension_t calcMaxJpegDim();
     bool needOnlineRotation();
@@ -248,6 +249,8 @@ private:
     bool m_bWNROn;
     bool m_bIsVideo;
     bool m_bIs4KVideo;
+    bool m_bEisSupportedSize;
+    bool m_bEisEnable;
 
     /* Data structure to store pending request */
     typedef struct {

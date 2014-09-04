@@ -651,8 +651,14 @@ typedef enum {
     IS_TYPE_DIS,
     IS_TYPE_GA_DIS,
     IS_TYPE_EIS_1_0,
-    IS_TYPE_EIS_2_0
+    IS_TYPE_EIS_2_0,
+    IS_TYPE_MAX
 } cam_is_type_t;
+
+typedef enum {
+   DIS_DISABLE,
+   DIS_ENABLE
+} cam_dis_mode_t;
 
 typedef enum {
   NON_SECURE,

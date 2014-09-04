@@ -270,6 +270,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mPrevParameters(NULL),
       m_bIsVideo(false),
       m_bIs4KVideo(false),
+      m_bEisSupportedSize(false),
+      m_bEisEnable(false),
       mLoopBackResult(NULL),
       mMinProcessedFrameDuration(0),
       mMinJpegFrameDuration(0),
@@ -748,6 +750,7 @@ int QCamera3HardwareInterface::configureStreams(
     /* Check whether we have video stream */
     m_bIs4KVideo = false;
     m_bIsVideo = false;
+    m_bEisSupportedSize = false;
     bool isZsl = false;
     uint32_t videoWidth = 0U;
     uint32_t videoHeight = 0U;
@@ -762,6 +765,47 @@ int QCamera3HardwareInterface::configureStreams(
     uint32_t commonFeatureMask = 0;
     maxViewfinderSize = gCamCapability[mCameraId]->max_viewfinder_size;
 
+    /*EIS configuration*/
+    bool eisSupported = false;
+    bool oisSupported = false;
+    int32_t margin_index = -1;
+    uint8_t eis_prop_set;
+    uint32_t maxEisWidth = 0;
+    uint32_t maxEisHeight = 0;
+
+    for (int32_t i = 0; i < gCamCapability[mCameraId]->supported_is_types_cnt; i++) {
+        if (gCamCapability[mCameraId]->supported_is_types[i] == IS_TYPE_EIS_2_0) {
+            eisSupported = true;
+            margin_index = i;
+            break;
+        }
+    }
+
+    for (int32_t i = 0; i < gCamCapability[mCameraId]->optical_stab_modes_count; i++) {
+        if (gCamCapability[mCameraId]->optical_stab_modes[i] ==  CAM_OPT_STAB_ON) {
+            oisSupported = true;
+            break;
+        }
+    }
+
+    if (eisSupported) {
+        maxEisWidth = (uint32_t)
+            ((gCamCapability[mCameraId]->active_array_size.width * 1.0) /
+            (1+ gCamCapability[mCameraId]->supported_is_type_margins[margin_index]));
+         maxEisHeight = (uint32_t)
+            ((gCamCapability[mCameraId]->active_array_size.height * 1.0) /
+            (1+ gCamCapability[mCameraId]->supported_is_type_margins[margin_index]));
+    }
+
+    /* EIS setprop control */
+    char eis_prop[PROPERTY_VALUE_MAX];
+    memset(eis_prop, 0, sizeof(eis_prop));
+    property_get("camera.eis.enable", eis_prop, "0");
+    eis_prop_set = (uint8_t)atoi(eis_prop);
+
+    m_bEisEnable = eis_prop_set && (!oisSupported && eisSupported);
+
+    /* stream configurations */
     for (size_t i = 0; i < streamList->num_streams; i++) {
         camera3_stream_t *newStream = streamList->streams[i];
         ALOGI("%s: stream[%d] type = %d, format = %d, width = %d, height = %d",
@@ -786,6 +830,8 @@ int QCamera3HardwareInterface::configureStreams(
                 videoHeight = newStream->height;
                 m_bIs4KVideo = true;
             }
+            m_bEisSupportedSize = (newStream->width <= maxEisWidth) &&
+                                  (newStream->height <= maxEisHeight);
         }
         if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ||
                 newStream->stream_type == CAMERA3_STREAM_OUTPUT) {
@@ -942,7 +988,7 @@ int QCamera3HardwareInterface::configureStreams(
         pthread_mutex_unlock(&mMutex);
         return rc;
     }
-    rc = mMetadataChannel->initialize();
+    rc = mMetadataChannel->initialize(IS_TYPE_NONE);
     if (rc < 0) {
         ALOGE("%s: metadata channel initialization failed", __func__);
         delete mMetadataChannel;
@@ -1960,18 +2006,11 @@ int QCamera3HardwareInterface::processCaptureRequest(
     // For first capture request, send capture intent, and
     // stream on all streams
     if (mFirstRequest) {
-
-        for (size_t i = 0; i < request->num_output_buffers; i++) {
-            const camera3_stream_buffer_t& output = request->output_buffers[i];
-            QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
-            rc = channel->registerBuffer(output.buffer);
-            if (rc < 0) {
-                ALOGE("%s: registerBuffer failed",
-                        __func__);
-                pthread_mutex_unlock(&mMutex);
-                return -ENODEV;
-            }
-        }
+        /* get eis information for stream configuration */
+        cam_is_type_t is_type;
+        char is_type_value[PROPERTY_VALUE_MAX];
+        property_get("camera.is_type", is_type_value, "0");
+        is_type = static_cast<cam_is_type_t>(atoi(is_type_value));
 
         if (meta.exists(ANDROID_CONTROL_CAPTURE_INTENT)) {
             int32_t hal_version = CAM_HAL_V3;
@@ -1983,15 +2022,59 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 sizeof(hal_version), &hal_version);
             AddSetParmEntryToBatch(mParameters, CAM_INTF_META_CAPTURE_INTENT,
                 sizeof(captureIntent), &captureIntent);
-            mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
-                mParameters);
         }
+
+        //If EIS is enabled, turn it on for video
+        bool setEis = m_bEisEnable && m_bEisSupportedSize &&
+            ((mCaptureIntent ==  CAMERA3_TEMPLATE_VIDEO_RECORD) ||
+             (mCaptureIntent == CAMERA3_TEMPLATE_VIDEO_SNAPSHOT));
+        int32_t vsMode;
+        vsMode = (setEis)? DIS_ENABLE: DIS_DISABLE;
+        rc = AddSetParmEntryToBatch(mParameters,
+                CAM_INTF_PARM_DIS_ENABLE,
+                sizeof(vsMode), &vsMode);
+
+        //IS type will be 0 unless EIS is supported. If EIS is supported
+        //it could either be 1 or 4 depending on the stream and video size
+        if (setEis){
+            if (!m_bEisSupportedSize) {
+                is_type = IS_TYPE_DIS;
+            } else {
+                is_type = IS_TYPE_EIS_2_0;
+            }
+        }
+
+        for (size_t i = 0; i < request->num_output_buffers; i++) {
+            const camera3_stream_buffer_t& output = request->output_buffers[i];
+            QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
+            /*for livesnapshot stream is_type will be DIS*/
+            if (setEis && output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
+                rc = channel->registerBuffer(output.buffer, IS_TYPE_DIS);
+            } else {
+                rc = channel->registerBuffer(output.buffer, is_type);
+            }
+            if (rc < 0) {
+                ALOGE("%s: registerBuffer failed",
+                        __func__);
+                pthread_mutex_unlock(&mMutex);
+                return -ENODEV;
+            }
+        }
+
+        /*set the capture intent, hal version and dis enable parameters to the backend*/
+        mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
+                    mParameters);
+
 
         //First initialize all streams
         for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
             it != mStreamInfo.end(); it++) {
             QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-            rc = channel->initialize();
+            if (setEis && (*it)->stream->format == HAL_PIXEL_FORMAT_BLOB) {
+                rc = channel->initialize(IS_TYPE_DIS);
+            } else {
+                rc = channel->initialize(is_type);
+            }
             if (NO_ERROR != rc) {
                 ALOGE("%s : Channel initialization failed %d", __func__, rc);
                 pthread_mutex_unlock(&mMutex);
@@ -2000,7 +2083,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         }
 
         if (mRawDumpChannel) {
-            rc = mRawDumpChannel->initialize();
+            rc = mRawDumpChannel->initialize(is_type);
             if (rc != NO_ERROR) {
                 ALOGE("%s: Error: Raw Dump Channel init failed", __func__);
                 pthread_mutex_unlock(&mMutex);
@@ -2008,7 +2091,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
         if (mSupportChannel) {
-            rc = mSupportChannel->initialize();
+            rc = mSupportChannel->initialize(is_type);
             if (rc < 0) {
                 ALOGE("%s: Support channel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
@@ -2778,6 +2861,15 @@ QCamera3HardwareInterface::translateFromHalMetadata(
             (uint8_t *)POINTER_OF_META(CAM_INTF_META_LENS_OPT_STAB_MODE, metadata);
         camMetadata.update(ANDROID_LENS_OPTICAL_STABILIZATION_MODE ,opticalStab, 1);
     }
+    if (IS_META_AVAILABLE(CAM_INTF_PARM_DIS_ENABLE, metadata)) {
+        uint8_t *vsMode =
+            (uint8_t *)POINTER_OF_META(CAM_INTF_PARM_DIS_ENABLE, metadata);
+        camMetadata.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, vsMode, 1);
+    }
+    /*EIS is currently not hooked up to the app, so set the mode to OFF*/
+    uint8_t vsMode = ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF;
+    camMetadata.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &vsMode, 1);
+
     if (IS_META_AVAILABLE(CAM_INTF_META_NOISE_REDUCTION_MODE, metadata)) {
         uint8_t  *noiseRedMode =
             (uint8_t *)POINTER_OF_META(CAM_INTF_META_NOISE_REDUCTION_MODE, metadata);
@@ -3148,9 +3240,6 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
 
     /* Constant metadata values to be update*/
-    uint8_t vs_mode = ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF;
-    camMetadata.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &vs_mode, 1);
-
     uint8_t hotPixelMode = ANDROID_HOT_PIXEL_MODE_FAST;
     camMetadata.update(ANDROID_HOT_PIXEL_MODE, &hotPixelMode, 1);
 
@@ -5245,48 +5334,59 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     property_get("persist.camera.ois.disable", ois_prop, "0");
     uint8_t ois_disable = (uint8_t)atoi(ois_prop);
 
+    /* Force video to use OIS */
+    char videoOisProp[PROPERTY_VALUE_MAX];
+    memset(videoOisProp, 0, sizeof(videoOisProp));
+    property_get("persist.camera.ois.video", videoOisProp, "1");
+    uint8_t forceVideoOis = (uint8_t)atoi(videoOisProp);
+
     uint8_t controlIntent = 0;
     uint8_t focusMode;
-    uint8_t opt_stab_mode;
-
+    uint8_t vsMode;
+    uint8_t optStabMode;
+    vsMode = ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF;
     switch (type) {
       case CAMERA3_TEMPLATE_PREVIEW:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_PREVIEW;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
         break;
       case CAMERA3_TEMPLATE_STILL_CAPTURE:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_STILL_CAPTURE;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
         break;
       case CAMERA3_TEMPLATE_VIDEO_RECORD:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_VIDEO_RECORD;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO;
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+        if (forceVideoOis)
+            optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
         break;
       case CAMERA3_TEMPLATE_VIDEO_SNAPSHOT:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_VIDEO_SNAPSHOT;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO;
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+        if (forceVideoOis)
+            optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
         break;
       case CAMERA3_TEMPLATE_ZERO_SHUTTER_LAG:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_ZERO_SHUTTER_LAG;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
         break;
       case CAMERA3_TEMPLATE_MANUAL:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_MANUAL;
         focusMode = ANDROID_CONTROL_AF_MODE_OFF;
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
         break;
       default:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_CUSTOM;
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
         break;
     }
     settings.update(ANDROID_CONTROL_CAPTURE_INTENT, &controlIntent, 1);
-
+    settings.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &vsMode, 1);
     if (gCamCapability[mCameraId]->supported_focus_modes_cnt == 1) {
         focusMode = ANDROID_CONTROL_AF_MODE_OFF;
     }
@@ -5294,12 +5394,12 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
 
     if (gCamCapability[mCameraId]->optical_stab_modes_count == 1 &&
             gCamCapability[mCameraId]->optical_stab_modes[0] == CAM_OPT_STAB_ON)
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
     else if ((gCamCapability[mCameraId]->optical_stab_modes_count == 1 &&
             gCamCapability[mCameraId]->optical_stab_modes[0] == CAM_OPT_STAB_OFF)
             || ois_disable)
-        opt_stab_mode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
-    settings.update(ANDROID_LENS_OPTICAL_STABILIZATION_MODE, &opt_stab_mode, 1);
+        optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+    settings.update(ANDROID_LENS_OPTICAL_STABILIZATION_MODE, &optStabMode, 1);
 
     settings.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION,
             &gCamCapability[mCameraId]->exposure_compensation_default, 1);
@@ -5416,9 +5516,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
 
     static const uint8_t antibanding_mode = ANDROID_CONTROL_AE_ANTIBANDING_MODE_60HZ;
     settings.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding_mode, 1);
-
-    static const uint8_t vs_mode = ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF;
-    settings.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &vs_mode, 1);
 
     /*focus distance*/
     float focus_distance = 0.0;
@@ -6701,7 +6798,7 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
         return NULL;
     }
 
-    rc = pChannel->initialize();
+    rc = pChannel->initialize(IS_TYPE_NONE);
     if (rc != NO_ERROR) {
         ALOGE("%s: init reprocess channel failed, ret = %d", __func__, rc);
         delete pChannel;
@@ -6755,6 +6852,7 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
 
     rc = pChannel->addReprocStreamsFromSource(pp_config,
             config,
+            IS_TYPE_NONE,
             mMetadataChannel);
 
     if (rc != NO_ERROR) {

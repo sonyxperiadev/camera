@@ -101,6 +101,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
     char prop[PROPERTY_VALUE_MAX];
     property_get("persist.camera.yuv.dump", prop, "0");
     mYUVDump = (uint8_t) atoi(prop);
+    mIsType = IS_TYPE_NONE;
 }
 
 /*===========================================================================
@@ -196,7 +197,8 @@ int32_t QCamera3Channel::init(mm_camera_channel_attr_t *attr,
  *   @streamFormat   : stream format
  *   @streamDim      : stream dimension
  *   @minStreamBufNum : minimal buffer count for particular stream type
- *   @postprocess_mask : post-proccess feature mask
+ *   @postprocessMask : post-proccess feature mask
+ *   @isType         : type of image stabilization required on the stream
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -206,7 +208,8 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
                                   cam_format_t streamFormat,
                                   cam_dimension_t streamDim,
                                   uint8_t minStreamBufNum,
-                                  uint32_t postprocess_mask)
+                                  uint32_t postprocessMask,
+                                  cam_is_type_t isType)
 {
     int32_t rc = NO_ERROR;
 
@@ -231,7 +234,7 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
     }
 
     rc = pStream->init(streamType, streamFormat, streamDim, NULL, minStreamBufNum,
-                       postprocess_mask, streamCbRoutine, this);
+                       postprocessMask, isType, streamCbRoutine, this);
     if (rc == 0) {
         mStreams[m_numStreams] = pStream;
         m_numStreams++;
@@ -568,17 +571,18 @@ QCamera3RegularChannel::~QCamera3RegularChannel()
  * DESCRIPTION: Initialize and add camera channel & stream
  *
  * PARAMETERS :
+ *    @isType : type of image stabilization required on this stream
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 
-int32_t QCamera3RawChannel::initialize()
+int32_t QCamera3RawChannel::initialize(cam_is_type_t isType)
 {
-    return QCamera3RegularChannel::initialize();
+    return QCamera3RegularChannel::initialize(isType);
 }
-int32_t QCamera3RegularChannel::initialize()
+int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
 {
     ATRACE_CALL();
     int32_t rc = NO_ERROR;
@@ -602,6 +606,7 @@ int32_t QCamera3RegularChannel::initialize()
     }
 
     mNumBufs = CAM_MAX_NUM_BUFS_PER_STREAM;
+    mIsType  = isType;
 
     if (mCamera3Stream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
         if (mStreamType ==  CAM_STREAM_TYPE_VIDEO) {
@@ -634,7 +639,8 @@ int32_t QCamera3RegularChannel::initialize()
             streamFormat,
             streamDim,
             mNumBufs,
-            mPostProcMask);
+            mPostProcMask,
+            mIsType);
 
     return rc;
 }
@@ -687,7 +693,7 @@ int32_t QCamera3RegularChannel::request(buffer_handle_t *buffer, uint32_t frameN
     }
 
     if(!m_bIsActive) {
-        rc = registerBuffer(buffer);
+        rc = registerBuffer(buffer, mIsType);
         if (NO_ERROR != rc) {
             ALOGE("%s: On-the-fly buffer registration failed %d",
                     __func__, rc);
@@ -704,7 +710,7 @@ int32_t QCamera3RegularChannel::request(buffer_handle_t *buffer, uint32_t frameN
 
     index = mMemory.getMatchBufIndex((void*)buffer);
     if(index < 0) {
-        rc = registerBuffer(buffer);
+        rc = registerBuffer(buffer, mIsType);
         if (NO_ERROR != rc) {
             ALOGE("%s: On-the-fly buffer registration failed %d",
                     __func__, rc);
@@ -736,18 +742,20 @@ int32_t QCamera3RegularChannel::request(buffer_handle_t *buffer, uint32_t frameN
  *
  * PARAMETERS :
  *   @buffer     : buffer to be registered
+ *   @isType : type of image stabilization required on this stream
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3RegularChannel::registerBuffer(buffer_handle_t *buffer)
+int32_t QCamera3RegularChannel::registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType)
 {
     ATRACE_CALL();
     int rc = 0;
+    mIsType = isType;
 
     if (0 == m_numStreams) {
-        rc = initialize();
+        rc = initialize(mIsType);
         if (rc != NO_ERROR) {
             ALOGE("%s: Couldn't initialize camera stream %d",
                     __func__, rc);
@@ -862,7 +870,7 @@ QCamera3MetadataChannel::~QCamera3MetadataChannel()
     }
 }
 
-int32_t QCamera3MetadataChannel::initialize()
+int32_t QCamera3MetadataChannel::initialize(cam_is_type_t isType)
 {
     ATRACE_CALL();
     int32_t rc;
@@ -881,8 +889,10 @@ int32_t QCamera3MetadataChannel::initialize()
 
     streamDim.width = (int32_t)sizeof(metadata_buffer_t),
     streamDim.height = 1;
+
+    mIsType = isType;
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_METADATA, CAM_FORMAT_MAX,
-        streamDim, MIN_STREAMING_BUFFER_NUM, mPostProcMask);
+        streamDim, MIN_STREAMING_BUFFER_NUM, mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
     }
@@ -1304,13 +1314,14 @@ int32_t QCamera3RawDumpChannel::request(buffer_handle_t * /*buffer*/,
  *
  * DESCRIPTION: Initializes channel params and creates underlying stream
  *
- * PARAMETERS : NA
+ * PARAMETERS :
+ *    @isType : type of image stabilization required on this stream
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3RawDumpChannel::initialize()
+int32_t QCamera3RawDumpChannel::initialize(cam_is_type_t isType)
 {
     int32_t rc;
 
@@ -1319,9 +1330,10 @@ int32_t QCamera3RawDumpChannel::initialize()
         ALOGE("%s: init failed", __func__);
         return rc;
     }
-
-    rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_RAW, CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG,
-            mDim, (uint8_t)kMaxBuffers, mPostProcMask);
+    mIsType = isType;
+    rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_RAW,
+        CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG, mDim, (uint8_t)kMaxBuffers,
+        mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
     }
@@ -1537,7 +1549,7 @@ QCamera3PicChannel::~QCamera3PicChannel()
    }
 }
 
-int32_t QCamera3PicChannel::initialize()
+int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
 {
     int32_t rc = NO_ERROR;
     cam_dimension_t streamDim;
@@ -1567,7 +1579,7 @@ int32_t QCamera3PicChannel::initialize()
         ALOGE("%s: init failed", __func__);
         return rc;
     }
-
+    mIsType = isType;
     streamType = mStreamType;
     streamFormat = mStreamFormat;
     streamDim.width = (int32_t)mYuvWidth;
@@ -1575,7 +1587,7 @@ int32_t QCamera3PicChannel::initialize()
 
     mNumSnapshotBufs = mCamera3Stream->max_buffers;
     rc = QCamera3Channel::addStream(streamType, streamFormat, streamDim,
-            (uint8_t)mCamera3Stream->max_buffers, mPostProcMask);
+            (uint8_t)mCamera3Stream->max_buffers, mPostProcMask, mIsType);
 
     Mutex::Autolock lock(mFreeBuffersLock);
     mFreeBufferList.clear();
@@ -1624,7 +1636,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     int index = mMemory.getMatchBufIndex((void*)buffer);
 
     if(index < 0) {
-        rc = registerBuffer(buffer);
+        rc = registerBuffer(buffer, mIsType);
         if (NO_ERROR != rc) {
             ALOGE("%s: On-the-fly buffer registration failed %d",
                     __func__, rc);
@@ -1820,15 +1832,16 @@ void QCamera3PicChannel::dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
  *
  * PARAMETERS :
  *   @buffer     : buffer to be registered
+ *   @isType     : type of image stabilization required on this channel
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3PicChannel::registerBuffer(buffer_handle_t *buffer)
+int32_t QCamera3PicChannel::registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType)
 {
     int rc = 0;
-
+    mIsType = isType;
     if ((uint32_t)mMemory.getCnt() > (mNumBufsRegistered - 1)) {
         ALOGE("%s: Trying to register more buffers than initially requested",
                 __func__);
@@ -1836,7 +1849,7 @@ int32_t QCamera3PicChannel::registerBuffer(buffer_handle_t *buffer)
     }
 
     if (0 == m_numStreams) {
-        rc = initialize();
+        rc = initialize(mIsType);
         if (rc != NO_ERROR) {
             ALOGE("%s: Couldn't initialize camera stream %d",
                     __func__, rc);
@@ -2591,7 +2604,8 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
                                                  cam_padding_info_t *paddingInfo,
                                                  uint32_t postprocess_mask,
                                                  void *userData, void *ch_hdl) :
-    QCamera3Channel(cam_handle, cam_ops, cb_routine, paddingInfo, postprocess_mask, userData),
+    QCamera3Channel(cam_handle, cam_ops, cb_routine, paddingInfo, postprocess_mask,
+                    userData),
     picChHandle(ch_hdl),
     mOfflineBuffersIndex(-1),
     m_pSrcChannel(NULL),
@@ -2615,7 +2629,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
  *
  * RETURN     : none
  *==========================================================================*/
-int32_t QCamera3ReprocessChannel::initialize()
+int32_t QCamera3ReprocessChannel::initialize(cam_is_type_t isType)
 {
     int32_t rc = NO_ERROR;
     mm_camera_channel_attr_t attr;
@@ -2628,6 +2642,7 @@ int32_t QCamera3ReprocessChannel::initialize()
     if (rc < 0) {
         ALOGE("%s: init failed", __func__);
     }
+    mIsType = isType;
     return rc;
 }
 
@@ -3179,15 +3194,16 @@ int32_t QCamera3ReprocessChannel::doReprocess(int buf_fd, size_t buf_length,
  * PARAMETERS :
  *   @config         : pp feature configuration
  *   @src_config     : source reprocess configuration
+ *   @isType         : type of image stabilization required on this stream
  *   @pMetaChannel   : ptr to metadata channel to get corresp. metadata
- *   @offline        : configure for offline reprocessing
+ *
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_config_t &pp_config,
-        const reprocess_config_t &src_config ,
+        const reprocess_config_t &src_config , cam_is_type_t is_type,
         QCamera3Channel *pMetaChannel)
 {
     int32_t rc = 0;
@@ -3246,6 +3262,7 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
             streamDim, &reprocess_config,
             (uint8_t)num_buffers,
             reprocess_config.pp_feature_config.feature_mask,
+            is_type,
             QCamera3Channel::streamCbRoutine, this);
 
     if (rc == 0) {
@@ -3291,7 +3308,7 @@ QCamera3SupportChannel::~QCamera3SupportChannel()
     }
 }
 
-int32_t QCamera3SupportChannel::initialize()
+int32_t QCamera3SupportChannel::initialize(cam_is_type_t isType)
 {
     int32_t rc;
 
@@ -3305,11 +3322,11 @@ int32_t QCamera3SupportChannel::initialize()
         ALOGE("%s: init failed", __func__);
         return rc;
     }
-
+    mIsType = isType;
     // Hardcode to VGA size for now
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_CALLBACK,
         CAM_FORMAT_YUV_420_NV21, kDim, MIN_STREAMING_BUFFER_NUM,
-        mPostProcMask);
+        mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
     }
