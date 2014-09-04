@@ -270,6 +270,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(int cameraId,
       mMinRawFrameDuration(0),
       m_pPowerModule(NULL),
       mMetaFrameCount(0),
+      mUpdateDebugLevel(false),
       mCallbacks(callbacks),
       mCaptureIntent(0)
 {
@@ -2054,6 +2055,9 @@ void QCamera3HardwareInterface::dump(int fd)
     dprintf(fd, "-------+-----------\n");
 
     dprintf(fd, "\n Camera HAL3 information End \n");
+
+    /* use dumpsys media.camera as trigger to send update debug level event */
+    mUpdateDebugLevel = true;
     pthread_mutex_unlock(&mMutex);
     return;
 }
@@ -5210,6 +5214,20 @@ int QCamera3HardwareInterface::setFrameParameters(
     if (rc < 0) {
         ALOGE("%s: Failed to set stream type mask in the parameters", __func__);
         return BAD_VALUE;
+    }
+
+    if (mUpdateDebugLevel) {
+        uint32_t dummyDebugLevel = 0;
+        /* The value of dummyDebugLevel is irrelavent. On
+         * CAM_INTF_PARM_UPDATE_DEBUG_LEVEL, read debug property */
+        rc = AddSetParmEntryToBatch(mParameters,
+                CAM_INTF_PARM_UPDATE_DEBUG_LEVEL,
+                sizeof(dummyDebugLevel), &dummyDebugLevel);
+        if (rc < 0) {
+            ALOGE("%s: Failed to set UPDATE_DEBUG_LEVEL", __func__);
+            return BAD_VALUE;
+        }
+        mUpdateDebugLevel = false;
     }
 
     if(request->settings != NULL){

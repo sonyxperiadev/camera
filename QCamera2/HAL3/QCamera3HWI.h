@@ -324,6 +324,7 @@ private:
     power_module_t *m_pPowerModule;   // power module
 
     uint32_t mMetaFrameCount;
+    bool    mUpdateDebugLevel;
     const camera_module_callbacks_t *mCallbacks;
 
     uint8_t mCaptureIntent;

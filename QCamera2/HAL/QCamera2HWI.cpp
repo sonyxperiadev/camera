@@ -3640,6 +3640,10 @@ int QCamera2HardwareInterface::dump(int fd)
     dprintf(fd, "\n Configuration: %s", mParameters.dump().string());
     dprintf(fd, "\n State Information: %s", m_stateMachine.dump().string());
     dprintf(fd, "\n Camera HAL information End \n");
+
+    /* send UPDATE_DEBUG_LEVEL to the backend so that they can read the
+       debug level property */
+    mParameters.updateDebugLevel();
     return NO_ERROR;
 }
 

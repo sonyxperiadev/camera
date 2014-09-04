@@ -9629,6 +9629,51 @@ bool QCameraParameters::is4k2kVideoResolution()
    }
    return enabled;
 }
+
+/*===========================================================================
+ * FUNCTION   : updateDebugLevel
+ *
+ * DESCRIPTION: send CAM_INTF_PARM_UPDATE_DEBUG_LEVEL to backend
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : NO_ERROR --success
+ *              int32_t type of status
+ *==========================================================================*/
+int32_t QCameraParameters::updateDebugLevel()
+{
+    if ( m_pParamBuf == NULL ) {
+        return NO_INIT;
+    }
+
+    int32_t rc = initBatchUpdate(m_pParamBuf);
+    if ( rc != NO_ERROR ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return rc;
+    }
+
+    uint32_t dummyDebugLevel = 0;
+    /* The value of dummyDebugLevel is irrelavent. On
+     * CAM_INTF_PARM_UPDATE_DEBUG_LEVEL, read debug property */
+    rc = AddSetParmEntryToBatch(m_pParamBuf,
+            CAM_INTF_PARM_UPDATE_DEBUG_LEVEL,
+            sizeof(dummyDebugLevel),
+            &dummyDebugLevel);
+    if ( rc != NO_ERROR ) {
+        ALOGE("%s: Parameters batch failed",__func__);
+        return rc;
+    }
+
+    rc = commitSetBatch();
+    if ( rc != NO_ERROR ) {
+        ALOGE("%s:Failed to commit batch parameters", __func__);
+        return rc;
+    }
+
+    return NO_ERROR;
+}
+
+
 /*===========================================================================
  * FUNCTION   : dump
  *
