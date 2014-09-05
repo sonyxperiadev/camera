@@ -418,6 +418,14 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
                 obj->mCallbackOps->notify(obj->mCallbackOps, &notify_msg);
                 break;
 
+            case CAM_EVENT_TYPE_DAEMON_PULL_REQ:
+                CDBG("%s: HAL got request pull from Daemon", __func__);
+                pthread_mutex_lock(&obj->mMutex);
+                obj->mWokenUpByDaemon = true;
+                obj->unblockRequestIfNecessary();
+                pthread_mutex_unlock(&obj->mMutex);
+                break;
+
             default:
                 CDBG_HIGH("%s: Warning: Unhandled event %d", __func__,
                         evt->server_event_type);
@@ -2044,6 +2052,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 return rc;
             }
         }
+        mWokenUpByDaemon = false;
+        mPendingRequest = 0;
     }
 
     uint32_t frameNumber = request->frame_number;
@@ -2249,7 +2259,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
     //Block on conditional variable
 
     mPendingRequest++;
-    while (mPendingRequest >= MAX_INFLIGHT_REQUESTS) {
+    while (mPendingRequest >= MIN_INFLIGHT_REQUESTS) {
         if (!isValidTimeout) {
             CDBG("%s: Blocking on conditional wait", __func__);
             pthread_cond_wait(&mRequestCond, &mMutex);
@@ -2264,6 +2274,11 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
         CDBG("%s: Unblocked", __func__);
+        if (mWokenUpByDaemon) {
+            mWokenUpByDaemon = false;
+            if (mPendingRequest < MAX_INFLIGHT_REQUESTS)
+                break;
+        }
     }
     pthread_mutex_unlock(&mMutex);
 
