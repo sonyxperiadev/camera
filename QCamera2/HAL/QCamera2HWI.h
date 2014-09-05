@@ -226,9 +226,9 @@ public:
     static int cancel_auto_focus(struct camera_device *);
     static int take_picture(struct camera_device *);
     int takeLiveSnapshot_internal();
-    int takeBackendPic_internal(bool *JpegMemOpt);
+    int takeBackendPic_internal(bool *JpegMemOpt, char *raw_format);
     void clearIntPendingEvents();
-    void checkIntPicPending(bool JpegMemOpt);
+    void checkIntPicPending(bool JpegMemOpt, char *raw_format);
     static int cancel_picture(struct camera_device *);
     static int set_parameters(struct camera_device *, const char *parms);
     static char* get_parameters(struct camera_device *);

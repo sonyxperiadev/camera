@@ -1772,8 +1772,11 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
 
     mDumpFrmCnt = stream->mDumpFrame;
 
-    if((enabled & QCAMERA_DUMP_FRM_MASK_ALL) ||
-        (true == m_bIntRawEvtPending && dump_type == QCAMERA_DUMP_FRM_RAW)) {
+    if (true == m_bIntRawEvtPending) {
+        enabled = QCAMERA_DUMP_FRM_RAW;
+    }
+
+    if((enabled & QCAMERA_DUMP_FRM_MASK_ALL)) {
         if((enabled & dump_type) && stream && frame) {
             frm_num = ((enabled & 0xffff0000) >> 16);
             if(frm_num == 0) {

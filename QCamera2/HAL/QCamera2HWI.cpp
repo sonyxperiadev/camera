@@ -3077,10 +3077,13 @@ void* Int_Pic_thread (void* data)
     }
 
     bool JpegMemOpt = false;
+    char raw_format[PROPERTY_VALUE_MAX];
 
-    rc = hw->takeBackendPic_internal(&JpegMemOpt);
+    memset(raw_format, 0, sizeof(raw_format));
+
+    rc = hw->takeBackendPic_internal(&JpegMemOpt, &raw_format[0]);
     if (rc == NO_ERROR) {
-        hw->checkIntPicPending(JpegMemOpt);
+        hw->checkIntPicPending(JpegMemOpt, &raw_format[0]);
     } else {
         //Snapshot attempt not successful, we need to do cleanup here
         hw->clearIntPendingEvents();
@@ -3135,7 +3138,7 @@ int QCamera2HardwareInterface::takePictureInternal()
  *
  * RETURN     : none
  *==========================================================================*/
-void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt)
+void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt, char *raw_format)
 {
     bool bSendToBackend = true;
     cam_int_evt_params_t params;
@@ -3169,20 +3172,13 @@ void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt)
             lockAPI();
             rc = processAPI(QCAMERA_SM_EVT_SNAPSHOT_DONE, NULL);
             unlockAPI();
-            if (false == mParameters.isZSLMode()) {
-                lockAPI();
-                rc = processAPI(QCAMERA_SM_EVT_START_PREVIEW, NULL);
-                unlockAPI();
-            }
             m_postprocessor.setJpegMemOpt(JpegMemOpt);
         } else if (true == m_bIntRawEvtPending) {
             //Attempting to restart preview after taking RAW snapshot
             stopChannel(QCAMERA_CH_TYPE_RAW);
             delChannel(QCAMERA_CH_TYPE_RAW);
-
-            lockAPI();
-            rc = processAPI(QCAMERA_SM_EVT_START_PREVIEW, NULL);
-            unlockAPI();
+            //restoring the old raw format
+            property_set("persist.camera.raw.format", raw_format);
         }
 
         if (true == bSendToBackend) {
@@ -3213,7 +3209,7 @@ void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt)
+int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *raw_format)
 {
     int rc = NO_ERROR;
 
@@ -3228,9 +3224,12 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt)
     } else if (true == m_bIntRawEvtPending) {
         //Attempting to take RAW snapshot
         (void)JpegMemOpt;
-        lockAPI();
-        rc = processAPI(QCAMERA_SM_EVT_STOP_PREVIEW, NULL);
-        unlockAPI();
+        stopPreview();
+
+        //getting the existing raw format type
+        property_get("persist.camera.raw.format", raw_format, "16");
+        //setting it to a default know value for this task
+        property_set("persist.camera.raw.format", "18");
 
         rc = addRawChannel();
         if (rc == NO_ERROR) {
@@ -3272,9 +3271,19 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt)
  *==========================================================================*/
 void QCamera2HardwareInterface::clearIntPendingEvents()
 {
-    lockAPI();
-    processAPI(QCAMERA_SM_EVT_START_PREVIEW, NULL);
-    unlockAPI();
+    int rc = NO_ERROR;
+
+    if (true == m_bIntRawEvtPending) {
+        preparePreview();
+        startPreview();
+    }
+    if (true == m_bIntJpegEvtPending) {
+        if (false == mParameters.isZSLMode()) {
+            lockAPI();
+            rc = processAPI(QCAMERA_SM_EVT_START_PREVIEW, NULL);
+            unlockAPI();
+        }
+    }
 
     pthread_mutex_lock(&m_int_lock);
     if (true == m_bIntJpegEvtPending) {
