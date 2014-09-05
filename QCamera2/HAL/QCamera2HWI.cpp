@@ -2107,8 +2107,16 @@ int QCamera2HardwareInterface::startPreview()
         if (focusMode == CAM_FOCUS_MODE_CONTINOUS_PICTURE)
           mCameraHandle->ops->cancel_auto_focus(mCameraHandle->camera_handle);
     }
+    updatePostPreviewParameters();
     CDBG_HIGH("%s: X", __func__);
     return rc;
+}
+
+int32_t QCamera2HardwareInterface::updatePostPreviewParameters() {
+    // Enable OIS only in Camera mode and 4k2k camcoder mode
+    int32_t rc = NO_ERROR;
+    rc = mParameters.updateOisValue(1);
+    return NO_ERROR;
 }
 
 /*===========================================================================

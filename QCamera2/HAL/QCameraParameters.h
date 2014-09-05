@@ -646,7 +646,7 @@ public:
     int32_t updateDebugLevel();
     bool is4k2kVideoResolution();
     int getBrightness();
-
+    int32_t updateOisValue(bool oisValue);
     int32_t setIntEvent(cam_int_evt_params_t params);
     void setOfflineRAW();
     bool getofflineRAW() {return mOfflineRAW;}
@@ -683,7 +683,6 @@ private:
     int32_t setAwbLock(const QCameraParameters& );
     int32_t setMCEValue(const QCameraParameters& );
     int32_t setDISValue(const QCameraParameters& params);
-    int32_t setOISValue(const QCameraParameters& params);
     int32_t setLensShadeValue(const QCameraParameters& );
     int32_t setExposureCompensation(const QCameraParameters& );
     int32_t setWhiteBalance(const QCameraParameters& );
@@ -742,7 +741,6 @@ private:
     int32_t setAwbLock(const char *awbStr);
     int32_t setMCEValue(const char *mceStr);
     int32_t setDISValue(const char *disStr);
-    int32_t setOISValue(const char *oisStr);
     int32_t setHighFrameRate(const int32_t hfrMode);
     int32_t setLensShadeValue(const char *lensShadeStr);
     int32_t setExposureCompensation(int expComp);

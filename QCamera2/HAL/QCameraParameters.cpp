@@ -2766,36 +2766,6 @@ int32_t QCameraParameters::setDISValue(const QCameraParameters& params)
 }
 
 /*===========================================================================
- * FUNCTION   : setOISValue
- *
- * DESCRIPTION: enable/disable OIS from user setting
- *
- * PARAMETERS :
- *   @params  : user setting parameters
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCameraParameters::setOISValue(const QCameraParameters& params)
-{
-    const char *str = params.get(KEY_QC_OIS);
-    const char *prev_str = get(KEY_QC_OIS);
-    char prop[PROPERTY_VALUE_MAX];
-    memset(prop, 0, sizeof(prop));
-
-    property_get("persist.camera.ois.mode", prop, VALUE_DISABLE);
-    if ((str != NULL) && (prev_str == NULL || strcmp(str, prev_str) != 0)) {
-        CDBG_HIGH("%s:%d : OIS value set to %s", __func__, __LINE__, str);
-        setOISValue(str);
-    } else if (prev_str == NULL || strcmp(prev_str, prop) != 0 ) {
-        CDBG_HIGH("%s:%d : OIS value set to prop: %s", __func__, __LINE__, prop);
-        setOISValue(prop);
-    }
-    return NO_ERROR;
-}
-
-/*===========================================================================
  * FUNCTION   : setLensShadeValue
  *
  * DESCRIPTION: set lens shade value from user setting
@@ -4004,7 +3974,6 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setLensShadeValue(params)))               final_rc = rc;
     if ((rc = setMCEValue(params)))                     final_rc = rc;
     if ((rc = setDISValue(params)))                     final_rc = rc;
-    if ((rc = setOISValue(params)))                     final_rc = rc;
     if ((rc = setAntibanding(params)))                  final_rc = rc;
     if ((rc = setExposureCompensation(params)))         final_rc = rc;
     if ((rc = setWhiteBalance(params)))                 final_rc = rc;
@@ -4558,10 +4527,6 @@ int32_t QCameraParameters::initDefaultParameters()
     // Set DIS
     set(KEY_QC_SUPPORTED_DIS_MODES, enableDisableValues);
     setDISValue(VALUE_DISABLE);
-
-    // Set OIS
-    set(KEY_QC_SUPPORTED_OIS_MODES, enableDisableValues);
-    setOISValue(VALUE_DISABLE);
 
     // Set Histogram
     set(KEY_QC_SUPPORTED_HISTOGRAM_MODES,
@@ -5827,44 +5792,68 @@ int32_t QCameraParameters::setDISValue(const char *disStr)
 }
 
 /*===========================================================================
- * FUNCTION   : setOISValue
+ * FUNCTION   : updateOisValue
  *
- * DESCRIPTION: set OIS value
+ * DESCRIPTION: update OIS value
  *
  * PARAMETERS :
- *   @oisStr : OIS value string
+ *   @oisValue : OIS value TRUE/FALSE
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setOISValue(const char *oisStr)
+int32_t QCameraParameters::updateOisValue(bool oisValue)
 {
-    if (oisStr != NULL) {
-        int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
-                                   sizeof(ENABLE_DISABLE_MODES_MAP)/sizeof(QCameraMap),
-                                   oisStr);
-        if (value != NAME_NOT_FOUND) {
-            m_bNeedRestart = true;
-            CDBG("%s: Setting OIS value %s", __func__, oisStr);
-            updateParamEntry(KEY_QC_OIS, oisStr);
-            if (!(strcmp(oisStr,"enable"))) {
-                m_bOISEnabled = true;
-            } else {
-                m_bOISEnabled = false;
-            }
-            return AddSetParmEntryToBatch(m_pParamBuf,
-                                          CAM_INTF_META_LENS_OPT_STAB_MODE,
-                                          sizeof(value),
-                                          &value);
-        }
+    uint8_t enable = 0;
+    int32_t rc = NO_ERROR;
+
+    // Check for OIS disable
+    char ois_prop[PROPERTY_VALUE_MAX];
+    memset(ois_prop, 0, sizeof(ois_prop));
+    property_get("persist.camera.ois.disable", ois_prop, "0");
+    uint8_t ois_disable = atoi(ois_prop);
+
+    //Enable OIS if it is camera mode or Camcoder 4K mode
+    if (!m_bRecordingHint || (is4k2kVideoResolution() && m_bRecordingHint)) {
+        enable = 1;
+        CDBG_HIGH("%s: Valid OIS mode!! ", __func__);
     }
-    ALOGE("Invalid OIS value: %s", (oisStr == NULL) ? "NULL" : oisStr);
-    m_bOISEnabled = false;
-    return BAD_VALUE;
+    // Disable OIS if setprop is set
+    if (ois_disable || !oisValue) {
+        //Disable OIS
+        enable = 0;
+        CDBG_HIGH("%s: Disable OIS mode!! ois_disable(%d) oisValue(%d)",
+                __func__, ois_disable, oisValue);
+
+    }
+    m_bOISEnabled = enable;
+    if (m_bOISEnabled) {
+        updateParamEntry(KEY_QC_OIS, VALUE_ENABLE);
+    } else {
+        updateParamEntry(KEY_QC_OIS, VALUE_DISABLE);
+    }
+
+    if (initBatchUpdate(m_pParamBuf) < 0 ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return BAD_TYPE;
+    }
+    CDBG_HIGH("%s: Sending OIS mode (%d)", __func__, enable);
+    rc = AddSetParmEntryToBatch(m_pParamBuf,
+            CAM_INTF_META_LENS_OPT_STAB_MODE, sizeof(enable), &enable);
+
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to parameter changes", __func__);
+        return rc;
+    }
+
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update table", __func__);
+    }
+
+    return rc;
 }
-
-
 
 /*===========================================================================
  * FUNCTION   : setHighFrameRate
