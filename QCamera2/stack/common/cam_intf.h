@@ -536,6 +536,11 @@ typedef struct {
     INCLUDE(CAM_INTF_META_LENS_SHADING_MAP,             cam_lens_shading_map_t,      1);
     INCLUDE(CAM_INTF_META_AEC_INFO,                     cam_3a_params_t,             1);
     INCLUDE(CAM_INTF_META_SENSOR_INFO,                  cam_sensor_params_t,         1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_AE,                cam_ae_exif_debug_t,         1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_AWB,               cam_awb_exif_debug_t,        1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_AF,                cam_af_exif_debug_t,         1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_ASD,               cam_asd_exif_debug_t,        1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_STATS,             cam_stats_buffer_exif_debug_t, 1);
     INCLUDE(CAM_INTF_META_ASD_SCENE_CAPTURE_TYPE,       cam_auto_scene_t,            1);
     INCLUDE(CAM_INTF_PARM_EFFECT,                       uint32_t,                    1);
     /* Defining as int32_t so that this array is 4 byte aligned */
@@ -655,6 +660,22 @@ typedef struct {
     /*Tuning Data */
     uint8_t is_tuning_params_valid;
     tuning_params_t tuning_params;
+
+    /*3A Exif Debug Params*/
+    uint8_t is_mobicat_ae_params_valid;
+    cam_ae_exif_debug_t mobicat_ae_data;
+
+    uint8_t is_mobicat_awb_params_valid;
+    cam_awb_exif_debug_t mobicat_awb_data;
+
+    uint8_t is_mobicat_af_params_valid;
+    cam_af_exif_debug_t mobicat_af_data;
+
+    uint8_t is_mobicat_asd_params_valid;
+    cam_asd_exif_debug_t mobicat_asd_data;
+
+    uint8_t is_mobicat_stats_params_valid;
+    cam_stats_buffer_exif_debug_t mobicat_stats_buffer_data;
 } metadata_buffer_t;
 
 typedef metadata_buffer_t parm_buffer_t;
