@@ -3484,9 +3484,10 @@ int32_t QCameraParameters::setWaveletDenoise(const QCameraParameters& params)
  *==========================================================================*/
 int32_t QCameraParameters::setTemporalDenoise()
 {
+    int32_t rc = NO_ERROR;
     if ((m_pCapability->qcom_supported_feature_mask & CAM_QCOM_FEATURE_CPP_TNR) == 0) {
         CDBG_HIGH("%s: TNR is not supported",__func__);
-        return NO_ERROR;
+        return rc;
     }
 
     char value[PROPERTY_VALUE_MAX];
@@ -3508,7 +3509,25 @@ int32_t QCameraParameters::setTemporalDenoise()
     if (m_bTNRPreviewOn || m_bTNRVideoOn) {
         temp.denoise_enable = 1;
         temp.process_plates = getDenoiseProcessPlate(CAM_INTF_PARM_TEMPORAL_DENOISE);
+
+        ALOGV("%s:Set CDS mode = %s", __func__, CDS_MODE_OFF);
+
+        int32_t cds_mode = lookupAttr(CDS_MODES_MAP,
+                sizeof(CDS_MODES_MAP) / sizeof(QCameraMap),
+                CDS_MODE_OFF);
+
+        ALOGE("%s: cds_mode = %d", __func__, cds_mode);
+
+        rc = AddSetParmEntryToBatch(m_pParamBuf,
+                CAM_INTF_PARM_CDS_MODE,
+                sizeof(cds_mode),
+                &cds_mode);
+        if (rc != NO_ERROR) {
+            ALOGE("%s:Failed CDS MODE to update table", __func__);
+            return BAD_VALUE;
+        }
     }
+
     CDBG("%s: TNR enable=%d, plates=%d", __func__,
             temp.denoise_enable, temp.process_plates);
     return AddSetParmEntryToBatch(m_pParamBuf, CAM_INTF_PARM_TEMPORAL_DENOISE,
@@ -3982,7 +4001,6 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setAutoHDR(params)))                      final_rc = rc;
     if ((rc = setGpsLocation(params)))                  final_rc = rc;
     if ((rc = setWaveletDenoise(params)))               final_rc = rc;
-    if ((rc = setTemporalDenoise()))                    final_rc = rc;
     if ((rc = setFaceRecognition(params)))              final_rc = rc;
     if ((rc = setFlip(params)))                         final_rc = rc;
     if ((rc = setVideoHDR(params)))                     final_rc = rc;
@@ -3997,6 +4015,7 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setSnapshotFDReq(params)))                final_rc = rc;
     if ((rc = setTintlessValue(params)))                final_rc = rc;
     if ((rc = setCDSMode(params)))                      final_rc = rc;
+    if ((rc = setTemporalDenoise()))                    final_rc = rc;
 
     // update live snapshot size after all other parameters are set
     if ((rc = setLiveSnapshotSize(params)))             final_rc = rc;
