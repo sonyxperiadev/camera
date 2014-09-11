@@ -623,28 +623,38 @@ int32_t QCamera2HardwareInterface::sendPreviewCallback(QCameraStream *stream,
     camera_memory_t *previewMem = NULL;
     camera_memory_t *data = NULL;
     camera_memory_t *dataToApp = NULL;
-    int previewBufSize = 0;
-    int previewBufSizeFromCallback = 0;
+    size_t previewBufSize = 0;
+    size_t previewBufSizeFromCallback = 0;
     cam_dimension_t preview_dim;
     cam_format_t previewFmt;
     int32_t rc = NO_ERROR;
-    int yStride = 0;
-    int yScanline = 0;
-    int uvStride = 0;
-    int uvScanline = 0;
-
-    int yStrideToApp = 0;
-    int uvStrideToApp = 0;
-    int yScanlineToApp = 0;
-    int uvScanlineToApp = 0;
+    int32_t yStride = 0;
+    int32_t yScanline = 0;
+    int32_t uvStride = 0;
+    int32_t uvScanline = 0;
+    int32_t uStride = 0;
+    int32_t uScanline = 0;
+    int32_t vStride = 0;
+    int32_t vScanline = 0;
+    int32_t yStrideToApp = 0;
+    int32_t uvStrideToApp = 0;
+    int32_t yScanlineToApp = 0;
+    int32_t uvScanlineToApp = 0;
+    int32_t srcOffset = 0;
+    int32_t dstOffset = 0;
+    int32_t srcBaseOffset = 0;
+    int32_t dstBaseOffset = 0;
     int i;
-    int srcOffset = 0;
-    int dstOffset = 0;
-    int srcBaseOffset = 0;
-    int dstBaseOffset = 0;
 
     if ((NULL == stream) || (NULL == memory)) {
         ALOGE("%s: Invalid preview callback input", __func__);
+        return BAD_VALUE;
+    }
+
+    cam_stream_info_t *streamInfo =
+            reinterpret_cast<cam_stream_info_t *>(stream->getStreamInfoBuf()->getPtr(0));
+    if (NULL == streamInfo) {
+        ALOGE("%s: Invalid streamInfo", __func__);
         return BAD_VALUE;
     }
 
@@ -659,15 +669,20 @@ int32_t QCamera2HardwareInterface::sendPreviewCallback(QCameraStream *stream,
         (previewFmt == CAM_FORMAT_YUV_420_NV12) ||
         (previewFmt == CAM_FORMAT_YUV_420_YV12)) {
         if(previewFmt == CAM_FORMAT_YUV_420_YV12) {
-            previewBufSize = ((preview_dim.width+15)/16) * 16 * preview_dim.height +
-                             ((preview_dim.width/2+15)/16) * 16* preview_dim.height;
-            previewBufSizeFromCallback = previewBufSize;
+            yStride = streamInfo->buf_planes.plane_info.mp[0].stride;
+            yScanline = streamInfo->buf_planes.plane_info.mp[0].scanline;
+            uStride = streamInfo->buf_planes.plane_info.mp[1].stride;
+            uScanline = streamInfo->buf_planes.plane_info.mp[1].scanline;
+            vStride = streamInfo->buf_planes.plane_info.mp[2].stride;
+            vScanline = streamInfo->buf_planes.plane_info.mp[2].scanline;
 
+            previewBufSize = yStride * yScanline + uStride * uScanline + vStride * vScanline;
+            previewBufSizeFromCallback = previewBufSize;
         } else {
-            yStride = (preview_dim.width + 31) & ~31;
-            yScanline = (preview_dim.height +1) & ~1;
-            uvStride = yStride;
-            uvScanline = yScanline / 2;
+            yStride = streamInfo->buf_planes.plane_info.mp[0].stride;
+            yScanline = streamInfo->buf_planes.plane_info.mp[0].scanline;
+            uvStride = streamInfo->buf_planes.plane_info.mp[1].stride;
+            uvScanline = streamInfo->buf_planes.plane_info.mp[1].scanline;
 
             yStrideToApp = preview_dim.width;
             yScanlineToApp = preview_dim.height;

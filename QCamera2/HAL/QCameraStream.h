@@ -85,6 +85,7 @@ public:
     int32_t getFrameDimension(cam_dimension_t &dim);
     int32_t getFormat(cam_format_t &fmt);
     QCameraMemory *getStreamBufs() {return mStreamBufs;};
+    QCameraHeapMemory *getStreamInfoBuf() {return mStreamInfoBuf;};
     uint32_t getMyServerID();
     cam_stream_type_t getMyType();
     int32_t acquireStreamBufs();
