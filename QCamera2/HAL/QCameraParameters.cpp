@@ -102,6 +102,7 @@ const char QCameraParameters::KEY_QC_NO_DISPLAY_MODE[] = "no-display-mode";
 const char QCameraParameters::KEY_QC_RAW_PICUTRE_SIZE[] = "raw-size";
 const char QCameraParameters::KEY_QC_SUPPORTED_SKIN_TONE_ENHANCEMENT_MODES[] = "skinToneEnhancement-values";
 const char QCameraParameters::KEY_QC_SUPPORTED_LIVESNAPSHOT_SIZES[] = "supported-live-snapshot-sizes";
+const char QCameraParameters::KEY_QC_SUPPORTED_HDR_NEED_1X[] = "hdr-need-1x-values";
 const char QCameraParameters::KEY_QC_HDR_NEED_1X[] = "hdr-need-1x";
 const char QCameraParameters::KEY_QC_PREVIEW_FLIP[] = "preview-flip";
 const char QCameraParameters::KEY_QC_VIDEO_FLIP[] = "video-flip";
@@ -2934,22 +2935,6 @@ int32_t QCameraParameters::setSceneMode(const QCameraParameters& params)
                 CDBG_HIGH("%s: scene mode changed between HDR and non-HDR, need restart", __func__);
 
                 m_bNeedRestart = true;
-                // set if hdr 1x image is needed
-                const char *need_hdr_1x = params.get(KEY_QC_HDR_NEED_1X);
-                if (need_hdr_1x != NULL) {
-                    if (strcmp(need_hdr_1x, VALUE_TRUE) == 0) {
-                        m_bHDR1xFrameEnabled = true;
-                    } else {
-                        m_bHDR1xFrameEnabled = false;
-                    }
-
-                    updateParamEntry(KEY_QC_HDR_NEED_1X, need_hdr_1x);
-                }
-
-                AddSetParmEntryToBatch(m_pParamBuf,
-                                       CAM_INTF_PARM_HDR_NEED_1X,
-                                       sizeof(m_bHDR1xFrameEnabled),
-                                       &m_bHDR1xFrameEnabled);
             }
 
             return setSceneMode(str);
@@ -3191,6 +3176,38 @@ int32_t QCameraParameters::setHDRMode(const QCameraParameters& params)
         if (prev_str == NULL ||
                 strcmp(str, prev_str) != 0) {
             return setHDRMode(str);
+        }
+    }
+
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setHDRNeed1x
+ *
+ * DESCRIPTION: set HDR need 1x from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setHDRNeed1x(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_HDR_NEED_1X);
+    const char *prev_str = get(KEY_QC_HDR_NEED_1X);
+
+    CDBG_HIGH("%s: str =%s & prev_str =%s",__func__, str, prev_str);
+    if (str != NULL) {
+        if (m_bHDRModeSensor) {
+            CDBG_HIGH("%s: Only multi frame HDR supports 1x frame",__func__);
+            return NO_ERROR;
+        }
+        if (prev_str == NULL ||
+                strcmp(str, prev_str) != 0) {
+            return setHDRNeed1x(str);
         }
     }
 
@@ -4009,6 +4026,7 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setExposureCompensation(params)))         final_rc = rc;
     if ((rc = setWhiteBalance(params)))                 final_rc = rc;
     if ((rc = setHDRMode(params)))                      final_rc = rc;
+    if ((rc = setHDRNeed1x(params)))                    final_rc = rc;
     if ((rc = setSceneMode(params)))                    final_rc = rc;
     if ((rc = setFocusAreas(params)))                   final_rc = rc;
     if ((rc = setMeteringAreas(params)))                final_rc = rc;
@@ -4528,9 +4546,22 @@ int32_t QCameraParameters::initDefaultParameters()
                     HDR_MODES_MAP,
                     sizeof(HDR_MODES_MAP) / sizeof(QCameraMap));
             set(KEY_QC_SUPPORTED_KEY_QC_HDR_MODES, hdrModeValues);
-            setHDRMode(HDR_MODE_SENSOR);
+            setHDRMode(HDR_MODE_MULTI_FRAME);
         }
     }
+
+    //Set HDR need 1x
+    String8 hdrNeed1xValues;
+    if (!m_bHDRModeSensor) {
+        hdrNeed1xValues = createValuesStringFromMap(
+                TRUE_FALSE_MODES_MAP,
+                sizeof(TRUE_FALSE_MODES_MAP) / sizeof(QCameraMap));
+        setHDRNeed1x(VALUE_TRUE);
+    } else {
+        hdrNeed1xValues.append(VALUE_FALSE);
+        setHDRNeed1x(VALUE_FALSE);
+    }
+    set(KEY_QC_SUPPORTED_HDR_NEED_1X, hdrNeed1xValues);
 
     // Set Denoise
     if ((m_pCapability->qcom_supported_feature_mask & CAM_QCOM_FEATURE_DENOISE2D) > 0){
@@ -6728,6 +6759,43 @@ int32_t QCameraParameters::setHDRMode(const char *hdrModeStr)
     }
     CDBG_HIGH("Invalid hdr mode value: %s",
             (hdrModeStr == NULL) ? "NULL" : hdrModeStr);
+    return BAD_VALUE;
+}
+
+/*===========================================================================
+ * FUNCTION   : setHDRNeed1x
+ *
+ * DESCRIPTION: set hdr need 1x value
+ *
+ * PARAMETERS :
+ *   @hdrModeStr : hdr need 1x value string
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setHDRNeed1x(const char *hdrNeed1xStr)
+{
+    CDBG_HIGH("%s: hdrNeed1xStr =%s", __func__, hdrNeed1xStr);
+    if (hdrNeed1xStr != NULL) {
+        int value = lookupAttr(TRUE_FALSE_MODES_MAP,
+                sizeof(TRUE_FALSE_MODES_MAP)/sizeof(QCameraMap),
+                hdrNeed1xStr);
+        if (value != NAME_NOT_FOUND) {
+
+            updateParamEntry(KEY_QC_HDR_NEED_1X, hdrNeed1xStr);
+            m_bHDR1xFrameEnabled = !strncmp(hdrNeed1xStr, VALUE_TRUE, strlen(VALUE_TRUE));
+            m_bNeedRestart = true;
+
+            return AddSetParmEntryToBatch(m_pParamBuf,
+                    CAM_INTF_PARM_HDR_NEED_1X,
+                    sizeof(m_bHDR1xFrameEnabled),
+                    &m_bHDR1xFrameEnabled);
+        }
+    }
+
+    CDBG_HIGH("Invalid hdr need 1x value: %s",
+            (hdrNeed1xStr == NULL) ? "NULL" : hdrNeed1xStr);
     return BAD_VALUE;
 }
 
