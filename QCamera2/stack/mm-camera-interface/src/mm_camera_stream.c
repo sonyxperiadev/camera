@@ -2306,11 +2306,51 @@ int32_t mm_stream_calc_offset_raw(cam_format_t fmt,
                                   cam_padding_info_t *padding,
                                   cam_stream_buf_plane_info_t *buf_planes)
 {
+
     int32_t rc = 0;
-    int stride = 0;
-    int scanline = dim->height;
+    int32_t stride;
+    int32_t scanline;
+
+    if ((NULL == dim) || (NULL == padding) || (NULL == buf_planes)) {
+        return -1;
+    }
+
+    stride = PAD_TO_SIZE(dim->width, (int32_t)padding->width_padding);
+    scanline = PAD_TO_SIZE(dim->height, (int32_t)padding->height_padding);
 
     switch (fmt) {
+    case CAM_FORMAT_YUV_420_NV21:
+        /* 2 planes: Y + CbCr */
+        buf_planes->plane_info.num_planes = 2;
+
+        buf_planes->plane_info.mp[0].len =
+                PAD_TO_SIZE((uint32_t)(stride * scanline),
+                padding->plane_padding);
+        buf_planes->plane_info.mp[0].offset = 0;
+        buf_planes->plane_info.mp[0].offset_x = 0;
+        buf_planes->plane_info.mp[0].offset_y = 0;
+        buf_planes->plane_info.mp[0].stride = stride;
+        buf_planes->plane_info.mp[0].scanline = scanline;
+        buf_planes->plane_info.mp[0].width = dim->width;
+        buf_planes->plane_info.mp[0].height = dim->height;
+
+        scanline = scanline / 2;
+        buf_planes->plane_info.mp[1].len =
+                PAD_TO_SIZE((uint32_t)(stride * scanline),
+                padding->plane_padding);
+        buf_planes->plane_info.mp[1].offset = 0;
+        buf_planes->plane_info.mp[1].offset_x = 0;
+        buf_planes->plane_info.mp[1].offset_y = 0;
+        buf_planes->plane_info.mp[1].stride = stride;
+        buf_planes->plane_info.mp[1].scanline = scanline;
+        buf_planes->plane_info.mp[1].width = dim->width;
+        buf_planes->plane_info.mp[1].height = dim->height / 2;
+
+        buf_planes->plane_info.frame_len =
+                PAD_TO_SIZE(buf_planes->plane_info.mp[0].len +
+                buf_planes->plane_info.mp[1].len,
+                CAM_PAD_TO_4K);
+        break;
     case CAM_FORMAT_YUV_RAW_8BIT_YUYV:
     case CAM_FORMAT_YUV_RAW_8BIT_YVYU:
     case CAM_FORMAT_YUV_RAW_8BIT_UYVY:

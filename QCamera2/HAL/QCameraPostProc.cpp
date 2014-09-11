@@ -1365,7 +1365,9 @@ int32_t QCameraPostProcessor::queryStreams(QCameraStream **main,
                 pChannel->getStreamByHandle(frame->bufs[i]->stream_id);
         if (pStream != NULL) {
             if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
-                pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
+                    (m_parent->mParameters.getofflineRAW() &&
+                            pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW))) {
                 *main= pStream;
                 *main_image = frame->bufs[i];
             } else if (thumb_stream_needed &&
@@ -2315,7 +2317,7 @@ int32_t QCameraPostProcessor::reprocess(qcamera_pp_data_t *pp_job)
        rc = m_pReprocChannel->doReprocessOffline(pp_job->src_frame);
     } else {
         m_ongoingPPQ.enqueue((void *)pp_job);
-        rc = m_pReprocChannel->doReprocess(pp_job->src_frame);
+        rc = m_pReprocChannel->doReprocess(pp_job->src_frame, m_parent->mParameters);
     }
 
     if (NO_ERROR != rc) {
