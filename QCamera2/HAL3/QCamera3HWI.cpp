@@ -3017,9 +3017,10 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
                 &aecTrigger->trigger, 1);
         camMetadata.update(ANDROID_CONTROL_AE_PRECAPTURE_ID,
                 &aecTrigger->trigger_id, 1);
-        CDBG("%s: urgent Metadata : ANDROID_CONTROL_AE_PRECAPTURE_ID", __func__);
-        CDBG("%s: urgent Metadata : CAM_INTF_META_AEC_PRECAPTURE_TRIGGER",
-                __func__);
+        CDBG("%s: urgent Metadata : CAM_INTF_META_AEC_PRECAPTURE_TRIGGER: %d",
+                __func__, aecTrigger->trigger);
+        CDBG("%s: urgent Metadata : ANDROID_CONTROL_AE_PRECAPTURE_ID: %d", __func__,
+                aecTrigger->trigger_id);
     }
     if (IS_META_AVAILABLE(CAM_INTF_META_AEC_STATE, metadata)) {
         uint8_t *ae_state = (uint8_t *)
@@ -3044,7 +3045,8 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
         CDBG("%s: urgent Metadata : CAM_INTF_META_AF_TRIGGER = %d",
                 __func__, af_trigger->trigger);
         camMetadata.update(ANDROID_CONTROL_AF_TRIGGER_ID, &af_trigger->trigger_id, 1);
-        CDBG("%s: urgent Metadata : ANDROID_CONTROL_AF_TRIGGER_ID", __func__);
+        CDBG("%s: urgent Metadata : ANDROID_CONTROL_AF_TRIGGER_ID = %d", __func__,
+                af_trigger->trigger_id);
     }
     if (IS_META_AVAILABLE(CAM_INTF_PARM_WHITE_BALANCE, metadata)) {
         uint8_t  *whiteBalance = (uint8_t *)
@@ -5564,6 +5566,8 @@ int QCamera3HardwareInterface::translateToHalMetadata
         rc = AddSetParmEntryToBatch(hal_metadata,
                 CAM_INTF_META_AEC_PRECAPTURE_TRIGGER,
                 sizeof(aecTrigger), &aecTrigger);
+        CDBG("%s: precaptureTrigger: %d precaptureTriggerID: %d", __func__,
+                aecTrigger.trigger, aecTrigger.trigger_id);
     }
     /*af_trigger must come with a trigger id*/
     if (frame_settings.exists(ANDROID_CONTROL_AF_TRIGGER) &&
@@ -5575,6 +5579,8 @@ int QCamera3HardwareInterface::translateToHalMetadata
             frame_settings.find(ANDROID_CONTROL_AF_TRIGGER_ID).data.i32[0];
         rc = AddSetParmEntryToBatch(hal_metadata,
                 CAM_INTF_META_AF_TRIGGER, sizeof(af_trigger), &af_trigger);
+        CDBG("%s: AfTrigger: %d AfTriggerID: %d", __func__,
+                af_trigger.trigger, af_trigger.trigger_id);
     }
 
     if (frame_settings.exists(ANDROID_DEMOSAIC_MODE)) {
