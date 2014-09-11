@@ -1286,6 +1286,15 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
     uint8_t livesnapshot_sizes_tbl_cnt = m_pCapability->livesnapshot_sizes_tbl_cnt;
     cam_dimension_t *livesnapshot_sizes_tbl = &m_pCapability->livesnapshot_sizes_tbl[0];
 
+    if(is4k2kVideoResolution() && m_bRecordingHint) {
+        // We support maximum 8M liveshot @4K2K video resolution
+        // 8M (4096x2160 or 3200x2400)
+        if((m_LiveSnapshotSize.width > 4096) || (m_LiveSnapshotSize.height > 2400)) {
+            m_LiveSnapshotSize.width = 4096;
+            m_LiveSnapshotSize.height = 2160;
+        }
+    }
+
     // check if HFR is enabled
     const char *hfrStr = params.get(KEY_QC_VIDEO_HIGH_FRAME_RATE);
     cam_hfr_mode_t hfrMode = CAM_HFR_MODE_OFF;
@@ -1368,7 +1377,7 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
             }
         }
     }
-    CDBG("%s: live snapshot size %d x %d", __func__,
+    CDBG_HIGH("%s: live snapshot size %d x %d", __func__,
           m_LiveSnapshotSize.width, m_LiveSnapshotSize.height);
 
     return NO_ERROR;
@@ -9481,13 +9490,11 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
 
     } else if (!isCapture) {
         if (m_bRecordingHint) {
-           if (!is4k2kVideoResolution()) {
-               stream_config_info.type[stream_config_info.num_streams] =
-                   CAM_STREAM_TYPE_SNAPSHOT;
-               getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
-                   stream_config_info.stream_sizes[stream_config_info.num_streams]);
-               stream_config_info.num_streams++;
-           }
+            stream_config_info.type[stream_config_info.num_streams] =
+                CAM_STREAM_TYPE_SNAPSHOT;
+            getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
+                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            stream_config_info.num_streams++;
 
             stream_config_info.type[stream_config_info.num_streams] =
                 CAM_STREAM_TYPE_VIDEO;
