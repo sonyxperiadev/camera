@@ -33,6 +33,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
         const metadata_buffer_t* metadata)
 {
     switch(meta_id) {
+        case CAM_INTF_PARM_HW_DATA_OVERWRITE:
+            return POINTER_OF_META(CAM_INTF_PARM_HW_DATA_OVERWRITE, metadata);
         case CAM_INTF_META_HISTOGRAM:
             return POINTER_OF_META(CAM_INTF_META_HISTOGRAM, metadata);
         case CAM_INTF_META_FACE_DETECTION:
@@ -370,6 +372,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
 {
     metadata_buffer_t* metadata = NULL;
     switch(param_id) {
+        case CAM_INTF_PARM_HW_DATA_OVERWRITE:
+            return SIZE_OF_PARAM(CAM_INTF_PARM_HW_DATA_OVERWRITE, metadata);
         case CAM_INTF_META_HISTOGRAM:
             return SIZE_OF_PARAM(CAM_INTF_META_HISTOGRAM, metadata);
         case CAM_INTF_META_FACE_DETECTION:
