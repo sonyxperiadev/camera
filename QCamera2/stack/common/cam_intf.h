@@ -341,6 +341,8 @@ typedef struct{
     cam_dimension_t analysis_max_res;
     /* Analysis stream padding info */
     cam_padding_info_t analysis_padding_info;
+    /* Max size supported by ISP viewfinder path */
+    cam_dimension_t max_viewfinder_size;
 } cam_capability_t;
 
 typedef enum {
