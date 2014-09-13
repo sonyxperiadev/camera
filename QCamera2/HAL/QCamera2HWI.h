@@ -579,6 +579,7 @@ private:
     int32_t mRedEye;
     int32_t mFlashPresence;
     bool mIs3ALocked;
+    bool mPrepSnapRun;
     int32_t mZoomLevel;
 
     //eztune variables for communication with eztune server at backend
