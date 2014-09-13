@@ -45,6 +45,16 @@ typedef enum {
 typedef struct {
   cam_3a_params_t cam_3a_params;
   cam_sensor_params_t sensor_params;
+  cam_ae_exif_debug_t ae_debug_params;
+  cam_awb_exif_debug_t awb_debug_params;
+  cam_af_exif_debug_t af_debug_params;
+  cam_asd_exif_debug_t asd_debug_params;
+  cam_stats_buffer_exif_debug_t stats_debug_params;
+  uint8_t ae_debug_params_valid;
+  uint8_t awb_debug_params_valid;
+  uint8_t af_debug_params_valid;
+  uint8_t asd_debug_params_valid;
+  uint8_t stats_debug_params_valid;
 } mm_jpeg_exif_params_t;
 
 typedef struct {
@@ -217,6 +227,10 @@ typedef struct {
   /* jpeg encoder QTable */
   uint8_t qtable_set[QTABLE_MAX];
   OMX_IMAGE_PARAM_QUANTIZATIONTABLETYPE qtable[QTABLE_MAX];
+
+  /* flag to enable/disable mobicat */
+  uint8_t mobicat_mask;
+
 } mm_jpeg_encode_job_t;
 
 typedef struct {

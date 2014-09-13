@@ -37,6 +37,11 @@
 
 #define CAM_MAX_NUM_BUFS_PER_STREAM 24
 #define MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES 8096
+#define AWB_DEBUG_DATA_SIZE               (7029)
+#define AEC_DEBUG_DATA_SIZE               (1720)
+#define AF_DEBUG_DATA_SIZE                (652)
+#define ASD_DEBUG_DATA_SIZE               (100)
+#define STATS_BUFFER_DEBUG_DATA_SIZE      (74756)
 
 #define CEILING64(X) (((X) + 0x0003F) & 0xFFFFFFC0)
 #define CEILING32(X) (((X) + 0x0001F) & 0xFFFFFFE0)
@@ -968,7 +973,31 @@ typedef struct {
     float brightness;
 } cam_3a_params_t;
 
+typedef struct {
+    int32_t aec_debug_data_size;
+    char aec_private_debug_data[AEC_DEBUG_DATA_SIZE];
+} cam_ae_exif_debug_t;
 
+typedef struct {
+    int32_t awb_debug_data_size;
+    char awb_private_debug_data[AWB_DEBUG_DATA_SIZE];
+} cam_awb_exif_debug_t;
+
+typedef struct {
+    int32_t af_debug_data_size;
+    char af_private_debug_data[AF_DEBUG_DATA_SIZE];
+} cam_af_exif_debug_t;
+
+typedef struct {
+    int32_t asd_debug_data_size;
+    char asd_private_debug_data[ASD_DEBUG_DATA_SIZE];
+} cam_asd_exif_debug_t;
+
+typedef struct {
+    int32_t bg_stats_buffer_size;
+    int32_t bhist_stats_buffer_size;
+    char stats_buffer_private_debug_data[STATS_BUFFER_DEBUG_DATA_SIZE];
+} cam_stats_buffer_exif_debug_t;
 
 typedef struct {
     uint32_t tuning_data_version;
@@ -1057,6 +1086,26 @@ typedef  struct {
     /* AE parameters */
     uint8_t is_3a_params_valid;
     cam_3a_params_t cam_3a_params;
+
+    /* AE exif debug parameters */
+    uint8_t is_ae_exif_debug_valid;
+    cam_ae_exif_debug_t ae_exif_debug_params;
+
+    /* AWB exif debug parameters */
+    uint8_t is_awb_exif_debug_valid;
+    cam_awb_exif_debug_t awb_exif_debug_params;
+
+    /* AF exif debug parameters */
+    uint8_t is_af_exif_debug_valid;
+    cam_af_exif_debug_t af_exif_debug_params;
+
+    /* ASD exif debug parameters */
+    uint8_t is_asd_exif_debug_valid;
+    cam_asd_exif_debug_t asd_exif_debug_params;
+
+    /* Stats buffer exif debug parameters */
+    uint8_t is_stats_buffer_exif_debug_valid;
+    cam_stats_buffer_exif_debug_t stats_buffer_exif_debug_params;
 
     /* sensor parameters */
     uint8_t is_sensor_params_valid;
@@ -1171,6 +1220,11 @@ typedef enum {
     CAM_INTF_META_CHROMATIX_LITE_AWB,
     CAM_INTF_META_CHROMATIX_LITE_AF, /* 70 */
     CAM_INTF_META_CHROMATIX_LITE_ASD,
+    CAM_INTF_META_EXIF_DEBUG_AE,
+    CAM_INTF_META_EXIF_DEBUG_AWB,
+    CAM_INTF_META_EXIF_DEBUG_AF,
+    CAM_INTF_META_EXIF_DEBUG_ASD,
+    CAM_INTF_META_EXIF_DEBUG_STATS,
     CAM_INTF_PARM_GET_CHROMATIX,
     CAM_INTF_PARM_SET_RELOAD_CHROMATIX,
     CAM_INTF_PARM_SET_AUTOFOCUSTUNING,
