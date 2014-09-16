@@ -3702,6 +3702,14 @@ int QCamera2HardwareInterface::processAPI(qcamera_sm_evt_enum_t api, void *api_p
  *==========================================================================*/
 int QCamera2HardwareInterface::processEvt(qcamera_sm_evt_enum_t evt, void *evt_payload)
 {
+    if (evt_payload) {
+        mm_camera_event_t *payload =
+                           (mm_camera_event_t *)evt_payload;
+        if (payload->server_event_type == CAM_EVENT_TYPE_DAEMON_DIED) {
+            mDeffCond.broadcast();
+            CDBG_HIGH("%s: broadcast mDeffCond signal\n", __func__);
+        }
+    }
     return m_stateMachine.procEvt(evt, evt_payload);
 }
 
