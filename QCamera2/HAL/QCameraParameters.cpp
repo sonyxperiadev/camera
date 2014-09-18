@@ -652,6 +652,7 @@ QCameraParameters::QCameraParameters()
       m_pParamBuf(NULL),
       m_bZslMode(false),
       m_bZslMode_new(false),
+      m_bForceZslMode(false),
       m_bRecordingHint(false),
       m_bRecordingHint_new(false),
       m_bHistogramEnabled(false),
@@ -746,6 +747,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_pParamBuf(NULL),
     m_bZslMode(false),
     m_bZslMode_new(false),
+    m_bForceZslMode(false),
     m_bRecordingHint(false),
     m_bRecordingHint_new(false),
     m_bHistogramEnabled(false),
@@ -3444,8 +3446,22 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
 {
     const char *str_val  = params.get(KEY_QC_ZSL);
     const char *prev_val  = get(KEY_QC_ZSL);
+    int32_t value = 0;
+    int32_t rc = NO_ERROR;
 
-    if (str_val != NULL) {
+    if(m_bForceZslMode) {
+        // Force ZSL mode to ON
+        set(KEY_QC_ZSL, VALUE_ON);
+        m_bZslMode_new = true;
+        m_bZslMode = true;
+        m_bNeedRestart = true;
+        value = m_bForceZslMode;
+        rc = AddSetParmEntryToBatch(m_pParamBuf,
+                CAM_INTF_PARM_ZSL_MODE,
+                sizeof(value),
+                &value);
+
+    } else if (str_val != NULL) {
         if (prev_val == NULL || strcmp(str_val, prev_val) != 0) {
             int32_t value = lookupAttr(ON_OFF_MODES_MAP,
                                        sizeof(ON_OFF_MODES_MAP)/sizeof(QCameraMap),
@@ -3457,17 +3473,18 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
                 // ZSL mode changed, need restart preview
                 m_bNeedRestart = true;
 
-                return AddSetParmEntryToBatch(m_pParamBuf,
+                rc = AddSetParmEntryToBatch(m_pParamBuf,
                                               CAM_INTF_PARM_ZSL_MODE,
                                               sizeof(value),
                                               &value);
             } else {
                 ALOGE("Invalid ZSL mode value: %s", str_val);
-                return BAD_VALUE;
+                rc = BAD_VALUE;
             }
         }
     }
-    return NO_ERROR;
+    CDBG_HIGH("%s: enabled: %d", __func__, m_bZslMode_new);
+    return rc;
 }
 
 /*===========================================================================
@@ -4621,6 +4638,18 @@ int32_t QCameraParameters::initDefaultParameters()
     set(KEY_QC_ZSL, VALUE_OFF);
     m_bZslMode = false;
 #endif
+
+    // Check if zsl mode property is enabled.
+    // If yes, force the camera to be in zsl mode
+    memset(value, 0x00, PROPERTY_VALUE_MAX);
+    property_get("persist.camera.zsl.mode", value, "0");
+    int32_t zsl_mode = atoi(value);
+    if(zsl_mode == 1) {
+        CDBG_HIGH("%s: %d: Forcing Camera to ZSL mode ", __func__, __LINE__);
+        set(KEY_QC_ZSL, VALUE_ON);
+        m_bForceZslMode = true;
+        m_bZslMode = true;
+    }
     m_bZslMode_new = m_bZslMode;
 
     set(KEY_QC_SCENE_SELECTION, VALUE_DISABLE);
