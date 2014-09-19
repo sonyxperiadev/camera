@@ -1973,11 +1973,10 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     pthread_mutex_unlock(&mMutex);
                     return NO_INIT;
                 }
-                metadata_buffer_t reproc_meta;
-                rc = setReprocParameters(request, &reproc_meta);
+                rc = setReprocParameters(request, &mRreprocMeta);
                 if (NO_ERROR == rc) {
                     rc = channel->request(output.buffer, frameNumber,
-                            request->input_buffer, &reproc_meta);
+                            request->input_buffer, &mRreprocMeta);
                     if (rc < 0) {
                         ALOGE("%s: Fail to request on picture channel", __func__);
                         pthread_mutex_unlock(&mMutex);
