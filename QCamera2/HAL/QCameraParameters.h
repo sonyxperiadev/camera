@@ -846,6 +846,7 @@ private:
 
     bool m_bZslMode;                // if ZSL is enabled
     bool m_bZslMode_new;
+    bool m_bForceZslMode;
     bool m_bRecordingHint;          // local copy of recording hint
     bool m_bRecordingHint_new;
     bool m_bHistogramEnabled;       // if histogram is enabled
