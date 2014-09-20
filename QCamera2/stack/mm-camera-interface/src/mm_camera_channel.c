@@ -1847,14 +1847,6 @@ int32_t mm_channel_handle_metadata(
             }
         }
 
-        if (is_prep_snapshot_done_valid &&
-                is_good_frame_idx_range_valid) {
-            CDBG_ERROR("%s: prep_snapshot_done and good_idx_range shouldn't be "
-                "valid at the same time", __func__);
-            rc = -1;
-            goto end;
-        }
-
         if (ch_obj->isZoom1xFrameRequested) {
             if (is_crop_1x_found) {
                 ch_obj->isZoom1xFrameRequested = 0;
