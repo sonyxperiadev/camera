@@ -2094,7 +2094,8 @@ int QCamera2HardwareInterface::startPreview()
         }
     } else {
         rc = startChannel(QCAMERA_CH_TYPE_PREVIEW);
-        if ((rc == NO_ERROR) && (mParameters.getRecordingHintValue() != true)) {
+        if ((rc == NO_ERROR) && (mParameters.getRecordingHintValue() != true)
+            && !(mParameters.isSecureMode())) {
             startChannel(QCAMERA_CH_TYPE_ANALYSIS);
         }
         /*
@@ -4377,7 +4378,8 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
             streamType == CAM_STREAM_TYPE_RAW) &&
             !isZSLMode() &&
             !isLongshotEnabled() &&
-            !mParameters.getRecordingHintValue()) {
+            !mParameters.getRecordingHintValue() &&
+            !mParameters.isSecureMode()) {
         rc = pChannel->addStream(*this,
                 pStreamInfo,
                 minStreamBufNum,
@@ -5437,8 +5439,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
             ALOGE("%s[%d]:failed!! rc = %d", __func__, __LINE__, rc);
             return rc;
         }
-
-        if (!recordingHint) {
+        if (!recordingHint && !mParameters.isSecureMode()) {
             rc = addChannel(QCAMERA_CH_TYPE_ANALYSIS);
             if (rc != NO_ERROR) {
                 delChannel(QCAMERA_CH_TYPE_PREVIEW);
