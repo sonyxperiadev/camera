@@ -663,21 +663,26 @@ typedef struct {
     uint8_t is_tuning_params_valid;
     tuning_params_t tuning_params;
 
-    /*3A Exif Debug Params*/
-    uint8_t is_mobicat_ae_params_valid;
-    cam_ae_exif_debug_t mobicat_ae_data;
 
-    uint8_t is_mobicat_awb_params_valid;
-    cam_awb_exif_debug_t mobicat_awb_data;
+    /* Mobicat Params */
+    uint8_t is_mobicat_aec_params_valid;
+    cam_3a_params_t mobicat_aec_params;
 
-    uint8_t is_mobicat_af_params_valid;
-    cam_af_exif_debug_t mobicat_af_data;
+    /* Stats 3A Debug Params */
+    uint8_t is_statsdebug_ae_params_valid;
+    cam_ae_exif_debug_t statsdebug_ae_data;
 
-    uint8_t is_mobicat_asd_params_valid;
-    cam_asd_exif_debug_t mobicat_asd_data;
+    uint8_t is_statsdebug_awb_params_valid;
+    cam_awb_exif_debug_t statsdebug_awb_data;
 
-    uint8_t is_mobicat_stats_params_valid;
-    cam_stats_buffer_exif_debug_t mobicat_stats_buffer_data;
+    uint8_t is_statsdebug_af_params_valid;
+    cam_af_exif_debug_t statsdebug_af_data;
+
+    uint8_t is_statsdebug_asd_params_valid;
+    cam_asd_exif_debug_t statsdebug_asd_data;
+
+    uint8_t is_statsdebug_stats_params_valid;
+    cam_stats_buffer_exif_debug_t statsdebug_stats_buffer_data;
 } metadata_buffer_t;
 
 typedef metadata_buffer_t parm_buffer_t;
