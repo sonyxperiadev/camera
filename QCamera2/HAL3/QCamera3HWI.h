@@ -323,6 +323,7 @@ private:
     const camera_module_callbacks_t *mCallbacks;
 
     uint8_t mCaptureIntent;
+    metadata_buffer_t mRreprocMeta; //scratch meta buffer
 
     static const QCameraMap EFFECT_MODES_MAP[];
     static const QCameraMap WHITE_BALANCE_MODES_MAP[];
