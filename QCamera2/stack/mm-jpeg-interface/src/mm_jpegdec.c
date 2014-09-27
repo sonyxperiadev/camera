@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -525,7 +525,7 @@ static OMX_ERRORTYPE mm_jpegdec_session_decode(mm_jpeg_job_session_t *p_session)
   int dest_idx = 0;
   mm_jpeg_obj *my_obj = (mm_jpeg_obj *)p_session->jpeg_obj;
   OMX_EVENTTYPE lEvent;
-  OMX_U32 i;
+  uint32_t i;
   QOMX_BUFFER_INFO lbuffer_info;
 
   pthread_mutex_lock(&p_session->lock);
@@ -775,8 +775,8 @@ int32_t mm_jpegdec_start_decode_job(mm_jpeg_obj *my_obj,
     return rc;
   }
 
-  if ((p_jobparams->src_index >= p_session->dec_params.num_src_bufs) ||
-    (p_jobparams->dst_index >= p_session->dec_params.num_dst_bufs)) {
+  if ((p_jobparams->src_index >= (int32_t)p_session->dec_params.num_src_bufs) ||
+    (p_jobparams->dst_index >= (int32_t)p_session->dec_params.num_dst_bufs)) {
     CDBG_ERROR("%s:%d] invalid buffer indices", __func__, __LINE__);
     return rc;
   }

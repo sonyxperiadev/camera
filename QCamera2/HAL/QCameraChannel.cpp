@@ -356,16 +356,16 @@ int32_t QCameraChannel::stop()
 int32_t QCameraChannel::bufDone(mm_camera_super_buf_t *recvd_frame)
 {
     int32_t rc = NO_ERROR;
-    for (int i = 0; i < recvd_frame->num_bufs; i++) {
-         if (recvd_frame->bufs[i] != NULL) {
-             for (int j = 0; j < m_numStreams; j++) {
-                 if (mStreams[j] != NULL &&
-                     mStreams[j]->getMyHandle() == recvd_frame->bufs[i]->stream_id) {
-                     rc = mStreams[j]->bufDone(recvd_frame->bufs[i]->buf_idx);
-                     break; // break loop j
-                 }
-             }
-         }
+    for (uint32_t i = 0; i < recvd_frame->num_bufs; i++) {
+        if (recvd_frame->bufs[i] != NULL) {
+            for (int j = 0; j < m_numStreams; j++) {
+                if (mStreams[j] != NULL &&
+                        mStreams[j]->getMyHandle() == recvd_frame->bufs[i]->stream_id) {
+                    rc = mStreams[j]->bufDone(recvd_frame->bufs[i]->buf_idx);
+                    break; // break loop j
+                }
+            }
+        }
     }
 
     return rc;
@@ -1064,7 +1064,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(
     uint8_t meta_buf_index = -1;
     mm_camera_buf_def_t *meta_buf = NULL;
     QCameraStream *pStream = NULL;
-    for (int i = 0; i < frame->num_bufs; i++) {
+    for (uint32_t i = 0; i < frame->num_bufs; i++) {
         pStream = m_pSrcChannel->getStreamByHandle(frame->bufs[i]->stream_id);
         if (pStream != NULL) {
             if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
@@ -1074,7 +1074,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(
         }
     }
 
-    for (int i = 0; i < frame->num_bufs; i++) {
+    for (uint32_t i = 0; i < frame->num_bufs; i++) {
         pStream = getStreamBySrouceHandle(frame->bufs[i]->stream_id);
         if (pStream != NULL) {
             if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
@@ -1189,7 +1189,7 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
     // find meta data stream and index of meta data frame in the superbuf
     QCameraStream *pMetaStream = NULL;
     uint8_t meta_buf_index = 0;
-    for (int i = 0; i < frame->num_bufs; i++) {
+    for (uint32_t i = 0; i < frame->num_bufs; i++) {
         QCameraStream *pStream = m_pSrcChannel->getStreamByHandle(frame->bufs[i]->stream_id);
         if (pStream != NULL) {
             if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
@@ -1200,7 +1200,7 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
         }
     }
 
-    for (int i = 0; i < frame->num_bufs; i++) {
+    for (uint32_t i = 0; i < frame->num_bufs; i++) {
         QCameraStream *pStream = getStreamBySrouceHandle(frame->bufs[i]->stream_id);
         if (pStream != NULL) {
             if (mParameter.getofflineRAW() &&

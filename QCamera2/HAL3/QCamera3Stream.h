@@ -119,8 +119,8 @@ private:
     static int32_t put_bufs(
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                      void *user_data);
-    static int32_t invalidate_buf(int index, void *user_data);
-    static int32_t clean_invalidate_buf(int index, void *user_data);
+    static int32_t invalidate_buf(uint32_t index, void *user_data);
+    static int32_t clean_invalidate_buf(uint32_t index, void *user_data);
 
     int32_t getBufs(cam_frame_len_offset_t *offset,
                      uint8_t *num_bufs,

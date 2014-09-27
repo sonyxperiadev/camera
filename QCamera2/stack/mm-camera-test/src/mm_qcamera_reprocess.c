@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -344,7 +344,7 @@ int mm_app_do_reprocess(mm_camera_test_obj_t *test_obj,
 
 void mm_app_release_ppinput(void *data, void *user_data)
 {
-    int i = 0;
+    uint32_t i = 0;
     mm_camera_super_buf_t *recvd_frame  = ( mm_camera_super_buf_t * ) data;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
 

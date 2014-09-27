@@ -1208,7 +1208,7 @@ int QCamera2HardwareInterface::openCamera()
     int32_t l_curr_height = 0;
     m_max_pic_width = 0;
     m_max_pic_height = 0;
-    int i;
+    size_t i;
 
     if (mCameraHandle) {
         ALOGE("Failure: Camera already opened");
@@ -2087,15 +2087,15 @@ int QCamera2HardwareInterface::startPreview()
     int32_t rc = NO_ERROR;
     CDBG_HIGH("%s: E", __func__);
     // start preview stream
-    if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() !=true) {
+    if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
         rc = startChannel(QCAMERA_CH_TYPE_ZSL);
         if (rc == NO_ERROR) {
             startChannel(QCAMERA_CH_TYPE_ANALYSIS);
         }
     } else {
         rc = startChannel(QCAMERA_CH_TYPE_PREVIEW);
-        if ((rc == NO_ERROR) && (mParameters.getRecordingHintValue() != true)
-            && !(mParameters.isSecureMode())) {
+        if ((rc == NO_ERROR) && (mParameters.getRecordingHintValue() != true) &&
+                !mParameters.isSecureMode()) {
             startChannel(QCAMERA_CH_TYPE_ANALYSIS);
         }
         /*
@@ -5930,8 +5930,8 @@ int QCamera2HardwareInterface::calcThermalLevel(
             // Set lowest min FPS for now
             adjustedRange.min_fps = minFPS/1000.0f;
             adjustedRange.max_fps = minFPS/1000.0f;
-            for ( int i = 0 ; i < gCamCaps[mCameraId]->fps_ranges_tbl_cnt ; i++ ) {
-                if ( gCamCaps[mCameraId]->fps_ranges_tbl[i].min_fps < adjustedRange.min_fps ) {
+            for (size_t i = 0; i < gCamCaps[mCameraId]->fps_ranges_tbl_cnt; i++) {
+                if (gCamCaps[mCameraId]->fps_ranges_tbl[i].min_fps < adjustedRange.min_fps) {
                     adjustedRange.min_fps = gCamCaps[mCameraId]->fps_ranges_tbl[i].min_fps;
                     adjustedRange.max_fps = adjustedRange.min_fps;
                 }

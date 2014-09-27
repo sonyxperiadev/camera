@@ -788,7 +788,7 @@ private:
                                  int len,
                                  int &default_fps_index);
     String8 createFpsString(cam_fps_range_t &fps);
-    String8 createZoomRatioValuesString(int *zoomRatios, int length);
+    String8 createZoomRatioValuesString(uint32_t *zoomRatios, size_t length);
     int lookupAttr(const QCameraMap arr[], int len, const char *name);
     const char *lookupNameByValue(const QCameraMap arr[], int len, int value);
 

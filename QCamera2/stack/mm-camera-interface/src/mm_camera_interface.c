@@ -1541,7 +1541,7 @@ static int32_t mm_camera_intf_process_advanced_capture(uint32_t camera_handle,
     return rc;
 }
 
-struct camera_info *get_cam_info(int camera_id)
+struct camera_info *get_cam_info(uint32_t camera_id)
 {
     return &g_cam_ctrl.info[camera_id];
 }

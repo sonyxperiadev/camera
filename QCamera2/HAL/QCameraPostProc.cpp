@@ -668,7 +668,7 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
 
         // find meta data frame
         mm_camera_buf_def_t *meta_frame = NULL;
-        for (int i = 0; i < frame->num_bufs; i++) {
+        for (uint32_t i = 0; i < frame->num_bufs; i++) {
             // look through input superbuf
             if (frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
                 meta_frame = frame->bufs[i];
@@ -922,7 +922,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
 
     // find meta data frame
     mm_camera_buf_def_t *meta_frame = NULL;
-    for (int i = 0; job && (i < job->src_frame->num_bufs); i++) {
+    for (uint32_t i = 0; job && (i < job->src_frame->num_bufs); i++) {
         // look through input superbuf
         if (job->src_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
             meta_frame = job->src_frame->bufs[i];
@@ -932,7 +932,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
 
     if (meta_frame == NULL) {
         // look through reprocess superbuf
-        for (int i = 0; i < frame->num_bufs; i++) {
+        for (uint32_t i = 0; i < frame->num_bufs; i++) {
             if (frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
                 meta_frame = frame->bufs[i];
                 break;
@@ -1360,7 +1360,7 @@ int32_t QCameraPostProcessor::queryStreams(QCameraStream **main,
     *main = *thumb = *reproc = NULL;
     *main_image = *thumb_image = NULL;
     // find snapshot frame and thumnail frame
-    for (int i = 0; i < frame->num_bufs; i++) {
+    for (uint32_t i = 0; i < frame->num_bufs; i++) {
         QCameraStream *pStream =
                 pChannel->getStreamByHandle(frame->bufs[i]->stream_id);
         if (pStream != NULL) {
@@ -1389,7 +1389,7 @@ int32_t QCameraPostProcessor::queryStreams(QCameraStream **main,
         pSrcReprocChannel = m_parent->getChannelByHandle(reproc_frame->ch_id);
         if (pSrcReprocChannel != NULL) {
             // find thumbnail frame
-            for (int i = 0; i < reproc_frame->num_bufs; i++) {
+            for (uint32_t i = 0; i < reproc_frame->num_bufs; i++) {
                 QCameraStream *pStream =
                         pSrcReprocChannel->getStreamByHandle(
                                 reproc_frame->bufs[i]->stream_id);
@@ -1848,7 +1848,7 @@ int32_t QCameraPostProcessor::processRawImageImpl(mm_camera_super_buf_t *recvd_f
     }
 
     // find snapshot frame
-    for (int i = 0; i < recvd_frame->num_bufs; i++) {
+    for (uint32_t i = 0; i < recvd_frame->num_bufs; i++) {
         QCameraStream *pCurStream =
             pChannel->getStreamByHandle(recvd_frame->bufs[i]->stream_id);
         if (pCurStream != NULL) {
@@ -2450,7 +2450,7 @@ int32_t QCameraPostProcessor::setYUVFrameInfo(mm_camera_super_buf_t *recvd_frame
     }
 
     // find snapshot frame
-    for (int i = 0; i < recvd_frame->num_bufs; i++) {
+    for (uint32_t i = 0; i < recvd_frame->num_bufs; i++) {
         QCameraStream *pStream =
             pChannel->getStreamByHandle(recvd_frame->bufs[i]->stream_id);
         if (pStream != NULL) {

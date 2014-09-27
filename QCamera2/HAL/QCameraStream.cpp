@@ -169,7 +169,7 @@ int32_t QCameraStream::put_bufs_deffered(
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraStream::invalidate_buf(int index, void *user_data)
+int32_t QCameraStream::invalidate_buf(uint32_t index, void *user_data)
 {
     QCameraStream *stream = reinterpret_cast<QCameraStream *>(user_data);
     if (!stream) {
@@ -195,7 +195,7 @@ int32_t QCameraStream::invalidate_buf(int index, void *user_data)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraStream::clean_invalidate_buf(int index, void *user_data)
+int32_t QCameraStream::clean_invalidate_buf(uint32_t index, void *user_data)
 {
     QCameraStream *stream = reinterpret_cast<QCameraStream *>(user_data);
     if (!stream) {

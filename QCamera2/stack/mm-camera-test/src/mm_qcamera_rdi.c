@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -91,7 +91,7 @@ mm_camera_stream_t * mm_app_add_rdi_stream(mm_camera_test_obj_t *test_obj,
                                                uint8_t num_burst)
 {
     int rc = MM_CAMERA_OK;
-    int i;
+    size_t i;
     mm_camera_stream_t *stream = NULL;
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
     cam_format_t fmt = CAM_FORMAT_MAX;
