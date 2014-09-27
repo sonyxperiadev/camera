@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,7 +44,7 @@
 typedef enum {
     /* poll entries updated */
     MM_CAMERA_PIPE_CMD_POLL_ENTRIES_UPDATED,
-    /* poll entries updated */
+    /* poll entries updated asynchronous */
     MM_CAMERA_PIPE_CMD_POLL_ENTRIES_UPDATED_ASYNC,
     /* commit updates */
     MM_CAMERA_PIPE_CMD_COMMIT,
@@ -61,7 +61,7 @@ typedef enum {
 } mm_camera_poll_task_state_type_t;
 
 typedef struct {
-    uint8_t cmd;
+    uint32_t cmd;
     mm_camera_event_t event;
 } mm_camera_sig_evt_t;
 
@@ -85,7 +85,6 @@ static int32_t mm_camera_poll_sig_async(mm_camera_poll_thread_t *poll_cb,
     /* send through pipe */
     /* get the mutex */
     mm_camera_sig_evt_t cmd_evt;
-    int len;
 
     CDBG("%s: E cmd = %d", __func__,cmd);
     memset(&cmd_evt, 0, sizeof(cmd_evt));
@@ -93,16 +92,18 @@ static int32_t mm_camera_poll_sig_async(mm_camera_poll_thread_t *poll_cb,
     pthread_mutex_lock(&poll_cb->mutex);
     /* reset the statue to false */
     poll_cb->status = FALSE;
-    /* send cmd to worker */
 
-    len = write(poll_cb->pfds[1], &cmd_evt, sizeof(cmd_evt));
-    if(len < 1) {
-        CDBG_ERROR("%s: len = %d, errno = %d", __func__, len, errno);
+    /* send cmd to worker */
+    ssize_t len = write(poll_cb->pfds[1], &cmd_evt, sizeof(cmd_evt));
+    if (len < 1) {
+        CDBG_ERROR("%s: len = %lld, errno = %d", __func__,
+                (long long int)len, errno);
         /* Avoid waiting for the signal */
         pthread_mutex_unlock(&poll_cb->mutex);
         return 0;
     }
-    CDBG("%s: begin IN mutex write done, len = %d", __func__, len);
+    CDBG("%s: begin IN mutex write done, len = %lld", __func__,
+            (long long int)len);
     pthread_mutex_unlock(&poll_cb->mutex);
     CDBG("%s: X", __func__);
     return 0;
@@ -130,7 +131,6 @@ static int32_t mm_camera_poll_sig(mm_camera_poll_thread_t *poll_cb,
     /* send through pipe */
     /* get the mutex */
     mm_camera_sig_evt_t cmd_evt;
-    int len;
 
     CDBG("%s: E cmd = %d", __func__,cmd);
     memset(&cmd_evt, 0, sizeof(cmd_evt));
@@ -140,14 +140,16 @@ static int32_t mm_camera_poll_sig(mm_camera_poll_thread_t *poll_cb,
     poll_cb->status = FALSE;
     /* send cmd to worker */
 
-    len = write(poll_cb->pfds[1], &cmd_evt, sizeof(cmd_evt));
+    ssize_t len = write(poll_cb->pfds[1], &cmd_evt, sizeof(cmd_evt));
     if(len < 1) {
-        CDBG_ERROR("%s: len = %d, errno = %d", __func__, len, errno);
+        CDBG_ERROR("%s: len = %lld, errno = %d", __func__,
+                (long long int)len, errno);
         /* Avoid waiting for the signal */
         pthread_mutex_unlock(&poll_cb->mutex);
         return 0;
     }
-    CDBG("%s: begin IN mutex write done, len = %d", __func__, len);
+    CDBG("%s: begin IN mutex write done, len = %lld", __func__,
+            (long long int)len);
     /* wait till worker task gives positive signal */
     if (FALSE == poll_cb->status) {
         CDBG("%s: wait", __func__);

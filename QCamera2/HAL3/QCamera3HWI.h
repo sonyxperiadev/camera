@@ -69,7 +69,7 @@ namespace qcamera {
 /* Time related macros */
 typedef int64_t nsecs_t;
 #define NSEC_PER_SEC 1000000000LL
-#define NSEC_PER_USEC 1000
+#define NSEC_PER_USEC 1000LL
 #define NSEC_PER_33MSEC 33000000LL
 
 extern volatile uint32_t gCamHal3LogLevel;
@@ -105,7 +105,7 @@ public:
     static int close_camera_device(struct hw_device_t* device);
 
 public:
-    QCamera3HardwareInterface(int cameraId,
+    QCamera3HardwareInterface(uint32_t cameraId,
             const camera_module_callbacks_t *callbacks);
     virtual ~QCamera3HardwareInterface();
     static void camEvtHandle(uint32_t camera_handle, mm_camera_event_t *evt,
@@ -114,19 +114,19 @@ public:
     int getMetadata(int type);
     camera_metadata_t* translateCapabilityToMetadata(int type);
 
-    static int getCamInfo(int cameraId, struct camera_info *info);
-    static int initCapabilities(int cameraId);
-    static int initStaticMetadata(int cameraId);
-    static void makeTable(cam_dimension_t* dimTable, uint8_t size, uint8_t max_size,
-                          int32_t* sizeTable);
-    static void makeFPSTable(cam_fps_range_t* fpsTable, uint8_t size,
-                             uint8_t max_size, int32_t* fpsRangesTable);
-    static void makeOverridesList(cam_scene_mode_overrides_t* overridesTable, uint8_t size,
-                             uint8_t max_size, uint8_t* overridesList,
-                             uint8_t* supported_indexes, int camera_id);
-    static uint8_t filterJpegSizes(int32_t* jpegSizes, int32_t* processedSizes,
-                             uint8_t processedSizesCnt, uint8_t maxCount,
-                             cam_rect_t active_array_size, uint8_t downscale_factor);
+    static int getCamInfo(uint32_t cameraId, struct camera_info *info);
+    static int initCapabilities(uint32_t cameraId);
+    static int initStaticMetadata(uint32_t cameraId);
+    static void makeTable(cam_dimension_t *dimTable, size_t size,
+            size_t max_size, int32_t *sizeTable);
+    static void makeFPSTable(cam_fps_range_t *fpsTable, size_t size,
+            size_t max_size, int32_t *fpsRangesTable);
+    static void makeOverridesList(cam_scene_mode_overrides_t *overridesTable,
+            size_t size, size_t max_size, uint8_t *overridesList,
+            uint8_t *supported_indexes, uint32_t camera_id);
+    static size_t filterJpegSizes(int32_t *jpegSizes, int32_t *processedSizes,
+            size_t processedSizesCnt, size_t maxCount, cam_rect_t active_array_size,
+            uint8_t downscale_factor);
     static void convertToRegions(cam_rect_t rect, int32_t* region, int weight);
     static void convertFromRegions(cam_area_t* roi, const camera_metadata_t *settings,
                                    uint32_t tag);
@@ -174,8 +174,8 @@ public:
                 camera3_stream_buffer_t *buffer, uint32_t frame_number);
 
     typedef struct {
-        uint8_t fwk_name;
-        uint8_t hal_name;
+        int fwk_name;
+        int hal_name;
     } QCameraMap;
 
     typedef struct {
@@ -188,17 +188,15 @@ private:
     int openCamera();
     int closeCamera();
     int AddSetParmEntryToBatch(parm_buffer_t *p_table,
-                               cam_intf_parm_type_t paramType,
-                               uint32_t paramLength,
-                               void *paramValue);
-    static int32_t lookupHalName(const QCameraMap arr[],
+            cam_intf_parm_type_t paramType, size_t paramLength, void *paramValue);
+    static int lookupHalName(const QCameraMap arr[],
             size_t len, int fwk_name);
-    static int32_t lookupFwkName(const QCameraMap arr[],
+    static int lookupFwkName(const QCameraMap arr[],
             size_t len, int hal_name);
     static cam_cds_mode_type_t lookupProp(const QCameraPropMap arr[],
             size_t len, const char *name);
-    static int calcMaxJpegSize(uint8_t camera_id);
-    cam_dimension_t getMaxRawSize(uint8_t camera_id);
+    static size_t calcMaxJpegSize(uint32_t camera_id);
+    cam_dimension_t getMaxRawSize(uint32_t camera_id);
 
     int validateCaptureRequest(camera3_capture_request_t *request);
     int validateStreamDimensions(camera3_stream_configuration_t *streamList);
@@ -207,13 +205,10 @@ private:
     int64_t getMinFrameDuration(const camera3_capture_request_t *request);
     void handleMetadataWithLock(mm_camera_super_buf_t *metadata_buf);
     void handleBufferWithLock(camera3_stream_buffer_t *buffer,
-        uint32_t frame_number);
+            uint32_t frame_number);
     void unblockRequestIfNecessary();
-    void dumpMetadataToFile(tuning_params_t &meta,
-                            uint32_t &dumpFrameCount,
-                            int32_t enabled,
-                            const char *type,
-                            uint32_t frameNumber);
+    void dumpMetadataToFile(tuning_params_t &meta, uint32_t &dumpFrameCount,
+            bool enabled, const char *type, uint32_t frameNumber);
     static void getLogLevel();
 
     void cleanAndSortStreamInfo();
@@ -223,11 +218,11 @@ private:
 public:
     cam_dimension_t calcMaxJpegDim();
     bool needOnlineRotation();
-    int getJpegQuality();
+    uint32_t getJpegQuality();
     QCamera3Exif *getExifData();
 private:
     camera3_device_t   mCameraDevice;
-    uint8_t            mCameraId;
+    uint32_t           mCameraId;
     mm_camera_vtbl_t  *mCameraHandle;
     bool               mCameraOpened;
     bool               mCameraInitialized;

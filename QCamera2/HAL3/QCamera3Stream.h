@@ -64,7 +64,7 @@ public:
                          uint32_t postprocess_mask,
                          hal3_stream_cb_routine stream_cb,
                          void *userdata);
-    virtual int32_t bufDone(int index);
+    virtual int32_t bufDone(uint32_t index);
     virtual int32_t processDataNotify(mm_camera_super_buf_t *bufs);
     virtual int32_t start();
     virtual int32_t stop();
@@ -76,12 +76,12 @@ public:
     int32_t getFrameOffset(cam_frame_len_offset_t &offset);
     int32_t getFrameDimension(cam_dimension_t &dim);
     int32_t getFormat(cam_format_t &fmt);
-    mm_camera_buf_def_t* getInternalFormatBuffer(int index);
+    mm_camera_buf_def_t* getInternalFormatBuffer(uint32_t index);
     QCamera3Memory *getStreamBufs() {return mStreamBufs;};
     uint32_t getMyServerID();
 
     int32_t mapBuf(uint8_t buf_type, uint32_t buf_idx,
-                   int32_t plane_idx, int fd, uint32_t size);
+            int32_t plane_idx, int fd, size_t size);
     int32_t unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plane_idx);
     int32_t setParameter(cam_stream_parm_buffer_t &param);
 
@@ -128,8 +128,8 @@ private:
                      mm_camera_buf_def_t **bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl);
     int32_t putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl);
-    int32_t invalidateBuf(int index);
-    int32_t cleanInvalidateBuf(int index);
+    int32_t invalidateBuf(uint32_t index);
+    int32_t cleanInvalidateBuf(uint32_t index);
 
 };
 

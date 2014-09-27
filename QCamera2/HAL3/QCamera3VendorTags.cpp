@@ -161,12 +161,12 @@ void QCamera3VendorTags::get_vendor_tag_ops(
 int QCamera3VendorTags::get_tag_count(
                 const vendor_tag_ops_t * ops)
 {
-    int count = 0;
+    size_t count = 0;
     if (ops == Ops)
         count = sizeof(qcamera3_all_tags)/sizeof(qcamera3_all_tags[0]);
 
     ALOGV("%s: count is %d", __func__, count);
-    return count;
+    return (int)count;
 }
 
 /*===========================================================================

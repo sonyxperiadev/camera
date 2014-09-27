@@ -177,7 +177,7 @@ private:
 
     void *                     m_pJpegOutputMem[MM_JPEG_MAX_BUF];
     QCameraExif *              m_pJpegExifObj;
-    int8_t                     m_bThumbnailNeeded;
+    uint32_t                   m_bThumbnailNeeded;
     QCameraReprocessChannel *  m_pReprocChannel;
     camera_memory_t *          m_DataMem; // save frame mem pointer
 
