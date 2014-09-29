@@ -103,13 +103,18 @@ typedef struct {
 } mm_camera_generic_cmd_t;
 
 typedef struct {
+    uint32_t frame_idx;
+    cam_stream_type_t stream_type;
+} mm_camera_flush_cmd_t;
+
+typedef struct {
     mm_camera_cmdcb_type_t cmd_type;
     union {
         mm_camera_buf_info_t buf;    /* frame buf if dataCB */
         mm_camera_event_t evt;       /* evt if evtCB */
         mm_camera_super_buf_t superbuf; /* superbuf if superbuf dataCB*/
         mm_camera_req_buf_t req_buf; /* num of buf requested */
-        uint32_t frame_idx; /* frame idx boundary for flush superbuf queue*/
+        mm_camera_flush_cmd_t flush_cmd; /* frame idx boundary for flush superbuf queue*/
         mm_camera_super_buf_notify_mode_t notify_mode; /* notification mode */
         mm_camera_generic_cmd_t gen_cmd;
     } u;
@@ -121,6 +126,7 @@ typedef struct {
     cam_queue_t cmd_queue; /* cmd queue (queuing dataCB, asyncCB, or exitCMD) */
     pthread_t cmd_pid;           /* cmd thread ID */
     cam_semaphore_t cmd_sem;     /* semaphore for cmd thread */
+    cam_semaphore_t sync_sem;     /* semaphore for synchronization with cmd thread */
     mm_camera_cmd_cb_t cb;       /* cb for cmd */
     void* user_data;             /* user_data for cb */
     char threadName[THREAD_NAME_SIZE];
