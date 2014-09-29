@@ -1245,7 +1245,7 @@ int QCamera3HardwareInterface::configureStreams(
 
     // settings/parameters don't carry over for new configureStreams
     int32_t hal_version = CAM_HAL_V3;
-    memset(mParameters, 0, sizeof(metadata_buffer_t));
+    clear_metadata_buffer(mParameters);
 
     AddSetParmEntryToBatch(mParameters, CAM_INTF_PARM_HAL_VERSION,
             sizeof(hal_version), &hal_version);
@@ -2037,7 +2037,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             uint8_t captureIntent =
                 meta.find(ANDROID_CONTROL_CAPTURE_INTENT).data.u8[0];
             mCaptureIntent = captureIntent;
-            memset(mParameters, 0, sizeof(parm_buffer_t));
+            clear_metadata_buffer(mParameters);
             AddSetParmEntryToBatch(mParameters, CAM_INTF_PARM_HAL_VERSION,
                 sizeof(hal_version), &hal_version);
             AddSetParmEntryToBatch(mParameters, CAM_INTF_META_CAPTURE_INTENT,
@@ -5678,7 +5678,7 @@ int QCamera3HardwareInterface::setFrameParameters(
     int rc = 0;
     int32_t hal_version = CAM_HAL_V3;
 
-    memset(mParameters, 0, sizeof(parm_buffer_t));
+    clear_metadata_buffer(mParameters);
     rc = AddSetParmEntryToBatch(mParameters, CAM_INTF_PARM_HAL_VERSION,
                 sizeof(hal_version), &hal_version);
     if (rc < 0) {
@@ -5753,7 +5753,7 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
         ALOGE("%s: Invalid reprocessing metadata buffer", __func__);
         return BAD_VALUE;
     }
-    memset(reprocParam, 0, sizeof(metadata_buffer_t));
+    clear_metadata_buffer(reprocParam);
 
     /*we need to update the frame number in the parameters*/
     rc = AddSetParmEntryToBatch(reprocParam, CAM_INTF_META_FRAME_NUMBER,
