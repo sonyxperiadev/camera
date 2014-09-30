@@ -63,7 +63,7 @@ QCamera2Factory::QCamera2Factory()
     mCallbacks = NULL;
     mNumOfCameras = get_num_of_cameras();
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.HAL3.enabled", prop, "0");
+    property_get("persist.camera.HAL3.enabled", prop, "1");
     int isHAL3Enabled = atoi(prop);
     //Query camera at this point in order
     //to avoid any delays during subsequent
