@@ -1077,7 +1077,9 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mPostviewJob(-1),
       mMetadataJob(-1),
       mReprocJob(-1),
-      mRawdataJob(-1)
+      mRawdataJob(-1),
+      mOutputCount(0),
+      mAdvancedCaptureConfigured(false)
 {
     getLogLevel();
     ATRACE_CALL();
@@ -2377,6 +2379,46 @@ bool QCamera2HardwareInterface::processUFDumps(qcamera_jpeg_evt_payload_t *evt)
 }
 
 /*===========================================================================
+ * FUNCTION   : unconfigureAdvancedCapture
+ *
+ * DESCRIPTION: unconfigure Advanced Capture.
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
+{
+    int32_t rc = NO_ERROR;
+
+    if (mAdvancedCaptureConfigured) {
+
+        mAdvancedCaptureConfigured = false;
+
+        if(mIs3ALocked) {
+            mParameters.set3ALock(QCameraParameters::VALUE_FALSE);
+            mIs3ALocked = false;
+        }
+        if ( mParameters.isHDREnabled() || mParameters.isAEBracketEnabled()) {
+            rc = mParameters.stopAEBracket();
+        } else if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
+            rc = configureAFBracketing(false);
+        } else if (mParameters.isChromaFlashEnabled()) {
+            rc = configureFlashBracketing(false);
+        } else  if (mParameters.isOptiZoomEnabled()) {
+            rc = mParameters.setAndCommitZoom(mZoomLevel);
+        } else {
+            ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
+            rc = BAD_VALUE;
+        }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : configureAdvancedCapture
  *
  * DESCRIPTION: configure Advanced Capture.
@@ -2408,6 +2450,13 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
         rc = BAD_VALUE;
     }
+
+    if (NO_ERROR == rc) {
+        mAdvancedCaptureConfigured = true;
+    } else {
+        mAdvancedCaptureConfigured = false;
+    }
+
     CDBG_HIGH("%s: X",__func__);
     return rc;
 }
@@ -2990,10 +3039,9 @@ int QCamera2HardwareInterface::cancelPicture()
     //stop post processor
     m_postprocessor.stop();
 
+    unconfigureAdvancedCapture();
+
     mParameters.setDisplayFrame(TRUE);
-    if ( mParameters.isHDREnabled() || mParameters.isAEBracketEnabled()) {
-        mParameters.stopAEBracket();
-    }
 
     if (mParameters.isZSLMode()) {
         QCameraPicChannel *pZSLChannel =
@@ -3014,17 +3062,7 @@ int QCamera2HardwareInterface::cancelPicture()
             delChannel(QCAMERA_CH_TYPE_RAW);
         }
     }
-    if(mIs3ALocked) {
-        mParameters.set3ALock(QCameraParameters::VALUE_FALSE);
-        mIs3ALocked = false;
-    }
-    if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
-        configureAFBracketing(false);
-    }
 
-    if (mParameters.isChromaFlashEnabled()) {
-      configureFlashBracketing(false);
-    }
     return NO_ERROR;
 }
 
@@ -3039,12 +3077,8 @@ int QCamera2HardwareInterface::cancelPicture()
  *==========================================================================*/
 void QCamera2HardwareInterface::captureDone()
 {
-    if (mParameters.isOptiZoomEnabled() &&
-            ++mOutputCount >= mParameters.getBurstCountForAdvancedCapture()) {
-        CDBG_HIGH("%s:%d] Restoring previous zoom value!!", __func__,
-                __LINE__);
-        mParameters.setAndCommitZoom(mZoomLevel);
-        mOutputCount = 0;
+    if (++mOutputCount >= mParameters.getBurstCountForAdvancedCapture()) {
+        unconfigureAdvancedCapture();
     }
 }
 

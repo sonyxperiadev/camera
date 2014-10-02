@@ -430,6 +430,7 @@ private:
     bool removeSizeFromList(cam_dimension_t* size_list,
                             uint8_t length,
                             cam_dimension_t size);
+    int32_t unconfigureAdvancedCapture();
     int32_t configureAdvancedCapture();
     int32_t configureAFBracketing(bool enable = true);
     int32_t configureFlashBracketing(bool enable = true);
@@ -633,6 +634,7 @@ private:
     int32_t mReprocJob;
     int32_t mRawdataJob;
     uint32_t mOutputCount;
+    bool mAdvancedCaptureConfigured;
 };
 
 }; // namespace qcamera
