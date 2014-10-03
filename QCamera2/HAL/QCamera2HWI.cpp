@@ -5461,6 +5461,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
                 return rc;
             }
             waitDefferedWork(mMetadataJob);
+            waitDefferedWork(mRawdataJob);
         }
     }
 
@@ -6754,6 +6755,8 @@ void *QCamera2HardwareInterface::defferedWorkRoutine(void *obj)
                         }
 
                         cam_stream_type_t streamType = dw->args.allocArgs.type;
+                        CDBG_HIGH("%s: Deffered buffer allocation started for stream type: %d",
+                                __func__, streamType);
 
                         uint32_t iNumOfStreams = pChannel->getNumOfStreams();
                         QCameraStream *pStream = NULL;
@@ -6775,6 +6778,8 @@ void *QCamera2HardwareInterface::defferedWorkRoutine(void *obj)
                         {
                             Mutex::Autolock l(pme->mDeffLock);
                             pme->mDeffOngoingJobs[dw->id] = false;
+                            CDBG_HIGH("%s: Deffered buffer allocation done for stream type: %d",
+                                    __func__, streamType);
                             delete dw;
                             pme->mDeffCond.signal();
                         }
