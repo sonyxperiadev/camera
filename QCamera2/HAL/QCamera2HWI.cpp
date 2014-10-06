@@ -697,6 +697,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
                 CDBG_HIGH("%s: [ZSL Retro] Prep Snapshot done", __func__);
 
             }
+            hw->mPrepSnapRun = true;
         }
         /* Regardless what the result value for prepare_snapshot,
          * go ahead with capture anyway. Just like the way autofocus
