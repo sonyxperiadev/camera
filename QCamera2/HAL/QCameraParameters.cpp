@@ -771,6 +771,9 @@ QCameraParameters::QCameraParameters()
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
+    mTotalPPCount = 0;
+    mZoomLevel = 0;
+    mCurPPCount = 0;
 }
 
 /*===========================================================================
@@ -846,6 +849,9 @@ QCameraParameters::QCameraParameters(const String8 &params)
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
     m_pTorch = NULL;
     m_bReleaseTorchCamera = false;
+    mTotalPPCount = 0;
+    mZoomLevel = 0;
+    mCurPPCount = 0;
 }
 
 /*===========================================================================
@@ -2514,7 +2520,7 @@ int32_t QCameraParameters::setZoom(const QCameraParameters& params)
 
     int prevZoomLevel = getInt(KEY_ZOOM);
     if (prevZoomLevel == zoomLevel) {
-        CDBG("%s: No value change in contrast", __func__);
+        CDBG("%s: No value change in zoom %d %d", __func__, prevZoomLevel, zoomLevel);
         return NO_ERROR;
     }
 
@@ -5672,6 +5678,7 @@ int32_t QCameraParameters::setZoom(int zoom_level)
     sprintf(val, "%d", zoom_level);
     updateParamEntry(KEY_ZOOM, val);
 
+    mZoomLevel = zoom_level;
     return AddSetParmEntryToBatch(m_pParamBuf,
                                   CAM_INTF_PARM_ZOOM,
                                   sizeof(zoom_level),
@@ -6749,6 +6756,7 @@ int32_t QCameraParameters::setAndCommitZoom(int zoom_level)
     if (rc != NO_ERROR) {
         ALOGE("%s:Failed to set Flash value", __func__);
     }
+    mZoomLevel = zoom_level;
     CDBG_HIGH("%s: X",__func__);
     return rc;
 }
@@ -10414,6 +10422,33 @@ int32_t QCameraParameters::getStreamPpMask(cam_stream_type_t stream_type,
     return NO_ERROR;
 }
 
+/*===========================================================================
+ * FUNCTION   : setReprocCount
+ *
+ * DESCRIPTION: Set total reprocessing pass count
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCameraParameters::setReprocCount()
+{
+    mTotalPPCount = 1; //Default reprocessing Pass count
+    char value[PROPERTY_VALUE_MAX];
+    int multpass = 0;
+
+    property_get("persist.camera.multi_pass", value, "0");
+    multpass = atoi(value);
+
+   if ( multpass == 0 ) {
+       return;
+   }
+
+    if ((getZoomLevel() != 0) && (isZSLMode())) {
+        ALOGW("Zoom Present. Need 2nd pass for post processing");
+        mTotalPPCount++;
+    }
+}
 
 /*===========================================================================
  * FUNCTION   : dump

@@ -685,6 +685,12 @@ public:
             cam_intf_parm_type_t paramType,
             size_t paramLength, void *paramValue);
 
+    int32_t getZoomLevel(){return mZoomLevel;};
+    int8_t  getReprocCount(){return mTotalPPCount;};
+    int8_t  getCurPPCount(){return mCurPPCount;};
+    void    setReprocCount();
+    void    setCurPPCount(int8_t count) {mCurPPCount = count;};
+
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -938,6 +944,9 @@ private:
     uint32_t m_nMinRequiredPpMask;
     uint32_t mStreamPpMask[CAM_STREAM_TYPE_MAX];
     int32_t m_nSharpness;
+    int8_t mTotalPPCount;
+    int8_t mCurPPCount;
+    int32_t mZoomLevel;
 };
 
 }; // namespace qcamera
