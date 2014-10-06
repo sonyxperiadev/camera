@@ -50,9 +50,6 @@
 #define GET_PARM_BIT32(parm, parm_arr) \
     ((parm_arr[parm/32]>>(parm%32))& 0x1)
 
-#define WAIT_TIMEOUT 500000000L
-#define NSEC_PER_SEC 1000000000L
-
 /* internal function declare */
 int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
                           uint8_t reg_flag);
@@ -1586,14 +1583,11 @@ void mm_camera_util_wait_for_event(mm_camera_obj_t *my_obj,
 {
     int rc = 0;
     struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_nsec += WAIT_TIMEOUT; //Revisit 500ms based on use case
-    if (ts.tv_nsec >= NSEC_PER_SEC) {
-        ts.tv_nsec -= NSEC_PER_SEC;
-        ts.tv_sec  += 1;
-    }
+
     pthread_mutex_lock(&my_obj->evt_lock);
     while (!(my_obj->evt_rcvd.server_event_type & evt_mask)) {
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec++;
         rc = pthread_cond_timedwait(&my_obj->evt_cond, &my_obj->evt_lock, &ts);
         if (rc == ETIMEDOUT) {
             ALOGE("%s pthread_cond_timedwait success\n", __func__);
