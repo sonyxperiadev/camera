@@ -1983,19 +1983,15 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
  *==========================================================================*/
 void QCamera2HardwareInterface::debugShowVideoFPS()
 {
-    static int n_vFrameCount = 0;
-    static int n_vLastFrameCount = 0;
-    static nsecs_t n_vLastFpsTime = 0;
-    static double n_vFps = 0;
-    n_vFrameCount++;
+    mVFrameCount++;
     nsecs_t now = systemTime();
-    nsecs_t diff = now - n_vLastFpsTime;
+    nsecs_t diff = now - mVLastFpsTime;
     if (diff > ms2ns(250)) {
-        n_vFps = (((double)(n_vFrameCount - n_vLastFrameCount)) *
+        mVFps = (((double)(mVFrameCount - mVLastFrameCount)) *
                 (double)(s2ns(1))) / (double)diff;
-        CDBG_HIGH("Video Frames Per Second: %.4f", n_vFps);
-        n_vLastFpsTime = now;
-        n_vLastFrameCount = n_vFrameCount;
+        CDBG_HIGH("Video Frames Per Second: %.4f Cam ID = %d", mVFps, mCameraId);
+        mVLastFpsTime = now;
+        mVLastFrameCount = mVFrameCount;
     }
 }
 
@@ -2010,19 +2006,16 @@ void QCamera2HardwareInterface::debugShowVideoFPS()
  *==========================================================================*/
 void QCamera2HardwareInterface::debugShowPreviewFPS()
 {
-    static int n_pFrameCount = 0;
-    static int n_pLastFrameCount = 0;
-    static nsecs_t n_pLastFpsTime = 0;
-    static double n_pFps = 0;
-    n_pFrameCount++;
+    mPFrameCount++;
     nsecs_t now = systemTime();
-    nsecs_t diff = now - n_pLastFpsTime;
+    nsecs_t diff = now - mPLastFpsTime;
     if (diff > ms2ns(250)) {
-        n_pFps = (((double)(n_pFrameCount - n_pLastFrameCount)) *
+        mPFps = (((double)(mPFrameCount - mPLastFrameCount)) *
                 (double)(s2ns(1))) / (double)diff;
-        CDBG_HIGH("[KPI Perf] %s: PROFILE_PREVIEW_FRAMES_PER_SECOND : %.4f", __func__, n_pFps);
-        n_pLastFpsTime = now;
-        n_pLastFrameCount = n_pFrameCount;
+        CDBG_HIGH("[KPI Perf] %s: PROFILE_PREVIEW_FRAMES_PER_SECOND : %.4f Cam ID = %d",
+                __func__, mPFps, mCameraId);
+        mPLastFpsTime = now;
+        mPLastFrameCount = mPFrameCount;
     }
 }
 
