@@ -961,9 +961,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 }
             }
 
-            if (param.isZSLMode() &&
-                (streamInfo->reprocess_config.online.input_stream_type == CAM_STREAM_TYPE_SNAPSHOT)) {
-                // ZSL mode snapshot need reprocess to do the flip
+            if (streamInfo->reprocess_config.online.input_stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+                // Reprocess can be for both zsl and non-zsl cases
                 int flipMode =
                     param.getFlipMode(streamInfo->reprocess_config.online.input_stream_type);
                 if (flipMode > 0) {

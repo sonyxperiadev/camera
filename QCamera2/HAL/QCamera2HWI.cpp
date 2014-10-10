@@ -5166,8 +5166,9 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
 
     // pp feature config
     cam_pp_feature_config_t pp_config;
+    uint32_t required_mask = gCamCaps[mCameraId]->min_required_pp_mask;
     memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
-    if (mParameters.isZSLMode()) {
+    if (mParameters.isZSLMode() || (required_mask & CAM_QCOM_FEATURE_PP_SUPERSET)) {
         if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_EFFECT) {
             pp_config.feature_mask |= CAM_QCOM_FEATURE_EFFECT;
             pp_config.effect = mParameters.getEffectValue();
@@ -5187,6 +5188,9 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
             pp_config.denoise2d.denoise_enable = 1;
             pp_config.denoise2d.process_plates =
                     mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
+        }
+        if (required_mask & CAM_QCOM_FEATURE_ROTATION) {
+            pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
         }
     }
 
@@ -6355,6 +6359,12 @@ bool QCamera2HardwareInterface::needReprocess()
             mParameters.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
         if (snapshot_flipMode > 0) {
             CDBG_HIGH("%s: Need do flip for snapshot in ZSL mode", __func__);
+            pthread_mutex_unlock(&m_parm_lock);
+            return true;
+        }
+    } else {
+        if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_PP_SUPERSET) {
+            CDBG_HIGH("%s: Need CPP in non-ZSL mode", __func__);
             pthread_mutex_unlock(&m_parm_lock);
             return true;
         }
