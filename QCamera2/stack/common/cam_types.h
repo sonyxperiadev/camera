@@ -93,7 +93,8 @@
 #define GPS_PROCESSING_METHOD_SIZE 33
 #define GPS_PROCESSING_METHOD_SIZE_IN_WORD (33+3)/4
 
-#define MAX_INFLIGHT_REQUESTS  4
+#define MAX_INFLIGHT_REQUESTS  7
+#define MIN_INFLIGHT_REQUESTS  4
 
 typedef enum {
     CAM_HAL_V1 = 1,
@@ -669,6 +670,7 @@ typedef enum {
     CAM_EVENT_TYPE_DAEMON_DIED     = (1<<3),
     CAM_EVENT_TYPE_INT_TAKE_JPEG   = (1<<4),
     CAM_EVENT_TYPE_INT_TAKE_RAW    = (1<<5),
+    CAM_EVENT_TYPE_DAEMON_PULL_REQ = (1<<6),
     CAM_EVENT_TYPE_MAX
 } cam_event_type_t;
 
