@@ -3932,13 +3932,18 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
             // auto focus has canceled, just ignore it
             break;
         }
-
+        // If the HAL focus mode is AUTO and AF focus mode is INFINITY, send event to app
+        if ((focusMode == CAM_FOCUS_MODE_AUTO) &&
+                (focus_data.focus_mode == CAM_FOCUS_MODE_INFINITY) &&
+                (focus_data.focus_state == CAM_AF_INACTIVE)) {
+            ret = sendEvtNotify(CAMERA_MSG_FOCUS, true, 0);
+            break;
+        }
         if (focus_data.focus_state == CAM_AF_SCANNING ||
             focus_data.focus_state == CAM_AF_INACTIVE) {
             // in the middle of focusing, just ignore it
             break;
         }
-
         // update focus distance
         mParameters.updateFocusDistances(&focus_data.focus_dist);
         ret = sendEvtNotify(CAMERA_MSG_FOCUS,
@@ -3947,6 +3952,15 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
         break;
     case CAM_FOCUS_MODE_CONTINOUS_VIDEO:
     case CAM_FOCUS_MODE_CONTINOUS_PICTURE:
+
+        // If the HAL focus mode is AUTO and AF focus mode is INFINITY, send event to app
+        if ((focusMode == CAM_FOCUS_MODE_CONTINOUS_PICTURE) &&
+                (focus_data.focus_mode == CAM_FOCUS_MODE_INFINITY) &&
+                (focus_data.focus_state == CAM_AF_INACTIVE)) {
+            ret = sendEvtNotify(CAMERA_MSG_FOCUS, false, 0);
+            break;
+        }
+
         if (focus_data.focus_state == CAM_AF_FOCUSED ||
             focus_data.focus_state == CAM_AF_NOT_FOCUSED) {
             // update focus distance
