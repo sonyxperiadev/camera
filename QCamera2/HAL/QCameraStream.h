@@ -105,6 +105,7 @@ public:
     void deleteStream();
 
     uint8_t getBufferCount() { return mNumBufs; }
+    uint32_t getChannelHandle() { return mChannelHandle; }
 
     uint32_t mDumpFrame;
     uint32_t mDumpMetaFrame;

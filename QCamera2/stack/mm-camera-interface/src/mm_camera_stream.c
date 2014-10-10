@@ -126,6 +126,51 @@ uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt);
 
 
 /*===========================================================================
+ * FUNCTION   : mm_stream_notify_channel
+ *
+ * DESCRIPTION: function to notify channel object on received buffer
+ *
+ * PARAMETERS :
+ *   @ch_obj  : channel object
+ *   @buf_info: ptr to struct storing buffer information
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              0> -- failure
+ *==========================================================================*/
+int32_t mm_stream_notify_channel(struct mm_channel* ch_obj,
+        mm_camera_buf_info_t *buf_info)
+{
+    int32_t rc = 0;
+    mm_camera_cmdcb_t* node = NULL;
+
+    if ((NULL == ch_obj) || (NULL == buf_info)) {
+        CDBG_ERROR("%s : Invalid channel/buffer", __func__);
+        return -ENODEV;
+    }
+
+    /* send cam_sem_post to wake up channel cmd thread to enqueue
+     * to super buffer */
+    node = (mm_camera_cmdcb_t *)malloc(sizeof(mm_camera_cmdcb_t));
+    if (NULL != node) {
+        memset(node, 0, sizeof(mm_camera_cmdcb_t));
+        node->cmd_type = MM_CAMERA_CMD_TYPE_DATA_CB;
+        node->u.buf = *buf_info;
+
+        /* enqueue to cmd thread */
+        cam_queue_enq(&(ch_obj->cmd_thread.cmd_queue), node);
+
+        /* wake up cmd thread */
+        cam_sem_post(&(ch_obj->cmd_thread.cmd_sem));
+    } else {
+        CDBG_ERROR("%s: No memory for mm_camera_node_t", __func__);
+        rc = -ENOMEM;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_stream_handle_rcvd_buf
  *
  * DESCRIPTION: function to handle newly received stream buffer
@@ -140,29 +185,29 @@ void mm_stream_handle_rcvd_buf(mm_stream_t *my_obj,
                                mm_camera_buf_info_t *buf_info,
                                uint8_t has_cb)
 {
+    int32_t rc = 0;
     CDBG("%s: E, my_handle = 0x%x, fd = %d, state = %d",
          __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
 
     /* enqueue to super buf thread */
     if (my_obj->is_bundled) {
-        mm_camera_cmdcb_t* node = NULL;
-
-        /* send cam_sem_post to wake up channel cmd thread to enqueue to super buffer */
-        node = (mm_camera_cmdcb_t *)malloc(sizeof(mm_camera_cmdcb_t));
-        if (NULL != node) {
-            memset(node, 0, sizeof(mm_camera_cmdcb_t));
-            node->cmd_type = MM_CAMERA_CMD_TYPE_DATA_CB;
-            node->u.buf = *buf_info;
-
-            /* enqueue to cmd thread */
-            cam_queue_enq(&(my_obj->ch_obj->cmd_thread.cmd_queue), node);
-
-            /* wake up cmd thread */
-            cam_sem_post(&(my_obj->ch_obj->cmd_thread.cmd_sem));
-        } else {
-            CDBG_ERROR("%s: No memory for mm_camera_node_t", __func__);
+        rc = mm_stream_notify_channel(my_obj->ch_obj, buf_info);
+        if (rc < 0) {
+            CDBG_ERROR("%s: Unable to notify channel", __func__);
         }
     }
+
+    pthread_mutex_lock(&my_obj->buf_lock);
+    if(my_obj->is_linked) {
+        /* need to add into super buf for linking, add ref count */
+        my_obj->buf_status[buf_info->buf->buf_idx].buf_refcnt++;
+
+        rc = mm_stream_notify_channel(my_obj->linked_obj, buf_info);
+        if (rc < 0) {
+            CDBG_ERROR("%s: Unable to notify channel", __func__);
+        }
+    }
+    pthread_mutex_unlock(&my_obj->buf_lock);
 
     if(has_cb) {
         mm_camera_cmdcb_t* node = NULL;

@@ -496,6 +496,19 @@ typedef struct {
                               uint32_t ch_id,
                               uint32_t stream_id);
 
+    /** link_stream: function definition for linking a stream
+     *    @camera_handle : camera handle
+     *    @ch_id : channel handle from which the stream originates
+     *    @stream_id : stream handle
+     *    @linked_ch_id: channel handle in which the stream will be linked
+     *  Return value: 0 -- success
+     *                -1 -- failure
+     **/
+    int32_t (*link_stream) (uint32_t camera_handle,
+          uint32_t ch_id,
+          uint32_t stream_id,
+          uint32_t linked_ch_id);
+
     /** config_stream: fucntion definition for configuring a stream
      *    @camera_handle : camer handler
      *    @ch_id : channel handler

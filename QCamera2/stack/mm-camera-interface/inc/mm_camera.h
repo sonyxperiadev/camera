@@ -246,6 +246,11 @@ typedef struct mm_stream {
 
     uint8_t is_bundled; /* flag if stream is bundled */
 
+    /* reference to linked channel_obj */
+    struct mm_channel* linked_obj;
+    struct mm_stream * linked_stream; /* original stream */
+    uint8_t is_linked; /* flag if stream is linked */
+
     mm_camera_stream_mem_vtbl_t mem_vtbl; /* mem ops tbl */
 
     mm_camera_map_unmap_ops_tbl_t map_ops;
@@ -265,6 +270,7 @@ typedef enum {
 typedef enum {
     MM_CHANNEL_EVT_ADD_STREAM,
     MM_CHANNEL_EVT_DEL_STREAM,
+    MM_CHANNEL_EVT_LINK_STREAM,
     MM_CHANNEL_EVT_CONFIG_STREAM,
     MM_CHANNEL_EVT_GET_BUNDLE_INFO,
     MM_CHANNEL_EVT_START,
@@ -397,6 +403,11 @@ typedef struct mm_channel {
     char threadName[THREAD_NAME_SIZE];
 } mm_channel_t;
 
+typedef struct {
+    mm_channel_t *ch;
+    uint32_t stream_id;
+} mm_camera_stream_link_t;
+
 /* struct to store information about pp cookie*/
 typedef struct {
     uint32_t cam_hdl;
@@ -516,6 +527,10 @@ extern uint32_t mm_camera_add_stream(mm_camera_obj_t *my_obj,
 extern int32_t mm_camera_del_stream(mm_camera_obj_t *my_obj,
                                     uint32_t ch_id,
                                     uint32_t stream_id);
+extern uint32_t mm_camera_link_stream(mm_camera_obj_t *my_obj,
+        uint32_t ch_id,
+        uint32_t stream_id,
+        uint32_t linked_ch_id);
 extern int32_t mm_camera_config_stream(mm_camera_obj_t *my_obj,
                                        uint32_t ch_id,
                                        uint32_t stream_id,
