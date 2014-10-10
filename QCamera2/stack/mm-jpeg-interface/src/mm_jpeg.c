@@ -50,7 +50,10 @@
 
 #define META_KEYFILE "/data/metadata.key"
 
-#define MM_JPG_USE_TURBO_CLOCK (0)
+/**
+ * minimal resolution needed for normal mode of ops
+ */
+#define MM_JPEG_MIN_NOM_RESOLUTION 7680000 /*8MP*/
 
 OMX_ERRORTYPE mm_jpeg_ebd(OMX_HANDLETYPE hComponent,
     OMX_PTR pAppData,
@@ -484,6 +487,30 @@ OMX_ERRORTYPE mm_jpeg_encoding_mode(
   return rc;
 }
 
+/** mm_jpeg_get_speed:
+ *
+ *  Arguments:
+ *    @p_session: job session
+ *
+ *  Return:
+ *       ops speed type for jpeg
+ *
+ *  Description:
+ *      Configure normal or high speed jpeg
+ *
+ **/
+QOMX_JPEG_SPEED_MODE mm_jpeg_get_speed(
+  mm_jpeg_job_session_t* p_session)
+{
+  mm_jpeg_encode_params_t *p_params = &p_session->params;
+  cam_dimension_t *p_dim = &p_params->main_dim.src_dim;
+  if (p_params->burst_mode ||
+    (MM_JPEG_MIN_NOM_RESOLUTION < (p_dim->width * p_dim->height))) {
+    return QOMX_JPEG_SPEED_MODE_HIGH;
+  }
+  return QOMX_JPEG_SPEED_MODE_NORMAL;
+}
+
 /** mm_jpeg_speed_mode:
  *
  *  Arguments:
@@ -510,11 +537,8 @@ OMX_ERRORTYPE mm_jpeg_speed_mode(
     return rc;
   }
 
-  if (MM_JPG_USE_TURBO_CLOCK) {
-    jpeg_speed.speedMode = QOMX_JPEG_SPEED_MODE_HIGH;
-  } else {
-    jpeg_speed.speedMode = QOMX_JPEG_SPEED_MODE_NORMAL;
-  }
+  jpeg_speed.speedMode = mm_jpeg_get_speed(p_session);
+  CDBG_HIGH("%s:%d] speed %d", __func__, __LINE__, jpeg_speed.speedMode);
 
   rc = OMX_SetParameter(p_session->omx_handle, indextype, &jpeg_speed);
   if (rc != OMX_ErrorNone) {
