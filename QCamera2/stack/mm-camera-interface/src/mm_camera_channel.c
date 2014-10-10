@@ -1000,6 +1000,7 @@ uint32_t mm_channel_add_stream(mm_channel_t *my_obj)
     stream_obj->ch_obj = my_obj;
     pthread_mutex_init(&stream_obj->buf_lock, NULL);
     pthread_mutex_init(&stream_obj->cb_lock, NULL);
+    pthread_mutex_init(&stream_obj->cmd_lock, NULL);
     stream_obj->state = MM_STREAM_STATE_INITED;
 
     /* acquire stream */
@@ -1010,6 +1011,7 @@ uint32_t mm_channel_add_stream(mm_channel_t *my_obj)
         /* error during acquire, de-init */
         pthread_mutex_destroy(&stream_obj->buf_lock);
         pthread_mutex_destroy(&stream_obj->cb_lock);
+        pthread_mutex_destroy(&stream_obj->cmd_lock);
         memset(stream_obj, 0, sizeof(mm_stream_t));
     }
     CDBG("%s : stream handle = %d", __func__, s_hdl);

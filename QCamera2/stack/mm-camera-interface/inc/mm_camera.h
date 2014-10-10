@@ -118,6 +118,7 @@ typedef struct {
 typedef void (*mm_camera_cmd_cb_t)(mm_camera_cmdcb_t * cmd_cb, void* user_data);
 
 typedef struct {
+    uint8_t is_active;     /*indicates whether thread is active or not */
     cam_queue_t cmd_queue; /* cmd queue (queuing dataCB, asyncCB, or exitCMD) */
     pthread_t cmd_pid;           /* cmd thread ID */
     cam_semaphore_t cmd_sem;     /* semaphore for cmd thread */
@@ -230,6 +231,7 @@ typedef struct mm_stream {
     /* offset */
     cam_frame_len_offset_t frame_offset;
 
+    pthread_mutex_t cmd_lock; /* lock to protect cmd_thread */
     mm_camera_cmd_thread_t cmd_thread;
 
     /* dataCB registered on this stream obj */

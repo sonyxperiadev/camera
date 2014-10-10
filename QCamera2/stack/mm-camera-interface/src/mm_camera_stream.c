@@ -210,7 +210,8 @@ void mm_stream_handle_rcvd_buf(mm_stream_t *my_obj,
     }
     pthread_mutex_unlock(&my_obj->buf_lock);
 
-    if(has_cb) {
+    pthread_mutex_lock(&my_obj->cmd_lock);
+    if(has_cb && my_obj->cmd_thread.is_active) {
         mm_camera_cmdcb_t* node = NULL;
 
         /* send cam_sem_post to wake up cmd thread to dispatch dataCB */
@@ -229,6 +230,7 @@ void mm_stream_handle_rcvd_buf(mm_stream_t *my_obj,
             CDBG_ERROR("%s: No memory for mm_camera_node_t", __func__);
         }
     }
+    pthread_mutex_unlock(&my_obj->cmd_lock);
 }
 
 /*===========================================================================
@@ -746,20 +748,24 @@ int32_t mm_stream_fsm_reg(mm_stream_t * my_obj,
             }
             pthread_mutex_unlock(&my_obj->cb_lock);
 
+            pthread_mutex_lock(&my_obj->cmd_lock);
             if (has_cb) {
                 snprintf(my_obj->cmd_thread.threadName, THREAD_NAME_SIZE, "CAM_StrmAppData");
                 mm_camera_cmd_thread_launch(&my_obj->cmd_thread,
                                             mm_stream_dispatch_app_data,
                                             (void *)my_obj);
             }
+            pthread_mutex_unlock(&my_obj->cmd_lock);
 
             my_obj->state = MM_STREAM_STATE_ACTIVE;
             rc = mm_stream_streamon(my_obj);
             if (0 != rc) {
                 /* failed stream on, need to release cmd thread if it's launched */
+                pthread_mutex_lock(&my_obj->cmd_lock);
                 if (has_cb) {
                     mm_camera_cmd_thread_release(&my_obj->cmd_thread);
                 }
+                pthread_mutex_unlock(&my_obj->cmd_lock);
                 my_obj->state = MM_STREAM_STATE_REG;
                 break;
             }
@@ -833,9 +839,11 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
             }
             pthread_mutex_unlock(&my_obj->cb_lock);
 
+            pthread_mutex_lock(&my_obj->cmd_lock);
             if (has_cb) {
                 mm_camera_cmd_thread_release(&my_obj->cmd_thread);
             }
+            pthread_mutex_unlock(&my_obj->cmd_lock);
             my_obj->state = MM_STREAM_STATE_REG;
         }
         break;
@@ -925,6 +933,7 @@ int32_t mm_stream_release(mm_stream_t *my_obj)
     /* destroy mutex */
     pthread_mutex_destroy(&my_obj->buf_lock);
     pthread_mutex_destroy(&my_obj->cb_lock);
+    pthread_mutex_destroy(&my_obj->cmd_lock);
 
     /* reset stream obj */
     memset(my_obj, 0, sizeof(mm_stream_t));
