@@ -6479,10 +6479,12 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
     }
 
     uint16_t isoSpeed = mParameters.getExifIsoSpeed();
-    exif->addEntry(EXIFTAGID_ISO_SPEED_RATING,
-                   EXIF_SHORT,
-                   1,
-                   (void *)&(isoSpeed));
+    if (getSensorType() != CAM_SENSOR_YUV) {
+        exif->addEntry(EXIFTAGID_ISO_SPEED_RATING,
+                       EXIF_SHORT,
+                       1,
+                       (void *)&(isoSpeed));
+    }
 
     char gpsProcessingMethod[EXIF_ASCII_PREFIX_SIZE + GPS_PROCESSING_METHOD_SIZE];
     uint32_t count = 0;
