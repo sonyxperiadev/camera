@@ -9801,7 +9801,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
             stream_config_info.num_streams++;
         }
     }
-    if (raw_yuv && !raw_capture) {
+    if (raw_yuv && !raw_capture && isZSLMode()) {
         stream_config_info.type[stream_config_info.num_streams] =
             CAM_STREAM_TYPE_RAW;
         getStreamDimension(CAM_STREAM_TYPE_RAW,
