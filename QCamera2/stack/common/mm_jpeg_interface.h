@@ -44,6 +44,7 @@ typedef enum {
 
 typedef struct {
   cam_3a_params_t cam_3a_params;
+  uint8_t cam_3a_params_valid;
   cam_sensor_params_t sensor_params;
   cam_ae_exif_debug_t ae_debug_params;
   cam_awb_exif_debug_t awb_debug_params;

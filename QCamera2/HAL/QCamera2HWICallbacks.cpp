@@ -1555,6 +1555,7 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         cam_3a_params_t* ae_params =
             (cam_3a_params_t*)POINTER_OF_META(CAM_INTF_META_AEC_INFO, pMetaData);
         pme->mExifParams.cam_3a_params = *ae_params;
+        pme->mExifParams.cam_3a_params_valid = TRUE;
         pme->mFlashNeeded = ae_params->flash_needed;
         pme->mExifParams.cam_3a_params.brightness = (float) pme->mParameters.getBrightness();
     }
