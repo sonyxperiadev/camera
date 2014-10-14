@@ -727,7 +727,7 @@ void *eztune_proc(void *data)
         lib_handle->tsctrl.proto = NULL;
 
         close(client_socket);
-        client_socket = 0;
+        client_socket = -1;
         //tuneserver_check_status(&tsctrl);
       } else {
         CDBG("%s: Processing socket command\n", __func__);
@@ -741,7 +741,7 @@ void *eztune_proc(void *data)
           lib_handle->tsctrl.proto = NULL;
 
           close(client_socket);
-          client_socket = 0;
+          client_socket = -1;
           //tuneserver_check_status(&tsctrl);
           continue;
         }
@@ -792,7 +792,7 @@ void *eztune_proc(void *data)
       if (result < 0) {
         ALOGE("tuneserver_initialize_prevtuningp error!");
         close(prev_client_socket);
-        prev_client_socket = 0;
+        prev_client_socket = -1;
       }
     }
 
@@ -820,7 +820,7 @@ void *eztune_proc(void *data)
           (char **)&lib_handle->tsctrl.proto->send_buf,
           &lib_handle->tsctrl.proto->send_len);
         close(prev_client_socket);
-        prev_client_socket = 0;
+        prev_client_socket = -1;
       } else {
         result = prevserver_process_client_message((void *)buf,
           &lib_handle->tsctrl);
@@ -834,7 +834,7 @@ void *eztune_proc(void *data)
             (char **)&lib_handle->tsctrl.proto->send_buf,
             &lib_handle->tsctrl.proto->send_len);
           close(prev_client_socket);
-          prev_client_socket = 0;
+          prev_client_socket = -1;
           //tuneserver_check_status(&tsctrl);
         }
         //sleep(1);
@@ -842,16 +842,16 @@ void *eztune_proc(void *data)
     }
   } while (1);
 
-  if (server_socket > 0) {
+  if (server_socket >= 0) {
     close(server_socket);
   }
-  if (client_socket > 0) {
+  if (client_socket >= 0) {
     close(client_socket);
   }
-  if (prev_server_socket > 0) {
+  if (prev_server_socket >= 0) {
     close(prev_server_socket);
   }
-  if (prev_client_socket > 0) {
+  if (prev_client_socket >= 0) {
     close(prev_client_socket);
   }
 
