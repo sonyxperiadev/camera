@@ -276,6 +276,7 @@ typedef struct{
     cam_format_t supported_scalar_fmts[CAM_FORMAT_MAX];
 
     uint32_t max_face_detection_count;
+    uint8_t hw_analysis_supported;
 
     uint8_t histogram_supported;
     /* Number of histogram buckets supported */
@@ -350,6 +351,9 @@ typedef struct{
     cam_padding_info_t analysis_padding_info;
     /* Max size supported by ISP viewfinder path */
     cam_dimension_t max_viewfinder_size;
+
+    /*Analysis recommended size*/
+    cam_dimension_t analysis_recommended_res;
 
     /*EIS information*/
     uint8_t supported_is_types_cnt;
