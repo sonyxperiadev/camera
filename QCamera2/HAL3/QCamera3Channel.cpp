@@ -505,7 +505,47 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                                 paddingInfo, postprocess_mask, userData),
                         mCamera3Stream(stream),
                         mNumBufs(0),
-                        mStreamType(stream_type)
+                        mStreamType(stream_type),
+                        mWidth(stream->width),
+                        mHeight(stream->height)
+{
+}
+
+/*===========================================================================
+ * FUNCTION   : QCamera3RegularChannel
+ *
+ * DESCRIPTION: constructor of QCamera3RegularChannel
+ *
+ * PARAMETERS :
+ *   @cam_handle  : camera handle
+ *   @cam_ops     : ptr to camera ops table
+ *   @cb_routine  : callback routine to frame aggregator
+ *   @padding_info: padding information for stream
+ *   @userData    : pointer to hal object
+ *   @stream      : camera3_stream_t structure
+ *   @stream_type : Channel stream type
+ *   @postprocess_mask: bit mask for postprocessing
+ *   @width       : width overriding camera3_stream_t::width
+ *   @height      : height overriding camera3_stream_t::height
+ *
+ * RETURN     : none
+ *==========================================================================*/
+QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
+                    mm_camera_ops_t *cam_ops,
+                    channel_cb_routine cb_routine,
+                    cam_padding_info_t *paddingInfo,
+                    void *userData,
+                    camera3_stream_t *stream,
+                    cam_stream_type_t stream_type,
+                    uint32_t postprocess_mask,
+                    uint32_t width, uint32_t height) :
+                        QCamera3Channel(cam_handle, cam_ops, cb_routine,
+                                paddingInfo, postprocess_mask, userData),
+                        mCamera3Stream(stream),
+                        mNumBufs(0),
+                        mStreamType(stream_type),
+                        mWidth(width),
+                        mHeight(height)
 {
 }
 
@@ -587,8 +627,8 @@ int32_t QCamera3RegularChannel::initialize()
         return -EINVAL;
     }
 
-    streamDim.width = (int32_t)mCamera3Stream->width;
-    streamDim.height = (int32_t)mCamera3Stream->height;
+    streamDim.width = mWidth;
+    streamDim.height = mHeight;
 
     rc = QCamera3Channel::addStream(mStreamType,
             streamFormat,
@@ -1559,14 +1599,12 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     reprocess_config_t reproc_cfg;
     memset(&reproc_cfg, 0, sizeof(reprocess_config_t));
     reproc_cfg.padding = mPaddingInfo;
-    if (NULL != pInputBuffer) {
-        reproc_cfg.input_stream_dim.width = (int32_t)pInputBuffer->stream->width;
-        reproc_cfg.input_stream_dim.height = (int32_t)pInputBuffer->stream->height;
-    } else {
-        reproc_cfg.input_stream_dim.width = (int32_t)mYuvWidth;
-        reproc_cfg.input_stream_dim.height = (int32_t)mYuvHeight;
+
+    reproc_cfg.input_stream_dim.width = (int32_t)mYuvWidth;
+    reproc_cfg.input_stream_dim.height = (int32_t)mYuvHeight;
+    if (NULL == pInputBuffer)
         reproc_cfg.src_channel = this;
-    }
+
     reproc_cfg.output_stream_dim.width = (int32_t)mCamera3Stream->width;
     reproc_cfg.output_stream_dim.height = (int32_t)mCamera3Stream->height;
     reproc_cfg.stream_type = mStreamType;
