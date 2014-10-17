@@ -2745,6 +2745,12 @@ int QCamera2HardwareInterface::takePicture()
                 ALOGE("%s: cannot start postprocessor", __func__);
                 return rc;
             }
+            rc = configureOnlineRotation(*pZSLChannel);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: online rotation failed", __func__);
+                m_postprocessor.stop();
+                return rc;
+            }
             if (mParameters.isUbiFocusEnabled() ||
                     mParameters.isUbiRefocus() ||
                     mParameters.isOptiZoomEnabled() ||
@@ -2851,6 +2857,13 @@ int QCamera2HardwareInterface::takePicture()
                     return rc;
                 }
 
+                rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_CAPTURE]);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s: online rotation failed", __func__);
+                    delChannel(QCAMERA_CH_TYPE_CAPTURE);
+                    return rc;
+                }
+
                 DefferWorkArgs args;
                 memset(&args, 0, sizeof(DefferWorkArgs));
 
@@ -2935,6 +2948,52 @@ int QCamera2HardwareInterface::takePicture()
         }
     }
     CDBG_HIGH("%s: X", __func__);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : configureOnlineRotation
+ *
+ * DESCRIPTION: Configure backend with expected rotation for snapshot stream
+ *
+ * PARAMETERS :
+ *    @ch     : Channel containing a snapshot stream
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::configureOnlineRotation(QCameraChannel &ch)
+{
+    int rc = NO_ERROR;
+    uint32_t streamId = 0;
+    QCameraStream *pStream = NULL;
+
+    for (uint8_t i = 0; i < ch.getNumOfStreams(); i++) {
+        QCameraStream *stream = ch.getStreamByIndex(i);
+        if ((NULL != stream) &&
+                (CAM_STREAM_TYPE_SNAPSHOT == stream->getMyType())) {
+            pStream = stream;
+            break;
+        }
+    }
+
+    if (NULL == pStream) {
+        ALOGE("%s: No snapshot stream found!", __func__);
+        return BAD_VALUE;
+    }
+
+    streamId = pStream->getMyServerID();
+    // Update online rotation configuration
+    pthread_mutex_lock(&m_parm_lock);
+    rc = mParameters.addOnlineRotation(getJpegRotation(), streamId);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: addOnlineRotation failed %d", __func__, rc);
+        pthread_mutex_unlock(&m_parm_lock);
+        return rc;
+    }
+    pthread_mutex_unlock(&m_parm_lock);
+
     return rc;
 }
 
@@ -3381,6 +3440,13 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
         ALOGE("%s: Snapshot channel not initialized", __func__);
         rc = NO_INIT;
         goto end;
+    }
+
+    rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: online rotation failed", __func__);
+        m_postprocessor.stop();
+        return rc;
     }
 
     // start snapshot channel

@@ -631,6 +631,7 @@ public:
     int getAutoFlickerMode();
 
     bool setStreamConfigure(bool isCapture, bool previewAsPostview);
+    int32_t addOnlineRotation(int32_t rotation, uint32_t streamId);
     uint8_t getNumOfExtraBuffersForImageProc();
     bool needThumbnailReprocess(uint32_t *pFeatureMask);
     inline bool isUbiFocusEnabled() {return m_bAFBracketingOn && !m_bReFocusOn;};

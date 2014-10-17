@@ -2353,32 +2353,34 @@ int32_t QCameraPostProcessor::reprocess(qcamera_pp_data_t *pp_job)
     }
 
     if (m_parent->isRegularCapture()) {
-       if ((NULL != pp_job->src_frame) &&
-           (0 < pp_job->src_frame->num_bufs)) {
-           mm_camera_buf_def_t *bufs = NULL;
-           uint32_t num_bufs = pp_job->src_frame->num_bufs;
-           bufs = new mm_camera_buf_def_t[num_bufs];
-           if (NULL == bufs) {
-               ALOGE("%s:Unable to allocate cached buffers",
-                     __func__);
-               return NO_MEMORY;
-           }
+        if ((NULL != pp_job->src_frame) &&
+                (0 < pp_job->src_frame->num_bufs)) {
+            mm_camera_buf_def_t *bufs = NULL;
+            uint32_t num_bufs = pp_job->src_frame->num_bufs;
+            bufs = new mm_camera_buf_def_t[num_bufs];
+            if (NULL == bufs) {
+                ALOGE("%s:Unable to allocate cached buffers",
+                        __func__);
+                return NO_MEMORY;
+            }
 
-           for (uint32_t i = 0; i < num_bufs; i++) {
-               bufs[i] = *pp_job->src_frame->bufs[i];
-               pp_job->src_frame->bufs[i] = &bufs[i];
-           }
-           pp_job->src_reproc_bufs = bufs;
-       }
+            for (uint32_t i = 0; i < num_bufs; i++) {
+                bufs[i] = *pp_job->src_frame->bufs[i];
+                pp_job->src_frame->bufs[i] = &bufs[i];
+            }
+            pp_job->src_reproc_bufs = bufs;
+        }
 
-       // Don't release source frame after encoding
-       // at this point the source channel will not exist.
-       pp_job->reproc_frame_release = true;
-       m_ongoingPPQ.enqueue((void *)pp_job);
-       rc = m_pReprocChannel->doReprocessOffline(pp_job->src_frame);
+        // Don't release source frame after encoding
+        // at this point the source channel will not exist.
+        pp_job->reproc_frame_release = true;
+        m_ongoingPPQ.enqueue((void *)pp_job);
+        rc = m_pReprocChannel->doReprocessOffline(pp_job->src_frame,
+                m_parent->getJpegRotation());
     } else {
         m_ongoingPPQ.enqueue((void *)pp_job);
-        rc = m_pReprocChannel->doReprocess(pp_job->src_frame, m_parent->mParameters);
+        rc = m_pReprocChannel->doReprocess(pp_job->src_frame,
+                m_parent->mParameters, m_parent->getJpegRotation());
     }
 
     if (NO_ERROR != rc) {

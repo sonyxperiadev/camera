@@ -51,15 +51,11 @@ public:
                          void *userData);
     // Owner of memory is transferred from the caller to the caller with this call.
     virtual int32_t addStream(QCameraAllocator& allocator,
-                              QCameraHeapMemory *streamInfoBuf,
-                              uint8_t minStreamBufnum,
-                              cam_padding_info_t *paddingInfo,
-                              stream_cb_routine stream_cb,
-                              void *userdata,
-                              bool bDynAllocBuf,
-                              bool bDeffAlloc = false);
+            QCameraHeapMemory *streamInfoBuf, uint8_t minStreamBufnum,
+            cam_padding_info_t *paddingInfo, stream_cb_routine stream_cb,
+            void *userdata, bool bDynAllocBuf, bool bDeffAlloc = false,
+            cam_rotation_t online_rotation = ROTATE_0);
     virtual int32_t linkStream(QCameraChannel *ch, QCameraStream *stream);
-
     virtual int32_t start();
     virtual int32_t stop();
     virtual int32_t bufDone(mm_camera_super_buf_t *recvd_frame);
@@ -129,11 +125,12 @@ public:
                                        bool offline);
     // online reprocess
     int32_t doReprocess(mm_camera_super_buf_t *frame,
-            QCameraParameters &param);
+            QCameraParameters &param, int32_t rotation);
 
     // offline reprocess
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val);
-    int32_t doReprocessOffline(mm_camera_super_buf_t *frame);
+    int32_t doReprocessOffline(mm_camera_super_buf_t *frame,
+            int32_t rotation);
     int32_t stop();
 
 private:

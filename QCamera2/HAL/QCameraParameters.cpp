@@ -9837,6 +9837,61 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
 }
 
 /*===========================================================================
+ * FUNCTION   : addOnlineRotation
+ *
+ * DESCRIPTION: send additional rotation information for specific stream
+ *
+ * PARAMETERS :
+ *   @rotation: rotation
+ *   @streamId: internal stream id
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::addOnlineRotation(int32_t rotation, uint32_t streamId)
+{
+    int32_t rc = NO_ERROR;
+    cam_rotation_info_t rotation_info;
+    memset(&rotation_info, 0, sizeof(cam_rotation_info_t));
+
+    if (rotation == 0) {
+        rotation_info.rotation = ROTATE_0;
+    } else if (rotation == 90) {
+        rotation_info.rotation = ROTATE_90;
+    } else if (rotation == 180) {
+        rotation_info.rotation = ROTATE_180;
+    } else if (rotation == 270) {
+        rotation_info.rotation = ROTATE_270;
+    } else {
+        rotation_info.rotation = ROTATE_0;
+    }
+    rotation_info.streamId = streamId;
+
+    if(initBatchUpdate(m_pParamBuf) < 0 ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return BAD_TYPE;
+    }
+
+    rc = AddSetParmEntryToBatch(m_pParamBuf,
+            CAM_INTF_PARM_ROTATION,
+            sizeof(cam_rotation_info_t),
+            &rotation_info);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update table", __func__);
+        return rc;
+    }
+
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to set stream info parm", __func__);
+        return rc;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : needThumbnailReprocess
  *
  * DESCRIPTION: Check if thumbnail reprocessing is needed
