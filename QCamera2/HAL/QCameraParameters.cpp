@@ -3410,6 +3410,8 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
 {
     const char *str_val  = params.get(KEY_QC_NO_DISPLAY_MODE);
     const char *prev_str = get(KEY_QC_NO_DISPLAY_MODE);
+    char prop[PROPERTY_VALUE_MAX];
+
     if(str_val && strlen(str_val) > 0) {
         if (prev_str == NULL || strcmp(str_val, prev_str) != 0) {
             m_bNoDisplayMode = atoi(str_val);
@@ -3417,7 +3419,9 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
             m_bNeedRestart = true;
         }
     } else {
-        m_bNoDisplayMode = false;
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.no-display", prop, "0");
+        m_bNoDisplayMode = atoi(prop);
     }
     CDBG_HIGH("Param m_bNoDisplayMode = %d", m_bNoDisplayMode);
     return NO_ERROR;
