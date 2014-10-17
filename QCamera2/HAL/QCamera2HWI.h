@@ -576,6 +576,15 @@ private:
     bool mPrepSnapRun;
     int32_t mZoomLevel;
 
+    int mVFrameCount;
+    int mVLastFrameCount;
+    nsecs_t mVLastFpsTime;
+    double mVFps;
+    int mPFrameCount;
+    int mPLastFrameCount;
+    nsecs_t mPLastFpsTime;
+    double mPFps;
+
     //eztune variables for communication with eztune server at backend
     bool m_bIntJpegEvtPending;
     bool m_bIntRawEvtPending;
