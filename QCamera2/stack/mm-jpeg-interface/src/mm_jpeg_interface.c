@@ -312,6 +312,8 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_dimension picture_size)
   /* Highest log level among hal.logs and global.logs is selected */
   if (gMmJpegIntfLogLevel < globalLogLevel)
       gMmJpegIntfLogLevel = globalLogLevel;
+  if (gMmJpegIntfLogLevel < MINIMUM_JPEG_LOG_LEVEL)
+      gMmJpegIntfLogLevel = MINIMUM_JPEG_LOG_LEVEL;
 
   pthread_mutex_lock(&g_intf_lock);
   /* first time open */
