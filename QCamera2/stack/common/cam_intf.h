@@ -343,6 +343,14 @@ typedef struct{
     cam_padding_info_t analysis_padding_info;
     /* Max size supported by ISP viewfinder path */
     cam_dimension_t max_viewfinder_size;
+
+    /*EIS information*/
+    uint8_t supported_is_types_cnt;
+    uint32_t supported_is_types[IS_TYPE_MAX];
+    /*for each type, specify the margin needed. Margin will be
+      the decimal representation of a percentage
+      ex: 10% margin = 0.1*/
+    float supported_is_type_margins[IS_TYPE_MAX];
 } cam_capability_t;
 
 typedef enum {
