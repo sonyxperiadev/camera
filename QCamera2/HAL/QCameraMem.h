@@ -221,7 +221,7 @@ public:
     virtual void *getPtr(uint32_t index) const;
 
     void setWindowInfo(preview_stream_ops_t *window, int width, int height,
-        int stride, int scanline, int format);
+        int stride, int scanline, int format, int usage = 0);
     // Enqueue/display buffer[index] onto the native window,
     // and dequeue one buffer from it.
     // Returns the buffer index of the dequeued buffer.
@@ -232,7 +232,7 @@ private:
     int mLocalFlag[MM_CAMERA_MAX_NUM_FRAMES];
     struct private_handle_t *mPrivateHandle[MM_CAMERA_MAX_NUM_FRAMES];
     preview_stream_ops_t *mWindow;
-    int mWidth, mHeight, mFormat, mStride, mScanline;
+    int mWidth, mHeight, mFormat, mStride, mScanline, mUsage;
     camera_request_memory mGetMemory;
     camera_memory_t *mCameraMemory[MM_CAMERA_MAX_NUM_FRAMES];
     int mMinUndequeuedBuffers;

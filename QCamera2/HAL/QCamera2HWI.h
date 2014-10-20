@@ -105,6 +105,7 @@ typedef enum {
     QCAMERA_CH_TYPE_RAW,
     QCAMERA_CH_TYPE_METADATA,
     QCAMERA_CH_TYPE_ANALYSIS,
+    QCAMERA_CH_TYPE_CALLBACK,
     QCAMERA_CH_TYPE_MAX
 } qcamera_ch_type_enum_t;
 
@@ -380,7 +381,7 @@ private:
                            camera_frame_metadata_t *metadata);
 
     int32_t sendPreviewCallback(QCameraStream *stream,
-            QCameraGrallocMemory *memory, uint32_t idx);
+            QCameraMemory *memory, uint32_t idx);
     int32_t selectScene(QCameraChannel *pChannel,
             mm_camera_super_buf_t *recvd_frame);
 
@@ -402,6 +403,8 @@ private:
                                                 cam_pp_feature_config_t &pp_feature,
                                                 stream_cb_routine stream_cb,
                                                 void *userdata);
+    int32_t addCallbackChannel();
+
     int32_t addStreamToChannel(QCameraChannel *pChannel,
                                cam_stream_type_t streamType,
                                stream_cb_routine streamCB,
@@ -503,6 +506,8 @@ private:
     static void metadata_stream_cb_routine(mm_camera_super_buf_t *frame,
                                            QCameraStream *stream,
                                            void *userdata);
+    static void callback_stream_cb_routine(mm_camera_super_buf_t *frame,
+            QCameraStream *stream, void *userdata);
     static void reprocess_stream_cb_routine(mm_camera_super_buf_t *frame,
                                             QCameraStream *stream,
                                             void *userdata);

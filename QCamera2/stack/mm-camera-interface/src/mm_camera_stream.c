@@ -36,9 +36,7 @@
 #include <poll.h>
 #include <time.h>
 #include <cam_semaphore.h>
-#ifdef VENUS_PRESENT
 #include <media/msm_media_info.h>
-#endif
 
 #include "mm_camera_dbg.h"
 #include "mm_camera_interface.h"
@@ -89,8 +87,9 @@ int32_t mm_stream_calc_offset_raw(cam_format_t fmt,
                                   cam_dimension_t *dim,
                                   cam_padding_info_t *padding,
                                   cam_stream_buf_plane_info_t *buf_planes);
-int32_t mm_stream_calc_offset_video(cam_dimension_t *dim,
-                                    cam_stream_buf_plane_info_t *buf_planes);
+int32_t mm_stream_calc_offset_video(cam_format_t fmt,
+        cam_dimension_t *dim,
+        cam_stream_buf_plane_info_t *buf_planes);
 int32_t mm_stream_calc_offset_metadata(cam_dimension_t *dim,
                                        cam_padding_info_t *padding,
                                        cam_stream_buf_plane_info_t *buf_planes);
@@ -1722,6 +1721,7 @@ uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt)
     switch(fmt) {
     case CAM_FORMAT_YUV_420_NV12:
     case CAM_FORMAT_YUV_420_NV12_VENUS:
+    case CAM_FORMAT_YUV_420_NV12_UBWC:
         val = V4L2_PIX_FMT_NV12;
         break;
     case CAM_FORMAT_YUV_420_NV21:
@@ -1959,6 +1959,58 @@ int32_t mm_stream_calc_offset_preview(cam_format_t fmt,
         rc = -1;
 #endif
         break;
+    case CAM_FORMAT_YUV_420_NV12_UBWC:
+#ifdef UBWC_PRESENT
+        {
+            int meta_stride = 0,meta_scanline = 0;
+            // using UBWC
+            stride = VENUS_Y_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            meta_stride = VENUS_Y_META_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            meta_scanline = VENUS_Y_META_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+
+            buf_planes->plane_info.frame_len =
+                    VENUS_BUFFER_SIZE(COLOR_FMT_NV12_UBWC, dim->width, dim->height);
+            buf_planes->plane_info.num_planes = 2;
+            buf_planes->plane_info.mp[0].offset = 0;
+            buf_planes->plane_info.mp[0].offset_x =0;
+            buf_planes->plane_info.mp[0].offset_y = 0;
+            buf_planes->plane_info.mp[0].stride = stride;
+            buf_planes->plane_info.mp[0].scanline = scanline;
+            buf_planes->plane_info.mp[0].width = dim->width;
+            buf_planes->plane_info.mp[0].height = dim->height;
+            buf_planes->plane_info.mp[0].meta_stride = meta_stride;
+            buf_planes->plane_info.mp[0].meta_scanline = meta_scanline;
+            buf_planes->plane_info.mp[0].meta_len =
+                    MSM_MEDIA_ALIGN(meta_stride * meta_scanline, 4096);
+            buf_planes->plane_info.mp[0].len =
+                    (uint32_t)(MSM_MEDIA_ALIGN((stride * scanline), 4096) +
+                    (buf_planes->plane_info.mp[0].meta_len));
+
+            stride = VENUS_UV_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            meta_stride = VENUS_UV_META_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            meta_scanline = VENUS_UV_META_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            buf_planes->plane_info.mp[1].offset = 0;
+            buf_planes->plane_info.mp[1].offset_x =0;
+            buf_planes->plane_info.mp[1].offset_y = 0;
+            buf_planes->plane_info.mp[1].stride = stride;
+            buf_planes->plane_info.mp[1].scanline = scanline;
+            buf_planes->plane_info.mp[1].width = dim->width;
+            buf_planes->plane_info.mp[1].height = dim->height/2;
+            buf_planes->plane_info.mp[1].meta_stride = meta_stride;
+            buf_planes->plane_info.mp[1].meta_scanline = meta_scanline;
+            buf_planes->plane_info.mp[1].meta_len =
+                    MSM_MEDIA_ALIGN(meta_stride * meta_scanline, 4096);
+            buf_planes->plane_info.mp[1].len =
+                    buf_planes->plane_info.frame_len - buf_planes->plane_info.mp[0].len;
+        }
+#else
+        CDBG_ERROR("%s: UBWC hardware not avail, cannot use this format", __func__);
+        rc = -1;
+#endif
+        break;
+
     default:
         CDBG_ERROR("%s: Invalid cam_format for preview %d",
                    __func__, fmt);
@@ -2163,6 +2215,57 @@ int32_t mm_stream_calc_offset_post_view(cam_format_t fmt,
         rc = -1;
 #endif
         break;
+    case CAM_FORMAT_YUV_420_NV12_UBWC:
+#ifdef UBWC_PRESENT
+        {
+            int meta_stride = 0,meta_scanline = 0;
+            // using UBWC
+            stride = VENUS_Y_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            meta_stride = VENUS_Y_META_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            meta_scanline = VENUS_Y_META_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+
+            buf_planes->plane_info.frame_len =
+                    VENUS_BUFFER_SIZE(COLOR_FMT_NV12_UBWC, dim->width, dim->height);
+            buf_planes->plane_info.num_planes = 2;
+            buf_planes->plane_info.mp[0].offset = 0;
+            buf_planes->plane_info.mp[0].offset_x =0;
+            buf_planes->plane_info.mp[0].offset_y = 0;
+            buf_planes->plane_info.mp[0].stride = stride;
+            buf_planes->plane_info.mp[0].scanline = scanline;
+            buf_planes->plane_info.mp[0].width = dim->width;
+            buf_planes->plane_info.mp[0].height = dim->height;
+            buf_planes->plane_info.mp[0].meta_stride = meta_stride;
+            buf_planes->plane_info.mp[0].meta_scanline = meta_scanline;
+            buf_planes->plane_info.mp[0].meta_len =
+                    MSM_MEDIA_ALIGN(meta_stride * meta_scanline, 4096);
+            buf_planes->plane_info.mp[0].len =
+                    (uint32_t)(MSM_MEDIA_ALIGN((stride * scanline), 4096) +
+                    (buf_planes->plane_info.mp[0].meta_len));
+
+            stride = VENUS_UV_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            meta_stride = VENUS_UV_META_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            meta_scanline = VENUS_UV_META_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            buf_planes->plane_info.mp[1].offset = 0;
+            buf_planes->plane_info.mp[1].offset_x =0;
+            buf_planes->plane_info.mp[1].offset_y = 0;
+            buf_planes->plane_info.mp[1].stride = stride;
+            buf_planes->plane_info.mp[1].scanline = scanline;
+            buf_planes->plane_info.mp[1].width = dim->width;
+            buf_planes->plane_info.mp[1].height = dim->height/2;
+            buf_planes->plane_info.mp[1].meta_stride = meta_stride;
+            buf_planes->plane_info.mp[1].meta_scanline = meta_scanline;
+            buf_planes->plane_info.mp[1].meta_len =
+                    MSM_MEDIA_ALIGN(meta_stride * meta_scanline, 4096);
+            buf_planes->plane_info.mp[1].len =
+                    buf_planes->plane_info.frame_len - buf_planes->plane_info.mp[0].len;
+        }
+#else
+        CDBG_ERROR("%s: UBWC hardware not avail, cannot use this format", __func__);
+        rc = -1;
+#endif
+        break;
     default:
         CDBG_ERROR("%s: Invalid cam_format for preview %d",
                    __func__, fmt);
@@ -2337,6 +2440,92 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
             buf_planes->plane_info.mp[0].len + buf_planes->plane_info.mp[1].len,
             CAM_PAD_TO_4K);
         break;
+    case CAM_FORMAT_YUV_420_NV12_UBWC:
+#ifdef UBWC_PRESENT
+        {
+            int meta_stride = 0,meta_scanline = 0;
+            // using UBWC
+            stride = VENUS_Y_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            meta_stride = VENUS_Y_META_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            meta_scanline = VENUS_Y_META_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+
+            buf_planes->plane_info.frame_len =
+                    VENUS_BUFFER_SIZE(COLOR_FMT_NV12_UBWC, dim->width, dim->height);
+            buf_planes->plane_info.num_planes = 2;
+            buf_planes->plane_info.mp[0].offset = 0;
+            buf_planes->plane_info.mp[0].offset_x = 0;
+            buf_planes->plane_info.mp[0].offset_y = 0;
+            buf_planes->plane_info.mp[0].stride = stride;
+            buf_planes->plane_info.mp[0].scanline = scanline;
+            buf_planes->plane_info.mp[0].width = dim->width;
+            buf_planes->plane_info.mp[0].height = dim->height;
+            buf_planes->plane_info.mp[0].meta_stride = meta_stride;
+            buf_planes->plane_info.mp[0].meta_scanline = meta_scanline;
+            buf_planes->plane_info.mp[0].meta_len =
+                    MSM_MEDIA_ALIGN(meta_stride * meta_scanline, 4096);
+            buf_planes->plane_info.mp[0].len =
+                    (uint32_t)(MSM_MEDIA_ALIGN((stride * scanline), 4096) +
+                    (buf_planes->plane_info.mp[0].meta_len));
+
+            stride = VENUS_UV_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            meta_stride = VENUS_UV_META_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            meta_scanline = VENUS_UV_META_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            buf_planes->plane_info.mp[1].offset = 0;
+            buf_planes->plane_info.mp[1].offset_x =0;
+            buf_planes->plane_info.mp[1].offset_y = 0;
+            buf_planes->plane_info.mp[1].stride = stride;
+            buf_planes->plane_info.mp[1].scanline = scanline;
+            buf_planes->plane_info.mp[1].width = dim->width;
+            buf_planes->plane_info.mp[1].height = dim->height/2;
+            buf_planes->plane_info.mp[1].meta_stride = meta_stride;
+            buf_planes->plane_info.mp[1].meta_scanline = meta_scanline;
+            buf_planes->plane_info.mp[1].meta_len =
+                    MSM_MEDIA_ALIGN(meta_stride * meta_scanline, 4096);
+            buf_planes->plane_info.mp[1].len =
+                    buf_planes->plane_info.frame_len - buf_planes->plane_info.mp[0].len;
+        }
+#else
+        CDBG_ERROR("%s: UBWC hardware not avail, cannot use this format", __func__);
+        rc = -1;
+#endif
+        break;
+    case CAM_FORMAT_YUV_420_NV12_VENUS:
+#ifdef VENUS_PRESENT
+        // using Venus
+        stride = VENUS_Y_STRIDE(COLOR_FMT_NV12, dim->width);
+        scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12, dim->height);
+
+        buf_planes->plane_info.frame_len =
+                VENUS_BUFFER_SIZE(COLOR_FMT_NV12, dim->width, dim->height);
+        buf_planes->plane_info.num_planes = 2;
+        buf_planes->plane_info.mp[0].len = (uint32_t)(stride * scanline);
+        buf_planes->plane_info.mp[0].offset = 0;
+        buf_planes->plane_info.mp[0].offset_x =0;
+        buf_planes->plane_info.mp[0].offset_y = 0;
+        buf_planes->plane_info.mp[0].stride = stride;
+        buf_planes->plane_info.mp[0].scanline = scanline;
+        buf_planes->plane_info.mp[0].width = dim->width;
+        buf_planes->plane_info.mp[0].height = dim->height;
+        stride = VENUS_UV_STRIDE(COLOR_FMT_NV12, dim->width);
+        scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12, dim->height);
+        buf_planes->plane_info.mp[1].len =
+                buf_planes->plane_info.frame_len -
+                buf_planes->plane_info.mp[0].len;
+        buf_planes->plane_info.mp[1].offset = 0;
+        buf_planes->plane_info.mp[1].offset_x =0;
+        buf_planes->plane_info.mp[1].offset_y = 0;
+        buf_planes->plane_info.mp[1].stride = stride;
+        buf_planes->plane_info.mp[1].scanline = scanline;
+        buf_planes->plane_info.mp[1].width = dim->width;
+        buf_planes->plane_info.mp[1].height = dim->height;
+#else
+        CDBG_ERROR("%s : Video format VENUS is not supported = %d",
+                __func__, fmt);
+#endif
+        break;
+
     default:
         CDBG_ERROR("%s: Invalid cam_format for snapshot %d",
                    __func__, fmt);
@@ -2645,6 +2834,7 @@ int32_t mm_stream_calc_offset_raw(cam_format_t fmt,
  *              padding information
  *
  * PARAMETERS :
+  *   @fmt     : image format
  *   @dim     : image dimension
  *   @buf_planes : [out] buffer plane information
  *
@@ -2652,81 +2842,141 @@ int32_t mm_stream_calc_offset_raw(cam_format_t fmt,
  *              0  -- success
  *              -1 -- failure
  *==========================================================================*/
-#ifdef VENUS_PRESENT
-int32_t mm_stream_calc_offset_video(cam_dimension_t *dim,
-                                    cam_stream_buf_plane_info_t *buf_planes)
+int32_t mm_stream_calc_offset_video(cam_format_t fmt,
+        cam_dimension_t *dim, cam_stream_buf_plane_info_t *buf_planes)
 {
+    int32_t rc = 0;
     int stride = 0, scanline = 0;
+    int meta_stride = 0,meta_scanline = 0;
 
-    // using Venus
-    stride = VENUS_Y_STRIDE(COLOR_FMT_NV12, dim->width);
-    scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12, dim->height);
 
-    buf_planes->plane_info.frame_len =
-        VENUS_BUFFER_SIZE(COLOR_FMT_NV12, dim->width, dim->height);
-    buf_planes->plane_info.num_planes = 2;
-    buf_planes->plane_info.mp[0].len = (uint32_t)(stride * scanline);
-    buf_planes->plane_info.mp[0].offset = 0;
-    buf_planes->plane_info.mp[0].offset_x =0;
-    buf_planes->plane_info.mp[0].offset_y = 0;
-    buf_planes->plane_info.mp[0].stride = stride;
-    buf_planes->plane_info.mp[0].scanline = scanline;
-    buf_planes->plane_info.mp[0].width = dim->width;
-    buf_planes->plane_info.mp[0].height = dim->height;
-    stride = VENUS_UV_STRIDE(COLOR_FMT_NV12, dim->width);
-    scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12, dim->height);
-    buf_planes->plane_info.mp[1].len =
-        buf_planes->plane_info.frame_len - buf_planes->plane_info.mp[0].len;
-    buf_planes->plane_info.mp[1].offset = 0;
-    buf_planes->plane_info.mp[1].offset_x =0;
-    buf_planes->plane_info.mp[1].offset_y = 0;
-    buf_planes->plane_info.mp[1].stride = stride;
-    buf_planes->plane_info.mp[1].scanline = scanline;
-    buf_planes->plane_info.mp[1].width = dim->width;
-    buf_planes->plane_info.mp[1].height = dim->height;
+    switch (fmt) {
+        case CAM_FORMAT_YUV_420_NV12:
+            buf_planes->plane_info.num_planes = 2;
 
-    return 0;
-}
-#else
-int32_t mm_stream_calc_offset_video(cam_dimension_t *dim,
-                                    cam_stream_buf_plane_info_t *buf_planes)
-{
-    int stride = 0, scanline = 0;
+            stride = dim->width;
+            scanline = dim->height;
+            buf_planes->plane_info.mp[0].len =
+                    PAD_TO_SIZE((uint32_t)(stride * scanline),
+                    CAM_PAD_TO_2K);
+            buf_planes->plane_info.mp[0].offset = 0;
+            buf_planes->plane_info.mp[0].offset_x =0;
+            buf_planes->plane_info.mp[0].offset_y = 0;
+            buf_planes->plane_info.mp[0].stride = stride;
+            buf_planes->plane_info.mp[0].scanline = scanline;
+            buf_planes->plane_info.mp[0].width = dim->width;
+            buf_planes->plane_info.mp[0].height = dim->height;
 
-    buf_planes->plane_info.num_planes = 2;
+            stride = dim->width;
+            scanline = dim->height / 2;
+            buf_planes->plane_info.mp[1].len =
+                    PAD_TO_SIZE((uint32_t)(stride * scanline),
+                    CAM_PAD_TO_2K);
+            buf_planes->plane_info.mp[1].offset = 0;
+            buf_planes->plane_info.mp[1].offset_x =0;
+            buf_planes->plane_info.mp[1].offset_y = 0;
+            buf_planes->plane_info.mp[1].stride = stride;
+            buf_planes->plane_info.mp[1].scanline = scanline;
+            buf_planes->plane_info.mp[0].width = dim->width;
+            buf_planes->plane_info.mp[0].height = dim->height / 2;
 
-    stride = dim->width;
-    scanline = dim->height;
-    buf_planes->plane_info.mp[0].len =
-            PAD_TO_SIZE((uint32_t)(stride * scanline), CAM_PAD_TO_2K);
-    buf_planes->plane_info.mp[0].offset = 0;
-    buf_planes->plane_info.mp[0].offset_x =0;
-    buf_planes->plane_info.mp[0].offset_y = 0;
-    buf_planes->plane_info.mp[0].stride = stride;
-    buf_planes->plane_info.mp[0].scanline = scanline;
-    buf_planes->plane_info.mp[0].width = dim->width;
-    buf_planes->plane_info.mp[0].height = dim->height;
-
-    stride = dim->width;
-    scanline = dim->height / 2;
-    buf_planes->plane_info.mp[1].len =
-            PAD_TO_SIZE((uint32_t)(stride * scanline), CAM_PAD_TO_2K);
-    buf_planes->plane_info.mp[1].offset = 0;
-    buf_planes->plane_info.mp[1].offset_x =0;
-    buf_planes->plane_info.mp[1].offset_y = 0;
-    buf_planes->plane_info.mp[1].stride = stride;
-    buf_planes->plane_info.mp[1].scanline = scanline;
-    buf_planes->plane_info.mp[0].width = dim->width;
-    buf_planes->plane_info.mp[0].height = dim->height / 2;
-
-    buf_planes->plane_info.frame_len =
-            PAD_TO_SIZE(buf_planes->plane_info.mp[0].len +
+            buf_planes->plane_info.frame_len =
+                    PAD_TO_SIZE(buf_planes->plane_info.mp[0].len +
                     buf_planes->plane_info.mp[1].len,
                     CAM_PAD_TO_4K);
+            break;
+        case CAM_FORMAT_YUV_420_NV12_VENUS:
+#ifdef VENUS_PRESENT
+            // using Venus
+            stride = VENUS_Y_STRIDE(COLOR_FMT_NV12, dim->width);
+            scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12, dim->height);
 
-    return 0;
-}
+            buf_planes->plane_info.frame_len =
+                    VENUS_BUFFER_SIZE(COLOR_FMT_NV12, dim->width, dim->height);
+            buf_planes->plane_info.num_planes = 2;
+            buf_planes->plane_info.mp[0].len = (uint32_t)(stride * scanline);
+            buf_planes->plane_info.mp[0].offset = 0;
+            buf_planes->plane_info.mp[0].offset_x =0;
+            buf_planes->plane_info.mp[0].offset_y = 0;
+            buf_planes->plane_info.mp[0].stride = stride;
+            buf_planes->plane_info.mp[0].scanline = scanline;
+            buf_planes->plane_info.mp[0].width = dim->width;
+            buf_planes->plane_info.mp[0].height = dim->height;
+            stride = VENUS_UV_STRIDE(COLOR_FMT_NV12, dim->width);
+            scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12, dim->height);
+            buf_planes->plane_info.mp[1].len =
+                    buf_planes->plane_info.frame_len -
+                    buf_planes->plane_info.mp[0].len;
+            buf_planes->plane_info.mp[1].offset = 0;
+            buf_planes->plane_info.mp[1].offset_x =0;
+            buf_planes->plane_info.mp[1].offset_y = 0;
+            buf_planes->plane_info.mp[1].stride = stride;
+            buf_planes->plane_info.mp[1].scanline = scanline;
+            buf_planes->plane_info.mp[1].width = dim->width;
+            buf_planes->plane_info.mp[1].height = dim->height;
+#else
+            CDBG_ERROR("%s : Video format VENUS is not supported = %d",
+                    __func__, fmt);
 #endif
+            break;
+        case CAM_FORMAT_YUV_420_NV12_UBWC:
+#ifdef UBWC_PRESENT
+            // using UBWC
+            stride = VENUS_Y_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            meta_stride = VENUS_Y_META_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            meta_scanline = VENUS_Y_META_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+
+            buf_planes->plane_info.frame_len =
+                    VENUS_BUFFER_SIZE(COLOR_FMT_NV12_UBWC, dim->width, dim->height);
+            buf_planes->plane_info.num_planes = 2;
+            buf_planes->plane_info.mp[0].offset = 0;
+            buf_planes->plane_info.mp[0].offset_x =0;
+            buf_planes->plane_info.mp[0].offset_y = 0;
+            buf_planes->plane_info.mp[0].stride = stride;
+            buf_planes->plane_info.mp[0].scanline = scanline;
+            buf_planes->plane_info.mp[0].width = dim->width;
+            buf_planes->plane_info.mp[0].height = dim->height;
+            buf_planes->plane_info.mp[0].meta_stride = meta_stride;
+            buf_planes->plane_info.mp[0].meta_scanline = meta_scanline;
+            buf_planes->plane_info.mp[0].meta_len =
+                    MSM_MEDIA_ALIGN(meta_stride * meta_scanline, 4096);
+            buf_planes->plane_info.mp[0].len =
+                    (uint32_t)(MSM_MEDIA_ALIGN((stride * scanline), 4096) +
+                    (buf_planes->plane_info.mp[0].meta_len));
+
+            stride = VENUS_UV_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+            meta_stride = VENUS_UV_META_STRIDE(COLOR_FMT_NV12_UBWC, dim->width);
+            meta_scanline = VENUS_UV_META_SCANLINES(COLOR_FMT_NV12_UBWC, dim->height);
+
+            buf_planes->plane_info.mp[1].offset = 0;
+            buf_planes->plane_info.mp[1].offset_x =0;
+            buf_planes->plane_info.mp[1].offset_y = 0;
+            buf_planes->plane_info.mp[1].stride = stride;
+            buf_planes->plane_info.mp[1].scanline = scanline;
+            buf_planes->plane_info.mp[1].width = dim->width;
+            buf_planes->plane_info.mp[1].height = dim->height/2;
+            buf_planes->plane_info.mp[1].meta_stride = meta_stride;
+            buf_planes->plane_info.mp[1].meta_scanline = meta_scanline;
+            buf_planes->plane_info.mp[1].meta_len =
+                    MSM_MEDIA_ALIGN(meta_stride * meta_scanline, 4096);
+            buf_planes->plane_info.mp[1].len =
+                    buf_planes->plane_info.frame_len - buf_planes->plane_info.mp[0].len;
+
+#else
+            CDBG_ERROR("%s : Video format UBWC is not supported = %d",
+                    __func__, fmt);
+            rc = -1;
+#endif
+            break;
+        default:
+            CDBG_ERROR("%s : Invalid Video Format = %d", __func__, fmt);
+            rc = -1;
+            break;
+    }
+    return rc;
+}
 
 /*===========================================================================
  * FUNCTION   : mm_stream_calc_offset_metadata
@@ -2993,8 +3243,8 @@ int32_t mm_stream_calc_offset_postproc(cam_stream_info_t *stream_info,
                                             plns);
         break;
     case CAM_STREAM_TYPE_VIDEO:
-        rc = mm_stream_calc_offset_video(&stream_info->dim,
-                        plns);
+        rc = mm_stream_calc_offset_video(stream_info->fmt,
+                &stream_info->dim, plns);
         break;
     case CAM_STREAM_TYPE_RAW:
         rc = mm_stream_calc_offset_raw(stream_info->fmt,
@@ -3077,8 +3327,8 @@ int32_t mm_stream_calc_offset(mm_stream_t *my_obj)
                                             &my_obj->stream_info->buf_planes);
         break;
     case CAM_STREAM_TYPE_VIDEO:
-        rc = mm_stream_calc_offset_video(&dim,
-                                         &my_obj->stream_info->buf_planes);
+        rc = mm_stream_calc_offset_video(my_obj->stream_info->fmt,
+                &dim, &my_obj->stream_info->buf_planes);
         break;
     case CAM_STREAM_TYPE_RAW:
         rc = mm_stream_calc_offset_raw(my_obj->stream_info->fmt,

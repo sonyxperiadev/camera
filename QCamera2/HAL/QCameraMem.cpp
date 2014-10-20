@@ -1331,7 +1331,7 @@ QCameraGrallocMemory::QCameraGrallocMemory(camera_request_memory getMemory)
 {
     mMinUndequeuedBuffers = 0;
     mWindow = NULL;
-    mWidth = mHeight = mStride = mScanline = 0;
+    mWidth = mHeight = mStride = mScanline = mUsage = 0;
     mFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
     mGetMemory = getMemory;
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++) {
@@ -1366,11 +1366,12 @@ QCameraGrallocMemory::~QCameraGrallocMemory()
  *   @stride  : stride of preview frame
  *   @scanline: scanline of preview frame
  *   @foramt  : format of preview image
+ *   @usage : usage bit for gralloc
  *
  * RETURN     : none
  *==========================================================================*/
 void QCameraGrallocMemory::setWindowInfo(preview_stream_ops_t *window,
-        int width, int height, int stride, int scanline, int format)
+        int width, int height, int stride, int scanline, int format, int usage)
 {
     mWindow = window;
     mWidth = width;
@@ -1378,6 +1379,7 @@ void QCameraGrallocMemory::setWindowInfo(preview_stream_ops_t *window,
     mStride = stride;
     mScanline = scanline;
     mFormat = format;
+    mUsage = usage;
 }
 
 /*===========================================================================
@@ -1494,6 +1496,7 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/,
     }
 
     gralloc_usage = GRALLOC_USAGE_HW_CAMERA_WRITE | GRALLOC_USAGE_PRIVATE_IOMMU_HEAP;
+    gralloc_usage |= mUsage;
     err = mWindow->set_usage(mWindow, gralloc_usage);
     if(err != 0) {
         /* set_usage error out */

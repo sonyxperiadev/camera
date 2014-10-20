@@ -142,6 +142,7 @@ typedef enum {
     CAM_FORMAT_YUV_422_NV16,
     CAM_FORMAT_YUV_422_NV61,
     CAM_FORMAT_YUV_420_NV12_VENUS,
+    CAM_FORMAT_YUV_420_NV12_UBWC,
 
     /* Please note below are the defintions for raw image.
      * Any format other than raw image format should be declared
@@ -297,7 +298,6 @@ typedef enum {
     CAM_STREAM_TYPE_VIDEO,         /* video */
 
     /* applies to HAL 3 */
-    CAM_STREAM_TYPE_CALLBACK,      /* app requested callback */
     CAM_STREAM_TYPE_IMPL_DEFINED, /* opaque format: could be display, video enc, ZSL YUV */
 
     /* applies to both HAL 1 and HAL 3 */
@@ -306,6 +306,7 @@ typedef enum {
     CAM_STREAM_TYPE_OFFLINE_PROC,  /* offline process */
     CAM_STREAM_TYPE_PARM,         /* mct internal stream */
     CAM_STREAM_TYPE_ANALYSIS,     /* analysis stream */
+    CAM_STREAM_TYPE_CALLBACK,      /* app requested callback */
     CAM_STREAM_TYPE_MAX,
 } cam_stream_type_t;
 
@@ -403,6 +404,9 @@ typedef struct{
     int32_t scanline;
     int32_t width;    /* width without padding */
     int32_t height;   /* height without padding */
+    int32_t meta_stride;   /*Meta stride*/
+    int32_t meta_scanline; /*Meta Scanline*/
+    int32_t meta_len;   /*Meta plane length including 4k padding*/
 } cam_mp_len_offset_t;
 
 typedef struct {

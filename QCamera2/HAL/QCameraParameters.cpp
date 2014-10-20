@@ -1557,8 +1557,25 @@ int32_t QCameraParameters::setPreviewFormat(const QCameraParameters& params)
     int32_t previewFormat = lookupAttr(PREVIEW_FORMATS_MAP,
             PARAM_MAP_SIZE(PREVIEW_FORMATS_MAP), str);
     if (previewFormat != NAME_NOT_FOUND) {
-        mPreviewFormat = (cam_format_t)previewFormat;
-
+#if UBWC_PRESENT
+        char prop[PROPERTY_VALUE_MAX];
+        int pFormat;
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.preview.ubwc", prop, "1");
+        pFormat = atoi(prop);
+        if (pFormat == 1) {
+            mPreviewFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
+            mAppPreviewFormat = (cam_format_t)previewFormat;
+        } else {
+            mPreviewFormat = (cam_format_t)previewFormat;
+            mAppPreviewFormat = (cam_format_t)previewFormat;
+        }
+#else
+        {
+            mPreviewFormat = (cam_format_t)previewFormat;
+            mAppPreviewFormat = (cam_format_t)previewFormat;
+        }
+#endif
         CameraParameters::setPreviewFormat(str);
         CDBG_HIGH("%s: format %d\n", __func__, mPreviewFormat);
         return NO_ERROR;
@@ -8502,6 +8519,9 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
     case CAM_STREAM_TYPE_POSTVIEW:
         format = mPreviewFormat;
         break;
+    case CAM_STREAM_TYPE_CALLBACK:
+        format = mAppPreviewFormat;
+        break;
     case CAM_STREAM_TYPE_SNAPSHOT:
         if ( mPictureFormat == CAM_FORMAT_YUV_422_NV16 ) {
             format = CAM_FORMAT_YUV_422_NV16;
@@ -8519,7 +8539,24 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
+#if UBWC_PRESENT
+        {
+            char prop[PROPERTY_VALUE_MAX];
+            int pFormat;
+            memset(prop, 0, sizeof(prop));
+            property_get("persist.camera.video.ubwc", prop, "0");
+            pFormat = atoi(prop);
+            if (pFormat == 1) {
+                format = CAM_FORMAT_YUV_420_NV12_UBWC;
+            } else {
+                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+            }
+        }
+#elif VENUS_PRESENT
+        format = CAM_FORMAT_YUV_420_NV12_VENUS;
+#else
         format = CAM_FORMAT_YUV_420_NV12;
+#endif
         break;
     case CAM_STREAM_TYPE_RAW:
         if (isRdiMode()) {
@@ -8547,6 +8584,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         break;
     }
 
+    CDBG("%s : Stream type = %d Stream Format = %d", __func__, streamType, format);
     return ret;
 }
 
@@ -8635,6 +8673,7 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
 
     switch (streamType) {
     case CAM_STREAM_TYPE_PREVIEW:
+    case CAM_STREAM_TYPE_CALLBACK:
         getPreviewSize(&dim.width, &dim.height);
         break;
     case CAM_STREAM_TYPE_POSTVIEW:
@@ -8697,6 +8736,9 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         ret = BAD_VALUE;
         break;
     }
+
+    CDBG("%s : Stream type = %d Stream Dimension = %d X %d",
+            __func__, streamType, dim.width, dim.height);
     return ret;
 }
 
@@ -8729,6 +8771,11 @@ int QCameraParameters::getPreviewHalPixelFormat() const
     case CAM_FORMAT_YUV_420_NV12_VENUS:
         halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS;
         break;
+#ifdef UBWC_PRESENT
+    case CAM_FORMAT_YUV_420_NV12_UBWC:
+        halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP;
+        break;
+#endif
     case CAM_FORMAT_YUV_422_NV16:
     case CAM_FORMAT_YUV_422_NV61:
     default:
@@ -10900,6 +10947,21 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
         stream_config_info.num_streams++;
 
+        if (isUBWCEnabled() && getRecordingHintValue() != true) {
+            cam_format_t fmt;
+            getStreamFormat(CAM_STREAM_TYPE_PREVIEW,fmt);
+            if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
+                stream_config_info.type[stream_config_info.num_streams] =
+                        CAM_STREAM_TYPE_CALLBACK;
+                getStreamDimension(CAM_STREAM_TYPE_CALLBACK,
+                        stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                updatePpFeatureMask(CAM_STREAM_TYPE_CALLBACK);
+                stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                        mStreamPpMask[CAM_STREAM_TYPE_CALLBACK];
+                stream_config_info.num_streams++;
+            }
+        }
+
     } else if (!isCapture) {
         if (m_bRecordingHint) {
             stream_config_info.type[stream_config_info.num_streams] =
@@ -10941,6 +11003,21 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                 mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
         stream_config_info.num_streams++;
+
+        if (isUBWCEnabled() && getRecordingHintValue() != true) {
+            cam_format_t fmt;
+            getStreamFormat(CAM_STREAM_TYPE_PREVIEW,fmt);
+            if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
+                stream_config_info.type[stream_config_info.num_streams] =
+                        CAM_STREAM_TYPE_CALLBACK;
+                getStreamDimension(CAM_STREAM_TYPE_CALLBACK,
+                        stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                updatePpFeatureMask(CAM_STREAM_TYPE_CALLBACK);
+                stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                        mStreamPpMask[CAM_STREAM_TYPE_CALLBACK];
+                stream_config_info.num_streams++;
+            }
+        }
 
     } else {
         if (isJpegPictureFormat() || isNV16PictureFormat() || isNV21PictureFormat()) {
@@ -11413,6 +11490,25 @@ void QCameraParameters::setReprocCount()
         ALOGW("Zoom Present. Need 2nd pass for post processing");
         mTotalPPCount++;
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : isUBWCEnabled
+ *
+ * DESCRIPTION: Function to get UBWC hardware support.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : TRUE -- UBWC format supported
+ *              FALSE -- UBWC is not supported.
+ *==========================================================================*/
+bool QCameraParameters::isUBWCEnabled()
+{
+#ifdef UBWC_PRESENT
+    return TRUE;
+#else
+    return FALSE;
+#endif
 }
 
 /*===========================================================================

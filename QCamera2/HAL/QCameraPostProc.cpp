@@ -1469,6 +1469,7 @@ mm_jpeg_color_format QCameraPostProcessor::getColorfmtFromImgFmt(cam_format_t im
     case CAM_FORMAT_YUV_420_NV21_ADRENO:
         return MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2;
     case CAM_FORMAT_YUV_420_NV12:
+    case CAM_FORMAT_YUV_420_NV12_VENUS:
         return MM_JPEG_COLOR_FORMAT_YCBCRLP_H2V2;
     case CAM_FORMAT_YUV_420_YV12:
         return MM_JPEG_COLOR_FORMAT_YCBCRLP_H2V2;
@@ -1497,6 +1498,7 @@ mm_jpeg_format_t QCameraPostProcessor::getJpegImgTypeFromImgFmt(cam_format_t img
     case CAM_FORMAT_YUV_420_NV21:
     case CAM_FORMAT_YUV_420_NV21_ADRENO:
     case CAM_FORMAT_YUV_420_NV12:
+    case CAM_FORMAT_YUV_420_NV12_VENUS:
     case CAM_FORMAT_YUV_420_YV12:
     case CAM_FORMAT_YUV_422_NV61:
     case CAM_FORMAT_YUV_422_NV16:

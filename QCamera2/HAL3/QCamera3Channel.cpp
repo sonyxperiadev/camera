@@ -57,13 +57,6 @@ static const char ExifUndefinedPrefix[] =
 #define EXIF_ASCII_PREFIX_SIZE           8   //(sizeof(ExifAsciiPrefix))
 #define FOCAL_LENGTH_DECIMAL_PRECISION   100
 
-#define VIDEO_FORMAT    CAM_FORMAT_YUV_420_NV12
-#define SNAPSHOT_FORMAT CAM_FORMAT_YUV_420_NV21
-#define PREVIEW_FORMAT  CAM_FORMAT_YUV_420_NV21
-#define DEFAULT_FORMAT  CAM_FORMAT_YUV_420_NV21
-#define CALLBACK_FORMAT CAM_FORMAT_YUV_420_NV21
-#define RAW_FORMAT      CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG
-
 /*===========================================================================
  * FUNCTION   : QCamera3Channel
  *
@@ -488,6 +481,75 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
 }
 
 /*===========================================================================
+ * FUNCTION   : getStreamDefaultFormat
+ *
+ * DESCRIPTION: return default buffer format for the stream
+ *
+ * PARAMETERS : type : Stream type
+ *
+ ** RETURN    : format for stream type
+ *
+ *==========================================================================*/
+cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
+{
+    cam_format_t streamFormat;
+
+    switch (type) {
+    case CAM_STREAM_TYPE_PREVIEW:
+#if UBWC_PRESENT
+        {
+            char prop[PROPERTY_VALUE_MAX];
+            int pFormat;
+            memset(prop, 0, sizeof(prop));
+            property_get("persist.camera.preview.ubwc", prop, "1");
+            pFormat = atoi(prop);
+            if (pFormat == 1) {
+                streamFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
+            } else {
+                streamFormat = CAM_FORMAT_YUV_420_NV21;
+            }
+        }
+#else
+        streamFormat = CAM_FORMAT_YUV_420_NV21;
+#endif
+        break;
+    case CAM_STREAM_TYPE_VIDEO:
+#if UBWC_PRESENT
+        {
+            char prop[PROPERTY_VALUE_MAX];
+            int pFormat;
+            memset(prop, 0, sizeof(prop));
+            property_get("persist.camera.video.ubwc", prop, "0");
+            pFormat = atoi(prop);
+            if (pFormat == 1) {
+                streamFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
+            } else {
+                streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
+            }
+        }
+#elif VENUS_PRESENT
+        streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
+#else
+        streamFormat = CAM_FORMAT_YUV_420_NV12;
+#endif
+        break;
+    case CAM_STREAM_TYPE_SNAPSHOT:
+        streamFormat = CAM_FORMAT_YUV_420_NV21;
+        break;
+    case CAM_STREAM_TYPE_CALLBACK:
+        streamFormat = CAM_FORMAT_YUV_420_NV21;
+        break;
+    case CAM_STREAM_TYPE_RAW:
+        streamFormat = CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG;
+        break;
+    default:
+        streamFormat = CAM_FORMAT_YUV_420_NV21;
+        break;
+    }
+    return streamFormat;
+}
+
+/*===========================================================================
  * FUNCTION   : QCamera3RegularChannel
  *
  * DESCRIPTION: constructor of QCamera3RegularChannel
@@ -621,17 +683,9 @@ int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
     mIsType  = isType;
 
     if (mCamera3Stream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
-        if (mStreamType ==  CAM_STREAM_TYPE_VIDEO) {
-            streamFormat = VIDEO_FORMAT;
-        } else if (mStreamType == CAM_STREAM_TYPE_PREVIEW) {
-            streamFormat = PREVIEW_FORMAT;
-        } else {
-            //TODO: Add a new flag in libgralloc for ZSL buffers, and its size needs
-            // to be properly aligned and padded.
-            streamFormat = DEFAULT_FORMAT;
-        }
+        streamFormat = getStreamDefaultFormat(mStreamType);
     } else if(mCamera3Stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-         streamFormat = CALLBACK_FORMAT;
+        streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK);
     } else if (mCamera3Stream->format == HAL_PIXEL_FORMAT_RAW_OPAQUE ||
          mCamera3Stream->format == HAL_PIXEL_FORMAT_RAW10 ||
          mCamera3Stream->format == HAL_PIXEL_FORMAT_RAW16) {
@@ -1001,7 +1055,8 @@ void QCamera3RawChannel::streamCbRoutine(
         dumpRawSnapshot(super_frame->bufs[0]);
 
     if (mIsRaw16) {
-        if (RAW_FORMAT == CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG)
+        if (getStreamDefaultFormat(CAM_STREAM_TYPE_RAW) ==
+                CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG)
             convertMipiToRaw16(super_frame->bufs[0]);
         else
             convertLegacyToRaw16(super_frame->bufs[0]);
@@ -1513,7 +1568,9 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
     mYuvHeight = stream->height;
     mStreamType = CAM_STREAM_TYPE_SNAPSHOT;
     // Use same pixelformat for 4K video case
-    mStreamFormat = is4KVideo ? VIDEO_FORMAT : SNAPSHOT_FORMAT;
+    mStreamFormat = is4KVideo ?
+            getStreamDefaultFormat(CAM_STREAM_TYPE_VIDEO)
+            :getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
     int32_t rc = m_postprocessor.init(&mMemory, jpegEvtHandle, mPostProcMask,
             this);
     if (rc != 0) {
