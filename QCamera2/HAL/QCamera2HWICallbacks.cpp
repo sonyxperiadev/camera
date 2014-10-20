@@ -598,6 +598,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     }
 
     uint32_t idx = frame->buf_idx;
+
     pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
 
     if(pme->m_bPreviewStarted) {
@@ -1349,7 +1350,7 @@ void QCamera2HardwareInterface::preview_raw_stream_cb_routine(mm_camera_super_bu
     ATRACE_CALL();
     CDBG_HIGH("[KPI Perf] %s : BEGIN", __func__);
     char value[PROPERTY_VALUE_MAX];
-    bool dump_raw = false;
+    bool dump_preview_raw = false, dump_video_raw = false;
 
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
@@ -1361,22 +1362,19 @@ void QCamera2HardwareInterface::preview_raw_stream_cb_routine(mm_camera_super_bu
         return;
     }
 
-    property_get("persist.camera.preview_raw", value, "0");
-    dump_raw = atoi(value) > 0 ? true : false;
+    mm_camera_buf_def_t *raw_frame = super_frame->bufs[0];
 
-    for (uint32_t i = 0; i < super_frame->num_bufs; i++) {
-        if (super_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_RAW) {
-            mm_camera_buf_def_t * raw_frame = super_frame->bufs[i];
-            if (NULL != stream) {
-                if (dump_raw) {
-                    pme->dumpFrameToFile(stream, raw_frame, QCAMERA_DUMP_FRM_RAW);
-                }
-                stream->bufDone(super_frame->bufs[i]->buf_idx);
-            }
-            break;
+    if (raw_frame != NULL) {
+        property_get("persist.camera.preview_raw", value, "0");
+        dump_preview_raw = atoi(value) > 0 ? true : false;
+        property_get("persist.camera.video_raw", value, "0");
+        dump_video_raw = atoi(value) > 0 ? true : false;
+        if (dump_preview_raw || (pme->mParameters.getRecordingHintValue()
+                && dump_video_raw)) {
+            pme->dumpFrameToFile(stream, raw_frame, QCAMERA_DUMP_FRM_RAW);
         }
+        stream->bufDone(raw_frame->buf_idx);
     }
-
     free(super_frame);
 
     CDBG_HIGH("[KPI Perf] %s : END", __func__);

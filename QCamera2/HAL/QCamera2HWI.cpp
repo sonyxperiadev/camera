@@ -1816,6 +1816,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
     int minCaptureBuffers = mParameters.getNumOfSnapshots();
     char value[PROPERTY_VALUE_MAX];
     bool raw_yuv = false;
+    int persist_cnt = 0;
 
     int zslQBuffers = mParameters.getZSLQueueDepth();
 
@@ -1869,6 +1870,13 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                         mParameters.getNumOfExtraBuffersForPreview();
             }
             bufferCnt += minUndequeCount;
+
+            property_get("persist.camera.preview_yuv", value, "0");
+            persist_cnt = atoi(value);
+            if ((persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM)
+                    && (bufferCnt < persist_cnt)) {
+                bufferCnt = persist_cnt;
+            }
         }
         break;
     case CAM_STREAM_TYPE_POSTVIEW:
@@ -1940,6 +1948,20 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                 bufferCnt = maxStreamBuf;
             }
         }
+
+        property_get("persist.camera.preview_raw", value, "0");
+        persist_cnt = atoi(value);
+        if ((persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM)
+                && (bufferCnt < persist_cnt)) {
+            bufferCnt = persist_cnt;
+        }
+        property_get("persist.camera.video_raw", value, "0");
+        persist_cnt = atoi(value);
+        if ((persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM)
+                && (bufferCnt < persist_cnt)) {
+            bufferCnt = persist_cnt;
+        }
+
         break;
     case CAM_STREAM_TYPE_VIDEO:
         {
@@ -2007,6 +2029,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
         break;
     }
 
+    CDBG("%s: Buffer count = %d for stream type = %d",__func__, bufferCnt, stream_type);
     if (CAM_MAX_NUM_BUFS_PER_STREAM < bufferCnt) {
         ALOGE("%s: Buffer count %d for stream type %d exceeds limit %d",
                 __func__, bufferCnt, stream_type, CAM_MAX_NUM_BUFS_PER_STREAM);
@@ -5624,6 +5647,9 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
 {
     int32_t rc = NO_ERROR;
     QCameraChannel *pChannel = NULL;
+    char value[PROPERTY_VALUE_MAX];
+    bool raw_yuv = false;
+
 
     if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
         // Using the no preview torch WA it is possible
@@ -5675,6 +5701,18 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         } else {
             rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                     preview_stream_cb_routine, this);
+        }
+    }
+
+    property_get("persist.camera.raw_yuv", value, "0");
+    raw_yuv = atoi(value) > 0 ? true : false;
+    if ( raw_yuv ) {
+        rc = addStreamToChannel(pChannel,CAM_STREAM_TYPE_RAW,
+                preview_raw_stream_cb_routine,this);
+        if ( rc != NO_ERROR ) {
+            ALOGE("%s: add raw stream failed, ret = %d", __FUNCTION__, rc);
+            delete pChannel;
+            return rc;
         }
     }
 
