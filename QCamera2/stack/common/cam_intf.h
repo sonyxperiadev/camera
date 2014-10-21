@@ -221,7 +221,7 @@ typedef struct{
     float lens_position[3];
 
     /* nano seconds */
-    int64_t exposure_time_range[2];
+    int64_t exposure_time_range[EXPOSURE_TIME_RANGE_CNT];
 
     /* nano seconds */
     int64_t max_frame_duration;
@@ -235,7 +235,7 @@ typedef struct{
     double gradient_O;
     double offset_O;
 
-    float sensor_physical_size[2];
+    float sensor_physical_size[SENSOR_PHYSICAL_SIZE_CNT];
 
     /* Dimensions of full pixel array, possibly including
        black calibration pixels */
@@ -249,7 +249,7 @@ typedef struct{
 
     /* A fixed black level offset for each of the Bayer
        mosaic channels */
-    int32_t black_level_pattern[4];
+    int32_t black_level_pattern[BLACK_LEVEL_PATTERN_CNT];
 
     /* Time taken before flash can fire again in nano secs */
     int64_t flash_charge_duration;
@@ -325,12 +325,12 @@ typedef struct{
 
     int64_t jpeg_stall_durations[MAX_SIZES_CNT];
     int64_t raw16_stall_durations[MAX_SIZES_CNT];
-    cam_rational_type_t forward_matrix1[3][3];
-    cam_rational_type_t forward_matrix2[3][3];
-    cam_rational_type_t color_transform1[3][3];
-    cam_rational_type_t color_transform2[3][3];
-    cam_rational_type_t calibration_transform1[3][3];
-    cam_rational_type_t calibration_transform2[3][3];
+    cam_rational_type_t forward_matrix1[FORWARD_MATRIX_ROWS][FORWARD_MATRIX_COLS];
+    cam_rational_type_t forward_matrix2[FORWARD_MATRIX_ROWS][FORWARD_MATRIX_COLS];
+    cam_rational_type_t color_transform1[COLOR_TRANSFORM_ROWS][COLOR_TRANSFORM_COLS];
+    cam_rational_type_t color_transform2[COLOR_TRANSFORM_ROWS][COLOR_TRANSFORM_COLS];
+    cam_rational_type_t calibration_transform1[CAL_TRANSFORM_ROWS][CAL_TRANSFORM_COLS];
+    cam_rational_type_t calibration_transform2[CAL_TRANSFORM_ROWS][CAL_TRANSFORM_COLS];
     uint16_t isCacSupported;
 
     cam_opaque_raw_format_t opaque_raw_fmt;
