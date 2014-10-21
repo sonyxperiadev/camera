@@ -358,6 +358,11 @@ typedef struct{
     /*Analysis recommended size*/
     cam_dimension_t analysis_recommended_res;
 
+    /* This is set to 'true' if sensor cannot guarantee per frame control */
+    /* Default value of this capability is 'false' indicating per-frame */
+    /* control is supported */
+    uint8_t no_per_frame_control_support;
+
     /*EIS information*/
     uint8_t supported_is_types_cnt;
     uint32_t supported_is_types[IS_TYPE_MAX];

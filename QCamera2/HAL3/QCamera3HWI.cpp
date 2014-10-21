@@ -4261,11 +4261,19 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     int rc = 0;
     CameraMetadata staticInfo;
     size_t count = 0;
+    bool limitedDevice = false;
 
-    /* android.info: hardware level */
-    uint8_t supportedHardwareLevel = ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_FULL;
+    /* If sensor is YUV sensor (no raw support) or if per-frame control is not
+     * guaranteed, its advertised as limited device */
+    limitedDevice = gCamCapability[cameraId]->no_per_frame_control_support ||
+            (CAM_SENSOR_YUV == gCamCapability[cameraId]->sensor_type.sens_type);
+
+    uint8_t supportedHwLvl = limitedDevice ?
+            ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED :
+            ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_FULL;
+
     staticInfo.update(ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL,
-        &supportedHardwareLevel, 1);
+            &supportedHwLvl, 1);
 
     bool facingBack = gCamCapability[cameraId]->position == CAM_POSITION_BACK;
     /*HAL 3 only*/
@@ -4783,7 +4791,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_SCALER_AVAILABLE_INPUT_OUTPUT_FORMATS_MAP,
                       io_format_map, 0);
 
-    int32_t max_latency = ANDROID_SYNC_MAX_LATENCY_PER_FRAME_CONTROL;
+    int32_t max_latency = (limitedDevice) ?
+            ANDROID_SYNC_MAX_LATENCY_UNKNOWN : ANDROID_SYNC_MAX_LATENCY_PER_FRAME_CONTROL;
     staticInfo.update(ANDROID_SYNC_MAX_LATENCY,
                       &max_latency,
                       1);
@@ -4944,10 +4953,15 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_STATISTICS_FACE_SCORES};
     size_t result_keys_cnt =
             sizeof(result_keys_basic)/sizeof(result_keys_basic[0]);
+
     Vector<int32_t> available_result_keys;
     available_result_keys.appendArray(result_keys_basic, result_keys_cnt);
     if (gCamCapability[cameraId]->supported_focus_modes_cnt > 1) {
         available_result_keys.add(ANDROID_CONTROL_AF_REGIONS);
+    }
+    if (!limitedDevice) {
+       available_result_keys.add(ANDROID_SENSOR_NOISE_PROFILE);
+       available_result_keys.add(ANDROID_SENSOR_GREEN_SPLIT);
     }
     staticInfo.update(ANDROID_REQUEST_AVAILABLE_RESULT_KEYS,
             available_result_keys.array(), available_result_keys.size());
