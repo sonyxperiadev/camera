@@ -222,15 +222,15 @@ int32_t QCameraStream::clean_invalidate_buf(uint32_t index, void *user_data)
  *   @chId       : channel handle
  *   @camOps     : ptr to camera ops table
  *   @paddingInfo: ptr to padding info
+ *   @deffered   : deferred stream
+ *   @online_rotation: rotation applied online
  *
  * RETURN     : None
  *==========================================================================*/
 QCameraStream::QCameraStream(QCameraAllocator &allocator,
-                             uint32_t camHandle,
-                             uint32_t chId,
-                             mm_camera_ops_t *camOps,
-                             cam_padding_info_t *paddingInfo,
-                             bool deffered) :
+        uint32_t camHandle, uint32_t chId,
+        mm_camera_ops_t *camOps, cam_padding_info_t *paddingInfo,
+        bool deffered, cam_rotation_t online_rotation):
         mDumpFrame(0),
         mDumpMetaFrame(0),
         mDumpSkipCnt(0),
@@ -248,6 +248,7 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mStreamBufs(NULL),
         mAllocator(allocator),
         mBufDefs(NULL),
+        mOnlineRotation(online_rotation),
         mStreamBufsAcquired(false),
         m_bActive(false),
         mDynBufAlloc(false),
@@ -1369,7 +1370,19 @@ cam_stream_type_t QCameraStream::getMyType()
  *==========================================================================*/
 int32_t QCameraStream::getFrameOffset(cam_frame_len_offset_t &offset)
 {
+    if (NULL == mStreamInfo) {
+        return NO_INIT;
+    }
+
     offset = mFrameLenOffset;
+    if ((ROTATE_90 == mOnlineRotation) || (ROTATE_270 == mOnlineRotation)) {
+        // Re-calculate frame offset in case of online rotation
+        cam_stream_info_t streamInfo = *mStreamInfo;
+        getFrameDimension(streamInfo.dim);
+        calcOffset(&streamInfo);
+        offset = streamInfo.buf_planes.plane_info;
+    }
+
     return 0;
 }
 
@@ -1428,7 +1441,12 @@ int32_t QCameraStream::setCropInfo(cam_rect_t crop)
 int32_t QCameraStream::getFrameDimension(cam_dimension_t &dim)
 {
     if (mStreamInfo != NULL) {
-        dim = mStreamInfo->dim;
+        if ((ROTATE_90 == mOnlineRotation) || (ROTATE_270 == mOnlineRotation)) {
+            dim.width = mStreamInfo->dim.height;
+            dim.height = mStreamInfo->dim.width;
+        } else {
+            dim = mStreamInfo->dim;
+        }
         return 0;
     }
     return -1;

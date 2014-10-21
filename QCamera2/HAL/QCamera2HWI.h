@@ -128,6 +128,8 @@ typedef struct {
 #define MAX_ONGOING_JOBS 25
 #define QCAMERA_MAX_FILEPATH_LENGTH 50
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 extern volatile uint32_t gCamHalLogLevel;
 
 typedef enum {
@@ -425,6 +427,7 @@ private:
     bool isHDRMode() {return mParameters.isHDREnabled();};
     uint8_t getBufNumRequired(cam_stream_type_t stream_type);
     bool needFDMetadata(qcamera_ch_type_enum_t channel_type);
+    int32_t configureOnlineRotation(QCameraChannel &ch);
     int32_t declareSnapshotStreams();
 
     bool removeSizeFromList(cam_dimension_t* size_list,

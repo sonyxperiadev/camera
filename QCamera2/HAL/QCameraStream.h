@@ -50,11 +50,9 @@ class QCameraStream
 {
 public:
     QCameraStream(QCameraAllocator &allocator,
-                  uint32_t camHandle,
-                  uint32_t chId,
-                  mm_camera_ops_t *camOps,
-                  cam_padding_info_t *paddingInfo,
-                  bool deffered = false);
+            uint32_t camHandle, uint32_t chId,
+            mm_camera_ops_t *camOps, cam_padding_info_t *paddingInfo,
+            bool deffered = false, cam_rotation_t online_rotation = ROTATE_0);
     virtual ~QCameraStream();
     virtual int32_t init(QCameraHeapMemory *streamInfoBuf,
                          uint8_t minStreamBufNum,
@@ -137,6 +135,7 @@ private:
     cam_frame_len_offset_t mFrameLenOffset;
     cam_padding_info_t mPaddingInfo;
     cam_rect_t mCropInfo;
+    cam_rotation_t mOnlineRotation;
     pthread_mutex_t mCropLock; // lock to protect crop info
     pthread_mutex_t mParameterLock; // lock to sync access to parameters
     bool mStreamBufsAcquired;

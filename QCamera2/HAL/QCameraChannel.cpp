@@ -168,19 +168,17 @@ int32_t QCameraChannel::init(mm_camera_channel_attr_t *attr,
  *   @stream_cb      : stream data notify callback
  *   @userdata       : user data ptr
  *   @bDynAllocBuf   : flag indicating if allow allocate buffers in 2 steps
+ *   @online_rotation: rotation applied online
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
-                                  QCameraHeapMemory *streamInfoBuf,
-                                  uint8_t minStreamBufNum,
-                                  cam_padding_info_t *paddingInfo,
-                                  stream_cb_routine stream_cb,
-                                  void *userdata,
-                                  bool bDynAllocBuf,
-                                  bool bDeffAlloc)
+        QCameraHeapMemory *streamInfoBuf, uint8_t minStreamBufNum,
+        cam_padding_info_t *paddingInfo, stream_cb_routine stream_cb,
+        void *userdata, bool bDynAllocBuf, bool bDeffAlloc,
+        cam_rotation_t online_rotation)
 {
     int32_t rc = NO_ERROR;
     if (mStreams.size() >= MAX_STREAM_NUM_IN_BUNDLE) {
@@ -189,11 +187,8 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
         return BAD_VALUE;
     }
     QCameraStream *pStream = new QCameraStream(allocator,
-                                               m_camHandle,
-                                               m_handle,
-                                               m_camOps,
-                                               paddingInfo,
-                                               bDeffAlloc);
+            m_camHandle, m_handle, m_camOps, paddingInfo, bDeffAlloc,
+            online_rotation);
     if (pStream == NULL) {
         ALOGE("%s: No mem for Stream", __func__);
         return NO_MEMORY;
@@ -833,8 +828,17 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
     QCameraStream *pStream = NULL;
     QCameraHeapMemory *pStreamInfoBuf = NULL;
     cam_stream_info_t *streamInfo = NULL;
+    cam_padding_info_t padding;
 
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
+    if (NULL == paddingInfo) {
+        return BAD_VALUE;
+    }
+    padding = *paddingInfo;
+    //Use maximum padding so that the buffer
+    //can be rotated
+    padding.width_padding = MAX(padding.width_padding, padding.height_padding);
+    padding.height_padding = padding.width_padding;
 
     for (uint32_t i = 0; i < pSrcChannel->getNumOfStreams(); i++) {
         pStream = pSrcChannel->getStreamByIndex(i);
@@ -935,6 +939,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 rp_cfg.online.input_stream_id = pStream->getMyServerID();
                 rp_cfg.online.input_stream_type = pStream->getMyType();
             }
+            param.getStreamRotation(streamInfo->stream_type,
+                    streamInfo->pp_config, streamInfo->dim);
             streamInfo->reprocess_config = rp_cfg;
             streamInfo->reprocess_config.pp_feature_config = config;
 
@@ -951,19 +957,9 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 }
             }
 
-            if (streamInfo->reprocess_config.pp_feature_config.feature_mask & CAM_QCOM_FEATURE_ROTATION) {
-                if (streamInfo->reprocess_config.pp_feature_config.rotation == ROTATE_90 ||
-                    streamInfo->reprocess_config.pp_feature_config.rotation == ROTATE_270) {
-                    // rotated by 90 or 270, need to switch width and height
-                    int32_t temp = streamInfo->dim.height;
-                    streamInfo->dim.height = streamInfo->dim.width;
-                    streamInfo->dim.width = temp;
-                }
-            }
 
-            if (param.isZSLMode() &&
-                (streamInfo->reprocess_config.online.input_stream_type == CAM_STREAM_TYPE_SNAPSHOT)) {
-                // ZSL mode snapshot need reprocess to do the flip
+            if (streamInfo->reprocess_config.online.input_stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+                // Reprocess can be for both zsl and non-zsl cases
                 int flipMode =
                     param.getFlipMode(streamInfo->reprocess_config.online.input_stream_type);
                 if (flipMode > 0) {
@@ -975,29 +971,22 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             if(streamInfo->reprocess_config.pp_feature_config.feature_mask & CAM_QCOM_FEATURE_SCALE){
                 //we only Scale Snapshot frame
                 if(pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT)){
-                    //also check whether rotation is needed
-                    if((streamInfo->reprocess_config.pp_feature_config.feature_mask & CAM_QCOM_FEATURE_ROTATION) &&
-                       (streamInfo->reprocess_config.pp_feature_config.rotation == ROTATE_90 ||
-                        streamInfo->reprocess_config.pp_feature_config.rotation == ROTATE_270)){
-                        //need swap
-                        streamInfo->dim.width = streamInfo->reprocess_config.pp_feature_config.scale_param.output_height;
-                        streamInfo->dim.height = streamInfo->reprocess_config.pp_feature_config.scale_param.output_width;
-                    }else{
-                        streamInfo->dim.width = streamInfo->reprocess_config.pp_feature_config.scale_param.output_width;
-                        streamInfo->dim.height = streamInfo->reprocess_config.pp_feature_config.scale_param.output_height;
-                    }
+                    streamInfo->dim.width =
+                            streamInfo->reprocess_config.pp_feature_config.scale_param.output_width;
+                    streamInfo->dim.height =
+                            streamInfo->reprocess_config.pp_feature_config.scale_param.output_height;
                 }
-                CDBG_HIGH("%s: stream width=%d, height=%d.", __func__, streamInfo->dim.width, streamInfo->dim.height);
+                CDBG_HIGH("%s: stream width=%d, height=%d.",
+                        __func__, streamInfo->dim.width, streamInfo->dim.height);
             }
 
             // save source stream handler
             mSrcStreamHandles[mStreams.size()] = pStream->getMyHandle();
 
             // add reprocess stream
-            rc = addStream(allocator,
-                           pStreamInfoBuf, minStreamBufNum,
-                           paddingInfo,
-                           NULL, NULL, false);
+            rc = addStream(allocator, pStreamInfoBuf,
+                    minStreamBufNum, &padding, NULL, NULL, false, false,
+                    streamInfo->reprocess_config.pp_feature_config.rotation);
             if (rc != NO_ERROR) {
                 ALOGE("%s: add reprocess stream failed, ret = %d", __func__, rc);
                 break;
@@ -1077,13 +1066,14 @@ int32_t QCameraReprocessChannel::stop()
  *
  * PARAMETERS :
  *   @frame   : frame to be performed a reprocess
+ *   @rotation: online rotation
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocessOffline(
-                mm_camera_super_buf_t *frame)
+        mm_camera_super_buf_t *frame, int32_t rotation)
 {
     int32_t rc = 0;
     OfflineBuffer mappedBuffer;
@@ -1192,6 +1182,19 @@ int32_t QCameraReprocessChannel::doReprocessOffline(
                     }
                 }
             }
+
+            if (rotation == 0) {
+                param.reprocess.frame_pp_config.rotation = ROTATE_0;
+            } else if (rotation == 90) {
+                param.reprocess.frame_pp_config.rotation = ROTATE_90;
+            } else if (rotation == 180) {
+                param.reprocess.frame_pp_config.rotation = ROTATE_180;
+            } else if (rotation == 270) {
+                param.reprocess.frame_pp_config.rotation = ROTATE_270;
+            } else {
+                param.reprocess.frame_pp_config.rotation = ROTATE_0;
+            }
+
             rc = pStream->setParameter(param);
             if (rc != NO_ERROR) {
                 ALOGE("%s: stream setParameter for reprocess failed",
@@ -1210,13 +1213,15 @@ int32_t QCameraReprocessChannel::doReprocessOffline(
  *
  * PARAMETERS :
  *   @frame   : frame to be performed a reprocess
+ *   @mParameter : camera parameters
+ *   @rotation: online rotation
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
-        QCameraParameters &mParameter)
+        QCameraParameters &mParameter, int32_t rotation)
 {
     int32_t rc = 0;
     if (mStreams.size() < 1) {
@@ -1275,6 +1280,19 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
                 param.reprocess.meta_stream_handle = pMetaStream->getMyServerID();
                 param.reprocess.meta_buf_index = meta_buf_index;
             }
+
+            if (rotation == 0) {
+                param.reprocess.frame_pp_config.rotation = ROTATE_0;
+            } else if (rotation == 90) {
+                param.reprocess.frame_pp_config.rotation = ROTATE_90;
+            } else if (rotation == 180) {
+                param.reprocess.frame_pp_config.rotation = ROTATE_180;
+            } else if (rotation == 270) {
+                param.reprocess.frame_pp_config.rotation = ROTATE_270;
+            } else {
+                param.reprocess.frame_pp_config.rotation = ROTATE_0;
+            }
+
             rc = pStream->setParameter(param);
             if (rc != NO_ERROR) {
                 ALOGE("%s: stream setParameter for reprocess failed", __func__);

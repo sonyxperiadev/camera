@@ -147,11 +147,11 @@ public:
     int flush();
 
     int setFrameParameters(camera3_capture_request_t *request,
-            cam_stream_ID_t streamID, int blob_request);
+            cam_stream_ID_t streamID, int blob_request, uint32_t snapshotStreamId);
     int32_t setReprocParameters(camera3_capture_request_t *request,
-            metadata_buffer_t *reprocParam);
+            metadata_buffer_t *reprocParam, uint32_t snapshotStreamId);
     int translateToHalMetadata(const camera3_capture_request_t *request,
-            metadata_buffer_t *parm);
+            metadata_buffer_t *parm, uint32_t snapshotStreamId);
     camera_metadata_t* translateCbUrgentMetadataToResultMetadata (
                              metadata_buffer_t *metadata);
 
@@ -166,6 +166,7 @@ public:
             QCamera3PicChannel *picChHandle, metadata_buffer_t *metadata);
     bool needRotationReprocess();
     bool needReprocess(uint32_t postprocess_mask);
+    bool needJpegRotation();
     bool isWNREnabled();
     bool isCACEnabled();
     cam_denoise_process_type_t getWaveletDenoiseProcessPlate();

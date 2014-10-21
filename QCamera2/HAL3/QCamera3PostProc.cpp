@@ -648,13 +648,12 @@ int32_t QCamera3PostProcessor::processRawData(mm_camera_super_buf_t *frame)
 int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame)
 {
     qcamera_hal3_pp_data_t *job = (qcamera_hal3_pp_data_t *)m_ongoingPPQ.dequeue();
-    jpeg_settings_t *jpeg_settings = (jpeg_settings_t *)m_jpegSettingsQ.dequeue();
 
     if (job == NULL || ((NULL == job->src_frame) && (NULL == job->fwk_src_frame))) {
         ALOGE("%s: Cannot find reprocess job", __func__);
         return BAD_VALUE;
     }
-    if (jpeg_settings == NULL) {
+    if (job->jpeg_settings == NULL) {
         ALOGE("%s: Cannot find jpeg settings", __func__);
         return BAD_VALUE;
     }
@@ -678,7 +677,7 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame)
         jpeg_job->fwk_src_buffer = job->fwk_src_frame;
     }
     jpeg_job->src_metadata = job->src_metadata;
-    jpeg_job->jpeg_settings = jpeg_settings;
+    jpeg_job->jpeg_settings = job->jpeg_settings;
 
     // free pp job buf
     free(job);
@@ -1181,6 +1180,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
        ALOGE("%s: m_parent is NULL, Error",__func__);
        return BAD_VALUE;
     }
+    bool needJpegRotation = false;
 
     recvd_frame = jpeg_job_data->src_frame;
     metadata = jpeg_job_data->metadata;
@@ -1256,6 +1256,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
        srcChannel->getStreamByIndex(0)->getFrameDimension(dst_dim);
     }
 
+    needJpegRotation = hal_obj->needJpegRotation();
     CDBG_HIGH("%s: Need new session?:%d",__func__, needNewSess);
     if (needNewSess) {
         //creating a new session, so we must destroy the old one
@@ -1271,14 +1272,36 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         // create jpeg encoding session
         mm_jpeg_encode_params_t encodeParam;
         memset(&encodeParam, 0, sizeof(mm_jpeg_encode_params_t));
-        encodeParam.main_dim.src_dim = src_dim;
-        encodeParam.main_dim.dst_dim = dst_dim;
-        encodeParam.thumb_dim.src_dim = src_dim;
-        encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
-
         getJpegEncodeConfig(encodeParam, main_stream, jpeg_settings);
         CDBG_HIGH("%s: #src bufs:%d # tmb bufs:%d #dst_bufs:%d", __func__,
                      encodeParam.num_src_bufs,encodeParam.num_tmb_bufs,encodeParam.num_dst_bufs);
+        if (!needJpegRotation &&
+            (jpeg_settings->jpeg_orientation == 90 ||
+            jpeg_settings->jpeg_orientation == 270)) {
+           //swap src width and height, stride and scanline due to rotation
+           encodeParam.main_dim.src_dim.width = src_dim.height;
+           encodeParam.main_dim.src_dim.height = src_dim.width;
+           encodeParam.thumb_dim.src_dim.width = src_dim.height;
+           encodeParam.thumb_dim.src_dim.height = src_dim.width;
+
+           int32_t temp = encodeParam.src_main_buf[0].offset.mp[0].stride;
+           encodeParam.src_main_buf[0].offset.mp[0].stride =
+              encodeParam.src_main_buf[0].offset.mp[0].scanline;
+           encodeParam.src_main_buf[0].offset.mp[0].scanline = temp;
+
+           temp = encodeParam.src_thumb_buf[0].offset.mp[0].stride;
+           encodeParam.src_thumb_buf[0].offset.mp[0].stride =
+              encodeParam.src_thumb_buf[0].offset.mp[0].scanline;
+           encodeParam.src_thumb_buf[0].offset.mp[0].scanline = temp;
+        } else {
+           encodeParam.main_dim.src_dim  = src_dim;
+           encodeParam.thumb_dim.src_dim = src_dim;
+        }
+        encodeParam.main_dim.dst_dim = dst_dim;
+        encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
+        if (needJpegRotation) {
+           encodeParam.rotation = jpeg_settings->jpeg_orientation;
+        }
 
         ret = mJpegHandle.create_session(mJpegClientHandle, &encodeParam, &mJpegSessionId);
         if (ret != NO_ERROR) {
@@ -1294,6 +1317,13 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     jpg_job.encode_job.session_id = mJpegSessionId;
     jpg_job.encode_job.src_index = (int32_t)main_frame->buf_idx;
     jpg_job.encode_job.dst_index = 0;
+
+    if (needJpegRotation) {
+        jpg_job.encode_job.rotation =
+                jpeg_settings->jpeg_orientation;
+        CDBG("%s: %d: jpeg rotation is set to %d", __func__, __LINE__,
+                jpg_job.encode_job.rotation);
+    }
 
     cam_rect_t crop;
     memset(&crop, 0, sizeof(cam_rect_t));
@@ -1321,21 +1351,21 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         jpg_job.encode_job.thumb_dim.dst_dim =
                 jpeg_settings->thumbnail_size;
 
-        if (!hal_obj->needRotationReprocess()) {
-            jpg_job.encode_job.rotation = (uint32_t)
-                    jpeg_settings->jpeg_orientation;
-            CDBG_HIGH("%s: jpeg rotation is set to %d", __func__,
-                    jpg_job.encode_job.rotation);
-        } else if (jpeg_settings->jpeg_orientation  == 90 ||
-                jpeg_settings->jpeg_orientation == 270) {
+      if (!needJpegRotation &&
+          (jpeg_settings->jpeg_orientation  == 90 ||
+           jpeg_settings->jpeg_orientation == 270)) {
             //swap the thumbnail destination width and height if it has
             //already been rotated
             int temp = jpg_job.encode_job.thumb_dim.dst_dim.width;
             jpg_job.encode_job.thumb_dim.dst_dim.width =
                     jpg_job.encode_job.thumb_dim.dst_dim.height;
             jpg_job.encode_job.thumb_dim.dst_dim.height = temp;
+
+            jpg_job.encode_job.thumb_dim.src_dim.width = src_dim.height;
+            jpg_job.encode_job.thumb_dim.src_dim.height = src_dim.width;
+        } else {
+           jpg_job.encode_job.thumb_dim.src_dim = src_dim;
         }
-        jpg_job.encode_job.thumb_dim.src_dim = src_dim;
         jpg_job.encode_job.thumb_dim.crop = crop;
         jpg_job.encode_job.thumb_index = main_frame->buf_idx;
     }
@@ -1496,13 +1526,15 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                         if (NULL != fwk_frame) {
                             qcamera_hal3_pp_data_t *pp_job =
                                     (qcamera_hal3_pp_data_t *)malloc(sizeof(qcamera_hal3_pp_data_t));
+                            jpeg_settings_t *jpeg_settings =
+                                    (jpeg_settings_t *)pme->m_jpegSettingsQ.dequeue();
                             if (pp_job != NULL) {
                                 memset(pp_job, 0, sizeof(qcamera_hal3_pp_data_t));
+                                pp_job->jpeg_settings = jpeg_settings;
                                 if (pme->m_pReprocChannel != NULL) {
-                                    if (NO_ERROR !=
-                                            pme->m_pReprocChannel->extractCrop(fwk_frame)) {
-                                        ALOGE("%s: Failed to extract output crop", __func__);
-                                    }
+                                   if (NO_ERROR != pme->m_pReprocChannel->extractCrop(fwk_frame)) {
+                                       ALOGE("%s: Failed to extract output crop", __func__);
+	                            }
                                     // add into ongoing PP job Q
                                     pp_job->fwk_src_frame = fwk_frame;
                                     pme->m_ongoingPPQ.enqueue((void *)pp_job);
@@ -1540,6 +1572,8 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                             (mm_camera_super_buf_t *)pme->m_inputPPQ.dequeue();
                         meta_buffer =
                             (mm_camera_super_buf_t *)pme->m_inputMetaQ.dequeue();
+                        jpeg_settings_t *jpeg_settings =
+                           (jpeg_settings_t *)pme->m_jpegSettingsQ.dequeue();
                         pthread_mutex_unlock(&pme->mReprocJobLock);
                         qcamera_hal3_pp_data_t *pp_job =
                             (qcamera_hal3_pp_data_t *)malloc(sizeof(qcamera_hal3_pp_data_t));
@@ -1549,13 +1583,15 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                             pp_job->src_metadata = meta_buffer;
                             pp_job->metadata =
                                     (metadata_buffer_t *)meta_buffer->bufs[0]->buffer;
+                            pp_job->jpeg_settings = jpeg_settings;
                             pme->m_ongoingPPQ.enqueue((void *)pp_job);
                             if (pme->m_pReprocChannel != NULL) {
                                 qcamera_fwk_input_pp_data_t fwk_frame;
                                 memset(&fwk_frame, 0, sizeof(qcamera_fwk_input_pp_data_t));
-                                ret = pme->m_pReprocChannel->extractFrameAndCrop(
+                                ret = pme->m_pReprocChannel->extractFrameCropAndRotation(
                                         pp_frame, meta_buffer->bufs[0],
-                                        pp_job->metadata, fwk_frame);
+                                        pp_job->jpeg_settings,
+                                        fwk_frame);
                                 if (NO_ERROR == ret) {
                                     // add into ongoing PP job Q
                                     ret = pme->m_pReprocChannel->doReprocessOffline(

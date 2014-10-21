@@ -2745,6 +2745,12 @@ int QCamera2HardwareInterface::takePicture()
                 ALOGE("%s: cannot start postprocessor", __func__);
                 return rc;
             }
+            rc = configureOnlineRotation(*pZSLChannel);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: online rotation failed", __func__);
+                m_postprocessor.stop();
+                return rc;
+            }
             if (mParameters.isUbiFocusEnabled() ||
                     mParameters.isUbiRefocus() ||
                     mParameters.isOptiZoomEnabled() ||
@@ -2851,6 +2857,13 @@ int QCamera2HardwareInterface::takePicture()
                     return rc;
                 }
 
+                rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_CAPTURE]);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s: online rotation failed", __func__);
+                    delChannel(QCAMERA_CH_TYPE_CAPTURE);
+                    return rc;
+                }
+
                 DefferWorkArgs args;
                 memset(&args, 0, sizeof(DefferWorkArgs));
 
@@ -2935,6 +2948,52 @@ int QCamera2HardwareInterface::takePicture()
         }
     }
     CDBG_HIGH("%s: X", __func__);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : configureOnlineRotation
+ *
+ * DESCRIPTION: Configure backend with expected rotation for snapshot stream
+ *
+ * PARAMETERS :
+ *    @ch     : Channel containing a snapshot stream
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::configureOnlineRotation(QCameraChannel &ch)
+{
+    int rc = NO_ERROR;
+    uint32_t streamId = 0;
+    QCameraStream *pStream = NULL;
+
+    for (uint8_t i = 0; i < ch.getNumOfStreams(); i++) {
+        QCameraStream *stream = ch.getStreamByIndex(i);
+        if ((NULL != stream) &&
+                (CAM_STREAM_TYPE_SNAPSHOT == stream->getMyType())) {
+            pStream = stream;
+            break;
+        }
+    }
+
+    if (NULL == pStream) {
+        ALOGE("%s: No snapshot stream found!", __func__);
+        return BAD_VALUE;
+    }
+
+    streamId = pStream->getMyServerID();
+    // Update online rotation configuration
+    pthread_mutex_lock(&m_parm_lock);
+    rc = mParameters.addOnlineRotation(getJpegRotation(), streamId);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: addOnlineRotation failed %d", __func__, rc);
+        pthread_mutex_unlock(&m_parm_lock);
+        return rc;
+    }
+    pthread_mutex_unlock(&m_parm_lock);
+
     return rc;
 }
 
@@ -3381,6 +3440,13 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
         ALOGE("%s: Snapshot channel not initialized", __func__);
         rc = NO_INIT;
         goto end;
+    }
+
+    rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: online rotation failed", __func__);
+        m_postprocessor.stop();
+        return rc;
     }
 
     // start snapshot channel
@@ -5166,8 +5232,9 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
 
     // pp feature config
     cam_pp_feature_config_t pp_config;
+    uint32_t required_mask = gCamCaps[mCameraId]->min_required_pp_mask;
     memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
-    if (mParameters.isZSLMode()) {
+    if (mParameters.isZSLMode() || (required_mask & CAM_QCOM_FEATURE_PP_SUPERSET)) {
         if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_EFFECT) {
             pp_config.feature_mask |= CAM_QCOM_FEATURE_EFFECT;
             pp_config.effect = mParameters.getEffectValue();
@@ -5187,6 +5254,9 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
             pp_config.denoise2d.denoise_enable = 1;
             pp_config.denoise2d.process_plates =
                     mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
+        }
+        if (required_mask & CAM_QCOM_FEATURE_ROTATION) {
+            pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
         }
     }
 
@@ -6355,6 +6425,12 @@ bool QCamera2HardwareInterface::needReprocess()
             mParameters.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
         if (snapshot_flipMode > 0) {
             CDBG_HIGH("%s: Need do flip for snapshot in ZSL mode", __func__);
+            pthread_mutex_unlock(&m_parm_lock);
+            return true;
+        }
+    } else {
+        if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_PP_SUPERSET) {
+            CDBG_HIGH("%s: Need CPP in non-ZSL mode", __func__);
             pthread_mutex_unlock(&m_parm_lock);
             return true;
         }
