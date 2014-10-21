@@ -227,6 +227,13 @@ typedef struct{
     int64_t max_frame_duration;
 
     cam_color_filter_arrangement_t color_arrangement;
+    uint8_t num_color_channels;
+
+    /* parameters required to calculate S and O co-efficients */
+    double gradient_S;
+    double offset_S;
+    double gradient_O;
+    double offset_O;
 
     float sensor_physical_size[2];
 
