@@ -438,6 +438,7 @@ private:
     int32_t configureAFBracketing(bool enable = true);
     int32_t configureFlashBracketing(bool enable = true);
     int32_t configureHDRBracketing();
+    int32_t stopAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t startAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t configureOptiZoom();
     int32_t configureAEBracketing();
