@@ -1,4 +1,3 @@
-ifneq (,$(findstring $(PLATFORM_VERSION), 4.4 4.4.1 4.4.2))
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -47,7 +46,10 @@ LOCAL_MODULE_TAGS:= tests
 LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 LOCAL_CFLAGS += -O0
 
-LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
-include $(BUILD_EXECUTABLE)
+ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) >= 20 ))" )))
+
+LOCAL_CFLAGS += -DUSE_SDK_20_OR_HIGHER
 
 endif
+
+include $(BUILD_EXECUTABLE)

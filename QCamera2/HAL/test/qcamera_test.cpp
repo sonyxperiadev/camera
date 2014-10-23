@@ -280,6 +280,7 @@ SkBitmap * CameraContext::PiPCopyToOneFile(
  *==========================================================================*/
 status_t CameraContext::decodeJPEG(const sp<IMemory>& mem, SkBitmap *skBM)
 {
+#ifndef USE_SDK_20_OR_HIGHER
     SkBitmap::Config prefConfig = SkBitmap::kARGB_8888_Config;
     const void *buff = NULL;
     size_t size;
@@ -331,7 +332,66 @@ status_t CameraContext::decodeJPEG(const sp<IMemory>& mem, SkBitmap *skBM)
         printf("%s():%d:: Failed during jpeg decode\n",__FUNCTION__,__LINE__);
         return BAD_VALUE;
     }
+#else
+    SkColorType prefConfig = kRGBA_8888_SkColorType;
+    const void *buff = NULL;
+    size_t size;
 
+    buff = (const void *)mem->pointer();
+    size= mem->size();
+
+    switch(prefConfig) {
+        case kRGBA_8888_SkColorType:
+        {
+            mfmtMultiplier = 4;
+        }
+        break;
+
+        case kBGRA_8888_SkColorType:
+        {
+            mfmtMultiplier = 4;
+        }
+        break;
+
+        case kARGB_4444_SkColorType:
+        {
+            mfmtMultiplier = 2;
+        }
+        break;
+
+        case kRGB_565_SkColorType:
+        {
+            mfmtMultiplier = 2;
+        }
+        break;
+
+        case kIndex_8_SkColorType:
+        {
+            mfmtMultiplier = 4;
+        }
+        break;
+
+        case kAlpha_8_SkColorType:
+        {
+            mfmtMultiplier = 4;
+        }
+        break;
+
+        default:
+        {
+            mfmtMultiplier = 0;
+            printf("Decode format is not correct!\n");
+        }
+        break;
+    }
+
+    if (SkImageDecoder::DecodeMemory(buff, size, skBM, prefConfig,
+            SkImageDecoder::kDecodePixels_Mode) == false) {
+        printf("%s():%d:: Failed during jpeg decode\n",__FUNCTION__,__LINE__);
+        return BAD_VALUE;
+    }
+
+#endif
     return NO_ERROR;
 }
 
@@ -2085,7 +2145,8 @@ status_t CameraContext::configureRecorder()
 
     char fileName[100];
 
-    sprintf(fileName, "/sdcard/vid_cam%d_%dx%d_%d.mpeg", mCameraIndex,
+    snprintf(fileName, sizeof(fileName) / sizeof(char),
+            "/sdcard/vid_cam%d_%dx%d_%d.mpeg", mCameraIndex,
             videoSize.width, videoSize.height, mVideoIdx++);
 
     if ( mVideoFd < 0 ) {
@@ -2862,14 +2923,14 @@ status_t Interpreter::configureViVCodec()
             mTestContext->mViVVid.VideoSizes[0].height >=
             mTestContext->mViVVid.VideoSizes[1].width *
             mTestContext->mViVVid.VideoSizes[1].height) {
-        sprintf(fileName, "/sdcard/ViV_vid_%dx%d_%d.mp4",
+        snprintf(fileName, sizeof(fileName) / sizeof(char), "/sdcard/ViV_vid_%dx%d_%d.mp4",
             mTestContext->mViVVid.VideoSizes[0].width,
             mTestContext->mViVVid.VideoSizes[0].height,
             mTestContext->mViVVid.ViVIdx++);
         format->setInt32("width", mTestContext->mViVVid.VideoSizes[0].width);
         format->setInt32("height", mTestContext->mViVVid.VideoSizes[0].height);
     } else {
-        sprintf(fileName, "/sdcard/ViV_vid_%dx%d_%d.mp4",
+        snprintf(fileName, sizeof(fileName) / sizeof(char), "/sdcard/ViV_vid_%dx%d_%d.mp4",
             mTestContext->mViVVid.VideoSizes[1].width,
             mTestContext->mViVVid.VideoSizes[1].height,
             mTestContext->mViVVid.ViVIdx++);
@@ -2936,15 +2997,17 @@ status_t Interpreter::configureViVCodec()
         mTestContext->mViVVid.VideoSizes[0].height >=
         mTestContext->mViVVid.VideoSizes[1].width *
         mTestContext->mViVVid.VideoSizes[1].height) {
-        native_window_set_buffers_geometry(mTestContext->mViVVid.ANW.get(),
-            mTestContext->mViVVid.VideoSizes[0].width,
-            mTestContext->mViVVid.VideoSizes[0].height,
-            HAL_PIXEL_FORMAT_NV12_ENCODEABLE);
+        native_window_set_buffers_format(mTestContext->mViVVid.ANW.get(),
+                HAL_PIXEL_FORMAT_NV12_ENCODEABLE);
+        native_window_set_buffers_dimensions(mTestContext->mViVVid.ANW.get(),
+                mTestContext->mViVVid.VideoSizes[0].width,
+                mTestContext->mViVVid.VideoSizes[0].height);
     } else {
-        native_window_set_buffers_geometry(mTestContext->mViVVid.ANW.get(),
-            mTestContext->mViVVid.VideoSizes[1].width,
-            mTestContext->mViVVid.VideoSizes[1].height,
-            HAL_PIXEL_FORMAT_NV12_ENCODEABLE);
+        native_window_set_buffers_format(mTestContext->mViVVid.ANW.get(),
+                HAL_PIXEL_FORMAT_NV12_ENCODEABLE);
+        native_window_set_buffers_dimensions(mTestContext->mViVVid.ANW.get(),
+                mTestContext->mViVVid.VideoSizes[1].width,
+                mTestContext->mViVVid.VideoSizes[1].height);
     }
     native_window_set_usage(mTestContext->mViVVid.ANW.get(),
         GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN);
