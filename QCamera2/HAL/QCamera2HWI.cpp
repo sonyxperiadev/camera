@@ -1635,8 +1635,6 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
         }
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
-        bufferCnt = CAMERA_MIN_STREAMING_BUFFERS;
-        break;
     case CAM_STREAM_TYPE_DEFAULT:
     case CAM_STREAM_TYPE_MAX:
     default:
