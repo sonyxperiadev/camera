@@ -1471,6 +1471,7 @@ typedef enum {
     CAM_EZTUNE_CMD_AEC_FORCE_SNAP_GAIN,
     CAM_EZTUNE_CMD_AEC_FORCE_SNAP_EXP,
     CAM_EZTUNE_CMD_AWB_MODE,
+    CAM_EZTUNE_CMD_AWB_FORCE_DUAL_LED_IDX,
 } cam_eztune_cmd_type_t;
 
 typedef struct {
@@ -1482,6 +1483,7 @@ typedef struct {
     int32_t af_enable;
     cam_ez_force_params_t ez_force_param;
     int32_t awb_mode;
+    int32_t ez_force_dual_led_idx;
   } u;
 } cam_eztune_cmd_data_t;
 
