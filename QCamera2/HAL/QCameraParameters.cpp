@@ -8996,7 +8996,7 @@ int32_t QCameraParameters::initBatchUpdate(parm_buffer_t *p_table)
 {
     m_tempMap.clear();
 
-    memset(p_table, 0, sizeof(parm_buffer_t));
+    clear_metadata_buffer(p_table);
     return NO_ERROR;
 }
 

@@ -949,7 +949,7 @@ QCamera3Memory* QCamera3MetadataChannel::getStreamBufs(uint32_t len)
         mMemory = NULL;
         return NULL;
     }
-    memset(mMemory->getPtr(0), 0, sizeof(metadata_buffer_t));
+    clear_metadata_buffer((metadata_buffer_t*)mMemory->getPtr(0));
     return mMemory;
 }
 
