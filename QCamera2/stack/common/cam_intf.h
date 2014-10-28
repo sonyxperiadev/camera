@@ -664,8 +664,8 @@ typedef struct {
 
 typedef parm_data_t metadata_data_t;
 
-/****************************DO NOT MODIFY BELOW THIS LINE!!!!*********************/
-
+/* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
+ * or removed from this structure */
 typedef struct {
     union{
         /* Hash table of 'is valid' flags */
@@ -678,7 +678,6 @@ typedef struct {
     /*Tuning Data */
     uint8_t is_tuning_params_valid;
     tuning_params_t tuning_params;
-
 
     /* Mobicat Params */
     uint8_t is_mobicat_aec_params_valid;
@@ -711,6 +710,20 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
         const metadata_buffer_t* metadata);
 
 uint32_t get_size_of(cam_intf_parm_type_t param_id);
+
+/* Update this inline function when a new is_xxx_valid is added to
+ * or removed from metadata_buffer_t */
+static inline void clear_metadata_buffer(metadata_buffer_t *meta)
+{
+    memset(meta->is_valid, 0, CAM_INTF_PARM_MAX);
+    meta->is_tuning_params_valid = 0;
+    meta->is_mobicat_aec_params_valid = 0;
+    meta->is_statsdebug_ae_params_valid = 0;
+    meta->is_statsdebug_awb_params_valid = 0;
+    meta->is_statsdebug_af_params_valid = 0;
+    meta->is_statsdebug_asd_params_valid = 0;
+    meta->is_statsdebug_stats_params_valid = 0;
+}
 
 #ifdef  __cplusplus
 }
