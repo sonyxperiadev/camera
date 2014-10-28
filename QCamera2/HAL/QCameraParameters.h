@@ -629,6 +629,7 @@ public:
     const char *getASDStateString(cam_auto_scene_t scene);
     bool isHDRThumbnailProcessNeeded() { return m_bHDRThumbnailProcessNeeded; };
     int getAutoFlickerMode();
+    void setMinPpMask(uint32_t min_pp_mask) { m_nMinRequiredPpMask = min_pp_mask; };
 
     bool setStreamConfigure(bool isCapture, bool previewAsPostview);
     int32_t addOnlineRotation(int32_t rotation, uint32_t streamId);
@@ -666,6 +667,9 @@ public:
     int32_t setIntEvent(cam_int_evt_params_t params);
     void setOfflineRAW();
     bool getofflineRAW() {return mOfflineRAW;}
+    int32_t updatePpFeatureMask(cam_stream_type_t stream_type);
+    int32_t setStreamPpMask(cam_stream_type_t stream_type, uint32_t pp_mask);
+    int32_t getStreamPpMask(cam_stream_type_t stream_type, uint32_t &pp_mask);
 
 private:
     int32_t setPreviewSize(const QCameraParameters& );
@@ -917,6 +921,8 @@ private:
     bool m_bHDRModeSensor;
     bool mOfflineRAW;
     bool m_bTruePortraitOn;
+    uint32_t m_nMinRequiredPpMask;
+    uint32_t mStreamPpMask[CAM_STREAM_TYPE_MAX];
 
 };
 

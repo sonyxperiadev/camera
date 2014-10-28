@@ -4874,6 +4874,7 @@ int32_t QCameraParameters::initDefaultParameters()
     }
 
     setOfflineRAW();
+    memset(mStreamPpMask, 0, sizeof(uint32_t)*CAM_STREAM_TYPE_MAX);
 
     int32_t rc = commitParameters();
     if (rc == NO_ERROR) {
@@ -9826,70 +9827,100 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
         stream_config_info.type[stream_config_info.num_streams] =
             CAM_STREAM_TYPE_PREVIEW;
         getStreamDimension(CAM_STREAM_TYPE_PREVIEW,
-            stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+        updatePpFeatureMask(CAM_STREAM_TYPE_PREVIEW);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
                 CAM_STREAM_TYPE_ANALYSIS;
         getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
                 stream_config_info.stream_sizes[stream_config_info.num_streams]);
+        updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
-            CAM_STREAM_TYPE_SNAPSHOT;
+                CAM_STREAM_TYPE_SNAPSHOT;
         getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
-            stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+        updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
         stream_config_info.num_streams++;
 
     } else if (!isCapture) {
         if (m_bRecordingHint) {
             stream_config_info.type[stream_config_info.num_streams] =
-                CAM_STREAM_TYPE_SNAPSHOT;
+                    CAM_STREAM_TYPE_SNAPSHOT;
             getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
-                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                    mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
             stream_config_info.num_streams++;
 
             stream_config_info.type[stream_config_info.num_streams] =
-                CAM_STREAM_TYPE_VIDEO;
+                    CAM_STREAM_TYPE_VIDEO;
             getStreamDimension(CAM_STREAM_TYPE_VIDEO,
-                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            updatePpFeatureMask(CAM_STREAM_TYPE_VIDEO);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                    mStreamPpMask[CAM_STREAM_TYPE_VIDEO];
             stream_config_info.num_streams++;
         }
 
         if (getRecordingHintValue() != true) {
             /* Analysis stream is used only in capture usecase */
             stream_config_info.type[stream_config_info.num_streams] =
-                CAM_STREAM_TYPE_ANALYSIS;
+                    CAM_STREAM_TYPE_ANALYSIS;
             getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
-                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                    mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
             stream_config_info.num_streams++;
         }
 
         stream_config_info.type[stream_config_info.num_streams] =
-            CAM_STREAM_TYPE_PREVIEW;
+                CAM_STREAM_TYPE_PREVIEW;
         getStreamDimension(CAM_STREAM_TYPE_PREVIEW,
-            stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+        updatePpFeatureMask(CAM_STREAM_TYPE_PREVIEW);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
         stream_config_info.num_streams++;
 
     } else {
         if (isJpegPictureFormat() || isNV16PictureFormat() || isNV21PictureFormat()) {
             stream_config_info.type[stream_config_info.num_streams] =
-                CAM_STREAM_TYPE_SNAPSHOT;
+                    CAM_STREAM_TYPE_SNAPSHOT;
             getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
-                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                    mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
             stream_config_info.num_streams++;
 
             if (previewAsPostview) {
                 stream_config_info.type[stream_config_info.num_streams] =
-                    CAM_STREAM_TYPE_PREVIEW;
+                        CAM_STREAM_TYPE_PREVIEW;
                 getStreamDimension(CAM_STREAM_TYPE_PREVIEW,
-                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                        stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                updatePpFeatureMask(CAM_STREAM_TYPE_PREVIEW);
+                stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                        mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
                 stream_config_info.num_streams++;
             } else {
                 stream_config_info.type[stream_config_info.num_streams] =
-                    CAM_STREAM_TYPE_POSTVIEW;
+                        CAM_STREAM_TYPE_POSTVIEW;
                 getStreamDimension(CAM_STREAM_TYPE_POSTVIEW,
-                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                        stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                updatePpFeatureMask(CAM_STREAM_TYPE_POSTVIEW);
+                stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                        mStreamPpMask[CAM_STREAM_TYPE_POSTVIEW];
                 stream_config_info.num_streams++;
             }
         } else {
@@ -9898,20 +9929,36 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
                     CAM_STREAM_TYPE_RAW;
             getStreamDimension(CAM_STREAM_TYPE_RAW,
                     stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            updatePpFeatureMask(CAM_STREAM_TYPE_RAW);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                    mStreamPpMask[CAM_STREAM_TYPE_RAW];
             stream_config_info.num_streams++;
         }
     }
     if (raw_yuv && !raw_capture && isZSLMode()) {
+        cam_dimension_t max_dim = {0,0};
+        updateRAW(max_dim);
         stream_config_info.type[stream_config_info.num_streams] =
-            CAM_STREAM_TYPE_RAW;
+                CAM_STREAM_TYPE_RAW;
         getStreamDimension(CAM_STREAM_TYPE_RAW,
-            stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                stream_config_info.stream_sizes[stream_config_info.num_streams]);
+        updatePpFeatureMask(CAM_STREAM_TYPE_RAW);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                mStreamPpMask[CAM_STREAM_TYPE_RAW];
         stream_config_info.num_streams++;
     }
 
     if(initBatchUpdate(m_pParamBuf) < 0 ) {
         ALOGE("%s:Failed to initialize group update table", __func__);
         return BAD_TYPE;
+    }
+
+    for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
+        ALOGI("%s: stream type %d, w x h: %d x %d, pp_mask: 0x%x", __func__,
+                stream_config_info.type[k],
+                stream_config_info.stream_sizes[k].width,
+                stream_config_info.stream_sizes[k].height,
+                stream_config_info.postprocess_mask[k]);
     }
 
     rc = AddSetParmEntryToBatch(m_pParamBuf,
@@ -10128,6 +10175,109 @@ void QCameraParameters::setOfflineRAW()
    }
    CDBG_HIGH("%s: Offline Raw  %d",__func__, mOfflineRAW);
 }
+
+/*===========================================================================
+ * FUNCTION   : updatePpFeatureMask
+ *
+ * DESCRIPTION: Updates the feature mask for a particular stream depending
+ *              on current client configuration.
+ *
+ * PARAMETERS :
+ *  @stream_type: Camera stream type
+ *
+ * RETURN     : NO_ERROR --success
+ *              int32_t type of status
+ *==========================================================================*/
+int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
+
+    uint32_t feature_mask = 0;
+
+    if (stream_type >= CAM_STREAM_TYPE_MAX) {
+        ALOGE("%s: Error!! stream type: %d not valid", __func__, stream_type);
+        return -1;
+    }
+    if ((!isZSLMode() || (isZSLMode() && (stream_type != CAM_STREAM_TYPE_SNAPSHOT))) &&
+                !isHDREnabled() &&
+                !(getRecordingHintValue() && (stream_type == CAM_STREAM_TYPE_SNAPSHOT))) {
+        //Set flip mode based on Stream type;
+        int flipMode = getFlipMode(stream_type);
+        if (flipMode > 0) {
+            feature_mask |= CAM_QCOM_FEATURE_FLIP;
+        }
+    }
+    if (!isZSLMode() &&
+                !(getRecordingHintValue() && (stream_type == CAM_STREAM_TYPE_SNAPSHOT))) {
+        if ((m_nMinRequiredPpMask & CAM_QCOM_FEATURE_SHARPNESS) &&
+                !isOptiZoomEnabled()) {
+            feature_mask |= CAM_QCOM_FEATURE_SHARPNESS;
+        }
+
+        if (m_nMinRequiredPpMask & CAM_QCOM_FEATURE_EFFECT) {
+            feature_mask |= CAM_QCOM_FEATURE_EFFECT;
+        }
+        if (isWNREnabled() && (getRecordingHintValue() == false)) {
+            feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
+        }
+        if (isTNRVideoEnabled() &&
+                    ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
+                    (CAM_STREAM_TYPE_VIDEO == stream_type))) {
+            feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
+        }
+
+    }
+    // Store stream feature mask
+    setStreamPpMask(stream_type, feature_mask);
+    CDBG_HIGH("%s: stream type: %d, pp_mask: 0x%x", __func__, stream_type, feature_mask);
+
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setStreamPpMask
+ *
+ * DESCRIPTION: Stores a particular feature mask for a given camera stream
+ *
+ * PARAMETERS :
+ *  @stream_type: Camera stream type
+ *  @pp_mask  : Feature mask
+ *
+ * RETURN     : NO_ERROR --success
+ *              int32_t type of status
+ *==========================================================================*/
+int32_t QCameraParameters::setStreamPpMask(cam_stream_type_t stream_type,
+        uint32_t pp_mask) {
+
+    if(stream_type >= CAM_STREAM_TYPE_MAX) {
+        return BAD_TYPE;
+    }
+
+    mStreamPpMask[stream_type] = pp_mask;
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : getStreamPpMask
+ *
+ * DESCRIPTION: Retrieves the feature mask for a given camera stream
+ *
+ * PARAMETERS :
+ *  @stream_type: Camera stream type
+ *  @pp_mask  : Feature mask
+ *
+ * RETURN     : NO_ERROR --success
+ *              int32_t type of status
+ *==========================================================================*/
+int32_t QCameraParameters::getStreamPpMask(cam_stream_type_t stream_type,
+        uint32_t &pp_mask) {
+
+    if(stream_type >= CAM_STREAM_TYPE_MAX) {
+        return BAD_TYPE;
+    }
+
+    pp_mask = mStreamPpMask[stream_type];
+    return NO_ERROR;
+}
+
 
 /*===========================================================================
  * FUNCTION   : dump
