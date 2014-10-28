@@ -448,6 +448,9 @@ typedef struct {
     cam_is_type_t is_type;
     /* Signifies Secure stream mode */
     cam_stream_secure_t is_secure;
+
+    /* Preferred Performance mode */
+    cam_perf_mode_t perf_mode;
 } cam_stream_info_t;
 
 /*****************************************************************************
