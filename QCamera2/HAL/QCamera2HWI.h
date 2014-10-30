@@ -645,6 +645,7 @@ private:
     int32_t mReprocJob;
     int32_t mRawdataJob;
     uint32_t mOutputCount;
+    uint32_t mInputCount;
     bool mAdvancedCaptureConfigured;
 };
 

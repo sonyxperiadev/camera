@@ -833,6 +833,7 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
                             0,
                             NULL,
                             &release_data);
+        m_parent->setOutputImageCount(m_parent->getOutputImageCount() + 1);
 
 end:
         if (rc != NO_ERROR) {
