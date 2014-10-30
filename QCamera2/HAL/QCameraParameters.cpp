@@ -2579,6 +2579,11 @@ int32_t QCameraParameters::setRotation(const QCameraParameters& params)
         if (rotation == 0 || rotation == 90 ||
             rotation == 180 || rotation == 270) {
             set(KEY_ROTATION, rotation);
+
+            AddSetParmEntryToBatch(m_pParamBuf,
+                                   CAM_INTF_META_JPEG_ORIENTATION,
+                                   sizeof(rotation),
+                                   &rotation);
         } else {
             ALOGE("Invalid rotation value: %d", rotation);
             return BAD_VALUE;
