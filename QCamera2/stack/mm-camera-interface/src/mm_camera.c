@@ -535,6 +535,41 @@ int32_t mm_camera_qbuf(mm_camera_obj_t *my_obj,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_get_queued_buf_count
+ *
+ * DESCRIPTION: return queued buffer count
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *   @ch_id        : channel handle
+ *   @stream_id : stream id
+ *
+ * RETURN     : queued buffer count
+ *==========================================================================*/
+int32_t mm_camera_get_queued_buf_count(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id)
+{
+    int rc = -1;
+    mm_channel_t * ch_obj = NULL;
+    uint32_t payload;
+    ch_obj = mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+    payload = stream_id;
+
+    if (NULL != ch_obj) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        rc = mm_channel_fsm_fn(ch_obj,
+                MM_CHANNEL_EVT_GET_STREAM_QUEUED_BUF_COUNT,
+                (void *)&payload,
+                NULL);
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_query_capability
  *
  * DESCRIPTION: query camera capability

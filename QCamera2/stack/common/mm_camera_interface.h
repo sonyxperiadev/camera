@@ -638,6 +638,16 @@ typedef struct {
                      uint32_t ch_id,
                      mm_camera_buf_def_t *buf);
 
+    /** get_queued_buf_count: fucntion definition for querying queued buf count
+     *    @camera_handle : camer handler
+     *    @ch_id : channel handler
+     *    @stream_id : stream handler
+     *  Return value: queued buf count
+     **/
+    int32_t (*get_queued_buf_count) (uint32_t camera_handle,
+            uint32_t ch_id,
+            uint32_t stream_id);
+
     /** request_super_buf: fucntion definition for requesting frames
      *                     from superbuf queue in burst mode
      *    @camera_handle : camer handler

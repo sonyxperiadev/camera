@@ -179,6 +179,7 @@ int32_t QCameraPostProcessor::deinit()
             memset(&mJpegHandle, 0, sizeof(mJpegHandle));
         }
         m_bInited = FALSE;
+        m_reprocStream = NULL;
     }
     return NO_ERROR;
 }
@@ -218,6 +219,14 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
         if (m_pReprocChannel == NULL) {
             ALOGE("%s: cannot add reprocess channel", __func__);
             return UNKNOWN_ERROR;
+        }
+        QCameraStream *pStream = NULL;
+        for (uint8_t i = 0; i < m_pReprocChannel->getNumOfStreams(); i++) {
+            pStream = m_pReprocChannel->getStreamByIndex(i);
+            if (pStream->isTypeOf(CAM_STREAM_TYPE_OFFLINE_PROC)) {
+                m_reprocStream = pStream;
+                break;
+            }
         }
 
         rc = m_pReprocChannel->start();
@@ -764,6 +773,9 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
         // Release jpeg job data
         m_ongoingJpegQ.flushNodes(matchJobId, (void*)&evt->jobId);
 
+        if (m_inputPPQ.getCurrentSize() > 0) {
+            m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+        }
         CDBG_HIGH("[KPI Perf] %s : jpeg job %d", __func__, evt->jobId);
 
         if ((false == m_parent->m_bIntJpegEvtPending) &&
@@ -2261,8 +2273,13 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                         }
                     }
 
-                    mm_camera_super_buf_t *pp_frame =
-                        (mm_camera_super_buf_t *)pme->m_inputPPQ.dequeue();
+                    mm_camera_super_buf_t *pp_frame = NULL;
+                    if (pme->m_inputPPQ.getCurrentSize() > 0) {
+                        if (pme->m_ongoingPPQ.getCurrentSize() <
+                                pme->m_reprocStream->getNumQueuedBuf()) {
+                            pp_frame = (mm_camera_super_buf_t *)pme->m_inputPPQ.dequeue();
+                        }
+                    }
                     if (NULL != pp_frame) {
                         qcamera_pp_data_t *pp_job =
                             (qcamera_pp_data_t *)malloc(sizeof(qcamera_pp_data_t));
