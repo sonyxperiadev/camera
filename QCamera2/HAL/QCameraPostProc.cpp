@@ -2547,7 +2547,7 @@ int QCameraPostProcessor::getJpegMemory(omx_jpeg_ouput_buf_t *out_buf)
 {
     CDBG_HIGH("%s: Allocating jpeg out buffer of size: %d", __func__, out_buf->size);
     QCameraPostProcessor *procInst = (QCameraPostProcessor *) out_buf->handle;
-    camera_memory_t *cam_mem = procInst->m_parent->mGetMemory(-1, out_buf->size, 1U,
+    camera_memory_t *cam_mem = procInst->m_parent->mGetMemory(out_buf->fd, out_buf->size, 1U,
             procInst->m_parent->mCallbackCookie);
     out_buf->mem_hdl = cam_mem;
     out_buf->vaddr = cam_mem->data;
