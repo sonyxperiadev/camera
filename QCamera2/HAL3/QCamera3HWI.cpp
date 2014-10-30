@@ -7026,16 +7026,6 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
     return pChannel;
 }
 
-
-bool  QCamera3HardwareInterface::isCACEnabled() {
- //   return gCamCapability[mCameraId]->isCacSupported;
-    char prop[PROPERTY_VALUE_MAX];
-    memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.feature.cac", prop, "0");
-    int enableCAC = atoi(prop);
-    return enableCAC;
-}
-
 /*===========================================================================
 * FUNCTION   : getLogLevel
 *

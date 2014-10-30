@@ -1648,7 +1648,7 @@ typedef struct {
 #define CAM_QCOM_FEATURE_RAW_PROCESSING (1U<<18)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
-                                         CAM_QCOM_FEATURE_SCALE)
+                                         CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC)
 
 // Counter clock wise
 typedef enum {
