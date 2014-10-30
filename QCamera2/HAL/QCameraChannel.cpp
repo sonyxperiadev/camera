@@ -906,6 +906,9 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             streamInfo = (cam_stream_info_t *)pStreamInfoBuf->getPtr(0);
             memset(streamInfo, 0, sizeof(cam_stream_info_t));
             streamInfo->stream_type = CAM_STREAM_TYPE_OFFLINE_PROC;
+            // Enable CPP high performance mode to put it in turbo frequency mode for
+            // burst/longshot/HDR snapshot cases
+            streamInfo->perf_mode = CAM_PERF_HIGH_PERFORMANCE;
             if (param.getofflineRAW() && pStream->isTypeOf(CAM_STREAM_TYPE_RAW)) {
                 streamInfo->fmt = CAM_FORMAT_YUV_420_NV21;
             } else {

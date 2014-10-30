@@ -1881,4 +1881,9 @@ typedef enum {
     MIPI_RAW,
 } cam_opaque_raw_format_t;
 
+typedef enum {
+    CAM_PERF_NORMAL = 0,
+    CAM_PERF_HIGH_PERFORMANCE,
+} cam_perf_mode_t;
+
 #endif /* __QCAMERA_TYPES_H__ */
