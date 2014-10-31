@@ -10225,6 +10225,14 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         }
 
     }
+
+    //Rotation could also have an effect on pp feature mask
+    cam_pp_feature_config_t config;
+    cam_dimension_t dim;
+    memset(&config, 0, sizeof(cam_pp_feature_config_t));
+    getStreamRotation(stream_type, config, dim);
+    feature_mask |= config.feature_mask;
+
     // Store stream feature mask
     setStreamPpMask(stream_type, feature_mask);
     CDBG_HIGH("%s: stream type: %d, pp_mask: 0x%x", __func__, stream_type, feature_mask);
