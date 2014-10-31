@@ -1257,7 +1257,12 @@ int QCamera3HardwareInterface::configureStreams(
     AddSetParmEntryToBatch(mParameters,CAM_INTF_PARM_TINTLESS,
                 sizeof(tintless_value), &tintless_value);
 
-    mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
+    rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
+    if ( rc < 0 ) {
+        ALOGE("%s: set_parms failed", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return rc;
+    }
 
     /* Initialize mPendingRequestInfo and mPendnigBuffersMap */
     mPendingRequestsList.clear();
