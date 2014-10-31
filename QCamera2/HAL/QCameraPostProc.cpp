@@ -86,7 +86,7 @@ QCameraPostProcessor::QCameraPostProcessor(QCamera2HardwareInterface *cam_ctrl)
     memset(&mJpegHandle, 0, sizeof(mJpegHandle));
     memset(&m_pJpegOutputMem, 0, sizeof(m_pJpegOutputMem));
     memset(mPPChannels, 0, sizeof(mPPChannels));
-    m_DataMem = NULL ;
+    m_DataMem = NULL;
 }
 
 /*===========================================================================
@@ -215,6 +215,11 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
     if (m_bInited == FALSE) {
         ALOGE("%s: postproc not initialized yet", __func__);
         return UNKNOWN_ERROR;
+    }
+
+    if (m_DataMem != NULL) {
+        m_DataMem->release(m_DataMem);
+        m_DataMem = NULL;
     }
 
     if (pInputChannel == NULL) {
@@ -352,6 +357,12 @@ int32_t QCameraPostProcessor::stop()
 {
     if (m_bInited == TRUE) {
         m_parent->m_cbNotifier.stopSnapshots();
+
+        if (m_DataMem != NULL) {
+            m_DataMem->release(m_DataMem);
+            m_DataMem = NULL;
+        }
+
         // dataProc Thread need to process "stop" as sync call because abort jpeg job should be a sync call
         m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
     }
@@ -951,10 +962,13 @@ end:
 
         /* check whether to send callback for depth map */
         if (m_parent->mParameters.isUbiRefocus() &&
-                (m_parent->getOutputImageCount() + 1 ==  m_parent->mParameters.UfOutputCount())) {
+                (m_parent->getOutputImageCount() + 1 ==
+                        m_parent->mParameters.getRefocusOutputCount())) {
             m_parent->setOutputImageCount(m_parent->getOutputImageCount() + 1);
+
             jpeg_mem = m_DataMem;
             release_data.data = jpeg_mem;
+            m_DataMem = NULL;
             CDBG_HIGH("[KPI Perf] %s: send jpeg callback for depthmap ",__func__);
             rc = sendDataNotify(CAMERA_MSG_COMPRESSED_IMAGE,
                 jpeg_mem,
@@ -962,10 +976,10 @@ end:
                 NULL,
                 &release_data);
             if (rc != NO_ERROR) {
-            // send error msg to upper layer
+                // send error msg to upper layer
                 sendEvtNotify(CAMERA_MSG_ERROR,
-                UNKNOWN_ERROR,
-                0);
+                        UNKNOWN_ERROR,
+                        0);
                 if (NULL != jpeg_mem) {
                     jpeg_mem->release(jpeg_mem);
                     jpeg_mem = NULL;
@@ -1836,33 +1850,39 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         main_stream->setCropInfo(imgProp.crop);
         crop = imgProp.crop;
         thumb_stream = NULL; /* use thumbnail from main image */
-        if (imgProp.is_raw_image) {
-            camera_memory_t *temp = memObj->getMemory(main_frame->buf_idx, false);
-            camera_memory_t *mem = m_parent->mGetMemory(-1, imgProp.size,
+
+        if ((reproc_stream != NULL) && (m_DataMem == NULL) &&
+                m_parent->mParameters.isUbiRefocus()) {
+
+            QCameraHeapMemory* miscBufHandler = reproc_stream->getMiscBuf();
+            cam_misc_buf_t* refocusResult =
+                    reinterpret_cast<cam_misc_buf_t *>(miscBufHandler->getPtr(0));
+            uint32_t resultSize = refocusResult->header_size +
+                    refocusResult->width * refocusResult->height;
+            camera_memory_t *mem = m_parent->mGetMemory(-1, resultSize,
                     1, m_parent->mCallbackCookie);
-            /* dump image */
+
+            CDBG_HIGH("%s:%d] Refocus result header %u dims %dx%d", __func__, __LINE__,
+                    resultSize, refocusResult->width, refocusResult->height);
+
             if (mem && mem->data) {
-                memcpy(mem->data, temp->data, imgProp.size);
+                memcpy(mem->data, refocusResult->data, resultSize);
                 //save mem pointer for depth map
                 m_DataMem = mem;
-                CAM_DUMP_TO_FILE("/data/local/ubifocus", "DepthMapImage",
-                        -1, "y", (uint8_t *)mem->data, imgProp.size);
             }
-            return NO_ERROR;
         }
     } else if ((reproc_stream != NULL) && (m_parent->mParameters.isTruePortraitEnabled())) {
 
         QCameraHeapMemory* miscBufHandler = reproc_stream->getMiscBuf();
-        cam_true_portrait_misc_buf_t* tpResult =
-                reinterpret_cast<cam_true_portrait_misc_buf_t *>(miscBufHandler->getPtr(0));
-        uint32_t tp_meta_size = tpResult->header_size +
-                tpResult->body_mask_width * tpResult->body_mask_height;
+        cam_misc_buf_t* tpResult =
+                reinterpret_cast<cam_misc_buf_t *>(miscBufHandler->getPtr(0));
+        uint32_t tpMetaSize = tpResult->header_size + tpResult->width * tpResult->height;
 
         CDBG_HIGH("%s:%d] True portrait result header %d% dims dx%d", __func__, __LINE__,
-                tp_meta_size, tpResult->body_mask_width, tpResult->body_mask_height);
+                tpMetaSize, tpResult->width, tpResult->height);
 
         CAM_DUMP_TO_FILE("/data/camera/local/tp", "bm", -1, "y",
-                &tpResult->mask_data, tp_meta_size);
+                &tpResult->data, tpMetaSize);
     }
 
     cam_dimension_t dst_dim;

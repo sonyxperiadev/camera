@@ -408,10 +408,7 @@ typedef struct {
     cam_dimension_t input; /* input dimension of the image */
     cam_dimension_t output; /* output dimension of the image */
     char name[IMG_NAME_SIZE]; /* optional name of the ext*/
-    uint32_t is_raw_image; /* image is raw */
     cam_format_t format; /* image format */
-    uint32_t analysis_image; /* image is used for analysis. hence skip thumbnail */
-    uint32_t size; /* size of the image */
 } cam_stream_img_prop_t;
 
 typedef struct {
