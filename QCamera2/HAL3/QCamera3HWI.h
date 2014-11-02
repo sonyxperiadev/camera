@@ -242,6 +242,7 @@ private:
     QCamera3PicChannel *mPictureChannel;
     QCamera3RawChannel *mRawChannel;
     QCamera3SupportChannel *mSupportChannel;
+    QCamera3SupportChannel *mAnalysisChannel;
     QCamera3RawDumpChannel *mRawDumpChannel;
 
      //First request yet to be processed after configureStreams

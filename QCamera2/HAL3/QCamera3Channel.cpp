@@ -3317,11 +3317,15 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
                     mm_camera_ops_t *cam_ops,
                     cam_padding_info_t *paddingInfo,
                     uint32_t postprocess_mask,
+                    cam_stream_type_t streamType,
+                    cam_dimension_t *dim,
                     void *userData) :
                         QCamera3Channel(cam_handle, cam_ops,
                                 NULL, paddingInfo, postprocess_mask, userData),
                         mMemory(NULL)
 {
+   memcpy(&mDim, dim, sizeof(cam_dimension_t));
+   mStreamType = streamType;
 }
 
 QCamera3SupportChannel::~QCamera3SupportChannel()
@@ -3351,9 +3355,8 @@ int32_t QCamera3SupportChannel::initialize(cam_is_type_t isType)
         return rc;
     }
     mIsType = isType;
-    // Hardcode to VGA size for now
-    rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_CALLBACK,
-        CAM_FORMAT_YUV_420_NV21, kDim, MIN_STREAMING_BUFFER_NUM,
+    rc = QCamera3Channel::addStream(mStreamType,
+        CAM_FORMAT_YUV_420_NV21, mDim, MIN_STREAMING_BUFFER_NUM,
         mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);

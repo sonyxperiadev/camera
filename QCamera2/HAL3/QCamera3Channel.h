@@ -403,6 +403,7 @@ private:
     QCamera3HeapMemory *mMemory;
 };
 
+
 /* QCamera3SupportChannel is for HAL internal consumption only */
 class QCamera3SupportChannel : public QCamera3Channel
 {
@@ -411,6 +412,8 @@ public:
                     mm_camera_ops_t *cam_ops,
                     cam_padding_info_t *paddingInfo,
                     uint32_t postprocess_mask,
+                    cam_stream_type_t streamType,
+                    cam_dimension_t *dim,
                     void *userData);
     virtual ~QCamera3SupportChannel();
 
@@ -428,6 +431,8 @@ public:
     static cam_dimension_t kDim;
 private:
     QCamera3HeapMemory *mMemory;
+    cam_dimension_t mDim;
+    cam_stream_type_t mStreamType;
 };
 
 }; // namespace qcamera

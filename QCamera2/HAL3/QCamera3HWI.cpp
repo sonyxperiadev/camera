@@ -262,6 +262,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mPictureChannel(NULL),
       mRawChannel(NULL),
       mSupportChannel(NULL),
+      mAnalysisChannel(NULL),
       mRawDumpChannel(NULL),
       mFirstRequest(false),
       mFlush(false),
@@ -345,6 +346,10 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     if (mSupportChannel)
         mSupportChannel->stop();
 
+    if (mAnalysisChannel) {
+        mAnalysisChannel->stop();
+    }
+
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
         QCamera3Channel *channel = (*it)->channel;
@@ -357,6 +362,10 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         mSupportChannel = NULL;
     }
 
+    if (mAnalysisChannel) {
+        delete mAnalysisChannel;
+        mAnalysisChannel = NULL;
+    }
     if (mRawDumpChannel) {
         delete mRawDumpChannel;
         mRawDumpChannel = NULL;
@@ -748,6 +757,10 @@ int QCamera3HardwareInterface::configureStreams(
 
     if (mSupportChannel)
         mSupportChannel->stop();
+
+    if (mAnalysisChannel) {
+        mAnalysisChannel->stop();
+    }
     if (mMetadataChannel) {
         /* If content of mStreamInfo is not 0, there is metadata stream */
         mMetadataChannel->stop();
@@ -986,6 +999,11 @@ int QCamera3HardwareInterface::configureStreams(
         mSupportChannel = NULL;
     }
 
+    if (mAnalysisChannel) {
+        delete mAnalysisChannel;
+        mAnalysisChannel = NULL;
+    }
+
     //Create metadata channel and initialize it
     mMetadataChannel = new QCamera3MetadataChannel(mCameraHandle->camera_handle,
                     mCameraHandle->ops, captureResultCb,
@@ -1005,8 +1023,26 @@ int QCamera3HardwareInterface::configureStreams(
         return rc;
     }
 
+    /* Create analysis stream if h/w support is available */
+    if (gCamCapability[mCameraId]->hw_analysis_supported) {
+        mAnalysisChannel = new QCamera3SupportChannel(
+                mCameraHandle->camera_handle,
+                mCameraHandle->ops,
+                &gCamCapability[mCameraId]->padding_info,
+                CAM_QCOM_FEATURE_PP_SUPERSET,
+                CAM_STREAM_TYPE_ANALYSIS,
+                &gCamCapability[mCameraId]->analysis_recommended_res,
+                this);
+        if (!mAnalysisChannel) {
+            ALOGE("%s: H/W Analysis channel cannot be created", __func__);
+            pthread_mutex_unlock(&mMutex);
+            return -ENOMEM;
+        }
+    }
+
     /* Create dummy stream if there is one single raw or jpeg stream */
-    if (streamList->num_streams == 1 &&
+    /* Do not create support channel if h/w analysis stream is available*/
+    if (!mAnalysisChannel && streamList->num_streams == 1 &&
             (streamList->streams[0]->format == HAL_PIXEL_FORMAT_RAW_OPAQUE ||
             streamList->streams[0]->format == HAL_PIXEL_FORMAT_RAW10 ||
             streamList->streams[0]->format == HAL_PIXEL_FORMAT_RAW16 ||
@@ -1016,6 +1052,8 @@ int QCamera3HardwareInterface::configureStreams(
                 mCameraHandle->ops,
                 &gCamCapability[mCameraId]->padding_info,
                 CAM_QCOM_FEATURE_NONE,
+                CAM_STREAM_TYPE_CALLBACK,
+                &QCamera3SupportChannel::kDim,
                 this);
         if (!mSupportChannel) {
             ALOGE("%s: dummy channel cannot be created", __func__);
@@ -1225,6 +1263,15 @@ int QCamera3HardwareInterface::configureStreams(
 
 
     stream_config_info.num_streams = streamList->num_streams;
+
+    if (mAnalysisChannel) {
+        stream_config_info.stream_sizes[stream_config_info.num_streams] =
+                gCamCapability[mCameraId]->analysis_recommended_res;
+        stream_config_info.type[stream_config_info.num_streams] =
+                CAM_STREAM_TYPE_ANALYSIS;
+        stream_config_info.num_streams++;
+    }
+
     if (mSupportChannel) {
         stream_config_info.stream_sizes[stream_config_info.num_streams] =
                 QCamera3SupportChannel::kDim;
@@ -2123,16 +2170,39 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 return rc;
             }
         }
+        if (mAnalysisChannel) {
+            rc = mAnalysisChannel->initialize(is_type);
+            if (rc < 0) {
+                ALOGE("%s: Analysis channel initialization failed", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
+        }
 
         //Then start them.
         CDBG_HIGH("%s: Start META Channel", __func__);
         mMetadataChannel->start();
+
+        if (mAnalysisChannel) {
+            rc = mAnalysisChannel->start();
+            if (rc < 0) {
+                ALOGE("%s: Analysis channel start failed", __func__);
+                mMetadataChannel->stop();
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
+        }
 
         if (mSupportChannel) {
             rc = mSupportChannel->start();
             if (rc < 0) {
                 ALOGE("%s: Support channel start failed", __func__);
                 mMetadataChannel->stop();
+                /* Although support and analysis are mutually exclusive today
+                   adding it in anycase for future proofing */
+                if (mAnalysisChannel) {
+                    mAnalysisChannel->stop();
+                }
                 pthread_mutex_unlock(&mMutex);
                 return rc;
             }
@@ -2159,6 +2229,9 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 }
                 if (mSupportChannel)
                     mSupportChannel->stop();
+                if (mAnalysisChannel) {
+                    mAnalysisChannel->stop();
+                }
                 mMetadataChannel->stop();
                 pthread_mutex_unlock(&mMutex);
                 return rc;
@@ -2495,6 +2568,9 @@ int QCamera3HardwareInterface::flush()
     if (mSupportChannel) {
         mSupportChannel->stop();
     }
+    if (mAnalysisChannel) {
+        mAnalysisChannel->stop();
+    }
     if (mRawDumpChannel) {
         mRawDumpChannel->stop();
     }
@@ -2662,6 +2738,9 @@ int QCamera3HardwareInterface::flush()
         it != mStreamInfo.end(); it++) {
         QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
         channel->start();
+    }
+    if (mAnalysisChannel) {
+        mAnalysisChannel->start();
     }
     if (mSupportChannel) {
         mSupportChannel->start();
@@ -6312,6 +6391,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
         rc = AddSetParmEntryToBatch(mParameters, CAM_INTF_META_SHADING_STRENGTH,
                 sizeof(shadingStrength), &shadingStrength);
     }
+
 
     if (frame_settings.exists(ANDROID_STATISTICS_FACE_DETECT_MODE)) {
         uint8_t fwk_facedetectMode =
