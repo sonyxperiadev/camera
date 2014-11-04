@@ -130,7 +130,7 @@ public:
     // offline reprocess
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val);
     int32_t doReprocessOffline(mm_camera_super_buf_t *frame,
-            int32_t rotation);
+            QCameraParameters &param, int32_t rotation);
     int32_t stop();
 
 private:
