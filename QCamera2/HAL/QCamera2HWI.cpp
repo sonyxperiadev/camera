@@ -1954,9 +1954,10 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
             streamInfo->pp_config.denoise2d.process_plates =
                     mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
         }
-        if (mParameters.isTNRPreviewEnabled() && (CAM_STREAM_TYPE_PREVIEW == stream_type)) {
-            streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
-        } else if (mParameters.isTNRVideoEnabled() && (CAM_STREAM_TYPE_VIDEO == stream_type)) {
+
+        if ((mParameters.isTNRVideoEnabled()) &&
+                ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
+                (CAM_STREAM_TYPE_VIDEO == stream_type))) {
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
         }
     }
