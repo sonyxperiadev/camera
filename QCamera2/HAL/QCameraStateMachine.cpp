@@ -2751,14 +2751,12 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
             if (m_parent->isZSLMode()) {
                 // cancel picture first
                 rc = m_parent->cancelPicture();
-                m_parent->stopChannel(QCAMERA_CH_TYPE_ANALYSIS);
                 m_parent->stopChannel(QCAMERA_CH_TYPE_ZSL);
             } else if (m_parent->isLongshotEnabled()) {
                 // just cancel picture
                 rc = m_parent->cancelPicture();
             } else {
                 rc = m_parent->cancelLiveSnapshot();
-                m_parent->stopChannel(QCAMERA_CH_TYPE_ANALYSIS);
                 m_parent->stopChannel(QCAMERA_CH_TYPE_PREVIEW);
             }
             // unprepare preview

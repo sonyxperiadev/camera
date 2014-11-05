@@ -1169,9 +1169,10 @@ int32_t mm_channel_get_bundle_info(mm_channel_t *my_obj,
 int32_t mm_channel_start(mm_channel_t *my_obj)
 {
     int32_t rc = 0;
-    int i, j;
+    int i = 0, j = 0;
     mm_stream_t *s_objs[MAX_STREAM_NUM_IN_BUNDLE] = {NULL};
     uint8_t num_streams_to_start = 0;
+    uint8_t num_streams_in_bundle_queue = 0;
     mm_stream_t *s_obj = NULL;
     int meta_stream_idx = 0;
     cam_stream_type_t stream_type = CAM_STREAM_TYPE_DEFAULT;
@@ -1188,6 +1189,10 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
                     meta_stream_idx = num_streams_to_start;
                 }
                 s_objs[num_streams_to_start++] = s_obj;
+
+                if (!s_obj->stream_info->noFrameExpected) {
+                    num_streams_in_bundle_queue++;
+                }
             }
         }
     }
@@ -1203,7 +1208,7 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
         /* need to send up cb, therefore launch thread */
         /* init superbuf queue */
         mm_channel_superbuf_queue_init(&my_obj->bundle.superbuf_queue);
-        my_obj->bundle.superbuf_queue.num_streams = num_streams_to_start;
+        my_obj->bundle.superbuf_queue.num_streams = num_streams_in_bundle_queue;
         my_obj->bundle.superbuf_queue.expected_frame_id = 0;
         my_obj->bundle.superbuf_queue.expected_frame_id_without_led = 0;
         my_obj->bundle.superbuf_queue.led_off_start_frame_id = 0;
@@ -1212,12 +1217,13 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
 
         for (i = 0; i < num_streams_to_start; i++) {
             /* Only bundle streams that belong to the channel */
-            if(s_objs[i]->ch_obj == my_obj) {
-                /* set bundled flag to streams */
-                s_objs[i]->is_bundled = 1;
+            if(!(s_objs[i]->stream_info->noFrameExpected)) {
+                if (s_objs[i]->ch_obj == my_obj) {
+                    /* set bundled flag to streams */
+                    s_objs[i]->is_bundled = 1;
+                }
+                my_obj->bundle.superbuf_queue.bundled_streams[j++] = s_objs[i]->my_hdl;
             }
-            /* init bundled streams to invalid value -1 */
-            my_obj->bundle.superbuf_queue.bundled_streams[i] = s_objs[i]->my_hdl;
         }
 
         /* launch cb thread for dispatching super buf through cb */
