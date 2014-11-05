@@ -975,7 +975,7 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
         ALOGE("%s: Cannot find buf for opaque data = %p", __func__, opaque);
         return BAD_INDEX;
     }
-    CDBG_HIGH("%s: Buffer Index = %d, Frame Idx = %d", __func__, index,
+    CDBG("%s: Buffer Index = %d, Frame Idx = %d", __func__, index,
             mBufDefs[index].frame_idx);
     rc = bufDone((uint32_t)index);
     return rc;
