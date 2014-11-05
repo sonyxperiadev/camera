@@ -245,6 +245,7 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mUserData(NULL),
         mDataQ(releaseFrameData, this),
         mStreamInfoBuf(NULL),
+        mMiscBuf(NULL),
         mStreamBufs(NULL),
         mAllocator(allocator),
         mBufDefs(NULL),
@@ -298,6 +299,11 @@ QCameraStream::~QCameraStream()
     unmapStreamInfoBuf();
     releaseStreamInfoBuf();
 
+    if (mMiscBuf) {
+        unMapBuf(mMiscBuf, CAM_MAPPING_BUF_TYPE_MISC_BUF);
+        releaseMiscBuf();
+    }
+
     // delete stream
     if (mHandle > 0) {
         mCamOps->delete_stream(mCamHandle, mChannelHandle, mHandle);
@@ -331,6 +337,30 @@ int32_t QCameraStream::unmapStreamInfoBuf()
         if (rc < 0) {
             ALOGE("Failed to unmap stream info buffer");
         }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : releaseMiscBuf
+ *
+ * DESCRIPTION: Release misc buffers
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::releaseMiscBuf()
+{
+    int rc = NO_ERROR;
+
+    if (mMiscBuf != NULL) {
+        mMiscBuf->deallocate();
+        delete mMiscBuf;
+        mMiscBuf = NULL;
     }
 
     return rc;
@@ -380,12 +410,111 @@ void QCameraStream::deleteStream()
 }
 
 /*===========================================================================
+ * FUNCTION   : unMapBuf
+ *
+ * DESCRIPTION: unmaps buffers
+ *
+ * PARAMETERS :
+ *   @heapBuf      : heap buffer handler
+ *   @bufType      : buffer type
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::unMapBuf(QCameraHeapMemory *heapBuf,
+        cam_mapping_buf_type bufType)
+{
+    int32_t rc = NO_ERROR;
+    int32_t cnt;
+    ssize_t bufSize = BAD_INDEX;
+    int32_t i;
+
+    cnt = heapBuf->getCnt();
+    for (i = 0; i < cnt; i++) {
+        bufSize = heapBuf->getSize(i);
+        if (BAD_INDEX != bufSize) {
+            rc = mCamOps->unmap_stream_buf(mCamHandle, mChannelHandle, mHandle,
+                    bufType, i, -1);
+            if (rc < 0) {
+                ALOGE("Failed to unmap buffer");
+                break;
+            }
+        } else {
+            ALOGE("Failed to retrieve buffer size (bad index)");
+            rc = BAD_INDEX;
+            break;
+        }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mapBuf
+ *
+ * DESCRIPTION: maps buffers
+ *
+ * PARAMETERS :
+ *   @heapBuf      : heap buffer handler
+ *   @bufType      : buffer type
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::mapBuf(QCameraHeapMemory *heapBuf,
+        cam_mapping_buf_type bufType)
+{
+    int32_t rc = NO_ERROR;
+    int32_t cnt;
+    ssize_t bufSize = BAD_INDEX;
+    int32_t i = 0;
+
+    cnt = heapBuf->getCnt();
+    for (i = 0; i < cnt; i++) {
+        bufSize = heapBuf->getSize(i);
+        if (BAD_INDEX != bufSize) {
+            rc = mCamOps->map_stream_buf(mCamHandle, mChannelHandle, mHandle,
+                    bufType, i, -1, heapBuf->getFd(i), (uint32_t)bufSize);
+            if (rc < 0) {
+                ALOGE("Failed to map buffer");
+                goto err1;
+            }
+        } else {
+            ALOGE("Failed to retrieve buffer size (bad index)");
+            rc = BAD_INDEX;
+            goto err1;
+        }
+    }
+
+    return rc;
+err1:
+    i -= 1;
+    for (; i >= 0; i--) {
+        bufSize = heapBuf->getSize(i);
+        if (BAD_INDEX != bufSize) {
+            rc = mCamOps->unmap_stream_buf(mCamHandle, mChannelHandle, mHandle,
+                    bufType, i, -1);
+            if (rc < 0) {
+                ALOGE("Failed to unmap buffer");
+            }
+        } else {
+            ALOGE("Failed to retrieve buffer size (bad index)");
+            rc = BAD_INDEX;
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : init
  *
  * DESCRIPTION: initialize stream obj
  *
  * PARAMETERS :
  *   @streamInfoBuf: ptr to buf that contains stream info
+ *   @miscBuf      : ptr to buf that contains misc bufs
  *   @stream_cb    : stream data notify callback. Can be NULL if not needed
  *   @userdata     : user data ptr
  *   @bDynallocBuf : flag to indicate if buffer allocation can be in 2 steps
@@ -395,13 +524,13 @@ void QCameraStream::deleteStream()
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
-                            uint8_t minNumBuffers,
-                            stream_cb_routine stream_cb,
-                            void *userdata,
-                            bool bDynallocBuf)
+        QCameraHeapMemory *miscBuf,
+        uint8_t minNumBuffers,
+        stream_cb_routine stream_cb,
+        void *userdata,
+        bool bDynallocBuf)
 {
     int32_t rc = OK;
-    ssize_t bufSize = BAD_INDEX;
 
     mHandle = mCamOps->add_stream(mCamHandle, mChannelHandle);
     if (!mHandle) {
@@ -415,18 +544,22 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     mStreamInfo = reinterpret_cast<cam_stream_info_t *>(mStreamInfoBuf->getPtr(0));
     mNumBufs = minNumBuffers;
 
-    bufSize = mStreamInfoBuf->getSize(0);
-    if (BAD_INDEX != bufSize) {
-        rc = mCamOps->map_stream_buf(mCamHandle,
-                mChannelHandle, mHandle, CAM_MAPPING_BUF_TYPE_STREAM_INFO,
-                0, -1, mStreamInfoBuf->getFd(0), (uint32_t)bufSize);
+    rc = mapBuf(mStreamInfoBuf, CAM_MAPPING_BUF_TYPE_STREAM_INFO);
+    if (rc < 0) {
+        ALOGE("Failed to map stream info buffer");
+        releaseStreamInfoBuf();
+        mStreamInfo = 0;
+        goto err1;
+    }
+
+    mMiscBuf = miscBuf;
+    if (miscBuf) {
+        rc = mapBuf(mMiscBuf, CAM_MAPPING_BUF_TYPE_MISC_BUF);
         if (rc < 0) {
-            ALOGE("Failed to map stream info buffer");
+            ALOGE("Failed to map miscellaneous buffer");
+            releaseMiscBuf();
             goto err1;
         }
-    } else {
-        ALOGE("Failed to retrieve buffer size (bad index)");
-        goto err1;
     }
 
     // Calculate buffer size for deffered allocation
@@ -452,8 +585,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
 err1:
     mCamOps->delete_stream(mCamHandle, mChannelHandle, mHandle);
     mHandle = 0;
-    mStreamInfoBuf = NULL;
-    mStreamInfo = NULL;
     mNumBufs = 0;
 done:
     return rc;

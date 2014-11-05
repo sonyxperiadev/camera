@@ -322,6 +322,7 @@ typedef enum {
     CAM_MAPPING_BUF_TYPE_STREAM_INFO,       /* mapping stream information buffer */
     CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF, /* mapping offline process input buffer */
     CAM_MAPPING_BUF_TYPE_OFFLINE_META_BUF,  /* mapping offline meta buffer */
+    CAM_MAPPING_BUF_TYPE_MISC_BUF,          /* mapping offline miscellaneous buffer */
     CAM_MAPPING_BUF_TYPE_MAX
 } cam_mapping_buf_type;
 
@@ -849,6 +850,7 @@ typedef struct {
     uint8_t num_faces_detected;                /* number of faces detected */
     cam_face_detection_info_t faces[MAX_ROI];  /* detailed information of faces detected */
     qcamera_face_detect_type_t fd_type;        /* face detect for preview or snapshot frame*/
+    cam_dimension_t fd_frame_dim;              /* frame dims on which fd is applied */
 } cam_face_detection_data_t;
 
 #define CAM_HISTOGRAM_STATS_SIZE 256
@@ -1646,6 +1648,7 @@ typedef struct {
 #define CAM_QCOM_FEATURE_REFOCUS        (1U<<16)
 #define CAM_QCOM_FEATURE_CPP_TNR        (1U<<17)
 #define CAM_QCOM_FEATURE_RAW_PROCESSING (1U<<18)
+#define CAM_QCOM_FEATURE_TRUEPORTRAIT   (1U<<19)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE)
@@ -1715,6 +1718,10 @@ typedef struct {
     uint8_t zoom_threshold;
 } cam_opti_zoom_t;
 
+typedef struct {
+    uint32_t meta_max_size;
+} cam_true_portrait_t;
+
 typedef enum {
     CAM_FLASH_OFF,
     CAM_FLASH_ON
@@ -1724,6 +1731,18 @@ typedef struct {
     cam_sensor_t sens_type;
     cam_format_t native_format;
 } cam_sensor_type_t;
+
+typedef struct {
+    uint32_t result;
+    uint32_t header_size;
+    uint32_t body_mask_width;
+    uint32_t body_mask_height;
+    uint8_t mask_data[0];
+} cam_true_portrait_misc_buf_t;
+
+typedef struct {
+    uint32_t misc_buffer_index;
+} cam_true_portrait_param_t;
 
 typedef struct {
     /* reprocess feature mask */
@@ -1741,7 +1760,7 @@ typedef struct {
 
     uint8_t zoom_level;
     cam_flash_value_t flash_value;
-
+    cam_true_portrait_param_t tp_param;
 } cam_pp_feature_config_t;
 
 typedef struct {

@@ -1821,6 +1821,55 @@ int32_t QCamera2HardwareInterface::allocateMoreStreamBuf(
 }
 
 /*===========================================================================
+ * FUNCTION   : allocateMiscBuf
+ *
+ * DESCRIPTION: alocate miscellaneous buffer
+ *
+ * PARAMETERS :
+ *   @streamInfo  : stream info
+ *
+ * RETURN     : ptr to a memory obj that holds stream info buffer.
+ *              NULL if failed
+ *==========================================================================*/
+QCameraHeapMemory *QCamera2HardwareInterface::allocateMiscBuf(
+        cam_stream_info_t *streamInfo)
+{
+    int rc = NO_ERROR;
+    int bufNum = 0;
+    int bufSize = 0;
+    QCameraHeapMemory *miscBuf = NULL;
+
+    switch (streamInfo->stream_type) {
+    case CAM_STREAM_TYPE_OFFLINE_PROC:
+        if (CAM_QCOM_FEATURE_TRUEPORTRAIT & streamInfo->pp_config.feature_mask) {
+            bufNum = 1;
+            bufSize = mParameters.getTPMaxMetaSize();
+        }
+        break;
+    default:
+        break;
+    }
+
+    if (bufNum && bufSize) {
+        miscBuf = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
+
+        if (!miscBuf) {
+            ALOGE("%s: Unable to allocate miscBuf object", __func__);
+            return NULL;
+        }
+
+        rc = miscBuf->allocate(bufNum, bufSize, NON_SECURE);
+        if (rc < 0) {
+            ALOGE("%s: Failed to allocate misc buffer memory", __func__);
+            delete miscBuf;
+            return NULL;
+        }
+    }
+
+    return miscBuf;
+}
+
+/*===========================================================================
  * FUNCTION   : allocateStreamInfoBuf
  *
  * DESCRIPTION: alocate stream info buffer
@@ -1832,7 +1881,7 @@ int32_t QCamera2HardwareInterface::allocateMoreStreamBuf(
  *              NULL if failed
  *==========================================================================*/
 QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
-    cam_stream_type_t stream_type)
+        cam_stream_type_t stream_type)
 {
     int rc = NO_ERROR;
     char value[PROPERTY_VALUE_MAX];
@@ -4581,6 +4630,7 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
             !mParameters.isSecureMode()) {
         rc = pChannel->addStream(*this,
                 pStreamInfo,
+                NULL,
                 minStreamBufNum,
                 &gCamCaps[mCameraId]->padding_info,
                 streamCB, userData,
@@ -4624,6 +4674,7 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     } else if (streamType == CAM_STREAM_TYPE_ANALYSIS) {
         rc = pChannel->addStream(*this,
                 pStreamInfo,
+                NULL,
                 minStreamBufNum,
                 &gCamCaps[mCameraId]->analysis_padding_info,
                 streamCB, userData,
@@ -4632,6 +4683,7 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     } else {
         rc = pChannel->addStream(*this,
                 pStreamInfo,
+                NULL,
                 minStreamBufNum,
                 &gCamCaps[mCameraId]->padding_info,
                 streamCB, userData,
@@ -5347,6 +5399,13 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         pp_config.feature_mask &= ~CAM_QCOM_FEATURE_OPTIZOOM;
     }
 
+    if (mParameters.isTruePortraitEnabled()) {
+        pp_config.feature_mask |= CAM_QCOM_FEATURE_TRUEPORTRAIT;
+        pp_config.tp_param.misc_buffer_index = 0;
+    } else {
+        pp_config.feature_mask &= ~CAM_QCOM_FEATURE_TRUEPORTRAIT;
+    }
+
     //WNR and HDR happen inline. No extra buffers needed.
     uint32_t temp_feature_mask = pp_config.feature_mask;
     temp_feature_mask &= ~CAM_QCOM_FEATURE_HDR;
@@ -5445,9 +5504,9 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addOfflineReprocChannel(
     streamInfoBuf->reprocess_config.pp_feature_config = pp_feature;
 
     rc = pChannel->addStream(*this,
-                             pStreamInfo, img_config.num_of_bufs,
-                             &gCamCaps[mCameraId]->padding_info,
-                             stream_cb, userdata, false);
+            pStreamInfo, NULL, img_config.num_of_bufs,
+            &gCamCaps[mCameraId]->padding_info,
+            stream_cb, userdata, false);
 
     if (rc != NO_ERROR) {
         ALOGE("%s: add reprocess stream failed, ret = %d", __func__, rc);

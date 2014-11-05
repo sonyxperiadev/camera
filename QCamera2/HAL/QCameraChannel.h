@@ -51,10 +51,10 @@ public:
                          void *userData);
     // Owner of memory is transferred from the caller to the caller with this call.
     virtual int32_t addStream(QCameraAllocator& allocator,
-            QCameraHeapMemory *streamInfoBuf, uint8_t minStreamBufnum,
-            cam_padding_info_t *paddingInfo, stream_cb_routine stream_cb,
-            void *userdata, bool bDynAllocBuf, bool bDeffAlloc = false,
-            cam_rotation_t online_rotation = ROTATE_0);
+            QCameraHeapMemory *streamInfoBuf, QCameraHeapMemory *miscBuf,
+            uint8_t minStreamBufnum, cam_padding_info_t *paddingInfo,
+            stream_cb_routine stream_cb, void *userdata, bool bDynAllocBuf,
+            bool bDeffAlloc = false, cam_rotation_t online_rotation = ROTATE_0);
     virtual int32_t linkStream(QCameraChannel *ch, QCameraStream *stream);
     virtual int32_t start();
     virtual int32_t stop();

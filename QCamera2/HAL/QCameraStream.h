@@ -55,10 +55,11 @@ public:
             bool deffered = false, cam_rotation_t online_rotation = ROTATE_0);
     virtual ~QCameraStream();
     virtual int32_t init(QCameraHeapMemory *streamInfoBuf,
-                         uint8_t minStreamBufNum,
-                         stream_cb_routine stream_cb,
-                         void *userdata,
-                         bool bDynallocBuf);
+            QCameraHeapMemory *miscBuf,
+            uint8_t minStreamBufNum,
+            stream_cb_routine stream_cb,
+            void *userdata,
+            bool bDynallocBuf);
     virtual int32_t processZoomDone(preview_stream_ops_t *previewWindow,
                                     cam_crop_data_t &crop_info);
     virtual int32_t bufDone(uint32_t index);
@@ -84,6 +85,7 @@ public:
     int32_t getFormat(cam_format_t &fmt);
     QCameraMemory *getStreamBufs() {return mStreamBufs;};
     QCameraHeapMemory *getStreamInfoBuf() {return mStreamInfoBuf;};
+    QCameraHeapMemory *getMiscBuf() {return mMiscBuf;};
     uint32_t getMyServerID();
     cam_stream_type_t getMyType();
     int32_t acquireStreamBufs();
@@ -130,6 +132,7 @@ private:
     QCameraCmdThread mProcTh; // thread for dataCB
 
     QCameraHeapMemory *mStreamInfoBuf;
+    QCameraHeapMemory *mMiscBuf;
     QCameraMemory *mStreamBufs;
     QCameraAllocator &mAllocator;
     mm_camera_buf_def_t *mBufDefs;
@@ -185,6 +188,10 @@ private:
     int32_t calcOffset(cam_stream_info_t *streamInfo);
     int32_t unmapStreamInfoBuf();
     int32_t releaseStreamInfoBuf();
+    int32_t releaseMiscBuf();
+    int32_t mapBuf(QCameraHeapMemory *heapBuf, cam_mapping_buf_type bufType);
+    int32_t unMapBuf(QCameraHeapMemory *heapBuf, cam_mapping_buf_type bufType);
+
     bool mDefferedAllocation;
 
     bool wait_for_cond;

@@ -162,7 +162,8 @@ int32_t QCameraChannel::init(mm_camera_channel_attr_t *attr,
  *
  * PARAMETERS :
  *   @allocator      : stream related buffer allocator
- *   @streamInfoBuf  : ptr to buf that constains stream info
+ *   @streamInfoBuf  : ptr to buf that contains stream info
+ *   @miscBuf        : ptr to buf that contains misc buffers
  *   @minStreamBufNum: number of stream buffers needed
  *   @paddingInfo    : padding information
  *   @stream_cb      : stream data notify callback
@@ -175,10 +176,10 @@ int32_t QCameraChannel::init(mm_camera_channel_attr_t *attr,
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
-        QCameraHeapMemory *streamInfoBuf, uint8_t minStreamBufNum,
-        cam_padding_info_t *paddingInfo, stream_cb_routine stream_cb,
-        void *userdata, bool bDynAllocBuf, bool bDeffAlloc,
-        cam_rotation_t online_rotation)
+        QCameraHeapMemory *streamInfoBuf, QCameraHeapMemory *miscBuf,
+        uint8_t minStreamBufNum, cam_padding_info_t *paddingInfo,
+        stream_cb_routine stream_cb, void *userdata, bool bDynAllocBuf,
+        bool bDeffAlloc, cam_rotation_t online_rotation)
 {
     int32_t rc = NO_ERROR;
     if (mStreams.size() >= MAX_STREAM_NUM_IN_BUNDLE) {
@@ -194,7 +195,7 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
         return NO_MEMORY;
     }
 
-    rc = pStream->init(streamInfoBuf, minStreamBufNum,
+    rc = pStream->init(streamInfoBuf, miscBuf, minStreamBufNum,
                        stream_cb, userdata, bDynAllocBuf);
     if (rc == 0) {
         mStreams.add(pStream);
@@ -827,6 +828,7 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
     int32_t rc = 0;
     QCameraStream *pStream = NULL;
     QCameraHeapMemory *pStreamInfoBuf = NULL;
+    QCameraHeapMemory *pMiscBuf = NULL;
     cam_stream_info_t *streamInfo = NULL;
     cam_padding_info_t padding;
 
@@ -986,8 +988,10 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             // save source stream handler
             mSrcStreamHandles[mStreams.size()] = pStream->getMyHandle();
 
+            pMiscBuf = allocator.allocateMiscBuf(streamInfo);
+
             // add reprocess stream
-            rc = addStream(allocator, pStreamInfoBuf,
+            rc = addStream(allocator, pStreamInfoBuf, pMiscBuf,
                     minStreamBufNum, &padding, NULL, NULL, false, false,
                     streamInfo->reprocess_config.pp_feature_config.rotation);
             if (rc != NO_ERROR) {
