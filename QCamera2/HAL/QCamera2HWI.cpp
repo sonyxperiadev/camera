@@ -1088,6 +1088,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mReprocJob(-1),
       mRawdataJob(-1),
       mOutputCount(0),
+      mInputCount(0),
       mAdvancedCaptureConfigured(false)
 {
     getLogLevel();
@@ -2515,6 +2516,7 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     int32_t rc = NO_ERROR;
 
     setOutputImageCount(0);
+    mInputCount = 0;
     mParameters.setDisplayFrame(FALSE);
     if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = configureAFBracketing();
@@ -3216,7 +3218,7 @@ int QCamera2HardwareInterface::cancelPicture()
  *==========================================================================*/
 void QCamera2HardwareInterface::captureDone()
 {
-    if (++mOutputCount >= mParameters.getBurstCountForAdvancedCapture()) {
+    if (++mInputCount >= mParameters.getBurstCountForAdvancedCapture()) {
         unconfigureAdvancedCapture();
     }
 }
