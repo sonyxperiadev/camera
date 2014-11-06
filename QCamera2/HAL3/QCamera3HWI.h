@@ -128,7 +128,7 @@ public:
             size_t processedSizesCnt, size_t maxCount, cam_rect_t active_array_size,
             uint8_t downscale_factor);
     static void convertToRegions(cam_rect_t rect, int32_t* region, int weight);
-    static void convertFromRegions(cam_area_t* roi, const camera_metadata_t *settings,
+    static void convertFromRegions(cam_area_t &roi, const camera_metadata_t *settings,
                                    uint32_t tag);
     static bool resetIfNeededROI(cam_area_t* roi, const cam_crop_region_t* scalerCropRegion);
     static void convertLandmarks(cam_face_detection_info_t face, int32_t* landmarks);

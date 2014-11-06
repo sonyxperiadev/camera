@@ -62,6 +62,15 @@
 #define AFTUNE_SIZE  4608
 #define MAX_SCALE_SIZES_CNT 8
 #define MAX_SAMP_DECISION_CNT     64
+#define SENSOR_PHYSICAL_SIZE_CNT  2
+#define EXPOSURE_TIME_RANGE_CNT   2
+#define BLACK_LEVEL_PATTERN_CNT   4
+#define FORWARD_MATRIX_COLS       3
+#define FORWARD_MATRIX_ROWS       3
+#define COLOR_TRANSFORM_COLS      3
+#define COLOR_TRANSFORM_ROWS      3
+#define CAL_TRANSFORM_COLS        3
+#define CAL_TRANSFORM_ROWS        3
 
 #define MAX_ISP_DATA_SIZE (20*1024)
 #define MAX_PP_DATA_SIZE  16384
@@ -941,8 +950,10 @@ typedef enum {
     NEED_FUTURE_FRAME,
 } cam_prep_snapshot_state_t;
 
+#define CC_GAINS_COUNT  4
+
 typedef struct {
-    float gains[4];
+    float gains[CC_GAINS_COUNT];
 } cam_color_correct_gains_t;
 
 typedef struct {
@@ -1541,9 +1552,12 @@ typedef enum {
     CAM_COLOR_CORRECTION_ABERRATION_MAX
 } cam_aberration_mode_t;
 
+#define CC_MATRIX_ROWS 3
+#define CC_MATRIX_COLS 3
+
 typedef struct {
     /* 3x3 float matrix in row-major order. each element is in range of (0, 1) */
-    cam_rational_type_t transform_matrix[3][3];
+    cam_rational_type_t transform_matrix[CC_MATRIX_ROWS][CC_MATRIX_COLS];
 } cam_color_correct_matrix_t;
 
 #define CAM_FOCAL_LENGTHS_MAX     1
@@ -1576,8 +1590,10 @@ typedef struct {
    cam_tonemap_curve_t curve;
 } cam_profile_tone_curve;
 
+#define NEUTRAL_COL_POINTS 3
+
 typedef struct {
-    cam_rational_type_t neutral_col_point[3];
+    cam_rational_type_t neutral_col_point[NEUTRAL_COL_POINTS];
 } cam_neutral_col_point_t;
 
 typedef enum {
