@@ -2123,6 +2123,7 @@ int32_t QCameraParameters::setFocusMode(const QCameraParameters& params)
 int32_t  QCameraParameters::setFocusPosition(const QCameraParameters& params)
 {
     const char *focus_str = params.get(KEY_FOCUS_MODE);
+    const char *prev_focus_str = get(KEY_FOCUS_MODE);
 
     if (NULL == focus_str) {
         return NO_ERROR;
@@ -2141,7 +2142,8 @@ int32_t  QCameraParameters::setFocusPosition(const QCameraParameters& params)
 
     if ((pos != NULL) && (type != NULL) && (focus_str != NULL)) {
         if (prev_pos  == NULL || (strcmp(pos, prev_pos) != 0) ||
-                prev_type == NULL || (strcmp(type, prev_type) != 0)) {
+            prev_type == NULL || (strcmp(type, prev_type) != 0) ||
+            prev_focus_str == NULL || (strcmp(focus_str, prev_focus_str) != 0)) {
             return setFocusPosition(type, pos);
         }
     }
@@ -2442,6 +2444,7 @@ int32_t  QCameraParameters::setManualWhiteBalance(const QCameraParameters& param
 {
     int32_t rc = NO_ERROR;
     const char *wb_str = params.get(KEY_WHITE_BALANCE);
+    const char *prev_wb_str = get(KEY_WHITE_BALANCE);
     CDBG("%s, current wb mode: %s", __func__, wb_str);
 
     if (wb_str != NULL) {
@@ -2458,7 +2461,8 @@ int32_t  QCameraParameters::setManualWhiteBalance(const QCameraParameters& param
 
     if ((value != NULL) && (type != NULL) && (wb_str != NULL)) {
         if (prev_value  == NULL || (strcmp(value, prev_value) != 0) ||
-                prev_type == NULL || (strcmp(type, prev_type) != 0)) {
+            prev_type == NULL || (strcmp(type, prev_type) != 0) ||
+            prev_wb_str == NULL || (strcmp(wb_str, prev_wb_str) != 0)) {
             updateParamEntry(KEY_QC_MANUAL_WB_TYPE, type);
             updateParamEntry(KEY_QC_MANUAL_WB_VALUE, value);
             int32_t wb_type = atoi(type);
@@ -5797,9 +5801,9 @@ int32_t  QCameraParameters::setFocusPosition(const char *typeStr, const char *po
     if ((type >= CAM_MANUAL_FOCUS_MODE_INDEX) &&
             (type < CAM_MANUAL_FOCUS_MODE_MAX)) {
         // get max and min focus position from m_pCapability
-        int32_t minFocusPos = (int32_t) m_pCapability->min_focus_pos[type];
-        int32_t maxFocusPos = (int32_t) m_pCapability->max_focus_pos[type];
-        CDBG_HIGH("%s, focusPos min: %d, max: %d", __func__, minFocusPos, maxFocusPos);
+        float minFocusPos = m_pCapability->min_focus_pos[type];
+        float maxFocusPos = m_pCapability->max_focus_pos[type];
+        CDBG_HIGH("%s, focusPos min: %f, max: %f", __func__, minFocusPos, maxFocusPos);
 
         if (pos >= minFocusPos && pos <= maxFocusPos) {
             updateParamEntry(KEY_QC_MANUAL_FOCUS_POS_TYPE, typeStr);
@@ -5825,7 +5829,7 @@ int32_t  QCameraParameters::setFocusPosition(const char *typeStr, const char *po
         }
     }
 
-    ALOGE("%s, invalid params, type:%d, pos: %d", __func__, type, pos);
+    ALOGE("%s, invalid params, type:%d, pos: %f", __func__, type, pos);
     return BAD_VALUE;
 }
 
@@ -7007,8 +7011,8 @@ int32_t QCameraParameters::updateAWBParams(cam_awb_params_t &awb_params)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::parseGains(const char *gainStr, float &r_gain,
-        float &g_gain, float &b_gain)
+int32_t QCameraParameters::parseGains(const char *gainStr, double &r_gain,
+                                          double &g_gain, double &b_gain)
 {
     int32_t rc = NO_ERROR;
     char *saveptr = NULL;
@@ -7057,19 +7061,20 @@ int32_t QCameraParameters::setManualWBGains(const char *gainStr)
 {
     int32_t rc = NO_ERROR;
     if (gainStr != NULL) {
-        float r_gain, g_gain, b_gain;
+        double r_gain,g_gain,b_gain;
         rc = parseGains(gainStr, r_gain, g_gain, b_gain);
         if (rc != NO_ERROR) {
             return rc;
         }
 
-        float minGain = m_pCapability->min_wb_gain;
-        float maxGain = m_pCapability->max_wb_gain;
+        double minGain = m_pCapability->min_wb_gain;
+        double maxGain = m_pCapability->max_wb_gain;
 
-        if ((r_gain >= minGain) && (r_gain <= maxGain) &&
-                (g_gain >= minGain) && (g_gain <= maxGain) &&
-                (b_gain >= minGain) && (b_gain <= maxGain)) {
-            CDBG_HIGH("%s, setting rgb gains: %s", __func__, gainStr);
+        if (r_gain >= minGain && r_gain <= maxGain &&
+            g_gain >= minGain && g_gain <= maxGain &&
+            b_gain >= minGain && b_gain <= maxGain) {
+            CDBG_HIGH("%s, setting rgb gains: r = %lf g = %lf b = %lf", __func__,
+                     r_gain, g_gain, b_gain);
             updateParamEntry(KEY_QC_MANUAL_WB_GAINS, gainStr);
             cam_manual_wb_parm_t manual_wb;
             manual_wb.type = CAM_MANUAL_WB_MODE_GAIN;

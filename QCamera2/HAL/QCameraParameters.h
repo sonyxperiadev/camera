@@ -902,8 +902,8 @@ private:
     int32_t setRdiMode(const char *str);
     int32_t setSecureMode(const char *str);
     int32_t setLongshotParam(const QCameraParameters& params);
-    int32_t parseGains(const char *gainStr, float &r_gain,
-            float &g_gain, float &b_gain);
+    int32_t parseGains(const char *gainStr, double &r_gain,
+            double &g_gain, double &b_gain);
     int32_t setCacheVideoBuffers(const char *cacheVideoBufStr);
 
     int32_t parse_pair(const char *str, int *first, int *second,
