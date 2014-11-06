@@ -262,9 +262,9 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                 if (start) {
                     CDBG_HIGH("%s:%d] need AE bracketing, start zsl snapshot",
                         __func__, __LINE__);
-                    ch_obj->need3ABracketing = TRUE;
+                    ch_obj->bracketingState = MM_CHANNEL_BRACKETING_STATE_WAIT_GOOD_FRAME_IDX;
                 } else {
-                    ch_obj->need3ABracketing = FALSE;
+                    ch_obj->bracketingState = MM_CHANNEL_BRACKETING_STATE_OFF;
                 }
             }
                 break;
@@ -308,7 +308,8 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
     notify_mode = ch_obj->bundle.superbuf_queue.attr.notify_mode;
 
     if ((ch_obj->pending_cnt > 0)
-        && (ch_obj->needLEDFlash == TRUE || ch_obj->need3ABracketing == TRUE)
+        && (ch_obj->needLEDFlash == TRUE ||
+                MM_CHANNEL_BRACKETING_STATE_OFF != ch_obj->bracketingState)
         && (ch_obj->manualZSLSnapshot == FALSE)
         && ch_obj->startZSlSnapshotCalled == FALSE) {
 
@@ -329,7 +330,7 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
       ch_obj->stopZslSnapshot = 0;
       ch_obj->bWaitForPrepSnapshotDone = 0;
       ch_obj->unLockAEC = 1;
-      ch_obj->need3ABracketing = FALSE;
+      ch_obj->bracketingState = MM_CHANNEL_BRACKETING_STATE_OFF;
     }
     /* bufdone for overflowed bufs */
     mm_channel_superbuf_bufdone_overflow(ch_obj, &ch_obj->bundle.superbuf_queue);
@@ -2139,10 +2140,11 @@ int32_t mm_channel_handle_metadata(
                 CDBG("%s: [ZSL Retro]No flash, expected frame id = %d ",
                         __func__, queue->expected_frame_id);
             }
-        } else if (ch_obj->need3ABracketing && !is_good_frame_idx_range_valid) {
-               /* Flush unwanted frames */
-               mm_channel_superbuf_flush_matched(ch_obj, queue);
-               queue->expected_frame_id += max_future_frame_offset;
+        } else if ((MM_CHANNEL_BRACKETING_STATE_WAIT_GOOD_FRAME_IDX == ch_obj->bracketingState) &&
+                !is_good_frame_idx_range_valid) {
+            /* Flush unwanted frames */
+            mm_channel_superbuf_flush_matched(ch_obj, queue);
+            queue->expected_frame_id += max_future_frame_offset;
         }
         if (ch_obj->isFlashBracketingEnabled &&
             is_good_frame_idx_range_valid) {
@@ -2156,19 +2158,21 @@ int32_t mm_channel_handle_metadata(
                 good_frame_idx_range.max_frame_idx;
 
         } else if (is_good_frame_idx_range_valid) {
-             if (good_frame_idx_range.min_frame_idx >
-                 queue->expected_frame_id) {
-                 CDBG_HIGH("%s: min_frame_idx %d is greater than expected_frame_id %d",
-                     __func__, good_frame_idx_range.min_frame_idx,
-                     queue->expected_frame_id);
-             }
-             queue->expected_frame_id =
-                 good_frame_idx_range.min_frame_idx;
-             ch_obj->need3ABracketing = FALSE;
+            if (good_frame_idx_range.min_frame_idx >
+                queue->expected_frame_id) {
+                CDBG_HIGH("%s: min_frame_idx %d is greater than expected_frame_id %d",
+                        __func__, good_frame_idx_range.min_frame_idx,
+                        queue->expected_frame_id);
+            }
+            queue->expected_frame_id =
+                    good_frame_idx_range.min_frame_idx;
+
+            ch_obj->bracketingState = MM_CHANNEL_BRACKETING_STATE_ACTIVE;
         }
 
         if ((ch_obj->burstSnapNum > 1) && (ch_obj->needLEDFlash == TRUE) &&
-                !ch_obj->isFlashBracketingEnabled && !ch_obj->need3ABracketing) {
+                !ch_obj->isFlashBracketingEnabled &&
+                        (MM_CHANNEL_BRACKETING_STATE_OFF == ch_obj->bracketingState)) {
             if((buf_info->frame_idx >= queue->led_off_start_frame_id)
                     &&  !queue->once) {
                 CDBG("%s: [ZSL Retro]Burst snap num = %d ",

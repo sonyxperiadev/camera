@@ -2735,6 +2735,39 @@ int32_t QCamera2HardwareInterface::configureOptiZoom()
 }
 
 /*===========================================================================
+ * FUNCTION   : stopAdvancedCapture
+ *
+ * DESCRIPTION: stops advanced capture based on capture type
+ *
+ * PARAMETERS :
+ *   @pChannel : channel.
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::stopAdvancedCapture(
+        QCameraPicChannel *pChannel)
+{
+    CDBG_HIGH("%s: stop bracketig",__func__);
+    int32_t rc = NO_ERROR;
+
+    if(mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
+        rc = pChannel->stopAdvancedCapture(MM_CAMERA_AF_BRACKETING);
+    } else if (mParameters.isChromaFlashEnabled()) {
+        rc = pChannel->stopAdvancedCapture(MM_CAMERA_FLASH_BRACKETING);
+    } else if (mParameters.isHDREnabled() || mParameters.isAEBracketEnabled()) {
+        rc = pChannel->stopAdvancedCapture(MM_CAMERA_AE_BRACKETING);
+    } else if (mParameters.isOptiZoomEnabled()) {
+        rc = pChannel->stopAdvancedCapture(MM_CAMERA_ZOOM_1X);
+    } else {
+        ALOGE("%s: No Advanced Capture feature enabled!",__func__);
+        rc = BAD_VALUE;
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : startAdvancedCapture
  *
  * DESCRIPTION: starts advanced capture based on capture type
@@ -2747,7 +2780,7 @@ int32_t QCamera2HardwareInterface::configureOptiZoom()
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCamera2HardwareInterface::startAdvancedCapture(
-    QCameraPicChannel *pChannel)
+        QCameraPicChannel *pChannel)
 {
     CDBG_HIGH("%s: Start bracketig",__func__);
     int32_t rc = NO_ERROR;
@@ -3188,6 +3221,7 @@ int QCamera2HardwareInterface::cancelPicture()
         QCameraPicChannel *pZSLChannel =
             (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
         if (NULL != pZSLChannel) {
+            stopAdvancedCapture(pZSLChannel);
             pZSLChannel->cancelPicture();
         }
     } else {
