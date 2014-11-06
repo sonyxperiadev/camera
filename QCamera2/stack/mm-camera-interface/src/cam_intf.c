@@ -191,6 +191,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_DIS_ENABLE, metadata);
         case CAM_INTF_PARM_LED_MODE:
             return POINTER_OF_META(CAM_INTF_PARM_LED_MODE, metadata);
+        case CAM_INTF_META_LED_MODE_OVERRIDE:
+            return POINTER_OF_META(CAM_INTF_META_LED_MODE_OVERRIDE, metadata);
         case CAM_INTF_PARM_QUERY_FLASH4SNAP:
             return POINTER_OF_META(CAM_INTF_PARM_QUERY_FLASH4SNAP, metadata);
         case CAM_INTF_PARM_EXPOSURE:
@@ -516,6 +518,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_PARM_DIS_ENABLE, metadata);
         case CAM_INTF_PARM_LED_MODE:
             return SIZE_OF_PARAM(CAM_INTF_PARM_LED_MODE, metadata);
+        case CAM_INTF_META_LED_MODE_OVERRIDE:
+            return SIZE_OF_PARAM(CAM_INTF_META_LED_MODE_OVERRIDE, metadata);
         case CAM_INTF_PARM_QUERY_FLASH4SNAP:
             return SIZE_OF_PARAM(CAM_INTF_PARM_QUERY_FLASH4SNAP, metadata);
         case CAM_INTF_PARM_EXPOSURE:

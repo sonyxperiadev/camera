@@ -575,6 +575,19 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         }
        break;
     case QCAMERA_SM_EVT_EVT_INTERNAL:
+       {
+           qcamera_sm_internal_evt_payload_t *internal_evt =
+               (qcamera_sm_internal_evt_payload_t *)payload;
+           switch (internal_evt->evt_type) {
+           case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
+               rc = m_parent->mParameters.updateFlashMode(internal_evt->led_data);
+               break;
+           default:
+               ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
+               break;
+           }
+       }
+       break;
     case QCAMERA_SM_EVT_JPEG_EVT_NOTIFY:
     default:
         ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
@@ -867,6 +880,19 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
         }
        break;
     case QCAMERA_SM_EVT_EVT_INTERNAL:
+       {
+           qcamera_sm_internal_evt_payload_t *internal_evt =
+                   (qcamera_sm_internal_evt_payload_t *)payload;
+           switch (internal_evt->evt_type) {
+           case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
+               rc = m_parent->mParameters.updateFlashMode(internal_evt->led_data);
+               break;
+           default:
+               ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
+               break;
+           }
+       }
+       break;
     case QCAMERA_SM_EVT_JPEG_EVT_NOTIFY:
     case QCAMERA_SM_EVT_THERMAL_NOTIFY:
     default:
@@ -1241,6 +1267,9 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_ASD_UPDATE:
                 rc = m_parent->processASDUpdate(internal_evt->asd_data);
                 break;
+            case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
+                rc = m_parent->mParameters.updateFlashMode(internal_evt->led_data);
+                break;
             default:
                 ALOGE("%s: Invalid internal event %d in state(%d)",
                             __func__, internal_evt->evt_type, m_state);
@@ -1377,6 +1406,9 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
                 break;
             case QCAMERA_INTERNAL_EVT_ASD_UPDATE:
                 rc = m_parent->processASDUpdate(internal_evt->asd_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
+                ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
             default:
                 ALOGE("%s: Invalid internal event %d in state(%d)",
@@ -1694,6 +1726,9 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 break;
             case QCAMERA_INTERNAL_EVT_ASD_UPDATE:
                 rc = m_parent->processASDUpdate(internal_evt->asd_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
+                ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
             default:
                 break;
@@ -2088,6 +2123,9 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_ASD_UPDATE:
                 rc = m_parent->processASDUpdate(internal_evt->asd_data);
                 break;
+            case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
+                ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
+                break;
             default:
                 break;
             }
@@ -2421,6 +2459,9 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
                 break;
             case QCAMERA_INTERNAL_EVT_ASD_UPDATE:
                 rc = m_parent->processASDUpdate(internal_evt->asd_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
+                ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
             default:
                 break;
@@ -2859,6 +2900,9 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                 break;
             case QCAMERA_INTERNAL_EVT_ASD_UPDATE:
                 rc = m_parent->processASDUpdate(internal_evt->asd_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
+                ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
             default:
                 break;
