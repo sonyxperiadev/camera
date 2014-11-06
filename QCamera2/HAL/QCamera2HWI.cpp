@@ -3282,8 +3282,8 @@ void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt, char *raw_fo
     struct timespec   ts;
     struct timeval    tp;
     gettimeofday(&tp, NULL);
-    ts.tv_sec  = tp.tv_sec;
-    ts.tv_nsec = tp.tv_usec * 1000 + 5000 * 1000000LL;
+    ts.tv_sec  = tp.tv_sec + 5;
+    ts.tv_nsec = tp.tv_usec * 1000;
 
     if (true == m_bIntJpegEvtPending ||
         (true == m_bIntRawEvtPending)) {
