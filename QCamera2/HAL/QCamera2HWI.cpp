@@ -1258,6 +1258,7 @@ int QCamera2HardwareInterface::openCamera()
     }
 
     mParameters.init(gCamCaps[mCameraId], mCameraHandle, this, this);
+    mParameters.setMinPpMask(gCamCaps[mCameraId]->min_required_pp_mask);
 
     mCameraOpened = true;
 
@@ -1975,43 +1976,30 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     default:
         break;
     }
-
-    ALOGD("%s: Stream type %d is secure: %d", __func__, stream_type, streamInfo->is_secure);
-    if ((!isZSLMode() ||
-        (isZSLMode() && (stream_type != CAM_STREAM_TYPE_SNAPSHOT))) &&
-        !mParameters.isHDREnabled()) {
-        //set flip mode based on Stream type;
+    // Update feature mask
+    mParameters.updatePpFeatureMask(stream_type);
+    // Get feature mask
+    mParameters.getStreamPpMask(stream_type, streamInfo->pp_config.feature_mask);
+    // Update pp config
+    if (streamInfo->pp_config.feature_mask & CAM_QCOM_FEATURE_FLIP) {
         int flipMode = mParameters.getFlipMode(stream_type);
-        if (flipMode > 0) {
-            streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_FLIP;
-            streamInfo->pp_config.flip = (uint32_t)flipMode;
-        }
+        if (flipMode > 0)
+            streamInfo->pp_config.flip = flipMode;
     }
-
-    if (!isZSLMode()) {
-        if ((gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_SHARPNESS) &&
-                !mParameters.isOptiZoomEnabled()) {
-            streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_SHARPNESS;
-            streamInfo->pp_config.sharpness = mParameters.getInt(QCameraParameters::KEY_QC_SHARPNESS);
-        }
-
-        if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_EFFECT) {
-            streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_EFFECT;
-            streamInfo->pp_config.effect = mParameters.getEffectValue();
-        }
-        if (mParameters.isWNREnabled() && (mParameters.getRecordingHintValue() == false)) {
-            streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
-            streamInfo->pp_config.denoise2d.denoise_enable = 1;
-            streamInfo->pp_config.denoise2d.process_plates =
-                    mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
-        }
-
-        if ((mParameters.isTNRVideoEnabled()) &&
-                ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
-                (CAM_STREAM_TYPE_VIDEO == stream_type))) {
-            streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
-        }
+    if (streamInfo->pp_config.feature_mask & CAM_QCOM_FEATURE_SHARPNESS) {
+        streamInfo->pp_config.sharpness = mParameters.getInt(QCameraParameters::KEY_QC_SHARPNESS);
     }
+    if (streamInfo->pp_config.feature_mask & CAM_QCOM_FEATURE_EFFECT) {
+        streamInfo->pp_config.effect = mParameters.getEffectValue();
+    }
+    if (streamInfo->pp_config.feature_mask & CAM_QCOM_FEATURE_DENOISE2D) {
+        streamInfo->pp_config.denoise2d.denoise_enable = 1;
+        streamInfo->pp_config.denoise2d.process_plates =
+                mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
+    }
+    // Store stream feature mask
+    CDBG_HIGH("%s: allocateStreamInfoBuf: stream type: %d, pp_mask: 0x%x",
+            __func__, stream_type, streamInfo->pp_config.feature_mask);
     return streamInfoBuf;
 }
 
