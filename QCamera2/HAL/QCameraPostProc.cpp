@@ -1790,6 +1790,8 @@ int32_t QCameraPostProcessor::queryStreams(QCameraStream **main,
         if (pStream != NULL) {
             if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
                     pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
+                    pStream->isTypeOf(CAM_STREAM_TYPE_VIDEO) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_VIDEO) ||
                     (m_parent->mParameters.getofflineRAW() &&
                             pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW))) {
                 *main= pStream;
@@ -2061,7 +2063,8 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
                 jpeg_job_data->src_reproc_frame,
                 NULL);
 
-        if ((NO_ERROR == ret) && ((workBuf = main_frame) != NULL)) {
+        if ((NO_ERROR == ret) && ((workBuf = main_frame) != NULL)
+                && !m_parent->isLowPowerMode()) {
             camera_memory_t *camWorkMem = NULL;
             int workBufIndex = workBuf->buf_idx;
             QCameraMemory *workMem = (QCameraMemory *)workBuf->mem_info;

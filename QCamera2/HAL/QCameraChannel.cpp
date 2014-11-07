@@ -797,6 +797,41 @@ QCameraVideoChannel::~QCameraVideoChannel()
 }
 
 /*===========================================================================
+ * FUNCTION   : takePicture
+ *
+ * DESCRIPTION: send request for queued snapshot frames
+ *
+ * PARAMETERS :
+ *   @mm_camera_req_buf_t : request buf info
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraVideoChannel::takePicture(mm_camera_req_buf_t *buf)
+{
+    int32_t rc = m_camOps->request_super_buf(m_camHandle, m_handle, buf);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : cancelPicture
+ *
+ * DESCRIPTION: cancel request for queued snapshot frames
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraVideoChannel::cancelPicture()
+{
+    int32_t rc = m_camOps->cancel_super_buf_request(m_camHandle, m_handle);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : releaseFrame
  *
  * DESCRIPTION: return video frame from app
