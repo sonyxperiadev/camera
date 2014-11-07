@@ -261,7 +261,7 @@ public:
     virtual QCameraHeapMemory *allocateStreamInfoBuf(cam_stream_type_t stream_type);
 
     // Implementation of QCameraThermalCallback
-    virtual int thermalEvtHandle(qcamera_thermal_level_enum_t level,
+    virtual int thermalEvtHandle(qcamera_thermal_level_enum_t *level,
             void *userdata, void *data);
 
     virtual int recalcFPSRange(int &minFPS, int &maxFPS,
@@ -326,7 +326,7 @@ private:
     int calcThermalLevel(qcamera_thermal_level_enum_t level,
             const int minFPSi, const int maxFPSi, cam_fps_range_t &adjustedRange,
             enum msm_vfe_frame_skip_pattern &skipPattern);
-    int updateThermalLevel(qcamera_thermal_level_enum_t level);
+    int updateThermalLevel(void *level);
 
     // update entris to set parameters and check if restart is needed
     int updateParameters(const char *parms, bool &needRestart);

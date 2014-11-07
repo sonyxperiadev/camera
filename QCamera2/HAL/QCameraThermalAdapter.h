@@ -47,9 +47,14 @@ typedef enum {
 class QCameraThermalCallback
 {
 public:
-    virtual int thermalEvtHandle(qcamera_thermal_level_enum_t level,
+    virtual int thermalEvtHandle(qcamera_thermal_level_enum_t *level,
             void *userdata, void *data) = 0;
     virtual ~QCameraThermalCallback() {}
+    qcamera_thermal_level_enum_t *getThermalLevel();
+    void setThermalLevel(qcamera_thermal_level_enum_t level);
+
+private:
+    qcamera_thermal_level_enum_t mLevel;
 };
 
 class QCameraThermalAdapter

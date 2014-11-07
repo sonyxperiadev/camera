@@ -153,11 +153,19 @@ int QCameraThermalAdapter::thermalCallback(int level,
     int rc = 0;
     CDBG("%s E", __func__);
     QCameraThermalAdapter& instance = getInstance();
-    qcamera_thermal_level_enum_t lvl = (qcamera_thermal_level_enum_t) level;
+    instance.mCallback->setThermalLevel((qcamera_thermal_level_enum_t) level);
+
     if (instance.mCallback)
-        rc = instance.mCallback->thermalEvtHandle(lvl, userdata, data);
+        rc = instance.mCallback->thermalEvtHandle(instance.mCallback->getThermalLevel(), userdata, data);
     CDBG("%s X", __func__);
     return rc;
 }
 
+qcamera_thermal_level_enum_t *QCameraThermalCallback::getThermalLevel() {
+    return &mLevel;
+}
+
+void QCameraThermalCallback::setThermalLevel(qcamera_thermal_level_enum_t level) {
+    mLevel = level;
+}
 }; //namespace qcamera
