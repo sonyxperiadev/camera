@@ -987,7 +987,18 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 int flipMode =
                     param.getFlipMode(streamInfo->reprocess_config.online.input_stream_type);
                 if (flipMode > 0) {
-                    streamInfo->reprocess_config.pp_feature_config.feature_mask |= CAM_QCOM_FEATURE_FLIP;
+                    streamInfo->reprocess_config.pp_feature_config.feature_mask |=
+                            CAM_QCOM_FEATURE_FLIP;
+                    streamInfo->reprocess_config.pp_feature_config.flip = (uint32_t)flipMode;
+                }
+            }
+
+            if (streamInfo->reprocess_config.offline.input_type == CAM_STREAM_TYPE_SNAPSHOT) {
+                int flipMode =
+                        param.getFlipMode(streamInfo->reprocess_config.offline.input_type);
+                if (flipMode > 0) {
+                    streamInfo->reprocess_config.pp_feature_config.feature_mask |=
+                            CAM_QCOM_FEATURE_FLIP;
                     streamInfo->reprocess_config.pp_feature_config.flip = (uint32_t)flipMode;
                 }
             }
@@ -1098,8 +1109,8 @@ int32_t QCameraReprocessChannel::stop()
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraReprocessChannel::doReprocessOffline(
-        mm_camera_super_buf_t *frame, int32_t rotation)
+int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame,
+        QCameraParameters &Parameter, int32_t rotation)
 {
     int32_t rc = 0;
     OfflineBuffer mappedBuffer;
@@ -1221,6 +1232,8 @@ int32_t QCameraReprocessChannel::doReprocessOffline(
                 param.reprocess.frame_pp_config.rotation = ROTATE_0;
             }
 
+            param.reprocess.frame_pp_config.flip = Parameter.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
+
             rc = pStream->setParameter(param);
             if (rc != NO_ERROR) {
                 ALOGE("%s: stream setParameter for reprocess failed",
@@ -1318,6 +1331,8 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
             } else {
                 param.reprocess.frame_pp_config.rotation = ROTATE_0;
             }
+
+            param.reprocess.frame_pp_config.flip = mParameter.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
 
             rc = pStream->setParameter(param);
             if (rc != NO_ERROR) {

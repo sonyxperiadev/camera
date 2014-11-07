@@ -2407,7 +2407,7 @@ int32_t QCameraPostProcessor::reprocess(qcamera_pp_data_t *pp_job)
         pp_job->reproc_frame_release = true;
         m_ongoingPPQ.enqueue((void *)pp_job);
         rc = m_pReprocChannel->doReprocessOffline(pp_job->src_frame,
-                m_parent->getJpegRotation());
+                m_parent->mParameters, m_parent->getJpegRotation());
     } else {
         m_ongoingPPQ.enqueue((void *)pp_job);
         rc = m_pReprocChannel->doReprocess(pp_job->src_frame,
