@@ -5388,12 +5388,9 @@ int32_t QCameraParameters::setSharpness(int sharpness)
     sprintf(val, "%d", sharpness);
     updateParamEntry(KEY_QC_SHARPNESS, val);
     CDBG_HIGH("%s: Setting sharpness %s", __func__, val);
-
-    int32_t value = sharpness;
-    return AddSetParmEntryToBatch(m_pParamBuf,
-                                  CAM_INTF_PARM_SHARPNESS,
-                                  sizeof(value),
-                                  &value);
+    m_nSharpness = sharpness;
+    return AddSetParmEntryToBatch(m_pParamBuf, CAM_INTF_PARM_SHARPNESS,
+            sizeof(m_nSharpness), &m_nSharpness);
 }
 
 /*===========================================================================
@@ -9197,7 +9194,7 @@ int32_t QCameraParameters::initBatchUpdate(parm_buffer_t *p_table)
 int32_t QCameraParameters::AddSetParmEntryToBatch(parm_buffer_t *p_table,
         cam_intf_parm_type_t paramType, size_t paramLength, void *paramValue)
 {
-    void* dst;
+    void* dst = NULL;
     if ((NULL == p_table) || (NULL == paramValue) ||
         (paramType >= CAM_INTF_PARM_MAX)) {
         ALOGE("%s: Error invalid param. p_table: %p, paramValue: %p, "

@@ -1596,6 +1596,20 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         pme->mExifParams.stats_debug_params_valid = TRUE;
     }
 
+    cam_edge_application_t edge_application;
+    memset(&edge_application, 0x00, sizeof(cam_edge_application_t));
+    edge_application.sharpness = pme->mParameters.getSharpness();
+    if (edge_application.sharpness != 0) {
+        edge_application.edge_mode = CAM_EDGE_MODE_FAST;
+    } else {
+        edge_application.edge_mode = CAM_EDGE_MODE_OFF;
+    }
+    int32_t rc = pme->mParameters.AddSetParmEntryToBatch(pMetaData,
+            CAM_INTF_META_EDGE_MODE, sizeof(edge_application), &edge_application);
+    if (rc != NO_ERROR) {
+        ALOGE("%s : Error!! Not able to set sharpness", __func__);
+    }
+
     stream->bufDone(frame->buf_idx);
     free(super_frame);
 

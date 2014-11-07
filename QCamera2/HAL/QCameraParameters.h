@@ -678,6 +678,10 @@ public:
     int32_t updatePpFeatureMask(cam_stream_type_t stream_type);
     int32_t setStreamPpMask(cam_stream_type_t stream_type, uint32_t pp_mask);
     int32_t getStreamPpMask(cam_stream_type_t stream_type, uint32_t &pp_mask);
+    int32_t getSharpness() {return m_nSharpness;};
+    int32_t AddSetParmEntryToBatch(parm_buffer_t *p_table,
+            cam_intf_parm_type_t paramType,
+            size_t paramLength, void *paramValue);
 
 private:
     int32_t setPreviewSize(const QCameraParameters& );
@@ -816,9 +820,6 @@ private:
 
     // ops for batch set/get params with server
     int32_t initBatchUpdate(parm_buffer_t *p_table);
-    int32_t AddSetParmEntryToBatch(parm_buffer_t *p_table,
-            cam_intf_parm_type_t paramType,
-            size_t paramLength, void *paramValue);
     int32_t commitSetBatch();
     int32_t AddGetParmEntryToBatch(parm_buffer_t *p_table,
                                    cam_intf_parm_type_t paramType);
@@ -934,7 +935,7 @@ private:
     bool m_bTruePortraitOn;
     uint32_t m_nMinRequiredPpMask;
     uint32_t mStreamPpMask[CAM_STREAM_TYPE_MAX];
-
+    int32_t m_nSharpness;
 };
 
 }; // namespace qcamera
