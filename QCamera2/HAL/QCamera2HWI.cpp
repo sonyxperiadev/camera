@@ -1843,7 +1843,8 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateMiscBuf(
 
     switch (streamInfo->stream_type) {
     case CAM_STREAM_TYPE_OFFLINE_PROC:
-        if (CAM_QCOM_FEATURE_TRUEPORTRAIT & streamInfo->pp_config.feature_mask) {
+        if (CAM_QCOM_FEATURE_TRUEPORTRAIT &
+                streamInfo->reprocess_config.pp_feature_config.feature_mask) {
             bufNum = 1;
             bufSize = mParameters.getTPMaxMetaSize();
         }

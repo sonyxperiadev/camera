@@ -279,6 +279,10 @@ public:
     static const char KEY_QC_HDR_MODE[];
     static const char KEY_QC_SUPPORTED_KEY_QC_HDR_MODES[];
 
+    //True Portrait
+    static const char KEY_QC_TRUE_PORTRAIT[];
+    static const char KEY_QC_SUPPORTED_TRUE_PORTRAIT_MODES[];
+
     //Longshot
     static const char KEY_QC_LONGSHOT_SUPPORTED[];
 
@@ -460,6 +464,10 @@ public:
     // Values for HDR mode settings.
     static const char HDR_MODE_SENSOR[];
     static const char HDR_MODE_MULTI_FRAME[];
+
+    // Values for True Portrait settings.
+    static const char TRUE_PORTRAIT_OFF[];
+    static const char TRUE_PORTRAIT_ON[];
 
     // Values for HFR settings.
     static const char VIDEO_HFR_OFF[];
@@ -718,6 +726,7 @@ private:
     int32_t setOptiZoom(const QCameraParameters& );
     int32_t setHDRMode(const QCameraParameters& );
     int32_t setHDRNeed1x(const QCameraParameters& );
+    int32_t setTruePortrait(const QCameraParameters& );
     int32_t setRedeyeReduction(const QCameraParameters& );
     int32_t setGpsLocation(const QCameraParameters& );
     int32_t setRecordingHint(const QCameraParameters& );
@@ -778,6 +787,7 @@ private:
     int32_t setOptiZoom(const char *optiZoomStr);
     int32_t setHDRMode(const char *optiZoomStr);
     int32_t setHDRNeed1x(const char *optiZoomStr);
+    int32_t setTruePortrait(const char *truePortraitStr);
     int32_t setRedeyeReduction(const char *redeyeStr);
     int32_t setWaveletDenoise(const char *wnrStr);
     int32_t setFaceRecognition(const char *faceRecog, uint32_t maxFaces);
@@ -843,6 +853,7 @@ private:
     static const QCameraMap<int> RE_FOCUS_MODES_MAP[];
     static const QCameraMap<int> CHROMA_FLASH_MODES_MAP[];
     static const QCameraMap<int> OPTI_ZOOM_MODES_MAP[];
+    static const QCameraMap<int> TRUE_PORTRAIT_MODES_MAP[];
     static const QCameraMap<cam_cds_mode_type_t> CDS_MODES_MAP[];
     static const QCameraMap<int> HDR_MODES_MAP[];
     static const QCameraMap<int> VIDEO_ROTATION_MODES_MAP[];
