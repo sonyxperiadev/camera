@@ -4105,7 +4105,7 @@ void QCamera2HardwareInterface::jpegEvtHandle(jpeg_job_status_t status,
  *              none-zero failure code
  *==========================================================================*/
 int QCamera2HardwareInterface::thermalEvtHandle(
-        qcamera_thermal_level_enum_t level, void *userdata, void *data)
+        qcamera_thermal_level_enum_t *level, void *userdata, void *data)
 {
     if (!mCameraOpened) {
         CDBG_HIGH("%s: Camera is not opened, no need to handle thermal evt", __func__);
@@ -4114,11 +4114,11 @@ int QCamera2HardwareInterface::thermalEvtHandle(
 
     // Make sure thermal events are logged
     CDBG_HIGH("%s: level = %d, userdata = %p, data = %p",
-        __func__, level, userdata, data);
+        __func__, *level, userdata, data);
     //We don't need to lockAPI, waitAPI here. QCAMERA_SM_EVT_THERMAL_NOTIFY
     // becomes an aync call. This also means we can only pass payload
     // by value, not by address.
-    return processAPI(QCAMERA_SM_EVT_THERMAL_NOTIFY, (void *)&level);
+    return processAPI(QCAMERA_SM_EVT_THERMAL_NOTIFY, (void *)level);
 }
 
 /*===========================================================================
@@ -6288,13 +6288,13 @@ int QCamera2HardwareInterface::recalcFPSRange(int &minFPS, int &maxFPS,
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCamera2HardwareInterface::updateThermalLevel(
-            qcamera_thermal_level_enum_t level)
+int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
 {
     int ret = NO_ERROR;
     cam_fps_range_t adjustedRange;
     int minFPS, maxFPS;
     enum msm_vfe_frame_skip_pattern skipPattern;
+    qcamera_thermal_level_enum_t level = *(qcamera_thermal_level_enum_t *)thermal_level;
 
     pthread_mutex_lock(&m_parm_lock);
 
