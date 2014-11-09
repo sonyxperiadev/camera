@@ -1351,10 +1351,12 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
 
     if(is4k2kVideoResolution() && m_bRecordingHint) {
         // We support maximum 8M liveshot @4K2K video resolution
-        // 8M (4096x2160 or 3200x2400)
-        if((m_LiveSnapshotSize.width > 4096) || (m_LiveSnapshotSize.height > 2400)) {
-            m_LiveSnapshotSize.width = 4096;
-            m_LiveSnapshotSize.height = 2160;
+        cam_dimension_t resolution = {0, 0};
+        CameraParameters::getVideoSize(&resolution.width, &resolution.height);
+        if((m_LiveSnapshotSize.width > resolution.width) ||
+                (m_LiveSnapshotSize.height > resolution.height)) {
+            m_LiveSnapshotSize.width = resolution.width;
+            m_LiveSnapshotSize.height = resolution.height;
         }
     }
 
@@ -10275,17 +10277,19 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         ALOGE("%s: Error!! stream type: %d not valid", __func__, stream_type);
         return -1;
     }
+    // Do not update flip mask for ZSL snapshot/HDR/liveshot except for 4K2K video
     if ((!isZSLMode() || (isZSLMode() && (stream_type != CAM_STREAM_TYPE_SNAPSHOT))) &&
-                !isHDREnabled() &&
-                !(getRecordingHintValue() && (stream_type == CAM_STREAM_TYPE_SNAPSHOT))) {
+            !isHDREnabled() && !(getRecordingHintValue() &&
+            (stream_type == CAM_STREAM_TYPE_SNAPSHOT) && !is4k2kVideoResolution())) {
         //Set flip mode based on Stream type;
         int flipMode = getFlipMode(stream_type);
         if (flipMode > 0) {
             feature_mask |= CAM_QCOM_FEATURE_FLIP;
         }
     }
-    if (!isZSLMode() &&
-                !(getRecordingHintValue() && (stream_type == CAM_STREAM_TYPE_SNAPSHOT))) {
+    // Do not enable feature mask for ZSL/liveshot expect for 4K2k video
+    if (!isZSLMode() && !(getRecordingHintValue() &&
+            (stream_type == CAM_STREAM_TYPE_SNAPSHOT) && !is4k2kVideoResolution())) {
         if ((m_nMinRequiredPpMask & CAM_QCOM_FEATURE_SHARPNESS) &&
                 !isOptiZoomEnabled()) {
             feature_mask |= CAM_QCOM_FEATURE_SHARPNESS;
