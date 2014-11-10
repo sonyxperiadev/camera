@@ -2375,9 +2375,10 @@ int QCamera3HardwareInterface::processCaptureRequest(
         bufferInfo.stream = request->output_buffers[i].stream;
         mPendingBuffersMap.mPendingBufferList.push_back(bufferInfo);
         mPendingBuffersMap.num_buffers++;
-        CDBG("%s: frame = %d, buffer = %p, stream = %p, stream format = %d",
-          __func__, frameNumber, bufferInfo.buffer, bufferInfo.stream,
-          bufferInfo.stream->format);
+        QCamera3Channel *channel = (QCamera3Channel *)bufferInfo.stream->priv;
+        ALOGI("%s: frame = %d, buffer = %p, streamTypeMask = %d, stream format = %d",
+                __func__, frameNumber, bufferInfo.buffer,
+                channel->getStreamTypeMask(), bufferInfo.stream->format);
     }
     CDBG("%s: mPendingBuffersMap.num_buffers = %d",
           __func__, mPendingBuffersMap.num_buffers);
@@ -2523,16 +2524,17 @@ void QCamera3HardwareInterface::dump(int fd)
     }
     dprintf(fd, "\nPending buffer map: Number of buffers: %u\n",
                 mPendingBuffersMap.num_buffers);
-    dprintf(fd, "-------+-------------\n");
-    dprintf(fd, " Frame | Stream type \n");
-    dprintf(fd, "-------+-------------\n");
+    dprintf(fd, "-------+------------------\n");
+    dprintf(fd, " Frame | Stream type mask \n");
+    dprintf(fd, "-------+------------------\n");
     for(List<PendingBufferInfo>::iterator i =
         mPendingBuffersMap.mPendingBufferList.begin();
         i != mPendingBuffersMap.mPendingBufferList.end(); i++) {
+        QCamera3Channel *channel = (QCamera3Channel *)(i->stream->priv);
         dprintf(fd, " %5d | %11d \n",
-            i->frame_number, i->stream->stream_type);
+                i->frame_number, channel->getStreamTypeMask());
     }
-    dprintf(fd, "-------+-------------\n");
+    dprintf(fd, "-------+------------------\n");
 
     dprintf(fd, "\nPending frame drop list: %zu\n",
         mPendingFrameDropList.size());
