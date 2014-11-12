@@ -2952,11 +2952,14 @@ int QCamera2HardwareInterface::takePicture()
                     return rc;
                 }
 
-                rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_CAPTURE]);
-                if (rc != NO_ERROR) {
-                    ALOGE("%s: online rotation failed", __func__);
-                    delChannel(QCAMERA_CH_TYPE_CAPTURE);
-                    return rc;
+                if (!mParameters.getofflineRAW()) {
+                    rc = configureOnlineRotation(
+                        *m_channels[QCAMERA_CH_TYPE_CAPTURE]);
+                    if (rc != NO_ERROR) {
+                        ALOGE("%s: online rotation failed", __func__);
+                        delChannel(QCAMERA_CH_TYPE_CAPTURE);
+                        return rc;
+                    }
                 }
 
                 DefferWorkArgs args;
