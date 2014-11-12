@@ -35,6 +35,7 @@
 
 #include "mm_camera_dbg.h"
 #include "mm_camera_sock.h"
+#include "cam_types.h"
 
 /*===========================================================================
  * FUNCTION   : mm_camera_socket_create
@@ -73,7 +74,7 @@ int mm_camera_socket_create(int cam_id, mm_camera_sock_type_t sock_type)
     memset(&sock_addr, 0, sizeof(sock_addr));
     sock_addr.addr_un.sun_family = AF_UNIX;
     snprintf(sock_addr.addr_un.sun_path,
-             UNIX_PATH_MAX, "/data/misc/camera/cam_socket%d", cam_id);
+             UNIX_PATH_MAX, QCAMERA_DUMP_FRM_LOCATION"cam_socket%d", cam_id);
     rc = connect(socket_fd, &sock_addr.addr, sizeof(sock_addr.addr_un));
     if (0 != rc) {
       close(socket_fd);

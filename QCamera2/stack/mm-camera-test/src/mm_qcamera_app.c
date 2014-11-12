@@ -238,12 +238,13 @@ void mm_app_dump_frame(mm_camera_buf_def_t *frame,
                        char *ext,
                        uint32_t frame_idx)
 {
-    char file_name[64];
+    char file_name[FILENAME_MAX];
     int file_fd;
     int i;
     int offset = 0;
     if ( frame != NULL) {
-        snprintf(file_name, sizeof(file_name), "/data/test/%s_%04d.%s", name, frame_idx, ext);
+        snprintf(file_name, sizeof(file_name),
+                QCAMERA_DUMP_FRM_LOCATION"test/%s_%04d.%s", name, frame_idx, ext);
         file_fd = open(file_name, O_RDWR | O_CREAT, 0777);
         if (file_fd < 0) {
             CDBG_ERROR("%s: cannot open file %s \n", __func__, file_name);
@@ -267,10 +268,11 @@ void mm_app_dump_frame(mm_camera_buf_def_t *frame,
 void mm_app_dump_jpeg_frame(const void * data, size_t size, char* name,
         char* ext, uint32_t index)
 {
-    char buf[64];
+    char buf[FILENAME_MAX];
     int file_fd;
     if ( data != NULL) {
-        snprintf(buf, sizeof(buf), "/data/test/%s_%u.%s", name, index, ext);
+        snprintf(buf, sizeof(buf),
+                QCAMERA_DUMP_FRM_LOCATION"test/%s_%u.%s", name, index, ext);
         CDBG("%s: %s size =%zu, jobId=%u", __func__, buf, size, index);
         file_fd = open(buf, O_RDWR | O_CREAT, 0777);
         write(file_fd, data, size);
