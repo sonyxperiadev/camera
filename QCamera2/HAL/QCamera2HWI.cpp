@@ -3631,7 +3631,7 @@ char* QCamera2HardwareInterface::getParameters()
     String8 str;
 
     int cur_width, cur_height;
-
+    pthread_mutex_lock(&m_parm_lock);
     //Need take care Scale picture size
     if(mParameters.m_reprocScaleParam.isScaleEnabled() &&
         mParameters.m_reprocScaleParam.isUnderScaling()){
@@ -3664,6 +3664,7 @@ char* QCamera2HardwareInterface::getParameters()
         pic_size.append(buffer);
         mParameters.set(CameraParameters::KEY_PICTURE_SIZE, pic_size);
     }
+    pthread_mutex_unlock(&m_parm_lock);
     return strParams;
 }
 
