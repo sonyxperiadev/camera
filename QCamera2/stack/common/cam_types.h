@@ -105,6 +105,8 @@
 #define MAX_INFLIGHT_REQUESTS  6
 #define MIN_INFLIGHT_REQUESTS  3
 
+#define QCAMERA_DUMP_FRM_LOCATION "/data/misc/camera/"
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3

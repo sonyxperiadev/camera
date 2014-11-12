@@ -2437,7 +2437,7 @@ bool QCamera2HardwareInterface::processUFDumps(qcamera_jpeg_evt_payload_t *evt)
    if (mParameters.isUbiRefocus()) {
        int index = (int)getOutputImageCount();
        bool allFocusImage = (index == ((int)mParameters.getRefocusOutputCount() - 1));
-       char name[CAM_FN_CNT];
+       char name[FILENAME_MAX];
 
        camera_memory_t *jpeg_mem = NULL;
        omx_jpeg_ouput_buf_t *jpeg_out = NULL;
@@ -2462,12 +2462,12 @@ bool QCamera2HardwareInterface::processUFDumps(qcamera_jpeg_evt_payload_t *evt)
        }
 
        if (allFocusImage)  {
-           snprintf(name, CAM_FN_CNT, "AllFocusImage");
+           snprintf(name, sizeof(name), "AllFocusImage");
            index = -1;
        } else {
-           snprintf(name, CAM_FN_CNT, "%d", 0);
+           snprintf(name, sizeof(name), "%d", 0);
        }
-       CAM_DUMP_TO_FILE("/data/local/ubifocus", name, index, "jpg",
+       CAM_DUMP_TO_FILE(QCAMERA_DUMP_FRM_LOCATION"ubifocus", name, index, "jpg",
            dataPtr, dataLen);
        CDBG("%s:%d] Dump the image %d %d allFocusImage %d", __func__, __LINE__,
            getOutputImageCount(), index, allFocusImage);
