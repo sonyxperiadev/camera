@@ -176,6 +176,7 @@ private:
     int32_t setYUVFrameInfo(mm_camera_super_buf_t *recvd_frame);
     static bool matchJobId(void *data, void *user_data, void *match_data);
     static int getJpegMemory(omx_jpeg_ouput_buf_t *out_buf);
+    static int releaseJpegMemory(omx_jpeg_ouput_buf_t *out_buf);
 
     int32_t doReprocess();
     int32_t stopCapture();
