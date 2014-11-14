@@ -1669,6 +1669,8 @@ typedef struct {
 #define CAM_QCOM_FEATURE_RAW_PROCESSING (1U<<18)
 #define CAM_QCOM_FEATURE_TRUEPORTRAIT   (1U<<19)
 #define CAM_QCOM_FEATURE_MAX            (1U<<20)
+#define CAM_QCOM_FEATURE_LLVD           (1U<<21)
+#define CAM_QCOM_FEATURE_DIS20          (1U<<22)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC)
