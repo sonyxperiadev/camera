@@ -133,6 +133,20 @@ QCameraStateMachine::QCameraStateMachine(QCamera2HardwareInterface *ctrl) :
  *==========================================================================*/
 QCameraStateMachine::~QCameraStateMachine()
 {
+    cam_sem_destroy(&cmd_sem);
+}
+
+/*===========================================================================
+ * FUNCTION   : releaseThread
+ *
+ * DESCRIPTION: Sends an exit command and terminates the state machine thread
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraStateMachine::releaseThread()
+{
     if (cmd_pid != 0) {
         qcamera_sm_cmd_t *node =
             (qcamera_sm_cmd_t *)malloc(sizeof(qcamera_sm_cmd_t));
@@ -150,7 +164,6 @@ QCameraStateMachine::~QCameraStateMachine()
         }
         cmd_pid = 0;
     }
-    cam_sem_destroy(&cmd_sem);
 }
 
 /*===========================================================================
