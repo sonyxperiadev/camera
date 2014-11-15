@@ -273,7 +273,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       m_bIs4KVideo(false),
       m_bEisSupportedSize(false),
       m_bEisEnable(false),
-      mLoopBackResult(NULL),
       mMinProcessedFrameDuration(0),
       mMinJpegFrameDuration(0),
       mMinRawFrameDuration(0),
@@ -2799,25 +2798,6 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
                 camera3_stream_buffer_t *buffer, uint32_t frame_number)
 {
     pthread_mutex_lock(&mMutex);
-
-    /* Assume flush() is called before any reprocessing. Send
-     * notify and result immediately upon receipt of any callback*/
-    if (mLoopBackResult) {
-        /* Send notify */
-        camera3_notify_msg_t notify_msg;
-        memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-        notify_msg.type = CAMERA3_MSG_SHUTTER;
-        notify_msg.message.shutter.frame_number = mLoopBackResult->frame_number;
-        notify_msg.message.shutter.timestamp = (uint64_t)mLoopBackTimestamp;
-        mCallbackOps->notify(mCallbackOps, &notify_msg);
-
-        /* Send capture result */
-        mCallbackOps->process_capture_result(mCallbackOps, mLoopBackResult);
-        free_camera_metadata((camera_metadata_t *)mLoopBackResult->result);
-        free(mLoopBackResult);
-        mLoopBackResult = NULL;
-    }
-
     if (metadata_buf)
         handleMetadataWithLock(metadata_buf);
     else
