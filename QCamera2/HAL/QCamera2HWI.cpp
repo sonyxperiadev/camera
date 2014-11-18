@@ -3540,39 +3540,44 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
         rc = NO_INIT;
         goto end;
     }
-
-    rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
-    if (rc != NO_ERROR) {
-        ALOGE("%s: online rotation failed", __func__);
-        m_postprocessor.stop();
-        return rc;
+    //Disable reprocess for 4K liveshot case
+    if (!mParameters.is4k2kVideoResolution()) {
+        rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: online rotation failed", __func__);
+            m_postprocessor.stop();
+            return rc;
+        }
     }
-
     // start snapshot channel
     if ((rc == NO_ERROR) && (NULL != pChannel)) {
+        // Do not link metadata stream for 4K2k resolution
+        // as CPP processing would be done on snapshot stream and not
+        // reprocess stream
+        if (!mParameters.is4k2kVideoResolution()) {
+            // Find and try to link a metadata stream from preview channel
+            QCameraChannel *pMetaChannel = NULL;
+            QCameraStream *pMetaStream = NULL;
 
-        // Find and try to link a metadata stream from preview channel
-        QCameraChannel *pMetaChannel = NULL;
-        QCameraStream *pMetaStream = NULL;
-
-        if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
-            pMetaChannel = m_channels[QCAMERA_CH_TYPE_PREVIEW];
-            uint32_t streamNum = pMetaChannel->getNumOfStreams();
-            QCameraStream *pStream = NULL;
-            for (uint32_t i = 0 ; i < streamNum ; i++ ) {
-                pStream = pMetaChannel->getStreamByIndex(i);
-                if ((NULL != pStream) &&
-                        (CAM_STREAM_TYPE_METADATA == pStream->getMyType())) {
-                    pMetaStream = pStream;
-                    break;
+            if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
+                pMetaChannel = m_channels[QCAMERA_CH_TYPE_PREVIEW];
+                uint32_t streamNum = pMetaChannel->getNumOfStreams();
+                QCameraStream *pStream = NULL;
+                for (uint32_t i = 0 ; i < streamNum ; i++ ) {
+                    pStream = pMetaChannel->getStreamByIndex(i);
+                    if ((NULL != pStream) &&
+                            (CAM_STREAM_TYPE_METADATA == pStream->getMyType())) {
+                        pMetaStream = pStream;
+                        break;
+                    }
                 }
             }
-        }
 
-        if ((NULL != pMetaChannel) && (NULL != pMetaStream)) {
-            rc = pChannel->linkStream(pMetaChannel, pMetaStream);
-            if (NO_ERROR != rc) {
-                ALOGE("%s : Metadata stream link failed %d", __func__, rc);
+            if ((NULL != pMetaChannel) && (NULL != pMetaStream)) {
+                rc = pChannel->linkStream(pMetaChannel, pMetaStream);
+                if (NO_ERROR != rc) {
+                    ALOGE("%s : Metadata stream link failed %d", __func__, rc);
+                }
             }
         }
 
@@ -5456,6 +5461,15 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
         pp_config.feature_mask |= CAM_QCOM_FEATURE_RAW_PROCESSING;
     }
+
+    //Mask out features that are already processed in snapshot stream.
+    uint32_t snapshot_feature_mask = 0;
+    mParameters.getStreamPpMask(CAM_STREAM_TYPE_SNAPSHOT, snapshot_feature_mask);
+
+    pp_config.feature_mask &= ~snapshot_feature_mask;
+    ALOGI("%s: Snapshot feature mask: 0x%x, reproc feature mask: 0x%x", __func__,
+            snapshot_feature_mask, pp_config.feature_mask);
+
     bool offlineReproc = isRegularCapture();
     rc = pChannel->addReprocStreamsFromSource(*this,
                                               pp_config,
@@ -6511,9 +6525,14 @@ bool QCamera2HardwareInterface::needReprocess()
         pthread_mutex_unlock(&m_parm_lock);
         return true;
     }
-
+    //Disable reprocess for 4K liveshot case
+    if (mParameters.is4k2kVideoResolution()&& mParameters.getRecordingHintValue()) {
+        //Disable reprocess for 4K liveshot case
+        pthread_mutex_unlock(&m_parm_lock);
+        return false;
+    }
     if ((gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION) > 0 &&
-            (getJpegRotation() > 0) &&  (mParameters.getRecordingHintValue() == false)) {
+            (getJpegRotation() > 0)) {
             // current rotation is not zero, and pp has the capability to process rotation
             CDBG_HIGH("%s: need to do reprocess for rotation=%d", __func__, getJpegRotation());
             pthread_mutex_unlock(&m_parm_lock);
@@ -6587,6 +6606,12 @@ bool QCamera2HardwareInterface::needRotationReprocess()
     if (!mParameters.isJpegPictureFormat() &&
         !mParameters.isNV21PictureFormat()) {
         // RAW image, no need to reprocess
+        pthread_mutex_unlock(&m_parm_lock);
+        return false;
+    }
+
+    if (mParameters.is4k2kVideoResolution()&& mParameters.getRecordingHintValue()) {
+        //Disable reprocess for 4K liveshot case
         pthread_mutex_unlock(&m_parm_lock);
         return false;
     }
