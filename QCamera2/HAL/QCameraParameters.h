@@ -573,6 +573,8 @@ public:
                                               // no change in parameters value
     uint32_t getJpegQuality();
     uint32_t getJpegRotation();
+    uint32_t getJpegExifRotation();
+    bool useJpegExifRotation();
     int32_t getEffectValue();
 
     int32_t getExifDateTime(String8 &dateTime, String8 &subsecTime);
