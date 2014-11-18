@@ -33,6 +33,7 @@
 #include <hardware/camera.h>
 #include <utils/Mutex.h>
 #include <utils/List.h>
+#include <qdMetaData.h>
 
 extern "C" {
 #include <sys/types.h>
@@ -235,6 +236,7 @@ private:
     camera_request_memory mGetMemory;
     camera_memory_t *mCameraMemory[MM_CAMERA_MAX_NUM_FRAMES];
     int mMinUndequeuedBuffers;
+    enum ColorSpace_t mColorSpace;
 };
 
 }; // namespace qcamera
