@@ -1459,6 +1459,10 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
         }
        break;
     case QCAMERA_SM_EVT_THERMAL_NOTIFY:
+        {
+            rc = m_parent->updateThermalLevel(payload);
+        }
+        break;
     case QCAMERA_SM_EVT_JPEG_EVT_NOTIFY:
     default:
         ALOGE("%s: cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
