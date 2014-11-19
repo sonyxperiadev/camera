@@ -133,6 +133,7 @@ public:
     int32_t doReprocessOffline(mm_camera_super_buf_t *frame,
             QCameraParameters &param, int32_t rotation);
     int32_t stop();
+    QCameraChannel *getSrcChannel(){return m_pSrcChannel;};
 
 private:
     QCameraStream *getStreamBySrouceHandle(uint32_t srcHandle);

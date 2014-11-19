@@ -179,7 +179,6 @@ int32_t QCameraPostProcessor::deinit()
             memset(&mJpegHandle, 0, sizeof(mJpegHandle));
         }
         m_bInited = FALSE;
-        m_reprocStream = NULL;
     }
     return NO_ERROR;
 }
@@ -219,14 +218,6 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
         if (m_pReprocChannel == NULL) {
             ALOGE("%s: cannot add reprocess channel", __func__);
             return UNKNOWN_ERROR;
-        }
-        QCameraStream *pStream = NULL;
-        for (uint8_t i = 0; i < m_pReprocChannel->getNumOfStreams(); i++) {
-            pStream = m_pReprocChannel->getStreamByIndex(i);
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_OFFLINE_PROC)) {
-                m_reprocStream = pStream;
-                break;
-            }
         }
 
         rc = m_pReprocChannel->start();
@@ -626,6 +617,45 @@ int32_t QCameraPostProcessor::sendDataNotify(int32_t msg_type,
 }
 
 /*===========================================================================
+ * FUNCTION   : validatePostProcess
+ *
+ * DESCRIPTION: Verify output buffer count of pp module
+ *
+ * PARAMETERS :
+ *   @frame   : process frame received from mm-camera-interface
+ *
+ * RETURN     : bool type of status
+ *              TRUE  -- success
+ *              FALSE     failure
+ *==========================================================================*/
+bool QCameraPostProcessor::validatePostProcess(mm_camera_super_buf_t *frame)
+{
+    bool status = TRUE;
+    QCameraChannel *pChannel;
+
+    if (frame == NULL) {
+        return status;
+    }
+
+    pChannel = m_parent->getChannelByHandle(frame->ch_id);
+    if (pChannel == m_pReprocChannel->getSrcChannel()) {
+        QCameraStream *pStream = NULL;
+        for (uint8_t i = 0; i < m_pReprocChannel->getNumOfStreams(); i++) {
+            pStream = m_pReprocChannel->getStreamByIndex(i);
+            if (pStream && (m_inputPPQ.getCurrentSize() > 0) &&
+                    m_ongoingPPQ.getCurrentSize() >=  pStream->getNumQueuedBuf() ) {
+                CDBG_HIGH("Out of PP Buffer PPQ = %d ongoingQ = %d Jpeg = %d onJpeg = %d",
+                        m_inputPPQ.getCurrentSize(), m_inputPPQ.getCurrentSize(),
+                        m_inputJpegQ.getCurrentSize(), m_ongoingJpegQ.getCurrentSize());
+                status = FALSE;
+                break;
+            }
+        }
+    }
+    return status;
+}
+
+/*===========================================================================
  * FUNCTION   : processData
  *
  * DESCRIPTION: enqueue data into dataProc thread
@@ -642,6 +672,8 @@ int32_t QCameraPostProcessor::sendDataNotify(int32_t msg_type,
  *==========================================================================*/
 int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
 {
+    bool triggerEvent = TRUE;
+
     if (m_bInited == FALSE) {
         ALOGE("%s: postproc not initialized yet", __func__);
         return UNKNOWN_ERROR;
@@ -658,8 +690,10 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
 
         ATRACE_INT("Camera:Reprocess", 1);
         CDBG_HIGH("%s: need reprocess", __func__);
+
         // enqueu to post proc input queue
         m_inputPPQ.enqueue((void *)frame);
+        triggerEvent = validatePostProcess(frame);
     } else if (m_parent->mParameters.isNV16PictureFormat() ||
         m_parent->mParameters.isNV21PictureFormat()) {
         //check if raw frame information is needed.
@@ -702,7 +736,10 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
         // enqueu to jpeg input queue
         m_inputJpegQ.enqueue((void *)jpeg_job);
     }
-    m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+
+    if (triggerEvent){
+        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+    }
 
     return NO_ERROR;
 }
@@ -896,6 +933,8 @@ end:
  *==========================================================================*/
 int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
 {
+    bool triggerEvent = TRUE;
+
     bool needSuperBufMatch = m_parent->mParameters.generateThumbFromMain();
     if (m_bInited == FALSE) {
         ALOGE("%s: postproc not initialized yet", __func__);
@@ -966,6 +1005,10 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         jpeg_job->metadata = (metadata_buffer_t *)meta_frame->buffer;
     }
 
+    if (m_parent->isLongshotEnabled()) {
+        triggerEvent = validatePostProcess(job->src_frame);
+    }
+
     // free pp job buf
     if (job) {
         free(job);
@@ -976,7 +1019,10 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
 
     ALOGD("%s: %d] ", __func__, __LINE__);
     // wait up data proc thread
-    m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+
+    if (triggerEvent) {
+        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+    }
 
     return NO_ERROR;
 }
@@ -2287,13 +2333,8 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                         }
                     }
 
-                    mm_camera_super_buf_t *pp_frame = NULL;
-                    if (pme->m_inputPPQ.getCurrentSize() > 0) {
-                        if (pme->m_ongoingPPQ.getCurrentSize() <
-                                pme->m_reprocStream->getNumQueuedBuf()) {
-                            pp_frame = (mm_camera_super_buf_t *)pme->m_inputPPQ.dequeue();
-                        }
-                    }
+                    mm_camera_super_buf_t *pp_frame =
+                            (mm_camera_super_buf_t *)pme->m_inputPPQ.dequeue();
                     if (NULL != pp_frame) {
                         qcamera_pp_data_t *pp_job =
                             (qcamera_pp_data_t *)malloc(sizeof(qcamera_pp_data_t));
