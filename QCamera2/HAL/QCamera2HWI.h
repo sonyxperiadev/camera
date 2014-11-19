@@ -574,6 +574,8 @@ private:
     pthread_t mIntPicThread;
     bool mFlashNeeded;
     uint32_t mCaptureRotation;
+    uint32_t mJpegExifRotation;
+    bool mUseJpegExifRotation;
     int32_t mFlash;
     int32_t mRedEye;
     int32_t mFlashPresence;

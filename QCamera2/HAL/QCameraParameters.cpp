@@ -8171,11 +8171,56 @@ uint32_t QCameraParameters::getJpegQuality()
  * RETURN     : rotation value
  *==========================================================================*/
 uint32_t QCameraParameters::getJpegRotation() {
-    int rotation = getInt(KEY_ROTATION);
-    if (rotation < 0) {
-        rotation = 0;
+    int rotation = 0;
+
+    //If exif rotation is set, do not rotate captured image
+    if (!useJpegExifRotation()) {
+        rotation = getInt(KEY_ROTATION);
+        if (rotation < 0) {
+            rotation = 0;
+        }
     }
     return (uint32_t)rotation;
+}
+
+/*===========================================================================
+ * FUNCTION   : getJpegExifRotation
+ *
+ * DESCRIPTION: get exif rotation value
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : rotation value
+ *==========================================================================*/
+uint32_t QCameraParameters::getJpegExifRotation() {
+    int rotation = 0;
+
+    if (useJpegExifRotation()) {
+        rotation = getInt(KEY_ROTATION);
+        if (rotation < 0) {
+            rotation = 0;
+        }
+    }
+    return (uint32_t)rotation;
+}
+
+/*===========================================================================
+ * FUNCTION   : useJpegExifRotation
+ *
+ * DESCRIPTION: Check if jpeg exif rotation need to be used
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : true if jpeg exif rotation need to be used
+ *==========================================================================*/
+bool QCameraParameters::useJpegExifRotation() {
+    char exifRotation[PROPERTY_VALUE_MAX];
+
+    property_get("persist.camera.exif.rotation", exifRotation, "off");
+    if (!strcmp(exifRotation, "on")) {
+        return true;
+    }
+    return false;
 }
 
 /*===========================================================================
