@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -96,9 +96,21 @@ typedef struct{
     size_t supported_white_balances_cnt;
     cam_wb_mode_type supported_white_balances[CAM_WB_MODE_MAX];
 
+    /* supported manual wb cct */
+    int32_t min_wb_cct;
+    int32_t max_wb_cct;
+
+    /* supported manual wb rgb gains */
+    float min_wb_gain;
+    float max_wb_gain;
+
     /* supported focus modes */
     size_t supported_focus_modes_cnt;
     cam_focus_mode_type supported_focus_modes[CAM_FOCUS_MODE_MAX];
+
+    /* supported manual focus position */
+    float min_focus_pos[CAM_MANUAL_FOCUS_MODE_MAX];
+    float max_focus_pos[CAM_MANUAL_FOCUS_MODE_MAX];
 
     int32_t exposure_compensation_min;       /* min value of exposure compensation index */
     int32_t exposure_compensation_max;       /* max value of exposure compensation index */
@@ -508,6 +520,8 @@ typedef struct {
     INCLUDE(CAM_INTF_META_ASD_HDR_SCENE_DATA,           cam_asd_hdr_scene_data_t,       1);
     INCLUDE(CAM_INTF_META_ASD_SCENE_TYPE,               int32_t,                        1);
     INCLUDE(CAM_INTF_META_CURRENT_SCENE,                cam_scene_mode_type,            1);
+    INCLUDE(CAM_INTF_META_AWB_INFO,                     cam_awb_params_t,               1);
+    INCLUDE(CAM_INTF_META_FOCUS_POSITION,               cam_focus_pos_info_t,           1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_ISP,           cam_chromatix_lite_isp_t,       1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_PP,            cam_chromatix_lite_pp_t,        1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_AE,            cam_chromatix_lite_ae_stats_t,  1);
@@ -529,6 +543,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_AEC_ROI,                      cam_area_t,                  1);
     INCLUDE(CAM_INTF_META_AEC_STATE,                    uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_FOCUS_MODE,                   uint32_t,                    1);
+    INCLUDE(CAM_INTF_PARM_MANUAL_FOCUS_POS,             cam_manual_focus_parm_t,     1);
     INCLUDE(CAM_INTF_META_AF_ROI,                       cam_area_t,                  1);
     INCLUDE(CAM_INTF_META_AF_STATE,                     uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_WHITE_BALANCE,                int32_t,                     1);
@@ -602,6 +617,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_SATURATION,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_BRIGHTNESS,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ISO,                          int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_EXPOSURE_TIME,                uint64_t,                    1);
     INCLUDE(CAM_INTF_PARM_ZOOM,                         int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ROLLOFF,                      int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_MODE,                         int32_t,                     1);
@@ -636,6 +652,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_MAX_DIMENSION,                cam_dimension_t,             1);
     INCLUDE(CAM_INTF_PARM_RAW_DIMENSION,                cam_dimension_t,             1);
     INCLUDE(CAM_INTF_PARM_TINTLESS,                     int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_WB_MANUAL,                    cam_manual_wb_parm_t,        1);
     INCLUDE(CAM_INTF_PARM_CDS_MODE,                     int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_EZTUNE_CMD,                   cam_eztune_cmd_data_t,       1);
     INCLUDE(CAM_INTF_PARM_INT_EVT,                      cam_int_evt_params_t,        1);
