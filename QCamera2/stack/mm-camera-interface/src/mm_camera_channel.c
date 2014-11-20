@@ -2110,18 +2110,15 @@ int32_t mm_channel_handle_metadata(
             } else {
                 ch_obj->needLEDFlash = FALSE;
             }
-        } else if (is_good_frame_idx_range_valid) {
-            if (good_frame_idx_range.min_frame_idx >
-                queue->expected_frame_id) {
+        }
+        if (is_good_frame_idx_range_valid) {
+            if (good_frame_idx_range.min_frame_idx > queue->expected_frame_id) {
                 CDBG_HIGH("%s: [ZSL Retro] min_frame_idx %d is greater than expected_frame_id %d",
-                    __func__, good_frame_idx_range.min_frame_idx,
-                    queue->expected_frame_id);
+                        __func__, good_frame_idx_range.min_frame_idx, queue->expected_frame_id);
             }
             queue->expected_frame_id =
                 good_frame_idx_range.min_frame_idx;
              if((ch_obj->needLEDFlash == TRUE) && (ch_obj->burstSnapNum > 1)) {
-                queue->expected_frame_id =
-                good_frame_idx_range.min_frame_idx;
                 queue->led_on_start_frame_id =
                 good_frame_idx_range.min_frame_idx;
                 queue->led_off_start_frame_id =
@@ -2135,13 +2132,11 @@ int32_t mm_channel_handle_metadata(
                         __func__,   queue->expected_frame_id, queue->led_on_start_frame_id,
                         queue->led_off_start_frame_id, queue->led_on_num_frames);
             } else {
-                queue->expected_frame_id =
-                good_frame_idx_range.min_frame_idx;
                 CDBG("%s: [ZSL Retro]No flash, expected frame id = %d ",
                         __func__, queue->expected_frame_id);
             }
         } else if ((MM_CHANNEL_BRACKETING_STATE_WAIT_GOOD_FRAME_IDX == ch_obj->bracketingState) &&
-                !is_good_frame_idx_range_valid) {
+                !is_prep_snapshot_done_valid) {
             /* Flush unwanted frames */
             mm_channel_superbuf_flush_matched(ch_obj, queue);
             queue->expected_frame_id += max_future_frame_offset;
