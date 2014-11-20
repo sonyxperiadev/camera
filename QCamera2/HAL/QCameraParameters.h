@@ -684,6 +684,7 @@ public:
     int32_t AddSetParmEntryToBatch(parm_buffer_t *p_table,
             cam_intf_parm_type_t paramType,
             size_t paramLength, void *paramValue);
+    int32_t updateFlashMode(cam_flash_mode_t flash_mode);
 
 private:
     int32_t setPreviewSize(const QCameraParameters& );

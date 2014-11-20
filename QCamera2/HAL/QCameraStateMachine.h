@@ -144,6 +144,7 @@ typedef enum {
     QCAMERA_INTERNAL_EVT_CROP_INFO,          // crop info
     QCAMERA_INTERNAL_EVT_ASD_UPDATE,         // asd update result
     QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT, // Ready for Prepare Snapshot
+    QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE, // Led mode override
     QCAMERA_INTERNAL_EVT_MAX
 } qcamera_internal_evt_type_t;
 
@@ -156,6 +157,7 @@ typedef struct {
         cam_hist_stats_t stats_data;
         cam_crop_data_t crop_data;
         cam_auto_scene_t asd_data;
+        cam_flash_mode_t led_data;
     };
 } qcamera_sm_internal_evt_payload_t;
 

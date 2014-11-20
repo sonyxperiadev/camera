@@ -3429,14 +3429,38 @@ void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt, char *raw_fo
 int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *raw_format)
 {
     int rc = NO_ERROR;
+    qcamera_api_result_t apiResult;
+
+    lockAPI();
+    setRetroPicture(0);
+    /* Prepare snapshot in case LED needs to be flashed */
+    if (mFlashNeeded == 1 || mParameters.isChromaFlashEnabled()) {
+        // Start Preparing for normal Frames
+        CDBG_HIGH("%s: Start Prepare Snapshot", __func__);
+        /* Prepare snapshot in case LED needs to be flashed */
+        rc = processAPI(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, NULL);
+        if (rc == NO_ERROR) {
+            waitAPIResult(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, &apiResult);
+            rc = apiResult.status;
+            CDBG_HIGH("%s: Prep Snapshot done", __func__);
+        }
+        mPrepSnapRun = true;
+    }
+    unlockAPI();
 
     if (true == m_bIntJpegEvtPending) {
         //Attempting to take JPEG snapshot
         *JpegMemOpt = m_postprocessor.getJpegMemOpt();
         m_postprocessor.setJpegMemOpt(false);
 
+        /* capture */
         lockAPI();
+        CDBG_HIGH("%s: Capturing internal snapshot", __func__);
         rc = processAPI(QCAMERA_SM_EVT_TAKE_PICTURE, NULL);
+        if (rc == NO_ERROR) {
+            waitAPIResult(QCAMERA_SM_EVT_TAKE_PICTURE, &apiResult);
+            rc = apiResult.status;
+        }
         unlockAPI();
     } else if (true == m_bIntRawEvtPending) {
         //Attempting to take RAW snapshot

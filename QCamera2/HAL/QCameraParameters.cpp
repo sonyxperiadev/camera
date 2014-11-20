@@ -5786,6 +5786,56 @@ int32_t QCameraParameters::setFlash(const char *flashStr)
 }
 
 /*===========================================================================
+ * FUNCTION   : updateFlashMode
+ *
+ * DESCRIPTION: update flash mode
+ *
+ * PARAMETERS :
+ *   @flashStr : LED flash mode value
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateFlashMode(cam_flash_mode_t flash_mode)
+{
+    int32_t rc = NO_ERROR;
+    if (flash_mode >= CAM_FLASH_MODE_MAX) {
+        CDBG_HIGH("%s: Error!! Invalid flash mode (%d)", __func__, flash_mode);
+        return BAD_VALUE;
+    }
+    CDBG_HIGH("%s: Setting Flash mode from EZTune %d", __func__, flash_mode);
+
+    const char *flash_mode_str = lookupNameByValue(FLASH_MODES_MAP,
+            PARAM_MAP_SIZE(FLASH_MODES_MAP), flash_mode);
+    if(initBatchUpdate(m_pParamBuf) < 0 ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return BAD_TYPE;
+    }
+    rc = setFlash(flash_mode_str);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update Flash mode", __func__);
+        return rc;
+    }
+    CDBG_HIGH("%s: Setting Flash mode %d", __func__, mFlashValue);
+    rc = AddSetParmEntryToBatch(m_pParamBuf, CAM_INTF_PARM_LED_MODE,
+                 sizeof(mFlashValue), &mFlashValue);
+    if (rc != NO_ERROR) {
+        rc = BAD_VALUE;
+        ALOGE("%s:Failed to set led mode", __func__);
+        return rc;
+    }
+
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to commit parameters", __func__);
+        return rc;
+    }
+    return NO_ERROR;
+}
+
+
+/*===========================================================================
  * FUNCTION   : setAecLock
  *
  * DESCRIPTION: set AEC lock value
