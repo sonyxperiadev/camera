@@ -122,6 +122,7 @@ typedef struct {
 #define QCAMERA_DUMP_FRM_JPEG       (1<<5)
 
 #define QCAMERA_DUMP_FRM_MASK_ALL    0x000000ff
+#define QCAMERA_DUMP_FRM_LOCATION    "/data/misc/camera/"
 
 #define QCAMERA_ION_USE_CACHE   true
 #define QCAMERA_ION_USE_NOCACHE false

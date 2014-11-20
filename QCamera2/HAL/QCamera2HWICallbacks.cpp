@@ -1702,7 +1702,8 @@ void QCamera2HardwareInterface::dumpJpegToFile(const void *data,
                 mDumpFrmCnt = 0;
             }
             if (mDumpFrmCnt <= frm_num) {
-                snprintf(buf, sizeof(buf), "/data/misc/camera/%d_%d.jpg", mDumpFrmCnt, index);
+                snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION "%d_%d.jpg",
+                        mDumpFrmCnt, index);
                 if (true == m_bIntJpegEvtPending) {
                     strncpy(m_BackendFileName, buf, sizeof(buf));
                     mBackendFileSize = size;
@@ -1764,8 +1765,10 @@ void QCamera2HardwareInterface::dumpMetadataToFile(QCameraStream *stream,
             struct tm * timeinfo;
             time (&current_time);
             timeinfo = localtime (&current_time);
-            if (timeinfo != NULL)
-                strftime (timeBuf, sizeof(timeBuf),"/data/%Y%m%d%H%M%S", timeinfo);
+            if (NULL != timeinfo) {
+                strftime(timeBuf, sizeof(timeBuf),
+                        QCAMERA_DUMP_FRM_LOCATION "%Y%m%d%H%M%S", timeinfo);
+            }
             String8 filePath(timeBuf);
             snprintf(buf, sizeof(buf), "%um_%s_%d.bin", dumpFrmCnt, type, frame->frame_idx);
             filePath.append(buf);
@@ -1887,8 +1890,10 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                     memset(&offset, 0, sizeof(cam_frame_len_offset_t));
                     stream->getFrameOffset(offset);
 
-                    if (timeinfo != NULL)
-                        strftime (timeBuf, sizeof(timeBuf),"/data/%Y%m%d%H%M%S", timeinfo);
+                    if (NULL != timeinfo) {
+                        strftime(timeBuf, sizeof(timeBuf),
+                                QCAMERA_DUMP_FRM_LOCATION "%Y%m%d%H%M%S", timeinfo);
+                    }
                     String8 filePath(timeBuf);
                     switch (dump_type) {
                     case QCAMERA_DUMP_FRM_PREVIEW:
