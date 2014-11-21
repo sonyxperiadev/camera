@@ -246,6 +246,7 @@ private:
 
      //First request yet to be processed after configureStreams
     bool mFirstRequest;
+    bool mFirstConfiguration;
     bool mFlush;
     bool mEnableRawDump;
     QCamera3HeapMemory *mParamHeap;
