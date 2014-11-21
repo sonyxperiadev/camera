@@ -2065,7 +2065,10 @@ int32_t mm_channel_handle_metadata(
             cam_crop_data_t crop_data = *((cam_crop_data_t *)
                 POINTER_OF_META(CAM_INTF_META_CROP_DATA, metadata));
 
-            for (i=0; i<ARRAY_SIZE(ch_obj->streams); i++) {
+            for (i = 0; i < ARRAY_SIZE(ch_obj->streams); i++) {
+                if (MM_STREAM_STATE_NOTUSED == ch_obj->streams[i].state) {
+                    continue;
+                }
                 if (CAM_STREAM_TYPE_SNAPSHOT ==
                     ch_obj->streams[i].stream_info->stream_type) {
                     snapshot_stream_id = ch_obj->streams[i].server_stream_id;
