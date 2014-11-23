@@ -4818,12 +4818,6 @@ int32_t QCamera2HardwareInterface::processASDUpdate(cam_auto_scene_t scene)
         return NO_MEMORY;
     }
 
-    int *pASDData = (int *)asdBuffer->data;
-    if (pASDData == NULL) {
-        ALOGE("%s: memory data ptr is NULL", __func__);
-        return UNKNOWN_ERROR;
-    }
-
 #ifndef VANILLA_HAL
     pASDData[0] = CAMERA_META_DATA_ASD;
     pASDData[1] = (int)data_len;
@@ -6381,6 +6375,7 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
         faceResultSize = sizeof(camera_frame_metadata_t);
         faceResultSize += sizeof(camera_face_t) * MAX_ROI;
     }else if(fd_type == QCAMERA_FD_SNAPSHOT){
+#ifndef VANILLA_HAL
         // fd for snapshot frames
         //check if face is detected in this frame
         if(fd_data->num_faces_detected > 0){
@@ -6390,6 +6385,7 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
             //no face
             data_len = 0;
         }
+#endif
         faceResultSize = 1 *sizeof(int)    //meta data type
                        + 1 *sizeof(int)    // meta data len
                        + data_len;         //data

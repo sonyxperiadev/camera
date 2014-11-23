@@ -101,9 +101,11 @@ LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-camera
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-still/jpeg
 #end
 
+ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include/media
 LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+endif
 
 LOCAL_C_INCLUDES += hardware/qcom/display/libgralloc \
         hardware/qcom/display/libgenlock \

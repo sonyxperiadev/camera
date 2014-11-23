@@ -30,9 +30,11 @@ LOCAL_C_INCLUDES := \
     $(TARGET_OUT_HEADERS)/mm-camera \
     $(TARGET_OUT_HEADERS)/mm-camera/common
 
+ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include/media
 LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+endif
 
 # (BEGIN) Need to remove later once dependency on jpeg removed
 LOCAL_C_INCLUDES += \
