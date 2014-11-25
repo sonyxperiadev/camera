@@ -5732,13 +5732,16 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         minStreamBufNum = (uint8_t)(minStreamBufNum + imglib_extra_bufs + 1);
     }
 
-    //Mask out features that are already processed in snapshot stream.
-    uint32_t snapshot_feature_mask = 0;
-    mParameters.getStreamPpMask(CAM_STREAM_TYPE_SNAPSHOT, snapshot_feature_mask);
+    // If input channel is Snapshot Channel, then update feature mask
+    if (pInputChannel == m_channels[QCAMERA_CH_TYPE_SNAPSHOT]) {
+        //Mask out features that are already processed in snapshot stream.
+        uint32_t snapshot_feature_mask = 0;
+        mParameters.getStreamPpMask(CAM_STREAM_TYPE_SNAPSHOT, snapshot_feature_mask);
 
-    pp_config.feature_mask &= ~snapshot_feature_mask;
-    ALOGI("%s: Snapshot feature mask: 0x%x, reproc feature mask: 0x%x", __func__,
-            snapshot_feature_mask, pp_config.feature_mask);
+        pp_config.feature_mask &= ~snapshot_feature_mask;
+        ALOGI("%s: Snapshot feature mask: 0x%x, reproc feature mask: 0x%x", __func__,
+                snapshot_feature_mask, pp_config.feature_mask);
+    }
 
     bool offlineReproc = isRegularCapture();
     rc = pChannel->addReprocStreamsFromSource(*this,
