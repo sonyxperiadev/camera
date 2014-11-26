@@ -1763,7 +1763,6 @@ typedef enum {
     CAM_INTF_META_IMGLIB, /* cam_intf_meta_imglib_t */
     /* OEM specific parameters */
     CAM_INTF_PARM_CUSTOM,
-
     /* parameters added for related cameras */
     /* fetch calibration info for related cam subsystem */
     CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION,
@@ -1781,7 +1780,9 @@ typedef enum {
     CAM_INTF_PARM_DCRF,
     /* metadata tag for DCRF info*/
     CAM_INTF_META_DCRF,
-    CAM_INTF_PARM_MAX /* 180 */
+    /* FLIP mode parameter*/
+    CAM_INTF_PARM_FLIP,
+    CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
 typedef struct {

@@ -763,6 +763,7 @@ public:
     int32_t setStreamPpMask(cam_stream_type_t stream_type, uint32_t pp_mask);
     int32_t getStreamPpMask(cam_stream_type_t stream_type, uint32_t &pp_mask);
     int32_t getSharpness() {return m_nSharpness;};
+    int32_t getEffect() {return mParmEffect;};
     int32_t updateFlashMode(cam_flash_mode_t flash_mode);
     int32_t configureFlash(cam_capture_frame_config_t &frame_config);
     int32_t configureAEBracketing(cam_capture_frame_config_t &frame_config);
@@ -1077,6 +1078,7 @@ private:
     int32_t mParmZoomLevel;
     bool m_bIsLowMemoryDevice;
     int32_t mCds_mode;
+    int32_t mParmEffect;
     cam_capture_frame_config_t m_captureFrameConfig;
     int8_t mBufBatchCnt;
 

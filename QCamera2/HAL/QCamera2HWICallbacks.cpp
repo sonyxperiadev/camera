@@ -1438,6 +1438,77 @@ void QCamera2HardwareInterface::snapshot_raw_stream_cb_routine(mm_camera_super_b
 }
 
 /*===========================================================================
+ * FUNCTION   : updateMetadata
+ *
+ * DESCRIPTION: Frame related parameter can be updated here
+ *
+ * PARAMETERS :
+ *   @pMetaData : pointer to metadata buffer
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
+{
+    int32_t rc = NO_ERROR;
+
+    // Sharpness
+    cam_edge_application_t edge_application;
+    memset(&edge_application, 0x00, sizeof(cam_edge_application_t));
+    edge_application.sharpness = mParameters.getSharpness();
+    if (edge_application.sharpness != 0) {
+        edge_application.edge_mode = CAM_EDGE_MODE_FAST;
+    } else {
+        edge_application.edge_mode = CAM_EDGE_MODE_OFF;
+    }
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
+            CAM_INTF_META_EDGE_MODE, edge_application);
+
+    //Effect
+    int32_t prmEffect = mParameters.getEffect();
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData, CAM_INTF_PARM_EFFECT, prmEffect);
+
+    //flip
+    int32_t prmFlip = mParameters.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData, CAM_INTF_PARM_FLIP, prmFlip);
+
+    //denoise
+    uint8_t prmDenoise = (uint8_t)mParameters.isWNREnabled();
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
+            CAM_INTF_META_NOISE_REDUCTION_MODE, prmDenoise);
+
+    //rotation & device rotation
+    uint32_t prmRotation = mParameters.getJpegRotation();
+    cam_rotation_info_t rotation_info;
+    if (prmRotation == 0) {
+       rotation_info.rotation = ROTATE_0;
+    } else if (prmRotation == 90) {
+       rotation_info.rotation = ROTATE_90;
+    } else if (prmRotation == 180) {
+       rotation_info.rotation = ROTATE_180;
+    } else if (prmRotation == 270) {
+       rotation_info.rotation = ROTATE_270;
+    }
+
+    uint32_t device_rotation = mParameters.getDeviceRotation();
+    if (device_rotation == 0) {
+        rotation_info.device_rotation = ROTATE_0;
+    } else if (device_rotation == 90) {
+        rotation_info.device_rotation = ROTATE_90;
+    } else if (device_rotation == 180) {
+        rotation_info.device_rotation = ROTATE_180;
+    } else if (device_rotation == 270) {
+        rotation_info.device_rotation = ROTATE_270;
+    } else {
+        rotation_info.device_rotation = ROTATE_0;
+    }
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData, CAM_INTF_PARM_ROTATION, rotation_info);
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : metadata_stream_cb_routine
  *
  * DESCRIPTION: helper function to handle metadata frame from metadata stream
@@ -1784,6 +1855,9 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             ALOGE("%s: No memory for focus_pos_update qcamera_sm_internal_evt_payload_t", __func__);
         }
     }
+
+    //Function to upadte metadata for frame based parameter
+    pme->updateMetadata(pMetaData);
 
     stream->bufDone(frame->buf_idx);
     free(super_frame);

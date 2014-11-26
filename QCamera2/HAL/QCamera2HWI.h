@@ -451,6 +451,8 @@ private:
     inline uint32_t getOutputImageCount() {return mOutputCount;}
     bool processUFDumps(qcamera_jpeg_evt_payload_t *evt);
     void captureDone();
+    int32_t updateMetadata(metadata_buffer_t *pMetaData);
+
     int32_t getPPConfig(cam_pp_feature_config_t &pp_config, int curCount);
     static void camEvtHandle(uint32_t camera_handle,
                           mm_camera_event_t *evt,
