@@ -531,6 +531,10 @@ void QCamera2HardwareInterface::release_recording_frame(
         ALOGE("NULL camera device");
         return;
     }
+    if (!opaque) {
+        ALOGE("%s: Error!! Frame info is NULL", __func__);
+        return;
+    }
     CDBG_HIGH("%s: E", __func__);
     hw->lockAPI();
     qcamera_api_result_t apiResult;
