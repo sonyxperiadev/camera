@@ -1297,6 +1297,9 @@ int QCamera2HardwareInterface::closeCamera()
     // set open flag to false
     mCameraOpened = false;
 
+    // Reset Stream config info
+    mParameters.setStreamConfigure(false, false, true);
+
     // deinit Parameters
     mParameters.deinit();
 
@@ -3133,7 +3136,7 @@ int32_t QCamera2HardwareInterface::declareSnapshotStreams()
 
     // Update stream info configuration
     pthread_mutex_lock(&m_parm_lock);
-    rc = mParameters.setStreamConfigure(true, mLongshotEnabled);
+    rc = mParameters.setStreamConfigure(true, mLongshotEnabled, false);
     if (rc != NO_ERROR) {
         ALOGE("%s: setStreamConfigure failed %d", __func__, rc);
         pthread_mutex_unlock(&m_parm_lock);
@@ -5841,7 +5844,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
     int32_t rc = NO_ERROR;
 
     pthread_mutex_lock(&m_parm_lock);
-    rc = mParameters.setStreamConfigure(false, false);
+    rc = mParameters.setStreamConfigure(false, false, false);
     if (rc != NO_ERROR) {
         ALOGE("%s: setStreamConfigure failed %d", __func__, rc);
         pthread_mutex_unlock(&m_parm_lock);

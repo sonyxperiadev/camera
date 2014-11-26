@@ -9977,6 +9977,41 @@ uint8_t QCameraParameters::getMobicatMask()
 }
 
 /*===========================================================================
+ * FUNCTION   : sendStreamConfigInfo
+ *
+ * DESCRIPTION: send Stream config info.
+ *
+ * PARAMETERS :
+ *   @stream_config_info: Stream config information
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_config_info) {
+    int32_t rc = NO_ERROR;
+    if(initBatchUpdate(m_pParamBuf) < 0 ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return BAD_TYPE;
+    }
+    rc = AddSetParmEntryToBatch(m_pParamBuf,
+                 CAM_INTF_META_STREAM_INFO,
+                 sizeof(stream_config_info),
+                 &stream_config_info);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update table", __func__);
+        return rc;
+    }
+
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to set stream info parm", __func__);
+        return rc;
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setStreamConfigure
  *
  * DESCRIPTION: set stream type, stream dimension for all configured streams.
@@ -9989,8 +10024,9 @@ uint8_t QCameraParameters::getMobicatMask()
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostview)
-{
+bool QCameraParameters::setStreamConfigure(bool isCapture,
+        bool previewAsPostview, bool resetConfig) {
+
     int32_t rc = NO_ERROR;
     cam_stream_size_info_t stream_config_info;
     char value[PROPERTY_VALUE_MAX];
@@ -10003,6 +10039,16 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
 
     memset(&stream_config_info, 0, sizeof(stream_config_info));
     stream_config_info.num_streams = 0;
+
+    if (m_bStreamsConfigured) {
+        CDBG_HIGH("%s: Reset stream config!!", __func__);
+        rc = sendStreamConfigInfo(stream_config_info);
+        m_bStreamsConfigured = false;
+    }
+    if (resetConfig) {
+        CDBG_HIGH("%s: Done Resetting stream config!!", __func__);
+        return rc;
+    }
 
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
@@ -10131,12 +10177,6 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
                 mStreamPpMask[CAM_STREAM_TYPE_RAW];
         stream_config_info.num_streams++;
     }
-
-    if(initBatchUpdate(m_pParamBuf) < 0 ) {
-        ALOGE("%s:Failed to initialize group update table", __func__);
-        return BAD_TYPE;
-    }
-
     for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
         ALOGI("%s: stream type %d, w x h: %d x %d, pp_mask: 0x%x", __func__,
                 stream_config_info.type[k],
@@ -10145,20 +10185,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture, bool previewAsPostvie
                 stream_config_info.postprocess_mask[k]);
     }
 
-    rc = AddSetParmEntryToBatch(m_pParamBuf,
-                                CAM_INTF_META_STREAM_INFO,
-                                sizeof(stream_config_info),
-                                &stream_config_info);
-    if (rc != NO_ERROR) {
-        ALOGE("%s:Failed to update table", __func__);
-        return rc;
-    }
-
-    rc = commitSetBatch();
-    if (rc != NO_ERROR) {
-        ALOGE("%s:Failed to set stream info parm", __func__);
-        return rc;
-    }
+    rc = sendStreamConfigInfo(stream_config_info);
+    m_bStreamsConfigured = true;
 
     return rc;
 }
