@@ -1444,6 +1444,7 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
             payload->evt_type = QCAMERA_INTERNAL_EVT_FOCUS_UPDATE;
             payload->focus_data = *focus_data;
+            payload->focus_data.focused_frame_idx = frame->frame_idx;
             int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
             if (rc != NO_ERROR) {
                 ALOGE("%s: processEvt focus failed", __func__);

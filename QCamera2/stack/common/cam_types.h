@@ -928,6 +928,7 @@ typedef struct {
     cam_autofocus_state_t focus_state;           /* state of focus */
     cam_focus_distances_info_t focus_dist;       /* focus distance */
     cam_focus_mode_type focus_mode;        /* focus mode from backend */
+    uint32_t focused_frame_idx;
 } cam_auto_focus_data_t;
 
 typedef struct {
