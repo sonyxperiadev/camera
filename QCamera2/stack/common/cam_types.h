@@ -1703,7 +1703,8 @@ typedef enum {
     CAM_INTF_PARM_WB_MANUAL,
     /* IMG LIB reprocess debug section */
     CAM_INTF_META_IMGLIB, /* cam_intf_meta_imglib_t */
-
+    /* FLIP mode parameter*/
+    CAM_INTF_PARM_FLIP,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

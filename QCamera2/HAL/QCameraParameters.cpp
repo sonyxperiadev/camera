@@ -924,7 +924,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bHDRModeSensor(true),
     mOfflineRAW(false),
     m_bTruePortraitOn(false),
-    mCds_mode(CAM_CDS_MODE_OFF)
+    mCds_mode(CAM_CDS_MODE_OFF),
+    mParmEffect(CAM_EFFECT_MODE_OFF)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -5734,6 +5735,7 @@ int32_t QCameraParameters::setEffect(const char *effect)
             CDBG_HIGH("%s: Setting effect %s", __func__, effect);
             updateParamEntry(KEY_EFFECT, effect);
             uint8_t prmEffect = static_cast<uint8_t>(value);
+            mParmEffect = prmEffect;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_EFFECT, prmEffect)) {
                 return BAD_VALUE;
             }
