@@ -220,6 +220,7 @@ private:
     void extractJpegMetadata(CameraMetadata& jpegMetadata,
             const camera3_capture_request_t *request);
 
+    bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList);
 public:
     cam_dimension_t calcMaxJpegDim();
     bool needOnlineRotation();
