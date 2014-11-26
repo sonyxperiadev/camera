@@ -1703,18 +1703,6 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         return rc;
     }
 
-    IF_META_AVAILABLE(int32_t, rotation, CAM_INTF_META_JPEG_ORIENTATION, metadata) {
-          if (*rotation == 0) {
-             reproc_cfg.rotation = ROTATE_0;
-          } else if (*rotation == 90) {
-             reproc_cfg.rotation = ROTATE_90;
-          } else if (*rotation == 180) {
-             reproc_cfg.rotation = ROTATE_180;
-          } else if (*rotation == 270) {
-             reproc_cfg.rotation = ROTATE_270;
-          }
-    }
-
     // Picture stream has already been started before any request comes in
     if (!m_bIsActive) {
         ALOGE("%s: Channel not started!!", __func__);
@@ -3015,7 +3003,10 @@ int32_t QCamera3ReprocessChannel::extractFrameCropAndRotation(mm_camera_super_bu
         mm_camera_buf_def_t *meta_buffer, jpeg_settings_t *jpeg_settings,
         qcamera_fwk_input_pp_data_t &fwk_frame)
 {
-    if ((NULL == meta_buffer) || (NULL == frame) || (NULL == jpeg_settings)) {
+    int32_t rc = NO_ERROR;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    if ((NULL == meta_buffer) || (NULL == frame) || (NULL == jpeg_settings) ||
+            (NULL == hal_obj)) {
         return BAD_VALUE;
     }
 
@@ -3030,64 +3021,85 @@ int32_t QCamera3ReprocessChannel::extractFrameCropAndRotation(mm_camera_super_bu
 
         if (pStream != NULL && pSrcStream != NULL) {
             // Find rotation info for reprocess stream
+            cam_rotation_info_t rotation_info;
+            memset(&rotation_info, 0, sizeof(rotation_info));
             if (jpeg_settings->jpeg_orientation == 0) {
-               fwk_frame.reproc_config.rotation = ROTATE_0;
+               rotation_info.rotation = ROTATE_0;
             } else if (jpeg_settings->jpeg_orientation == 90) {
-               fwk_frame.reproc_config.rotation = ROTATE_90;
+               rotation_info.rotation = ROTATE_90;
             } else if (jpeg_settings->jpeg_orientation == 180) {
-               fwk_frame.reproc_config.rotation = ROTATE_180;
+               rotation_info.rotation = ROTATE_180;
             } else if (jpeg_settings->jpeg_orientation == 270) {
-               fwk_frame.reproc_config.rotation = ROTATE_270;
+               rotation_info.rotation = ROTATE_270;
             }
+            rotation_info.streamId = mStreams[0]->getMyServerID();
+            ADD_SET_PARAM_ENTRY_TO_BATCH(meta, CAM_INTF_PARM_ROTATION, rotation_info);
 
-            // Find crop info for reprocess stream
+            // Find and insert crop info for reprocess stream
             IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
-                for (int j = 0; j < crop_data->num_of_streams; j++) {
-                    if (crop_data->crop_info[j].stream_id ==
-                        pSrcStream->getMyServerID()) {
-                        fwk_frame.reproc_config.output_crop =
-                            crop_data->crop_info[0].crop;
-                        fwk_frame.reproc_config.roi_map =
-                                crop_data->crop_info[0].roi_map;
-                        CDBG("%s: Found offline reprocess crop %dx%d %dx%d",
-                              __func__,
-                              crop_data->crop_info[0].crop.left,
-                              crop_data->crop_info[0].crop.top,
-                              crop_data->crop_info[0].crop.width,
-                              crop_data->crop_info[0].crop.height);
-                        CDBG("%s: Found offline reprocess roimap %dx%d %dx%d",
-                                __func__,
-                                crop_data->crop_info[0].roi_map.left,
-                                crop_data->crop_info[0].roi_map.top,
-                                crop_data->crop_info[0].roi_map.width,
-                                crop_data->crop_info[0].roi_map.height);
-                     }
+                if (MAX_NUM_STREAMS > crop_data->num_of_streams) {
+                    for (int j = 0; j < crop_data->num_of_streams; j++) {
+                        if (crop_data->crop_info[j].stream_id ==
+                                pSrcStream->getMyServerID()) {
+
+                            // Store crop/roi information for offline reprocess
+                            // in the reprocess stream slot
+                            crop_data->crop_info[crop_data->num_of_streams].crop =
+                                    crop_data->crop_info[j].crop;
+                            crop_data->crop_info[crop_data->num_of_streams].roi_map =
+                                    crop_data->crop_info[j].roi_map;
+                            crop_data->crop_info[crop_data->num_of_streams].stream_id =
+                                    mStreams[0]->getMyServerID();
+                            crop_data->num_of_streams++;
+
+                            CDBG("%s: Reprocess stream server id: %d",
+                                    __func__, mStreams[0]->getMyServerID());
+                            CDBG("%s: Found offline reprocess crop %dx%d %dx%d",
+                                    __func__,
+                                    crop_data->crop_info[j].crop.left,
+                                    crop_data->crop_info[j].crop.top,
+                                    crop_data->crop_info[j].crop.width,
+                                    crop_data->crop_info[j].crop.height);
+                            CDBG("%s: Found offline reprocess roimap %dx%d %dx%d",
+                                    __func__,
+                                    crop_data->crop_info[j].roi_map.left,
+                                    crop_data->crop_info[j].roi_map.top,
+                                    crop_data->crop_info[j].roi_map.width,
+                                    crop_data->crop_info[j].roi_map.height);
+
+                            break;
+                        }
+                    }
+                } else {
+                    ALOGE("%s: No space to add reprocess stream crop/roi information",
+                            __func__);
                 }
             }
+
             fwk_frame.input_buffer = *frame->bufs[i];
             fwk_frame.metadata_buffer = *meta_buffer;
             break;
         } else {
             ALOGE("%s: Source/Re-process streams are invalid", __func__);
-            return BAD_VALUE;
+            rc |= BAD_VALUE;
         }
     }
 
-    return NO_ERROR;
+    return rc;
 }
 
 /*===========================================================================
- * FUNCTION   : extractCrop
- *
- * DESCRIPTION: Extract framework output crop if present
- *
- * PARAMETERS :
- *   @frame     : input frame for reprocessing
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
+* FUNCTION : extractCrop
+*
+* DESCRIPTION: Extract framework output crop if present
+*
+* PARAMETERS :
+* @frame : input frame for reprocessing
+*
+* RETURN : int32_t type of status
+* NO_ERROR -- success
+* none-zero failure code
+*==========================================================================*/
 int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame)
 {
     if (NULL == frame) {
@@ -3095,17 +3107,28 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
         return BAD_VALUE;
     }
 
+
     if (NULL == frame->metadata_buffer.buffer) {
         ALOGE("%s: No metadata available", __func__);
         return BAD_VALUE;
     }
 
-    // Find crop info for reprocess stream
+    // Find and insert crop info for reprocess stream
     metadata_buffer_t *meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
         if (1 == crop_data->num_of_streams) {
-            frame->reproc_config.output_crop = crop_data->crop_info[0].crop;
-            frame->reproc_config.roi_map = crop_data->crop_info[0].roi_map;
+            // Store crop/roi information for offline reprocess
+            // in the reprocess stream slot
+            crop_data->crop_info[crop_data->num_of_streams].crop =
+                    crop_data->crop_info[0].crop;
+            crop_data->crop_info[crop_data->num_of_streams].roi_map =
+                    crop_data->crop_info[0].roi_map;
+            crop_data->crop_info[crop_data->num_of_streams].stream_id =
+                    mStreams[0]->getMyServerID();
+            crop_data->num_of_streams++;
+
+            CDBG("%s: Reprocess stream server id: %d",
+                    __func__, mStreams[0]->getMyServerID());
             CDBG("%s: Found offline reprocess crop %dx%d %dx%d", __func__,
                     crop_data->crop_info[0].crop.left,
                     crop_data->crop_info[0].crop.top,
@@ -3218,9 +3241,6 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
         param.reprocess.frame_idx = frame->input_buffer.frame_idx;
         param.reprocess.meta_present = 1;
         param.reprocess.meta_buf_index = meta_buf_idx;
-        param.reprocess.frame_pp_config.rotation = frame->reproc_config.rotation;
-        param.reprocess.frame_pp_config.crop.input_crop = frame->reproc_config.output_crop;
-        param.reprocess.frame_pp_config.crop.crop_enabled = 1;
         rc = pStream->setParameter(param);
         if (rc != NO_ERROR) {
             ALOGE("%s: stream setParameter for reprocess failed", __func__);

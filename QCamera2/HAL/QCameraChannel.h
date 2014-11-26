@@ -129,13 +129,13 @@ public:
     // online reprocess
     int32_t doReprocess(mm_camera_super_buf_t *frame,
             QCameraParameters &param, QCameraStream *pMetaStream,
-            uint8_t meta_buf_index, uint32_t rotation, int32_t device_rotation);
+            uint8_t meta_buf_index);
 
     // offline reprocess
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val);
 
-    int32_t doReprocessOffline(mm_camera_super_buf_t *frame, QCameraParameters &param,
-             mm_camera_buf_def_t *meta_buf, uint32_t rotation, int32_t device_rotation);
+    int32_t doReprocessOffline(mm_camera_super_buf_t *frame, 
+             mm_camera_buf_def_t *meta_buf);
 
     int32_t stop();
     QCameraChannel *getSrcChannel(){return m_pSrcChannel;};
