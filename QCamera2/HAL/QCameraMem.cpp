@@ -1171,7 +1171,7 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
         nh->data[0] = mMemInfo[i].fd;
         nh->data[1] = 0;
         nh->data[2] = (int)mMemInfo[i].size;
-        nh->data[3] = private_handle_t::PRIV_FLAGS_ITU_R_601_FR;
+        nh->data[3] = private_handle_t::PRIV_FLAGS_ITU_R_709;
     }
     mBufferCount = count;
     traceLogAllocEnd((size * count));
