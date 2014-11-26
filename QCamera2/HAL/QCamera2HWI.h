@@ -450,6 +450,8 @@ private:
     bool processUFDumps(qcamera_jpeg_evt_payload_t *evt);
     void captureDone();
 
+    int32_t getPPConfig(cam_pp_feature_config_t &pp_config, int curCount);
+
     static void copyList(cam_dimension_t* src_list,
                    cam_dimension_t* dst_list, uint8_t len);
     static void camEvtHandle(uint32_t camera_handle,

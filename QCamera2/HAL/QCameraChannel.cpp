@@ -879,6 +879,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
     padding.width_padding = MAX(padding.width_padding, padding.height_padding);
     padding.height_padding = padding.width_padding;
 
+    CDBG("%s : %d: num of src stream = %d", __func__, __LINE__, pSrcChannel->getNumOfStreams());
+
     for (uint32_t i = 0; i < pSrcChannel->getNumOfStreams(); i++) {
         pStream = pSrcChannel->getStreamByIndex(i);
         if (pStream != NULL) {
@@ -973,13 +975,13 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 pStream->getFrameDimension(rp_cfg.offline.input_dim);
                 pStream->getFrameOffset(offset);
                 rp_cfg.offline.input_buf_planes.plane_info = offset;
-                rp_cfg.offline.input_type = pStream->getMyType();
+                rp_cfg.offline.input_type = pStream->getMyOriginalType();
                 //For input metadata + input buffer
                 rp_cfg.offline.num_of_bufs = 2;
             } else {
                 rp_cfg.pp_type = CAM_ONLINE_REPROCESS_TYPE;
                 rp_cfg.online.input_stream_id = pStream->getMyServerID();
-                rp_cfg.online.input_stream_type = pStream->getMyType();
+                rp_cfg.online.input_stream_type = pStream->getMyOriginalType();
             }
             param.getStreamRotation(streamInfo->stream_type,
                     streamInfo->pp_config, streamInfo->dim);
@@ -1021,9 +1023,12 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 }
             }
 
-            if(streamInfo->reprocess_config.pp_feature_config.feature_mask & CAM_QCOM_FEATURE_SCALE){
+            if ((streamInfo->reprocess_config.pp_feature_config.feature_mask
+                    & CAM_QCOM_FEATURE_SCALE)
+                    && param.m_reprocScaleParam.isScaleEnabled()
+                    && param.m_reprocScaleParam.isUnderScaling()) {
                 //we only Scale Snapshot frame
-                if(pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT)){
+                if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
                     streamInfo->dim.width =
                             streamInfo->reprocess_config.pp_feature_config.scale_param.output_width;
                     streamInfo->dim.height =
@@ -1121,6 +1126,8 @@ int32_t QCameraReprocessChannel::stop()
  *
  * PARAMETERS :
  *   @frame   : frame to be performed a reprocess
+ *   @Parameter    : camera parameter reference
+ *   @meta_buf : Metadata buffer for reprocessing
  *   @rotation: online rotation
  *
  * RETURN     : int32_t type of status
@@ -1128,10 +1135,11 @@ int32_t QCameraReprocessChannel::stop()
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame,
-        QCameraParameters &Parameter, int32_t rotation)
+        QCameraParameters &Parameter, mm_camera_buf_def_t *meta_buf, int32_t rotation)
 {
     int32_t rc = 0;
     OfflineBuffer mappedBuffer;
+    QCameraStream *pStream = NULL;
 
     if (mStreams.size() < 1) {
         ALOGE("%s: No reprocess streams", __func__);
@@ -1145,19 +1153,6 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
     if (frame == NULL) {
         ALOGE("%s: Invalid source frame", __func__);
         return BAD_VALUE;
-    }
-
-    // find meta data stream and index of meta data frame in the superbuf
-    mm_camera_buf_def_t *meta_buf = NULL;
-    QCameraStream *pStream = NULL;
-    for (uint32_t i = 0; i < frame->num_bufs; i++) {
-        pStream = m_pSrcChannel->getStreamByHandle(frame->bufs[i]->stream_id);
-        if (pStream != NULL) {
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
-                meta_buf = frame->bufs[i];
-                break;
-            }
-        }
     }
 
     for (uint32_t i = 0; i < frame->num_bufs; i++) {
@@ -1271,6 +1266,8 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
  * PARAMETERS :
  *   @frame   : frame to be performed a reprocess
  *   @mParameter : camera parameters
+ *   @pMetaStream: Metadata stream handle
+ *   @meta_buf_index : Metadata buffer index
  *   @rotation: online rotation
  *
  * RETURN     : int32_t type of status
@@ -1278,7 +1275,8 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
-        QCameraParameters &mParameter, int32_t rotation)
+        QCameraParameters &mParameter, QCameraStream *pMetaStream,
+        uint8_t meta_buf_index, int32_t rotation)
 {
     int32_t rc = 0;
     if (mStreams.size() < 1) {
@@ -1288,20 +1286,6 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
     if (m_pSrcChannel == NULL) {
         ALOGE("%s: No source channel for reprocess", __func__);
         return -1;
-    }
-
-    // find meta data stream and index of meta data frame in the superbuf
-    QCameraStream *pMetaStream = NULL;
-    uint32_t meta_buf_index = 0;
-    for (uint32_t i = 0; i < frame->num_bufs; i++) {
-        QCameraStream *pStream = m_pSrcChannel->getStreamByHandle(frame->bufs[i]->stream_id);
-        if (pStream != NULL) {
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
-                meta_buf_index = frame->bufs[i]->buf_idx;
-                pMetaStream = pStream;
-                break;
-            }
-        }
     }
 
     for (uint32_t i = 0; i < frame->num_bufs; i++) {
@@ -1351,6 +1335,10 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
             }
 
             param.reprocess.frame_pp_config.flip = mParameter.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
+
+            CDBG_HIGH("Frame for reprocessing id = %d buf Id = %d meta index = %d",
+                    param.reprocess.frame_idx, param.reprocess.buf_index,
+                    param.reprocess.meta_buf_index);
 
             rc = pStream->setParameter(param);
             if (rc != NO_ERROR) {

@@ -3013,6 +3013,10 @@ int32_t mm_stream_calc_offset_postproc(cam_stream_info_t *stream_info,
                                             padding,
                                             plns);
         break;
+    case CAM_STREAM_TYPE_OFFLINE_PROC:
+        rc = mm_stream_calc_offset_snapshot(stream_info->fmt,
+                &stream_info->dim, padding, plns);
+        break;
     default:
         CDBG_ERROR("%s: not supported for stream type %d",
                    __func__, type);
