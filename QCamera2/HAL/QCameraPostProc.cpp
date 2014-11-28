@@ -81,7 +81,8 @@ QCameraPostProcessor::QCameraPostProcessor(QCamera2HardwareInterface *cam_ctrl)
       mUseJpegBurst(false),
       mJpegMemOpt(true),
       m_JpegOutputMemCount(0),
-      mNewJpegSessionNeeded(true)
+      mNewJpegSessionNeeded(true),
+      m_bufCountPPQ(0)
 {
     memset(&mJpegHandle, 0, sizeof(mJpegHandle));
     memset(&m_pJpegOutputMem, 0, sizeof(m_pJpegOutputMem));
@@ -234,6 +235,7 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
             }
         }
 
+        m_bufCountPPQ = 0;
         m_parent->mParameters.setReprocCount();
         mTotalNumReproc = m_parent->mParameters.getReprocCount();
         m_parent->mParameters.setCurPPCount(0);
@@ -1072,7 +1074,8 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
 
         // find meta data frame
         mm_camera_buf_def_t *meta_frame = NULL;
-        for (uint32_t i = 0; job && (i < job->src_reproc_frame->num_bufs); i++) {
+        for (uint32_t i = 0; job && job->src_reproc_frame &&
+                (i < job->src_reproc_frame->num_bufs); i++) {
             // look through input superbuf
             if (job->src_reproc_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
                 meta_frame = job->src_reproc_frame->bufs[i];
@@ -2570,6 +2573,8 @@ int32_t QCameraPostProcessor::doReprocess()
                     pp_job->src_reproc_bufs = bufs;
                 }
 
+                m_bufCountPPQ++;
+
                 // Don't release source frame after encoding
                 // at this point the source channel will not exist.
                 pp_job->reproc_frame_release = true;
@@ -2578,7 +2583,32 @@ int32_t QCameraPostProcessor::doReprocess()
                         m_parent->mParameters, meta_buf,
                         m_parent->getJpegRotation());
             } else {
+
+                m_bufCountPPQ++;
                 m_ongoingPPQ.enqueue((void *)pp_job);
+
+                int32_t numRequiredPPQBufsForSingleOutput =
+                        m_parent->mParameters.getNumberInBufsForSingleShot();
+
+                if (m_bufCountPPQ % numRequiredPPQBufsForSingleOutput == 0) {
+                    int32_t extra_pp_job_count =
+                            m_parent->mParameters.getNumberOutBufsForSingleShot() -
+                            m_parent->mParameters.getNumberInBufsForSingleShot();
+
+                    for (int32_t i = 0; i < extra_pp_job_count; i++) {
+                        qcamera_pp_data_t *extra_pp_job =
+                                (qcamera_pp_data_t *)calloc(1, sizeof(qcamera_pp_data_t));
+                        if (!extra_pp_job) {
+                            ALOGE("%s: no mem for qcamera_pp_data_t", __func__);
+                            ret = NO_MEMORY;
+                            break;
+                        }
+                        extra_pp_job->reprocCount = pp_job->reprocCount;
+                        // extra_pp_job->src_reproc_frame = pp_job->src_reproc_frame;
+                        m_ongoingPPQ.enqueue((void *)extra_pp_job);
+                    }
+                }
+
                 ret = mPPChannels[mCurReprocCount]->doReprocess(pp_job->src_frame,
                         m_parent->mParameters, pMetaStream, meta_buf_index,
                         m_parent->getJpegRotation());

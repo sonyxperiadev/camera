@@ -3404,7 +3404,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
     }
 
     if (isUbiRefocus()) {
-       nBurstNum = m_pCapability->refocus_af_bracketing_need.output_count + 1;
+        nBurstNum = m_pCapability->refocus_af_bracketing_need.output_count + 1;
     }
 
     CDBG_HIGH("%s: nBurstNum = %d, nExpnum = %d", __func__, nBurstNum, nExpnum);
@@ -10257,9 +10257,9 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
     int numOfBufs = 0;
 
     if (isUbiRefocus()) {
-        return (uint8_t)(m_pCapability->ubifocus_af_bracketing_need.burst_count - 1);
+        return (uint8_t)(m_pCapability->refocus_af_bracketing_need.burst_count - 1);
     } else if (isUbiFocusEnabled()) {
-        numOfBufs += m_pCapability->refocus_af_bracketing_need.burst_count - 1;
+        numOfBufs += m_pCapability->ubifocus_af_bracketing_need.burst_count - 1;
     } else if (m_bOptiZoomOn) {
         numOfBufs += m_pCapability->opti_zoom_settings_need.burst_count - 1;
     } else if (isChromaFlashEnabled()) {
@@ -10267,6 +10267,61 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
     }
 
     return (uint8_t)(numOfBufs * getBurstNum());
+}
+
+/*===========================================================================
+ * FUNCTION   : getNumberInBufsForSingleShot
+ *
+ * DESCRIPTION: get number of input buffers for single shot
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : number of input buffers for single shot
+ *==========================================================================*/
+uint32_t QCameraParameters::getNumberInBufsForSingleShot()
+{
+    uint32_t numOfBufs = 1;
+
+    if (isUbiRefocus()) {
+        numOfBufs = m_pCapability->refocus_af_bracketing_need.burst_count;
+    } else if (isUbiFocusEnabled()) {
+        numOfBufs = m_pCapability->ubifocus_af_bracketing_need.burst_count;
+    } else if (m_bOptiZoomOn) {
+        numOfBufs = m_pCapability->opti_zoom_settings_need.burst_count;
+    } else if (isChromaFlashEnabled()) {
+        numOfBufs = 1; /* flash and non flash */
+    } else if (isHDREnabled()) {
+        numOfBufs = m_pCapability->hdr_bracketing_setting.num_frames;
+        if (isHDR1xFrameEnabled() && isHDR1xExtraBufferNeeded()) {
+            numOfBufs++;
+        }
+    }
+
+    return numOfBufs;
+}
+
+/*===========================================================================
+ * FUNCTION   : getNumberOutBufsForSingleShot
+ *
+ * DESCRIPTION: get number of output buffers for single shot
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : number of output buffers for single shot
+ *==========================================================================*/
+uint32_t QCameraParameters::getNumberOutBufsForSingleShot()
+{
+    uint32_t numOfBufs = 1;
+
+    if (isUbiRefocus()) {
+        numOfBufs = m_pCapability->refocus_af_bracketing_need.output_count;
+    } else if (isHDREnabled()) {
+        if (isHDR1xFrameEnabled()) {
+            numOfBufs++;
+        }
+    }
+
+    return numOfBufs;
 }
 
 /*===========================================================================
