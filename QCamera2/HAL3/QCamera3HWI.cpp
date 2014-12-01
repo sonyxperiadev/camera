@@ -59,6 +59,7 @@ namespace qcamera {
 #define EMPTY_PIPELINE_DELAY 2
 #define PARTIAL_RESULT_COUNT 2
 #define FRAME_SKIP_DELAY     0
+#define CAM_MAX_SYNC_LATENCY 4
 
 #define MAX_VALUE_8BIT ((1<<8)-1)
 #define MAX_VALUE_10BIT ((1<<10)-1)
@@ -4974,7 +4975,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       io_format_map, 0);
 
     int32_t max_latency = (limitedDevice) ?
-            ANDROID_SYNC_MAX_LATENCY_UNKNOWN : ANDROID_SYNC_MAX_LATENCY_PER_FRAME_CONTROL;
+            CAM_MAX_SYNC_LATENCY : ANDROID_SYNC_MAX_LATENCY_PER_FRAME_CONTROL;
     staticInfo.update(ANDROID_SYNC_MAX_LATENCY,
                       &max_latency,
                       1);
