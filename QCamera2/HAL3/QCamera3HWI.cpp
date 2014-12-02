@@ -4966,6 +4966,9 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_POST_PROCESSING);
+    available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_READ_SENSOR_SETTINGS);
+    available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BURST_CAPTURE);
+
     if (CAM_SENSOR_YUV != gCamCapability[cameraId]->sensor_type.sens_type) {
         available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_RAW);
     }
