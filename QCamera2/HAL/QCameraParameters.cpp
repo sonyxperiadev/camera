@@ -6968,7 +6968,6 @@ int32_t QCameraParameters::setReFocus(const char *reFocusStr)
         int value = lookupAttr(RE_FOCUS_MODES_MAP, PARAM_MAP_SIZE(RE_FOCUS_MODES_MAP),
                 reFocusStr);
         if (value != NAME_NOT_FOUND) {
-            m_bAFBracketingOn = (value != 0);
             m_bReFocusOn = (value != 0);
             updateParamEntry(KEY_QC_RE_FOCUS, reFocusStr);
             return NO_ERROR;
