@@ -266,6 +266,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mAnalysisChannel(NULL),
       mRawDumpChannel(NULL),
       mFirstRequest(false),
+      mFirstConfiguration(true),
       mFlush(false),
       mParamHeap(NULL),
       mParameters(NULL),
@@ -378,6 +379,17 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
             mMetadataChannel->stop();
             delete mMetadataChannel;
             mMetadataChannel = NULL;
+        }
+        if(!mFirstConfiguration){
+            //send the last unconfigure
+            cam_stream_size_info_t stream_config_info;
+            memset(&stream_config_info, 0, sizeof(cam_stream_size_info_t));
+            AddSetParmEntryToBatch(mParameters, CAM_INTF_META_STREAM_INFO,
+                    sizeof(cam_stream_size_info_t), &stream_config_info);
+            int rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
+            if (rc < 0) {
+                ALOGE("%s: set_parms failed for unconfigure", __func__);
+            }
         }
         deinitParameters();
     }
@@ -522,7 +534,7 @@ int QCamera3HardwareInterface::openCamera()
         /* Not closing camera here since it is already handled in destructor */
         return FAILED_TRANSACTION;
     }
-
+    mFirstConfiguration = true;
     return NO_ERROR;
 }
 
@@ -804,6 +816,7 @@ int QCamera3HardwareInterface::configureStreams(
     uint8_t eis_prop_set;
     uint32_t maxEisWidth = 0;
     uint32_t maxEisHeight = 0;
+    int32_t hal_version = CAM_HAL_V3;
 
     size_t count = IS_TYPE_MAX;
     count = MIN(gCamCapability[mCameraId]->supported_is_types_cnt, count);
@@ -1017,6 +1030,22 @@ int QCamera3HardwareInterface::configureStreams(
     if (mAnalysisChannel) {
         delete mAnalysisChannel;
         mAnalysisChannel = NULL;
+    }
+    // send an unconfigure to the backend so that the isp resources are deallocated
+    if (!mFirstConfiguration) {
+       memset(&stream_config_info, 0, sizeof(cam_stream_size_info_t));
+       clear_metadata_buffer(mParameters);
+       AddSetParmEntryToBatch(mParameters, CAM_INTF_PARM_HAL_VERSION,
+               sizeof(hal_version), &hal_version);
+       AddSetParmEntryToBatch(mParameters, CAM_INTF_META_STREAM_INFO,
+               sizeof(cam_stream_size_info_t), &stream_config_info);
+       rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
+
+       if (rc < 0) {
+           ALOGE("%s: set_parms for unconfigure failed", __func__);
+           pthread_mutex_unlock(&mMutex);
+           return rc;
+       }
     }
 
     //Create metadata channel and initialize it
@@ -1284,6 +1313,8 @@ int QCamera3HardwareInterface::configureStreams(
                 gCamCapability[mCameraId]->analysis_recommended_res;
         stream_config_info.type[stream_config_info.num_streams] =
                 CAM_STREAM_TYPE_ANALYSIS;
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                CAM_QCOM_FEATURE_FACE_DETECTION;
         stream_config_info.num_streams++;
     }
 
@@ -1292,6 +1323,8 @@ int QCamera3HardwareInterface::configureStreams(
                 QCamera3SupportChannel::kDim;
         stream_config_info.type[stream_config_info.num_streams] =
                 CAM_STREAM_TYPE_CALLBACK;
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                CAM_QCOM_FEATURE_NONE;
         stream_config_info.num_streams++;
     }
 
@@ -1302,11 +1335,12 @@ int QCamera3HardwareInterface::configureStreams(
                 rawSize;
         stream_config_info.type[stream_config_info.num_streams] =
                 CAM_STREAM_TYPE_RAW;
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                CAM_QCOM_FEATURE_NONE;
         stream_config_info.num_streams++;
     }
 
     // settings/parameters don't carry over for new configureStreams
-    int32_t hal_version = CAM_HAL_V3;
     clear_metadata_buffer(mParameters);
 
     AddSetParmEntryToBatch(mParameters, CAM_INTF_PARM_HAL_VERSION,
@@ -1335,7 +1369,7 @@ int QCamera3HardwareInterface::configureStreams(
     mPendingReprocessResultList.clear();
 
     mFirstRequest = true;
-
+    mFirstConfiguration = false;
     //Get min frame duration for this streams configuration
     deriveMinFrameDuration();
 
