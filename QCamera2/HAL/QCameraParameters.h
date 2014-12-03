@@ -640,8 +640,8 @@ public:
     bool isHDRThumbnailProcessNeeded() { return m_bHDRThumbnailProcessNeeded; };
     int getAutoFlickerMode();
     void setMinPpMask(uint32_t min_pp_mask) { m_nMinRequiredPpMask = min_pp_mask; };
-
-    bool setStreamConfigure(bool isCapture, bool previewAsPostview);
+    bool sendStreamConfigInfo(cam_stream_size_info_t &stream_config_info);
+    bool setStreamConfigure(bool isCapture, bool previewAsPostview, bool resetConfig);
     int32_t addOnlineRotation(int32_t rotation, uint32_t streamId);
     uint8_t getNumOfExtraBuffersForImageProc();
     bool needThumbnailReprocess(uint32_t *pFeatureMask);
@@ -948,6 +948,7 @@ private:
     int8_t mTotalPPCount;
     int8_t mCurPPCount;
     int32_t mZoomLevel;
+    bool m_bStreamsConfigured;
 };
 
 }; // namespace qcamera
