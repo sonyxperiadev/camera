@@ -10545,19 +10545,10 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
        feature_mask |= CAM_QCOM_FEATURE_LLVD;
     }
 
-    // Do not update flip mask for ZSL snapshot/HDR/liveshot except for 4K2K video
-    if ((!isZSLMode() || (isZSLMode() && (stream_type != CAM_STREAM_TYPE_SNAPSHOT))) &&
-            !isHDREnabled() && !(getRecordingHintValue() &&
-            (stream_type == CAM_STREAM_TYPE_SNAPSHOT) && !is4k2kVideoResolution())) {
-        //Set flip mode based on Stream type;
-        int flipMode = getFlipMode(stream_type);
-        if (flipMode > 0) {
-            feature_mask |= CAM_QCOM_FEATURE_FLIP;
-        }
-    }
-    // Do not enable feature mask for ZSL/liveshot expect for 4K2k video
-    if (!isZSLMode() && !(getRecordingHintValue() &&
-            (stream_type == CAM_STREAM_TYPE_SNAPSHOT) && !is4k2kVideoResolution())) {
+    // Do not enable feature mask for ZSL/non-ZSL/liveshot snapshot except for 4K2k case
+    if ((getRecordingHintValue() &&
+            (stream_type == CAM_STREAM_TYPE_SNAPSHOT) && is4k2kVideoResolution()) ||
+            (stream_type != CAM_STREAM_TYPE_SNAPSHOT)) {
         if ((m_nMinRequiredPpMask & CAM_QCOM_FEATURE_SHARPNESS) &&
                 !isOptiZoomEnabled()) {
             feature_mask |= CAM_QCOM_FEATURE_SHARPNESS;
@@ -10569,12 +10560,17 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         if (isWNREnabled() && (getRecordingHintValue() == false)) {
             feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
         }
-        if (isTNRVideoEnabled() &&
-                    ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
-                    (CAM_STREAM_TYPE_VIDEO == stream_type))) {
-            feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
-        }
 
+        //Set flip mode based on Stream type;
+        int flipMode = getFlipMode(stream_type);
+        if (flipMode > 0) {
+            feature_mask |= CAM_QCOM_FEATURE_FLIP;
+        }
+    }
+
+    if (isTNRVideoEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
+            (CAM_STREAM_TYPE_VIDEO == stream_type))) {
+        feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
     }
 
     //Rotation could also have an effect on pp feature mask
