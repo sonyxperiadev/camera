@@ -214,6 +214,7 @@ private:
     bool mJpegMemOpt;
     uint32_t   m_JpegOutputMemCount;
     uint8_t mNewJpegSessionNeeded;
+    int32_t m_bufCountPPQ;
 
 public:
     cam_dimension_t m_dst_dim;

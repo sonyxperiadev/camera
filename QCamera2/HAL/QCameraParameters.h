@@ -656,6 +656,8 @@ public:
     int32_t set3ALock(const char *lockStr);
     int32_t setAndCommitZoom(int zoom_level);
     uint8_t getBurstCountForAdvancedCapture();
+    uint32_t getNumberInBufsForSingleShot();
+    uint32_t getNumberOutBufsForSingleShot();
     int32_t setLongshotEnable(bool enable);
     String8 dump();
     inline bool isUbiRefocus() {return m_bReFocusOn &&
