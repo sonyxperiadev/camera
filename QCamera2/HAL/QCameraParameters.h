@@ -663,7 +663,8 @@ public:
     inline uint8_t UfOutputCount() {
             return m_pCapability->refocus_af_bracketing_need.output_count;};
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
-            isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus(); }
+            isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus()
+            || isHDREnabled(); }
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
     bool isAdvCamFeaturesEnabled() {return isUbiFocusEnabled() ||
