@@ -1543,10 +1543,12 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
 
                 bufferCnt = zslQBuffers + minCircularBufNum +
                         mParameters.getNumOfExtraBuffersForImageProc() +
-                        EXTRA_ZSL_PREVIEW_STREAM_BUF;
+                        EXTRA_ZSL_PREVIEW_STREAM_BUF +
+                        mParameters.getNumOfExtraBuffersForPreview();
             } else {
                 bufferCnt = CAMERA_MIN_STREAMING_BUFFERS +
-                            mParameters.getMaxUnmatchedFramesInQueue();
+                        mParameters.getMaxUnmatchedFramesInQueue() +
+                        mParameters.getNumOfExtraBuffersForPreview();
             }
             bufferCnt += minUndequeCount;
         }
@@ -1613,7 +1615,8 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
         break;
     case CAM_STREAM_TYPE_VIDEO:
         {
-            bufferCnt = CAMERA_MIN_VIDEO_BUFFERS;
+            bufferCnt = CAMERA_MIN_VIDEO_BUFFERS +
+                    mParameters.getNumOfExtraBuffersForVideo();
             //if its 4K encoding usecase and power save feature enabled, then add extra buffer
             cam_dimension_t dim;
             mParameters.getStreamDimension(CAM_STREAM_TYPE_VIDEO, dim);
@@ -1967,6 +1970,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
         break;
     case CAM_STREAM_TYPE_VIDEO:
         streamInfo->dis_enable = mParameters.isDISEnabled();
+
     case CAM_STREAM_TYPE_PREVIEW:
         if (mParameters.getRecordingHintValue()) {
             const char* dis_param = mParameters.get(QCameraParameters::KEY_QC_DIS);

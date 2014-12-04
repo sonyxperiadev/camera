@@ -283,6 +283,10 @@ public:
     static const char KEY_QC_TRUE_PORTRAIT[];
     static const char KEY_QC_SUPPORTED_TRUE_PORTRAIT_MODES[];
 
+    //See more
+    static const char KEY_QC_SEE_MORE[];
+    static const char KEY_QC_SUPPORTED_SEE_MORE_MODES[];
+
     //Longshot
     static const char KEY_QC_LONGSHOT_SUPPORTED[];
 
@@ -644,12 +648,15 @@ public:
     bool setStreamConfigure(bool isCapture, bool previewAsPostview, bool resetConfig);
     int32_t addOnlineRotation(int32_t rotation, uint32_t streamId);
     uint8_t getNumOfExtraBuffersForImageProc();
+    uint8_t getNumOfExtraBuffersForVideo();
+    uint8_t getNumOfExtraBuffersForPreview();
     bool needThumbnailReprocess(uint32_t *pFeatureMask);
     inline bool isUbiFocusEnabled() {return m_bAFBracketingOn && !m_bReFocusOn;};
     inline bool isChromaFlashEnabled() {return m_bChromaFlashOn;};
     inline bool isTruePortraitEnabled() {return m_bTruePortraitOn;};
     inline uint32_t getTPMaxMetaSize() {
         return m_pCapability->true_portrait_settings_need.meta_max_size;};
+    inline bool isSeeMoreEnabled() {return m_bSeeMoreOn;};
     bool isOptiZoomEnabled();
     int32_t commitAFBracket(cam_af_bracketing_t afBracket);
     int32_t commitFlashBracket(cam_flash_bracketing_t flashBracket);
@@ -742,6 +749,7 @@ private:
     int32_t setHDRMode(const QCameraParameters& );
     int32_t setHDRNeed1x(const QCameraParameters& );
     int32_t setTruePortrait(const QCameraParameters& );
+    int32_t setSeeMore(const QCameraParameters& );
     int32_t setRedeyeReduction(const QCameraParameters& );
     int32_t setGpsLocation(const QCameraParameters& );
     int32_t setRecordingHint(const QCameraParameters& );
@@ -803,6 +811,7 @@ private:
     int32_t setHDRMode(const char *optiZoomStr);
     int32_t setHDRNeed1x(const char *optiZoomStr);
     int32_t setTruePortrait(const char *truePortraitStr);
+    int32_t setSeeMore(const char *SeeMoreStr);
     int32_t setRedeyeReduction(const char *redeyeStr);
     int32_t setWaveletDenoise(const char *wnrStr);
     int32_t setFaceRecognition(const char *faceRecog, uint32_t maxFaces);
@@ -869,6 +878,7 @@ private:
     static const QCameraMap<cam_cds_mode_type_t> CDS_MODES_MAP[];
     static const QCameraMap<int> HDR_MODES_MAP[];
     static const QCameraMap<int> VIDEO_ROTATION_MODES_MAP[];
+    static const QCameraMap<int> SEE_MORE_MODES_MAP[];
 
     cam_capability_t *m_pCapability;
     mm_camera_vtbl_t *m_pCamOpsTbl;
@@ -930,6 +940,7 @@ private:
     bool m_bSceneSelection;
     Mutex m_SceneSelectLock;
     cam_scene_mode_type m_SelectedScene;
+    bool m_bSeeMoreOn;
     cam_fps_range_t m_hfrFpsRange;
     bool m_bHfrMode;
     bool m_bSensorHDREnabled;             // if HDR is enabled
