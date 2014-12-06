@@ -894,7 +894,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 continue;
             }
 
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
+            if ((pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) ||
+                    (pStream->isTypeOf(CAM_STREAM_TYPE_ANALYSIS))) {
                 // Skip metadata
                 continue;
             }
@@ -1295,7 +1296,8 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
                     !pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW)) {
                 continue;
             }
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
+            if ((pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) ||
+                    (pStream->isTypeOf(CAM_STREAM_TYPE_ANALYSIS))) {
                 // Skip metadata for reprocess now because PP module cannot handle meta data
                 // May need furthur discussion if Imaginglib need meta data
                 continue;

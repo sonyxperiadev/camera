@@ -470,6 +470,9 @@ typedef struct {
 
     /* Preferred Performance mode */
     cam_perf_mode_t perf_mode;
+
+    /* if frames will not be received */
+    uint8_t noFrameExpected;
 } cam_stream_info_t;
 
 /*****************************************************************************
