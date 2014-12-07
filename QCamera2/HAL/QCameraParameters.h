@@ -669,7 +669,9 @@ public:
     String8 dump();
     inline bool isUbiRefocus() {return m_bReFocusOn &&
             (m_pCapability->refocus_af_bracketing_need.output_count > 1);};
-    inline uint8_t UfOutputCount() {
+    inline uint32_t getRefocusMaxMetaSize() {
+            return m_pCapability->refocus_af_bracketing_need.meta_max_size;};
+    inline uint8_t getRefocusOutputCount() {
             return m_pCapability->refocus_af_bracketing_need.output_count;};
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus()

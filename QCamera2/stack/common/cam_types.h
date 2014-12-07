@@ -1731,6 +1731,7 @@ typedef struct {
     uint8_t burst_count;
     uint8_t focus_steps[MAX_AF_BRACKETING_VALUES];
     uint8_t output_count;
+    uint32_t meta_max_size;
 } cam_af_bracketing_t;
 
 typedef struct {
@@ -1761,14 +1762,14 @@ typedef struct {
 typedef struct {
     uint32_t result;
     uint32_t header_size;
-    uint32_t body_mask_width;
-    uint32_t body_mask_height;
-    uint8_t mask_data[0];
-} cam_true_portrait_misc_buf_t;
+    uint32_t width;
+    uint32_t height;
+    uint8_t data[0];
+} cam_misc_buf_t;
 
 typedef struct {
     uint32_t misc_buffer_index;
-} cam_true_portrait_param_t;
+} cam_misc_buf_param_t;
 
 typedef struct {
     /* reprocess feature mask */
@@ -1786,7 +1787,7 @@ typedef struct {
 
     uint8_t zoom_level;
     cam_flash_value_t flash_value;
-    cam_true_portrait_param_t tp_param;
+    cam_misc_buf_param_t misc_buf_param;
 } cam_pp_feature_config_t;
 
 typedef struct {

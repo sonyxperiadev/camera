@@ -1658,6 +1658,10 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
     case CAM_STREAM_TYPE_OFFLINE_PROC:
         {
             bufferCnt = minCaptureBuffers;
+            // One of the ubifocus buffers is miscellaneous buffer
+            if (mParameters.isUbiRefocus()) {
+                bufferCnt -= 1;
+            }
             if (mLongshotEnabled) {
                 char prop[PROPERTY_VALUE_MAX];
                 memset(prop, 0, sizeof(prop));
@@ -1853,13 +1857,17 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateMiscBuf(
     int bufNum = 0;
     int bufSize = 0;
     QCameraHeapMemory *miscBuf = NULL;
+    uint32_t feature_mask =
+            streamInfo->reprocess_config.pp_feature_config.feature_mask;
 
     switch (streamInfo->stream_type) {
     case CAM_STREAM_TYPE_OFFLINE_PROC:
-        if (CAM_QCOM_FEATURE_TRUEPORTRAIT &
-                streamInfo->reprocess_config.pp_feature_config.feature_mask) {
+        if (CAM_QCOM_FEATURE_TRUEPORTRAIT & feature_mask) {
             bufNum = 1;
             bufSize = mParameters.getTPMaxMetaSize();
+        } else if (CAM_QCOM_FEATURE_REFOCUS & feature_mask) {
+            bufNum = 1;
+            bufSize = mParameters.getRefocusMaxMetaSize();
         }
         break;
     default:
@@ -2428,7 +2436,7 @@ bool QCamera2HardwareInterface::processUFDumps(qcamera_jpeg_evt_payload_t *evt)
    bool ret = true;
    if (mParameters.isUbiRefocus()) {
        int index = (int)getOutputImageCount();
-       bool allFocusImage = (index == ((int)mParameters.UfOutputCount()-1));
+       bool allFocusImage = (index == ((int)mParameters.getRefocusOutputCount() - 1));
        char name[CAM_FN_CNT];
 
        camera_memory_t *jpeg_mem = NULL;
@@ -5480,13 +5488,13 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
 
             if(mParameters.isUbiRefocus()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_REFOCUS;
+                pp_config.misc_buf_param.misc_buffer_index = 0;
             } else {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_REFOCUS;
             }
 
             if(mParameters.isChromaFlashEnabled()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_CHROMA_FLASH;
-                //TODO: check flash value for captured image, then assign.
                 pp_config.flash_value = CAM_FLASH_ON;
             } else {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
@@ -5507,7 +5515,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
 
             if (mParameters.isTruePortraitEnabled()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_TRUEPORTRAIT;
-                pp_config.tp_param.misc_buffer_index = 0;
+                pp_config.misc_buf_param.misc_buffer_index = 0;
             } else {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_TRUEPORTRAIT;
             }
