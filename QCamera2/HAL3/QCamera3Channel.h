@@ -44,12 +44,13 @@ extern "C" {
 
 using namespace android;
 
+#define MIN_STREAMING_BUFFER_NUM 7+11
+
 namespace qcamera {
 
 typedef void (*channel_cb_routine)(mm_camera_super_buf_t *metadata,
                                 camera3_stream_buffer_t *buffer,
                                 uint32_t frame_number, void *userdata);
-
 class QCamera3Channel
 {
 public:
@@ -58,7 +59,7 @@ public:
                    channel_cb_routine cb_routine,
                    cam_padding_info_t *paddingInfo,
                    uint32_t postprocess_mask,
-                   void *userData);
+                   void *userData, uint32_t numBuffers);
     QCamera3Channel();
     virtual ~QCamera3Channel();
 
@@ -91,6 +92,7 @@ public:
     QCamera3Stream *getStreamByHandle(uint32_t streamHandle);
     uint32_t getMyHandle() const {return m_handle;};
     uint32_t getNumOfStreams() const {return m_numStreams;};
+    uint32_t getNumBuffers() const {return mNumBuffers;};
     QCamera3Stream *getStreamByIndex(uint32_t index);
 
     static void streamCbRoutine(mm_camera_super_buf_t *super_frame,
@@ -124,6 +126,7 @@ protected:
     uint32_t mPostProcMask;
     uint8_t mYUVDump;
     cam_is_type_t mIsType;
+    uint32_t mNumBuffers;
 };
 
 /* QCamera3RegularChannel is used to handle all streams that are directly
@@ -139,7 +142,8 @@ public:
                     void *userData,
                     camera3_stream_t *stream,
                     cam_stream_type_t stream_type,
-                    uint32_t postprocess_mask);
+                    uint32_t postprocess_mask,
+                    uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
 
     QCamera3RegularChannel(uint32_t cam_handle,
                     mm_camera_ops_t *cam_ops,
@@ -149,7 +153,8 @@ public:
                     camera3_stream_t *stream,
                     cam_stream_type_t stream_type,
                     uint32_t postprocess_mask,
-                    uint32_t width, uint32_t height);
+                    uint32_t width, uint32_t height,
+                    uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
 
     virtual ~QCamera3RegularChannel();
 
@@ -163,8 +168,6 @@ public:
     virtual void putStreamBufs();
     virtual int32_t registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType);
 
-public:
-    static uint32_t kMaxBuffers;
 protected:
     QCamera3GrallocMemory mMemory;
 private:
@@ -185,7 +188,8 @@ public:
                     channel_cb_routine cb_routine,
                     cam_padding_info_t *paddingInfo,
                     uint32_t postprocess_mask,
-                    void *userData);
+                    void *userData,
+                    uint32_t numBuffers = MIN_STREAMING_BUFFER_NUM);
     virtual ~QCamera3MetadataChannel();
 
     virtual int32_t initialize(cam_is_type_t isType);
@@ -215,16 +219,14 @@ public:
                     void *userData,
                     camera3_stream_t *stream,
                     uint32_t postprocess_mask,
-                    bool raw_16 = false);
+                    bool raw_16 = false,
+                    uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
     virtual ~QCamera3RawChannel();
 
     virtual int32_t initialize(cam_is_type_t isType);
 
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream);
-
-public:
-    static uint32_t kMaxBuffers;
 
 private:
     bool mRawDump;
@@ -247,7 +249,7 @@ public:
                     cam_dimension_t rawDumpSize,
                     cam_padding_info_t *paddingInfo,
                     void *userData,
-                    uint32_t postprocess_mask);
+                    uint32_t postprocess_mask, uint32_t numBuffers = 3U);
     virtual ~QCamera3RawDumpChannel();
     virtual int32_t initialize(cam_is_type_t isType);
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
@@ -260,7 +262,6 @@ public:
     void dumpRawSnapshot(mm_camera_buf_def_t *frame);
 
 public:
-    static uint32_t kMaxBuffers;
     cam_dimension_t mDim;
 
 private:
@@ -281,7 +282,8 @@ public:
             camera3_stream_t *stream,
             uint32_t postprocess_mask,
             bool is4KVideo,
-            QCamera3Channel *metadataChannel);
+            QCamera3Channel *metadataChannel,
+            uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
     ~QCamera3PicChannel();
 
     virtual int32_t initialize(cam_is_type_t isType);
@@ -316,7 +318,6 @@ private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata);
 
 public:
-    static uint32_t kMaxBuffers;
     QCamera3PostProcessor m_postprocessor; // post processor
     cam_dimension_t m_max_pic_dim;
 
@@ -414,7 +415,8 @@ public:
                     uint32_t postprocess_mask,
                     cam_stream_type_t streamType,
                     cam_dimension_t *dim,
-                    void *userData);
+                    void *userData,
+                    uint32_t numBuffers = MIN_STREAMING_BUFFER_NUM);
     virtual ~QCamera3SupportChannel();
 
     virtual int32_t initialize(cam_is_type_t isType);

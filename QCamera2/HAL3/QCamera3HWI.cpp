@@ -1196,7 +1196,6 @@ int QCamera3HardwareInterface::configureStreams(
                     newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL &&
                     jpegStream) {
                 QCamera3Channel *channel = NULL;
-                newStream->max_buffers = QCamera3RegularChannel::kMaxBuffers;
                 channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                         mCameraHandle->ops, captureResultCb,
                         &gCamCapability[mCameraId]->padding_info,
@@ -1210,13 +1209,13 @@ int QCamera3HardwareInterface::configureStreams(
                     pthread_mutex_unlock(&mMutex);
                     return -ENOMEM;
                 }
+                newStream->max_buffers = channel->getNumBuffers();
                 newStream->priv = channel;
             } else if (newStream->stream_type == CAMERA3_STREAM_OUTPUT) {
                 QCamera3Channel *channel = NULL;
                 switch (newStream->format) {
                 case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
                 case HAL_PIXEL_FORMAT_YCbCr_420_888:
-                    newStream->max_buffers = QCamera3RegularChannel::kMaxBuffers;
                     channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
                             &gCamCapability[mCameraId]->padding_info,
@@ -1229,13 +1228,12 @@ int QCamera3HardwareInterface::configureStreams(
                         pthread_mutex_unlock(&mMutex);
                         return -ENOMEM;
                     }
-
+                    newStream->max_buffers = channel->getNumBuffers();
                     newStream->priv = channel;
                     break;
                 case HAL_PIXEL_FORMAT_RAW_OPAQUE:
                 case HAL_PIXEL_FORMAT_RAW16:
                 case HAL_PIXEL_FORMAT_RAW10:
-                    newStream->max_buffers = QCamera3RawChannel::kMaxBuffers;
                     mRawChannel = new QCamera3RawChannel(
                             mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
@@ -1247,22 +1245,26 @@ int QCamera3HardwareInterface::configureStreams(
                         pthread_mutex_unlock(&mMutex);
                         return -ENOMEM;
                     }
-
+                    newStream->max_buffers = mRawChannel->getNumBuffers();
                     newStream->priv = (QCamera3Channel*)mRawChannel;
                     break;
                 case HAL_PIXEL_FORMAT_BLOB:
-                    newStream->max_buffers = QCamera3PicChannel::kMaxBuffers;
+                    // Max live snapshot inflight buffer is 1. This is to mitigate
+                    // frame drop issues for video snapshot. The more buffers being
+                    // allocated, the more frame drops there are.
                     mPictureChannel = new QCamera3PicChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
                             &gCamCapability[mCameraId]->padding_info, this, newStream,
                             stream_config_info.postprocess_mask[i],
-                            m_bIs4KVideo, mMetadataChannel);
+                            m_bIs4KVideo, mMetadataChannel,
+                            (m_bIsVideo ? 1 : MAX_INFLIGHT_REQUESTS));
                     if (mPictureChannel == NULL) {
                         ALOGE("%s: allocation of channel failed", __func__);
                         pthread_mutex_unlock(&mMutex);
                         return -ENOMEM;
                     }
                     newStream->priv = (QCamera3Channel*)mPictureChannel;
+                    newStream->max_buffers = mPictureChannel->getNumBuffers();
                     break;
 
                 default:
