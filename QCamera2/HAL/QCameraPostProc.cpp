@@ -1022,9 +1022,14 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
     }
 
     qcamera_pp_data_t *job = (qcamera_pp_data_t *)m_ongoingPPQ.dequeue();
-    if (!needSuperBufMatch && (job == NULL || job->src_frame == NULL
-            || job->src_reproc_frame == NULL) ) {
+    if (NULL == job) {
         ALOGE("%s: Cannot find reprocess job", __func__);
+        return BAD_VALUE;
+    }
+
+    if (!needSuperBufMatch && (job->src_frame == NULL
+            || job->src_reproc_frame == NULL) ) {
+        ALOGE("%s: Invalid reprocess job", __func__);
         return BAD_VALUE;
     }
 
