@@ -10197,14 +10197,16 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
 
     } else {
         if (isJpegPictureFormat() || isNV16PictureFormat() || isNV21PictureFormat()) {
-            stream_config_info.type[stream_config_info.num_streams] =
-                    CAM_STREAM_TYPE_SNAPSHOT;
-            getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
-                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
-            updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
-            stream_config_info.postprocess_mask[stream_config_info.num_streams] =
-                    mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
-            stream_config_info.num_streams++;
+            if (!getofflineRAW()) {
+                stream_config_info.type[stream_config_info.num_streams] =
+                        CAM_STREAM_TYPE_SNAPSHOT;
+                getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
+                        stream_config_info.stream_sizes[stream_config_info.num_streams]);
+                updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
+                stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                        mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
+                stream_config_info.num_streams++;
+            }
 
             if (previewAsPostview) {
                 stream_config_info.type[stream_config_info.num_streams] =
@@ -10237,7 +10239,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             stream_config_info.num_streams++;
         }
     }
-    if (raw_yuv && !raw_capture && isZSLMode()) {
+    if (raw_yuv && !raw_capture && (isZSLMode() || getofflineRAW())) {
         cam_dimension_t max_dim = {0,0};
         updateRAW(max_dim);
         stream_config_info.type[stream_config_info.num_streams] =
