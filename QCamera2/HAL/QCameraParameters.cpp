@@ -4591,7 +4591,13 @@ int32_t QCameraParameters::initDefaultParameters()
             m_pCapability->supported_effects_cnt,
             EFFECT_MODES_MAP,
             PARAM_MAP_SIZE(EFFECT_MODES_MAP));
-    set(KEY_SUPPORTED_EFFECTS, effectValues);
+
+    if (m_pCapability->supported_effects_cnt > 0) {
+        set(KEY_SUPPORTED_EFFECTS, effectValues);
+    } else {
+        ALOGE("Color effects are not available");
+        set(KEY_SUPPORTED_EFFECTS, EFFECT_NONE);
+    }
     setEffect(EFFECT_NONE);
 
     // Set WhiteBalance
