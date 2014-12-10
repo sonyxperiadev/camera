@@ -185,6 +185,11 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
     if (mStreams.size() >= MAX_STREAM_NUM_IN_BUNDLE) {
         ALOGE("%s: stream number (%zu) exceeds max limit (%d)",
               __func__, mStreams.size(), MAX_STREAM_NUM_IN_BUNDLE);
+        if (streamInfoBuf != NULL) {
+            streamInfoBuf->deallocate();
+            delete streamInfoBuf;
+            streamInfoBuf = NULL;
+        }
         return BAD_VALUE;
     }
     QCameraStream *pStream = new QCameraStream(allocator,
@@ -192,6 +197,11 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
             online_rotation);
     if (pStream == NULL) {
         ALOGE("%s: No mem for Stream", __func__);
+        if (streamInfoBuf != NULL) {
+            streamInfoBuf->deallocate();
+            delete streamInfoBuf;
+            streamInfoBuf = NULL;
+        }
         return NO_MEMORY;
     }
 

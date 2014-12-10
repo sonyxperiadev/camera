@@ -536,6 +536,11 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     if (!mHandle) {
         ALOGE("add_stream failed");
         rc = UNKNOWN_ERROR;
+        if (streamInfoBuf != NULL) {
+            streamInfoBuf->deallocate();
+            delete streamInfoBuf;
+            streamInfoBuf = NULL;
+        }
         goto done;
     }
 
