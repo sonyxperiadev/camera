@@ -384,6 +384,8 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
             //send the last unconfigure
             cam_stream_size_info_t stream_config_info;
             memset(&stream_config_info, 0, sizeof(cam_stream_size_info_t));
+            stream_config_info.buffer_info.min_buffers = MIN_INFLIGHT_REQUESTS;
+            stream_config_info.buffer_info.max_buffers = MAX_INFLIGHT_REQUESTS;
             AddSetParmEntryToBatch(mParameters, CAM_INTF_META_STREAM_INFO,
                     sizeof(cam_stream_size_info_t), &stream_config_info);
             int rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
@@ -1034,6 +1036,8 @@ int QCamera3HardwareInterface::configureStreams(
     // send an unconfigure to the backend so that the isp resources are deallocated
     if (!mFirstConfiguration) {
        memset(&stream_config_info, 0, sizeof(cam_stream_size_info_t));
+       stream_config_info.buffer_info.min_buffers = MIN_INFLIGHT_REQUESTS;
+       stream_config_info.buffer_info.max_buffers = MAX_INFLIGHT_REQUESTS;
        clear_metadata_buffer(mParameters);
        AddSetParmEntryToBatch(mParameters, CAM_INTF_PARM_HAL_VERSION,
                sizeof(hal_version), &hal_version);
@@ -1338,6 +1342,8 @@ int QCamera3HardwareInterface::configureStreams(
                 CAM_QCOM_FEATURE_NONE;
         stream_config_info.num_streams++;
     }
+    stream_config_info.buffer_info.min_buffers = MIN_INFLIGHT_REQUESTS;
+    stream_config_info.buffer_info.max_buffers = MAX_INFLIGHT_REQUESTS;
 
     // settings/parameters don't carry over for new configureStreams
     clear_metadata_buffer(mParameters);
