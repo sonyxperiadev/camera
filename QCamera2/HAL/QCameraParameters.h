@@ -716,6 +716,7 @@ public:
     inline bool isSeeMoreEnabled() {return m_bSeeMoreOn;};
     inline bool isStillMoreEnabled() {return m_bStillMoreOn;};
     bool isOptiZoomEnabled();
+    inline bool isLowMemoryDevice() {return m_bIsLowMemoryDevice;};
     int32_t commitAFBracket(cam_af_bracketing_t afBracket);
     int32_t commitFlashBracket(cam_flash_bracketing_t flashBracket);
     int32_t set3ALock(const char *lockStr);
@@ -770,6 +771,7 @@ public:
     int32_t  updateCurrentFocusPosition(int32_t pos);
     int32_t setToneMapMode(uint32_t value, bool initCommit);
     void setTintless(bool enable);
+    uint8_t getLongshotStages();
 
 private:
     int32_t setPreviewSize(const QCameraParameters& );
@@ -1053,6 +1055,7 @@ private:
     int32_t mZoomLevel;
     bool m_bStreamsConfigured;
     int32_t mParmZoomLevel;
+    bool m_bIsLowMemoryDevice;
 };
 
 }; // namespace qcamera
