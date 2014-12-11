@@ -47,7 +47,6 @@
 
 using namespace android;
 
-#define MIN_STREAMING_BUFFER_NUM 7+11
 
 namespace qcamera {
 static const char ExifAsciiPrefix[] =
@@ -81,7 +80,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
                                channel_cb_routine cb_routine,
                                cam_padding_info_t *paddingInfo,
                                uint32_t postprocess_mask,
-                               void *userData)
+                               void *userData, uint32_t numBuffers)
 {
     m_camHandle = cam_handle;
     m_camOps = cam_ops;
@@ -102,6 +101,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
     property_get("persist.camera.yuv.dump", prop, "0");
     mYUVDump = (uint8_t) atoi(prop);
     mIsType = IS_TYPE_NONE;
+    mNumBuffers = numBuffers;
 }
 
 /*===========================================================================
@@ -498,6 +498,8 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
  *   @cb_routine : callback routine to frame aggregator
  *   @stream     : camera3_stream_t structure
  *   @stream_type: Channel stream type
+ *   @postprocess_mask: feature mask for postprocessing
+ *   @numBuffers : number of max dequeued buffers
  *
  * RETURN     : none
  *==========================================================================*/
@@ -508,9 +510,11 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                     void *userData,
                     camera3_stream_t *stream,
                     cam_stream_type_t stream_type,
-                    uint32_t postprocess_mask) :
+                    uint32_t postprocess_mask,
+                    uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, cam_ops, cb_routine,
-                                paddingInfo, postprocess_mask, userData),
+                                paddingInfo, postprocess_mask, userData,
+                                numBuffers),
                         mCamera3Stream(stream),
                         mNumBufs(0),
                         mStreamType(stream_type),
@@ -535,6 +539,7 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
  *   @postprocess_mask: bit mask for postprocessing
  *   @width       : width overriding camera3_stream_t::width
  *   @height      : height overriding camera3_stream_t::height
+ *   @numBuffers  : number of maximum dequeued buffers`
  *
  * RETURN     : none
  *==========================================================================*/
@@ -546,9 +551,11 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                     camera3_stream_t *stream,
                     cam_stream_type_t stream_type,
                     uint32_t postprocess_mask,
-                    uint32_t width, uint32_t height) :
+                    uint32_t width, uint32_t height,
+                    uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, cam_ops, cb_routine,
-                                paddingInfo, postprocess_mask, userData),
+                                paddingInfo, postprocess_mask, userData,
+                                numBuffers),
                         mCamera3Stream(stream),
                         mNumBufs(0),
                         mStreamType(stream_type),
@@ -851,16 +858,15 @@ void QCamera3RegularChannel::putStreamBufs()
     mMemory.unregisterBuffers();
 }
 
-uint32_t QCamera3RegularChannel::kMaxBuffers = MAX_INFLIGHT_REQUESTS;
-
 QCamera3MetadataChannel::QCamera3MetadataChannel(uint32_t cam_handle,
                     mm_camera_ops_t *cam_ops,
                     channel_cb_routine cb_routine,
                     cam_padding_info_t *paddingInfo,
                     uint32_t postprocess_mask,
-                    void *userData) :
+                    void *userData, uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, cam_ops,
-                                cb_routine, paddingInfo, postprocess_mask, userData),
+                                cb_routine, paddingInfo, postprocess_mask,
+                                userData, numBuffers),
                         mMemory(NULL)
 {
 }
@@ -899,7 +905,7 @@ int32_t QCamera3MetadataChannel::initialize(cam_is_type_t isType)
 
     mIsType = isType;
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_METADATA, CAM_FORMAT_MAX,
-        streamDim, MIN_STREAMING_BUFFER_NUM, mPostProcMask, mIsType);
+        streamDim, mNumBuffers, mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
     }
@@ -963,8 +969,6 @@ void QCamera3MetadataChannel::putStreamBufs()
 }
 /*************************************************************************************/
 // RAW Channel related functions
-uint32_t QCamera3RawChannel::kMaxBuffers = MAX_INFLIGHT_REQUESTS;
-
 QCamera3RawChannel::QCamera3RawChannel(uint32_t cam_handle,
                     mm_camera_ops_t *cam_ops,
                     channel_cb_routine cb_routine,
@@ -972,10 +976,10 @@ QCamera3RawChannel::QCamera3RawChannel(uint32_t cam_handle,
                     void *userData,
                     camera3_stream_t *stream,
                     uint32_t postprocess_mask,
-                    bool raw_16) :
+                    bool raw_16, uint32_t numBuffers) :
                         QCamera3RegularChannel(cam_handle, cam_ops,
                                 cb_routine, paddingInfo, userData, stream,
-                                CAM_STREAM_TYPE_RAW, postprocess_mask),
+                                CAM_STREAM_TYPE_RAW, postprocess_mask, numBuffers),
                         mIsRaw16(raw_16)
 {
     char prop[PROPERTY_VALUE_MAX];
@@ -1124,7 +1128,6 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
 /*************************************************************************************/
 // RAW Dump Channel related functions
 
-uint32_t QCamera3RawDumpChannel::kMaxBuffers = 3U;
 /*===========================================================================
  * FUNCTION   : QCamera3RawDumpChannel
  *
@@ -1137,6 +1140,7 @@ uint32_t QCamera3RawDumpChannel::kMaxBuffers = 3U;
  *   @paddinginfo   : Padding information for stream
  *   @userData      : Cookie for parent
  *   @pp mask       : PP feature mask for this stream
+ *   @numBuffers    : number of max dequeued buffers
  *
  * RETURN           : NA
  *==========================================================================*/
@@ -1145,9 +1149,10 @@ QCamera3RawDumpChannel::QCamera3RawDumpChannel(uint32_t cam_handle,
                     cam_dimension_t rawDumpSize,
                     cam_padding_info_t *paddingInfo,
                     void *userData,
-                    uint32_t postprocess_mask) :
+                    uint32_t postprocess_mask, uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, cam_ops, NULL,
-                                paddingInfo, postprocess_mask, userData),
+                                paddingInfo, postprocess_mask,
+                                userData, numBuffers),
                         mDim(rawDumpSize),
                         mMemory(NULL)
 {
@@ -1264,7 +1269,7 @@ QCamera3Memory* QCamera3RawDumpChannel::getStreamBufs(uint32_t len)
         ALOGE("%s: unable to create heap memory", __func__);
         return NULL;
     }
-    rc = mMemory->allocate(kMaxBuffers, (size_t)len, true);
+    rc = mMemory->allocate(mNumBuffers, (size_t)len, true);
     if (rc < 0) {
         ALOGE("%s: unable to allocate heap memory", __func__);
         delete mMemory;
@@ -1339,7 +1344,7 @@ int32_t QCamera3RawDumpChannel::initialize(cam_is_type_t isType)
     }
     mIsType = isType;
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_RAW,
-        CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG, mDim, (uint8_t)kMaxBuffers,
+        CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG, mDim, (uint8_t)mNumBuffers,
         mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
@@ -1486,9 +1491,10 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                     camera3_stream_t *stream,
                     uint32_t postprocess_mask,
                     bool is4KVideo,
-                    QCamera3Channel *metadataChannel) :
+                    QCamera3Channel *metadataChannel,
+                    uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, cam_ops, cb_routine,
-                        paddingInfo, postprocess_mask, userData),
+                        paddingInfo, postprocess_mask, userData, numBuffers),
                         m_postprocessor(this),
                         mCamera3Stream(stream),
                         mNumBufsRegistered(CAM_MAX_NUM_BUFS_PER_STREAM),
@@ -2605,10 +2611,6 @@ QCamera3Exif *QCamera3PicChannel::getExifData(metadata_buffer_t *metadata,
     return exif;
 }
 
-/* There can be MAX_INFLIGHT_REQUESTS number of requests that could get queued up. Hence
- allocating same number of picture channel buffers */
-uint32_t QCamera3PicChannel::kMaxBuffers = MAX_INFLIGHT_REQUESTS;
-
 void QCamera3PicChannel::overrideYuvSize(uint32_t width, uint32_t height)
 {
    mYuvWidth = width;
@@ -2634,7 +2636,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
                                                  uint32_t postprocess_mask,
                                                  void *userData, void *ch_hdl) :
     QCamera3Channel(cam_handle, cam_ops, cb_routine, paddingInfo, postprocess_mask,
-                    userData),
+                    userData, ((QCamera3PicChannel *)ch_hdl)->getNumBuffers()),
     picChHandle(ch_hdl),
     mOfflineBuffersIndex(-1),
     m_pSrcChannel(NULL),
@@ -2642,7 +2644,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
     mMemory(NULL)
 {
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
-    mOfflineMetaIndex = MAX_INFLIGHT_REQUESTS -1;
+    mOfflineMetaIndex = mNumBuffers -1;
 }
 
 
@@ -2772,10 +2774,7 @@ QCamera3Memory* QCamera3ReprocessChannel::getStreamBufs(uint32_t len)
         return NULL;
     }
 
-    //Queue YUV buffers in the beginning mQueueAll = true
-    /* There can be MAX_INFLIGHT_REQUESTS number of requests that could get queued up.
-     * Hence allocating same number of reprocess channel's output buffers */
-    rc = mMemory->allocate(MAX_INFLIGHT_REQUESTS, len, true);
+    rc = mMemory->allocate(mNumBuffers, len, true);
     if (rc < 0) {
         ALOGE("%s: unable to allocate reproc memory", __func__);
         delete mMemory;
@@ -3115,7 +3114,7 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
     }
 
     QCamera3Stream *pStream = mStreams[0];
-    int32_t max_idx = MAX_INFLIGHT_REQUESTS-1;
+    int32_t max_idx = mNumBuffers - 1;
     //loop back the indices if max burst count reached
     if (mOfflineBuffersIndex == max_idx) {
        mOfflineBuffersIndex = -1;
@@ -3134,10 +3133,10 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
         CDBG("%s: Mapped buffer with index %d", __func__, mOfflineBuffersIndex);
     }
 
-    max_idx = MAX_INFLIGHT_REQUESTS*2 - 1;
+    max_idx = mNumBuffers*2 - 1;
     //loop back the indices if max burst count reached
     if (mOfflineMetaIndex == max_idx) {
-       mOfflineMetaIndex = MAX_INFLIGHT_REQUESTS-1;
+       mOfflineMetaIndex = mNumBuffers - 1;
     }
     uint32_t meta_buf_idx = (uint32_t)(mOfflineMetaIndex + 1);
     rc |= pStream->mapBuf(
@@ -3253,9 +3252,6 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
     cam_stream_reproc_config_t reprocess_config;
     cam_stream_type_t streamType;
 
-    /* There can be MAX_INFLIGHT_REQUESTS number of requests that could get queued up.
-     * Hence allocating same number of reprocess channel's output buffers */
-    int num_buffers = MAX_INFLIGHT_REQUESTS;
     cam_dimension_t streamDim = src_config.output_stream_dim;
 
     if (NULL != src_config.src_channel) {
@@ -3274,7 +3270,7 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
     reprocess_config.offline.input_dim = src_config.input_stream_dim;
     reprocess_config.offline.input_buf_planes.plane_info =
             src_config.input_stream_plane_info.plane_info;
-    reprocess_config.offline.num_of_bufs = (uint8_t)num_buffers;
+    reprocess_config.offline.num_of_bufs = (uint8_t)mNumBuffers;
     reprocess_config.offline.input_type = src_config.stream_type;
 
     reprocess_config.pp_feature_config = pp_config;
@@ -3290,7 +3286,7 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
 
     rc = pStream->init(streamType, src_config.stream_format,
             streamDim, &reprocess_config,
-            (uint8_t)num_buffers,
+            (uint8_t)mNumBuffers,
             reprocess_config.pp_feature_config.feature_mask,
             is_type,
             QCamera3Channel::streamCbRoutine, this);
@@ -3321,9 +3317,10 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
                     uint32_t postprocess_mask,
                     cam_stream_type_t streamType,
                     cam_dimension_t *dim,
-                    void *userData) :
+                    void *userData, uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, cam_ops,
-                                NULL, paddingInfo, postprocess_mask, userData),
+                                NULL, paddingInfo, postprocess_mask,
+                                userData, numBuffers),
                         mMemory(NULL)
 {
    memcpy(&mDim, dim, sizeof(cam_dimension_t));
