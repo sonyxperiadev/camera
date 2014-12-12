@@ -4803,9 +4803,6 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     if (rc != NO_ERROR) {
         ALOGE("%s: add stream type (%d) failed, ret = %d",
               __func__, streamType, rc);
-        pStreamInfo->deallocate();
-        delete pStreamInfo;
-        return rc;
     }
 
     return rc;
