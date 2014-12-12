@@ -1080,10 +1080,16 @@ typedef struct {
 } cam_chromatix_lite_asd_stats_t;
 
 typedef struct {
+   uint32_t min_buffers;
+   uint32_t max_buffers;
+} cam_buffer_info_t;
+
+typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
     uint32_t num_streams;
     cam_stream_type_t type[MAX_NUM_STREAMS];
     uint32_t postprocess_mask[MAX_NUM_STREAMS];
+    cam_buffer_info_t buffer_info;
 } cam_stream_size_info_t;
 
 typedef struct {
