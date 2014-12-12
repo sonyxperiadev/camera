@@ -2411,7 +2411,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         mPendingBuffersMap.mPendingBufferList.push_back(bufferInfo);
         mPendingBuffersMap.num_buffers++;
         QCamera3Channel *channel = (QCamera3Channel *)bufferInfo.stream->priv;
-        ALOGI("%s: frame = %d, buffer = %p, streamTypeMask = %d, stream format = %d",
+        CDBG("%s: frame = %d, buffer = %p, streamTypeMask = %d, stream format = %d",
                 __func__, frameNumber, bufferInfo.buffer,
                 channel->getStreamTypeMask(), bufferInfo.stream->format);
     }
