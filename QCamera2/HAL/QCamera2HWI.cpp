@@ -293,7 +293,7 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    CDBG_HIGH("[KPI Perf] %s: E PROFILE_START_PREVIEW", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_START_PREVIEW", __func__);
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     qcamera_sm_evt_enum_t evt = QCAMERA_SM_EVT_START_PREVIEW;
@@ -307,7 +307,7 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
     }
     hw->unlockAPI();
     hw->m_bPreviewStarted = true;
-    CDBG_HIGH("[KPI Perf] %s: X", __func__);
+    ALOGI("[KPI Perf] %s: X", __func__);
     return ret;
 }
 
@@ -330,7 +330,7 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
         ALOGE("NULL camera device");
         return;
     }
-    CDBG_HIGH("[KPI Perf] %s: E PROFILE_STOP_PREVIEW", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_STOP_PREVIEW", __func__);
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_STOP_PREVIEW, NULL);
@@ -338,7 +338,7 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
         hw->waitAPIResult(QCAMERA_SM_EVT_STOP_PREVIEW, &apiResult);
     }
     hw->unlockAPI();
-    CDBG_HIGH("[KPI Perf] %s: X", __func__);
+    ALOGI("[KPI Perf] %s: X", __func__);
 }
 
 /*===========================================================================
@@ -433,7 +433,7 @@ int QCamera2HardwareInterface::start_recording(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    CDBG_HIGH("[KPI Perf] %s: E PROFILE_START_RECORDING", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_START_RECORDING", __func__);
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_START_RECORDING, NULL);
@@ -443,7 +443,7 @@ int QCamera2HardwareInterface::start_recording(struct camera_device *device)
     }
     hw->unlockAPI();
     hw->m_bRecordStarted = true;
-    CDBG_HIGH("[KPI Perf] %s: X", __func__);
+    ALOGI("[KPI Perf] %s: X", __func__);
     return ret;
 }
 
@@ -466,7 +466,7 @@ void QCamera2HardwareInterface::stop_recording(struct camera_device *device)
         ALOGE("NULL camera device");
         return;
     }
-    CDBG_HIGH("[KPI Perf] %s: E PROFILE_STOP_RECORDING", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_STOP_RECORDING", __func__);
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_STOP_RECORDING, NULL);
@@ -474,7 +474,7 @@ void QCamera2HardwareInterface::stop_recording(struct camera_device *device)
         hw->waitAPIResult(QCAMERA_SM_EVT_STOP_RECORDING, &apiResult);
     }
     hw->unlockAPI();
-    CDBG_HIGH("[KPI Perf] %s: X", __func__);
+    ALOGI("[KPI Perf] %s: X", __func__);
 }
 
 /*===========================================================================
@@ -639,7 +639,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    CDBG_HIGH("[KPI Perf] %s: E PROFILE_TAKE_PICTURE", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_TAKE_PICTURE", __func__);
     hw->lockAPI();
     qcamera_api_result_t apiResult;
 
@@ -715,7 +715,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
         }
     }
     hw->unlockAPI();
-    CDBG_HIGH("[KPI Perf] %s: X", __func__);
+    ALOGI("[KPI Perf] %s: X", __func__);
     return ret;
 }
 
@@ -980,7 +980,7 @@ int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
 {
     ATRACE_CALL();
     int ret = NO_ERROR;
-    CDBG_HIGH("[KPI Perf] %s: E",__func__);
+    ALOGI("[KPI Perf] %s: E",__func__);
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(
             reinterpret_cast<camera_device_t *>(hw_dev)->priv);
@@ -989,7 +989,7 @@ int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
         return BAD_VALUE;
     }
     delete hw;
-    CDBG_HIGH("[KPI Perf] %s: X",__func__);
+    ALOGI("[KPI Perf] %s: X",__func__);
     return ret;
 }
 
@@ -1185,7 +1185,7 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
         *hw_device = NULL;
         return PERMISSION_DENIED;
     }
-    CDBG_HIGH("[KPI Perf] %s: E PROFILE_OPEN_CAMERA camera id %d",
+    ALOGI("[KPI Perf] %s: E PROFILE_OPEN_CAMERA camera id %d",
         __func__,mCameraId);
     rc = openCamera();
     if (rc == NO_ERROR){
@@ -1196,6 +1196,10 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
     }
     else
         *hw_device = NULL;
+
+    ALOGI("[KPI Perf] %s: X PROFILE_OPEN_CAMERA camera id %d, rc: %d",
+        __func__,mCameraId, rc);
+
     return rc;
 }
 
@@ -1295,6 +1299,8 @@ int QCamera2HardwareInterface::closeCamera()
     if (!mCameraOpened) {
         return NO_ERROR;
     }
+    ALOGI("[KPI Perf] %s: E PROFILE_CLOSE_CAMERA camera id %d",
+        __func__, mCameraId);
 
     pthread_mutex_lock(&m_parm_lock);
 
@@ -1340,6 +1346,8 @@ int QCamera2HardwareInterface::closeCamera()
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
+    ALOGI("[KPI Perf] %s: X PROFILE_CLOSE_CAMERA camera id %d, rc: %d",
+        __func__, mCameraId, rc);
 
     return rc;
 }
@@ -2665,7 +2673,7 @@ int32_t QCamera2HardwareInterface::configureHDRBracketing()
 
     // 'values' should be in "idx1,idx2,idx3,..." format
     uint32_t hdrFrameCount = gCamCaps[mCameraId]->hdr_bracketing_setting.num_frames;
-    ALOGE("%s : HDR values %d, %d frame count: %u",
+    CDBG_HIGH("%s : HDR values %d, %d frame count: %u",
           __func__,
           (int8_t) gCamCaps[mCameraId]->hdr_bracketing_setting.exp_val.values[0],
           (int8_t) gCamCaps[mCameraId]->hdr_bracketing_setting.exp_val.values[1],
@@ -2695,7 +2703,7 @@ int32_t QCamera2HardwareInterface::configureHDRBracketing()
         memcpy(aeBracket.values, tmp.string(), tmp.length() - 1);
     }
 
-    ALOGE("%s : HDR config values %s",
+    CDBG_HIGH("%s : HDR config values %s",
           __func__,
           aeBracket.values);
     rc = mParameters.setHDRAEBracket(aeBracket);
@@ -2807,7 +2815,7 @@ int32_t QCamera2HardwareInterface::stopAdvancedCapture(
 int32_t QCamera2HardwareInterface::startAdvancedCapture(
         QCameraPicChannel *pChannel)
 {
-    CDBG_HIGH("%s: Start bracketig",__func__);
+    CDBG_HIGH("%s: Start bracketing",__func__);
     int32_t rc = NO_ERROR;
 
     if(mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
@@ -4417,7 +4425,7 @@ int32_t QCamera2HardwareInterface::processHDRData(cam_asd_hdr_scene_data_t hdr_s
         }
     }
 
-    ALOGE("%s : hdr_scene_data: processHDRData: %d %f",
+    CDBG_HIGH("%s : hdr_scene_data: processHDRData: %d %f",
           __func__,
           hdr_scene.is_hdr_scene,
           hdr_scene.hdr_confidence);
