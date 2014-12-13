@@ -1150,8 +1150,8 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     mDefferedWorkThread.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
     mDefferedWorkThread.exit();
 
-    closeCamera();
     m_stateMachine.releaseThread();
+    closeCamera();
     pthread_mutex_destroy(&m_lock);
     pthread_cond_destroy(&m_cond);
     pthread_mutex_destroy(&m_evtLock);
