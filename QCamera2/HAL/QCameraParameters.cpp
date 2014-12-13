@@ -1269,7 +1269,7 @@ int32_t QCameraParameters::setPreviewSize(const QCameraParameters& params)
 {
     int width, height;
     params.getPreviewSize(&width, &height);
-    CDBG("Requested preview size %d x %d", width, height);
+    ALOGI("Requested preview size %d x %d", width, height);
 
     // Validate the preview size
     for (size_t i = 0; i < m_pCapability->preview_sizes_tbl_cnt; ++i) {
@@ -1307,7 +1307,7 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
 {
     int width, height;
     params.getPictureSize(&width, &height);
-    CDBG("Requested picture size %d x %d", width, height);
+    ALOGI("Requested picture size %d x %d", width, height);
 
     // Validate the picture size
     if(!m_reprocScaleParam.isScaleEnabled()){
@@ -2539,7 +2539,7 @@ int32_t QCameraParameters::setPAAF()
     property_get("persist.camera.stats.af.paaf", value, "1");
     paaf = (uint32_t)atoi(value);
 
-    ALOGE("%s: PAAF is: %s", __func__, paaf ? "ON": "OFF");
+    CDBG_HIGH("%s: PAAF is: %s", __func__, paaf ? "ON": "OFF");
 
     return AddSetParmEntryToBatch(m_pParamBuf,
                                   CAM_INTF_PARM_STATS_AF_PAAF,
@@ -3818,7 +3818,7 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
             }
         }
     }
-    CDBG_HIGH("%s: enabled: %d", __func__, m_bZslMode_new);
+    ALOGI("%s: enabled: %d", __func__, m_bZslMode_new);
     return rc;
 }
 

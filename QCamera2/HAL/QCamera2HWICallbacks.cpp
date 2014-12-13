@@ -90,7 +90,7 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
     CDBG_HIGH("%s: [ZSL Retro] Frame CB Unlock : %d, is AEC Locked: %d",
           __func__, recvd_frame->bUnlockAEC, pme->m_bLedAfAecLock);
     if(recvd_frame->bUnlockAEC && pme->m_bLedAfAecLock) {
-       ALOGI("%s : [ZSL Retro] LED assisted AF Release AEC Lock\n", __func__);
+       CDBG_HIGH("%s : [ZSL Retro] LED assisted AF Release AEC Lock\n", __func__);
        pme->mParameters.setAecLock("false");
        pme->mParameters.commitParameters();
        pme->m_bLedAfAecLock = FALSE ;
@@ -576,7 +576,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
 
     if(pme->m_bPreviewStarted) {
-       CDBG_HIGH("[KPI Perf] %s : PROFILE_FIRST_PREVIEW_FRAME", __func__);
+       ALOGI("[KPI Perf] %s : PROFILE_FIRST_PREVIEW_FRAME", __func__);
        pme->m_bPreviewStarted = false ;
     }
 
@@ -1076,7 +1076,7 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
         pme->debugShowVideoFPS();
     }
     if(pme->m_bRecordStarted) {
-       CDBG_HIGH("[KPI Perf] %s : PROFILE_FIRST_RECORD_FRAME", __func__);
+       ALOGI("[KPI Perf] %s : PROFILE_FIRST_RECORD_FRAME", __func__);
        pme->m_bRecordStarted = false ;
     }
     CDBG_HIGH("%s: Stream(%d), Timestamp: %ld %ld",
@@ -1418,7 +1418,7 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         } else {
             // process face detection result
             if (faces_data->num_faces_detected)
-                ALOGI("[KPI Perf] %s: PROFILE_NUMBER_OF_FACES_DETECTED %d",
+                CDBG_HIGH("[KPI Perf] %s: PROFILE_NUMBER_OF_FACES_DETECTED %d",
                     __func__,faces_data->num_faces_detected);
             faces_data->fd_type = QCAMERA_FD_PREVIEW; //HARD CODE here before MCT can support
             qcamera_sm_internal_evt_payload_t *payload = (qcamera_sm_internal_evt_payload_t *)
@@ -2268,7 +2268,7 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                 isSnapshotActive = TRUE;
                 numOfSnapshotExpected = pme->mParent->numOfSnapshotsExpected();
                 longShotEnabled = pme->mParent->isLongshotEnabled();
-                CDBG_HIGH("%s: Num Snapshots Expected = %d",
+                ALOGI("%s: Num Snapshots Expected = %d",
                   __func__, numOfSnapshotExpected);
                 numOfSnapshotRcvd = 0;
             }
@@ -2345,11 +2345,11 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                                 if (TRUE == isSnapshotActive && pme->mDataCb ) {
                                     if (!longShotEnabled) {
                                         numOfSnapshotRcvd++;
-                                        CDBG_HIGH("%s: [ZSL Retro] Num Snapshots Received = %d", __func__,
+                                        ALOGI("%s: [ZSL Retro] Num Snapshots Received = %d", __func__,
                                                 numOfSnapshotRcvd);
                                         if (numOfSnapshotExpected > 0 &&
                                            (numOfSnapshotExpected == numOfSnapshotRcvd)) {
-                                            CDBG_HIGH("%s: [ZSL Retro] Expected snapshot received = %d",
+                                            ALOGI("%s: [ZSL Retro] Expected snapshot received = %d",
                                                     __func__, numOfSnapshotRcvd);
                                             // notify HWI that snapshot is done
                                             pme->mParent->processSyncEvt(QCAMERA_SM_EVT_SNAPSHOT_DONE,
