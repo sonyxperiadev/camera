@@ -1242,8 +1242,8 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
         my_obj->bundle.is_active = TRUE;
     }
 
+    /* link any streams first before starting the rest of the streams */
     for (i = 0; i < num_streams_to_start; i++) {
-        /* stream that are linked to this channel should not be started */
         if (s_objs[i]->ch_obj != my_obj) {
             pthread_mutex_lock(&s_objs[i]->linked_stream->buf_lock);
             s_objs[i]->linked_stream->linked_obj = my_obj;
@@ -1251,7 +1251,12 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
             pthread_mutex_unlock(&s_objs[i]->linked_stream->buf_lock);
             continue;
         }
+    }
 
+    for (i = 0; i < num_streams_to_start; i++) {
+        if (s_objs[i]->ch_obj != my_obj) {
+            continue;
+        }
         /* all streams within a channel should be started at the same time */
         if (s_objs[i]->state == MM_STREAM_STATE_ACTIVE) {
             CDBG_ERROR("%s: stream already started idx(%d)", __func__, i);
@@ -1292,9 +1297,9 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
 
     /* error handling */
     if (0 != rc) {
-        for (j=0; j<=i; j++) {
+        /* unlink the streams first */
+        for (j = 0; j < num_streams_to_start; j++) {
             if (s_objs[j]->ch_obj != my_obj) {
-                /* Only unlink stream */
                 pthread_mutex_lock(&s_objs[j]->linked_stream->buf_lock);
                 s_objs[j]->linked_stream->is_linked = 0;
                 s_objs[j]->linked_stream->linked_obj = NULL;
@@ -1306,7 +1311,12 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
                             s_objs[j]->stream_info->stream_type);
                 }
                 memset(s_objs[j], 0, sizeof(mm_stream_t));
+                continue;
+            }
+        }
 
+        for (j = 0; j <= i; j++) {
+            if ((NULL == s_objs[j]) || (s_objs[j]->ch_obj != my_obj)) {
                 continue;
             }
             /* stop streams*/
