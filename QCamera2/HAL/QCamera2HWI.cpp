@@ -1053,6 +1053,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mMsgEnabled(0),
       mStoreMetaDataInFrame(0),
       m_stateMachine(this),
+      m_smThreadActive(true),
       m_postprocessor(this),
       m_thermalAdapter(QCameraThermalAdapter::getInstance()),
       m_cbNotifier(this),
@@ -1150,6 +1151,9 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     mDefferedWorkThread.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
     mDefferedWorkThread.exit();
 
+    lockAPI();
+    m_smThreadActive = false;
+    unlockAPI();
     m_stateMachine.releaseThread();
     closeCamera();
     pthread_mutex_destroy(&m_lock);
@@ -3994,7 +3998,13 @@ int QCamera2HardwareInterface::dump(int fd)
  *==========================================================================*/
 int QCamera2HardwareInterface::processAPI(qcamera_sm_evt_enum_t api, void *api_payload)
 {
-    return m_stateMachine.procAPI(api, api_payload);
+    int ret = DEAD_OBJECT;
+
+    if (m_smThreadActive) {
+        ret = m_stateMachine.procAPI(api, api_payload);
+    }
+
+    return ret;
 }
 
 /*===========================================================================
