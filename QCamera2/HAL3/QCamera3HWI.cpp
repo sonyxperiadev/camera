@@ -76,6 +76,13 @@ namespace qcamera {
 
 #define METADATA_MAP_SIZE(MAP) (sizeof(MAP)/sizeof(MAP[0]))
 
+#define CAM_QCOM_FEATURE_PP_SUPERSET_HAL3   ( CAM_QCOM_FEATURE_DENOISE2D |\
+                                                CAM_QCOM_FEATURE_CROP |\
+                                                CAM_QCOM_FEATURE_ROTATION |\
+                                                CAM_QCOM_FEATURE_SHARPNESS |\
+                                                CAM_QCOM_FEATURE_SCALE |\
+                                                CAM_QCOM_FEATURE_CAC )
+
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
 volatile uint32_t gCamHal3LogLevel = 1;
@@ -907,7 +914,7 @@ int QCamera3HardwareInterface::configureStreams(
                     if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL) {
                         commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
                     } else {
-                        commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET;
+                        commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                     }
                     numStreamsOnEncoder++;
                 }
@@ -917,7 +924,7 @@ int QCamera3HardwareInterface::configureStreams(
                 processedStreamCnt++;
                 if (((int32_t)newStream->width > maxViewfinderSize.width) ||
                         ((int32_t)newStream->height > maxViewfinderSize.height)) {
-                    commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET;
+                    commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                     numStreamsOnEncoder++;
                 }
                 break;
@@ -1077,7 +1084,7 @@ int QCamera3HardwareInterface::configureStreams(
                 mCameraHandle->camera_handle,
                 mCameraHandle->ops,
                 &gCamCapability[mCameraId]->padding_info,
-                CAM_QCOM_FEATURE_PP_SUPERSET,
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
                 CAM_STREAM_TYPE_ANALYSIS,
                 &gCamCapability[mCameraId]->analysis_recommended_res,
                 this);
@@ -1133,17 +1140,17 @@ int QCamera3HardwareInterface::configureStreams(
                  } else {
                     stream_config_info.type[i] = CAM_STREAM_TYPE_PREVIEW;
                  }
-                 stream_config_info.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET;
+                 stream_config_info.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
               }
               break;
            case HAL_PIXEL_FORMAT_YCbCr_420_888:
               stream_config_info.type[i] = CAM_STREAM_TYPE_CALLBACK;
-              stream_config_info.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET;
+              stream_config_info.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
               break;
            case HAL_PIXEL_FORMAT_BLOB:
               stream_config_info.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
               if (m_bIs4KVideo && !isZsl) {
-                  stream_config_info.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET;
+                  stream_config_info.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
               } else {
                   if (bUseCommonFeatureMask &&
                           (((int32_t)newStream->width > maxViewfinderSize.width) ||
@@ -7095,7 +7102,7 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
     cam_pp_feature_config_t pp_config;
     memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
 
-    pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_SUPERSET;
+    pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
 
     rc = pChannel->addReprocStreamsFromSource(pp_config,
             config,
