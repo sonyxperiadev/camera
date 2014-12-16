@@ -1541,7 +1541,7 @@ int32_t QCamera3PicChannel::stop()
     }
 
     m_postprocessor.stop();
-
+    mPostProcStarted = false;
     rc |= QCamera3Channel::stop();
     return rc;
 }
