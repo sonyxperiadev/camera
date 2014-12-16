@@ -287,6 +287,10 @@ public:
     static const char KEY_QC_SEE_MORE[];
     static const char KEY_QC_SUPPORTED_SEE_MORE_MODES[];
 
+    //Still more
+    static const char KEY_QC_STILL_MORE[];
+    static const char KEY_QC_SUPPORTED_STILL_MORE_MODES[];
+
     //Longshot
     static const char KEY_QC_LONGSHOT_SUPPORTED[];
 
@@ -464,6 +468,10 @@ public:
     // Values for Opti Zoom settings.
     static const char OPTI_ZOOM_OFF[];
     static const char OPTI_ZOOM_ON[];
+
+    // Values for Still More settings.
+    static const char STILL_MORE_OFF[];
+    static const char STILL_MORE_ON[];
 
     // Values for HDR mode settings.
     static const char HDR_MODE_SENSOR[];
@@ -657,6 +665,7 @@ public:
     inline uint32_t getTPMaxMetaSize() {
         return m_pCapability->true_portrait_settings_need.meta_max_size;};
     inline bool isSeeMoreEnabled() {return m_bSeeMoreOn;};
+    inline bool isStillMoreEnabled() {return m_bStillMoreOn;};
     bool isOptiZoomEnabled();
     int32_t commitAFBracket(cam_af_bracketing_t afBracket);
     int32_t commitFlashBracket(cam_flash_bracketing_t flashBracket);
@@ -675,12 +684,12 @@ public:
             return m_pCapability->refocus_af_bracketing_need.output_count;};
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus()
-            || isHDREnabled(); }
+            || isHDREnabled() || isStillMoreEnabled(); }
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
     bool isAdvCamFeaturesEnabled() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || m_bOptiZoomOn || isHDREnabled() ||
-            isHDREnabled();}
+            isHDREnabled() || isStillMoreEnabled();}
     int32_t setAecLock(const char *aecStr);
     int32_t updateDebugLevel();
     bool is4k2kVideoResolution();
@@ -753,6 +762,7 @@ private:
     int32_t setHDRNeed1x(const QCameraParameters& );
     int32_t setTruePortrait(const QCameraParameters& );
     int32_t setSeeMore(const QCameraParameters& );
+    int32_t setStillMore(const QCameraParameters& );
     int32_t setRedeyeReduction(const QCameraParameters& );
     int32_t setGpsLocation(const QCameraParameters& );
     int32_t setRecordingHint(const QCameraParameters& );
@@ -815,6 +825,7 @@ private:
     int32_t setHDRNeed1x(const char *optiZoomStr);
     int32_t setTruePortrait(const char *truePortraitStr);
     int32_t setSeeMore(const char *SeeMoreStr);
+    int32_t setStillMore(const char *StillMoreStr);
     int32_t setRedeyeReduction(const char *redeyeStr);
     int32_t setWaveletDenoise(const char *wnrStr);
     int32_t setFaceRecognition(const char *faceRecog, uint32_t maxFaces);
@@ -882,6 +893,7 @@ private:
     static const QCameraMap<int> HDR_MODES_MAP[];
     static const QCameraMap<int> VIDEO_ROTATION_MODES_MAP[];
     static const QCameraMap<int> SEE_MORE_MODES_MAP[];
+    static const QCameraMap<int> STILL_MORE_MODES_MAP[];
 
     cam_capability_t *m_pCapability;
     mm_camera_vtbl_t *m_pCamOpsTbl;
@@ -944,6 +956,7 @@ private:
     Mutex m_SceneSelectLock;
     cam_scene_mode_type m_SelectedScene;
     bool m_bSeeMoreOn;
+    bool m_bStillMoreOn;
     cam_fps_range_t m_hfrFpsRange;
     bool m_bHfrMode;
     bool m_bSensorHDREnabled;             // if HDR is enabled

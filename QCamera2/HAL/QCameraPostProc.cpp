@@ -1834,7 +1834,8 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             m_parent->mParameters.isUbiFocusEnabled() ||
             m_parent->mParameters.isUbiRefocus() ||
             m_parent->mParameters.isChromaFlashEnabled() ||
-            m_parent->mParameters.isOptiZoomEnabled();
+            m_parent->mParameters.isOptiZoomEnabled() ||
+            m_parent->mParameters.isStillMoreEnabled();
 
     CDBG_HIGH("%s:%d] Crop needed %d", __func__, __LINE__, img_feature_enabled);
     crop.left = 0;
