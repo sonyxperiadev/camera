@@ -399,7 +399,7 @@ int32_t QCamera3PostProcessor::getJpegEncodeConfig(
         ret = BAD_VALUE;
         goto on_error;
     }
-    encode_parm.num_src_bufs = pStreamMem->getCnt();
+    encode_parm.num_src_bufs = MIN(pStreamMem->getCnt(), MM_JPEG_MAX_BUF);
     for (uint32_t i = 0; i < encode_parm.num_src_bufs; i++) {
         if (pStreamMem != NULL) {
             encode_parm.src_main_buf[i].index = i;
@@ -429,8 +429,8 @@ int32_t QCamera3PostProcessor::getJpegEncodeConfig(
         cam_frame_len_offset_t thumb_offset;
         memset(&thumb_offset, 0, sizeof(cam_frame_len_offset_t));
         main_stream->getFrameOffset(thumb_offset);
-        encode_parm.num_tmb_bufs = pStreamMem->getCnt();
-        for (uint32_t i = 0; i < pStreamMem->getCnt(); i++) {
+        encode_parm.num_tmb_bufs = MIN(pStreamMem->getCnt(), MM_JPEG_MAX_BUF);
+        for (uint32_t i = 0; i < encode_parm.num_tmb_bufs; i++) {
             if (pStreamMem != NULL) {
                 encode_parm.src_thumb_buf[i].index = i;
                 bufSize = pStreamMem->getSize(i);
