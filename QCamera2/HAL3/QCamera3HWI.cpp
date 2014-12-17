@@ -5622,10 +5622,7 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
  *==========================================================================*/
 camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int type)
 {
-    pthread_mutex_lock(&mMutex);
-
     if (mDefaultMetadata[type] != NULL) {
-        pthread_mutex_unlock(&mMutex);
         return mDefaultMetadata[type];
     }
     //first time we are handling this request
@@ -5936,7 +5933,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
 
     mDefaultMetadata[type] = settings.release();
 
-    pthread_mutex_unlock(&mMutex);
     return mDefaultMetadata[type];
 }
 
