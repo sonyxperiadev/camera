@@ -2247,21 +2247,7 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
         mm_channel_qbuf(ch_obj, buf_info->buf);
         return -1;
     }
-   #if 0
-   mm_stream_t* stream_obj = mm_channel_util_get_stream_by_handler(ch_obj,
-               buf_info->stream_id);
 
-   if (CAM_STREAM_TYPE_METADATA == stream_obj->stream_info->stream_type) {
-    const metadata_buffer_t *metadata;
-    metadata = (const metadata_buffer_t *)buf_info->buf->buffer;
-    int32_t is_meta_valid = *((int32_t*)POINTER_OF(CAM_INTF_META_VALID, metadata));
-    CDBG("%s: meta_valid: %d\n", __func__, is_meta_valid);
-    if (!is_meta_valid) {
-      mm_channel_qbuf(ch_obj, buf_info->buf);
-      return 0;
-    }
-   }
-   #endif
     if (mm_channel_util_seq_comp_w_rollover(buf_info->frame_idx,
                                             queue->expected_frame_id) < 0) {
         /* incoming buf is older than expected buf id, will discard it */
@@ -2269,10 +2255,12 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
         return 0;
     }
 
-    if (MM_CAMERA_SUPER_BUF_PRIORITY_NORMAL != queue->attr.priority) {
-        /* TODO */
-        /* need to decide if we want to queue the frame based on focus or exposure
-         * if frame not to be queued, we need to qbuf it back */
+    if((queue->nomatch_frame_id != 0)
+            && (queue->nomatch_frame_id > buf_info->frame_idx)
+            && (buf_info->buf->stream_type == CAM_STREAM_TYPE_METADATA)) {
+        /*Incoming metadata is older than expected*/
+        mm_channel_qbuf(ch_obj, buf_info->buf);
+        return 0;
     }
 
     /* comp */
@@ -2288,15 +2276,28 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
     while (pos != head) {
         node = member_of(pos, cam_node_t, list);
         super_buf = (mm_channel_queue_node_t*)node->data;
+
         if (NULL != super_buf) {
             if (super_buf->matched) {
                 /* find a matched super buf, move to next one */
                 pos = pos->next;
                 continue;
-            } else if ( buf_info->frame_idx == super_buf->frame_idx ) {
-                /* have an unmatched super buf that matches our frame idx,
-                 *  break the loop */
+            } else if ( buf_info->frame_idx == super_buf->frame_idx
+                    /*Pick metadata greater than available frameID*/
+                    || ((queue->nomatch_frame_id != 0)
+                    && (queue->nomatch_frame_id <= buf_info->frame_idx)
+                    && (super_buf->super_buf[buf_s_idx].frame_idx == 0)
+                    && (buf_info->buf->stream_type == CAM_STREAM_TYPE_METADATA))
+                    /*Pick available metadata closest to frameID*/
+                    || ((queue->attr.priority == MM_CAMERA_SUPER_BUF_PRIORITY_LOW)
+                    && (buf_info->buf->stream_type != CAM_STREAM_TYPE_METADATA)
+                    && (super_buf->super_buf[buf_s_idx].frame_idx == 0)
+                    && (super_buf->frame_idx > buf_info->frame_idx))){
+                /*super buffer frame IDs matching OR In low priority bundling
+                metadata frameID greater than avialbale super buffer frameID  OR
+                metadata frame closest to incoming frameID will be bundled*/
                 found_super_buf = 1;
+                queue->nomatch_frame_id = 0;
                 break;
             } else {
                 unmatched_bundles++;
@@ -2351,7 +2352,7 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
                         if (NULL != super_buf) {
                             for (i=0; i<super_buf->num_of_bufs; i++) {
                                 if (super_buf->super_buf[i].frame_idx != 0) {
-                                        mm_channel_qbuf(ch_obj, super_buf->super_buf[i].buf);
+                                    mm_channel_qbuf(ch_obj, super_buf->super_buf[i].buf);
                                 }
                             }
                             queue->que.size--;
@@ -2414,6 +2415,13 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
 
                     queue->expected_frame_id = buf_info->frame_idx + queue->attr.post_frame_skip;
                     queue->match_cnt++;
+                }
+
+                if ((queue->attr.priority == MM_CAMERA_SUPER_BUF_PRIORITY_LOW)
+                        && (buf_info->buf->stream_type != CAM_STREAM_TYPE_METADATA)) {
+                    CDBG_ERROR ("%s : No metadata matching for frame = %d",
+                            __func__, buf_info->frame_idx);
+                    queue->nomatch_frame_id = buf_info->frame_idx;
                 }
             } else {
                 /* No memory */

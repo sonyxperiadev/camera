@@ -4988,6 +4988,7 @@ int32_t QCamera2HardwareInterface::addSnapshotChannel()
     attr.post_frame_skip = mParameters.getZSLBurstInterval();
     attr.water_mark = mParameters.getZSLQueueDepth();
     attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
+    attr.priority = MM_CAMERA_SUPER_BUF_PRIORITY_LOW;
     rc = pChannel->init(&attr, snapshot_channel_cb_routine, this);
     if (rc != NO_ERROR) {
         ALOGE("%s: init snapshot channel failed, ret = %d", __func__, rc);
