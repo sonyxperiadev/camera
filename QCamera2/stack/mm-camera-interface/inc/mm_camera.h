@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -349,6 +349,7 @@ typedef struct {
     uint32_t led_on_num_frames;
     uint32_t once;
     uint32_t frame_skip_count;
+    uint32_t nomatch_frame_id;
 } mm_channel_queue_t;
 
 typedef struct {

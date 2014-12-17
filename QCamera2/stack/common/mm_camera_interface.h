@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -264,6 +264,7 @@ typedef enum {
     MM_CAMERA_SUPER_BUF_PRIORITY_NORMAL = 0,
     MM_CAMERA_SUPER_BUF_PRIORITY_FOCUS,
     MM_CAMERA_SUPER_BUF_PRIORITY_EXPOSURE_BRACKETING,
+    MM_CAMERA_SUPER_BUF_PRIORITY_LOW,/* Bundled metadata frame may not match*/
     MM_CAMERA_SUPER_BUF_PRIORITY_MAX
 } mm_camera_super_buf_priority_t;
 
