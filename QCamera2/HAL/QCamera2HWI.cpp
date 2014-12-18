@@ -2924,14 +2924,12 @@ int QCamera2HardwareInterface::takePicture()
                 stopChannel(QCAMERA_CH_TYPE_PREVIEW);
                 delChannel(QCAMERA_CH_TYPE_PREVIEW);
 
-                if (rc != NO_ERROR) {
-                    return rc;
-                }
-
-                rc = declareSnapshotStreams();
-                if (NO_ERROR != rc) {
-                    delChannel(QCAMERA_CH_TYPE_CAPTURE);
-                    return rc;
+                if (NO_ERROR == rc) {
+                    rc = declareSnapshotStreams();
+                    if (NO_ERROR != rc) {
+                        delChannel(QCAMERA_CH_TYPE_CAPTURE);
+                        return rc;
+                    }
                 }
 
                 waitDefferedWork(mSnapshotJob);
@@ -2952,8 +2950,9 @@ int QCamera2HardwareInterface::takePicture()
                     mPostviewJob = queueDefferedWork(CMD_DEFF_ALLOCATE_BUFF,
                             args);
 
-                    if ( mPostviewJob == -1)
+                    if (mPostviewJob == -1) {
                         rc = UNKNOWN_ERROR;
+                    }
                 }
 
                 waitDefferedWork(mPostviewJob);
@@ -3030,6 +3029,7 @@ int QCamera2HardwareInterface::takePicture()
                 }
             } else {
                 ALOGE("%s: cannot add capture channel", __func__);
+                delChannel(QCAMERA_CH_TYPE_CAPTURE);
                 return rc;
             }
         } else {
@@ -4853,7 +4853,6 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
     rc = pChannel->init(NULL, NULL, NULL);
     if (rc != NO_ERROR) {
         ALOGE("%s: init preview channel failed, ret = %d", __func__, rc);
-        delete pChannel;
         return rc;
     }
 
@@ -4862,7 +4861,6 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
                             metadata_stream_cb_routine, this);
     if (rc != NO_ERROR) {
         ALOGE("%s: add metadata stream failed, ret = %d", __func__, rc);
-        delete pChannel;
         return rc;
     }
 
@@ -4871,7 +4869,6 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
                 NULL, this);
         if (rc != NO_ERROR) {
             ALOGE("%s: add Analysis stream failed, ret = %d", __func__, rc);
-            delete pChannel;
             return rc;
         }
     }
@@ -5230,7 +5227,6 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
                         this);
     if (rc != NO_ERROR) {
         ALOGE("%s: init capture channel failed, ret = %d", __func__, rc);
-        delete pChannel;
         return rc;
     }
 
@@ -5239,7 +5235,6 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
                             metadata_stream_cb_routine, this);
     if (rc != NO_ERROR) {
         ALOGE("%s: add metadata stream failed, ret = %d", __func__, rc);
-        delete pChannel;
         return rc;
     }
 
@@ -5249,7 +5244,6 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
 
         if (rc != NO_ERROR) {
             ALOGE("%s: add postview stream failed, ret = %d", __func__, rc);
-            delete pChannel;
             return rc;
         }
     } else {
@@ -5258,7 +5252,6 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
 
         if (rc != NO_ERROR) {
             ALOGE("%s: add preview stream failed, ret = %d", __func__, rc);
-            delete pChannel;
             return rc;
         }
     }
@@ -5268,7 +5261,6 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
                 NULL, this);
         if (rc != NO_ERROR) {
             ALOGE("%s: add snapshot stream failed, ret = %d", __func__, rc);
-            delete pChannel;
             return rc;
         }
     }
@@ -5288,7 +5280,6 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
         }
         if (rc != NO_ERROR) {
             ALOGE("%s: add raw stream failed, ret = %d", __func__, rc);
-            delete pChannel;
             return rc;
         }
     }
@@ -5907,13 +5898,16 @@ int32_t QCamera2HardwareInterface::preparePreview()
                 delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
                 delChannel(QCAMERA_CH_TYPE_VIDEO);
             }
-            ALOGE("%s[%d]:failed!! rc = %d", __func__, __LINE__, rc);
-            return rc;
         }
 
         if (!recordingHint && !mParameters.isSecureMode()) {
             waitDefferedWork(mMetadataJob);
             waitDefferedWork(mRawdataJob);
+        }
+
+        if (NO_ERROR != rc) {
+            delChannel(QCAMERA_CH_TYPE_PREVIEW);
+            ALOGE("%s[%d]:failed!! rc = %d", __func__, __LINE__, rc);
         }
     }
 
