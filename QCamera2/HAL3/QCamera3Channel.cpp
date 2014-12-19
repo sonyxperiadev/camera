@@ -467,14 +467,14 @@ void QCamera3Channel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
 void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
         cam_frame_len_offset_t offset, uint8_t name)
 {
-    char buf[64];
+    char buf[FILENAME_MAX];
     memset(buf, 0, sizeof(buf));
     static int counter = 0;
     /* Note that the image dimension will be the unrotated stream dimension.
     * If you feel that the image would have been rotated during reprocess
     * then swap the dimensions while opening the file
     * */
-    snprintf(buf, sizeof(buf), "/data/local/tmp/%d_%d_%d_%dx%d.yuv",
+    snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"%d_%d_%d_%dx%d.yuv",
             name, counter, frame->frame_idx, dim.width, dim.height);
     counter++;
     int file_fd = open(buf, O_RDWR | O_CREAT, 0644);
@@ -1018,7 +1018,7 @@ void QCamera3RawChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
 {
    QCamera3Stream *stream = getStreamByIndex(0);
    if (stream != NULL) {
-       char buf[32];
+       char buf[FILENAME_MAX];
        memset(buf, 0, sizeof(buf));
        cam_dimension_t dim;
        memset(&dim, 0, sizeof(dim));
@@ -1027,7 +1027,7 @@ void QCamera3RawChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
        cam_frame_len_offset_t offset;
        memset(&offset, 0, sizeof(cam_frame_len_offset_t));
        stream->getFrameOffset(offset);
-       snprintf(buf, sizeof(buf), "/data/local/tmp/r_%d_%dx%d.raw",
+       snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"r_%d_%dx%d.raw",
                 frame->frame_idx, offset.mp[0].stride, offset.mp[0].scanline);
 
        int file_fd = open(buf, O_RDWR| O_CREAT, 0644);
@@ -1188,7 +1188,7 @@ QCamera3RawDumpChannel::~QCamera3RawDumpChannel()
 void QCamera3RawDumpChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
 {
     QCamera3Stream *stream = getStreamByIndex(0);
-    char buf[128];
+    char buf[FILENAME_MAX];
     struct timeval tv;
     struct tm *timeinfo;
 
@@ -1205,11 +1205,12 @@ void QCamera3RawDumpChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
 
     memset(buf, 0, sizeof(buf));
     snprintf(buf, sizeof(buf),
-                 "/data/%04d-%02d-%02d-%02d-%02d-%02d-%06ld_%d_%dx%d.raw",
-                 timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,
-                 timeinfo->tm_mday, timeinfo->tm_hour,
-                 timeinfo->tm_min, timeinfo->tm_sec,tv.tv_usec,
-                 frame->frame_idx, dim.width, dim.height);
+            QCAMERA_DUMP_FRM_LOCATION
+            "%04d-%02d-%02d-%02d-%02d-%02d-%06ld_%d_%dx%d.raw",
+            timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,
+            timeinfo->tm_mday, timeinfo->tm_hour,
+            timeinfo->tm_min, timeinfo->tm_sec,tv.tv_usec,
+            frame->frame_idx, dim.width, dim.height);
 
     int file_fd = open(buf, O_RDWR| O_CREAT, 0777);
     if (file_fd >= 0) {
