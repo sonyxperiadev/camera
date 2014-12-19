@@ -274,69 +274,66 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
     m_parent->m_cbNotifier.startSnapshots();
 
     // Create Jpeg session
-    if ( !m_parent->mParameters.getRecordingHintValue() &&
-            !m_parent->isLongshotEnabled() &&
-            !m_parent->isZSLMode() && (mTotalNumReproc > 0)) {
+    QCameraChannel *pChannel = NULL;
+    pChannel = m_parent->needReprocess() ? mPPChannels[0] : pSrcChannel;
+    QCameraStream *pSnapshotStream = NULL;
+    QCameraStream *pThumbStream = NULL;
 
-        QCameraChannel *pChannel = NULL;
-        pChannel = m_parent->needReprocess() ? mPPChannels[0] : pSrcChannel;
-        QCameraStream *pSnapshotStream = NULL;
-        QCameraStream *pThumbStream = NULL;
+    for (uint32_t i = 0; i < pChannel->getNumOfStreams(); ++i) {
+        QCameraStream *pStream = pChannel->getStreamByIndex(i);
 
-        for (uint32_t i = 0; i < pChannel->getNumOfStreams(); ++i) {
-            QCameraStream *pStream = pChannel->getStreamByIndex(i);
+        if ( NULL == pStream ) {
+            break;
+        }
+
+        if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
+                pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
+            pSnapshotStream = pStream;
+        }
+
+        if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
+                pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
+            pThumbStream = pStream;
+        }
+    }
+
+    // If thumbnail is not part of the reprocess channel, then
+    // try to get it from the source channel
+    if ((NULL == pThumbStream) && (pChannel == mPPChannels[0])) {
+        for (uint32_t i = 0; i < pSrcChannel->getNumOfStreams(); ++i) {
+            QCameraStream *pStream = pSrcChannel->getStreamByIndex(i);
 
             if ( NULL == pStream ) {
                 break;
             }
 
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
-                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
-                pSnapshotStream = pStream;
-            }
-
             if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
+                    pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
                 pThumbStream = pStream;
             }
         }
+    }
 
-        // If thumbnail is not part of the reprocess channel, then
-        // try to get it from the source channel
-        if ((NULL == pThumbStream) && (pChannel == mPPChannels[0])) {
-            for (uint32_t i = 0; i < pSrcChannel->getNumOfStreams(); ++i) {
-                QCameraStream *pStream = pSrcChannel->getStreamByIndex(i);
+    if (m_parent->mParameters.generateThumbFromMain()) {
+        pThumbStream = NULL;
+    }
 
-                if ( NULL == pStream ) {
-                    break;
-                }
+    if ( NULL != pSnapshotStream ) {
+        mm_jpeg_encode_params_t encodeParam;
+        memset(&encodeParam, 0, sizeof(mm_jpeg_encode_params_t));
+        getJpegEncodingConfig(encodeParam, pSnapshotStream, pThumbStream);
+        CDBG_HIGH("[KPI Perf] %s : call jpeg create_session", __func__);
 
-                if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
-                    pThumbStream = pStream;
-                }
-            }
+        rc = mJpegHandle.create_session(mJpegClientHandle,
+                &encodeParam,
+                &mJpegSessionId);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: error creating a new jpeg encoding session", __func__);
+            return rc;
         }
-
-        if (m_parent->mParameters.generateThumbFromMain()) {
-            pThumbStream = NULL;
-        }
-
-        if ( NULL != pSnapshotStream ) {
-            mm_jpeg_encode_params_t encodeParam;
-            memset(&encodeParam, 0, sizeof(mm_jpeg_encode_params_t));
-            getJpegEncodingConfig(encodeParam, pSnapshotStream, pThumbStream);
-            CDBG_HIGH("[KPI Perf] %s : call jpeg create_session", __func__);
-
-            rc = mJpegHandle.create_session(mJpegClientHandle,
-                    &encodeParam,
-                    &mJpegSessionId);
-            if (rc != NO_ERROR) {
-                ALOGE("%s: error creating a new jpeg encoding session", __func__);
-                return rc;
-            }
-            mNewJpegSessionNeeded = false;
-        }
+        mNewJpegSessionNeeded = false;
     }
 
     return rc;
