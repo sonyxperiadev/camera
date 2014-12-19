@@ -309,7 +309,7 @@ int QCameraMemory::alloc(int count, size_t size, unsigned int heap_id,
 
     for (int i = mBufferCount; i < new_bufCnt; i ++) {
         if ( NULL == mMemoryPool ) {
-            ALOGE("%s : No memory pool available", __func__);
+            CDBG_HIGH("%s : No memory pool available, allocating now", __func__);
             rc = allocOneBuffer(mMemInfo[i], heap_id, size, m_bCached,
                      secure_mode);
             if (rc < 0) {
@@ -619,7 +619,7 @@ int QCameraMemoryPool::allocateBuffer(
 
     rc = findBufferLocked(memInfo, heap_id, size, cached, streamType);
     if (NAME_NOT_FOUND == rc ) {
-        ALOGE("%s : Buffer not found!", __func__);
+        CDBG_HIGH("%s : Buffer not found!", __func__);
         rc = QCameraMemory::allocOneBuffer(memInfo, heap_id, size, cached,
                  secure_mode);
     }
