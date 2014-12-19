@@ -379,6 +379,9 @@ typedef struct{
     /* Analysis recommended size */
     cam_dimension_t analysis_recommended_res;
 
+    /* Analysis recommended format */
+    cam_format_t analysis_recommended_format;
+
     /* This is set to 'true' if sensor cannot guarantee per frame control */
     /* Default value of this capability is 'false' indicating per-frame */
     /* control is supported */
