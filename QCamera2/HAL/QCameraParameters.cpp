@@ -1334,6 +1334,30 @@ int32_t QCameraParameters::setVideoSize(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : getLiveSnapshotSize
+ *
+ * DESCRIPTION: get live snapshot size
+ *
+ * PARAMETERS : dim - Update dim with the liveshot size
+ *
+ *==========================================================================*/
+void QCameraParameters::getLiveSnapshotSize(cam_dimension_t &dim)
+{
+    if(is4k2kVideoResolution()) {
+        // We support maximum 8M liveshot @4K2K video resolution
+        cam_dimension_t resolution = {0, 0};
+        CameraParameters::getVideoSize(&resolution.width, &resolution.height);
+        if((m_LiveSnapshotSize.width > resolution.width) ||
+                (m_LiveSnapshotSize.height > resolution.height)) {
+            m_LiveSnapshotSize.width = resolution.width;
+            m_LiveSnapshotSize.height = resolution.height;
+        }
+    }
+    dim = m_LiveSnapshotSize;
+    CDBG_HIGH("%s: w x h: %d x %d", __func__, dim.width, dim.height);
+}
+
+/*===========================================================================
  * FUNCTION   : setLiveSnapshotSize
  *
  * DESCRIPTION: set live snapshot size
@@ -1359,7 +1383,7 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
     cam_dimension_t *livesnapshot_sizes_tbl =
             &m_pCapability->livesnapshot_sizes_tbl[0];
 
-    if(is4k2kVideoResolution() && m_bRecordingHint) {
+    if(is4k2kVideoResolution()) {
         // We support maximum 8M liveshot @4K2K video resolution
         cam_dimension_t resolution = {0, 0};
         CameraParameters::getVideoSize(&resolution.width, &resolution.height);
