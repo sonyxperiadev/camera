@@ -10239,7 +10239,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             stream_config_info.num_streams++;
         }
     }
-    if (raw_yuv && !raw_capture && (isZSLMode() || getofflineRAW())) {
+    if (raw_yuv && !raw_capture && (isZSLMode() ||
+            (getofflineRAW() && isCapture && !getRecordingHintValue()))) {
         cam_dimension_t max_dim = {0,0};
         updateRAW(max_dim);
         stream_config_info.type[stream_config_info.num_streams] =
