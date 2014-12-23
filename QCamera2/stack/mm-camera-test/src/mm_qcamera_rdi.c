@@ -37,13 +37,13 @@ static void mm_app_rdi_dump_frame(mm_camera_buf_def_t *frame,
                                   char *ext,
                                   uint32_t frame_idx)
 {
-    char file_name[64];
+    char file_name[FILENAME_MAX];
     int file_fd;
     int i;
 
     if (frame != NULL) {
-        snprintf(file_name, sizeof(file_name), "/data/%s_%03u.%s", name,
-            frame_idx, ext);
+        snprintf(file_name, sizeof(file_name),
+            QCAMERA_DUMP_FRM_LOCATION"%s_%03u.%s", name, frame_idx, ext);
         file_fd = open(file_name, O_RDWR | O_CREAT, 0777);
         if (file_fd < 0) {
             CDBG_ERROR("%s: cannot open file %s \n", __func__, file_name);
@@ -63,7 +63,7 @@ static void mm_app_rdi_dump_frame(mm_camera_buf_def_t *frame,
 static void mm_app_rdi_notify_cb(mm_camera_super_buf_t *bufs,
                                  void *user_data)
 {
-    char file_name[64];
+    char file_name[FILENAME_MAX];
     mm_camera_buf_def_t *frame = bufs->bufs[0];
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
 

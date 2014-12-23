@@ -1889,7 +1889,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         CDBG_HIGH("%s:%d] True portrait result header %d% dims dx%d", __func__, __LINE__,
                 tpMetaSize, tpResult->width, tpResult->height);
 
-        CAM_DUMP_TO_FILE("/data/camera/local/tp", "bm", -1, "y",
+        CAM_DUMP_TO_FILE(QCAMERA_DUMP_FRM_LOCATION"tp", "bm", -1, "y",
                 &tpResult->data, tpMetaSize);
     }
 

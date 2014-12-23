@@ -44,7 +44,6 @@
         ((size + (typeof(size))(padding - 1)) & \
         (typeof(size))(~(padding - 1)))
 
-#define CAM_FN_CNT 255
 /** CAM_DUMP_TO_FILE:
  *  @filename: file name
  *  @name:filename
@@ -57,11 +56,11 @@
  **/
 #define CAM_DUMP_TO_FILE(path, name, index, extn, p_addr, len) ({ \
   size_t rc = 0; \
-  char filename[CAM_FN_CNT]; \
+  char filename[FILENAME_MAX]; \
   if (index >= 0) \
-    snprintf(filename, CAM_FN_CNT, "%s/%s%d.%s", path, name, index, extn); \
+    snprintf(filename, FILENAME_MAX, "%s/%s%d.%s", path, name, index, extn); \
   else \
-    snprintf(filename, CAM_FN_CNT, "%s/%s.%s", path, name, extn); \
+    snprintf(filename, FILENAME_MAX, "%s/%s.%s", path, name, extn); \
   FILE *fp = fopen(filename, "w+"); \
   if (fp) { \
     rc = fwrite(p_addr, 1, len, fp); \
