@@ -2513,8 +2513,10 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
             rc = configureAFBracketing(false);
         } else if (mParameters.isChromaFlashEnabled()) {
             rc = configureFlashBracketing(false);
-        } else  if (mParameters.isOptiZoomEnabled()) {
+        } else if (mParameters.isOptiZoomEnabled()) {
             rc = mParameters.setAndCommitZoom(mZoomLevel);
+        } else if (mParameters.isStillMoreEnabled()) {
+            CDBG_HIGH("%s: unconfiguration not needed for StillMore", __func__);
         } else {
             ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
             rc = BAD_VALUE;
@@ -2553,6 +2555,8 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         rc = configureHDRBracketing();
     } else if (mParameters.isAEBracketEnabled()) {
         rc = configureAEBracketing();
+    } else if (mParameters.isStillMoreEnabled()) {
+        CDBG_HIGH("%s: configuration not needed for StillMore", __func__);
     } else {
         ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
         rc = BAD_VALUE;
@@ -2785,6 +2789,8 @@ int32_t QCamera2HardwareInterface::stopAdvancedCapture(
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_AE_BRACKETING);
     } else if (mParameters.isOptiZoomEnabled()) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_ZOOM_1X);
+    } else if (mParameters.isStillMoreEnabled()) {
+        CDBG_HIGH("%s: stopAdvancedCapture not needed for StillMore", __func__);
     } else {
         ALOGE("%s: No Advanced Capture feature enabled!",__func__);
         rc = BAD_VALUE;
@@ -2818,6 +2824,8 @@ int32_t QCamera2HardwareInterface::startAdvancedCapture(
         rc = pChannel->startAdvancedCapture(MM_CAMERA_AE_BRACKETING);
     } else if (mParameters.isOptiZoomEnabled()) {
         rc = pChannel->startAdvancedCapture(MM_CAMERA_ZOOM_1X);
+    } else if (mParameters.isStillMoreEnabled()) {
+        CDBG_HIGH("%s: startAdvancedCapture not needed for StillMore", __func__);
     } else {
         ALOGE("%s: No Advanced Capture feature enabled!",__func__);
         rc = BAD_VALUE;
@@ -2856,7 +2864,8 @@ int QCamera2HardwareInterface::takePicture()
             mParameters.isOptiZoomEnabled() ||
             mParameters.isHDREnabled() ||
             mParameters.isChromaFlashEnabled() ||
-            mParameters.isAEBracketEnabled()) {
+            mParameters.isAEBracketEnabled() ||
+            mParameters.isStillMoreEnabled()) {
         rc = configureAdvancedCapture();
         if (rc == NO_ERROR) {
             numSnapshots = mParameters.getBurstCountForAdvancedCapture();
@@ -2887,7 +2896,8 @@ int QCamera2HardwareInterface::takePicture()
                     mParameters.isOptiZoomEnabled() ||
                     mParameters.isHDREnabled() ||
                     mParameters.isChromaFlashEnabled() ||
-                    mParameters.isAEBracketEnabled()) {
+                    mParameters.isAEBracketEnabled() ||
+                    mParameters.isStillMoreEnabled()) {
                 rc = startAdvancedCapture(pZSLChannel);
                 if (rc != NO_ERROR) {
                     ALOGE("%s: cannot start zsl advanced capture", __func__);
@@ -5528,6 +5538,12 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_TRUEPORTRAIT;
             }
 
+            if(mParameters.isStillMoreEnabled()) {
+                pp_config.feature_mask |= CAM_QCOM_FEATURE_STILLMORE;
+            } else {
+                pp_config.feature_mask &= ~CAM_QCOM_FEATURE_STILLMORE;
+            }
+
             if (curCount != mParameters.getReprocCount()) {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_PP_PASS_2;
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_ROTATION;
@@ -6733,12 +6749,14 @@ bool QCamera2HardwareInterface::needReprocess()
             mParameters.isUbiRefocus() |
             mParameters.isChromaFlashEnabled() |
             mParameters.isHDREnabled() |
-            mParameters.isOptiZoomEnabled()) {
-        CDBG_HIGH("%s: need reprocess for |UbiFocus=%d|ChramaFlash=%d|OptiZoom=%d|",
-                                         __func__,
-                                         mParameters.isUbiFocusEnabled(),
-                                         mParameters.isChromaFlashEnabled(),
-                                         mParameters.isOptiZoomEnabled());
+            mParameters.isOptiZoomEnabled() |
+            mParameters.isStillMoreEnabled()) {
+        CDBG_HIGH("%s: need reprocess for |UbiFocus=%d|ChramaFlash=%d|OptiZoom=%d|StillMore=%d|",
+                 __func__,
+                mParameters.isUbiFocusEnabled(),
+                mParameters.isChromaFlashEnabled(),
+                mParameters.isOptiZoomEnabled(),
+                mParameters.isStillMoreEnabled());
         pthread_mutex_unlock(&m_parm_lock);
         return true;
     }
