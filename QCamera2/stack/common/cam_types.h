@@ -1687,9 +1687,10 @@ typedef struct {
 #define CAM_QCOM_FEATURE_CPP_TNR        (1U<<17)
 #define CAM_QCOM_FEATURE_RAW_PROCESSING (1U<<18)
 #define CAM_QCOM_FEATURE_TRUEPORTRAIT   (1U<<19)
-#define CAM_QCOM_FEATURE_MAX            (1U<<20)
-#define CAM_QCOM_FEATURE_LLVD           (1U<<21)
-#define CAM_QCOM_FEATURE_DIS20          (1U<<22)
+#define CAM_QCOM_FEATURE_LLVD           (1U<<20)
+#define CAM_QCOM_FEATURE_DIS20          (1U<<21)
+#define CAM_QCOM_FEATURE_STILLMORE      (1U<<22)
+#define CAM_QCOM_FEATURE_MAX            (1U<<23)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC)
@@ -1728,6 +1729,10 @@ typedef enum {
     CAM_ONLINE_REPROCESS_TYPE,    /* online reprocess, frames from running streams */
     CAM_OFFLINE_REPROCESS_TYPE,   /* offline reprocess, frames from external source */
 } cam_reprocess_type_enum_t;
+
+typedef struct {
+    uint8_t burst_count;
+} cam_still_more_t;
 
 typedef enum {
     CAM_HDR_MODE_SINGLEFRAME,    /* Single frame HDR mode which does only tone mapping */

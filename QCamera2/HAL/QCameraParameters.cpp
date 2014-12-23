@@ -136,12 +136,14 @@ const char QCameraParameters::KEY_QC_CHROMA_FLASH[] = "chroma-flash";
 const char QCameraParameters::KEY_QC_SUPPORTED_CHROMA_FLASH_MODES[] = "chroma-flash-values";
 const char QCameraParameters::KEY_QC_OPTI_ZOOM[] = "opti-zoom";
 const char QCameraParameters::KEY_QC_SEE_MORE[] = "see-more";
+const char QCameraParameters::KEY_QC_STILL_MORE[] = "still-more";
 const char QCameraParameters::KEY_QC_SUPPORTED_OPTI_ZOOM_MODES[] = "opti-zoom-values";
 const char QCameraParameters::KEY_QC_HDR_MODE[] = "hdr-mode";
 const char QCameraParameters::KEY_QC_SUPPORTED_KEY_QC_HDR_MODES[] = "hdr-mode-values";
 const char QCameraParameters::KEY_QC_TRUE_PORTRAIT[] = "true-portrait";
 const char QCameraParameters::KEY_QC_SUPPORTED_TRUE_PORTRAIT_MODES[] = "true-portrait-values";
 const char QCameraParameters::KEY_QC_SUPPORTED_SEE_MORE_MODES[] = "see-more-values";
+const char QCameraParameters::KEY_QC_SUPPORTED_STILL_MORE_MODES[] = "still-more-values";
 const char QCameraParameters::KEY_INTERNAL_PERVIEW_RESTART[] = "internal-restart";
 const char QCameraParameters::KEY_QC_RDI_MODE[] = "rdi-mode";
 const char QCameraParameters::KEY_QC_SUPPORTED_RDI_MODES[] = "rdi-mode-values";
@@ -336,6 +338,10 @@ const char QCameraParameters::CHROMA_FLASH_ON[] = "chroma-flash-on";
 // Values for Opti Zoom setting.
 const char QCameraParameters::OPTI_ZOOM_OFF[] = "opti-zoom-off";
 const char QCameraParameters::OPTI_ZOOM_ON[] = "opti-zoom-on";
+
+// Values for Still More setting.
+const char QCameraParameters::STILL_MORE_OFF[] = "still-more-off";
+const char QCameraParameters::STILL_MORE_ON[] = "still-more-on";
 
 // Values for HDR mode setting.
 const char QCameraParameters::HDR_MODE_SENSOR[] = "hdr-mode-sensor";
@@ -654,6 +660,12 @@ const QCameraParameters::QCameraMap<int>
     { TRUE_PORTRAIT_ON,  1 }
 };
 
+const QCameraParameters::QCameraMap<int>
+        QCameraParameters::STILL_MORE_MODES_MAP[] = {
+    { STILL_MORE_OFF, 0 },
+    { STILL_MORE_ON,  1 }
+};
+
 const QCameraParameters::QCameraMap<cam_cds_mode_type_t>
         QCameraParameters::CDS_MODES_MAP[] = {
     { CDS_MODE_OFF, CAM_CDS_MODE_OFF },
@@ -739,6 +751,7 @@ QCameraParameters::QCameraParameters()
       m_bSceneSelection(false),
       m_SelectedScene(CAM_SCENE_MODE_MAX),
       m_bSeeMoreOn(false),
+      m_bStillMoreOn(false),
       m_bHfrMode(false),
       m_bSensorHDREnabled(false),
       m_bRdiMode(false),
@@ -836,6 +849,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bSceneSelection(false),
     m_SelectedScene(CAM_SCENE_MODE_MAX),
     m_bSeeMoreOn(false),
+    m_bStillMoreOn(false),
     m_bHfrMode(false),
     m_bSensorHDREnabled(false),
     m_bRdiMode(false),
@@ -3287,6 +3301,37 @@ int32_t QCameraParameters::setSeeMore(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : setStillMore
+ *
+ * DESCRIPTION: set stillmore from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setStillMore(const QCameraParameters& params)
+{
+    if ((m_pCapability->qcom_supported_feature_mask &
+            CAM_QCOM_FEATURE_STILLMORE) == 0) {
+        CDBG("%s: Stillmore is not supported",__func__);
+        return NO_ERROR;
+    }
+    const char *str = params.get(KEY_QC_STILL_MORE);
+    const char *prev_str = get(KEY_QC_STILL_MORE);
+    CDBG_HIGH("%s: str =%s & prev_str =%s", __func__, str, prev_str);
+    if (str != NULL) {
+        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
+            m_bNeedRestart = true;
+            return setStillMore(str);
+        }
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : setRedeyeReduction
  *
  * DESCRIPTION: set red eye reduction setting from user setting
@@ -4262,6 +4307,7 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setPAAF()))                               final_rc = rc;
     if ((rc = setMobicat(params)))                      final_rc = rc;
     if ((rc = setSeeMore(params)))                      final_rc = rc;
+    if ((rc = setStillMore(params)))                    final_rc = rc;
 
     if ((rc = updateFlash(false)))                      final_rc = rc;
 
@@ -4846,6 +4892,16 @@ int32_t QCameraParameters::initDefaultParameters()
             CAM_QCOM_FEATURE_LLVD) {
         set(KEY_QC_SUPPORTED_SEE_MORE_MODES, onOffValues);
         setSeeMore(VALUE_OFF);
+    }
+
+    //Set Still more
+    if (m_pCapability->qcom_supported_feature_mask &
+            CAM_QCOM_FEATURE_STILLMORE) {
+        String8 stillMoreValues = createValuesStringFromMap(
+                STILL_MORE_MODES_MAP,
+                PARAM_MAP_SIZE(STILL_MORE_MODES_MAP));
+        set(KEY_QC_SUPPORTED_STILL_MORE_MODES, stillMoreValues);
+        setStillMore(STILL_MORE_OFF);
     }
 
     //Set Scene Detection
@@ -7181,6 +7237,36 @@ int32_t QCameraParameters::setSeeMore(const char *seeMoreStr)
 }
 
 /*===========================================================================
+ * FUNCTION   : setStillMore
+ *
+ * DESCRIPTION: set still more value
+ *
+ * PARAMETERS :
+ *   @seeMoreStr : still more value string
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setStillMore(const char *stillMoreStr)
+{
+    CDBG_HIGH("%s: stillMoreStr =%s", __func__, stillMoreStr);
+    if (stillMoreStr != NULL) {
+        int value = lookupAttr(STILL_MORE_MODES_MAP, PARAM_MAP_SIZE(STILL_MORE_MODES_MAP),
+                stillMoreStr);
+        if (value != NAME_NOT_FOUND) {
+            m_bStillMoreOn = (value != 0);
+            updateParamEntry(KEY_QC_STILL_MORE, stillMoreStr);
+
+            return NO_ERROR;
+        }
+    }
+    ALOGE("Invalid still more value: %s",
+            (stillMoreStr == NULL) ? "NULL" : stillMoreStr);
+    return BAD_VALUE;
+}
+
+/*===========================================================================
  * FUNCTION   : setHDRNeed1x
  *
  * DESCRIPTION: set hdr need 1x value
@@ -8156,6 +8242,9 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
         //number of snapshots required for Chroma Flash.
         //TODO: remove hardcoded value, add in capability.
         burstCount = 2;
+    } else if (isStillMoreEnabled()) {
+        //number of snapshots required for Still More.
+        burstCount = m_pCapability->stillmore_settings_need.burst_count;
     } else if (isHDREnabled()) {
         //number of snapshots required for HDR.
         burstCount = m_pCapability->hdr_bracketing_setting.num_frames;
@@ -10334,11 +10423,13 @@ int32_t QCameraParameters::addOnlineRotation(int32_t rotation, uint32_t streamId
 bool QCameraParameters::needThumbnailReprocess(uint32_t *pFeatureMask)
 {
     if (isUbiFocusEnabled() || isChromaFlashEnabled() ||
-        isOptiZoomEnabled() || isUbiRefocus()) {
+            isOptiZoomEnabled() || isUbiRefocus() ||
+            isStillMoreEnabled()) {
         *pFeatureMask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_UBIFOCUS;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_REFOCUS;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_OPTIZOOM;
+        *pFeatureMask &= ~CAM_QCOM_FEATURE_STILLMORE;
         return false;
     } else {
         return true;
@@ -10367,6 +10458,8 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
         numOfBufs += m_pCapability->opti_zoom_settings_need.burst_count - 1;
     } else if (isChromaFlashEnabled()) {
         numOfBufs += 1; /* flash and non flash */
+    } else if (isStillMoreEnabled()) {
+        numOfBufs += m_pCapability->stillmore_settings_need.burst_count - 1;
     }
 
     return (uint8_t)(numOfBufs * getBurstNum());
@@ -10799,6 +10892,9 @@ String8 QCameraParameters::dump()
     str += s;
 
     snprintf(s, 128, "isOptiZoomEnabled: %d\n", isOptiZoomEnabled());
+    str += s;
+
+    snprintf(s, 128, "isStillMoreEnabled: %d\n", isStillMoreEnabled());
     str += s;
 
     snprintf(s, 128, "getBurstCountForAdvancedCapture: %d\n",
