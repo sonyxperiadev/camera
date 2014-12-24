@@ -5639,10 +5639,12 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
             __func__, min_fps, max_fps, vid_min_fps, vid_max_fps);
 
     if ( NULL != m_AdjustFPS ) {
-        m_AdjustFPS->recalcFPSRange(min_fps, max_fps, fps_range);
-        CDBG_HIGH("%s: Thermal adjusted Preview fps range %3.2f,%3.2f, %3.2f, %3.2f",
-              __func__, fps_range.min_fps, fps_range.max_fps,
-              fps_range.video_min_fps, fps_range.video_max_fps);
+        if (m_ThermalMode == QCAMERA_THERMAL_ADJUST_FPS) {
+            m_AdjustFPS->recalcFPSRange(min_fps, max_fps, fps_range);
+            CDBG_HIGH("%s: Thermal adjusted Preview fps range %3.2f,%3.2f, %3.2f, %3.2f",
+                  __func__, fps_range.min_fps, fps_range.max_fps,
+                  fps_range.video_min_fps, fps_range.video_max_fps);
+        }
     }
 
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
