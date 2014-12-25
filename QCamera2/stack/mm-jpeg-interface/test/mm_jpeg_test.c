@@ -136,7 +136,7 @@ static const mm_jpeg_intf_test_colfmt_t color_formats[] =
 };
 
 static jpeg_test_input_t jpeg_input[] = {
-  {"/data/test_1.yuv", 4000, 3008, "/data/test_1.jpg", 0, 0,
+  { QCAMERA_DUMP_FRM_LOCATION"test_1.yuv", 4000, 3008, QCAMERA_DUMP_FRM_LOCATION"test_1.jpg", 0, 0,
   { MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2, {3, 2}, "YCRCBLP_H2V2" }, 0, 320, 240, 80, 80}
 };
 

@@ -71,6 +71,7 @@
 #include <math.h>
 
 #include "qcamera_test.h"
+#include "cam_types.h"
 
 #define ERROR(format, ...) printf( \
     "%s[%d] : ERROR: "format"\n", __func__, __LINE__, ##__VA_ARGS__)
@@ -881,7 +882,8 @@ void CameraContext::postData(int32_t msgType,
 
     if (msgType & CAMERA_MSG_COMPRESSED_IMAGE ) {
         String8 jpegPath;
-        jpegPath = jpegPath.format("/sdcard/img_%d.jpg", JpegIdx);
+        jpegPath = jpegPath.format(QCAMERA_DUMP_FRM_LOCATION"img_%d.jpg",
+                JpegIdx);
         if (!mPiPCapture) {
             // Normal capture case
             printf("JPEG done\n");
