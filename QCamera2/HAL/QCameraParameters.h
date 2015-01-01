@@ -623,7 +623,7 @@ public:
     bool isNV16PictureFormat() {return (mPictureFormat == CAM_FORMAT_YUV_422_NV16);};
     bool isNV21PictureFormat() {return (mPictureFormat == CAM_FORMAT_YUV_420_NV21);};
     cam_denoise_process_type_t getDenoiseProcessPlate(cam_intf_parm_type_t type);
-    int32_t getLiveSnapshotSize(cam_dimension_t &dim) {dim = m_LiveSnapshotSize; return NO_ERROR;};
+    void getLiveSnapshotSize(cam_dimension_t &dim);
     int32_t getRawSize(cam_dimension_t &dim) {dim = m_rawSize; return NO_ERROR;};
     int32_t setRawSize(cam_dimension_t &dim);
     int getFlipMode(cam_stream_type_t streamType);
