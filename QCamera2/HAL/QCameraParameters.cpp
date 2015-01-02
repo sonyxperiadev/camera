@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -6831,8 +6831,8 @@ int32_t QCameraParameters::set3ALock(const char *lockStr)
                 if (isUbiFocusEnabled() || isUbiRefocus()) {
                     //For Ubi focus move focus to infinity.
                     focus_mode = CAM_FOCUS_MODE_INFINITY;
-                } else if (isOptiZoomEnabled()){
-                    //For optizoom set focus as fixed.
+                } else if (isOptiZoomEnabled() || isStillMoreEnabled()){
+                    //For optizoom and stillmore, set focus as fixed.
                     focus_mode = CAM_FOCUS_MODE_FIXED;
                 }
             } else {
