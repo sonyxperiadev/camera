@@ -2557,7 +2557,7 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     } else if (mParameters.isAEBracketEnabled()) {
         rc = configureAEBracketing();
     } else if (mParameters.isStillMoreEnabled()) {
-        CDBG_HIGH("%s: configuration not needed for StillMore", __func__);
+        rc = configureStillMore();
     } else {
         ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
         rc = BAD_VALUE;
@@ -2757,6 +2757,27 @@ int32_t QCamera2HardwareInterface::configureOptiZoom()
 
     //set zoom level to 1x;
     mParameters.setAndCommitZoom(0);
+
+    mParameters.set3ALock(QCameraParameters::VALUE_TRUE);
+    mIs3ALocked = true;
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : configureStillMore
+ *
+ * DESCRIPTION: configure StillMore.
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::configureStillMore()
+{
+    int32_t rc = NO_ERROR;
 
     mParameters.set3ALock(QCameraParameters::VALUE_TRUE);
     mIs3ALocked = true;
