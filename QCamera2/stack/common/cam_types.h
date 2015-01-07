@@ -1567,6 +1567,8 @@ typedef enum {
     CAM_INTF_PARM_WB_MANUAL,
     /* Offline Data Overwrite */
     CAM_INTF_PARM_HW_DATA_OVERWRITE,
+    /* IMG LIB reprocess debug section */
+    CAM_INTF_META_IMGLIB, /* cam_intf_meta_imglib_t */
 
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
@@ -2046,5 +2048,22 @@ typedef enum {
     CAM_PERF_NORMAL = 0,
     CAM_PERF_HIGH_PERFORMANCE,
 } cam_perf_mode_t;
+
+typedef struct {
+    float real_gain;
+    float lux_idx;
+    float exp_time;
+} cam_intf_aec_t;
+
+#define CAM_INTF_AEC_DATA_MAX   (10)
+
+typedef struct {
+    uint32_t frame_count;
+    cam_intf_aec_t aec_data[CAM_INTF_AEC_DATA_MAX];
+} cam_intf_meta_imglib_input_aec_t;
+
+typedef struct {
+    cam_intf_meta_imglib_input_aec_t meta_imglib_input_aec;
+} cam_intf_meta_imglib_t;
 
 #endif /* __QCAMERA_TYPES_H__ */
