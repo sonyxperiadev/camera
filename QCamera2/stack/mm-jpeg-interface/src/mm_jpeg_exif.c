@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -539,18 +539,14 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
   memset(&p_3a_params,  0,  sizeof(cam_3a_params_t));
   memset(&p_sensor_params, 0, sizeof(cam_sensor_params_t));
 
-  if (hal_version == CAM_HAL_V1 || !p_meta) {
-    if (!p_meta) {
-      ALOGE("%s:%d] Metadata is null, use cached exif", __func__, __LINE__);
-    }
-    if (p_cam_exif_params) {
-      p_sensor_params = p_cam_exif_params->sensor_params;
+  if (hal_version == CAM_HAL_V1) {
+    if (p_meta && IS_META_AVAILABLE(CAM_INTF_META_AEC_INFO, p_meta)) {
+      cam_3a_params_t *l_3a_params = (cam_3a_params_t*)
+        POINTER_OF_META(CAM_INTF_META_AEC_INFO, p_meta);
+      p_3a_params = *l_3a_params;
+    } else if (p_cam_exif_params) {
       p_3a_params = p_cam_exif_params->cam_3a_params;
     } else {
-      p_sensor_params.focal_length = 0;
-      p_sensor_params.f_number = 0;
-      p_sensor_params.sensing_method = 2;
-      p_sensor_params.crop_factor = 0;
       p_3a_params.exp_time = 0.0;
       p_3a_params.iso_value = 0;
       p_3a_params.metering_mode = CAM_METERING_MODE_UNKNOWN;
@@ -560,6 +556,18 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
       p_3a_params.brightness = 0.0;
     }
 
+    if (p_meta && IS_META_AVAILABLE(CAM_INTF_META_SENSOR_INFO, p_meta)) {
+      cam_sensor_params_t *l_sensor_params = (cam_sensor_params_t*)
+        POINTER_OF_META(CAM_INTF_META_SENSOR_INFO, p_meta);
+      p_sensor_params = *l_sensor_params;
+    } else if (p_cam_exif_params) {
+      p_sensor_params = p_cam_exif_params->sensor_params;
+    } else {
+      p_sensor_params.focal_length = 0;
+      p_sensor_params.f_number = 0;
+      p_sensor_params.sensing_method = 2;
+      p_sensor_params.crop_factor = 0;
+    }
   } else {
     /* Process 3a data */
     int32_t *iso =
