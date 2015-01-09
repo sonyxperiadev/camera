@@ -2760,7 +2760,7 @@ int32_t QCamera2HardwareInterface::configureOptiZoom()
     int32_t rc = NO_ERROR;
 
     //store current zoom level.
-    mZoomLevel = (uint8_t) mParameters.getInt(CameraParameters::KEY_ZOOM);
+    mZoomLevel = mParameters.getParmZoomLevel();
 
     //set zoom level to 1x;
     mParameters.setAndCommitZoom(0);
@@ -5519,8 +5519,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
 
             if(mParameters.isOptiZoomEnabled()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_OPTIZOOM;
-                pp_config.zoom_level =
-                        (uint8_t) mParameters.getInt(CameraParameters::KEY_ZOOM);
+                pp_config.zoom_level = mParameters.getParmZoomLevel();
             } else {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_OPTIZOOM;
             }
