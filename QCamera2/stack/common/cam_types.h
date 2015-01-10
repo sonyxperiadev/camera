@@ -60,6 +60,7 @@
 #define CPPCHROMATIX_SIZE 36000
 #define SWPOSTPROCCHROMATIX_SIZE 36000
 #define AFTUNE_SIZE  10700
+#define A3CHROMATIX_SIZE 30000
 #define MAX_SCALE_SIZES_CNT 8
 #define MAX_SAMP_DECISION_CNT     64
 #define SENSOR_PHYSICAL_SIZE_CNT  2
@@ -755,6 +756,7 @@ typedef struct {
     uint8_t cpp_chromatixData[CPPCHROMATIX_SIZE];
     uint8_t cpp_chromatixSnapData[CPPCHROMATIX_SIZE];
     uint8_t postproc_chromatixData[SWPOSTPROCCHROMATIX_SIZE];
+    uint8_t a3_chromatixData[A3CHROMATIX_SIZE];
 } tune_chromatix_t;
 
 typedef struct {
