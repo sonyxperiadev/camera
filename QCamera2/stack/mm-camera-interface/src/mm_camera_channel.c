@@ -375,7 +375,8 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                     ch_obj->burstSnapNum = 0;
                     ch_obj->stopZslSnapshot = 0;
                     ch_obj->unLockAEC = 1;
-
+                    ch_obj->needLEDFlash = FALSE;
+                    ch_obj->bracketingState = MM_CHANNEL_BRACKETING_STATE_OFF;
                 }
             }
             /* dispatch superbuf */
