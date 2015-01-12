@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -470,6 +470,7 @@ typedef enum {
     CAM_WB_MODE_CLOUDY_DAYLIGHT,
     CAM_WB_MODE_TWILIGHT,
     CAM_WB_MODE_SHADE,
+    CAM_WB_MODE_MANUAL,
     CAM_WB_MODE_OFF,
     CAM_WB_MODE_MAX
 } cam_wb_mode_type;
@@ -493,6 +494,7 @@ typedef enum {
     CAM_ISO_MODE_400,
     CAM_ISO_MODE_800,
     CAM_ISO_MODE_1600,
+    CAM_ISO_MODE_3200,
     CAM_ISO_MODE_MAX
 } cam_iso_mode_type;
 
@@ -531,8 +533,47 @@ typedef enum {
     CAM_FOCUS_MODE_EDOF,
     CAM_FOCUS_MODE_CONTINOUS_VIDEO,
     CAM_FOCUS_MODE_CONTINOUS_PICTURE,
+    CAM_FOCUS_MODE_MANUAL,
     CAM_FOCUS_MODE_MAX
 } cam_focus_mode_type;
+
+typedef enum {
+    CAM_MANUAL_FOCUS_MODE_INDEX,
+    CAM_MANUAL_FOCUS_MODE_DAC_CODE,
+    CAM_MANUAL_FOCUS_MODE_RATIO,
+    CAM_MANUAL_FOCUS_MODE_DIOPTER,
+    CAM_MANUAL_FOCUS_MODE_MAX
+} cam_manual_focus_mode_type;
+
+typedef struct {
+    cam_manual_focus_mode_type flag;
+    union{
+        int32_t af_manual_lens_position_index;
+        int32_t af_manual_lens_position_dac;
+        int32_t af_manual_lens_position_ratio;
+        float af_manual_diopter;
+    };
+} cam_manual_focus_parm_t;
+
+typedef enum {
+    CAM_MANUAL_WB_MODE_CCT,
+    CAM_MANUAL_WB_MODE_GAIN,
+    CAM_MANUAL_WB_MODE_MAX
+} cam_manual_wb_mode_type;
+
+typedef struct {
+    float r_gain;
+    float g_gain;
+    float b_gain;
+} cam_awb_gain_t;
+
+typedef struct {
+    cam_manual_wb_mode_type type;
+    union{
+        int32_t cct;
+        cam_awb_gain_t gains;
+    };
+} cam_manual_wb_parm_t;
 
 typedef enum {
     CAM_SCENE_MODE_OFF,
@@ -903,6 +944,11 @@ typedef struct {
   float focus_distance[CAM_FOCUS_DISTANCE_MAX_INDEX];
 } cam_focus_distances_info_t;
 
+typedef struct {
+    uint32_t scale;
+    float diopter;
+} cam_focus_pos_info_t ;
+
 /* Different autofocus cycle when calling do_autoFocus
  * CAM_AF_COMPLETE_EXISTING_SWEEP: Complete existing sweep
  * if one is ongoing, and lock.
@@ -933,6 +979,7 @@ typedef struct {
     cam_focus_distances_info_t focus_dist;       /* focus distance */
     cam_focus_mode_type focus_mode;        /* focus mode from backend */
     uint32_t focused_frame_idx;
+    int32_t focus_pos;
 } cam_auto_focus_data_t;
 
 typedef struct {
@@ -1030,6 +1077,11 @@ typedef struct {
     int32_t aec_debug_data_size;
     char aec_private_debug_data[AEC_DEBUG_DATA_SIZE];
 } cam_ae_exif_debug_t;
+
+typedef struct {
+    int32_t cct_value;
+    cam_awb_gain_t rgb_gains;
+} cam_awb_params_t;
 
 typedef struct {
     int32_t awb_debug_data_size;
@@ -1165,6 +1217,10 @@ typedef  struct {
     /* Stats buffer exif debug parameters */
     uint8_t is_stats_buffer_exif_debug_valid;
     cam_stats_buffer_exif_debug_t stats_buffer_exif_debug_params;
+
+    /* AWB parameters */
+    uint8_t is_awb_params_valid;
+    cam_awb_params_t awb_params;
 
     /* sensor parameters */
     uint8_t is_sensor_params_valid;
@@ -1480,7 +1536,16 @@ typedef enum {
     CAM_INTF_META_OTP_WB_GRGB, /* 170 */
     /* LED override for EZTUNE */
     CAM_INTF_META_LED_MODE_OVERRIDE,
-
+    /* auto lens position info */
+    CAM_INTF_META_FOCUS_POSITION,
+    /* Manual exposure time */
+    CAM_INTF_PARM_EXPOSURE_TIME,
+    /* AWB meta data info */
+    CAM_INTF_META_AWB_INFO,
+    /* Manual lens position info */
+    CAM_INTF_PARM_MANUAL_FOCUS_POS,
+    /* Manual White balance gains */
+    CAM_INTF_PARM_WB_MANUAL,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
