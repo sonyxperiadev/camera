@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -767,10 +767,18 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
         pp_request_job->src_frame = frame;
         pp_request_job->src_reproc_frame = frame;
         pp_request_job->reprocCount = 0;
-        m_inputPPQ.enqueue((void *)pp_request_job);
-
-        //avoid sending frame for reprocessing if o/p buffer is not queued to CPP.
-        triggerEvent = validatePostProcess(frame);
+        if (m_inputPPQ.enqueue((void *)pp_request_job)) {
+            //avoid sending frame for reprocessing if o/p buffer is not queued to CPP.
+            triggerEvent = validatePostProcess(frame);
+        }else {
+            CDBG_HIGH("%s : Input PP Q is not active!!!", __func__);
+            releaseSuperBuf(frame);
+            free(frame);
+            free(pp_request_job);
+            frame = NULL;
+            pp_request_job = NULL;
+            return NO_ERROR;
+        }
     } else if (m_parent->mParameters.isNV16PictureFormat() ||
         m_parent->mParameters.isNV21PictureFormat()) {
         //check if raw frame information is needed.
@@ -811,7 +819,13 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
         }
 
         // enqueu to jpeg input queue
-        m_inputJpegQ.enqueue((void *)jpeg_job);
+        if (!m_inputJpegQ.enqueue((void *)jpeg_job)) {
+            CDBG_HIGH("%s : Input Jpeg Q is not active!!!", __func__);
+            releaseJpegJobData(jpeg_job);
+            free(jpeg_job);
+            jpeg_job = NULL;
+            return NO_ERROR;
+        }
     }
 
     if (triggerEvent){
@@ -841,8 +855,14 @@ int32_t QCameraPostProcessor::processRawData(mm_camera_super_buf_t *frame)
     }
 
     // enqueu to raw input queue
-    m_inputRawQ.enqueue((void *)frame);
-    m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+    if (m_inputRawQ.enqueue((void *)frame)) {
+        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+    } else {
+        CDBG_HIGH("%s : m_inputRawQ is not active!!!", __func__);
+        releaseSuperBuf(frame);
+        free(frame);
+        frame = NULL;
+    }
     return NO_ERROR;
 }
 
@@ -881,8 +901,14 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
             return NO_MEMORY;
         }
         *saveData = *evt;
-        m_inputSaveQ.enqueue((void *) saveData);
-        m_saveProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+        if (m_inputSaveQ.enqueue((void *) saveData)) {
+            m_saveProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+        } else {
+            CDBG("%s : m_inputSaveQ PP Q is not active!!!", __func__);
+            free(saveData);
+            saveData = NULL;
+            return rc;
+        }
     } else {
         // Release jpeg job data
         m_ongoingJpegQ.flushNodes(matchJobId, (void*)&evt->jobId);
@@ -1073,9 +1099,15 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         pp_request_job->src_reproc_frame = job->src_reproc_frame;
         pp_request_job->reprocCount = mCurReprocCount;
         // enqueu to post proc input queue
-        m_inputPPQ.enqueue((void *)pp_request_job);
-
-        triggerEvent = validatePostProcess(frame);
+        if (m_inputPPQ.enqueue((void *)pp_request_job)) {
+            triggerEvent = validatePostProcess(frame);
+        } else {
+            CDBG_HIGH("%s : m_input PP Q is not active!!!", __func__);
+            releasePPInputData(pp_request_job,this);
+            free(pp_request_job);
+            pp_request_job = NULL;
+            triggerEvent = FALSE;
+        }
     } else {
         //Done with post processing. Send frame to Jpeg
         qcamera_jpeg_data_t *jpeg_job =
@@ -1115,11 +1147,18 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
             // fill in meta data frame ptr
             jpeg_job->metadata = (metadata_buffer_t *)meta_frame->buffer;
         }
-        // enqueu reprocessed frame to jpeg input queue
-        m_inputJpegQ.enqueue((void *)jpeg_job);
 
-        if (m_parent->isLongshotEnabled()) {
-            triggerEvent = validatePostProcess(job->src_frame);
+        // enqueu reprocessed frame to jpeg input queue
+        if (m_inputJpegQ.enqueue((void *)jpeg_job)) {
+            if (m_parent->isLongshotEnabled()) {
+                triggerEvent = validatePostProcess(frame);
+            }
+        } else {
+            CDBG_HIGH("%s : Input Jpeg Q is not active!!!", __func__);
+            releaseJpegJobData(jpeg_job);
+            free(jpeg_job);
+            jpeg_job = NULL;
+            triggerEvent = FALSE;
         }
     }
 
@@ -2449,15 +2488,22 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                         pme->syncStreamParams(jpeg_job->src_frame, NULL);
 
                         // add into ongoing jpeg job Q
-                        pme->m_ongoingJpegQ.enqueue((void *)jpeg_job);
-                        ret = pme->encodeData(jpeg_job,
-                                  pme->mNewJpegSessionNeeded);
-                        if (NO_ERROR != ret) {
-                            // dequeue the last one
-                            pme->m_ongoingJpegQ.dequeue(false);
+                        if (pme->m_ongoingJpegQ.enqueue((void *)jpeg_job)) {
+                            ret = pme->encodeData(jpeg_job,
+                                      pme->mNewJpegSessionNeeded);
+                            if (NO_ERROR != ret) {
+                                // dequeue the last one
+                                pme->m_ongoingJpegQ.dequeue(false);
+                                pme->releaseJpegJobData(jpeg_job);
+                                free(jpeg_job);
+                                jpeg_job = NULL;
+                                pme->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
+                            }
+                        } else {
+                            CDBG_HIGH("%s : m_ongoingJpegQ is not active!!!", __func__);
                             pme->releaseJpegJobData(jpeg_job);
                             free(jpeg_job);
-                            pme->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
+                            jpeg_job = NULL;
                         }
                     }
 
@@ -2603,14 +2649,26 @@ int32_t QCameraPostProcessor::doReprocess()
                 // Don't release source frame after encoding
                 // at this point the source channel will not exist.
                 pp_job->reproc_frame_release = true;
-                m_ongoingPPQ.enqueue((void *)pp_job);
-                ret = mPPChannels[mCurReprocCount]->doReprocessOffline(pp_job->src_frame,
-                        m_parent->mParameters, meta_buf,
-                        m_parent->getJpegRotation());
+                if (m_ongoingPPQ.enqueue((void *)pp_job)) {
+                    ret = mPPChannels[mCurReprocCount]->doReprocessOffline(pp_job->src_frame,
+                            m_parent->mParameters, meta_buf,
+                            m_parent->getJpegRotation());
+                } else {
+                    CDBG_HIGH("%s : m_ongoingJpegQ is not active!!!", __func__);
+                    releaseOngoingPPData(pp_job, this);
+                    free(pp_job);
+                    pp_job = NULL;
+                }
             } else {
 
                 m_bufCountPPQ++;
-                m_ongoingPPQ.enqueue((void *)pp_job);
+                if (!m_ongoingPPQ.enqueue((void *)pp_job)) {
+                    CDBG_HIGH("%s : m_ongoingJpegQ is not active!!!", __func__);
+                    releaseOngoingPPData(pp_job, this);
+                    free(pp_job);
+                    pp_job = NULL;
+                    goto end;
+                }
 
                 int32_t numRequiredPPQBufsForSingleOutput =
                         m_parent->mParameters.getNumberInBufsForSingleShot();
@@ -2629,8 +2687,13 @@ int32_t QCameraPostProcessor::doReprocess()
                             break;
                         }
                         extra_pp_job->reprocCount = pp_job->reprocCount;
-                        // extra_pp_job->src_reproc_frame = pp_job->src_reproc_frame;
-                        m_ongoingPPQ.enqueue((void *)extra_pp_job);
+                        if (!m_ongoingPPQ.enqueue((void *)extra_pp_job)) {
+                            CDBG_HIGH("%s : m_ongoingJpegQ is not active!!!", __func__);
+                            releaseOngoingPPData(extra_pp_job, this);
+                            free(extra_pp_job);
+                            extra_pp_job = NULL;
+                            goto end;
+                        }
                     }
                 }
 
@@ -2651,6 +2714,8 @@ int32_t QCameraPostProcessor::doReprocess()
         ALOGE("%s: no mem for qcamera_pp_data_t", __func__);
         ret = NO_MEMORY;
     }
+
+end:
     free(ppreq_job);
     ppreq_job = NULL;
     return ret;
