@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1421,23 +1421,30 @@ void sort_camera_info(int num_cam)
 {
     int idx = 0, i;
     struct camera_info temp_info[MM_CAMERA_MAX_NUM_SENSORS];
+    char temp_dev_name[MM_CAMERA_MAX_NUM_SENSORS][MM_CAMERA_DEV_NAME_LEN];
     memset(temp_info, 0, sizeof(temp_info));
+    memset(temp_dev_name, 0, sizeof(temp_dev_name));
 
     /* firstly save the back cameras info*/
     for (i = 0; i < num_cam; i++) {
         if (g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) {
-            temp_info[idx++] = g_cam_ctrl.info[i];
+            temp_info[idx] = g_cam_ctrl.info[i];
+            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+                MM_CAMERA_DEV_NAME_LEN);
         }
     }
 
     /* then save the front cameras info*/
     for (i = 0; i < num_cam; i++) {
         if (g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) {
-            temp_info[idx++] = g_cam_ctrl.info[i];
+            temp_info[idx] = g_cam_ctrl.info[i];
+            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+                MM_CAMERA_DEV_NAME_LEN);
         }
     }
 
     memcpy(g_cam_ctrl.info, temp_info, sizeof(temp_info));
+    memcpy(g_cam_ctrl.video_dev_name, temp_dev_name, sizeof(temp_dev_name));
     return;
 }
 
