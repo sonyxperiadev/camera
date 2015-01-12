@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -145,6 +145,9 @@ typedef enum {
     QCAMERA_INTERNAL_EVT_ASD_UPDATE,         // asd update result
     QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT, // Ready for Prepare Snapshot
     QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE, // Led mode override
+    QCAMERA_INTERNAL_EVT_AWB_UPDATE,         // awb update result
+    QCAMERA_INTERNAL_EVT_AE_UPDATE,          // ae update result
+    QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE,   // focus position update result
     QCAMERA_INTERNAL_EVT_MAX
 } qcamera_internal_evt_type_t;
 
@@ -158,6 +161,9 @@ typedef struct {
         cam_crop_data_t crop_data;
         cam_auto_scene_t asd_data;
         cam_flash_mode_t led_data;
+        cam_awb_params_t awb_data;
+        cam_3a_params_t ae_data;
+        cam_focus_pos_info_t focus_pos;
     };
 } qcamera_sm_internal_evt_payload_t;
 

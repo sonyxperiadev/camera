@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -1530,10 +1530,31 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
                 ALOGE("%s: processEvt asd_update failed", __func__);
                 free(payload);
                 payload = NULL;
-
             }
         } else {
             ALOGE("%s: No memory for asd_update qcamera_sm_internal_evt_payload_t", __func__);
+        }
+    }
+
+    if (IS_META_AVAILABLE(CAM_INTF_META_AWB_INFO, pMetaData)) {
+        CDBG_HIGH("%s, metadata for awb params.", __func__);
+        cam_awb_params_t* awb_params =
+                (cam_awb_params_t*)POINTER_OF_META(CAM_INTF_META_AWB_INFO, pMetaData);
+        qcamera_sm_internal_evt_payload_t *payload =
+                (qcamera_sm_internal_evt_payload_t *)
+                malloc(sizeof(qcamera_sm_internal_evt_payload_t));
+        if (NULL != payload) {
+            memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+            payload->evt_type = QCAMERA_INTERNAL_EVT_AWB_UPDATE;
+            payload->awb_data = *awb_params;
+            int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: processEvt awb_update failed", __func__);
+                free(payload);
+                payload = NULL;
+            }
+        } else {
+            ALOGE("%s: No memory for awb_update qcamera_sm_internal_evt_payload_t", __func__);
         }
     }
 
@@ -1559,6 +1580,22 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         pme->mExifParams.cam_3a_params_valid = TRUE;
         pme->mFlashNeeded = ae_params->flash_needed;
         pme->mExifParams.cam_3a_params.brightness = (float) pme->mParameters.getBrightness();
+        qcamera_sm_internal_evt_payload_t *payload =
+                (qcamera_sm_internal_evt_payload_t *)
+                malloc(sizeof(qcamera_sm_internal_evt_payload_t));
+        if (NULL != payload) {
+            memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+            payload->evt_type = QCAMERA_INTERNAL_EVT_AE_UPDATE;
+            payload->ae_data = *ae_params;
+            int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: processEvt ae_update failed", __func__);
+                free(payload);
+                payload = NULL;
+            }
+        } else {
+            ALOGE("%s: No memory for ae_update qcamera_sm_internal_evt_payload_t", __func__);
+        }
     }
     if (IS_META_AVAILABLE(CAM_INTF_META_SENSOR_INFO, pMetaData)) {
         cam_sensor_params_t* sensor_params = (cam_sensor_params_t*)
@@ -1629,6 +1666,28 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             CAM_INTF_META_EDGE_MODE, sizeof(edge_application), &edge_application);
     if (rc != NO_ERROR) {
         ALOGE("%s : Error!! Not able to set sharpness", __func__);
+    }
+
+    if (IS_META_AVAILABLE(CAM_INTF_META_FOCUS_POSITION, pMetaData)) {
+        cam_focus_pos_info_t *cur_pos_info =
+                (cam_focus_pos_info_t *) POINTER_OF_META(CAM_INTF_META_FOCUS_POSITION,
+                        pMetaData);
+        pme->processFocusPositionInfo(*cur_pos_info);
+        qcamera_sm_internal_evt_payload_t *payload =
+            (qcamera_sm_internal_evt_payload_t *)malloc(sizeof(qcamera_sm_internal_evt_payload_t));
+        if (NULL != payload) {
+            memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+            payload->evt_type = QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE;
+            payload->focus_pos = *cur_pos_info;
+            int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: processEvt focus_pos_update failed", __func__);
+                free(payload);
+                payload = NULL;
+            }
+        } else {
+            ALOGE("%s: No memory for focus_pos_update qcamera_sm_internal_evt_payload_t", __func__);
+        }
     }
 
     stream->bufDone(frame->buf_idx);
