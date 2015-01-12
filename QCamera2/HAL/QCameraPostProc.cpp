@@ -1030,6 +1030,7 @@ end:
                     jpeg_mem = NULL;
                 }
             }
+            m_DataMem = NULL;
         }
     }
 
