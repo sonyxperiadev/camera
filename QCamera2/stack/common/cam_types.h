@@ -1765,6 +1765,7 @@ typedef struct {
 #define CAM_MAX_SHADING_MAP_WIDTH 17
 #define CAM_MAX_SHADING_MAP_HEIGHT 13
 #define CAM_MAX_TONEMAP_CURVE_SIZE    512
+#define CAM_MAX_FLASH_BRACKETING    5
 
 typedef struct {
     /* A 1D array of pairs of floats.
@@ -1910,6 +1911,12 @@ typedef struct {
     uint8_t min_burst_count;
     uint8_t max_burst_count;
 } cam_still_more_t;
+
+typedef struct {
+    uint8_t burst_count;
+    uint8_t output_count;
+    uint8_t flash_bracketing[CAM_MAX_FLASH_BRACKETING];
+} cam_chroma_flash_t;
 
 typedef enum {
     CAM_HDR_MODE_SINGLEFRAME,    /* Single frame HDR mode which does only tone mapping */
