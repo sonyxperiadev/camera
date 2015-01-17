@@ -624,6 +624,7 @@ int32_t QCameraStream::calcOffset(cam_stream_info_t *streamInfo)
 
     switch (streamInfo->stream_type) {
     case CAM_STREAM_TYPE_PREVIEW:
+    case CAM_STREAM_TYPE_CALLBACK:
         rc = mm_stream_calc_offset_preview(streamInfo->fmt,
                 &dim,
                 &streamInfo->buf_planes);
@@ -645,8 +646,8 @@ int32_t QCameraStream::calcOffset(cam_stream_info_t *streamInfo)
                 &streamInfo->buf_planes);
         break;
     case CAM_STREAM_TYPE_VIDEO:
-        rc = mm_stream_calc_offset_video(&dim,
-                &streamInfo->buf_planes);
+        rc = mm_stream_calc_offset_video(streamInfo->fmt,
+                &dim, &streamInfo->buf_planes);
         break;
     case CAM_STREAM_TYPE_RAW:
         rc = mm_stream_calc_offset_raw(streamInfo->fmt,

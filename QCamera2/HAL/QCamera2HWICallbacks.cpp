@@ -595,12 +595,14 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     }
 
     // Handle preview data callback
-    if (pme->mDataCb != NULL &&
-            (pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) &&
-            (!pme->mParameters.isSceneSelectionEnabled())) {
-        int32_t rc = pme->sendPreviewCallback(stream, memory, idx);
-        if (NO_ERROR != rc) {
-            ALOGE("%s: Preview callback was not sent succesfully", __func__);
+    if (pme->m_channels[QCAMERA_CH_TYPE_CALLBACK] == NULL) {
+        if (pme->mDataCb != NULL &&
+                (pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) &&
+                (!pme->mParameters.isSceneSelectionEnabled())) {
+            int32_t rc = pme->sendPreviewCallback(stream, memory, idx);
+            if (NO_ERROR != rc) {
+                ALOGE("%s: Preview callback was not sent succesfully", __func__);
+            }
         }
     }
 
@@ -616,7 +618,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
  *
  * PARAMETERS :
  *   @stream    : stream object
- *   @memory    : Gralloc memory allocator
+ *   @memory    : Stream memory allocator
  *   @idx       : buffer index
  *
  * RETURN     : int32_t type of status
@@ -624,7 +626,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCamera2HardwareInterface::sendPreviewCallback(QCameraStream *stream,
-        QCameraGrallocMemory *memory, uint32_t idx)
+        QCameraMemory *memory, uint32_t idx)
 {
     camera_memory_t *previewMem = NULL;
     camera_memory_t *data = NULL;
@@ -1736,6 +1738,63 @@ void QCamera2HardwareInterface::reprocess_stream_cb_routine(mm_camera_super_buf_
 
     pme->m_postprocessor.processPPData(super_frame);
 
+    CDBG_HIGH("[KPI Perf] %s: X", __func__);
+}
+
+/*===========================================================================
+ * FUNCTION   : callback_stream_cb_routine
+ *
+ * DESCRIPTION: function to process CALBACK stream data
+                           Frame will processed and sent to framework
+ *
+ * PARAMETERS :
+ *   @super_frame : received super buffer
+ *   @stream      : stream object
+ *   @userdata    : user data ptr
+ *
+ * RETURN    : None
+ *==========================================================================*/
+void QCamera2HardwareInterface::callback_stream_cb_routine(mm_camera_super_buf_t *super_frame,
+        QCameraStream *stream, void *userdata)
+{
+    ATRACE_CALL();
+    CDBG_HIGH("[KPI Perf] %s: E", __func__);
+    QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
+
+    if (pme == NULL ||
+            pme->mCameraHandle == NULL ||
+            pme->mCameraHandle->camera_handle != super_frame->camera_handle) {
+        ALOGE("%s: camera obj not valid", __func__);
+        // simply free super frame
+        free(super_frame);
+        return;
+    }
+
+    mm_camera_buf_def_t *frame = super_frame->bufs[0];
+    if (NULL == frame) {
+        ALOGE("%s: preview callback frame is NULL", __func__);
+        free(super_frame);
+        return;
+    }
+
+    if (!pme->needProcessPreviewFrame()) {
+        CDBG_HIGH("%s: preview is not running, no need to process", __func__);
+        stream->bufDone(frame->buf_idx);
+        free(super_frame);
+        return;
+    }
+
+    QCameraMemory *previewMemObj = (QCameraMemory *)frame->mem_info;
+    // Handle preview data callback
+    if (pme->mDataCb != NULL &&
+            (pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) &&
+            (!pme->mParameters.isSceneSelectionEnabled())) {
+        int32_t rc = pme->sendPreviewCallback(stream, previewMemObj, frame->buf_idx);
+        if (NO_ERROR != rc) {
+            ALOGE("%s: Preview callback was not sent succesfully", __func__);
+        }
+    }
+    free(super_frame);
     CDBG_HIGH("[KPI Perf] %s: X", __func__);
 }
 

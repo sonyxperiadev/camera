@@ -50,6 +50,7 @@
 #define CAMERA_MIN_JPEG_ENCODING_BUFFERS 2
 #define CAMERA_MIN_VIDEO_BUFFERS         9
 #define CAMERA_LONGSHOT_STAGES           4
+#define CAMERA_MIN_CALLBACK_BUFFERS      5
 
 //This multiplier signifies extra buffers that we need to allocate
 //for the output of pproc
@@ -1689,6 +1690,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             }
         }
         break;
+    case CAM_STREAM_TYPE_CALLBACK:
+        bufferCnt = CAMERA_MIN_CALLBACK_BUFFERS;
+        break;
     case CAM_STREAM_TYPE_ANALYSIS:
     case CAM_STREAM_TYPE_DEFAULT:
     case CAM_STREAM_TYPE_MAX:
@@ -1751,10 +1755,21 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                     new QCameraGrallocMemory(mGetMemory);
 
                 mParameters.getStreamDimension(stream_type, dim);
-                if (grallocMemory)
-                    grallocMemory->setWindowInfo(mPreviewWindow, dim.width,
-                        dim.height, stride, scanline,
-                        mParameters.getPreviewHalPixelFormat());
+                int usage = 0;
+                if(mParameters.isUBWCEnabled()) {
+                    cam_format_t fmt;
+                    mParameters.getStreamFormat(CAM_STREAM_TYPE_PREVIEW,fmt);
+                    if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
+                        //@TODO : Enable when Display team define UBWC usage flag
+                        //usage = GRALLOC_USAGE_PRIVATE_ALLOC_UBWC ;
+                    }
+                }
+                if (grallocMemory) {
+                    grallocMemory->setWindowInfo(mPreviewWindow,
+                            dim.width,dim.height, stride, scanline,
+                            mParameters.getPreviewHalPixelFormat(),
+                            usage);
+                }
                 mem = grallocMemory;
             }
         }
@@ -1797,6 +1812,12 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
             CDBG_HIGH("%s: vidoe buf using cached memory = %d", __func__, bCachedMem);
             mem = new QCameraVideoMemory(mGetMemory, bCachedMem);
         }
+        break;
+    case CAM_STREAM_TYPE_CALLBACK:
+        mem = new QCameraStreamMemory(mGetMemory,
+                bCachedMem,
+                (bPoolMem) ? &m_memoryPool : NULL,
+                stream_type);
         break;
     case CAM_STREAM_TYPE_DEFAULT:
     case CAM_STREAM_TYPE_MAX:
@@ -2121,6 +2142,22 @@ int QCamera2HardwareInterface::setCallBacks(camera_notify_callback notify_cb,
  *==========================================================================*/
 int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
 {
+#if UBWC_PRESENT
+    int32_t rc = NO_ERROR;
+
+    /*Need Special CALLBACK stream incase application requesting for
+       Preview callback  in UBWC case*/
+    if (!(msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
+            (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
+        if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
+            rc = startChannel(QCAMERA_CH_TYPE_CALLBACK);
+            if (rc != NO_ERROR) {
+                ALOGE("%s : START Callback Channel failed", __func__);
+            }
+        }
+    }
+#endif
+
     mMsgEnabled |= msg_type;
     return NO_ERROR;
 }
@@ -2139,6 +2176,21 @@ int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
  *==========================================================================*/
 int QCamera2HardwareInterface::disableMsgType(int32_t msg_type)
 {
+#if UBWC_PRESENT
+    int32_t rc = NO_ERROR;
+
+    /*STOP CALLBACK STREAM*/
+    if ((msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
+            (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
+        if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
+            rc = stopChannel(QCAMERA_CH_TYPE_CALLBACK);
+            if (rc != NO_ERROR) {
+                ALOGE("%s : STOP Callback Channel failed", __func__);
+            }
+        }
+    }
+#endif
+
     mMsgEnabled &= ~msg_type;
     return NO_ERROR;
 }
@@ -2238,6 +2290,7 @@ int QCamera2HardwareInterface::stopPreview()
     ATRACE_CALL();
     CDBG_HIGH("%s: E", __func__);
     // stop preview stream
+    stopChannel(QCAMERA_CH_TYPE_CALLBACK);
     stopChannel(QCAMERA_CH_TYPE_ZSL);
     stopChannel(QCAMERA_CH_TYPE_PREVIEW);
 
@@ -5438,6 +5491,55 @@ int32_t QCamera2HardwareInterface::addMetaDataChannel()
 }
 
 /*===========================================================================
+ * FUNCTION   : addCallbackChannel
+ *
+ * DESCRIPTION: add a callback channel that contains a callback stream
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::addCallbackChannel()
+{
+    int32_t rc = NO_ERROR;
+    QCameraChannel *pChannel = NULL;
+
+    if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
+        delete m_channels[QCAMERA_CH_TYPE_CALLBACK];
+        m_channels[QCAMERA_CH_TYPE_CALLBACK] = NULL;
+    }
+
+    pChannel = new QCameraChannel(mCameraHandle->camera_handle,
+            mCameraHandle->ops);
+    if (NULL == pChannel) {
+        ALOGE("%s: no mem for callback channel", __func__);
+        return NO_MEMORY;
+    }
+
+    rc = pChannel->init(NULL, NULL, this);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: init callback channel failed, ret = %d",
+                __func__, rc);
+        delete pChannel;
+        return rc;
+    }
+
+    rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_CALLBACK,
+            callback_stream_cb_routine, this);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: add callback stream failed, ret = %d", __func__, rc);
+        delete pChannel;
+        return rc;
+    }
+
+    m_channels[QCAMERA_CH_TYPE_CALLBACK] = pChannel;
+    return rc;
+}
+
+
+/*===========================================================================
  * FUNCTION   : addAnalysisChannel
  *
  * DESCRIPTION: add a analysis channel that contains a analysis stream
@@ -5867,6 +5969,9 @@ int32_t QCamera2HardwareInterface::addChannel(qcamera_ch_type_enum_t ch_type)
     case QCAMERA_CH_TYPE_METADATA:
         rc = addMetaDataChannel();
         break;
+    case QCAMERA_CH_TYPE_CALLBACK:
+        rc = addCallbackChannel();
+        break;
     case QCAMERA_CH_TYPE_ANALYSIS:
         rc = addAnalysisChannel();
         break;
@@ -5982,6 +6087,19 @@ int32_t QCamera2HardwareInterface::preparePreview()
             ALOGE("%s[%d]: failed!! rc = %d", __func__, __LINE__, rc);
             return rc;
         }
+
+        if (mParameters.isUBWCEnabled()) {
+            cam_format_t fmt;
+            mParameters.getStreamFormat(CAM_STREAM_TYPE_PREVIEW, fmt);
+            if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
+                rc = addChannel(QCAMERA_CH_TYPE_CALLBACK);
+                if (rc != NO_ERROR) {
+                    delChannel(QCAMERA_CH_TYPE_ZSL);
+                    ALOGE("%s[%d]:failed!! rc = %d", __func__, __LINE__, rc);
+                    return rc;
+                }
+            }
+        }
     } else {
         bool recordingHint = mParameters.getRecordingHintValue();
         if(!isRdiMode() && recordingHint) {
@@ -6002,6 +6120,23 @@ int32_t QCamera2HardwareInterface::preparePreview()
             if (recordingHint) {
                 delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
                 delChannel(QCAMERA_CH_TYPE_VIDEO);
+            }
+        }
+
+        if (mParameters.isUBWCEnabled() && !recordingHint) {
+            cam_format_t fmt;
+            mParameters.getStreamFormat(CAM_STREAM_TYPE_PREVIEW, fmt);
+            if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
+                rc = addChannel(QCAMERA_CH_TYPE_CALLBACK);
+                if (rc != NO_ERROR) {
+                    delChannel(QCAMERA_CH_TYPE_PREVIEW);
+                    if (!isRdiMode()) {
+                        delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
+                        delChannel(QCAMERA_CH_TYPE_VIDEO);
+                    }
+                    ALOGE("%s[%d]:failed!! rc = %d", __func__, __LINE__, rc);
+                    return rc;
+                }
             }
         }
 
@@ -6034,6 +6169,7 @@ void QCamera2HardwareInterface::unpreparePreview()
     delChannel(QCAMERA_CH_TYPE_PREVIEW);
     delChannel(QCAMERA_CH_TYPE_VIDEO);
     delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
+    delChannel(QCAMERA_CH_TYPE_CALLBACK);
 }
 
 /*===========================================================================

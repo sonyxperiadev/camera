@@ -750,6 +750,7 @@ public:
     int32_t setAecLock(const char *aecStr);
     int32_t updateDebugLevel();
     bool is4k2kVideoResolution();
+    bool isUBWCEnabled();
     int getBrightness();
     int32_t updateOisValue(bool oisValue);
     int32_t setIntEvent(cam_int_evt_params_t params);
@@ -981,6 +982,7 @@ private:
     bool m_bDebugFps;               // if FPS need to be logged
     cam_focus_mode_type mFocusMode;
     cam_format_t mPreviewFormat;
+    cam_format_t mAppPreviewFormat;
     int32_t mPictureFormat;         // could be CAMERA_PICTURE_TYPE_JPEG or cam_format_t
     bool m_bNeedRestart;            // if preview needs restart after parameters updated
     bool m_bNoDisplayMode;
