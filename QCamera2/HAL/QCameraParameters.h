@@ -666,6 +666,7 @@ public:
     int32_t updateRAW(cam_dimension_t max_dim);
     bool isAVTimerEnabled();
     bool isDISEnabled();
+    cam_is_type_t getISType();
     uint8_t getMobicatMask();
 
     cam_focus_mode_type getFocusMode() const {return mFocusMode;};
@@ -960,6 +961,7 @@ private:
     mm_camera_vtbl_t *m_pCamOpsTbl;
     QCameraHeapMemory *m_pParamHeap;
     parm_buffer_t     *m_pParamBuf;  // ptr to param buf in m_pParamHeap
+    cam_is_type_t mIsType;
 
     bool m_bZslMode;                // if ZSL is enabled
     bool m_bZslMode_new;

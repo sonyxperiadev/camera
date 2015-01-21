@@ -759,6 +759,7 @@ QCameraParameters::QCameraParameters()
       m_pCamOpsTbl(NULL),
       m_pParamHeap(NULL),
       m_pParamBuf(NULL),
+      mIsType(IS_TYPE_NONE),
       m_bZslMode(false),
       m_bZslMode_new(false),
       m_bForceZslMode(false),
@@ -10828,6 +10829,21 @@ bool QCameraParameters::isDISEnabled()
 }
 
 /*===========================================================================
+* FUNCTION   : getISType
+*
+* DESCRIPTION: returns IS type
+*
+* PARAMETERS : none
+*
+* RETURN     : IS type
+*
+*==========================================================================*/
+cam_is_type_t QCameraParameters::getISType()
+{
+    return mIsType;
+}
+
+/*===========================================================================
  * FUNCTION   : MobicatMask
  *
  * DESCRIPTION: returns mobicat mask
@@ -10964,6 +10980,15 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
 
     } else if (!isCapture) {
         if (m_bRecordingHint) {
+            if (m_bDISEnabled) {
+                char value[PROPERTY_VALUE_MAX];
+                // Make default value for IS_TYPE as IS_TYPE_EIS_2_0
+                property_get("persist.camera.is_type", value, "4");
+                mIsType = static_cast<cam_is_type_t>(atoi(value));
+            } else {
+                mIsType = IS_TYPE_NONE;
+            }
+            stream_config_info.is_type = mIsType;
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_SNAPSHOT;
             getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
