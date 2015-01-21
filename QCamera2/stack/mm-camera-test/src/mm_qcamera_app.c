@@ -233,36 +233,166 @@ int mm_app_cache_ops(mm_camera_app_meminfo_t *mem_info,
     return ret;
 }
 
-void mm_app_dump_frame(mm_camera_buf_def_t *frame,
-                       char *name,
-                       char *ext,
-                       uint32_t frame_idx)
-{
-    char file_name[FILENAME_MAX];
-    int file_fd;
-    int i;
-    int offset = 0;
-    if ( frame != NULL) {
-        snprintf(file_name, sizeof(file_name),
-                QCAMERA_DUMP_FRM_LOCATION"test/%s_%04d.%s", name, frame_idx, ext);
-        file_fd = open(file_name, O_RDWR | O_CREAT, 0777);
-        if (file_fd < 0) {
-            CDBG_ERROR("%s: cannot open file %s \n", __func__, file_name);
-        } else {
-            for (i = 0; i < frame->planes_buf.num_planes; i++) {
-                CDBG("%s: saving file from address: %p, data offset: %d, "
-                     "length: %d \n", __func__, frame->buffer,
-                    frame->planes_buf.planes[i].data_offset, frame->planes_buf.planes[i].length);
-                write(file_fd,
-                      (uint8_t *)frame->buffer + offset,
-                      frame->planes_buf.planes[i].length);
-                offset += (int)frame->planes_buf.planes[i].length;
-            }
 
-            close(file_fd);
-            CDBG("dump %s", file_name);
-        }
+int mm_app_dump_frame(mm_camera_test_obj_t *testObj, mm_camera_stream_t *stream,
+        mm_camera_buf_def_t *frame, uint32_t dump_type)
+{
+    int rc = MM_CAMERA_OK;
+    char value[PROPERTY_VALUE_MAX];
+    property_get("persist.qcamapp.dumpimg", value, "0");
+    uint32_t enabled = (uint32_t) atoi(value);
+    uint32_t frm_num = 0;
+    uint32_t skip_mode = 0;
+    cam_dimension_t dim;
+    uint32_t i;
+    int32_t j;
+
+    if (NULL == stream) {
+        ALOGE("%s test object is null", __func__);
+        return -1;
     }
+
+    uint32_t mDumpFrmCnt = stream->mDumpFrame;
+
+    if((enabled & QCAMAPP_DUMP_FRM_MASK_ALL)) {
+        if((enabled & dump_type) && stream && frame) {
+            frm_num = ((enabled & 0xffff0000) >> 16);
+            if(frm_num == 0) {
+                frm_num = 10; //default 10 frames
+            }
+            if(frm_num > 256) {
+                frm_num = 256; //256 buffers cycle around
+            }
+            skip_mode = ((enabled & 0x0000ff00) >> 8);
+            if(skip_mode == 0) {
+                skip_mode = 1; //no-skip
+            }
+            if(stream->mDumpSkipCnt == 0)
+                stream->mDumpSkipCnt = 1;
+
+            if( stream->mDumpSkipCnt % skip_mode == 0) {
+                if((frm_num == 256) && (mDumpFrmCnt >= frm_num)) {
+                    // reset frame count if cycling
+                    mDumpFrmCnt = 0;
+                }
+                if (mDumpFrmCnt <= frm_num) {
+                    char filename[128];
+                    char timeBuf[32];
+                    time_t current_time;
+                    struct tm * timeinfo;
+
+                    memset(timeBuf, 0, sizeof(timeBuf));
+
+                    time (&current_time);
+                    timeinfo = localtime (&current_time);
+                    memset(filename, 0, sizeof(filename));
+
+                    cam_frame_len_offset_t offset;
+                    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
+                    offset = stream->offset;
+
+                    memset(&dim, 0, sizeof(dim));
+
+                    if (NULL != timeinfo) {
+                        strftime(timeBuf, sizeof(timeBuf),
+                                QCAMERA_DUMP_FRM_LOCATION "%Y%m%d%H%M%S", timeinfo);
+                    }
+                    switch (dump_type) {
+                    case QCAMAPP_DUMP_FRM_PREVIEW:
+                        {
+                            dim.width = testObj->params.preview_params.user_input_display_width;
+                            dim.height = testObj->params.preview_params.user_input_display_height;
+                            snprintf(filename, sizeof(filename), "%s_%dp_%dx%d_%d.yuv",
+                                     timeBuf, mDumpFrmCnt, dim.width, dim.height, frame->frame_idx);
+                        }
+                        break;
+                    case QCAMAPP_DUMP_FRM_THUMBNAIL:
+                        {
+                            dim.width = testObj->params.preview_params.user_input_display_width;
+                            dim.height = testObj->params.preview_params.user_input_display_height;
+                            snprintf(filename, sizeof(filename), "%s_%dt_%dx%d_%d.yuv",
+                                     timeBuf, mDumpFrmCnt, dim.width, dim.height, frame->frame_idx);
+                        }
+                        break;
+                    case QCAMAPP_DUMP_FRM_SNAPSHOT:
+                        {
+                            dim = testObj->params.snapshot_params.dim;
+                            snprintf(filename, sizeof(filename), "%s_%ds_%dx%d_%d.yuv", timeBuf,
+                                    mDumpFrmCnt,
+                                    dim.width,
+                                    dim.height,
+                                    frame->frame_idx);
+                        }
+                        break;
+                    case QCAMAPP_DUMP_FRM_VIDEO:
+                        {
+                            dim = testObj->params.video_params.dim;
+                            snprintf(filename, sizeof(filename), "%s_%dv_%dx%d_%d.yuv", timeBuf,
+                                     mDumpFrmCnt, dim.width, dim.height, frame->frame_idx);
+                        }
+                        break;
+                    case QCAMAPP_DUMP_FRM_RAW:
+                        {
+                            dim = testObj->params.snapshot_params.dim;
+                            snprintf(filename, sizeof(filename), "%s_%dr_%dx%d_%d.raw",
+                                    timeBuf, mDumpFrmCnt,
+                                    dim.width,
+                                    dim.height,
+                                    frame->frame_idx);
+                        }
+                        break;
+                    case QCAMAPP_DUMP_FRM_JPEG:
+                        {
+                            dim = testObj->params.snapshot_params.dim;
+                            snprintf(filename, sizeof(filename), "%s_%dj_%dx%d_%d.yuv",
+                                    timeBuf, mDumpFrmCnt,
+                                    dim.width,
+                                    dim.height,
+                                    frame->frame_idx);
+                        }
+                        break;
+                    default:
+                        ALOGE("%s: Not supported for dumping stream type %d",
+                              __func__, dump_type);
+                        return -1;
+                    }
+                    CDBG_HIGH("%s Dump to file = %s",__func__,filename);
+                    int file_fd = open(filename, O_RDWR | O_CREAT, 0777);
+                    ssize_t written_len = 0;
+                    if (file_fd > 0) {
+                        void *data = NULL;
+
+                        fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                        for (i = 0; i < offset.num_planes; i++) {
+                            uint32_t index = offset.mp[i].offset;
+                            if (i > 0) {
+                                index += offset.mp[i-1].len;
+                            }
+                            for (j = 0; j < offset.mp[i].height; j++) {
+                                data = (void *)((uint8_t *)frame->buffer + index);
+                                written_len += write(file_fd, data,
+                                        (size_t)offset.mp[i].width);
+                                index += (uint32_t)offset.mp[i].stride;
+                            }
+                        }
+
+                        CDBG_HIGH("%s: written number of bytes %ld\n",
+                            __func__, written_len);
+                        close(file_fd);
+                    } else {
+                        ALOGE("%s: fail t open file for image dumping", __func__);
+                    }
+                    mDumpFrmCnt++;
+                }
+            }
+            stream->mDumpSkipCnt++;
+        }
+    } else {
+        mDumpFrmCnt = 0;
+    }
+    stream->mDumpFrame = mDumpFrmCnt;
+
+    return rc;
 }
 
 void mm_app_dump_jpeg_frame(const void * data, size_t size, char* name,
@@ -501,11 +631,13 @@ int mm_app_open(mm_camera_app_t *cam_app,
 
     rc = cam_app->hal_lib.mm_camera_open((uint8_t)cam_id, &(test_obj->cam));
     if(rc) {
-        CDBG_ERROR("%s:dev open error. rc = %d, vtbl = %p\n", __func__, rc, test_obj->cam);
+        CDBG_ERROR("%s:dev open error. rc = %d, vtbl = %p\n",
+                __func__, rc, test_obj->cam);
         return -MM_CAMERA_E_GENERAL;
     }
 
-    CDBG("Open Camera id = %d handle = %d", cam_id, test_obj->cam->camera_handle);
+    CDBG("%s: Open Camera id = %d handle = %d",
+            __func__, cam_id, test_obj->cam->camera_handle);
 
     /* alloc ion mem for capability buf */
     memset(&offset_info, 0, sizeof(offset_info));
@@ -1638,14 +1770,15 @@ ERROR:
  *  Return: >=0 on success, -1 on failure.
  **/
 int tuneserver_capture(mm_camera_lib_handle *lib_handle,
-                       mm_camera_lib_snapshot_params *dim)
+                       mm_camera_lib_snapshot_params *param)
 {
     int rc = 0;
+    cam_dimension_t *dim = &param->dim;
 
-    printf("Take jpeg snapshot\n");
+    printf("%s:Take jpeg snapshot\n", __func__);
     if ( lib_handle->stream_running ) {
 
-        if ( lib_handle->test_obj.zsl_enabled) {
+        if ( lib_handle->test_obj.params.zsl_enabled) {
             if ( NULL != dim) {
                 if ( ( lib_handle->test_obj.buffer_width != dim->width) ||
                      ( lib_handle->test_obj.buffer_height = dim->height ) ) {
@@ -1675,6 +1808,7 @@ int tuneserver_capture(mm_camera_lib_handle *lib_handle,
             mm_camera_app_wait();
         } else {
             // For standard 2D capture streaming has to be disabled first
+
             rc = mm_camera_lib_stop_stream(lib_handle);
             if (rc != MM_CAMERA_OK) {
                 CDBG_ERROR("%s: mm_camera_lib_stop_stream() err=%d\n",
@@ -1686,6 +1820,7 @@ int tuneserver_capture(mm_camera_lib_handle *lib_handle,
                 lib_handle->test_obj.buffer_width = dim->width;
                 lib_handle->test_obj.buffer_height = dim->height;
             }
+
             rc = mm_app_start_capture(&lib_handle->test_obj, 1);
             if (rc != MM_CAMERA_OK) {
                 CDBG_ERROR("%s: mm_app_start_capture() err=%d\n",
@@ -1779,6 +1914,18 @@ int32_t mm_camera_load_tuninglibrary(mm_camera_tuning_lib_params_t *tuning_param
   return 0;
 }
 
+int mm_app_init_param(mm_camera_lib_params *params)
+{
+    int rc = MM_CAMERA_OK;
+
+    params->snapshot_params.dim.width = DEFAULT_SNAPSHOT_WIDTH;
+    params->snapshot_params.dim.height= DEFAULT_SNAPSHOT_HEIGHT;
+    params->preview_params.user_input_display_width = DEFAULT_PREVIEW_WIDTH;
+    params->preview_params.user_input_display_height = DEFAULT_PREVIEW_HEIGHT;
+    params->af_mode = CAM_FOCUS_MODE_AUTO; // Default to auto focus mode
+    return rc;
+}
+
 int mm_camera_lib_open(mm_camera_lib_handle *handle, int cam_id)
 {
     int rc = MM_CAMERA_OK;
@@ -1799,9 +1946,9 @@ int mm_camera_lib_open(mm_camera_lib_handle *handle, int cam_id)
     handle->test_obj.buffer_width = DEFAULT_PREVIEW_WIDTH;
     handle->test_obj.buffer_height = DEFAULT_PREVIEW_HEIGHT;
     handle->test_obj.buffer_format = DEFAULT_SNAPSHOT_FORMAT;
-    handle->current_params.stream_width = DEFAULT_SNAPSHOT_WIDTH;
-    handle->current_params.stream_height = DEFAULT_SNAPSHOT_HEIGHT;
-    handle->current_params.af_mode = CAM_FOCUS_MODE_AUTO; // Default to auto focus mode
+
+    rc = mm_app_init_param(&handle->test_obj.params);
+
     rc = mm_app_open(&handle->app_ctx, (uint8_t)cam_id, &handle->test_obj);
     if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s:mm_app_open() cam_idx=%d, err=%d\n",
@@ -1822,6 +1969,191 @@ EXIT:
     return rc;
 }
 
+int32_t updateFeatureMask(mm_camera_test_obj_t *test_obj,
+        cam_stream_type_t stream_type)
+{
+    int32_t rc = MM_CAMERA_OK;
+    uint32_t feature_mask = 0;
+
+    cam_capability_t *caps = (cam_capability_t *)test_obj->cap_buf.mem_info.data;
+
+    if (stream_type >= CAM_STREAM_TYPE_MAX) {
+        ALOGE("%s: Error!! stream type: %d not valid", __func__, stream_type);
+        return -1;
+    }
+
+    if(!((test_obj->params.zsl_enabled)
+            && (stream_type == CAM_STREAM_TYPE_SNAPSHOT))) {
+        CDBG("caps->min_required_pp_mask = %d",caps->min_required_pp_mask);
+        if (caps->min_required_pp_mask & CAM_QCOM_FEATURE_SHARPNESS) {
+            feature_mask |= CAM_QCOM_FEATURE_SHARPNESS;
+        }
+
+        if (caps->min_required_pp_mask & CAM_QCOM_FEATURE_EFFECT) {
+            feature_mask |= CAM_QCOM_FEATURE_EFFECT;
+        }
+    }
+    test_obj->params.featureMask[stream_type] = feature_mask;
+    CDBG("%s: feature_mask = %d", __func__, feature_mask);
+    return rc;
+}
+
+int32_t sendStreamConfigInfo(mm_camera_test_obj_t *test_obj,
+        cam_stream_size_info_t stream_config_info) {
+    int32_t rc = MM_CAMERA_OK;
+    if(initBatchUpdate(test_obj) < 0 ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return -1;
+    }
+
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
+            CAM_INTF_META_STREAM_INFO, stream_config_info)) {
+        CDBG_ERROR("%s:Meta stream info is not added to batch\n", __func__);
+        return -1;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        ALOGE("%s:Failed to set stream info parm", __func__);
+        return rc;
+    }
+    return rc;
+}
+
+
+int32_t setStreamConfigure(mm_camera_test_obj_t *testObj,
+        int8_t resetConfig, int8_t isCapture) {
+
+    int32_t rc = MM_CAMERA_OK;
+    uint32_t k = 0;
+    cam_stream_size_info_t stream_config_info;
+    int width,height;
+
+    CDBG("%s : E", __func__);
+    memset(&stream_config_info, 0, sizeof(stream_config_info));
+    stream_config_info.num_streams = 0;
+
+    if (resetConfig) {
+        CDBG_HIGH("%s: Reset stream config!!", __func__);
+        rc = sendStreamConfigInfo(testObj,stream_config_info);
+        return rc;
+    }
+
+    if (testObj->params.zsl_enabled) {
+        stream_config_info.type[stream_config_info.num_streams] =
+            CAM_STREAM_TYPE_PREVIEW;
+
+        if ((testObj->params.preview_params.user_input_display_width == 0) ||
+            ( testObj->params.preview_params.user_input_display_height == 0)) {
+            width = DEFAULT_PREVIEW_WIDTH;
+            height = DEFAULT_PREVIEW_HEIGHT;
+        } else {
+            width = testObj->params.preview_params.user_input_display_width;
+            height = testObj->params.preview_params.user_input_display_height;
+        }
+        stream_config_info.stream_sizes[stream_config_info.num_streams].width =
+            width;
+        stream_config_info.stream_sizes[stream_config_info.num_streams].height =
+            height;
+        updateFeatureMask(testObj,CAM_STREAM_TYPE_PREVIEW);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                testObj->params.featureMask[CAM_STREAM_TYPE_PREVIEW];
+        stream_config_info.num_streams++;
+
+        stream_config_info.type[stream_config_info.num_streams] =
+            CAM_STREAM_TYPE_SNAPSHOT;
+
+        width = testObj->params.snapshot_params.dim.width;
+        height = testObj->params.snapshot_params.dim.height;
+
+        stream_config_info.stream_sizes[stream_config_info.num_streams].width =
+            width;
+        stream_config_info.stream_sizes[stream_config_info.num_streams].height =
+            height;
+        updateFeatureMask(testObj,CAM_STREAM_TYPE_SNAPSHOT);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                testObj->params.featureMask[CAM_STREAM_TYPE_SNAPSHOT];
+        stream_config_info.num_streams++;
+    }  else if (!isCapture){
+        if (testObj->params.video_enabled) {
+            stream_config_info.type[stream_config_info.num_streams] =
+                    CAM_STREAM_TYPE_SNAPSHOT;
+            width = testObj->params.snapshot_params.dim.width;
+            height = testObj->params.snapshot_params.dim.height;
+
+            stream_config_info.stream_sizes[stream_config_info.num_streams].width
+                = width;
+            stream_config_info.stream_sizes[stream_config_info.num_streams].height
+                = height;
+            updateFeatureMask(testObj,CAM_STREAM_TYPE_SNAPSHOT);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams]
+                = testObj->params.featureMask[CAM_STREAM_TYPE_SNAPSHOT];
+            stream_config_info.num_streams++;
+
+            stream_config_info.type[stream_config_info.num_streams] =
+                    CAM_STREAM_TYPE_VIDEO;
+            width = testObj->params.video_params.dim.width;
+            height = testObj->params.video_params.dim.height;
+
+            stream_config_info.stream_sizes[stream_config_info.num_streams].width
+                = width;
+            stream_config_info.stream_sizes[stream_config_info.num_streams].height
+                = height;
+            updateFeatureMask(testObj,CAM_STREAM_TYPE_VIDEO);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams]
+                = testObj->params.featureMask[CAM_STREAM_TYPE_VIDEO];
+            stream_config_info.num_streams++;
+        }
+
+        stream_config_info.type[stream_config_info.num_streams] =
+                CAM_STREAM_TYPE_PREVIEW;
+
+        if ((testObj->params.preview_params.user_input_display_width == 0) ||
+            ( testObj->params.preview_params.user_input_display_height == 0)) {
+            width = DEFAULT_PREVIEW_WIDTH;
+            height = DEFAULT_PREVIEW_HEIGHT;
+        } else {
+            width = testObj->params.preview_params.user_input_display_width;
+            height = testObj->params.preview_params.user_input_display_height;
+        }
+        stream_config_info.stream_sizes[stream_config_info.num_streams].width =
+            width;
+        stream_config_info.stream_sizes[stream_config_info.num_streams].height =
+             height;
+        updateFeatureMask(testObj,CAM_STREAM_TYPE_PREVIEW);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+            testObj->params.featureMask[CAM_STREAM_TYPE_PREVIEW];
+        stream_config_info.num_streams++;
+
+    } else {
+        stream_config_info.type[stream_config_info.num_streams] =
+                    CAM_STREAM_TYPE_SNAPSHOT;
+        width = testObj->params.snapshot_params.dim.width;
+        height = testObj->params.snapshot_params.dim.height;
+
+        stream_config_info.stream_sizes[stream_config_info.num_streams].width =
+            width;
+        stream_config_info.stream_sizes[stream_config_info.num_streams].height =
+            height;
+        updateFeatureMask(testObj,CAM_STREAM_TYPE_SNAPSHOT);
+        stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+            testObj->params.featureMask[CAM_STREAM_TYPE_SNAPSHOT];
+        stream_config_info.num_streams++;
+    }
+    for (k = 0; k < stream_config_info.num_streams; k++) {
+        CDBG("%s: stream type %d, w x h: %d x %d, pp_mask: 0x%x", __func__,
+                stream_config_info.type[k],
+                stream_config_info.stream_sizes[k].width,
+                stream_config_info.stream_sizes[k].height,
+                stream_config_info.postprocess_mask[k]);
+    }
+
+    rc = sendStreamConfigInfo(testObj,stream_config_info);
+    CDBG("%s : X", __func__);
+    return rc;
+}
+
+
 int mm_camera_lib_start_stream(mm_camera_lib_handle *handle)
 {
     int rc = MM_CAMERA_OK;
@@ -1833,7 +2165,13 @@ int mm_camera_lib_start_stream(mm_camera_lib_handle *handle)
         goto EXIT;
     }
 
-    if ( handle->test_obj.zsl_enabled ) {
+    rc = setStreamConfigure(&handle->test_obj, FALSE, FALSE);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s:%d setStreamConfigure() failed\n",
+                   __func__, __LINE__);
+        goto EXIT;
+    }
+    if ( handle->test_obj.params.zsl_enabled ) {
         rc = mm_app_start_preview_zsl(&handle->test_obj);
         if (rc != MM_CAMERA_OK) {
             CDBG_ERROR("%s: mm_app_start_preview_zsl() err=%d\n",
@@ -1860,11 +2198,11 @@ int mm_camera_lib_start_stream(mm_camera_lib_handle *handle)
       camera_cap.supported_focus_modes[0] == CAM_FOCUS_MODE_FIXED) {
       CDBG("focus not supported");
       handle->test_obj.focus_supported = 0;
-      handle->current_params.af_mode = CAM_FOCUS_MODE_FIXED;
+      handle->test_obj.params.af_mode = CAM_FOCUS_MODE_FIXED;
     } else {
       handle->test_obj.focus_supported = 1;
     }
-    rc = setFocusMode(&handle->test_obj, handle->current_params.af_mode);
+    rc = setFocusMode(&handle->test_obj, handle->test_obj.params.af_mode);
     if (rc != MM_CAMERA_OK) {
       CDBG_ERROR("%s:autofocus error\n", __func__);
       goto EXIT;
@@ -1885,7 +2223,7 @@ int mm_camera_lib_stop_stream(mm_camera_lib_handle *handle)
         goto EXIT;
     }
 
-    if ( handle->test_obj.zsl_enabled ) {
+    if ( handle->test_obj.params.zsl_enabled ) {
         rc = mm_app_stop_preview_zsl(&handle->test_obj);
         if (rc != MM_CAMERA_OK) {
             CDBG_ERROR("%s: mm_app_stop_preview_zsl() err=%d\n",
@@ -1900,7 +2238,7 @@ int mm_camera_lib_stop_stream(mm_camera_lib_handle *handle)
             goto EXIT;
         }
     }
-
+    setStreamConfigure(&handle->test_obj, TRUE, FALSE);
     handle->stream_running = 0;
 
 EXIT:
@@ -2107,7 +2445,7 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
         case MM_CAMERA_LIB_ZSL_ENABLE:
             if ( NULL != in_data) {
                 int enable_zsl = *(( int * )in_data);
-                if ( ( enable_zsl != handle->test_obj.zsl_enabled ) &&
+                if ( ( enable_zsl != handle->test_obj.params.zsl_enabled ) &&
                         handle->stream_running ) {
                     rc = mm_camera_lib_stop_stream(handle);
                     if (rc != MM_CAMERA_OK) {
@@ -2115,7 +2453,7 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                                    __func__, rc);
                         goto EXIT;
                     }
-                    handle->test_obj.zsl_enabled = enable_zsl;
+                    handle->test_obj.params.zsl_enabled = enable_zsl;
                     rc = mm_camera_lib_start_stream(handle);
                     if (rc != MM_CAMERA_OK) {
                         CDBG_ERROR("%s: mm_camera_lib_start_stream() err=%d\n",
@@ -2123,7 +2461,7 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                         goto EXIT;
                     }
                 } else {
-                    handle->test_obj.zsl_enabled = enable_zsl;
+                    handle->test_obj.params.zsl_enabled = enable_zsl;
                 }
             }
             break;
@@ -2212,7 +2550,7 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
 
         case MM_CAMERA_LIB_SET_FOCUS_MODE: {
             cam_focus_mode_type mode = *((cam_focus_mode_type *)in_data);
-            handle->current_params.af_mode = mode;
+            handle->test_obj.params.af_mode = mode;
             rc = setFocusMode(&handle->test_obj, mode);
             if (rc != MM_CAMERA_OK) {
               CDBG_ERROR("%s:autofocus error\n", __func__);

@@ -129,6 +129,8 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
         return;
     }
 
+    CDBG("%s: BEGIN\n", __func__);
+
     frame = bufs->bufs[0];
 
     /* find channel */
@@ -142,6 +144,7 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
         CDBG_ERROR("%s: Channel object is NULL ", __func__);
         return;
     }
+
     /* find preview stream */
     for (i = 0; i < channel->num_streams; i++) {
         if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_PREVIEW) {
@@ -166,13 +169,9 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
     if ( 0 < pme->fb_fd ) {
         mm_app_overlay_display(pme, frame->fd);
     }
-#ifdef DUMP_PRV_IN_FILE
-    {
-        char file_name[64];
-        snprintf(file_name, sizeof(file_name), "P_C%d", pme->cam->camera_handle);
-        mm_app_dump_frame(frame, file_name, "yuv", frame->frame_idx);
-    }
-#endif
+
+    mm_app_dump_frame(pme,p_stream,frame,QCAMAPP_DUMP_FRM_PREVIEW);
+
     if (pme->user_preview_cb) {
         CDBG_ERROR("[DBG] %s, user defined own preview cb. calling it...", __func__);
         pme->user_preview_cb(frame);
@@ -308,10 +307,7 @@ static void mm_app_zsl_notify_cb(mm_camera_super_buf_t *bufs,
 
     if ( 0 < pme->fb_fd ) {
         mm_app_overlay_display(pme, p_frame->fd);
-    }/* else {
-        mm_app_dump_frame(p_frame, "zsl_preview", "yuv", p_frame->frame_idx);
-        mm_app_dump_frame(m_frame, "zsl_main", "yuv", m_frame->frame_idx);
-    }*/
+    }
 
     if ( pme->enable_reproc && ( NULL != pme->reproc_stream ) ) {
 
@@ -459,13 +455,13 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.stream_info->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     stream->s_config.stream_info->fmt = DEFAULT_PREVIEW_FORMAT;
 
-    if ((test_obj->preview_resolution.user_input_display_width == 0) ||
-           ( test_obj->preview_resolution.user_input_display_height == 0)) {
+    if ((test_obj->params.preview_params.user_input_display_width == 0) ||
+           ( test_obj->params.preview_params.user_input_display_height == 0)) {
         stream->s_config.stream_info->dim.width = DEFAULT_PREVIEW_WIDTH;
         stream->s_config.stream_info->dim.height = DEFAULT_PREVIEW_HEIGHT;
     } else {
-        stream->s_config.stream_info->dim.width = test_obj->preview_resolution.user_input_display_width;
-        stream->s_config.stream_info->dim.height = test_obj->preview_resolution.user_input_display_height;
+        stream->s_config.stream_info->dim.width = test_obj->params.preview_params.user_input_display_width;
+        stream->s_config.stream_info->dim.height = test_obj->params.preview_params.user_input_display_height;
     }
 
     stream->s_config.padding_info = cam_cap->padding_info;
@@ -569,13 +565,7 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->num_of_burst = num_burst;
     }
     stream->s_config.stream_info->fmt = DEFAULT_SNAPSHOT_FORMAT;
-    if ( test_obj->buffer_width == 0 || test_obj->buffer_height == 0 ) {
-        stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
-        stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
-    } else {
-        stream->s_config.stream_info->dim.width = (int32_t)test_obj->buffer_width;
-        stream->s_config.stream_info->dim.height = (int32_t)test_obj->buffer_height;
-    }
+    stream->s_config.stream_info->dim = test_obj->params.snapshot_params.dim;
     stream->s_config.padding_info = cam_cap->padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);

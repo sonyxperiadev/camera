@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,6 +44,7 @@ int mm_app_tc_open_close(mm_camera_app_t *cam_app)
     mm_camera_test_obj_t test_obj;
 
     printf("\n Verifying open/close cameras...\n");
+    CDBG("%s: Verifying open/close cameras...", __func__);
     for (i = 0; i < cam_app->num_cameras; i++) {
         memset(&test_obj, 0, sizeof(mm_camera_test_obj_t));
         rc = mm_app_open(cam_app, i, &test_obj);
@@ -62,8 +63,10 @@ int mm_app_tc_open_close(mm_camera_app_t *cam_app)
     }
     if (rc == MM_CAMERA_OK) {
         printf("\nPassed\n");
+        CDBG("%s:Passed", __func__);
     } else {
         printf("\nFailed\n");
+        CDBG_ERROR("%s:Failed", __func__);
     }
     CDBG("%s:END, rc = %d\n", __func__, rc);
     return rc;
@@ -76,6 +79,7 @@ int mm_app_tc_start_stop_preview(mm_camera_app_t *cam_app)
     mm_camera_test_obj_t test_obj;
 
     printf("\n Verifying start/stop preview...\n");
+    CDBG("%s: Verifying start/stop preview...", __func__);
     for (i = 0; i < cam_app->num_cameras; i++) {
         memset(&test_obj, 0, sizeof(mm_camera_test_obj_t));
         rc = mm_app_open(cam_app, i, &test_obj);
@@ -86,6 +90,12 @@ int mm_app_tc_start_stop_preview(mm_camera_app_t *cam_app)
         }
 
         for (j = 0; j < MM_QCAMERA_APP_UTEST_INNER_LOOP; j++) {
+            setStreamConfigure(&test_obj,FALSE,FALSE);
+            if (rc != MM_CAMERA_OK) {
+                CDBG_ERROR("%s: setStreamConfigure() cam_idx=%d, err=%d\n",
+                           __func__, i, rc);
+                break;
+            }
             rc = mm_app_start_preview(&test_obj);
             if (rc != MM_CAMERA_OK) {
                 CDBG_ERROR("%s: mm_app_start_preview() cam_idx=%d, err=%d\n",
@@ -110,8 +120,10 @@ int mm_app_tc_start_stop_preview(mm_camera_app_t *cam_app)
     }
     if (rc == MM_CAMERA_OK) {
         printf("\nPassed\n");
+        CDBG("%s:Passed", __func__);
     } else {
         printf("\nFailed\n");
+        CDBG_ERROR("%s:Failed", __func__);
     }
     CDBG("%s:END, rc = %d\n", __func__, rc);
     return rc;
@@ -685,7 +697,7 @@ int mm_app_unit_test_entry(mm_camera_app_t *cam_app)
         }
     }
 end:
-    printf("nTOTAL_TSET_CASE = %d, NUM_TEST_RAN = %d, rc=%d\n", tc, i, rc);
+    printf("\nTOTAL_TSET_CASE = %d, NUM_TEST_RAN = %d, rc=%d\n", tc, i, rc);
     return rc;
 }
 

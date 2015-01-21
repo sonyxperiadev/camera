@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -34,13 +34,40 @@ static void mm_app_video_notify_cb(mm_camera_super_buf_t *bufs,
                                    void *user_data)
 {
     char file_name[64];
+    int i;
+    mm_camera_channel_t *channel = NULL;
+    mm_camera_stream_t *p_stream = NULL;
     mm_camera_buf_def_t *frame = bufs->bufs[0];
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
 
     CDBG("%s: BEGIN - length=%zu, frame idx = %d\n",
          __func__, frame->frame_len, frame->frame_idx);
-    snprintf(file_name, sizeof(file_name), "V_C%d", pme->cam->camera_handle);
-    mm_app_dump_frame(frame, file_name, "yuv", frame->frame_idx);
+
+    /* find channel */
+    for (i = 0; i < MM_CHANNEL_TYPE_MAX; i++) {
+        if (pme->channels[i].ch_id == bufs->ch_id) {
+            channel = &pme->channels[i];
+            break;
+        }
+    }
+    if (NULL == channel) {
+        CDBG_ERROR("%s: Channel object is NULL ", __func__);
+        return;
+    }
+    /* find preview stream */
+    for (i = 0; i < channel->num_streams; i++) {
+        if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_VIDEO) {
+            p_stream = &channel->streams[i];
+            break;
+        }
+    }
+
+    if (NULL == p_stream) {
+        CDBG_ERROR("%s: cannot find preview stream", __func__);
+        return;
+    }
+
+    mm_app_dump_frame(pme,p_stream,frame,QCAMAPP_DUMP_FRM_VIDEO);
 
     if (MM_CAMERA_OK != pme->cam->ops->qbuf(bufs->camera_handle,
                                             bufs->ch_id,
