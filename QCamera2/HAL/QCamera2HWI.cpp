@@ -1998,10 +1998,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
             bool disEnabled = (dis_param != NULL)
                     && !strcmp(dis_param,QCameraParameters::VALUE_ENABLE);
             if(disEnabled) {
-                char value[PROPERTY_VALUE_MAX];
-                // Make default value for IS_TYPE as IS_TYPE_EIS_2_0
-                property_get("persist.camera.is_type", value, "4");
-                streamInfo->is_type = static_cast<cam_is_type_t>(atoi(value));
+                streamInfo->is_type = mParameters.getISType();
             } else {
                 streamInfo->is_type = IS_TYPE_NONE;
             }
