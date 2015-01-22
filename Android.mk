@@ -11,6 +11,7 @@ MM_V4L2_DRIVER_LIST += msm8994
 MM_V4L2_DRIVER_LIST += msm8084
 MM_V4L2_DRIVER_LIST += msm8909
 MM_V4L2_DRIVER_LIST += tellurium
+MM_V4L2_DRIVER_LIST += thulium
 
 ifneq (,$(filter $(MM_V4L2_DRIVER_LIST),$(TARGET_BOARD_PLATFORM)))
   ifneq ($(strip $(USE_CAMERA_STUB)),true)
