@@ -840,6 +840,7 @@ QCameraParameters::QCameraParameters()
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
     mTotalPPCount = 0;
     mZoomLevel = 0;
+    mParmZoomLevel = 0;
     mCurPPCount = 0;
 }
 
@@ -920,6 +921,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bReleaseTorchCamera = false;
     mTotalPPCount = 0;
     mZoomLevel = 0;
+    mParmZoomLevel = 0;
     mCurPPCount = 0;
 }
 
@@ -2669,6 +2671,7 @@ int32_t QCameraParameters::setZoom(const QCameraParameters& params)
     }
 
     int zoomLevel = params.getInt(KEY_ZOOM);
+    mParmZoomLevel = zoomLevel;
     if ((zoomLevel < 0) || (zoomLevel >= (int)m_pCapability->zoom_ratio_tbl_cnt)) {
         ALOGE("%s: invalid value %d out of (%d, %d)",
               __func__, zoomLevel,
@@ -6191,7 +6194,7 @@ int32_t QCameraParameters::setZoom(int zoom_level)
     char val[16];
     sprintf(val, "%d", zoom_level);
     updateParamEntry(KEY_ZOOM, val);
-
+    CDBG_HIGH("%s: zoom level: %d", __func__, zoom_level);
     mZoomLevel = zoom_level;
     return AddSetParmEntryToBatch(m_pParamBuf,
                                   CAM_INTF_PARM_ZOOM,
@@ -7568,7 +7571,7 @@ int32_t QCameraParameters::setAndCommitZoom(int zoom_level)
 bool QCameraParameters::isOptiZoomEnabled()
 {
     if (m_bOptiZoomOn) {
-        uint8_t zoom_level = (uint8_t) getInt(CameraParameters::KEY_ZOOM);
+        uint8_t zoom_level = mParmZoomLevel;
         cam_opti_zoom_t *opti_zoom_settings_need =
                 &(m_pCapability->opti_zoom_settings_need);
         uint8_t zoom_threshold = opti_zoom_settings_need->zoom_threshold;

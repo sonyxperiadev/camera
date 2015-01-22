@@ -755,6 +755,7 @@ public:
     int32_t updateFlashMode(cam_flash_mode_t flash_mode);
 
     int32_t getZoomLevel(){return mZoomLevel;};
+    int32_t getParmZoomLevel(){return mParmZoomLevel;};
     int8_t  getReprocCount(){return mTotalPPCount;};
     int8_t  getCurPPCount(){return mCurPPCount;};
     void    setReprocCount();
@@ -1037,6 +1038,7 @@ private:
     int8_t mCurPPCount;
     int32_t mZoomLevel;
     bool m_bStreamsConfigured;
+    int32_t mParmZoomLevel;
 };
 
 }; // namespace qcamera
