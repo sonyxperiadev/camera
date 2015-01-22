@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1495,7 +1495,7 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/,
          goto end;
     }
 
-    gralloc_usage = GRALLOC_USAGE_HW_CAMERA_WRITE | GRALLOC_USAGE_PRIVATE_IOMMU_HEAP;
+    gralloc_usage = GRALLOC_USAGE_HW_CAMERA_WRITE;
     gralloc_usage |= mUsage;
     err = mWindow->set_usage(mWindow, gralloc_usage);
     if(err != 0) {
