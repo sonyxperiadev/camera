@@ -316,6 +316,7 @@ private:
     int mPendingRequest;
     bool mWokenUpByDaemon;
     int32_t mCurrentRequestId;
+    cam_stream_size_info_t mStreamConfigInfo;
 
     //mutex for serialized access to camera3_device_ops_t functions
     pthread_mutex_t mMutex;
