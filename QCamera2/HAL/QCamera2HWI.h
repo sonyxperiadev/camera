@@ -657,6 +657,7 @@ private:
     uint32_t mOutputCount;
     uint32_t mInputCount;
     bool mAdvancedCaptureConfigured;
+    bool mHDRBracketingEnabled;
 };
 
 }; // namespace qcamera
