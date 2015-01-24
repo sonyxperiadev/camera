@@ -1602,6 +1602,11 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             ALOGE("%s: No memory for ae_update qcamera_sm_internal_evt_payload_t", __func__);
         }
     }
+    if (IS_META_AVAILABLE(CAM_INTF_PARM_WHITE_BALANCE, pMetaData)) {
+        cam_wb_mode_type* wb_mode = (cam_wb_mode_type *)
+                POINTER_OF_META(CAM_INTF_PARM_WHITE_BALANCE, pMetaData);
+        pme->mExifParams.cam_3a_params.wb_mode = *wb_mode;
+    }
     if (IS_META_AVAILABLE(CAM_INTF_META_SENSOR_INFO, pMetaData)) {
         cam_sensor_params_t* sensor_params = (cam_sensor_params_t*)
             POINTER_OF_META(CAM_INTF_META_SENSOR_INFO, pMetaData);
