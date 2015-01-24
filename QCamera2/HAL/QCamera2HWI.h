@@ -445,6 +445,7 @@ private:
     int32_t stopAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t startAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t configureOptiZoom();
+    int32_t configureStillMore();
     int32_t configureAEBracketing();
     int32_t updatePostPreviewParameters();
     inline void setOutputImageCount(uint32_t aCount) {mOutputCount = aCount;}
