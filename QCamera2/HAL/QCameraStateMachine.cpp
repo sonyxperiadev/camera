@@ -154,8 +154,12 @@ void QCameraStateMachine::releaseThread()
             memset(node, 0, sizeof(qcamera_sm_cmd_t));
             node->cmd = QCAMERA_SM_CMD_TYPE_EXIT;
 
-            api_queue.enqueue((void *)node);
-            cam_sem_post(&cmd_sem);
+            if (api_queue.enqueue((void *)node)) {
+                cam_sem_post(&cmd_sem);
+            } else {
+                free(node);
+                node = NULL;
+            }
 
             /* wait until cmd thread exits */
             if (pthread_join(cmd_pid, NULL) != 0) {
