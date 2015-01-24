@@ -107,6 +107,7 @@
 #define MIN_INFLIGHT_REQUESTS  3
 
 #define QCAMERA_DUMP_FRM_LOCATION "/data/misc/camera/"
+#define QCAMERA_MAX_FILEPATH_LENGTH 64
 
 typedef enum {
     CAM_HAL_V1 = 1,
@@ -1123,7 +1124,7 @@ typedef struct {
     int32_t event_type;
     cam_dimension_t dim;
     size_t size;
-    char path[50];
+    char path[QCAMERA_MAX_FILEPATH_LENGTH];
 } cam_int_evt_params_t;
 
 typedef struct {
