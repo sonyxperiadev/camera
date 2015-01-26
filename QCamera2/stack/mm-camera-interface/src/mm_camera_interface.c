@@ -1443,8 +1443,13 @@ void sort_camera_info(int num_cam)
         }
     }
 
-    memcpy(g_cam_ctrl.info, temp_info, sizeof(temp_info));
-    memcpy(g_cam_ctrl.video_dev_name, temp_dev_name, sizeof(temp_dev_name));
+    if (idx == num_cam) {
+        memcpy(g_cam_ctrl.info, temp_info, sizeof(temp_info));
+        memcpy(g_cam_ctrl.video_dev_name, temp_dev_name, sizeof(temp_dev_name));
+    } else {
+        ALOGE("%s: Failed to sort all cameras!", __func__);
+        ALOGE("%s: Number of cameras %d sorted %d", __func__, num_cam, idx);
+    }
     return;
 }
 
