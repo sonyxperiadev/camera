@@ -1825,6 +1825,8 @@ typedef enum {
 
 typedef struct {
     uint8_t burst_count;
+    uint8_t min_burst_count;
+    uint8_t max_burst_count;
 } cam_still_more_t;
 
 typedef enum {
@@ -1905,6 +1907,7 @@ typedef struct {
     uint8_t zoom_level;
     cam_flash_value_t flash_value;
     cam_misc_buf_param_t misc_buf_param;
+    uint32_t burst_cnt;
 } cam_pp_feature_config_t;
 
 typedef struct {
