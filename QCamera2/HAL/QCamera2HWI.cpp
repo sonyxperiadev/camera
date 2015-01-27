@@ -2525,7 +2525,9 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
         } else if (mParameters.isOptiZoomEnabled()) {
             rc = mParameters.setAndCommitZoom(mZoomLevel);
         } else if (mParameters.isStillMoreEnabled()) {
-            CDBG_HIGH("%s: unconfiguration not needed for StillMore", __func__);
+            cam_still_more_t stillmore_config = mParameters.getStillMoreSettings();
+            stillmore_config.burst_count = 0;
+            mParameters.setStillMoreSettings(stillmore_config);
         } else {
             ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
             rc = BAD_VALUE;
@@ -2553,7 +2555,13 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
 
     setOutputImageCount(0);
     mInputCount = 0;
-    mParameters.setDisplayFrame(FALSE);
+
+    /* Temporarily stop display only if not in stillmore livesnapshot */
+    if (!(mParameters.isStillMoreEnabled() &&
+            mParameters.isSeeMoreEnabled())) {
+        mParameters.setDisplayFrame(FALSE);
+    }
+
     if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = configureAFBracketing();
     } else if (mParameters.isOptiZoomEnabled()) {
@@ -2786,9 +2794,36 @@ int32_t QCamera2HardwareInterface::configureOptiZoom()
 int32_t QCamera2HardwareInterface::configureStillMore()
 {
     int32_t rc = NO_ERROR;
+    uint8_t burst_cnt = 0;
+    cam_still_more_t stillmore_config;
+    cam_still_more_t stillmore_cap;
 
+    /* Lock 3A */
     mParameters.set3ALock(QCameraParameters::VALUE_TRUE);
     mIs3ALocked = true;
+
+    /* Configure burst count based on user input */
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.imglib.stillmore", prop, "0");
+    burst_cnt = (uint32_t)atoi(prop);
+
+    /* In the case of liveshot, burst should be 1 */
+    if (mParameters.isSeeMoreEnabled()) {
+        burst_cnt = 1;
+    }
+
+    /* Validate burst count */
+    stillmore_cap = mParameters.getStillMoreCapability();
+    if ((burst_cnt < stillmore_cap.min_burst_count) ||
+            (burst_cnt > stillmore_cap.max_burst_count)) {
+        burst_cnt = stillmore_cap.max_burst_count;
+    }
+
+    memset(&stillmore_config, 0, sizeof(cam_still_more_t));
+    stillmore_config.burst_count = burst_cnt;
+    mParameters.setStillMoreSettings(stillmore_config);
+
+    CDBG_HIGH("%s: Stillmore burst %d", __func__, burst_cnt);
 
     return rc;
 }
@@ -3625,6 +3660,20 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
     getOrientation();
     QCameraChannel *pChannel = NULL;
 
+    // Configure advanced capture
+    if (mParameters.isUbiFocusEnabled() ||
+            mParameters.isUbiRefocus() ||
+            mParameters.isOptiZoomEnabled() ||
+            mParameters.isHDREnabled() ||
+            mParameters.isChromaFlashEnabled() ||
+            mParameters.isAEBracketEnabled() ||
+            mParameters.isStillMoreEnabled()) {
+        rc = configureAdvancedCapture();
+        if (rc != NO_ERROR) {
+            CDBG_HIGH("%s: configureAdvancedCapture unsuccessful", __func__);
+        }
+    }
+
     // start post processor
     rc = m_postprocessor.start(m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
     if (NO_ERROR != rc) {
@@ -3704,6 +3753,8 @@ end:
 int QCamera2HardwareInterface::cancelLiveSnapshot()
 {
     int rc = NO_ERROR;
+
+    unconfigureAdvancedCapture();
 
     if (mLiveSnapshotThread != 0) {
         pthread_join(mLiveSnapshotThread,NULL);
@@ -5728,6 +5779,19 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
     temp_feature_mask &= ~CAM_QCOM_FEATURE_HDR;
     if (temp_feature_mask && mParameters.isHDREnabled()) {
         minStreamBufNum = (uint8_t)(1 + mParameters.getNumOfExtraHDRInBufsIfNeeded());
+    }
+
+    if (mParameters.isStillMoreEnabled()) {
+        cam_still_more_t stillmore_config = mParameters.getStillMoreSettings();
+        pp_config.burst_cnt = stillmore_config.burst_count;
+        CDBG_HIGH("%s: Stillmore burst %d", __func__, pp_config.burst_cnt);
+
+        // getNumOfExtraBuffersForImageProc returns 1 less buffer assuming
+        // number of capture is already added. In the case of liveshot,
+        // stillmore burst is 1. This is to account for the premature decrement
+        if (mParameters.getNumOfExtraBuffersForImageProc() == 0) {
+            minStreamBufNum += 1;
+        }
     }
 
     // Add non inplace image lib buffers only when ppproc is present,
