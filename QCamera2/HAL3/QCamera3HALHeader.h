@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -73,6 +73,7 @@ class QCamera3Channel;
         QCamera3Channel *src_channel;
         cam_rect_t output_crop;
         cam_rotation_t rotation;
+        cam_rect_t roi_map;
     } reprocess_config_t;
 };//namespace qcamera
 

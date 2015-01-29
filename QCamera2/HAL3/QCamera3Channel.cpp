@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -3009,12 +3009,20 @@ int32_t QCamera3ReprocessChannel::extractFrameCropAndRotation(mm_camera_super_bu
                         pSrcStream->getMyServerID()) {
                         fwk_frame.reproc_config.output_crop =
                             crop_data->crop_info[0].crop;
+                        fwk_frame.reproc_config.roi_map =
+                                crop_data->crop_info[0].roi_map;
                         CDBG("%s: Found offline reprocess crop %dx%d %dx%d",
                               __func__,
                               crop_data->crop_info[0].crop.left,
                               crop_data->crop_info[0].crop.top,
                               crop_data->crop_info[0].crop.width,
                               crop_data->crop_info[0].crop.height);
+                        CDBG("%s: Found offline reprocess roimap %dx%d %dx%d",
+                                __func__,
+                                crop_data->crop_info[0].roi_map.left,
+                                crop_data->crop_info[0].roi_map.top,
+                                crop_data->crop_info[0].roi_map.width,
+                                crop_data->crop_info[0].roi_map.height);
                      }
                 }
             }
@@ -3061,11 +3069,17 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
                 POINTER_OF_PARAM(CAM_INTF_META_CROP_DATA, meta);
         if (1 == crop_data->num_of_streams) {
             frame->reproc_config.output_crop = crop_data->crop_info[0].crop;
+            frame->reproc_config.roi_map = crop_data->crop_info[0].roi_map;
             CDBG("%s: Found offline reprocess crop %dx%d %dx%d", __func__,
                     crop_data->crop_info[0].crop.left,
                     crop_data->crop_info[0].crop.top,
                     crop_data->crop_info[0].crop.width,
                     crop_data->crop_info[0].crop.height);
+            CDBG("%s: Found offline reprocess roi map %dx%d %dx%d", __func__,
+                    crop_data->crop_info[0].roi_map.left,
+                    crop_data->crop_info[0].roi_map.top,
+                    crop_data->crop_info[0].roi_map.width,
+                    crop_data->crop_info[0].roi_map.height);
         } else {
             ALOGE("%s: Incorrect number of offline crop data entries %d",
                     __func__,
