@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -33,6 +33,7 @@
 #include <hardware/camera3.h>
 #include <utils/Log.h>
 #include <utils/Errors.h>
+#include "QCamera3HWI.h"
 #include "QCamera3VendorTags.h"
 
 using namespace android;
@@ -82,6 +83,7 @@ vendor_tag_info_t qcamera3_crop[QCAMERA3_CROP_END- QCAMERA3_CROP_START] = {
     { "count", TYPE_INT32 },
     { "data", TYPE_INT32},
     { "streamids", TYPE_INT32},
+    { "roimap", TYPE_INT32 }
 };
 
 vendor_tag_info_t qcamera3_tuning_meta_data[QCAMERA3_TUNING_META_DATA_END -
@@ -110,6 +112,7 @@ uint32_t qcamera3_all_tags[] = {
     (uint32_t)QCAMERA3_CROP_COUNT_REPROCESS,
     (uint32_t)QCAMERA3_CROP_REPROCESS,
     (uint32_t)QCAMERA3_CROP_STREAM_ID_REPROCESS,
+    (uint32_t)QCAMERA3_CROP_ROI_MAP_REPROCESS,
 
     // QCAMERA3_TUNING_META_DATA
     (uint32_t)QCAMERA3_TUNING_META_DATA_BLOB
@@ -192,7 +195,7 @@ void QCamera3VendorTags::get_all_tags(
             i < sizeof(qcamera3_all_tags)/sizeof(qcamera3_all_tags[0]);
             i++) {
         g_array[i] = qcamera3_all_tags[i];
-	ALOGV("%s: g_array[%d] is %d", __func__, i, g_array[i]);
+        CDBG("%s: g_array[%d] is %d", __func__, i, g_array[i]);
     }
 }
 
