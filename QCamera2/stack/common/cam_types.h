@@ -989,6 +989,7 @@ typedef struct {
 typedef struct {
     uint32_t stream_id;
     cam_rect_t crop;
+    cam_rect_t roi_map;
 } cam_stream_crop_info_t;
 
 typedef struct {
