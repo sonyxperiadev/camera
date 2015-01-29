@@ -7447,12 +7447,18 @@ int32_t QCamera2HardwareInterface::queueDefferedWork(DefferedWorkCmd cmd,
     Mutex::Autolock l(mDeffLock);
     for (uint32_t i = 0; i < MAX_ONGOING_JOBS; ++i) {
         if (!mDeffOngoingJobs[i]) {
-            mCmdQueue.enqueue(new DeffWork(cmd, i, args));
-            mDeffOngoingJobs[i] = true;
-            mDefferedWorkThread.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB,
-                    FALSE,
-                    FALSE);
-            return (int32_t)i;
+            DeffWork *dw = new DeffWork(cmd, i, args);
+            if (mCmdQueue.enqueue(dw)) {
+                mDeffOngoingJobs[i] = true;
+                mDefferedWorkThread.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB,
+                        FALSE,
+                        FALSE);
+                return (int32_t)i;
+            } else {
+                CDBG("%s: Command queue not active! cmd = %d", __func__, cmd);
+                delete dw;
+                return -1;
+            }
         }
     }
     return -1;
