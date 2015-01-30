@@ -753,6 +753,11 @@ public:
             cam_intf_parm_type_t paramType,
             size_t paramLength, void *paramValue);
     int32_t updateFlashMode(cam_flash_mode_t flash_mode);
+    cam_still_more_t getStillMoreSettings() {return m_stillmore_config;};
+    void setStillMoreSettings(cam_still_more_t stillmore_config)
+            {m_stillmore_config = stillmore_config;};
+    cam_still_more_t getStillMoreCapability()
+            {return m_pCapability->stillmore_settings_need;};
 
     int32_t getZoomLevel(){return mZoomLevel;};
     int32_t getParmZoomLevel(){return mParmZoomLevel;};
@@ -995,6 +1000,7 @@ private:
     bool m_bAVTimerEnabled;    //if AVTimer is enabled
     bool m_bDISEnabled;
     bool m_bOISEnabled;
+    cam_still_more_t m_stillmore_config;
 
     uint8_t m_bMobiMask;
     QCameraAdjustFPS *m_AdjustFPS;
