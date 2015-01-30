@@ -692,6 +692,8 @@ typedef struct {
     INCLUDE(CAM_INTF_META_TEST_PATTERN_DATA,            cam_test_pattern_data_t,     1);
     INCLUDE(CAM_INTF_META_PROFILE_TONE_CURVE,           cam_profile_tone_curve,      1);
     INCLUDE(CAM_INTF_META_OTP_WB_GRGB,                  float,                       1);
+    INCLUDE(CAM_INTF_META_IMG_HYST_INFO,                cam_img_hysterisis_info_t,   1);
+    INCLUDE(CAM_INTF_META_CAC_INFO,                     cam_cac_info_t,              1);
     INCLUDE(CAM_INTF_PARM_CAC,                          cam_aberration_mode_t,       1);
     INCLUDE(CAM_INTF_META_NEUTRAL_COL_POINT,            cam_neutral_col_point_t,     1);
     INCLUDE(CAM_INTF_PARM_ROTATION,                     cam_rotation_info_t,         1);
