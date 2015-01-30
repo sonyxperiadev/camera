@@ -910,14 +910,6 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 continue;
             }
 
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-                pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
-                // Skip postview: in non zsl case, dont want to send
-                // thumbnail through reprocess.
-                // Skip preview: for same reason for zsl case
-                continue;
-            }
-
             if (pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
                     pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
                     pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
@@ -925,20 +917,10 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                     (param.getofflineRAW() && pStream->isTypeOf(CAM_STREAM_TYPE_RAW))) {
                 uint32_t feature_mask = featureConfig.feature_mask;
 
-                if ((feature_mask & ~CAM_QCOM_FEATURE_HDR) == 0
-                        && param.isHDREnabled()
-                        && !param.isHDRThumbnailProcessNeeded()) {
-
-                    // Skip thumbnail stream reprocessing in HDR
-                    // if only hdr is enabled
-                    continue;
-                }
-
                 // skip thumbnail reprocessing if not needed
                 if (!param.needThumbnailReprocess(&feature_mask)) {
                     continue;
                 }
-
                 //Don't do WNR for thumbnail
                 feature_mask &= ~CAM_QCOM_FEATURE_DENOISE2D;
                 if (!feature_mask) {
@@ -966,7 +948,13 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             } else {
                 rc = pStream->getFormat(streamInfo->fmt);
             }
-            rc = pStream->getFrameDimension(streamInfo->dim);
+            if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
+                    pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
+                param.getThumbnailSize(&(streamInfo->dim.width), &(streamInfo->dim.height));
+            }
+            else {
+                rc = pStream->getFrameDimension(streamInfo->dim);
+            }
             if ( contStream ) {
                 streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
                 streamInfo->num_of_burst = 0;
@@ -1001,9 +989,17 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
 
             if (!(pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
                 pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT))) {
-                streamInfo->reprocess_config.pp_feature_config.feature_mask &= ~CAM_QCOM_FEATURE_CAC;
+                // CAC, SHARPNESS, FLIP and WNR would have been already applied -
+                // on preview/postview stream in realtime. Need not apply again.
+                streamInfo->reprocess_config.pp_feature_config.feature_mask &=
+                        ~CAM_QCOM_FEATURE_CAC;
+                streamInfo->reprocess_config.pp_feature_config.feature_mask &=
+                        ~CAM_QCOM_FEATURE_SHARPNESS;
+                streamInfo->reprocess_config.pp_feature_config.feature_mask &=
+                        ~CAM_QCOM_FEATURE_FLIP;
                 //Don't do WNR for thumbnail
-                streamInfo->reprocess_config.pp_feature_config.feature_mask &= ~CAM_QCOM_FEATURE_DENOISE2D;
+                streamInfo->reprocess_config.pp_feature_config.feature_mask &=
+                        ~CAM_QCOM_FEATURE_DENOISE2D;
 
                 if (param.isHDREnabled()
                   && !param.isHDRThumbnailProcessNeeded()){
@@ -1212,6 +1208,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
             memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
             param.type = CAM_STREAM_PARAM_TYPE_DO_REPROCESS;
             param.reprocess.buf_index = buf_index;
+            param.reprocess.frame_idx = frame->bufs[i]->frame_idx;
             param.reprocess.frame_pp_config.uv_upsample =
                             frame->bufs[i]->is_uv_subsampled;
             if (NULL != meta_buf) {
@@ -1306,14 +1303,6 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
                     (pStream->isTypeOf(CAM_STREAM_TYPE_ANALYSIS))) {
                 // Skip metadata for reprocess now because PP module cannot handle meta data
                 // May need furthur discussion if Imaginglib need meta data
-                continue;
-            }
-
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-                pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
-                // Skip postview: In non zsl case, dont want to send
-                // thumbnail through reprocess.
-                // Skip preview: for same reason in ZSL case
                 continue;
             }
 

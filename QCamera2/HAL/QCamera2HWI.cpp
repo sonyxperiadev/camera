@@ -5850,6 +5850,18 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
             } else {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_SCALE;
             }
+
+            cam_dimension_t thumb_src_dim;
+            cam_dimension_t thumb_dst_dim;
+            mParameters.getThumbnailSize(&(thumb_dst_dim.width), &(thumb_dst_dim.height));
+            mParameters.getStreamDimension(CAM_STREAM_TYPE_POSTVIEW,thumb_src_dim);
+            if ((thumb_dst_dim.width != thumb_src_dim.width) ||
+                    (thumb_dst_dim.height != thumb_src_dim.height)) {
+                if (thumb_dst_dim.width != 0 && thumb_dst_dim.height != 0) {
+                    pp_config.feature_mask |= CAM_QCOM_FEATURE_CROP;
+                }
+            }
+
             break;
 
         case 2:
