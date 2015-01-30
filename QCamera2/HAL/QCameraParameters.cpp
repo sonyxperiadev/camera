@@ -6589,6 +6589,27 @@ int32_t QCameraParameters::setTintlessValue(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : setTintless
+ *
+ * DESCRIPTION: set tintless mode
+ *
+ * PARAMETERS :
+ *   @enable : 1 = enable, 0 = disable
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+void QCameraParameters::setTintless(bool enable)
+{
+    if (enable) {
+        setTintlessValue(VALUE_ENABLE);
+    } else {
+        setTintlessValue(VALUE_DISABLE);
+    }
+}
+
+/*===========================================================================
  * FUNCTION   : setTintlessValue
  *
  * DESCRIPTION: set tintless value
@@ -7894,6 +7915,8 @@ int32_t QCameraParameters::setHDRMode(const char *hdrModeStr)
  *==========================================================================*/
 int32_t QCameraParameters::setSeeMore(const char *seeMoreStr)
 {
+    int32_t rc = NO_ERROR;
+
     CDBG_HIGH("%s: seeMoreStr =%s", __func__, seeMoreStr);
     if (seeMoreStr != NULL) {
         int value = lookupAttr(ON_OFF_MODES_MAP,
@@ -7902,14 +7925,22 @@ int32_t QCameraParameters::setSeeMore(const char *seeMoreStr)
         if (value != NAME_NOT_FOUND) {
             m_bSeeMoreOn = (value != 0);
 
-            /* enable stillmore for live snapshot */
+            // If SeeMore is enabled, enable StillMore for live snapshot
+            // and disable tone map
             if (m_bSeeMoreOn) {
                 m_bStillMoreOn = TRUE;
+                rc = setToneMapMode(false, false);
+                if (rc != NO_ERROR) {
+                    CDBG_HIGH("%s: Failed to disable tone map during SeeMore", __func__);
+                }
             } else {
                 m_bStillMoreOn = FALSE;
+                rc = setToneMapMode(true, false);
+                if (rc != NO_ERROR) {
+                    CDBG_HIGH("%s: Failed to enable tone map during SeeMore", __func__);
+                }
             }
             updateParamEntry(KEY_QC_SEE_MORE, seeMoreStr);
-
             return NO_ERROR;
         }
     }
@@ -11659,6 +11690,51 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForPreview()
     }
 
     return numOfBufs;
+}
+
+/*===========================================================================
+ * FUNCTION   : setToneMapMode
+ *
+ * DESCRIPTION: enable or disable tone map
+ *
+ * PARAMETERS :
+ *   @enable : enable: 1; disable 0
+ *   @initCommit: if configuration list needs to be initialized and commited
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setToneMapMode(uint32_t enable, bool initCommit)
+{
+    int32_t rc = NO_ERROR;
+    CDBG_HIGH("%s: tone map mode %d ", __func__, enable);
+
+    if (initCommit) {
+        if (initBatchUpdate(m_pParamBuf) < 0) {
+            ALOGE("%s:Failed to initialize group update table", __func__);
+            return FAILED_TRANSACTION;
+        }
+    }
+
+    rc = AddSetParmEntryToBatch(m_pParamBuf,
+            CAM_INTF_PARM_TONE_MAP_MODE,
+            sizeof(enable),
+            &enable);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update tone map mode", __func__);
+        return rc;
+    }
+
+    if (initCommit) {
+        rc = commitSetBatch();
+        if (rc != NO_ERROR) {
+            ALOGE("%s:Failed to commit tone map mode", __func__);
+            return rc;
+        }
+    }
+
+    return rc;
 }
 
 }; // namespace qcamera

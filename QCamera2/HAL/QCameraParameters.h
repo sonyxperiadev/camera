@@ -766,6 +766,8 @@ public:
     void    setReprocCount();
     void    setCurPPCount(int8_t count) {mCurPPCount = count;};
     int32_t  updateCurrentFocusPosition(int32_t pos);
+    int32_t setToneMapMode(uint32_t value, bool initCommit);
+    void setTintless(bool enable);
 
 private:
     int32_t setPreviewSize(const QCameraParameters& );

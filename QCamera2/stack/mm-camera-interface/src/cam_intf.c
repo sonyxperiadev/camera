@@ -361,6 +361,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_CDS_MODE, metadata);
         case CAM_INTF_PARM_ROTATION:
           return POINTER_OF_META(CAM_INTF_PARM_ROTATION, metadata);
+        case CAM_INTF_PARM_TONE_MAP_MODE:
+          return POINTER_OF_META(CAM_INTF_PARM_TONE_MAP_MODE, metadata);
         default:
             return NULL;
     }
@@ -698,6 +700,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_PARM_CDS_MODE, metadata);
         case CAM_INTF_PARM_ROTATION:
           return SIZE_OF_PARAM(CAM_INTF_PARM_ROTATION, metadata);
+        case CAM_INTF_PARM_TONE_MAP_MODE:
+          return SIZE_OF_PARAM(CAM_INTF_PARM_TONE_MAP_MODE, metadata);
         default:
             return 0;
     }
