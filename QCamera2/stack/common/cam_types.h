@@ -1163,6 +1163,12 @@ typedef struct {
     uint32_t streamID[MAX_NUM_STREAMS];
 } cam_stream_ID_t;
 
+typedef struct {
+    uint32_t frame_id;
+    uint32_t num_streams;
+    uint32_t stream_id[MAX_NUM_STREAMS];
+} cam_buf_divert_info_t;
+
 typedef  struct {
     uint8_t is_stats_valid;               /* if histgram data is valid */
     cam_hist_stats_t stats_data;          /* histogram data */
@@ -1350,6 +1356,8 @@ typedef enum {
     CAM_INTF_PARM_LONGSHOT_ENABLE,
     CAM_INTF_PARM_RDI_MODE,
     CAM_INTF_PARM_CDS_MODE,
+    CAM_INTF_BUF_DIVERT_INFO,
+
 
     /* stream based parameters */
     CAM_INTF_PARM_DO_REPROCESS,
