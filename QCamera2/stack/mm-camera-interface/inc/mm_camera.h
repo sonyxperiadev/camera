@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -332,6 +332,7 @@ typedef struct {
     uint8_t num_of_bufs;
     mm_camera_buf_info_t super_buf[MAX_STREAM_NUM_IN_BUNDLE];
     uint8_t matched;
+    uint8_t expected;
     uint32_t frame_idx;
 } mm_channel_queue_node_t;
 
@@ -410,6 +411,9 @@ typedef struct mm_channel {
     uint8_t isZoom1xFrameRequested;
     uint32_t burstSnapNum;
     char threadName[THREAD_NAME_SIZE];
+
+    /*Buffer diverted*/
+    uint8_t diverted_frame_id;
 } mm_channel_t;
 
 typedef struct {
