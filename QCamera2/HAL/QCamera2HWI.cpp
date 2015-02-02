@@ -1097,7 +1097,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mRawdataJob(-1),
       mOutputCount(0),
       mInputCount(0),
-      mAdvancedCaptureConfigured(false)
+      mAdvancedCaptureConfigured(false),
+      mHDRBracketingEnabled(false)
 {
     getLogLevel();
     ATRACE_CALL();
@@ -2569,7 +2570,12 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
             mParameters.set3ALock(QCameraParameters::VALUE_FALSE);
             mIs3ALocked = false;
         }
-        if ( mParameters.isHDREnabled() || mParameters.isAEBracketEnabled()) {
+        if (mParameters.isHDREnabled() || mParameters.isAEBracketEnabled()) {
+            rc = mParameters.setToneMapMode(true, true);
+            if (rc != NO_ERROR) {
+                CDBG_HIGH("%s: Failed to enable tone map during HDR/AEBracketing", __func__);
+            }
+            mHDRBracketingEnabled = false;
             rc = mParameters.stopAEBracket();
         } else if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
             rc = configureAFBracketing(false);
@@ -2581,6 +2587,17 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
             cam_still_more_t stillmore_config = mParameters.getStillMoreSettings();
             stillmore_config.burst_count = 0;
             mParameters.setStillMoreSettings(stillmore_config);
+
+            /* If SeeMore is running, it will handle re-enabling tone map */
+            if (!mParameters.isSeeMoreEnabled()) {
+                rc = mParameters.setToneMapMode(true, true);
+                if (rc != NO_ERROR) {
+                    CDBG_HIGH("%s: Failed to enable tone map during StillMore", __func__);
+                }
+            }
+
+            /* Re-enable Tintless */
+            mParameters.setTintless(true);
         } else {
             ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
             rc = BAD_VALUE;
@@ -2623,7 +2640,17 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         rc = configureFlashBracketing();
     } else if (mParameters.isHDREnabled()) {
         rc = configureHDRBracketing();
+        if (mHDRBracketingEnabled) {
+            rc = mParameters.setToneMapMode(false, true);
+            if (rc != NO_ERROR) {
+                CDBG_HIGH("%s: Failed to disable tone map during HDR", __func__);
+            }
+        }
     } else if (mParameters.isAEBracketEnabled()) {
+        rc = mParameters.setToneMapMode(false, true);
+        if (rc != NO_ERROR) {
+            CDBG_HIGH("%s: Failed to disable tone map during AEBracketing", __func__);
+        }
         rc = configureAEBracketing();
     } else if (mParameters.isStillMoreEnabled()) {
         rc = configureStillMore();
@@ -2750,6 +2777,11 @@ int32_t QCamera2HardwareInterface::configureHDRBracketing()
     memset(&aeBracket, 0, sizeof(cam_exp_bracketing_t));
     aeBracket.mode =
         gCamCaps[mCameraId]->hdr_bracketing_setting.exp_val.mode;
+
+    if (aeBracket.mode == CAM_EXP_BRACKETING_ON) {
+        mHDRBracketingEnabled = true;
+    }
+
     String8 tmp;
     for (uint32_t i = 0; i < hdrFrameCount; i++) {
         tmp.appendFormat("%d",
@@ -2851,9 +2883,20 @@ int32_t QCamera2HardwareInterface::configureStillMore()
     cam_still_more_t stillmore_config;
     cam_still_more_t stillmore_cap;
 
+    /* Disable Tone Map. If seemore is enabled, it will handle disabling it. */
+    if (!mParameters.isSeeMoreEnabled()) {
+        rc = mParameters.setToneMapMode(false, true);
+        if (rc != NO_ERROR) {
+            CDBG_HIGH("%s: Failed to disable tone map during StillMore", __func__);
+        }
+    }
+
     /* Lock 3A */
     mParameters.set3ALock(QCameraParameters::VALUE_TRUE);
     mIs3ALocked = true;
+
+    /* Disable Tintless */
+    mParameters.setTintless(false);
 
     /* Configure burst count based on user input */
     char prop[PROPERTY_VALUE_MAX];

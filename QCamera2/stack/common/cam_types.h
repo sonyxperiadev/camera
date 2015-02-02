@@ -1372,6 +1372,7 @@ typedef enum {
     CAM_INTF_PARM_LONGSHOT_ENABLE,
     CAM_INTF_PARM_RDI_MODE,
     CAM_INTF_PARM_CDS_MODE,
+    CAM_INTF_PARM_TONE_MAP_MODE,
 
     /* stream based parameters */
     CAM_INTF_PARM_DO_REPROCESS,
