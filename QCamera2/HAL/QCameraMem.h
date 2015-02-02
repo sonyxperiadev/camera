@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -82,6 +82,12 @@ public:
 
     void getBufDef(const cam_frame_len_offset_t &offset,
             mm_camera_buf_def_t &bufDef, uint32_t index) const;
+
+    int32_t getUserBufDef(const cam_stream_user_buf_info_t &buf_info,
+            mm_camera_buf_def_t &bufDef, uint32_t index,
+            const cam_frame_len_offset_t &plane_offset,
+            mm_camera_buf_def_t *planebufDef, uint32_t plane_index,
+            QCameraMemory *bufs) const;
 
     void traceLogAllocStart(size_t size, int count, const char *allocName);
     void traceLogAllocEnd(size_t size);
