@@ -2139,7 +2139,7 @@ int32_t  QCameraParameters::setFocusPosition(const QCameraParameters& params)
     const char *type = params.get(KEY_QC_MANUAL_FOCUS_POS_TYPE);
     const char *prev_type = get(KEY_QC_MANUAL_FOCUS_POS_TYPE);
 
-    if ((pos != NULL) && (type != NULL)) {
+    if ((pos != NULL) && (type != NULL) && (focus_str != NULL)) {
         if (prev_pos  == NULL || (strcmp(pos, prev_pos) != 0) ||
                 prev_type == NULL || (strcmp(type, prev_type) != 0)) {
             return setFocusPosition(type, pos);
@@ -2456,7 +2456,7 @@ int32_t  QCameraParameters::setManualWhiteBalance(const QCameraParameters& param
     const char *type = params.get(KEY_QC_MANUAL_WB_TYPE);
     const char *prev_type = get(KEY_QC_MANUAL_WB_TYPE);
 
-    if ((value != NULL) && (type != NULL)) {
+    if ((value != NULL) && (type != NULL) && (wb_str != NULL)) {
         if (prev_value  == NULL || (strcmp(value, prev_value) != 0) ||
                 prev_type == NULL || (strcmp(type, prev_type) != 0)) {
             updateParamEntry(KEY_QC_MANUAL_WB_TYPE, type);
