@@ -254,6 +254,10 @@ typedef struct mm_stream {
     mm_camera_buf_def_t* buf; /* ptr to buf array */
     mm_stream_buf_status_t* buf_status; /* ptr to buf status array */
 
+    uint8_t plane_buf_num; /* num of plane buffers allocated */
+    mm_camera_buf_def_t *plane_buf; /*Pointer to plane buffer array in case of BATCH */
+
+
     /* reference to parent channel_obj */
     struct mm_channel* ch_obj;
 

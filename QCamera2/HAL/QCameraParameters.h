@@ -44,6 +44,8 @@ static const char ExifUndefinedPrefix[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 #define EXIF_ASCII_PREFIX_SIZE           8   //(sizeof(ExifAsciiPrefix))
 #define FOCAL_LENGTH_DECIMAL_PRECISION   100
 
+#define CAMERA_MIN_BATCH_COUNT           4
+
 class QCameraTorchInterface
 {
 public:
@@ -778,6 +780,8 @@ public:
     int32_t setToneMapMode(uint32_t value, bool initCommit);
     void setTintless(bool enable);
     uint8_t getLongshotStages();
+    void setBufBatchCount(int8_t buf_cnt);
+    int8_t  getBufBatchCount() {return mBufBatchCnt;};
 
     cam_capture_frame_config_t getCaptureFrameConfig()
             { return m_captureFrameConfig; };
@@ -1067,8 +1071,8 @@ private:
     int32_t mParmZoomLevel;
     bool m_bIsLowMemoryDevice;
     int32_t mCds_mode;
-
     cam_capture_frame_config_t m_captureFrameConfig;
+    int8_t mBufBatchCnt;
 };
 
 }; // namespace qcamera

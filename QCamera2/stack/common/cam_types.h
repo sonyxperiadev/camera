@@ -337,8 +337,15 @@ typedef enum {
     CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF, /* mapping offline process input buffer */
     CAM_MAPPING_BUF_TYPE_OFFLINE_META_BUF,  /* mapping offline meta buffer */
     CAM_MAPPING_BUF_TYPE_MISC_BUF,          /* mapping offline miscellaneous buffer */
+    CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF,   /* mapping user ptr stream buffers */
     CAM_MAPPING_BUF_TYPE_MAX
 } cam_mapping_buf_type;
+
+typedef enum {
+    CAM_STREAM_BUF_TYPE_MPLANE,  /* Multiplanar Buffer type */
+    CAM_STREAM_BUF_TYPE_USERPTR, /* User specific structure pointer*/
+    CAM_STREAM_BUF_TYPE_MAX
+} cam_stream_buf_type;
 
 /* values that persist.camera.global.debug can be set to */
 /* all camera modules need to map their internal debug levels to this range */
@@ -356,7 +363,7 @@ typedef struct {
                            * -1 means all planners shanre the same fd;
                            * otherwise, each planner has its own fd */
     uint32_t cookie;      /* could be job_id(uint32_t) to identify mapping job */
-    int fd;               /* origin fd */
+    int32_t fd;           /* origin fd */
     size_t size;          /* size of the buffer */
 } cam_buf_map_type;
 
@@ -419,13 +426,19 @@ typedef struct {
 } cam_padding_info_t;
 
 typedef struct {
-    uint32_t num_planes;
+    uint32_t num_planes;    /*Number of planes in planar buffer*/
     union {
         cam_sp_len_offset_t sp;
         cam_mp_len_offset_t mp[VIDEO_MAX_PLANES];
     };
     uint32_t frame_len;
 } cam_frame_len_offset_t;
+
+typedef struct {
+    uint8_t frame_buf_cnt;  /*Total plane frames present in 1 batch*/
+    uint32_t size;          /*Size of 1 batch buffer. Kernel structure size*/
+    long frameInterval;     /*frame interval between each frame*/
+} cam_stream_user_buf_info_t;
 
 typedef struct {
     int32_t width;
@@ -748,6 +761,7 @@ typedef struct  {
 typedef enum {
     CAM_STREAMING_MODE_CONTINUOUS, /* continous streaming */
     CAM_STREAMING_MODE_BURST,      /* burst streaming */
+    CAM_STREAMING_MODE_BATCH,
     CAM_STREAMING_MODE_MAX
 } cam_streaming_mode_t;
 
