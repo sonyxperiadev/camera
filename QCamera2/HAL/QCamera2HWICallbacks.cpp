@@ -257,9 +257,6 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
         }
     }
 
-    // Wait on Postproc initialization if needed
-    pme->waitDefferedWork(pme->mReprocJob);
-
     // send to postprocessor
     pme->m_postprocessor.processData(frame);
 
