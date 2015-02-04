@@ -5622,8 +5622,7 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
                 __func__, min_fps, max_fps, vid_min_fps, vid_max_fps);
 
     if(fixedFpsValue != 0) {
-      min_fps = (int)fixedFpsValue*1000;
-      max_fps = (int)fixedFpsValue*1000;
+      min_fps = max_fps = vid_min_fps = vid_max_fps = (int)fixedFpsValue*1000;
     }
     snprintf(str, sizeof(str), "%d,%d", min_fps, max_fps);
     CDBG_HIGH("%s: Setting preview fps range %s", __func__, str);
