@@ -1320,7 +1320,6 @@ int QCamera2HardwareInterface::closeCamera()
     m_cbNotifier.exit();
 
     // stop and deinit postprocessor
-    waitDefferedWork(mReprocJob);
     m_postprocessor.stop();
     m_postprocessor.deinit();
 
@@ -2988,17 +2987,14 @@ int QCamera2HardwareInterface::takePicture()
             (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
         if (NULL != pZSLChannel) {
             // start postprocessor
-            DefferWorkArgs args;
-            memset(&args, 0, sizeof(DefferWorkArgs));
-
-            args.pprocArgs = pZSLChannel;
-            mReprocJob = queueDefferedWork(CMD_DEFF_PPROC_START,
-                    args);
-
+            rc = m_postprocessor.start(pZSLChannel);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: cannot start postprocessor", __func__);
+                return rc;
+            }
             rc = configureOnlineRotation(*pZSLChannel);
             if (rc != NO_ERROR) {
                 ALOGE("%s: online rotation failed", __func__);
-                waitDefferedWork(mReprocJob);
                 m_postprocessor.stop();
                 return rc;
             }
@@ -3023,7 +3019,6 @@ int QCamera2HardwareInterface::takePicture()
             rc = pZSLChannel->takePicture(numSnapshots, numRetroSnapshots);
             if (rc != NO_ERROR) {
                 ALOGE("%s: cannot take ZSL picture, stop pproc", __func__);
-                waitDefferedWork(mReprocJob);
                 m_postprocessor.stop();
                 return rc;
             }
