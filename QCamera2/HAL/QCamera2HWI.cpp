@@ -2678,6 +2678,13 @@ int32_t QCamera2HardwareInterface::configureFlashBracketing(bool enable)
     int32_t rc = NO_ERROR;
 
     cam_flash_bracketing_t flashBracket;
+
+    rc = mParameters.setToneMapMode(!enable, true);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Failed to configure tone map", __func__);
+        return rc;
+    }
+
     memset(&flashBracket, 0, sizeof(cam_flash_bracketing_t));
     flashBracket.enable = enable;
     //TODO: Hardcoded value.
