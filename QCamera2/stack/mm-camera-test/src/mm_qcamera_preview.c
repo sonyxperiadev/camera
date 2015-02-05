@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -193,7 +193,7 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
 static void mm_app_zsl_notify_cb(mm_camera_super_buf_t *bufs,
                                  void *user_data)
 {
-    int rc = 0;
+    int rc = MM_CAMERA_OK;
     uint32_t i = 0;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
     mm_camera_channel_t *channel = NULL;
@@ -316,16 +316,22 @@ static void mm_app_zsl_notify_cb(mm_camera_super_buf_t *bufs,
     }*/
 
     if ( pme->enable_reproc && ( NULL != pme->reproc_stream ) ) {
-        rc = mm_app_do_reprocess(pme,
-                                 m_frame,
-                                 md_frame->buf_idx,
-                                 bufs,
-                                 md_stream);
-        if (MM_CAMERA_OK != rc ) {
-            CDBG_ERROR("%s: reprocess failed rc = %d", __func__, rc);
+
+        if (NULL != md_frame) {
+            rc = mm_app_do_reprocess(pme,
+                    m_frame,
+                    md_frame->buf_idx,
+                    bufs,
+                    md_stream);
+
+            if (MM_CAMERA_OK != rc ) {
+                CDBG_ERROR("%s: reprocess failed rc = %d", __func__, rc);
+            }
+        } else {
+            CDBG_ERROR("%s: md_frame is null\n", __func__);
         }
 
-        return;
+      return;
     }
 
     if ( pme->encodeJpeg ) {

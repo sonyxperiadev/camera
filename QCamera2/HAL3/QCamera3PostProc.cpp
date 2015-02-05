@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -1610,19 +1610,31 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                         pthread_mutex_unlock(&pme->mReprocJobLock);
                         qcamera_hal3_pp_data_t *pp_job =
                             (qcamera_hal3_pp_data_t *)malloc(sizeof(qcamera_hal3_pp_data_t));
-                        if (pp_job != NULL) {
+                        if (pp_job == NULL) {
+                            ALOGE("%s: no mem for qcamera_hal3_pp_data_t",
+                                    __func__);
+                            ret = -1;
+                        } else if (meta_buffer == NULL) {
+                            ALOGE("%s: no mem for mm_camera_super_buf_t",
+                                    __func__);
+                            ret = -1;
+                        } else {
                             memset(pp_job, 0, sizeof(qcamera_hal3_pp_data_t));
                             pp_job->src_frame = pp_frame;
                             pp_job->src_metadata = meta_buffer;
-                            pp_job->metadata =
-                                    (metadata_buffer_t *)meta_buffer->bufs[0]->buffer;
+                            if (meta_buffer->bufs[0] != NULL) {
+                                pp_job->metadata = (metadata_buffer_t *)
+                                        meta_buffer->bufs[0]->buffer;
+                            }
                             pp_job->jpeg_settings = jpeg_settings;
                             pme->m_ongoingPPQ.enqueue((void *)pp_job);
                             if (pme->m_pReprocChannel != NULL) {
+                                mm_camera_buf_def_t *meta_buffer_arg = NULL;
+                                meta_buffer_arg = meta_buffer->bufs[0];
                                 qcamera_fwk_input_pp_data_t fwk_frame;
                                 memset(&fwk_frame, 0, sizeof(qcamera_fwk_input_pp_data_t));
                                 ret = pme->m_pReprocChannel->extractFrameCropAndRotation(
-                                        pp_frame, meta_buffer->bufs[0],
+                                        pp_frame, meta_buffer_arg,
                                         pp_job->jpeg_settings,
                                         fwk_frame);
                                 if (NO_ERROR == ret) {
@@ -1639,9 +1651,6 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                     __func__);
                                 ret = pme->processPPData(pp_frame);
                             }
-                        } else {
-                            ALOGE("%s: no mem for qcamera_hal3_pp_data_t", __func__);
-                            ret = -1;
                         }
 
                         if (0 != ret) {

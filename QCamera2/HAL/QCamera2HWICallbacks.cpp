@@ -1793,7 +1793,7 @@ void QCamera2HardwareInterface::dumpJpegToFile(const void *data,
                 snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION "%d_%d.jpg",
                         mDumpFrmCnt, index);
                 if (true == m_bIntJpegEvtPending) {
-                    strncpy(m_BackendFileName, buf, sizeof(buf));
+                    strlcpy(m_BackendFileName, buf, sizeof(buf));
                     mBackendFileSize = size;
                 }
 
@@ -2065,7 +2065,7 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                         ALOGE("%s: fail t open file for image dumping", __func__);
                     }
                     if (true == m_bIntRawEvtPending) {
-                        strncpy(m_BackendFileName, filePath.string(), QCAMERA_MAX_FILEPATH_LENGTH);
+                        strlcpy(m_BackendFileName, filePath.string(), QCAMERA_MAX_FILEPATH_LENGTH);
                         mBackendFileSize = (size_t)written_len;
                     } else {
                         mDumpFrmCnt++;

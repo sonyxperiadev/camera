@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -6731,7 +6731,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
         const char *gps_methods_src = (const char *)
                 frame_settings.find(ANDROID_JPEG_GPS_PROCESSING_METHOD).data.u8;
         memset(gps_methods, '\0', sizeof(gps_methods));
-        strncpy(gps_methods, gps_methods_src, sizeof(gps_methods)-1);
+        strlcpy(gps_methods, gps_methods_src, sizeof(gps_methods));
         rc = AddSetParmEntryToBatch(hal_metadata, CAM_INTF_META_JPEG_GPS_PROC_METHODS, sizeof(gps_methods), gps_methods);
     }
 
