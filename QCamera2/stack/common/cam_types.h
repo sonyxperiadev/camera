@@ -883,6 +883,97 @@ typedef enum {
     QCAMERA_FD_SNAPSHOT
 }qcamera_face_detect_type_t;
 
+typedef enum {
+    CAM_FACE_CT_POINT_EYE_L_PUPIL,
+    CAM_FACE_CT_POINT_EYE_L_IN,
+    CAM_FACE_CT_POINT_EYE_L_OUT,
+    CAM_FACE_CT_POINT_EYE_L_UP,
+    CAM_FACE_CT_POINT_EYE_L_DOWN,
+    CAM_FACE_CT_POINT_EYE_R_PUPIL,
+    CAM_FACE_CT_POINT_EYE_R_IN,
+    CAM_FACE_CT_POINT_EYE_R_OUT,
+    CAM_FACE_CT_POINT_EYE_R_UP,
+    CAM_FACE_CT_POINT_EYE_R_DOWN,
+    CAM_FACE_CT_POINT_EYE_MAX
+} cam_face_ct_point_eye_t;
+
+typedef enum {
+    CAM_FACE_CT_POINT_FOREHEAD,
+    CAM_FACE_CT_POINT_FOREHEAD_MAX
+} cam_face_ct_point_forh_t;
+
+typedef enum {
+    CAM_FACE_CT_POINT_NOSE,
+    CAM_FACE_CT_POINT_NOSE_TIP,
+    CAM_FACE_CT_POINT_NOSE_L,
+    CAM_FACE_CT_POINT_NOSE_R,
+    CAM_FACE_CT_POINT_NOSE_L_0,
+    CAM_FACE_CT_POINT_NOSE_R_0,
+    CAM_FACE_CT_POINT_NOSE_L_1,
+    CAM_FACE_CT_POINT_NOSE_R_1,
+    CAM_FACE_CT_POINT_NOSE_MAX
+} cam_face_ct_point_nose_t;
+
+typedef enum {
+    CAM_FACE_CT_POINT_MOUTH_L,
+    CAM_FACE_CT_POINT_MOUTH_R,
+    CAM_FACE_CT_POINT_MOUTH_UP,
+    CAM_FACE_CT_POINT_MOUTH_DOWN,
+    CAM_FACE_CT_POINT_MOUTH_MAX
+} cam_face_ct_point_mouth_t;
+
+typedef enum {
+    CAM_FACE_CT_POINT_LIP_UP,
+    CAM_FACE_CT_POINT_LIP_DOWN,
+    CAM_FACE_CT_POINT_LIP_MAX
+} cam_face_ct_point_lip_t;
+
+typedef enum {
+    CAM_FACE_CT_POINT_BROW_L_UP,
+    CAM_FACE_CT_POINT_BROW_L_DOWN,
+    CAM_FACE_CT_POINT_BROW_L_IN,
+    CAM_FACE_CT_POINT_BROW_L_OUT,
+    CAM_FACE_CT_POINT_BROW_R_UP,
+    CAM_FACE_CT_POINT_BROW_R_DOWN,
+    CAM_FACE_CT_POINT_BROW_R_IN,
+    CAM_FACE_CT_POINT_BROW_R_OUT,
+    CAM_FACE_CT_POINT_BROW_MAX
+} cam_face_ct_point_brow_t;
+
+typedef enum {
+    CAM_FACE_CT_POINT_CHIN,
+    CAM_FACE_CT_POINT_CHIN_L,
+    CAM_FACE_CT_POINT_CHIN_R,
+    CAM_FACE_CT_POINT_CHIN_MAX
+} cam_face_ct_point_chin_t;
+
+typedef enum {
+    CAM_FACE_CT_POINT_EAR_L_DOWN,
+    CAM_FACE_CT_POINT_EAR_R_DOWN,
+    CAM_FACE_CT_POINT_EAR_L_UP,
+    CAM_FACE_CT_POINT_EAR_R_UP,
+    CAM_FACE_CT_POINT_EAR_MAX
+} cam_face_ct_point_ear_t;
+
+typedef struct {
+  uint8_t is_eye_valid;
+  cam_coordinate_type_t contour_eye_pt[CAM_FACE_CT_POINT_EYE_MAX];
+  uint8_t is_forehead_valid;
+  cam_coordinate_type_t contour_forh_pt[CAM_FACE_CT_POINT_FOREHEAD_MAX];
+  uint8_t is_nose_valid;
+  cam_coordinate_type_t contour_nose_pt[CAM_FACE_CT_POINT_NOSE_MAX];
+  uint8_t is_mouth_valid;
+  cam_coordinate_type_t contour_mouth_pt[CAM_FACE_CT_POINT_MOUTH_MAX];
+  uint8_t is_lip_valid;
+  cam_coordinate_type_t contour_lip_pt[CAM_FACE_CT_POINT_LIP_MAX];
+  uint8_t is_brow_valid;
+  cam_coordinate_type_t contour_brow_pt[CAM_FACE_CT_POINT_BROW_MAX];
+  uint8_t is_chin_valid;
+  cam_coordinate_type_t contour_chin_pt[CAM_FACE_CT_POINT_CHIN_MAX];
+  uint8_t is_ear_valid;
+  cam_coordinate_type_t contour_ear_pt[CAM_FACE_CT_POINT_EAR_MAX];
+} cam_face_detect_contour_t;
+
 typedef struct {
     int32_t face_id;            /* unique id for face tracking within view unless view changes */
     int8_t score;              /* score of confidence (0, -100) */
@@ -890,6 +981,7 @@ typedef struct {
     cam_coordinate_type_t left_eye_center;  /* coordinate of center of left eye */
     cam_coordinate_type_t right_eye_center; /* coordinate of center of right eye */
     cam_coordinate_type_t mouth_center;     /* coordinate of center of mouth */
+    cam_face_detect_contour_t contour_info; /* face detection contour info */
     uint8_t smile_degree;      /* smile degree (0, -100) */
     uint8_t smile_confidence;  /* smile confidence (0, 100) */
     uint8_t face_recognised;   /* if face is recognised */
