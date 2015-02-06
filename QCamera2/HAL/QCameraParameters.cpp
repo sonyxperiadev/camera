@@ -838,6 +838,7 @@ QCameraParameters::QCameraParameters()
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
+    memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
     mTotalPPCount = 0;
     mZoomLevel = 0;
     mParmZoomLevel = 0;
@@ -917,6 +918,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
+    memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
     m_pTorch = NULL;
     m_bReleaseTorchCamera = false;
     mTotalPPCount = 0;
@@ -7497,7 +7499,7 @@ int32_t QCameraParameters::set3ALock(const char *lockStr)
                 if (isUbiFocusEnabled() || isUbiRefocus()) {
                     //For Ubi focus move focus to infinity.
                     focus_mode = CAM_FOCUS_MODE_INFINITY;
-                } else if (isOptiZoomEnabled() || isStillMoreEnabled()){
+                } else if (isOptiZoomEnabled() || isStillMoreEnabled()) {
                     //For optizoom and stillmore, set focus as fixed.
                     focus_mode = CAM_FOCUS_MODE_FIXED;
                 }
@@ -7898,6 +7900,13 @@ int32_t QCameraParameters::setSeeMore(const char *seeMoreStr)
                 seeMoreStr);
         if (value != NAME_NOT_FOUND) {
             m_bSeeMoreOn = (value != 0);
+
+            /* enable stillmore for live snapshot */
+            if (m_bSeeMoreOn) {
+                m_bStillMoreOn = TRUE;
+            } else {
+                m_bStillMoreOn = FALSE;
+            }
             updateParamEntry(KEY_QC_SEE_MORE, seeMoreStr);
 
             return NO_ERROR;
@@ -8946,7 +8955,16 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
         burstCount = 2;
     } else if (isStillMoreEnabled()) {
         //number of snapshots required for Still More.
-        burstCount = m_pCapability->stillmore_settings_need.burst_count;
+        if (isSeeMoreEnabled()) {
+            burstCount = 1;
+        } else if ((m_stillmore_config.burst_count >=
+                m_pCapability->stillmore_settings_need.min_burst_count) &&
+                (m_stillmore_config.burst_count <=
+                m_pCapability->stillmore_settings_need.max_burst_count)) {
+            burstCount = m_stillmore_config.burst_count;
+        } else {
+            burstCount = m_pCapability->stillmore_settings_need.burst_count;
+        }
     } else if (isHDREnabled()) {
         //number of snapshots required for HDR.
         burstCount = m_pCapability->hdr_bracketing_setting.num_frames;
@@ -11194,7 +11212,16 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
     } else if (isChromaFlashEnabled()) {
         numOfBufs += 1; /* flash and non flash */
     } else if (isStillMoreEnabled()) {
-        numOfBufs += m_pCapability->stillmore_settings_need.burst_count - 1;
+        if (isSeeMoreEnabled()) {
+            m_stillmore_config.burst_count = 1;
+        } else if ((m_stillmore_config.burst_count >=
+                m_pCapability->stillmore_settings_need.min_burst_count) &&
+                (m_stillmore_config.burst_count <=
+                m_pCapability->stillmore_settings_need.max_burst_count)) {
+            numOfBufs += m_stillmore_config.burst_count - 1;
+        } else {
+            numOfBufs += m_pCapability->stillmore_settings_need.burst_count - 1;
+        }
     }
 
     return (uint8_t)(numOfBufs * getBurstNum());
@@ -11225,6 +11252,18 @@ uint32_t QCameraParameters::getNumberInBufsForSingleShot()
         numOfBufs = m_pCapability->hdr_bracketing_setting.num_frames;
         if (isHDR1xFrameEnabled() && isHDR1xExtraBufferNeeded()) {
             numOfBufs++;
+        }
+    } else if (isStillMoreEnabled()) {
+        if (isSeeMoreEnabled()) {
+            m_stillmore_config.burst_count = 1;
+            numOfBufs = m_stillmore_config.burst_count;
+        } else if ((m_stillmore_config.burst_count >=
+                m_pCapability->stillmore_settings_need.min_burst_count) &&
+                (m_stillmore_config.burst_count <=
+                m_pCapability->stillmore_settings_need.max_burst_count)) {
+            numOfBufs = m_stillmore_config.burst_count;
+        } else {
+            numOfBufs = m_pCapability->stillmore_settings_need.burst_count;
         }
     }
 
