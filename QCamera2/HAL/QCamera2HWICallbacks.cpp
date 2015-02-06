@@ -1672,7 +1672,6 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         cam_focus_pos_info_t *cur_pos_info =
                 (cam_focus_pos_info_t *) POINTER_OF_META(CAM_INTF_META_FOCUS_POSITION,
                         pMetaData);
-        pme->processFocusPositionInfo(*cur_pos_info);
         qcamera_sm_internal_evt_payload_t *payload =
             (qcamera_sm_internal_evt_payload_t *)malloc(sizeof(qcamera_sm_internal_evt_payload_t));
         if (NULL != payload) {
