@@ -2051,7 +2051,11 @@ typedef enum {
 
     /* Sensor is not Bayer; output has 3 16-bit values for each pixel,
      * instead of just 1 16-bit value per pixel.*/
-    CAM_FILTER_ARRANGEMENT_RGB
+    CAM_FILTER_ARRANGEMENT_RGB,
+    /* Sensor is YUV; SW do not have access to actual RAW,
+     * output is interleaved UYVY */
+    CAM_FILTER_ARRANGEMENT_UYVY,
+    CAM_FILTER_ARRANGEMENT_YUYV,
 } cam_color_filter_arrangement_t;
 
 typedef enum {
