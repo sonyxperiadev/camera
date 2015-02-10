@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -3530,6 +3530,8 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                 rc = NO_MEMORY;
             }
 
+            Vector<int32_t> roi_map;
+
             if (NO_ERROR == rc) {
                 int32_t steams_found = 0;
                 for (size_t i = 0; i < cnt; i++) {
@@ -3558,6 +3560,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                 crop_stream_ids[steams_found] = (int32_t)(*it)->stream;
 #endif
                                 steams_found++;
+                                roi_map.add(crop_data->crop_info[i].roi_map.left);
+                                roi_map.add(crop_data->crop_info[i].roi_map.top);
+                                roi_map.add(crop_data->crop_info[i].roi_map.width);
+                                roi_map.add(crop_data->crop_info[i].roi_map.height);
                                 CDBG("%s: Adding reprocess crop data for stream %p %dx%d, %dx%d",
                                         __func__,
                                         (*it)->stream,
@@ -3565,6 +3571,13 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                         crop_data->crop_info[i].crop.top,
                                         crop_data->crop_info[i].crop.width,
                                         crop_data->crop_info[i].crop.height);
+                                CDBG("%s: Adding reprocess crop roi map for stream %p %dx%d, %dx%d",
+                                        __func__,
+                                        (*it)->stream,
+                                        crop_data->crop_info[i].roi_map.left,
+                                        crop_data->crop_info[i].roi_map.top,
+                                        crop_data->crop_info[i].roi_map.width,
+                                        crop_data->crop_info[i].roi_map.height);
                                 break;
                             }
                         }
@@ -3577,6 +3590,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         crop, (size_t)(steams_found * 4));
                 camMetadata.update(QCAMERA3_CROP_STREAM_ID_REPROCESS,
                         crop_stream_ids, (size_t)steams_found);
+                if (roi_map.array()) {
+                    camMetadata.update(QCAMERA3_CROP_ROI_MAP_REPROCESS,
+                            roi_map.array(), roi_map.size());
+                }
             }
 
             if (crop) {
@@ -6062,6 +6079,8 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
                 frame_settings.find(QCAMERA3_CROP_REPROCESS).data.i32;
         int32_t *crop_stream_ids =
                 frame_settings.find(QCAMERA3_CROP_STREAM_ID_REPROCESS).data.i32;
+        int32_t *roi_map =
+                frame_settings.find(QCAMERA3_CROP_ROI_MAP_REPROCESS).data.i32;
         if ((0 < *crop_count) && (*crop_count < MAX_NUM_STREAMS)) {
             bool found = false;
             int32_t i;
@@ -6081,12 +6100,24 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
 
             if (found) {
                 cam_crop_data_t crop_meta;
+                size_t roi_map_idx = i*4;
+                size_t crop_info_idx = i*4;
                 memset(&crop_meta, 0, sizeof(cam_crop_data_t));
                 crop_meta.num_of_streams = 1;
-                crop_meta.crop_info[0].crop.left   = crop_data[i*4];
-                crop_meta.crop_info[0].crop.top    = crop_data[i*4 + 1];
-                crop_meta.crop_info[0].crop.width  = crop_data[i*4 + 2];
-                crop_meta.crop_info[0].crop.height = crop_data[i*4 + 3];
+                crop_meta.crop_info[0].crop.left   = crop_data[crop_info_idx++];
+                crop_meta.crop_info[0].crop.top    = crop_data[crop_info_idx++];
+                crop_meta.crop_info[0].crop.width  = crop_data[crop_info_idx++];
+                crop_meta.crop_info[0].crop.height = crop_data[crop_info_idx++];
+
+                crop_meta.crop_info[0].roi_map.left =
+                        roi_map[roi_map_idx++];
+                crop_meta.crop_info[0].roi_map.top =
+                        roi_map[roi_map_idx++];
+                crop_meta.crop_info[0].roi_map.width =
+                        roi_map[roi_map_idx++];
+                crop_meta.crop_info[0].roi_map.height =
+                        roi_map[roi_map_idx++];
+
                 rc = AddSetParmEntryToBatch(reprocParam,
                         CAM_INTF_META_CROP_DATA,
                         sizeof(cam_crop_data_t), &crop_meta);
@@ -6097,6 +6128,13 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
                         crop_meta.crop_info[0].crop.top,
                         crop_meta.crop_info[0].crop.width,
                         crop_meta.crop_info[0].crop.height);
+                CDBG("%s: Found reprocess roi map data for stream %p %dx%d, %dx%d",
+                        __func__,
+                        request->input_buffer->stream,
+                        crop_meta.crop_info[0].roi_map.left,
+                        crop_meta.crop_info[0].roi_map.top,
+                        crop_meta.crop_info[0].roi_map.width,
+                        crop_meta.crop_info[0].roi_map.height);
             } else {
                 ALOGE("%s: No matching reprocess input stream found!", __func__);
             }
