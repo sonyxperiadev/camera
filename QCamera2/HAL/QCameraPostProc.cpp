@@ -2579,7 +2579,16 @@ int32_t QCameraPostProcessor::doReprocess()
     mm_camera_buf_def_t *meta_buf = NULL;
     bool found_meta = FALSE;
 
-    qcamera_pp_request_t *ppreq_job = (qcamera_pp_request_t *)m_inputPPQ.dequeue();
+    qcamera_pp_request_t *ppreq_job = (qcamera_pp_request_t *)m_inputPPQ.peek();
+    if ((ppreq_job == NULL) || (ppreq_job->src_frame == NULL)) {
+        return ret;
+    }
+
+    if (!validatePostProcess(ppreq_job->src_frame)) {
+        return ret;
+    }
+
+    ppreq_job = (qcamera_pp_request_t *)m_inputPPQ.dequeue();
     if (ppreq_job == NULL || ppreq_job->src_frame == NULL ||
             ppreq_job->src_reproc_frame == NULL) {
         return ret;
