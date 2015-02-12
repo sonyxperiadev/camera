@@ -204,6 +204,39 @@ bool QCameraQueue::enqueueWithPriority(void *data)
 }
 
 /*===========================================================================
+ * FUNCTION   : peek
+ *
+ * DESCRIPTION: return the head element without removing it
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : data ptr. NULL if not any data in the queue.
+ *==========================================================================*/
+void* QCameraQueue::peek()
+{
+    camera_q_node* node = NULL;
+    void* data = NULL;
+    struct cam_list *head = NULL;
+    struct cam_list *pos = NULL;
+
+    pthread_mutex_lock(&m_lock);
+    if (m_active) {
+        head = &m_head.list;
+        pos = head->next;
+        if (pos != head) {
+            node = member_of(pos, camera_q_node, list);
+        }
+    }
+    pthread_mutex_unlock(&m_lock);
+
+    if (NULL != node) {
+        data = node->data;
+    }
+
+    return data;
+}
+
+/*===========================================================================
  * FUNCTION   : dequeue
  *
  * DESCRIPTION: dequeue data from the queue
