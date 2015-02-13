@@ -275,13 +275,16 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
 
     // Create Jpeg session
     if ( !m_parent->mParameters.getRecordingHintValue() &&
-            !m_parent->isLongshotEnabled() &&
-            !m_parent->isZSLMode() && (mTotalNumReproc > 0)) {
+            !m_parent->isLongshotEnabled() && (mTotalNumReproc > 0)) {
 
         QCameraChannel *pChannel = NULL;
         pChannel = m_parent->needReprocess() ? mPPChannels[0] : pSrcChannel;
         QCameraStream *pSnapshotStream = NULL;
         QCameraStream *pThumbStream = NULL;
+        bool thumb_stream_needed = ((!m_parent->isZSLMode() ||
+            (m_parent->mParameters.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT) ==
+             m_parent->mParameters.getFlipMode(CAM_STREAM_TYPE_PREVIEW))) &&
+            !m_parent->mParameters.generateThumbFromMain());
 
         for (uint32_t i = 0; i < pChannel->getNumOfStreams(); ++i) {
             QCameraStream *pStream = pChannel->getStreamByIndex(i);
@@ -295,15 +298,19 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
                 pSnapshotStream = pStream;
             }
 
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
+            if ((thumb_stream_needed) &&
+                   (pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
+                    pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW))) {
                 pThumbStream = pStream;
             }
         }
 
         // If thumbnail is not part of the reprocess channel, then
         // try to get it from the source channel
-        if ((NULL == pThumbStream) && (pChannel == mPPChannels[0])) {
+        if ((thumb_stream_needed) && (NULL == pThumbStream) &&
+                (pChannel == mPPChannels[0])) {
             for (uint32_t i = 0; i < pSrcChannel->getNumOfStreams(); ++i) {
                 QCameraStream *pStream = pSrcChannel->getStreamByIndex(i);
 
@@ -312,14 +319,12 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
                 }
 
                 if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
+                        pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
+                        pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
+                        pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
                     pThumbStream = pStream;
                 }
             }
-        }
-
-        if (m_parent->mParameters.generateThumbFromMain()) {
-            pThumbStream = NULL;
         }
 
         if ( NULL != pSnapshotStream ) {
@@ -1598,9 +1603,10 @@ int32_t QCameraPostProcessor::queryStreams(QCameraStream **main,
 
     // Use snapshot stream to create thumbnail if snapshot and preview
     // flip settings doesn't match in ZSL mode.
-    bool thumb_stream_needed = !m_parent->isZSLMode() ||
+    bool thumb_stream_needed = ((!m_parent->isZSLMode() ||
         (m_parent->mParameters.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT) ==
-         m_parent->mParameters.getFlipMode(CAM_STREAM_TYPE_PREVIEW));
+         m_parent->mParameters.getFlipMode(CAM_STREAM_TYPE_PREVIEW))) &&
+        !m_parent->mParameters.generateThumbFromMain());
 
     *main = *thumb = *reproc = NULL;
     *main_image = *thumb_image = NULL;
@@ -1647,11 +1653,6 @@ int32_t QCameraPostProcessor::queryStreams(QCameraStream **main,
                 }
             }
         }
-    }
-
-    if (m_parent->mParameters.generateThumbFromMain()) {
-        *thumb = NULL;
-        *thumb_image = NULL;
     }
 
     return NO_ERROR;
