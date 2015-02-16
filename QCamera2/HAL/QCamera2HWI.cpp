@@ -7634,7 +7634,7 @@ void *QCamera2HardwareInterface::defferedWorkRoutine(void *obj)
 
                         if (pme->m_postprocessor.start(pChannel) != NO_ERROR) {
                             ALOGE("%s: cannot start postprocessor", __func__);
-                            pme->delChannel(QCAMERA_CH_TYPE_CAPTURE);
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR, CAMERA_ERROR_UNKNOWN, 0);
                         }
                         {
                             Mutex::Autolock l(pme->mDeffLock);
