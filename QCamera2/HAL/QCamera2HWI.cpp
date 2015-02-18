@@ -1332,17 +1332,6 @@ int QCamera2HardwareInterface::closeCamera()
     m_postprocessor.stop();
     m_postprocessor.deinit();
 
-    //free all pending api results here
-    if(m_apiResultList != NULL) {
-        api_result_list *apiResultList = m_apiResultList;
-        api_result_list *apiResultListNext;
-        while (apiResultList != NULL) {
-            apiResultListNext = apiResultList->next;
-            free(apiResultList);
-            apiResultList = apiResultListNext;
-        }
-    }
-
     m_thermalAdapter.deinit();
 
     // delete all channels if not already deleted
@@ -1351,6 +1340,17 @@ int QCamera2HardwareInterface::closeCamera()
             m_channels[i]->stop();
             delete m_channels[i];
             m_channels[i] = NULL;
+        }
+    }
+
+    //free all pending api results here
+    if(m_apiResultList != NULL) {
+        api_result_list *apiResultList = m_apiResultList;
+        api_result_list *apiResultListNext;
+        while (apiResultList != NULL) {
+            apiResultListNext = apiResultList->next;
+            free(apiResultList);
+            apiResultList = apiResultListNext;
         }
     }
 
