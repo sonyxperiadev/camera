@@ -148,6 +148,9 @@ typedef enum {
     QCAMERA_INTERNAL_EVT_AWB_UPDATE,         // awb update result
     QCAMERA_INTERNAL_EVT_AE_UPDATE,          // ae update result
     QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE,   // focus position update result
+    QCAMERA_INTERNAL_EVT_HDR_UPDATE,         // HDR scene update
+    QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK,   // retro burst AEC unlock event
+    QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE,   // ZSL capture done event
     QCAMERA_INTERNAL_EVT_MAX
 } qcamera_internal_evt_type_t;
 
@@ -164,6 +167,7 @@ typedef struct {
         cam_awb_params_t awb_data;
         cam_3a_params_t ae_data;
         cam_focus_pos_info_t focus_pos;
+        cam_asd_hdr_scene_data_t hdr_data;
     };
 } qcamera_sm_internal_evt_payload_t;
 
