@@ -90,10 +90,21 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
     CDBG_HIGH("%s: [ZSL Retro] Frame CB Unlock : %d, is AEC Locked: %d",
           __func__, recvd_frame->bUnlockAEC, pme->m_bLedAfAecLock);
     if(recvd_frame->bUnlockAEC && pme->m_bLedAfAecLock) {
-       CDBG_HIGH("%s : [ZSL Retro] LED assisted AF Release AEC Lock\n", __func__);
-       pme->mParameters.setAecLock("false");
-       pme->mParameters.commitParameters();
-       pme->m_bLedAfAecLock = FALSE ;
+        qcamera_sm_internal_evt_payload_t *payload =
+                (qcamera_sm_internal_evt_payload_t *)malloc(
+                        sizeof(qcamera_sm_internal_evt_payload_t));
+        if (NULL != payload) {
+            memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+            payload->evt_type = QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK;
+            int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: processEvt for retro AEC unlock failed", __func__);
+                free(payload);
+                payload = NULL;
+            }
+        } else {
+            ALOGE("%s: No memory for retro AEC event", __func__);
+        }
     }
 
     // Check if retro-active frames are completed and camera is
@@ -1507,9 +1518,22 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
                 hdr_scene_data->is_hdr_scene, hdr_scene_data->hdr_confidence);
         //Handle this HDR meta data only if capture is not in process
         if (!pme->m_stateMachine.isCaptureRunning()) {
-            int32_t rc = pme->processHDRData(*hdr_scene_data);
-            if (rc != NO_ERROR) {
-                ALOGE("%s: processHDRData failed", __func__);
+            qcamera_sm_internal_evt_payload_t *payload =
+                    (qcamera_sm_internal_evt_payload_t *)
+                    malloc(sizeof(qcamera_sm_internal_evt_payload_t));
+            if (NULL != payload) {
+                memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+                payload->evt_type = QCAMERA_INTERNAL_EVT_HDR_UPDATE;
+                payload->hdr_data = *hdr_scene_data;
+                int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s: processEvt hdr update failed", __func__);
+                    free(payload);
+                    payload = NULL;
+                }
+            } else {
+                ALOGE("%s: No memory for hdr update qcamera_sm_internal_evt_payload_t",
+                        __func__);
             }
         }
     }
