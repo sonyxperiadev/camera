@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -58,7 +58,6 @@ QCamera2Factory *gQCamera2Factory = NULL;
 QCamera2Factory::QCamera2Factory()
 {
     camera_info info;
-    int i = 0;
     mHalDescriptors = NULL;
     mCallbacks = NULL;
     mNumOfCameras = get_num_of_cameras();
@@ -78,7 +77,7 @@ QCamera2Factory::QCamera2Factory()
         if ( NULL != mHalDescriptors) {
             uint32_t cameraId = 0;
 
-            for (; i < mNumOfCameras ; i++, cameraId++) {
+            for (int i = 0; i < mNumOfCameras ; i++, cameraId++) {
                 mHalDescriptors[i].cameraId = cameraId;
                 if (isHAL3Enabled) {
                     mHalDescriptors[i].device_version = CAMERA_DEVICE_API_VERSION_3_0;

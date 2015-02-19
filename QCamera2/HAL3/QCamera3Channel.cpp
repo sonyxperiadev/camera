@@ -698,8 +698,8 @@ int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
         return -EINVAL;
     }
 
-    streamDim.width = mWidth;
-    streamDim.height = mHeight;
+    streamDim.width = (int32_t)mWidth;
+    streamDim.height = (int32_t)mHeight;
 
     rc = QCamera3Channel::addStream(mStreamType,
             streamFormat,
@@ -959,7 +959,7 @@ int32_t QCamera3MetadataChannel::initialize(cam_is_type_t isType)
 
     mIsType = isType;
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_METADATA, CAM_FORMAT_MAX,
-        streamDim, mNumBuffers, mPostProcMask, mIsType);
+            streamDim, (uint8_t)mNumBuffers, mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
     }
@@ -1706,9 +1706,8 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         ALOGE("%s: Snapshot stream plane info calculation failed!", __func__);
         return rc;
     }
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_ORIENTATION, metadata)) {
-          int32_t *rotation = (int32_t *)POINTER_OF_PARAM(
-            CAM_INTF_META_JPEG_ORIENTATION, metadata);
+
+    IF_META_AVAILABLE(int32_t, rotation, CAM_INTF_META_JPEG_ORIENTATION, metadata) {
           if (*rotation == 0) {
              reproc_cfg.rotation = ROTATE_0;
           } else if (*rotation == 90) {
@@ -2080,53 +2079,39 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
     settings->out_buf_index = index;
 
     settings->jpeg_orientation = 0;
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_ORIENTATION, metadata)) {
-        int32_t *orientation = (int32_t *)POINTER_OF_PARAM(
-                CAM_INTF_META_JPEG_ORIENTATION, metadata);
+    IF_META_AVAILABLE(int32_t, orientation, CAM_INTF_META_JPEG_ORIENTATION, metadata) {
         settings->jpeg_orientation = *orientation;
     }
 
     settings->jpeg_quality = 85;
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_QUALITY, metadata)) {
-        uint8_t *quality = (uint8_t *)POINTER_OF_PARAM(
-                CAM_INTF_META_JPEG_QUALITY, metadata);
-        settings->jpeg_quality = *quality;
+    IF_META_AVAILABLE(uint32_t, quality1, CAM_INTF_META_JPEG_QUALITY, metadata) {
+        settings->jpeg_quality = (uint8_t) *quality1;
     }
 
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_THUMB_QUALITY, metadata)) {
-        uint8_t *quality = (uint8_t *)POINTER_OF_PARAM(
-                CAM_INTF_META_JPEG_THUMB_QUALITY, metadata);
-        settings->jpeg_thumb_quality = *quality;
+    IF_META_AVAILABLE(uint32_t, quality2, CAM_INTF_META_JPEG_THUMB_QUALITY, metadata) {
+        settings->jpeg_thumb_quality = (uint8_t) *quality2;
     }
 
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_THUMB_SIZE, metadata)) {
-        cam_dimension_t *dimension = (cam_dimension_t *)POINTER_OF_PARAM(
-                CAM_INTF_META_JPEG_THUMB_SIZE, metadata);
+    IF_META_AVAILABLE(cam_dimension_t, dimension, CAM_INTF_META_JPEG_THUMB_SIZE, metadata) {
         settings->thumbnail_size = *dimension;
     }
 
     settings->gps_timestamp_valid = 0;
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_GPS_TIMESTAMP, metadata)) {
-        int64_t *timestamp = (int64_t *)POINTER_OF_PARAM(
-                CAM_INTF_META_JPEG_GPS_TIMESTAMP, metadata);
+    IF_META_AVAILABLE(int64_t, timestamp, CAM_INTF_META_JPEG_GPS_TIMESTAMP, metadata) {
         settings->gps_timestamp = *timestamp;
         settings->gps_timestamp_valid = 1;
     }
 
     settings->gps_coordinates_valid = 0;
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_GPS_COORDINATES, metadata)) {
-        double *coordinates = (double *)POINTER_OF_PARAM(
-                CAM_INTF_META_JPEG_GPS_COORDINATES, metadata);
+    IF_META_AVAILABLE(double, coordinates, CAM_INTF_META_JPEG_GPS_COORDINATES, metadata) {
         memcpy(settings->gps_coordinates, coordinates, 3*sizeof(double));
         settings->gps_coordinates_valid = 1;
     }
 
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_GPS_PROC_METHODS, metadata)) {
-        char *proc_methods = (char *)POINTER_OF_PARAM(
-                CAM_INTF_META_JPEG_GPS_PROC_METHODS, metadata);
+    IF_META_AVAILABLE(uint8_t, proc_methods, CAM_INTF_META_JPEG_GPS_PROC_METHODS, metadata) {
         memset(settings->gps_processing_method, 0,
                 sizeof(settings->gps_processing_method));
-        strncpy(settings->gps_processing_method, proc_methods,
+        strncpy(settings->gps_processing_method, (const char *)proc_methods,
                 sizeof(settings->gps_processing_method));
     }
 
@@ -2390,16 +2375,16 @@ int32_t getExifLongitude(rat_t *longitude,
  * PARAMETERS :
  *   @altitude : ptr to rational struct to store altitude info
  *   @altRef   : charater to indicate altitude reference
+ *   @argValue : altitude value
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t getExifAltitude(rat_t *altitude,
-                                           char *altRef, double value)
+int32_t getExifAltitude(rat_t *altitude, char *altRef, double argValue)
 {
     char str[30];
-    snprintf(str, sizeof(str), "%f", value);
+    snprintf(str, sizeof(str), "%f", argValue);
     if (str != NULL) {
         double value = atof(str);
         *altRef = 0;
@@ -2501,11 +2486,9 @@ QCamera3Exif *QCamera3PicChannel::getExifData(metadata_buffer_t *metadata,
         ALOGE("%s: getExifDateTime failed", __func__);
     }
 
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_LENS_FOCAL_LENGTH, metadata)) {
-        float focal_length = *(float *)POINTER_OF_PARAM(
-                CAM_INTF_META_LENS_FOCAL_LENGTH, metadata);
+    IF_META_AVAILABLE(float, focal_length, CAM_INTF_META_LENS_FOCAL_LENGTH, metadata) {
         rat_t focalLength;
-        rc = getExifFocalLength(&focalLength, focal_length);
+        rc = getExifFocalLength(&focalLength, *focal_length);
         if (rc == NO_ERROR) {
             exif->addEntry(EXIFTAGID_FOCAL_LENGTH,
                     EXIF_RATIONAL,
@@ -2516,20 +2499,15 @@ QCamera3Exif *QCamera3PicChannel::getExifData(metadata_buffer_t *metadata,
         }
     }
 
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_SENSOR_SENSITIVITY, metadata)) {
-        int16_t isoSpeed = (int16_t)
-                *(int32_t *)POINTER_OF_PARAM(CAM_INTF_META_SENSOR_SENSITIVITY, metadata);
-        exif->addEntry(EXIFTAGID_ISO_SPEED_RATING,
-                   EXIF_SHORT,
-                   1,
-                   (void *)&(isoSpeed));
+    IF_META_AVAILABLE(int32_t, isoSpeed, CAM_INTF_META_SENSOR_SENSITIVITY, metadata) {
+        int16_t fwk_isoSpeed = (int16_t) *isoSpeed;
+        exif->addEntry(EXIFTAGID_ISO_SPEED_RATING, EXIF_SHORT, 1, (void *) &(fwk_isoSpeed));
     }
 
-    if (IS_PARAM_AVAILABLE(CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata)) {
-        int64_t sensor_exposure_time = *(int64_t *)POINTER_OF_PARAM(
-                CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata);
+    IF_META_AVAILABLE(int64_t, sensor_exposure_time,
+            CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata) {
         rat_t sensorExpTime;
-        rc = getExifExpTimeInfo(&sensorExpTime, sensor_exposure_time);
+        rc = getExifExpTimeInfo(&sensorExpTime, *sensor_exposure_time);
         if (rc == NO_ERROR){
             exif->addEntry(EXIFTAGID_EXPOSURE_TIME,
                     EXIF_RATIONAL,
@@ -2633,21 +2611,18 @@ QCamera3Exif *QCamera3PicChannel::getExifData(metadata_buffer_t *metadata,
         }
     }
 
-    if (IS_PARAM_AVAILABLE(CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata) &&
-            IS_PARAM_AVAILABLE(CAM_INTF_PARM_EV_STEP, metadata)) {
-        int32_t exposure_comp = *(int32_t *)POINTER_OF_PARAM(
-                CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata);
-        cam_rational_type_t comp_step = *(cam_rational_type_t *)POINTER_OF_PARAM(
-                CAM_INTF_PARM_EV_STEP, metadata);
-        srat_t exposure_val;
-        rc = getExifExposureValue(&exposure_val, exposure_comp, comp_step);
-        if(rc == NO_ERROR) {
-            exif->addEntry(EXIFTAGID_EXPOSURE_BIAS_VALUE,
-                       EXIF_SRATIONAL,
-                       1,
-                       (void *)(&exposure_val));
-        } else {
-            ALOGE("%s: getExifExposureValue failed ", __func__);
+    IF_META_AVAILABLE(int32_t, exposure_comp, CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata) {
+        IF_META_AVAILABLE(cam_rational_type_t, comp_step, CAM_INTF_PARM_EV_STEP, metadata) {
+            srat_t exposure_val;
+            rc = getExifExposureValue(&exposure_val, *exposure_comp, *comp_step);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_EXPOSURE_BIAS_VALUE,
+                        EXIF_SRATIONAL,
+                        1,
+                        (void *)(&exposure_val));
+            } else {
+                ALOGE("%s: getExifExposureValue failed ", __func__);
+            }
         }
     }
 
@@ -2709,7 +2684,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
     mMemory(NULL)
 {
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
-    mOfflineMetaIndex = mNumBuffers -1;
+    mOfflineMetaIndex = (int32_t) (mNumBuffers -1);
 }
 
 
@@ -3058,9 +3033,7 @@ int32_t QCamera3ReprocessChannel::extractFrameCropAndRotation(mm_camera_super_bu
             }
 
             // Find crop info for reprocess stream
-            cam_crop_data_t *crop_data = (cam_crop_data_t *)
-                POINTER_OF_PARAM(CAM_INTF_META_CROP_DATA, meta);
-            if (NULL != crop_data) {
+            IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
                 for (int j = 0; j < crop_data->num_of_streams; j++) {
                     if (crop_data->crop_info[j].stream_id ==
                         pSrcStream->getMyServerID()) {
@@ -3121,9 +3094,7 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
 
     // Find crop info for reprocess stream
     metadata_buffer_t *meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
-    if (IS_META_AVAILABLE(CAM_INTF_META_CROP_DATA, meta)) {
-        cam_crop_data_t *crop_data = (cam_crop_data_t *)
-                POINTER_OF_PARAM(CAM_INTF_META_CROP_DATA, meta);
+    IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
         if (1 == crop_data->num_of_streams) {
             frame->reproc_config.output_crop = crop_data->crop_info[0].crop;
             frame->reproc_config.roi_map = crop_data->crop_info[0].roi_map;
@@ -3193,7 +3164,7 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
     }
 
     QCamera3Stream *pStream = mStreams[0];
-    int32_t max_idx = mNumBuffers - 1;
+    int32_t max_idx = (int32_t) (mNumBuffers - 1);
     //loop back the indices if max burst count reached
     if (mOfflineBuffersIndex == max_idx) {
        mOfflineBuffersIndex = -1;
@@ -3212,10 +3183,10 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
         CDBG("%s: Mapped buffer with index %d", __func__, mOfflineBuffersIndex);
     }
 
-    max_idx = mNumBuffers*2 - 1;
+    max_idx = (int32_t) ((mNumBuffers * 2) - 1);
     //loop back the indices if max burst count reached
     if (mOfflineMetaIndex == max_idx) {
-       mOfflineMetaIndex = mNumBuffers - 1;
+       mOfflineMetaIndex = (int32_t) (mNumBuffers - 1);
     }
     uint32_t meta_buf_idx = (uint32_t)(mOfflineMetaIndex + 1);
     rc |= pStream->mapBuf(

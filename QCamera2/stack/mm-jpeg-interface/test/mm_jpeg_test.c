@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -42,10 +42,9 @@
  *  dump the image to the file
  **/
 #define DUMP_TO_FILE(filename, p_addr, len) ({ \
-  size_t rc = 0; \
   FILE *fp = fopen(filename, "w+"); \
   if (fp) { \
-    rc = fwrite(p_addr, 1, len, fp); \
+    fwrite(p_addr, 1, len, fp); \
     fclose(fp); \
   } else { \
     CDBG_ERROR("%s:%d] cannot dump image", __func__, __LINE__); \

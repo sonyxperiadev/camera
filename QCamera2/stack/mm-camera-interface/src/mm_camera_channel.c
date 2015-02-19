@@ -2064,23 +2064,23 @@ int32_t mm_channel_handle_metadata(
         }
         CDBG("%s: E , expected frame id: %d", __func__, queue->expected_frame_id);
 
-        if (IS_META_AVAILABLE(CAM_INTF_META_PREP_SNAPSHOT_DONE, metadata)) {
-            prep_snapshot_done_state = *((int32_t*)
-                POINTER_OF_META(CAM_INTF_META_PREP_SNAPSHOT_DONE, metadata));
+        IF_META_AVAILABLE(const int32_t, p_prep_snapshot_done_state,
+                CAM_INTF_META_PREP_SNAPSHOT_DONE, metadata) {
+            prep_snapshot_done_state = *p_prep_snapshot_done_state;
             is_prep_snapshot_done_valid = 1;
             CDBG("%s: prepare snapshot done valid ", __func__);
         }
-        if (IS_META_AVAILABLE(CAM_INTF_META_GOOD_FRAME_IDX_RANGE, metadata)){
-            good_frame_idx_range = *((cam_frame_idx_range_t*)
-                POINTER_OF_META(CAM_INTF_META_GOOD_FRAME_IDX_RANGE, metadata));
+        IF_META_AVAILABLE(const cam_frame_idx_range_t, p_good_frame_idx_range,
+                CAM_INTF_META_GOOD_FRAME_IDX_RANGE, metadata) {
+            good_frame_idx_range = *p_good_frame_idx_range;
             is_good_frame_idx_range_valid = 1;
             CDBG("%s: good_frame_idx_range : min: %d, max: %d , num frames = %d",
                 __func__, good_frame_idx_range.min_frame_idx,
                 good_frame_idx_range.max_frame_idx, good_frame_idx_range.num_led_on_frames);
         }
-        if (IS_META_AVAILABLE(CAM_INTF_META_CROP_DATA, metadata)) {
-            cam_crop_data_t crop_data = *((cam_crop_data_t *)
-                POINTER_OF_META(CAM_INTF_META_CROP_DATA, metadata));
+        IF_META_AVAILABLE(const cam_crop_data_t, p_crop_data,
+                CAM_INTF_META_CROP_DATA, metadata) {
+            cam_crop_data_t crop_data = *p_crop_data;
 
             for (i = 0; i < ARRAY_SIZE(ch_obj->streams); i++) {
                 if (MM_STREAM_STATE_NOTUSED == ch_obj->streams[i].state) {

@@ -164,7 +164,7 @@ typedef struct {
     int                     main_ion_fd;
     ion_user_handle_t       handle;
     size_t                  size;
-    void *                  data;
+    parm_buffer_t          *data;
 } mm_camera_app_meminfo_t;
 
 typedef struct {
@@ -467,10 +467,10 @@ extern int mm_app_set_face_detection(mm_camera_test_obj_t *test_obj,
                         cam_fd_set_parm_t *fd_set_parm);
 extern int mm_app_set_metadata_usercb(mm_camera_test_obj_t *test_obj,
                       cam_stream_user_cb usercb);
-extern int mm_app_set_params_impl(mm_camera_test_obj_t *test_obj,
-                   cam_intf_parm_type_t param_type,
-                   uint32_t param_len,
-                   void* param_val);
+extern int mm_app_set_face_detection(mm_camera_test_obj_t *test_obj,
+        cam_fd_set_parm_t *fd_set_parm);
+extern int mm_app_set_flash_mode(mm_camera_test_obj_t *test_obj,
+        cam_flash_mode_t flashMode);
 
 /* JIG camera lib interface */
 
