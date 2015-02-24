@@ -80,6 +80,7 @@
 #define MAX_AF_STATS_DATA_SIZE  1000
 #define MAX_ASD_STATS_DATA_SIZE 1000
 
+#define MAX_CAPTURE_BATCH_NUM 32
 
 #define TUNING_DATA_VERSION        3
 #define TUNING_SENSOR_DATA_MAX     0x10000 /*(need value from sensor team)*/
@@ -799,6 +800,34 @@ typedef struct {
   cam_exp_bracketing_t exp_val;
 } cam_hdr_bracketing_info_t;
 
+ typedef struct {
+    cam_bracket_mode mode;
+    int32_t values;  /* user defined values */
+} cam_capture_bracketing_t;
+
+typedef enum {
+    CAM_CAPTURE_NORMAL,
+    CAM_CAPTURE_FLASH,
+    CAM_CAPTURE_BRACKETING,
+    CAM_CAPTURE_MAX
+} cam_capture_type;
+
+typedef struct {
+    int32_t num_frames;     /*Num of frames requested on this quality*/
+    cam_capture_type type;  /*type of the capture request*/
+
+    /*union to strore values of capture type*/
+    union {
+        cam_flash_mode_t flash_mode;
+        cam_capture_bracketing_t hdr_mode;
+    };
+} cam_capture_settings_t;
+
+typedef struct {
+    uint32_t num_batch;  /*Number of frames batch requested*/
+    cam_capture_settings_t configs[MAX_CAPTURE_BATCH_NUM];
+} cam_capture_frame_config_t;
+
 typedef struct {
     uint8_t chromatixData[CHROMATIX_SIZE];
     uint8_t snapchromatixData[CHROMATIX_SIZE];
@@ -1490,6 +1519,7 @@ typedef enum {
     CAM_INTF_PARM_RDI_MODE,
     CAM_INTF_PARM_CDS_MODE,
     CAM_INTF_PARM_TONE_MAP_MODE,
+    CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,
 
     /* stream based parameters */
     CAM_INTF_PARM_DO_REPROCESS,
