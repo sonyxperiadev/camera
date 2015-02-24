@@ -1289,6 +1289,7 @@ int32_t QCameraStream::releaseBuffs()
     if (!mStreamBufsAcquired && mStreamBufs != NULL) {
         mStreamBufs->deallocate();
         delete mStreamBufs;
+        mStreamBufs = NULL;
     }
 
     return rc;
@@ -1409,6 +1410,7 @@ int32_t QCameraStream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
     if ( !mStreamBufsAcquired ) {
         mStreamBufs->deallocate();
         delete mStreamBufs;
+        mStreamBufs = NULL;
     }
 
     return rc;
