@@ -2547,6 +2547,8 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                     ret = pme->doReprocess();
                     if (NO_ERROR != ret) {
                         pme->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
+                    } else {
+                        ret = pme->stopCapture();
                     }
 
                 } else {

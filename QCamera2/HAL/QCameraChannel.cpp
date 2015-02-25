@@ -366,6 +366,10 @@ int32_t QCameraChannel::stop()
     int32_t rc = NO_ERROR;
     ssize_t linkedIdx = -1;
 
+    if (!m_bIsActive) {
+        return NO_INIT;
+    }
+
     for (size_t i = 0; i < mStreams.size(); i++) {
         if (mStreams[i] != NULL) {
                if (m_handle == mStreams[i]->getChannelHandle()) {
