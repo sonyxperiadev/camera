@@ -283,6 +283,7 @@ typedef enum {
    MM_CAMERA_AE_BRACKETING,
    MM_CAMERA_FLASH_BRACKETING,
    MM_CAMERA_ZOOM_1X,
+   MM_CAMERA_FRAME_CAPTURE,
 } mm_camera_advanced_capture_t;
 
 /** mm_camera_channel_attr_t: structure for defining channel
@@ -698,21 +699,21 @@ typedef struct {
                                       uint32_t ch_id,
                                       mm_camera_super_buf_notify_mode_t notify_mode);
 
-     /** process_advanced_capture: function definition for start/stop advanced capture
+   /** process_advanced_capture: function definition for start/stop advanced capture
      *                    for snapshot.
      *    @camera_handle : camera handle
-     *    @type :  advanced capture type.
      *    @ch_id : channel handler
-     *    @start_flag    : flag indicating if advanced capture needs to be done
+     *    @type :  advanced capture type.
+     *    @trigger    : flag indicating if advanced capture needs to be done
      *                     0 -- stop advanced capture
      *                     1 -- start advanced capture
+     *    @in_value: Input value. Configaration
      *  Return value: 0 -- success
      *                -1 -- failure
      **/
-     int32_t (*process_advanced_capture) (uint32_t camera_handle,
-                                          mm_camera_advanced_capture_t type,
-                                          uint32_t ch_id,
-                                          int8_t start_flag);
+    int32_t (*process_advanced_capture) (uint32_t camera_handle,
+             uint32_t ch_id, mm_camera_advanced_capture_t type,
+             int8_t start_flag, void *in_value);
 } mm_camera_ops_t;
 
 /** mm_camera_vtbl_t: virtual table for camera operations

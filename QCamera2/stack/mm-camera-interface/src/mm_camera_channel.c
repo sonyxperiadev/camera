@@ -206,6 +206,8 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
     mm_camera_super_buf_notify_mode_t notify_mode;
     mm_channel_queue_node_t *node = NULL;
     mm_channel_t *ch_obj = (mm_channel_t *)user_data;
+    uint32_t i = 0;
+
     if (NULL == ch_obj) {
         return;
     }
@@ -302,6 +304,28 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                 }
             }
                 break;
+            case MM_CAMERA_GENERIC_CMD_TYPE_CAPTURE_SETTING: {
+                uint32_t start = cmd_cb->u.gen_cmd.payload[0];
+                CDBG_HIGH("%s:%d] MM_CAMERA_GENERIC_CMD_TYPE_CAPTURE_SETTING %u",
+                    __func__, __LINE__, start);
+
+                mm_channel_superbuf_flush(ch_obj,
+                        &ch_obj->bundle.superbuf_queue, CAM_STREAM_TYPE_DEFAULT);
+                if (start) {
+                    ch_obj->frame_config =
+                            (cam_capture_frame_config_t *)&cmd_cb->u.gen_cmd.frame_config;
+                    CDBG_HIGH("%s:%d] Capture setting Batch Count %d",
+                            __func__, __LINE__, ch_obj->frame_config->num_batch);
+                    for (i = 0; i < ch_obj->frame_config->num_batch; i++) {
+                        CDBG("capture setting frame = %d type = %d",
+                                i,ch_obj->frame_config->configs[i].type);
+                    }
+                } else {
+                    ch_obj->frame_config = NULL;
+                }
+                ch_obj->cur_capture_idx = 0;
+                break;
+            }
             default:
                 CDBG_ERROR("%s:%d] Error: Invalid command", __func__, __LINE__);
                 break;
@@ -379,6 +403,15 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                     ch_obj->unLockAEC = 1;
                     ch_obj->needLEDFlash = FALSE;
                     ch_obj->bracketingState = MM_CHANNEL_BRACKETING_STATE_OFF;
+                }
+
+                if (ch_obj->frame_config != NULL) {
+                    if (ch_obj->frame_config->configs[ch_obj->cur_capture_idx].num_frames != 0) {
+                        ch_obj->frame_config->configs[ch_obj->cur_capture_idx].num_frames--;
+                        CDBG("Need %d frames more for batch %d",
+                                ch_obj->frame_config->configs[ch_obj->cur_capture_idx].num_frames,
+                                ch_obj->cur_capture_idx);
+                    }
                 }
             }
             /* dispatch superbuf */
@@ -805,6 +838,23 @@ int32_t mm_channel_fsm_fn_active(mm_channel_t *my_obj,
             mm_camera_generic_cmd_t gen_cmd;
             gen_cmd.type = MM_CAMERA_GENERIC_CMD_TYPE_ZOOM_1X;
             gen_cmd.payload[0] = start_flag;
+            rc = mm_channel_proc_general_cmd(my_obj, &gen_cmd);
+        }
+        break;
+    case MM_CAMERA_EVT_CAPTURE_SETTING:
+        {
+            mm_camera_generic_cmd_t gen_cmd;
+            cam_capture_frame_config_t *input;
+            gen_cmd.type = MM_CAMERA_GENERIC_CMD_TYPE_CAPTURE_SETTING;
+            CDBG_HIGH("MM_CAMERA_EVT_CAPTURE_SETTING");
+            if (in_val == NULL) {
+                gen_cmd.payload[0] = 0;
+                memset(&gen_cmd.frame_config, 0, sizeof(cam_capture_frame_config_t));
+            } else {
+                gen_cmd.payload[0] = 1;
+                input = (cam_capture_frame_config_t *)in_val;
+                gen_cmd.frame_config = *input;
+            }
             rc = mm_channel_proc_general_cmd(my_obj, &gen_cmd);
         }
         break;
@@ -2193,9 +2243,23 @@ int32_t mm_channel_handle_metadata(
             ch_obj->bracketingState = MM_CHANNEL_BRACKETING_STATE_ACTIVE;
         }
 
-        if ((ch_obj->burstSnapNum > 1) && (ch_obj->needLEDFlash == TRUE) &&
-                !ch_obj->isFlashBracketingEnabled &&
-                        (MM_CHANNEL_BRACKETING_STATE_OFF == ch_obj->bracketingState)) {
+        if (ch_obj->frame_config != NULL && is_good_frame_idx_range_valid
+                && (good_frame_idx_range.config_batch_idx < ch_obj->frame_config->num_batch)) {
+            CDBG_HIGH("Frame Config: Expcted ID = %d batch index = %d",
+                    good_frame_idx_range.min_frame_idx, good_frame_idx_range.config_batch_idx);
+            queue->expected_frame_id =
+                    good_frame_idx_range.min_frame_idx;
+            if (ch_obj->frame_config->configs[ch_obj->cur_capture_idx].num_frames != 0) {
+                CDBG_ERROR("Drop in frame or early PIC Done evet frame-id = %d",
+                        buf_info->frame_idx);
+            }
+            ch_obj->cur_capture_idx = good_frame_idx_range.config_batch_idx;
+        }
+
+        if ((ch_obj->burstSnapNum > 1) && (ch_obj->needLEDFlash == TRUE)
+            && !ch_obj->isFlashBracketingEnabled
+            && (MM_CHANNEL_BRACKETING_STATE_OFF == ch_obj->bracketingState)
+            && ch_obj->frame_config == NULL) {
             if((buf_info->frame_idx >= queue->led_off_start_frame_id)
                     &&  !queue->once) {
                 CDBG("%s: [ZSL Retro]Burst snap num = %d ",
