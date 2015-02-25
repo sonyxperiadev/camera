@@ -686,8 +686,8 @@ int32_t QCameraPicChannel::cancelPicture()
  *==========================================================================*/
 int32_t QCameraPicChannel::stopAdvancedCapture(mm_camera_advanced_capture_t type)
 {
-    int32_t rc = m_camOps->process_advanced_capture(m_camHandle, type,
-            m_handle, 0);
+    int32_t rc = m_camOps->process_advanced_capture(m_camHandle,
+            m_handle, type, 0, NULL);
     return rc;
 }
 
@@ -698,15 +698,19 @@ int32_t QCameraPicChannel::stopAdvancedCapture(mm_camera_advanced_capture_t type
  *
  * PARAMETERS :
  *   @type : advanced capture type.
+ *   @config: advance capture config
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraPicChannel::startAdvancedCapture(mm_camera_advanced_capture_t type)
+int32_t QCameraPicChannel::startAdvancedCapture(mm_camera_advanced_capture_t type,
+        cam_capture_frame_config_t *config)
 {
-    int32_t rc = m_camOps->process_advanced_capture(m_camHandle, type,
-            m_handle, 1);
+    int32_t rc = NO_ERROR;
+
+    rc = m_camOps->process_advanced_capture(m_camHandle, m_handle, type,
+            1, config);
     return rc;
 }
 

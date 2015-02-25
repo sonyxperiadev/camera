@@ -751,6 +751,11 @@ public:
     int32_t getStreamPpMask(cam_stream_type_t stream_type, uint32_t &pp_mask);
     int32_t getSharpness() {return m_nSharpness;};
     int32_t updateFlashMode(cam_flash_mode_t flash_mode);
+    int32_t configureFlash(cam_capture_frame_config_t &frame_config);
+    int32_t configureAEBracketing(cam_capture_frame_config_t &frame_config);
+    int32_t configureHDRBracketing(cam_capture_frame_config_t &frame_config);
+    int32_t configFrameCapture(bool commitSettings);
+    int32_t resetFrameCapture(bool commitSettings);
     cam_still_more_t getStillMoreSettings() {return m_stillmore_config;};
     void setStillMoreSettings(cam_still_more_t stillmore_config)
             {m_stillmore_config = stillmore_config;};
@@ -766,6 +771,9 @@ public:
     int32_t  updateCurrentFocusPosition(int32_t pos);
     int32_t setToneMapMode(uint32_t value, bool initCommit);
     void setTintless(bool enable);
+
+    cam_capture_frame_config_t getCaptureFrameConfig()
+            { return m_captureFrameConfig; };
 
 private:
     int32_t setPreviewSize(const QCameraParameters& );
@@ -1044,6 +1052,8 @@ private:
     int32_t mZoomLevel;
     bool m_bStreamsConfigured;
     int32_t mParmZoomLevel;
+
+    cam_capture_frame_config_t m_captureFrameConfig;
 };
 
 }; // namespace qcamera

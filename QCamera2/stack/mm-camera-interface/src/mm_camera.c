@@ -1867,20 +1867,20 @@ int32_t mm_camera_util_g_ctrl( int32_t fd, uint32_t id, int32_t *value)
  *
  * PARAMETERS :
  *   @my_obj       : camera object
- *   @advanced_capture_type : advanced capture type.
  *   @ch_id        : channel handle
+  *   @type : advanced capture type.
  *   @start_flag  : flag to indicate start/stop
+  *   @in_value  : input configaration
  *
  * RETURN     : int32_t type of status
  *              0  -- success
  *              -1 -- failure
  *==========================================================================*/
 int32_t mm_camera_channel_advanced_capture(mm_camera_obj_t *my_obj,
-                                        mm_camera_advanced_capture_t advanced_capture_type,
-                                        uint32_t ch_id,
-                                        uint32_t start_flag)
+            uint32_t ch_id, mm_camera_advanced_capture_t type,
+            uint32_t trigger, void *in_value)
 {
-    CDBG("%s: E",__func__);
+    CDBG("%s: E type = %d",__func__, type);
     int32_t rc = -1;
     mm_channel_t * ch_obj =
         mm_camera_util_get_channel_by_handler(my_obj, ch_id);
@@ -1888,29 +1888,35 @@ int32_t mm_camera_channel_advanced_capture(mm_camera_obj_t *my_obj,
     if (NULL != ch_obj) {
         pthread_mutex_lock(&ch_obj->ch_lock);
         pthread_mutex_unlock(&my_obj->cam_lock);
-        switch (advanced_capture_type) {
+        switch (type) {
             case MM_CAMERA_AF_BRACKETING:
                 rc = mm_channel_fsm_fn(ch_obj,
                                        MM_CHANNEL_EVT_AF_BRACKETING,
-                                       (void *)&start_flag,
+                                       (void *)&trigger,
                                        NULL);
                 break;
             case MM_CAMERA_AE_BRACKETING:
                 rc = mm_channel_fsm_fn(ch_obj,
                                        MM_CHANNEL_EVT_AE_BRACKETING,
-                                       (void *)&start_flag,
+                                       (void *)&trigger,
                                        NULL);
                 break;
             case MM_CAMERA_FLASH_BRACKETING:
                 rc = mm_channel_fsm_fn(ch_obj,
                                        MM_CHANNEL_EVT_FLASH_BRACKETING,
-                                       (void *)&start_flag,
+                                       (void *)&trigger,
                                        NULL);
                 break;
             case MM_CAMERA_ZOOM_1X:
                 rc = mm_channel_fsm_fn(ch_obj,
                                        MM_CHANNEL_EVT_ZOOM_1X,
-                                       (void *)&start_flag,
+                                       (void *)&trigger,
+                                       NULL);
+                break;
+            case MM_CAMERA_FRAME_CAPTURE:
+                rc = mm_channel_fsm_fn(ch_obj,
+                                       MM_CAMERA_EVT_CAPTURE_SETTING,
+                                       (void *)in_value,
                                        NULL);
                 break;
             default:

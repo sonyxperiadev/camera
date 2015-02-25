@@ -840,6 +840,7 @@ QCameraParameters::QCameraParameters()
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
     memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
+    memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
     mTotalPPCount = 0;
     mZoomLevel = 0;
     mParmZoomLevel = 0;
@@ -6418,6 +6419,253 @@ int32_t QCameraParameters::updateFlashMode(cam_flash_mode_t flash_mode)
 
 
 /*===========================================================================
+ * FUNCTION   : configureFlash
+ *
+ * DESCRIPTION: configure Flash Bracketing.
+ *
+ * PARAMETERS :
+ *    @frame_config : output configaration structure to fill in.
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::configureFlash(cam_capture_frame_config_t &frame_config)
+{
+    CDBG_HIGH("%s: E",__func__);
+    int32_t rc = NO_ERROR;
+    uint32_t i = 0;
+
+    if (isChromaFlashEnabled()) {
+        CDBG_HIGH("%s : Enable Chroma Flash capture", __func__);
+        cam_flash_mode_t flash_mode = CAM_FLASH_MODE_OFF;
+        frame_config.num_batch = 2;
+        for (i = 0; i < frame_config.num_batch; i++) {
+            flash_mode = (i == 0) ? CAM_FLASH_MODE_ON:CAM_FLASH_MODE_OFF;
+            frame_config.configs[i].num_frames = 1;
+            frame_config.configs[i].type = CAM_CAPTURE_FLASH;
+            frame_config.configs[i].flash_mode = flash_mode;
+        }
+    } else if (mFlashValue != CAM_FLASH_MODE_OFF) {
+        frame_config.num_batch = 1;
+        for (i = 0; i < frame_config.num_batch; i++) {
+            frame_config.configs[i].num_frames = 1;
+            frame_config.configs[i].type = CAM_CAPTURE_FLASH;
+            frame_config.configs[i].flash_mode =(cam_flash_mode_t)mFlashValue;
+        }
+    }
+
+    CDBG("%s: Chroma Flash cnt = %d", __func__,frame_config.num_batch);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : configureHDRBracketing
+ *
+ * DESCRIPTION: configure HDR Bracketing.
+ *
+ * PARAMETERS :
+ *    @frame_config : output configaration structure to fill in.
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::configureHDRBracketing(cam_capture_frame_config_t &frame_config)
+{
+    CDBG_HIGH("%s: E",__func__);
+    int32_t rc = NO_ERROR;
+    uint32_t i = 0;
+
+    uint32_t hdrFrameCount = m_pCapability->hdr_bracketing_setting.num_frames;
+    CDBG_HIGH("%s : HDR values %d, %d frame count: %u",
+          __func__,
+          (int8_t) m_pCapability->hdr_bracketing_setting.exp_val.values[0],
+          (int8_t) m_pCapability->hdr_bracketing_setting.exp_val.values[1],
+          hdrFrameCount);
+
+    frame_config.num_batch = hdrFrameCount;
+
+    cam_bracket_mode mode =
+            m_pCapability->hdr_bracketing_setting.exp_val.mode;
+    if (mode == CAM_EXP_BRACKETING_ON) {
+        rc = setToneMapMode(false, true);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to disable tone map during HDR", __func__);
+        }
+    }
+    for (i = 0; i < frame_config.num_batch; i++) {
+        frame_config.configs[i].num_frames = 1;
+        frame_config.configs[i].type = CAM_CAPTURE_BRACKETING;
+        frame_config.configs[i].hdr_mode.mode = mode;
+        frame_config.configs[i].hdr_mode.values =
+                m_pCapability->hdr_bracketing_setting.exp_val.values[i];
+        CDBG("%s: exp values %d", __func__,
+                (int)frame_config.configs[i].hdr_mode.values);
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : configureAEBracketing
+ *
+ * DESCRIPTION: configure AE Bracketing.
+ *
+ * PARAMETERS :
+ *    @frame_config : output configaration structure to fill in.
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::configureAEBracketing(cam_capture_frame_config_t &frame_config)
+{
+    CDBG_HIGH("%s: E",__func__);
+    int32_t rc = NO_ERROR;
+    uint32_t i = 0;
+    char exp_value[MAX_EXP_BRACKETING_LENGTH];
+
+    rc = setToneMapMode(false, true);
+    if (rc != NO_ERROR) {
+        CDBG_HIGH("%s: Failed to disable tone map during AEBracketing", __func__);
+    }
+
+    uint32_t burstCount = 0;
+    const char *str_val = m_AEBracketingClient.values;
+    if ((str_val != NULL) && (strlen(str_val) > 0)) {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        strlcpy(prop, str_val, PROPERTY_VALUE_MAX);
+        char *saveptr = NULL;
+        char *token = strtok_r(prop, ",", &saveptr);
+        if (token != NULL) {
+            exp_value[burstCount++] = (char)atoi(token);
+            while (token != NULL) {
+                token = strtok_r(NULL, ",", &saveptr);
+                if (token != NULL) {
+                    exp_value[burstCount++] = (char)atoi(token);
+                }
+            }
+        }
+    }
+
+    frame_config.num_batch = burstCount;
+    cam_bracket_mode mode = m_AEBracketingClient.mode;
+
+    for (i = 0; i < frame_config.num_batch; i++) {
+        frame_config.configs[i].num_frames = 1;
+        frame_config.configs[i].type = CAM_CAPTURE_BRACKETING;
+        frame_config.configs[i].hdr_mode.mode = mode;
+        frame_config.configs[i].hdr_mode.values =
+                m_AEBracketingClient.values[i];
+        CDBG("%s: exp values %d", __func__, (int)m_AEBracketingClient.values[i]);
+    }
+
+    CDBG_HIGH("%s: num_frame = %d X",__func__, burstCount);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : configFrameCapture
+ *
+ * DESCRIPTION: configuration for ZSL special captures (FLASH/HDR etc)
+ *
+ * PARAMETERS :
+ *   @commitSettings : flag to enable or disable commit this this settings
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::configFrameCapture(bool commitSettings)
+{
+    int32_t rc = NO_ERROR;
+    memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
+
+    if (commitSettings) {
+        if(initBatchUpdate(m_pParamBuf) < 0 ) {
+            ALOGE("%s:Failed to initialize group update table", __func__);
+            return BAD_TYPE;
+        }
+    }
+
+    if (isChromaFlashEnabled() || mFlashValue != CAM_FLASH_MODE_OFF) {
+        configureFlash(m_captureFrameConfig);
+    } else if(isHDREnabled()) {
+        configureHDRBracketing (m_captureFrameConfig);
+    } else if(isAEBracketEnabled()) {
+        configureAEBracketing (m_captureFrameConfig);
+    }
+
+    rc = ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,
+            (cam_capture_frame_config_t)m_captureFrameConfig);
+    if (rc != NO_ERROR) {
+        rc = BAD_VALUE;
+        ALOGE("%s:Failed to set capture settings", __func__);
+        return rc;
+    }
+
+    if (commitSettings) {
+        rc = commitSetBatch();
+        if (rc != NO_ERROR) {
+            ALOGE("%s:Failed to commit parameters", __func__);
+            return rc;
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : resetFrameCapture
+ *
+ * DESCRIPTION: reset special captures settings(FLASH/HDR etc)
+ *
+ * PARAMETERS :
+ *   @commitSettings : flag to enable or disable commit this this settings
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
+{
+    int32_t rc = NO_ERROR, i = 0;
+    memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
+
+    if (commitSettings) {
+        if(initBatchUpdate(m_pParamBuf) < 0 ) {
+            ALOGE("%s:Failed to initialize group update table", __func__);
+            return BAD_TYPE;
+        }
+    }
+
+    if (isHDREnabled() || isAEBracketEnabled()) {
+        rc = setToneMapMode(true, true);
+        if (rc != NO_ERROR) {
+            CDBG_HIGH("%s: Failed to enable tone map during HDR/AEBracketing", __func__);
+        }
+        rc = stopAEBracket();
+    }
+
+    rc = ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,
+            (cam_capture_frame_config_t)m_captureFrameConfig);
+    if (rc != NO_ERROR) {
+        rc = BAD_VALUE;
+        ALOGE("%s:Failed to set capture settings", __func__);
+        return rc;
+    }
+
+    if (commitSettings) {
+        rc = commitSetBatch();
+        if (rc != NO_ERROR) {
+            ALOGE("%s:Failed to commit parameters", __func__);
+            return rc;
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setAecLock
  *
  * DESCRIPTION: set AEC lock value
@@ -8883,8 +9131,15 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
         burstCount = m_pCapability->opti_zoom_settings_need.burst_count;
     } else if (isChromaFlashEnabled()) {
         //number of snapshots required for Chroma Flash.
-        //TODO: remove hardcoded value, add in capability.
-        burstCount = 2;
+        if (m_captureFrameConfig.num_batch != 0) {
+            burstCount = 0;
+            for (uint32_t i = 0; i < m_captureFrameConfig.num_batch; i++) {
+                burstCount += m_captureFrameConfig.configs[i].num_frames;
+            }
+        } else {
+            CDBG("%s: Capture settings are not configured", __func__);
+            burstCount = 2;
+        }
     } else if (isStillMoreEnabled()) {
         //number of snapshots required for Still More.
         if (isSeeMoreEnabled()) {
@@ -8918,6 +9173,8 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
     if (burstCount <= 0) {
         burstCount = 1;
     }
+
+    CDBG_HIGH("%s: Snapshot burst count = %d", __func__, burstCount);
     return (uint8_t)burstCount;
 }
 
