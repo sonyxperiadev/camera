@@ -3318,17 +3318,18 @@ end:
  *==========================================================================*/
 int QCamera2HardwareInterface::stopCaptureChannel(bool destroy)
 {
+    int rc = NO_ERROR;
     if (mParameters.isJpegPictureFormat() ||
         mParameters.isNV16PictureFormat() ||
         mParameters.isNV21PictureFormat()) {
-        stopChannel(QCAMERA_CH_TYPE_CAPTURE);
-        if (destroy) {
+        rc = stopChannel(QCAMERA_CH_TYPE_CAPTURE);
+        if (destroy && (NO_ERROR == rc)) {
             // Destroy camera channel but dont release context
-            delChannel(QCAMERA_CH_TYPE_CAPTURE, false);
+            rc = delChannel(QCAMERA_CH_TYPE_CAPTURE, false);
         }
     }
 
-    return NO_ERROR;
+    return rc;
 }
 
 /*===========================================================================
