@@ -3282,8 +3282,20 @@ int QCamera2HardwareInterface::cancelPicture()
  *==========================================================================*/
 void QCamera2HardwareInterface::captureDone()
 {
-    if (++mInputCount >= mParameters.getBurstCountForAdvancedCapture()) {
-        unconfigureAdvancedCapture();
+    qcamera_sm_internal_evt_payload_t *payload =
+       (qcamera_sm_internal_evt_payload_t *)
+       malloc(sizeof(qcamera_sm_internal_evt_payload_t));
+    if (NULL != payload) {
+        memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+        payload->evt_type = QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE;
+        int32_t rc = processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: processEvt ZSL capture done failed", __func__);
+            free(payload);
+            payload = NULL;
+        }
+    } else {
+        ALOGE("%s: No memory for ZSL capture done event", __func__);
     }
 }
 
@@ -4390,6 +4402,66 @@ int32_t QCamera2HardwareInterface::processZoomEvent(cam_crop_data_t &crop_info)
         }
     }
     return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : processZSLCaptureDone
+ *
+ * DESCRIPTION: process ZSL capture done events
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::processZSLCaptureDone()
+{
+    int rc = NO_ERROR;
+
+    pthread_mutex_lock(&m_parm_lock);
+    if (++mInputCount >= mParameters.getBurstCountForAdvancedCapture()) {
+        rc = unconfigureAdvancedCapture();
+    }
+    pthread_mutex_unlock(&m_parm_lock);
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : processRetroAECUnlock
+ *
+ * DESCRIPTION: process retro burst AEC unlock events
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::processRetroAECUnlock()
+{
+    int rc = NO_ERROR;
+
+    CDBG_HIGH("%s : [ZSL Retro] LED assisted AF Release AEC Lock", __func__);
+    pthread_mutex_lock(&m_parm_lock);
+    rc = mParameters.setAecLock("false");
+    if (NO_ERROR != rc) {
+        ALOGE("%s: Error setting AEC lock", __func__);
+        pthread_mutex_unlock(&m_parm_lock);
+        return rc;
+    }
+
+    rc = mParameters.commitParameters();
+    if (NO_ERROR != rc) {
+        ALOGE("%s: Error during camera parameter commit", __func__);
+    } else {
+        m_bLedAfAecLock = FALSE;
+    }
+
+    pthread_mutex_unlock(&m_parm_lock);
+
+    return rc;
 }
 
 /*===========================================================================

@@ -1296,6 +1296,15 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
                 rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
                 break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
+                break;
             default:
                 ALOGE("%s: Invalid internal event %d in state(%d)",
                             __func__, internal_evt->evt_type, m_state);
@@ -1444,6 +1453,15 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
                 break;
             case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
                 rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
                 break;
             default:
                 ALOGE("%s: Invalid internal event %d in state(%d)",
@@ -1777,6 +1795,15 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 break;
             case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
                 rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
                 break;
             default:
                 break;
@@ -2183,6 +2210,15 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
                 rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
                 break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
+                break;
             default:
                 break;
             }
@@ -2528,6 +2564,15 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
                 break;
             case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
                 rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
                 break;
             default:
                 break;
@@ -2976,6 +3021,15 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                 break;
             case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
                 rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
                 break;
             default:
                 break;
