@@ -367,6 +367,8 @@ private:
     int32_t processASDUpdate(cam_auto_scene_t scene);
     int32_t processJpegNotify(qcamera_jpeg_evt_payload_t *jpeg_job);
     int32_t processHDRData(cam_asd_hdr_scene_data_t hdr_scene);
+    int32_t processRetroAECUnlock();
+    int32_t processZSLCaptureDone();
     int32_t processSceneData(cam_scene_mode_type scene);
     int32_t transAwbMetaToParams(cam_awb_params_t &awb_params);
     int32_t processFocusPositionInfo(cam_focus_pos_info_t &cur_pos_info);
