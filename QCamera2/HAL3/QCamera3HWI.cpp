@@ -1112,7 +1112,7 @@ int QCamera3HardwareInterface::configureStreams(
                 mCameraHandle->camera_handle,
                 mCameraHandle->ops,
                 &gCamCapability[mCameraId]->padding_info,
-                CAM_QCOM_FEATURE_NONE,
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
                 CAM_STREAM_TYPE_CALLBACK,
                 &QCamera3SupportChannel::kDim,
                 this);
@@ -1344,7 +1344,7 @@ int QCamera3HardwareInterface::configureStreams(
         mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
                 CAM_STREAM_TYPE_CALLBACK;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
-                CAM_QCOM_FEATURE_NONE;
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
         mStreamConfigInfo.num_streams++;
     }
 
