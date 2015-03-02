@@ -1303,10 +1303,8 @@ int QCamera2HardwareInterface::openCamera()
         gCamCaps[mCameraId]->padding_info.plane_padding = padding_info.plane_padding;
     }
 
-    mParameters.setMinPpMask(gCamCaps[mCameraId]->min_required_pp_mask);
-
+    mParameters.setMinPpMask(gCamCaps[mCameraId]->qcom_supported_feature_mask);
     mCameraOpened = true;
-
     return NO_ERROR;
 }
 
@@ -2209,9 +2207,9 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
 
     if (!((needReprocess()) && (CAM_STREAM_TYPE_SNAPSHOT == stream_type ||
             CAM_STREAM_TYPE_RAW == stream_type))) {
-        if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_CROP)
+        if (gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_CROP)
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_CROP;
-        if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_SCALE)
+        if (gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_SCALE)
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_SCALE;
     }
 
@@ -5982,50 +5980,51 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 mParameters.getReprocCount(), curCount);
     }
 
-    CDBG_HIGH("%s: Minimum pproc feature mask required = %x", __func__,
-            gCamCaps[mCameraId]->min_required_pp_mask);
-    uint32_t required_mask = gCamCaps[mCameraId]->min_required_pp_mask;
-    int32_t zoomLevel = 0;
+    CDBG_HIGH("%s: Supported pproc feature mask = %x", __func__,
+            gCamCaps[mCameraId]->qcom_supported_feature_mask);
+    uint32_t feature_mask = gCamCaps[mCameraId]->qcom_supported_feature_mask;
+    int32_t zoomLevel = mParameters.getParmZoomLevel();
+    uint32_t rotation = mParameters.getJpegRotation();
+    int32_t effect = mParameters.getEffectValue();
 
     switch(curCount) {
         case 1:
             //Configure feature mask for first pass of reprocessing
-            if (mParameters.isZSLMode() || required_mask & CAM_QCOM_FEATURE_PP_SUPERSET) {
-                if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_EFFECT) {
-                    pp_config.feature_mask |= CAM_QCOM_FEATURE_EFFECT;
-                    pp_config.effect = mParameters.getEffectValue();
-                }
-                if ((gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_SHARPNESS) &&
-                        !mParameters.isOptiZoomEnabled()) {
-                    pp_config.feature_mask |= CAM_QCOM_FEATURE_SHARPNESS;
-                    pp_config.sharpness = mParameters.getInt(QCameraParameters::KEY_QC_SHARPNESS);
-                }
+            //check if any effects are enabled
+            if ((CAM_EFFECT_MODE_OFF != effect) &&
+                (feature_mask & CAM_QCOM_FEATURE_EFFECT)) {
+                pp_config.feature_mask |= CAM_QCOM_FEATURE_EFFECT;
+                pp_config.effect = effect;
+            }
 
-                if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_CROP) {
-                    pp_config.feature_mask |= CAM_QCOM_FEATURE_CROP;
-                }
+            //check for features that need to be enabled by default like sharpness
+            //(if supported by hw).
+            if ((feature_mask & CAM_QCOM_FEATURE_SHARPNESS) &&
+                !mParameters.isOptiZoomEnabled()) {
+                pp_config.feature_mask |= CAM_QCOM_FEATURE_SHARPNESS;
+                pp_config.sharpness = mParameters.getInt(QCameraParameters::KEY_QC_SHARPNESS);
+            }
 
-                if (mParameters.isWNREnabled()) {
-                    pp_config.feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
-                    pp_config.denoise2d.denoise_enable = 1;
-                    pp_config.denoise2d.process_plates =
-                            mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
-                }
-                if (required_mask & CAM_QCOM_FEATURE_ROTATION) {
-                    pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-                }
-                if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_SCALE) {
-                    pp_config.feature_mask |= CAM_QCOM_FEATURE_SCALE;
-                }
+            //check if zoom is enabled
+            if ((zoomLevel > 0) && (feature_mask & CAM_QCOM_FEATURE_CROP)) {
+                pp_config.feature_mask |= CAM_QCOM_FEATURE_CROP;
+            }
+
+            if (mParameters.isWNREnabled() &&
+                (feature_mask & CAM_QCOM_FEATURE_DENOISE2D)) {
+                pp_config.feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
+                pp_config.denoise2d.denoise_enable = 1;
+                pp_config.denoise2d.process_plates =
+                        mParameters.getDenoiseProcessPlate(CAM_INTF_PARM_WAVELET_DENOISE);
             }
 
             if (isCACEnabled()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_CAC;
             }
 
-            if (needRotationReprocess()) {
+            //check if rotation is required
+            if ((feature_mask & CAM_QCOM_FEATURE_ROTATION) && (rotation > 0)) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-                uint32_t rotation = mParameters.getJpegRotation();
                 if (rotation == 0) {
                     pp_config.rotation = ROTATE_0;
                 } else if (rotation == 90) {
@@ -6047,7 +6046,10 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 pp_config.hdr_param.hdr_enable = 0;
             }
 
-            if(needScaleReprocess()){
+            //check if scaling is enabled
+            if ((feature_mask & CAM_QCOM_FEATURE_SCALE) &&
+                mParameters.m_reprocScaleParam.isScaleEnabled() &&
+                mParameters.m_reprocScaleParam.isUnderScaling()){
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_SCALE;
                 mParameters.m_reprocScaleParam.getPicSizeFromAPK(
                         pp_config.scale_param.output_width,
@@ -6074,7 +6076,6 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
             }
 
-            zoomLevel = mParameters.getParmZoomLevel();
             if(mParameters.isOptiZoomEnabled() && (0 <= zoomLevel)) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_OPTIZOOM;
                 pp_config.zoom_level = (uint8_t) zoomLevel;
@@ -6124,9 +6125,8 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
         case 2:
             //Configure feature mask for second pass of reprocessing
             pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_PASS_2;
-            if (needRotationReprocess()) {
+            if ((feature_mask & CAM_QCOM_FEATURE_ROTATION) && (rotation > 0)) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-                uint32_t rotation = mParameters.getJpegRotation();
                 if (rotation == 0) {
                     pp_config.rotation = ROTATE_0;
                 } else if (rotation == 90) {
@@ -7339,12 +7339,9 @@ bool QCamera2HardwareInterface::isPreviewRestartEnabled()
  *==========================================================================*/
 bool QCamera2HardwareInterface::needReprocess()
 {
+    bool needReprocess = false;
     pthread_mutex_lock(&m_parm_lock);
 
-    if (mParameters.getofflineRAW()) {
-        pthread_mutex_unlock(&m_parm_lock);
-        return true;
-    }
     if (!mParameters.isJpegPictureFormat() &&
         !mParameters.isNV21PictureFormat()) {
         // RAW image, no need to reprocess
@@ -7352,78 +7349,30 @@ bool QCamera2HardwareInterface::needReprocess()
         return false;
     }
 
-    if (mParameters.isHDREnabled()) {
-        CDBG_HIGH("%s: need do reprocess for HDR", __func__);
-        pthread_mutex_unlock(&m_parm_lock);
-        return true;
-    }
     //Disable reprocess for 4K liveshot case
     if (mParameters.is4k2kVideoResolution()&& mParameters.getRecordingHintValue()) {
         //Disable reprocess for 4K liveshot case
         pthread_mutex_unlock(&m_parm_lock);
         return false;
     }
-    if ((gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION) > 0 &&
-            (mParameters.getJpegRotation() > 0)) {
-            // current rotation is not zero, and pp has the capability to process rotation
-            CDBG_HIGH("%s: need to do reprocess for rotation=%d",
-                    __func__, mParameters.getJpegRotation());
-            pthread_mutex_unlock(&m_parm_lock);
-            return true;
+
+    // pp feature config
+    cam_pp_feature_config_t pp_config;
+    memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
+
+    //Decide whether to do reprocess or not based on
+    //ppconfig obtained in the first pass.
+    getPPConfig(pp_config, 1);
+
+    if (pp_config.feature_mask > 0) {
+        needReprocess = true;
     }
 
-    if (isZSLMode()) {
-        if (((gCamCaps[mCameraId]->min_required_pp_mask > 0) ||
-             mParameters.isWNREnabled() || isCACEnabled())) {
-            // TODO: add for ZSL HDR later
-            CDBG_HIGH("%s: need do reprocess for ZSL WNR or min PP reprocess", __func__);
-            pthread_mutex_unlock(&m_parm_lock);
-            return true;
-        }
-
-        int snapshot_flipMode =
-            mParameters.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
-        if (snapshot_flipMode > 0) {
-            CDBG_HIGH("%s: Need do flip for snapshot in ZSL mode", __func__);
-            pthread_mutex_unlock(&m_parm_lock);
-            return true;
-        }
-    } else {
-        if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_PP_SUPERSET) {
-            CDBG_HIGH("%s: Need CPP in non-ZSL mode", __func__);
-            pthread_mutex_unlock(&m_parm_lock);
-            return true;
-        }
-    }
-
-    if ((gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_SCALE) > 0 &&
-        mParameters.m_reprocScaleParam.isScaleEnabled() &&
-        mParameters.m_reprocScaleParam.isUnderScaling()) {
-        // Reproc Scale is enaled and also need Scaling to current Snapshot
-        CDBG_HIGH("%s: need do reprocess for scale", __func__);
-        pthread_mutex_unlock(&m_parm_lock);
-        return true;
-    }
-
-    if (mParameters.isUbiFocusEnabled() |
-            mParameters.isUbiRefocus() |
-            mParameters.isChromaFlashEnabled() |
-            mParameters.isHDREnabled() |
-            mParameters.isOptiZoomEnabled() |
-            mParameters.isStillMoreEnabled()) {
-        CDBG_HIGH("%s: need reprocess for |UbiFocus=%d|ChramaFlash=%d|OptiZoom=%d|StillMore=%d|",
-                 __func__,
-                mParameters.isUbiFocusEnabled(),
-                mParameters.isChromaFlashEnabled(),
-                mParameters.isOptiZoomEnabled(),
-                mParameters.isStillMoreEnabled());
-        pthread_mutex_unlock(&m_parm_lock);
-        return true;
-    }
-
+    CDBG_HIGH("%s: needReprocess %s", __func__, needReprocess ? "true" : "false");
     pthread_mutex_unlock(&m_parm_lock);
-    return false;
+    return needReprocess;
 }
+
 
 /*===========================================================================
  * FUNCTION   : needRotationReprocess
@@ -7456,39 +7405,6 @@ bool QCamera2HardwareInterface::needRotationReprocess()
         // current rotation is not zero, and pp has the capability to process rotation
         CDBG_HIGH("%s: need to do reprocess for rotation=%d",
                 __func__, mParameters.getJpegRotation());
-        pthread_mutex_unlock(&m_parm_lock);
-        return true;
-    }
-
-    pthread_mutex_unlock(&m_parm_lock);
-    return false;
-}
-
-/*===========================================================================
- * FUNCTION   : needScaleReprocess
- *
- * DESCRIPTION: if scale needs to be done by reprocess in pp
- *
- * PARAMETERS : none
- *
- * RETURN     : true: needed
- *              false: no need
- *==========================================================================*/
-bool QCamera2HardwareInterface::needScaleReprocess()
-{
-    pthread_mutex_lock(&m_parm_lock);
-    if (!mParameters.isJpegPictureFormat() &&
-        !mParameters.isNV21PictureFormat()) {
-        // RAW image, no need to reprocess
-        pthread_mutex_unlock(&m_parm_lock);
-        return false;
-    }
-
-    if ((gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_SCALE) > 0 &&
-        mParameters.m_reprocScaleParam.isScaleEnabled() &&
-        mParameters.m_reprocScaleParam.isUnderScaling()) {
-        // Reproc Scale is enaled and also need Scaling to current Snapshot
-        CDBG_HIGH("%s: need do reprocess for scale", __func__);
         pthread_mutex_unlock(&m_parm_lock);
         return true;
     }
