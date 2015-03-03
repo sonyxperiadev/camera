@@ -616,6 +616,7 @@ int32_t mm_camera_cmd_thread_launch(mm_camera_cmd_thread_t * cmd_thread,
     int32_t rc = 0;
 
     cam_sem_init(&cmd_thread->cmd_sem, 0);
+    cam_sem_init(&cmd_thread->sync_sem, 0);
     cam_queue_init(&cmd_thread->cmd_queue);
     cmd_thread->cb = cb;
     cmd_thread->user_data = user_data;
@@ -670,6 +671,7 @@ int32_t mm_camera_cmd_thread_destroy(mm_camera_cmd_thread_t * cmd_thread)
     int32_t rc = 0;
     cam_queue_deinit(&cmd_thread->cmd_queue);
     cam_sem_destroy(&cmd_thread->cmd_sem);
+    cam_sem_destroy(&cmd_thread->sync_sem);
     memset(cmd_thread, 0, sizeof(mm_camera_cmd_thread_t));
     return rc;
 }

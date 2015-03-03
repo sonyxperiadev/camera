@@ -68,7 +68,8 @@ int32_t mm_channel_request_super_buf(mm_channel_t *my_obj,
                 uint32_t num_buf_requested, uint32_t num_reto_buf_requested);
 int32_t mm_channel_cancel_super_buf_request(mm_channel_t *my_obj);
 int32_t mm_channel_flush_super_buf_queue(mm_channel_t *my_obj,
-                                         uint32_t frame_idx);
+                                         uint32_t frame_idx,
+                                         cam_stream_type_t stream_type);
 int32_t mm_channel_config_notify_mode(mm_channel_t *my_obj,
                                       mm_camera_super_buf_notify_mode_t notify_mode);
 int32_t mm_channel_start_zsl_snapshot(mm_channel_t *my_obj);
@@ -244,9 +245,10 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
     } else if (MM_CAMERA_CMD_TYPE_CONFIG_NOTIFY == cmd_cb->cmd_type) {
            ch_obj->bundle.superbuf_queue.attr.notify_mode = cmd_cb->u.notify_mode;
     } else if (MM_CAMERA_CMD_TYPE_FLUSH_QUEUE  == cmd_cb->cmd_type) {
-        ch_obj->bundle.superbuf_queue.expected_frame_id = cmd_cb->u.frame_idx;
+        ch_obj->bundle.superbuf_queue.expected_frame_id = cmd_cb->u.flush_cmd.frame_idx;
         mm_channel_superbuf_flush(ch_obj,
-                &ch_obj->bundle.superbuf_queue, CAM_STREAM_TYPE_DEFAULT);
+                &ch_obj->bundle.superbuf_queue, cmd_cb->u.flush_cmd.stream_type);
+        cam_sem_post(&(ch_obj->cmd_thread.sync_sem));
         return;
     } else if (MM_CAMERA_CMD_TYPE_GENERAL == cmd_cb->cmd_type) {
         CDBG_HIGH("%s:%d] MM_CAMERA_CMD_TYPE_GENERAL", __func__, __LINE__);
@@ -689,7 +691,7 @@ int32_t mm_channel_fsm_fn_active(mm_channel_t *my_obj,
     case MM_CHANNEL_EVT_FLUSH_SUPER_BUF_QUEUE:
         {
             uint32_t frame_idx = *((uint32_t *)in_val);
-            rc = mm_channel_flush_super_buf_queue(my_obj, frame_idx);
+            rc = mm_channel_flush_super_buf_queue(my_obj, frame_idx, CAM_STREAM_TYPE_DEFAULT);
         }
         break;
     case MM_CHANNEL_EVT_START_ZSL_SNAPSHOT:
@@ -1307,9 +1309,8 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
                 pthread_mutex_unlock(&s_objs[j]->linked_stream->buf_lock);
 
                 if (TRUE == my_obj->bundle.is_active) {
-                    mm_channel_superbuf_flush(my_obj,
-                            &my_obj->bundle.superbuf_queue,
-                            s_objs[j]->stream_info->stream_type);
+                    mm_channel_flush_super_buf_queue(my_obj, 0,
+                            s_objs[i]->stream_info->stream_type);
                 }
                 memset(s_objs[j], 0, sizeof(mm_stream_t));
                 continue;
@@ -1430,7 +1431,7 @@ int32_t mm_channel_stop(mm_channel_t *my_obj)
             pthread_mutex_unlock(&s_objs[i]->linked_stream->buf_lock);
 
             if (TRUE == my_obj->bundle.is_active) {
-                mm_channel_flush_super_buf_queue(my_obj, 0);
+                mm_channel_flush_super_buf_queue(my_obj, 0, s_objs[i]->stream_info->stream_type);
             }
             break;
         } else {
@@ -1550,7 +1551,8 @@ int32_t mm_channel_cancel_super_buf_request(mm_channel_t *my_obj)
  *              0  -- success
  *              -1 -- failure
  *==========================================================================*/
-int32_t mm_channel_flush_super_buf_queue(mm_channel_t *my_obj, uint32_t frame_idx)
+int32_t mm_channel_flush_super_buf_queue(mm_channel_t *my_obj, uint32_t frame_idx,
+                                                     cam_stream_type_t stream_type)
 {
     int32_t rc = 0;
     mm_camera_cmdcb_t* node = NULL;
@@ -1559,13 +1561,17 @@ int32_t mm_channel_flush_super_buf_queue(mm_channel_t *my_obj, uint32_t frame_id
     if (NULL != node) {
         memset(node, 0, sizeof(mm_camera_cmdcb_t));
         node->cmd_type = MM_CAMERA_CMD_TYPE_FLUSH_QUEUE;
-        node->u.frame_idx = frame_idx;
+        node->u.flush_cmd.frame_idx = frame_idx;
+        node->u.flush_cmd.stream_type = stream_type;
 
         /* enqueue to cmd thread */
         cam_queue_enq(&(my_obj->cmd_thread.cmd_queue), node);
 
         /* wake up cmd thread */
         cam_sem_post(&(my_obj->cmd_thread.cmd_sem));
+
+        /* wait for ack from cmd thread */
+        cam_sem_wait(&(my_obj->cmd_thread.sync_sem));
     } else {
         CDBG_ERROR("%s: No memory for mm_camera_node_t", __func__);
         rc = -1;
