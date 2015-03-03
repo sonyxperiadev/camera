@@ -3989,7 +3989,7 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
         // is not active.
         if ( !m_stateMachine.isCaptureRunning() ) {
             mLongshotEnabled = true;
-            mParameters.setLongshotEnable(mLongshotEnabled);
+            rc = mParameters.setLongshotEnable(mLongshotEnabled);
 
             // Due to recent buffer count optimizations
             // ZSL might run with considerably less buffers
@@ -4014,6 +4014,8 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
                         uint8_t required = 0;
                         required = getBufNumRequired(CAM_STREAM_TYPE_SNAPSHOT);
                         if (pSnapStream->getBufferCount() < required) {
+                            // We restart here, to reset the FPS and no
+                            // of buffers as per the requirement of longshot usecase.
                             arg1 = QCAMERA_SM_EVT_RESTART_PERVIEW;
                         }
                     }
@@ -4038,7 +4040,7 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
         }
         mPrepSnapRun = false;
         mLongshotEnabled = false;
-        mParameters.setLongshotEnable(mLongshotEnabled);
+        rc = mParameters.setLongshotEnable(mLongshotEnabled);
         break;
     case CAMERA_CMD_HISTOGRAM_ON:
     case CAMERA_CMD_HISTOGRAM_OFF:
