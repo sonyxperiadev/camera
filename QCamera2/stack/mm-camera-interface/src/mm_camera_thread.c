@@ -620,6 +620,7 @@ int32_t mm_camera_cmd_thread_launch(mm_camera_cmd_thread_t * cmd_thread,
     cam_queue_init(&cmd_thread->cmd_queue);
     cmd_thread->cb = cb;
     cmd_thread->user_data = user_data;
+    cmd_thread->is_active = TRUE;
 
     /* launch the thread */
     pthread_create(&cmd_thread->cmd_pid,
