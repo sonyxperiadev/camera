@@ -34,6 +34,8 @@
 
 #include "mm_camera_interface.h"
 #include <hardware/camera.h>
+#include <utils/Timers.h>
+
 /**********************************************************************************
 * Data structure declare
 ***********************************************************************************/
@@ -254,8 +256,10 @@ typedef struct mm_stream {
     mm_camera_buf_def_t* buf; /* ptr to buf array */
     mm_stream_buf_status_t* buf_status; /* ptr to buf status array */
 
-    uint8_t plane_buf_num; /* num of plane buffers allocated */
-    mm_camera_buf_def_t *plane_buf; /*Pointer to plane buffer array in case of BATCH */
+    uint8_t plane_buf_num; /* num of plane buffers allocated  Used only in Batch mode*/
+    mm_camera_buf_def_t *plane_buf; /*Pointer to plane buffer array Used only in Batch mode */
+    int32_t cur_buf_idx; /* Current container buffer active filling. Used only in Batch mode*/
+    uint8_t cur_bufs_staged; /*Number of plane buf freed by HAL for this usr buf*/
 
 
     /* reference to parent channel_obj */
@@ -273,6 +277,10 @@ typedef struct mm_stream {
     mm_camera_map_unmap_ops_tbl_t map_ops;
 
     int8_t queued_buffer_count;
+
+    /*latest timestamp of this stream frame received & last frameID*/
+    uint32_t prev_frameID;
+    nsecs_t prev_timestamp;
 } mm_stream_t;
 
 /* mm_channel */

@@ -30,6 +30,7 @@
 #define LOG_TAG "QCameraStream"
 
 #include <utils/Errors.h>
+#include <QComOMXMetadata.h>
 #include "QCamera2HWI.h"
 #include "QCameraStream.h"
 
@@ -48,7 +49,6 @@ namespace qcamera {
  *   @initial_reg_flag: flag to indicate if buffer needs to be registered
  *                      at kernel initially
  *   @bufs       : output of allocated buffers
-  *  @plane_bufs       : plane buffers incase of buf is usr ptr
  *   @ops_tbl    : ptr to buf mapping/unmapping ops
  *   @user_data  : user data ptr of ops_tbl
  *
@@ -61,7 +61,6 @@ int32_t QCameraStream::get_bufs(
                      uint8_t *num_bufs,
                      uint8_t **initial_reg_flag,
                      mm_camera_buf_def_t **bufs,
-                     mm_camera_buf_def_t **plane_bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                      void *user_data)
 {
@@ -74,11 +73,12 @@ int32_t QCameraStream::get_bufs(
     if (stream->mStreamInfo != NULL
             && stream->mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH) {
         //Batch Mode. Allocate Butch buffers
-        return stream->allocateBatchBufs(offset, num_bufs, initial_reg_flag, bufs, plane_bufs, ops_tbl);
+        return stream->allocateBatchBufs(offset, num_bufs,
+                initial_reg_flag, bufs, ops_tbl);
     } else {
         // Plane Buffer. Allocate plane buffer
-        return stream->getBufs(offset, num_bufs, initial_reg_flag, bufs, ops_tbl);
-        *plane_bufs = NULL;
+        return stream->getBufs(offset, num_bufs,
+                initial_reg_flag, bufs, ops_tbl);
     }
 }
 
@@ -93,7 +93,6 @@ int32_t QCameraStream::get_bufs(
  *   @initial_reg_flag: flag to indicate if buffer needs to be registered
  *                      at kernel initially
  *   @bufs       : output of allocated buffers
- *   @plane_bufs       : plane buffers in case buf is user ptr
  *   @ops_tbl    : ptr to buf mapping/unmapping ops
  *   @user_data  : user data ptr of ops_tbl
  *
@@ -106,7 +105,6 @@ int32_t QCameraStream::get_bufs_deffered(
         uint8_t *num_bufs,
         uint8_t **initial_reg_flag,
         mm_camera_buf_def_t **bufs,
-        mm_camera_buf_def_t **plane_bufs,
         mm_camera_map_unmap_ops_tbl_t * /* ops_tbl */,
         void *user_data)
 {
@@ -119,12 +117,6 @@ int32_t QCameraStream::get_bufs_deffered(
     *initial_reg_flag   = stream->mRegFlags;
     *num_bufs           = stream->mNumBufs;
     *bufs               = stream->mBufDefs;
-    if (stream->mStreamInfo != NULL
-            && stream->mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH) {
-        *plane_bufs = stream->mPlaneBufDefs;
-    } else {
-        *plane_bufs = NULL;
-    }
     CDBG_HIGH("%s: stream type: %d, mRegFlags: 0x%x, numBufs: %d",
             __func__, stream->getMyType(), stream->mRegFlags, stream->mNumBufs);
     return NO_ERROR;
@@ -1015,11 +1007,7 @@ int32_t QCameraStream::bufDone(uint32_t index)
     if (index >= mNumBufs || mBufDefs == NULL)
         return BAD_INDEX;
 
-    if (mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH) {
-        rc = mCamOps->qbuf(mCamHandle, mChannelHandle, &mPlaneBufDefs[index]);
-    } else {
-        rc = mCamOps->qbuf(mCamHandle, mChannelHandle, &mBufDefs[index]);
-    }
+    rc = mCamOps->qbuf(mCamHandle, mChannelHandle, &mBufDefs[index]);
     if (rc < 0)
         return rc;
 
@@ -1042,14 +1030,37 @@ int32_t QCameraStream::bufDone(uint32_t index)
 int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
 {
     int32_t rc = NO_ERROR;
+    int index;
 
-    int index = mStreamBufs->getMatchBufIndex(opaque, isMetaData);
-    if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
-        ALOGE("%s: Cannot find buf for opaque data = %p", __func__, opaque);
-        return BAD_INDEX;
+    if (mStreamInfo != NULL
+            && mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH) {
+        index = mStreamBatchBufs->getMatchBufIndex(opaque, TRUE);
+        if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
+            ALOGE("%s: Cannot find buf for opaque data = %p", __func__, opaque);
+            return BAD_INDEX;
+        }
+        camera_memory_t *video_mem = mStreamBatchBufs->getMemory(index, true);
+        if (video_mem != NULL) {
+            struct encoder_media_buffer_type * packet =
+                    (struct encoder_media_buffer_type *)video_mem->data;
+            native_handle_t *nh = const_cast<native_handle_t *>(packet->meta_handle);
+            if (NULL != nh) {
+               if (native_handle_delete(nh)) {
+                   ALOGE("%s: Unable to delete native handle", __func__);
+               }
+            } else {
+               ALOGE("%s : native handle not available", __func__);
+            }
+        }
+    } else {
+        index = mStreamBufs->getMatchBufIndex(opaque, isMetaData);
+        if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
+            ALOGE("%s: Cannot find buf for opaque data = %p", __func__, opaque);
+            return BAD_INDEX;
+        }
+        CDBG_HIGH("%s: Buffer Index = %d, Frame Idx = %d", __func__, index,
+                mBufDefs[index].frame_idx);
     }
-    CDBG("%s: Buffer Index = %d, Frame Idx = %d", __func__, index,
-            mBufDefs[index].frame_idx);
     rc = bufDone((uint32_t)index);
     return rc;
 }
@@ -1073,20 +1084,6 @@ int32_t QCameraStream::getNumQueuedBuf()
         ALOGE("%s: stream is not in active state. Invalid operation", __func__);
     }
     return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : getFrameBuf
- *
- * DESCRIPTION: returns frame buffer in case of batch buffer
- *
- * PARAMETERS : None
- *
- * RETURN     : queued buffer count
- *==========================================================================*/
-void *QCameraStream::getFrameBuf(int index)
-{
-    return (void *)&mPlaneBufDefs[index];
 }
 
 /*===========================================================================
@@ -1259,7 +1256,7 @@ int32_t QCameraStream::allocateBuffers()
     if (mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH) {
         return allocateBatchBufs(&mFrameLenOffset,
                 &mNumBufs, &mRegFlags,
-                &mBufDefs, &mPlaneBufDefs, NULL);
+                &mBufDefs, NULL);
     }
 
     //Allocate and map stream info buffer
@@ -1369,8 +1366,7 @@ int32_t QCameraStream::allocateBuffers()
  *==========================================================================*/
 int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
         uint8_t *num_bufs, uint8_t **initial_reg_flag,
-        mm_camera_buf_def_t **bufs, mm_camera_buf_def_t **plane_bufs,
-        mm_camera_map_unmap_ops_tbl_t *ops_tbl)
+        mm_camera_buf_def_t **bufs, mm_camera_map_unmap_ops_tbl_t *ops_tbl)
 {
     int rc = NO_ERROR;
     uint8_t *regFlags;
@@ -1503,16 +1499,14 @@ int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
              mNumPlaneBufs * (sizeof(mm_camera_buf_def_t)));
 
     for (uint32_t i = 0; i < mStreamInfo->num_bufs; i++) {
-        uint32_t plane_idx = (i * mStreamInfo->user_buf_info.frame_buf_cnt);
         mStreamBatchBufs->getUserBufDef(mStreamInfo->user_buf_info,
-                mBufDefs[i], i, mFrameLenOffset, &mPlaneBufDefs[plane_idx],
-                plane_idx, mStreamBufs);
+                mBufDefs[i], i, mFrameLenOffset, mPlaneBufDefs,
+                mStreamBufs);
     }
 
     *num_bufs = mNumBufs;
     *initial_reg_flag = regFlags;
     *bufs = mBufDefs;
-    *plane_bufs = mPlaneBufDefs;
     CDBG_HIGH("%s: stream type: %d, numBufs: %d mNumPlaneBufs: %d",
             __func__, mStreamInfo->stream_type, mNumBufs, mNumPlaneBufs);
 
@@ -1648,7 +1642,8 @@ void *QCameraStream::BufAllocRoutine(void *data)
                 ssize_t bufSize = pme->mStreamBufs->getSize(i);
                 if (BAD_INDEX != bufSize) {
                     rc = pme->m_MemOpsTbl.map_ops(i, -1, pme->mStreamBufs->getFd(i),
-                            (uint32_t)bufSize, CAM_MAPPING_BUF_TYPE_STREAM_BUF, pme->m_MemOpsTbl.userdata);
+                            (uint32_t)bufSize, CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                            pme->m_MemOpsTbl.userdata);
                     if (rc == 0) {
                         pme->mStreamBufs->getBufDef(pme->mFrameLenOffset, pme->mBufDefs[i], i);
                         pme->mCamOps->qbuf(pme->mCamHandle, pme->mChannelHandle,
@@ -2069,11 +2064,11 @@ int32_t QCameraStream::unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plan
         mm_camera_map_unmap_ops_tbl_t *ops_tbl)
 {
     if (ops_tbl != NULL) {
-        return ops_tbl->unmap_ops(buf_idx, plane_idx, (cam_mapping_buf_type)buf_type, ops_tbl->userdata);
+        return ops_tbl->unmap_ops(buf_idx, plane_idx,
+                (cam_mapping_buf_type)buf_type, ops_tbl->userdata);
     } else {
         return mCamOps->unmap_stream_buf(mCamHandle, mChannelHandle,
-                                     mHandle, buf_type,
-                                     buf_idx, plane_idx);
+                mHandle, buf_type, buf_idx, plane_idx);
     }
 }
 
