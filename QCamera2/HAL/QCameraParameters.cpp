@@ -1656,69 +1656,18 @@ int32_t QCameraParameters::setJpegThumbnailSize(const QCameraParameters& params)
     int height = params.getInt(KEY_JPEG_THUMBNAIL_HEIGHT);
 
     CDBG("requested jpeg thumbnail size %d x %d", width, height);
-
-    size_t sizes_cnt = PARAM_MAP_SIZE(THUMBNAIL_SIZES_MAP);
-
-    cam_dimension_t dim;
-
-    // While taking livesnaphot match jpeg thumbnail size aspect
-    // ratio to liveshot size. For normal snapshot match thumbnail
-    // aspect ratio to picture size.
-    if (m_bRecordingHint) {
-        getLiveSnapshotSize(dim);
-    } else {
-        params.getPictureSize(&dim.width, &dim.height);
-    }
-
-    if (0 == dim.height) {
-        ALOGE("%s: picture size is invalid (%d x %d)", __func__, dim.width, dim.height);
-        return BAD_VALUE;
-    }
-    double picAspectRatio = (double)dim.width / (double)dim.height;
-
-    int optimalWidth = 0, optimalHeight = 0;
-    if (width != 0 || height != 0) {
-        // If input jpeg thumnmail size is (0,0), meaning no thumbnail needed
-        // hornor this setting.
-        // Otherwise, search for optimal jpeg thumbnail size that has the same
-        // aspect ratio as picture size.
-        // If missign jpeg thumbnail size with appropriate aspect ratio,
-        // just honor setting supplied by application.
-
-        // Try to find a size matches aspect ratio and has the largest width
-        for (size_t i = 0; i < sizes_cnt; i++) {
-            if (THUMBNAIL_SIZES_MAP[i].height == 0) {
-                // No thumbnail case, just skip
-                continue;
-            }
-            double ratio =
-                (double)THUMBNAIL_SIZES_MAP[i].width / THUMBNAIL_SIZES_MAP[i].height;
-            if (fabs(ratio - picAspectRatio) > ASPECT_TOLERANCE)  {
-                continue;
-            }
-            if (THUMBNAIL_SIZES_MAP[i].width > optimalWidth) {
-                optimalWidth = THUMBNAIL_SIZES_MAP[i].width;
-                optimalHeight = THUMBNAIL_SIZES_MAP[i].height;
-            }
-        }
-
-        if ((0 == optimalWidth) || (0 == optimalHeight)) {
-            // Optimal size not found
-            // Validate thumbnail size
-            for (size_t i = 0; i < sizes_cnt; i++) {
-                if (width == THUMBNAIL_SIZES_MAP[i].width &&
-                    height == THUMBNAIL_SIZES_MAP[i].height) {
-                    optimalWidth = width;
-                    optimalHeight = height;
-                    break;
-                }
-            }
+    int sizes_cnt = sizeof(THUMBNAIL_SIZES_MAP) / sizeof(cam_dimension_t);
+    // Validate thumbnail size
+    for (int i = 0; i < sizes_cnt; i++) {
+        if (width == THUMBNAIL_SIZES_MAP[i].width &&
+                height == THUMBNAIL_SIZES_MAP[i].height) {
+           set(KEY_JPEG_THUMBNAIL_WIDTH, width);
+           set(KEY_JPEG_THUMBNAIL_HEIGHT, height);
+           return NO_ERROR;
         }
     }
-
-    set(KEY_JPEG_THUMBNAIL_WIDTH, optimalWidth);
-    set(KEY_JPEG_THUMBNAIL_HEIGHT, optimalHeight);
-    return NO_ERROR;
+    ALOGE("%s: error: setting jpeg thumbnail size (%d, %d)", __func__, width, height);
+    return BAD_VALUE;
 }
 
 /*===========================================================================
