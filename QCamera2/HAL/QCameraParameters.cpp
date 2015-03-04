@@ -11739,7 +11739,7 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
     char value[PROPERTY_VALUE_MAX];
     int8_t count = 0;
 
-    property_get("persist.camera.batchmode", value, "0");
+    property_get("persist.camera.batchcount", value, "0");
     count = atoi(value);
 
     if (!(count != 0 || buf_cnt > CAMERA_MIN_BATCH_COUNT)) {
@@ -11747,15 +11747,16 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
         return;
     }
 
-    if ( buf_cnt > CAMERA_MIN_BATCH_COUNT) {
-        mBufBatchCnt = buf_cnt;
+    if (count > 0) {
+        mBufBatchCnt = count;
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
         return;
     }
 
-    if ( count > 0) {
-        mBufBatchCnt = count;
+    if (buf_cnt > CAMERA_MIN_BATCH_COUNT) {
+        mBufBatchCnt = buf_cnt;
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        return;
     }
 }
 

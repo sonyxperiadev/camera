@@ -32,7 +32,6 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <utils/Timers.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <time.h>
@@ -1039,13 +1038,15 @@ int32_t mm_stream_write_user_buf(mm_stream_t * my_obj,
     int32_t index = -1, count = 0;
     struct msm_camera_user_buf_cont_t *cont_buf = NULL;
 
-    if (my_obj->stream_info->streaming_mode != CAM_STREAMING_MODE_BATCH
-            || (buf->buf_type == CAM_STREAM_BUF_TYPE_USERPTR
-            && buf->user_buf.bufs_released ==
-            buf[buf->buf_idx].user_buf.bufs_used)) {
-        CDBG_HIGH("%s: Input buffer user buffer or streaming mode is not BATCH", __func__);
+    if (buf->buf_type == CAM_STREAM_BUF_TYPE_USERPTR) {
         my_obj->buf_status[buf->buf_idx].buf_refcnt--;
         if (0 == my_obj->buf_status[buf->buf_idx].buf_refcnt) {
+            cont_buf = (struct msm_camera_user_buf_cont_t *)my_obj->buf[buf->buf_idx].buffer;
+            cont_buf->buf_cnt = my_obj->buf[buf->buf_idx].user_buf.bufs_used;
+            for (i = 0; i < (int32_t)cont_buf->buf_cnt; i++) {
+                cont_buf->buf_idx[i] = my_obj->buf[buf->buf_idx].user_buf.buf_idx[i];
+                my_obj->buf[buf->buf_idx].user_buf.buf_idx[i] = -1;
+            }
             rc = mm_stream_qbuf(my_obj, buf);
             if(rc < 0) {
                 CDBG_ERROR("%s: mm_camera_stream_qbuf(idx=%d) err=%d\n",
@@ -1061,16 +1062,19 @@ int32_t mm_stream_write_user_buf(mm_stream_t * my_obj,
         return rc;
     }
 
-    for (i = 0; i < my_obj->buf_num; i++) {
-        if ((my_obj->buf_status[i].in_kernel)
-                || (my_obj->buf[i].user_buf.buf_in_use)) {
-            continue;
-        }
+    if ((my_obj->cur_buf_idx < 0)
+            || (my_obj->cur_buf_idx >= my_obj->buf_num)) {
+        for (i = 0; i < my_obj->buf_num; i++) {
+            if ((my_obj->buf_status[i].in_kernel)
+                    || (my_obj->buf[i].user_buf.buf_in_use)) {
+                continue;
+            }
 
-        if (count <= my_obj->buf[i].user_buf.bufs_released) {
-            count = my_obj->buf[i].user_buf.bufs_released;
-            index = i;
+            my_obj->cur_buf_idx = index = i;
+            break;
         }
+    } else {
+        index = my_obj->cur_buf_idx;
     }
 
     if (index == -1) {
@@ -1081,14 +1085,14 @@ int32_t mm_stream_write_user_buf(mm_stream_t * my_obj,
 
     //Insert Buffer to Batch structure.
     my_obj->buf[index].user_buf.buf_idx[count] = buf->buf_idx;
-    my_obj->buf[index].user_buf.bufs_released++;
+    my_obj->cur_bufs_staged++;
 
     CDBG("%s index = %d filled = %d used = %d", __func__,
             index,
-            my_obj->buf[index].user_buf.bufs_released,
+            my_obj->cur_bufs_staged,
             my_obj->buf[index].user_buf.bufs_used);
 
-    if (my_obj->buf[index].user_buf.bufs_released
+    if (my_obj->cur_bufs_staged
             == my_obj->buf[index].user_buf.bufs_used){
         my_obj->buf_status[index].buf_refcnt--;
         if (0 == my_obj->buf_status[index].buf_refcnt) {
@@ -1096,6 +1100,7 @@ int32_t mm_stream_write_user_buf(mm_stream_t * my_obj,
             cont_buf->buf_cnt = my_obj->buf[index].user_buf.bufs_used;
             for (i = 0; i < (int32_t)cont_buf->buf_cnt; i++) {
                 cont_buf->buf_idx[i] = my_obj->buf[index].user_buf.buf_idx[i];
+                my_obj->buf[index].user_buf.buf_idx[i] = -1;
             }
             rc = mm_stream_qbuf(my_obj, &my_obj->buf[index]);
             if(rc < 0) {
@@ -1104,6 +1109,8 @@ int32_t mm_stream_write_user_buf(mm_stream_t * my_obj,
             } else {
                 my_obj->buf_status[index].in_kernel = 1;
                 my_obj->buf[index].user_buf.buf_in_use = 1;
+                my_obj->cur_bufs_staged = 0;
+                my_obj->cur_buf_idx = -1;
             }
         }else{
             CDBG("<DEBUG> : ref count pending count :%d idx = %d",
@@ -1133,8 +1140,9 @@ int32_t mm_stream_read_user_buf(mm_stream_t * my_obj,
     int32_t rc = 0, i;
     mm_camera_buf_def_t *stream_buf  = NULL;
     struct msm_camera_user_buf_cont_t *user_buf = NULL;
-    nsecs_t interval_nsec = (nsecs_t)((my_obj->stream_info->user_buf_info.frameInterval) * 1000000);
-    nsecs_t timeStamp = 0;
+    nsecs_t interval_nsec = 0, frame_ts = 0, timeStamp = 0;
+    int ts_delta = 0;
+    uint32_t frameID = 0;
 
     user_buf = (struct msm_camera_user_buf_cont_t *)buf_info->buf->buffer;
 
@@ -1144,29 +1152,56 @@ int32_t mm_stream_read_user_buf(mm_stream_t * my_obj,
         return rc;
     }
 
-    buf_info->buf->user_buf.bufs_used = user_buf->buf_cnt;
-    buf_info->buf->user_buf.bufs_released = 0;
-    buf_info->buf->user_buf.buf_in_use = 1;
-    timeStamp = (nsecs_t)(buf_info->buf->ts.tv_sec) * 1000000000LL + buf_info->buf->ts.tv_nsec;
-    timeStamp = (timeStamp - (nsecs_t)(user_buf->buf_cnt * interval_nsec));
+    if (buf_info->buf->frame_idx == 1) {
+        frameID = buf_info->buf->frame_idx;
+    }else {
+        frameID = (buf_info->buf->frame_idx - 1) * user_buf->buf_cnt;
+    }
+
+    timeStamp = (nsecs_t)(buf_info->buf->ts.tv_sec) *
+            1000000000LL + buf_info->buf->ts.tv_nsec;
+
+    if (timeStamp <= my_obj->prev_timestamp) {
+        CDBG_ERROR("%s: TimeStamp received less than expected", __func__);
+        mm_stream_qbuf(my_obj, buf_info->buf);
+        return rc;
+    } else if (my_obj->prev_timestamp == 0
+            || (my_obj->prev_frameID != buf_info->buf->frame_idx + 1)) {
+        /* For first frame or incase batch is droped */
+        interval_nsec = ((my_obj->stream_info->user_buf_info.frameInterval) * 1000000);
+        my_obj->prev_timestamp = (timeStamp - (nsecs_t)(user_buf->buf_cnt * interval_nsec));
+    } else {
+        ts_delta = timeStamp - my_obj->prev_timestamp;
+        interval_nsec = (nsecs_t)(ts_delta / user_buf->buf_cnt);
+        CDBG("%s: Timestamp delta = %d timestamp = %lld",__func__, ts_delta, timeStamp);
+    }
 
     for (i = 0; i < (int32_t)user_buf->buf_cnt; i++) {
         buf_info->buf->user_buf.buf_idx[i] = user_buf->buf_idx[i];
         stream_buf = &my_obj->plane_buf[user_buf->buf_idx[i]];
-        stream_buf->frame_idx = buf_info->buf->frame_idx + i;
+        stream_buf->frame_idx = frameID + i;
 
-        timeStamp  += interval_nsec;
+        frame_ts  = (i * interval_nsec) + my_obj->prev_timestamp;
 
-        stream_buf->ts.tv_sec  = (timeStamp / 1000000000LL);
-        stream_buf->ts.tv_nsec = (timeStamp - (stream_buf->ts.tv_sec * 1000000000LL));
+        stream_buf->ts.tv_sec  = (frame_ts / 1000000000LL);
+        stream_buf->ts.tv_nsec = (frame_ts - (stream_buf->ts.tv_sec * 1000000000LL));
+        stream_buf->is_uv_subsampled = buf_info->buf->is_uv_subsampled;
 
-        CDBG("%s: VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d, queued: %d, timestamp = %lld",
-                __func__, stream_buf->buf_idx, buf_info->buf->frame_idx,
-                my_obj->stream_info->stream_type, rc, my_obj->queued_buffer_count, timeStamp);
-
-        buf_info->buf->is_uv_subsampled = buf_info->buf->is_uv_subsampled;
+        CDBG("%s: buf_index %d, frame_idx %d, stream type %d, timestamp = %lld",
+                __func__, stream_buf->buf_idx, stream_buf->frame_idx,
+                my_obj->stream_info->stream_type, frame_ts);
     }
-    CDBG("%s: buf_used = %d ", __func__, user_buf->buf_cnt);
+
+    buf_info->buf->ts.tv_sec  = (my_obj->prev_timestamp / 1000000000LL);
+    buf_info->buf->ts.tv_nsec = (my_obj->prev_timestamp -
+            (buf_info->buf->ts.tv_sec * 1000000000LL));
+
+    buf_info->buf->user_buf.bufs_used = user_buf->buf_cnt;
+    buf_info->buf->user_buf.buf_in_use = 1;
+
+    my_obj->prev_timestamp = timeStamp;
+    my_obj->prev_frameID = buf_info->buf->frame_idx;
+
     CDBG("%s :X rc = %d",__func__,rc);
     return rc;
 }
@@ -1227,8 +1262,8 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
         buf_info->buf->ts.tv_sec  = vb.timestamp.tv_sec;
         buf_info->buf->ts.tv_nsec = vb.timestamp.tv_usec * 1000;
 
-        CDBG("%s: VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d,\
-                queued: %d, buf_type = %d",
+        CDBG("%s: VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d,"
+                "queued: %d, buf_type = %d",
             __func__, vb.index, buf_info->buf->frame_idx,
             my_obj->stream_info->stream_type, rc,
             my_obj->queued_buffer_count, buf_info->buf->buf_type);
@@ -1720,7 +1755,6 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
                                    &my_obj->buf_num,
                                    &reg_flags,
                                    &my_obj->buf,
-                                   &my_obj->plane_buf,
                                    &my_obj->map_ops,
                                    my_obj->mem_vtbl.user_data);
 
@@ -1748,19 +1782,23 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
         if (my_obj->buf[i].buf_type == CAM_STREAM_BUF_TYPE_USERPTR) {
             my_obj->buf[i].user_buf.bufs_used =
                     (int8_t)my_obj->stream_info->user_buf_info.frame_buf_cnt;
-            my_obj->buf[i].user_buf.bufs_released =
-                    my_obj->stream_info->user_buf_info.frame_buf_cnt;
-            my_obj->buf[i].user_buf.buf_in_use = 1;
+            my_obj->buf[i].user_buf.buf_in_use = reg_flags[i];
         }
     }
 
-    if (my_obj->plane_buf != NULL) {
-        my_obj->plane_buf_num =
-                my_obj->buf_num * my_obj->stream_info->user_buf_info.frame_buf_cnt;
-        for (i = 0; i < my_obj->plane_buf_num; i++) {
-            my_obj->plane_buf[i].stream_id = my_obj->my_hdl;
-            my_obj->plane_buf[i].stream_type = my_obj->stream_info->stream_type;
+    if (my_obj->stream_info->streaming_mode == CAM_STREAMING_MODE_BATCH) {
+        my_obj->plane_buf = my_obj->buf[0].user_buf.plane_buf;
+        if (my_obj->plane_buf != NULL) {
+            my_obj->plane_buf_num =
+                    my_obj->buf_num *
+                    my_obj->stream_info->user_buf_info.frame_buf_cnt;
+            for (i = 0; i < my_obj->plane_buf_num; i++) {
+                my_obj->plane_buf[i].stream_id = my_obj->my_hdl;
+                my_obj->plane_buf[i].stream_type = my_obj->stream_info->stream_type;
+            }
         }
+        my_obj->cur_bufs_staged = 0;
+        my_obj->cur_buf_idx = -1;
     }
 
     free(reg_flags);
@@ -1788,7 +1826,7 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
 int32_t mm_stream_deinit_bufs(mm_stream_t * my_obj)
 {
     int32_t rc = 0;
-    int32_t i = 0;
+
     mm_camera_map_unmap_ops_tbl_t ops_tbl;
     CDBG("%s: E, my_handle = 0x%x, fd = %d, state = %d",
          __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
@@ -3425,8 +3463,7 @@ int32_t mm_stream_buf_done(mm_stream_t * my_obj,
          __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
 
     pthread_mutex_lock(&my_obj->buf_lock);
-    if (my_obj->stream_info->streaming_mode == CAM_STREAMING_MODE_BATCH
-            && frame->buf_type != CAM_STREAM_BUF_TYPE_USERPTR) {
+    if (my_obj->stream_info->streaming_mode == CAM_STREAMING_MODE_BATCH) {
         rc = mm_stream_write_user_buf(my_obj, frame);
     } else if(my_obj->buf_status[frame->buf_idx].buf_refcnt == 0) {
         CDBG("%s: Error Trying to free second time?(idx=%d) count=%d\n",
