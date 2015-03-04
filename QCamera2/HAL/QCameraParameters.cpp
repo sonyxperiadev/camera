@@ -788,7 +788,7 @@ QCameraParameters::QCameraParameters()
       m_bHDREnabled(false),
       m_bAVTimerEnabled(false),
       m_bDISEnabled(false),
-      m_bMobiMask(false),
+      m_MobiMask(0),
       m_AdjustFPS(NULL),
       m_bHDR1xFrameEnabled(false),
       m_HDRSceneEnabled(false),
@@ -4334,7 +4334,7 @@ int32_t QCameraParameters::setMobicat(const QCameraParameters& )
     char value [PROPERTY_VALUE_MAX];
     property_get("persist.camera.mobicat", value, "0");
     int32_t ret = NO_ERROR;
-    bool enableMobi = atoi(value) > 0 ? true : false;
+    uint8_t enableMobi = (uint8_t)atoi(value);
 
     if (enableMobi) {
         tune_cmd_t tune_cmd;
@@ -4348,7 +4348,7 @@ int32_t QCameraParameters::setMobicat(const QCameraParameters& )
             ret = BAD_VALUE;
         }
     }
-    m_bMobiMask = enableMobi;
+    m_MobiMask = enableMobi;
 
     return ret;
 }
@@ -10725,7 +10725,7 @@ cam_is_type_t QCameraParameters::getISType()
  *==========================================================================*/
 uint8_t QCameraParameters::getMobicatMask()
 {
-    return m_bMobiMask;
+    return m_MobiMask;
 }
 
 /*===========================================================================
