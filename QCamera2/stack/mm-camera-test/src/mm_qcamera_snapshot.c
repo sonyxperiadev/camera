@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -186,7 +186,6 @@ static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
   mm_camera_buf_def_t *frame;
   metadata_buffer_t *pMetadata;
-  cam_auto_focus_data_t *focus_data;
 
   if (NULL == bufs || NULL == user_data) {
     CDBG_ERROR("%s: bufs or user_data are not valid ", __func__);
@@ -241,9 +240,8 @@ static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
 
   pMetadata = (metadata_buffer_t *)frame->buffer;
 
-  if (IS_META_AVAILABLE(CAM_INTF_META_AUTOFOCUS_DATA, pMetadata)) {
-    focus_data = (cam_auto_focus_data_t *)
-      POINTER_OF_META(CAM_INTF_META_AUTOFOCUS_DATA, pMetadata);
+  IF_META_AVAILABLE(cam_auto_focus_data_t, focus_data,
+        CAM_INTF_META_AUTOFOCUS_DATA, pMetadata) {
     if (focus_data->focus_state == CAM_AF_FOCUSED) {
       CDBG_ERROR("%s: AutoFocus Done Call Back Received\n",__func__);
       mm_camera_app_done();

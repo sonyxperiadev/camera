@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -68,9 +68,9 @@ namespace qcamera {
 
 /* Time related macros */
 typedef int64_t nsecs_t;
-#define NSEC_PER_SEC 1000000000LL
-#define NSEC_PER_USEC 1000LL
-#define NSEC_PER_33MSEC 33000000LL
+#define NSEC_PER_SEC 1000000000LLU
+#define NSEC_PER_USEC 1000LLU
+#define NSEC_PER_33MSEC 33000000LLU
 
 extern volatile uint32_t gCamHal3LogLevel;
 
@@ -111,7 +111,6 @@ public:
     static void camEvtHandle(uint32_t camera_handle, mm_camera_event_t *evt,
                                           void *user_data);
     int openCamera(struct hw_device_t **hw_device);
-    int getMetadata(int type);
     camera_metadata_t* translateCapabilityToMetadata(int type);
 
     static int getCamInfo(uint32_t cameraId, struct camera_info *info);
@@ -132,8 +131,6 @@ public:
                                    uint32_t tag);
     static bool resetIfNeededROI(cam_area_t* roi, const cam_crop_region_t* scalerCropRegion);
     static void convertLandmarks(cam_face_detection_info_t face, int32_t* landmarks);
-    static void postproc_channel_cb_routine(mm_camera_super_buf_t *recvd_frame,
-                                            void *userdata);
     static int32_t getScalarFormat(int32_t format);
     static int32_t getSensorSensitivity(int32_t iso_mode);
 
@@ -163,7 +160,6 @@ public:
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
                             uint8_t capture_intent);
-    int getJpegSettings(const camera_metadata_t *settings);
     int initParameters();
     void deinitParameters();
     QCamera3ReprocessChannel *addOfflineReprocChannel(const reprocess_config_t &config,
@@ -171,16 +167,19 @@ public:
     bool needRotationReprocess();
     bool needReprocess(uint32_t postprocess_mask);
     bool needJpegRotation();
-    bool isWNREnabled();
     cam_denoise_process_type_t getWaveletDenoiseProcessPlate();
 
     void captureResultCb(mm_camera_super_buf_t *metadata,
                 camera3_stream_buffer_t *buffer, uint32_t frame_number);
+    cam_dimension_t calcMaxJpegDim();
+    bool needOnlineRotation();
+    uint32_t getJpegQuality();
+    QCamera3Exif *getExifData();
 
-    typedef struct {
-        int fwk_name;
-        int hal_name;
-    } QCameraMap;
+    template <typename fwkType, typename halType> struct QCameraMap {
+        fwkType fwk_name;
+        halType hal_name;
+    };
 
     typedef struct {
         const char *const desc;
@@ -191,14 +190,6 @@ private:
 
     int openCamera();
     int closeCamera();
-    int AddSetParmEntryToBatch(parm_buffer_t *p_table,
-            cam_intf_parm_type_t paramType, size_t paramLength, void *paramValue);
-    static int lookupHalName(const QCameraMap arr[],
-            size_t len, int fwk_name);
-    static int lookupFwkName(const QCameraMap arr[],
-            size_t len, int hal_name);
-    static cam_cds_mode_type_t lookupProp(const QCameraPropMap arr[],
-            size_t len, const char *name);
     static size_t calcMaxJpegSize(uint32_t camera_id);
     cam_dimension_t getMaxRawSize(uint32_t camera_id);
 
@@ -216,25 +207,16 @@ private:
     static void getLogLevel();
 
     void cleanAndSortStreamInfo();
-    int queueReprocMetadata(metadata_buffer_t *metadata);
     void extractJpegMetadata(CameraMetadata& jpegMetadata,
             const camera3_capture_request_t *request);
 
     bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList);
-public:
-    cam_dimension_t calcMaxJpegDim();
-    bool needOnlineRotation();
-    uint32_t getJpegQuality();
-    QCamera3Exif *getExifData();
-private:
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
     mm_camera_vtbl_t  *mCameraHandle;
     bool               mCameraOpened;
     bool               mCameraInitialized;
     camera_metadata_t *mDefaultMetadata[CAMERA3_TEMPLATE_COUNT];
-    int mBlobRequest;
-
     const camera3_callback_ops_t *mCallbackOps;
 
     camera3_stream_t *mInputStream;
@@ -253,7 +235,6 @@ private:
     QCamera3HeapMemory *mParamHeap;
     metadata_buffer_t* mParameters;
     metadata_buffer_t* mPrevParameters;
-    bool m_bWNROn;
     bool m_bIsVideo;
     bool m_bIs4KVideo;
     bool m_bEisSupportedSize;
@@ -335,19 +316,33 @@ private:
     uint8_t mCaptureIntent;
     metadata_buffer_t mRreprocMeta; //scratch meta buffer
 
-    static const QCameraMap EFFECT_MODES_MAP[];
-    static const QCameraMap WHITE_BALANCE_MODES_MAP[];
-    static const QCameraMap SCENE_MODES_MAP[];
-    static const QCameraMap FOCUS_MODES_MAP[];
-    static const QCameraMap COLOR_ABERRATION_MAP[];
-    static const QCameraMap ANTIBANDING_MODES_MAP[];
-    static const QCameraMap LENS_STATE_MAP[];
-    static const QCameraMap AE_FLASH_MODE_MAP[];
-    static const QCameraMap FLASH_MODES_MAP[];
-    static const QCameraMap FACEDETECT_MODES_MAP[];
-    static const QCameraMap FOCUS_CALIBRATION_MAP[];
-    static const QCameraMap TEST_PATTERN_MAP[];
-    static const QCameraMap REFERENCE_ILLUMINANT_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_control_effect_mode_t,
+            cam_effect_mode_type> EFFECT_MODES_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_control_awb_mode_t,
+            cam_wb_mode_type> WHITE_BALANCE_MODES_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_control_scene_mode_t,
+            cam_scene_mode_type> SCENE_MODES_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_control_af_mode_t,
+            cam_focus_mode_type> FOCUS_MODES_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_color_correction_aberration_mode_t,
+            cam_aberration_mode_t> COLOR_ABERRATION_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_control_ae_antibanding_mode_t,
+            cam_antibanding_mode_type> ANTIBANDING_MODES_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_lens_state_t,
+            cam_af_lens_state_t> LENS_STATE_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_control_ae_mode_t,
+            cam_flash_mode_t> AE_FLASH_MODE_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_flash_mode_t,
+            cam_flash_mode_t> FLASH_MODES_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_statistics_face_detect_mode_t,
+            cam_face_detect_mode_t> FACEDETECT_MODES_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_lens_info_focus_distance_calibration_t,
+            cam_focus_calibration_t> FOCUS_CALIBRATION_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_sensor_test_pattern_mode_t,
+            cam_test_pattern_mode_t> TEST_PATTERN_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_sensor_reference_illuminant1_t,
+            cam_illuminat_t> REFERENCE_ILLUMINANT_MAP[];
+
     static const QCameraPropMap CDS_MAP[];
 };
 
