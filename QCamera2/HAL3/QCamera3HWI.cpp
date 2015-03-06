@@ -576,6 +576,15 @@ int QCamera3HardwareInterface::openCamera()
         /* Not closing camera here since it is already handled in destructor */
         return FAILED_TRANSACTION;
     }
+
+    mExifParams.debug_params =
+            (mm_jpeg_debug_exif_params_t *) malloc (sizeof(mm_jpeg_debug_exif_params_t));
+    if (mExifParams.debug_params) {
+        memset(mExifParams.debug_params, 0, sizeof(mm_jpeg_debug_exif_params_t));
+    } else {
+        ALOGE("%s: Out of Memory. Allocation failed for 3A debug exif params", __func__);
+        return NO_MEMORY;
+    }
     mFirstConfiguration = true;
 
     //Notify display HAL that a camera session is active
@@ -614,6 +623,10 @@ int QCamera3HardwareInterface::closeCamera()
         setCameraLaunchStatus(false);
     }
     pthread_mutex_unlock(&gCamLock);
+    if (mExifParams.debug_params) {
+        free(mExifParams.debug_params);
+        mExifParams.debug_params = NULL;
+    }
 
     return rc;
 }
@@ -3920,28 +3933,38 @@ void QCamera3HardwareInterface::saveExifParams(metadata_buffer_t *metadata)
 {
     IF_META_AVAILABLE(cam_ae_exif_debug_t, ae_exif_debug_params,
             CAM_INTF_META_EXIF_DEBUG_AE, metadata) {
-        mExifParams.ae_debug_params = *ae_exif_debug_params;
-        mExifParams.ae_debug_params_valid = TRUE;
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->ae_debug_params = *ae_exif_debug_params;
+            mExifParams.debug_params->ae_debug_params_valid = TRUE;
+        }
     }
     IF_META_AVAILABLE(cam_awb_exif_debug_t,awb_exif_debug_params,
             CAM_INTF_META_EXIF_DEBUG_AWB, metadata) {
-        mExifParams.awb_debug_params = *awb_exif_debug_params;
-        mExifParams.awb_debug_params_valid = TRUE;
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->awb_debug_params = *awb_exif_debug_params;
+            mExifParams.debug_params->awb_debug_params_valid = TRUE;
+        }
     }
     IF_META_AVAILABLE(cam_af_exif_debug_t,af_exif_debug_params,
             CAM_INTF_META_EXIF_DEBUG_AF, metadata) {
-        mExifParams.af_debug_params = *af_exif_debug_params;
-        mExifParams.af_debug_params_valid = TRUE;
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->af_debug_params = *af_exif_debug_params;
+            mExifParams.debug_params->af_debug_params_valid = TRUE;
+        }
     }
     IF_META_AVAILABLE(cam_asd_exif_debug_t, asd_exif_debug_params,
             CAM_INTF_META_EXIF_DEBUG_ASD, metadata) {
-        mExifParams.asd_debug_params = *asd_exif_debug_params;
-        mExifParams.asd_debug_params_valid = TRUE;
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->asd_debug_params = *asd_exif_debug_params;
+            mExifParams.debug_params->asd_debug_params_valid = TRUE;
+        }
     }
     IF_META_AVAILABLE(cam_stats_buffer_exif_debug_t,stats_exif_debug_params,
             CAM_INTF_META_EXIF_DEBUG_STATS, metadata) {
-        mExifParams.stats_debug_params = *stats_exif_debug_params;
-        mExifParams.stats_debug_params_valid = TRUE;
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->stats_debug_params = *stats_exif_debug_params;
+            mExifParams.debug_params->stats_debug_params_valid = TRUE;
+        }
     }
 }
 

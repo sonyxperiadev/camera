@@ -49,9 +49,6 @@ typedef enum {
 } mm_jpeg_image_type_t;
 
 typedef struct {
-  cam_3a_params_t cam_3a_params;
-  uint8_t cam_3a_params_valid;
-  cam_sensor_params_t sensor_params;
   cam_ae_exif_debug_t ae_debug_params;
   cam_awb_exif_debug_t awb_debug_params;
   cam_af_exif_debug_t af_debug_params;
@@ -62,6 +59,13 @@ typedef struct {
   uint8_t af_debug_params_valid;
   uint8_t asd_debug_params_valid;
   uint8_t stats_debug_params_valid;
+} mm_jpeg_debug_exif_params_t;
+
+typedef struct {
+  cam_3a_params_t cam_3a_params;
+  uint8_t cam_3a_params_valid;
+  cam_sensor_params_t sensor_params;
+  mm_jpeg_debug_exif_params_t *debug_params;
 } mm_jpeg_exif_params_t;
 
 typedef struct {
