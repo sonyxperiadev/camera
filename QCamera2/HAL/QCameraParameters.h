@@ -1001,7 +1001,7 @@ private:
     bool m_bOISEnabled;
     cam_still_more_t m_stillmore_config;
 
-    uint8_t m_bMobiMask;
+    uint8_t m_MobiMask;
     QCameraAdjustFPS *m_AdjustFPS;
     bool m_bHDR1xFrameEnabled;          // if frame with exposure compensation 0 during HDR is enabled
     bool m_HDRSceneEnabled; // Auto HDR indication
