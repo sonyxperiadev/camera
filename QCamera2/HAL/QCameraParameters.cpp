@@ -1345,7 +1345,7 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
 
             // set the new value
             char val[32];
-            sprintf(val, "%dx%d", width, height);
+            snprintf(val, sizeof(val), "%dx%d", width, height);
             updateParamEntry(KEY_PICTURE_SIZE, val);
             CDBG("%s: %s", __func__, val);
             return NO_ERROR;
@@ -3665,7 +3665,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
                 if ((str_val != NULL) && (strlen(str_val) > 0)) {
                     char prop[PROPERTY_VALUE_MAX];
                     memset(prop, 0, sizeof(prop));
-                    strncpy(prop, str_val, PROPERTY_VALUE_MAX);
+                    strlcpy(prop, str_val, PROPERTY_VALUE_MAX);
                     char *saveptr = NULL;
                     char *token = strtok_r(prop, ",", &saveptr);
                     while (token != NULL) {
@@ -5678,7 +5678,7 @@ int32_t QCameraParameters::setEffect(const char *effect)
 int32_t QCameraParameters::setBrightness(int brightness)
 {
     char val[16];
-    sprintf(val, "%d", brightness);
+    snprintf(val, sizeof(val), "%d", brightness);
     updateParamEntry(KEY_QC_BRIGHTNESS, val);
 
     CDBG_HIGH("%s: Setting brightness %s", __func__, val);
@@ -5850,7 +5850,7 @@ void  QCameraParameters::updateCurrentFocusPosition(cam_focus_pos_info_t &cur_po
 int32_t QCameraParameters::setSharpness(int sharpness)
 {
     char val[16];
-    sprintf(val, "%d", sharpness);
+    snprintf(val, sizeof(val), "%d", sharpness);
     updateParamEntry(KEY_QC_SHARPNESS, val);
     CDBG_HIGH("%s: Setting sharpness %s", __func__, val);
     m_nSharpness = sharpness;
@@ -5876,7 +5876,7 @@ int32_t QCameraParameters::setSharpness(int sharpness)
 int32_t QCameraParameters::setSkinToneEnhancement(int sceFactor)
 {
     char val[16];
-    sprintf(val, "%d", sceFactor);
+    snprintf(val, sizeof(val), "%d", sceFactor);
     updateParamEntry(KEY_QC_SCE_FACTOR, val);
     CDBG_HIGH("%s: Setting skintone enhancement %s", __func__, val);
 
@@ -5902,7 +5902,7 @@ int32_t QCameraParameters::setSkinToneEnhancement(int sceFactor)
 int32_t QCameraParameters::setSaturation(int saturation)
 {
     char val[16];
-    sprintf(val, "%d", saturation);
+    snprintf(val, sizeof(val), "%d", saturation);
     updateParamEntry(KEY_QC_SATURATION, val);
     CDBG_HIGH("%s: Setting saturation %s", __func__, val);
 
@@ -5928,7 +5928,7 @@ int32_t QCameraParameters::setSaturation(int saturation)
 int32_t QCameraParameters::setContrast(int contrast)
 {
     char val[16];
-    sprintf(val, "%d", contrast);
+    snprintf(val, sizeof(val), "%d", contrast);
     updateParamEntry(KEY_QC_CONTRAST, val);
     CDBG_HIGH("%s: Setting contrast %s", __func__, val);
 
@@ -6135,7 +6135,7 @@ int32_t QCameraParameters::setFaceRecognition(const char *faceRecog,
 int32_t QCameraParameters::setZoom(int zoom_level)
 {
     char val[16];
-    sprintf(val, "%d", zoom_level);
+    snprintf(val, sizeof(val), "%d", zoom_level);
     updateParamEntry(KEY_ZOOM, val);
     CDBG_HIGH("%s: zoom level: %d", __func__, zoom_level);
     mZoomLevel = zoom_level;
@@ -6826,7 +6826,7 @@ int32_t QCameraParameters::setLensShadeValue(const char *lensShadeStr)
 int32_t QCameraParameters::setExposureCompensation(int expComp)
 {
     char val[16];
-    sprintf(val, "%d", expComp);
+    snprintf(val, sizeof(val), "%d", expComp);
     updateParamEntry(KEY_EXPOSURE_COMPENSATION, val);
 
     // Don't need to pass step as part of setParameter because
@@ -6958,21 +6958,35 @@ int32_t QCameraParameters::updateAWBParams(cam_awb_params_t &awb_params)
 int32_t QCameraParameters::parseGains(const char *gainStr, float &r_gain,
         float &g_gain, float &b_gain)
 {
+    int32_t rc = NO_ERROR;
     char *saveptr = NULL;
     char* gains = (char*) calloc(1, strlen(gainStr) + 1);
     if (NULL == gains) {
         ALOGE("%s: No memory for gains", __func__);
         return NO_MEMORY;
     }
-    strcpy(gains, gainStr);
+    strlcpy(gains, gainStr, strlen(gainStr) + 1);
     char *token = strtok_r(gains, ",", &saveptr);
-    r_gain = (float) atof(token);
-    token = strtok_r(NULL, ",", &saveptr);
-    g_gain = (float) atof(token);
-    token = strtok_r(NULL, ",", &saveptr);
-    b_gain = (float) atof(token);
+
+    if (NULL != token) {
+        r_gain = (float) atof(token);
+        token = strtok_r(NULL, ",", &saveptr);
+    }
+
+    if (NULL != token) {
+        g_gain = (float) atof(token);
+        token = strtok_r(NULL, ",", &saveptr);
+    }
+
+    if (NULL != token) {
+        b_gain = (float) atof(token);
+    } else {
+        ALOGE("%s: Malformed string for gains", __func__);
+        rc = BAD_VALUE;
+    }
+
     free(gains);
-    return NO_ERROR;
+    return rc;
 }
 
 /*===========================================================================
@@ -8883,7 +8897,7 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
       if ((str_val != NULL) && (strlen(str_val) > 0)) {
           char prop[PROPERTY_VALUE_MAX];
           memset(prop, 0, sizeof(prop));
-          strncpy(prop, str_val, PROPERTY_VALUE_MAX);
+          strlcpy(prop, str_val, PROPERTY_VALUE_MAX);
           char *saveptr = NULL;
           char *token = strtok_r(prop, ",", &saveptr);
           while (token != NULL) {
@@ -9290,7 +9304,7 @@ int32_t QCameraParameters::getExifGpsProcessingMethod(char *gpsProcessingMethod,
     if(str != NULL) {
         memcpy(gpsProcessingMethod, ExifAsciiPrefix, EXIF_ASCII_PREFIX_SIZE);
         count = EXIF_ASCII_PREFIX_SIZE;
-        strncpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE, str, strlen(str));
+        strlcpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE, str, strlen(str)+1);
         count += (uint32_t)strlen(str);
         gpsProcessingMethod[count++] = '\0'; // increase 1 for the last NULL char
         return NO_ERROR;

@@ -3923,7 +3923,7 @@ char* QCamera2HardwareInterface::getParameters()
     strParams = (char *)malloc(sizeof(char)*(str.length()+1));
     if(strParams != NULL){
         memset(strParams, 0, sizeof(char)*(str.length()+1));
-        strncpy(strParams, str.string(), str.length());
+        strlcpy(strParams, str.string(), str.length()+1);
         strParams[str.length()] = 0;
     }
 
