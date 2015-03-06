@@ -790,7 +790,7 @@ QCameraParameters::QCameraParameters()
       m_bDISEnabled(false),
       m_bMobiMask(false),
       m_AdjustFPS(NULL),
-      m_bHDR1xFrameEnabled(true),
+      m_bHDR1xFrameEnabled(false),
       m_HDRSceneEnabled(false),
       m_bHDRThumbnailProcessNeeded(false),
       m_bHDR1xExtraBufferNeeded(true),
@@ -890,7 +890,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bHDREnabled(false),
     m_bAVTimerEnabled(false),
     m_AdjustFPS(NULL),
-    m_bHDR1xFrameEnabled(true),
+    m_bHDR1xFrameEnabled(false),
     m_HDRSceneEnabled(false),
     m_bHDRThumbnailProcessNeeded(false),
     m_bHDR1xExtraBufferNeeded(true),
@@ -3162,7 +3162,6 @@ int32_t QCameraParameters::setSceneMode(const QCameraParameters& params)
             } else if ((m_bHDREnabled) ||
                 ((prev_str != NULL) && (strcmp(prev_str, SCENE_MODE_HDR) == 0))) {
                 CDBG_HIGH("%s: scene mode changed between HDR and non-HDR, need restart", __func__);
-
                 m_bNeedRestart = true;
             }
 
@@ -5084,11 +5083,10 @@ int32_t QCameraParameters::initDefaultParameters()
     if (!m_bHDRModeSensor) {
         hdrNeed1xValues = createValuesStringFromMap(TRUE_FALSE_MODES_MAP,
                 PARAM_MAP_SIZE(TRUE_FALSE_MODES_MAP));
-        setHDRNeed1x(VALUE_TRUE);
     } else {
         hdrNeed1xValues.append(VALUE_FALSE);
-        setHDRNeed1x(VALUE_FALSE);
     }
+    setHDRNeed1x(VALUE_FALSE);
     set(KEY_QC_SUPPORTED_HDR_NEED_1X, hdrNeed1xValues);
 
     //Set True Portrait
@@ -5163,7 +5161,7 @@ int32_t QCameraParameters::initDefaultParameters()
     set(KEY_QC_SUPPORTED_SCENE_DETECT, onOffValues);
     setSceneDetect(VALUE_OFF);
     m_bHDREnabled = false;
-    m_bHDR1xFrameEnabled = true;
+    m_bHDR1xFrameEnabled = false;
 
     m_bHDRThumbnailProcessNeeded = false;
     m_bHDR1xExtraBufferNeeded = true;
