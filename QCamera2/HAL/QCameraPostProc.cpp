@@ -901,7 +901,7 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
     int32_t rc = NO_ERROR;
     camera_memory_t *jpeg_mem = NULL;
     omx_jpeg_ouput_buf_t *jpeg_out = NULL;
-
+    void *jpegData = NULL;
     if (mUseSaveProc && m_parent->isLongshotEnabled()) {
         qcamera_jpeg_evt_payload_t *saveData = ( qcamera_jpeg_evt_payload_t * ) malloc(sizeof(qcamera_jpeg_evt_payload_t));
         if ( NULL == saveData ) {
@@ -941,21 +941,30 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
             rc = FAILED_TRANSACTION;
             goto end;
         }
-
-        m_parent->dumpJpegToFile(evt->out_data.buf_vaddr,
+        if (!mJpegMemOpt) {
+            jpegData = evt->out_data.buf_vaddr;
+        }
+        else {
+            jpeg_out  = (omx_jpeg_ouput_buf_t*) evt->out_data.buf_vaddr;
+            if (jpeg_out != NULL) {
+                jpeg_mem = (camera_memory_t *)jpeg_out->mem_hdl;
+                if (jpeg_mem != NULL) {
+                    jpegData = jpeg_mem->data;
+                }
+            }
+        }
+        m_parent->dumpJpegToFile(jpegData,
                                   evt->out_data.buf_filled_len,
                                   evt->jobId);
         CDBG_HIGH("%s: Dump jpeg_size=%d", __func__, evt->out_data.buf_filled_len);
-
         if(true == m_parent->m_bIntJpegEvtPending) {
-            //Sending JPEG snapshot taken notification to HAL
-            pthread_mutex_lock(&m_parent->m_int_lock);
-            pthread_cond_signal(&m_parent->m_int_cond);
-            pthread_mutex_unlock(&m_parent->m_int_lock);
-            m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
-            return rc;
+              //Sending JPEG snapshot taken notification to HAL
+              pthread_mutex_lock(&m_parent->m_int_lock);
+              pthread_cond_signal(&m_parent->m_int_cond);
+              pthread_mutex_unlock(&m_parent->m_int_lock);
+              m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+              return rc;
         }
-
         if (!mJpegMemOpt) {
             // alloc jpeg memory to pass to upper layer
             jpeg_mem = m_parent->mGetMemory(-1, evt->out_data.buf_filled_len,
@@ -966,11 +975,7 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
                 goto end;
             }
             memcpy(jpeg_mem->data, evt->out_data.buf_vaddr, evt->out_data.buf_filled_len);
-        } else {
-            jpeg_out  = (omx_jpeg_ouput_buf_t*) evt->out_data.buf_vaddr;
-            jpeg_mem = (camera_memory_t *)jpeg_out->mem_hdl;
         }
-
         CDBG_HIGH("%s : Calling upperlayer callback to store JPEG image", __func__);
         qcamera_release_data_t release_data;
         memset(&release_data, 0, sizeof(qcamera_release_data_t));
