@@ -866,6 +866,7 @@ private:
     int32_t setRdiMode(const QCameraParameters& );
     int32_t setSecureMode(const QCameraParameters& );
     int32_t setCacheVideoBuffers(const QCameraParameters& params);
+    int32_t setCustomParams(const QCameraParameters& params);
     int32_t setAutoExposure(const char *autoExp);
     int32_t setPreviewFpsRange(int min_fps,int max_fps,
             int vid_min_fps,int vid_max_fps);
