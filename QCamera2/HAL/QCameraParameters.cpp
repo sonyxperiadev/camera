@@ -1444,7 +1444,7 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
     char value[PROPERTY_VALUE_MAX];
     property_get("persist.camera.opt.livepic", value, "1");
     bool useOptimal = atoi(value) > 0 ? true : false;
-
+    bool vHdrOn;
     // use picture size from user setting
     params.getPictureSize(&m_LiveSnapshotSize.width, &m_LiveSnapshotSize.height);
 
@@ -1469,6 +1469,12 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
     cam_hfr_mode_t hfrMode = CAM_HFR_MODE_OFF;
     const char *hsrStr = params.get(KEY_QC_VIDEO_HIGH_SPEED_RECORDING);
 
+    const char *vhdrStr = params.get(KEY_QC_VIDEO_HDR);
+    vHdrOn = (vhdrStr != NULL && (0 == strcmp(vhdrStr,"on"))) ? true : false;
+    if (vHdrOn) {
+        livesnapshot_sizes_tbl_cnt = m_pCapability->vhdr_livesnapshot_sizes_tbl_cnt;
+        livesnapshot_sizes_tbl = &m_pCapability->vhdr_livesnapshot_sizes_tbl[0];
+    }
     if ((hsrStr != NULL) && strcmp(hsrStr, "off")) {
         int32_t hsr = lookupAttr(HFR_MODES_MAP, PARAM_MAP_SIZE(HFR_MODES_MAP), hsrStr);
         if ((hsr != NAME_NOT_FOUND) && (hsr > CAM_HFR_MODE_OFF)) {
@@ -1501,7 +1507,7 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
         }
     }
 
-    if (useOptimal || hfrMode != CAM_HFR_MODE_OFF) {
+    if (useOptimal || hfrMode != CAM_HFR_MODE_OFF || vHdrOn) {
         bool found = false;
 
         // first check if picture size is within the list of supported sizes
@@ -1530,7 +1536,7 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
                 }
             }
 
-            if (!found && hfrMode != CAM_HFR_MODE_OFF) {
+            if (!found && ((hfrMode != CAM_HFR_MODE_OFF) || vHdrOn)) {
                 // Cannot find matching aspect ration from supported live snapshot list
                 // choose the max dim from preview and video size
                 CDBG("%s: Cannot find matching aspect ratio, choose max of preview or video size", __func__);

@@ -147,6 +147,9 @@ typedef struct{
     size_t livesnapshot_sizes_tbl_cnt;                      /* livesnapshot sizes table size */
     cam_dimension_t livesnapshot_sizes_tbl[MAX_SIZES_CNT];  /* livesnapshot sizes table */
 
+    size_t vhdr_livesnapshot_sizes_tbl_cnt;                 /* vhdr_livesnapshot sizes table size */
+    cam_dimension_t vhdr_livesnapshot_sizes_tbl[MAX_SIZES_CNT];  /* vhdr_livesnapshot sizes table */
+
     size_t hfr_tbl_cnt;                                     /* table size for HFR */
     cam_hfr_info_t hfr_tbl[CAM_HFR_MODE_MAX];               /* HFR table */
 
