@@ -1113,6 +1113,8 @@ typedef struct {
     uint32_t num_led_on_frames;
     // Skip count after LED is turned OFF
     uint32_t frame_skip_count;
+    // Batch id for each picture request
+    uint32_t config_batch_idx;
 } cam_frame_idx_range_t;
 
 typedef enum {
