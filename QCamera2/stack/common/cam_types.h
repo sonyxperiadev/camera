@@ -1919,7 +1919,8 @@ typedef enum {
 } cam_rotation_t;
 
 typedef struct {
-   cam_rotation_t rotation;
+   cam_rotation_t rotation;         /* jpeg rotation */
+   cam_rotation_t device_rotation;  /* device rotation */
    uint32_t streamId;
 } cam_rotation_info_t;
 
@@ -2085,6 +2086,7 @@ typedef struct {
     int32_t sharpness; /* 0 means no sharpness */
     int32_t effect;
     cam_rotation_t rotation;
+    cam_rotation_t device_rotation;
 } cam_per_frame_pp_config_t;
 
 typedef enum {
