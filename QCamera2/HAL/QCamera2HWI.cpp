@@ -1074,6 +1074,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mLiveSnapshotThread(0),
       mIntPicThread(0),
       mFlashNeeded(false),
+      mDeviceRotation(0U),
       mCaptureRotation(0U),
       mJpegExifRotation(0U),
       mUseJpegExifRotation(false),
@@ -3316,7 +3317,7 @@ int32_t QCamera2HardwareInterface::configureOnlineRotation(QCameraChannel &ch)
     streamId = pStream->getMyServerID();
     // Update online rotation configuration
     pthread_mutex_lock(&m_parm_lock);
-    rc = mParameters.addOnlineRotation(getJpegRotation(), streamId);
+    rc = mParameters.addOnlineRotation(getJpegRotation(), streamId, getDeviceRotation());
     if (rc != NO_ERROR) {
         ALOGE("%s: addOnlineRotation failed %d", __func__, rc);
         pthread_mutex_unlock(&m_parm_lock);
@@ -7271,6 +7272,19 @@ uint32_t QCamera2HardwareInterface::getJpegRotation() {
 }
 
 /*===========================================================================
+ * FUNCTION   : getDeviceRotation
+ *
+ * DESCRIPTION: get device rotation information
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : device rotation information
+ *==========================================================================*/
+uint32_t QCamera2HardwareInterface::getDeviceRotation() {
+    return mDeviceRotation;
+}
+
+/*===========================================================================
  * FUNCTION   : getOrientation
  *
  * DESCRIPTION: get rotation information from camera parameters
@@ -7282,6 +7296,7 @@ uint32_t QCamera2HardwareInterface::getJpegRotation() {
 void QCamera2HardwareInterface::getOrientation() {
     pthread_mutex_lock(&m_parm_lock);
     mCaptureRotation = mParameters.getJpegRotation();
+    mDeviceRotation = mParameters.getDeviceRotation();
     mUseJpegExifRotation = mParameters.useJpegExifRotation();
     mJpegExifRotation = mParameters.getJpegExifRotation();
     pthread_mutex_unlock(&m_parm_lock);

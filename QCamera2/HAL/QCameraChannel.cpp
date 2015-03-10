@@ -1132,14 +1132,16 @@ int32_t QCameraReprocessChannel::stop()
  *   @frame   : frame to be performed a reprocess
  *   @Parameter    : camera parameter reference
  *   @meta_buf : Metadata buffer for reprocessing
- *   @rotation: online rotation
+ *   @rotation: online rotation (i.e. jpeg rotation)
+ *   @device_rotation: device rotation
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame,
-        QCameraParameters &Parameter, mm_camera_buf_def_t *meta_buf, uint32_t rotation)
+        QCameraParameters &Parameter, mm_camera_buf_def_t *meta_buf, uint32_t rotation,
+        int32_t device_rotation)
 {
     int32_t rc = 0;
     OfflineBuffer mappedBuffer;
@@ -1242,6 +1244,18 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
                 param.reprocess.frame_pp_config.rotation = ROTATE_0;
             }
 
+            if (device_rotation == 0) {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_0;
+            } else if (device_rotation == 90) {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_90;
+            } else if (device_rotation == 180) {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_180;
+            } else if (device_rotation == 270) {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_270;
+            } else {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_0;
+            }
+
             int flipMode = Parameter.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
             if (0 <= flipMode) {
                 param.reprocess.frame_pp_config.flip = (uint32_t)flipMode;
@@ -1268,7 +1282,8 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
  *   @mParameter : camera parameters
  *   @pMetaStream: Metadata stream handle
  *   @meta_buf_index : Metadata buffer index
- *   @rotation: online rotation
+ *   @rotation: online rotation (i.e. jpeg rotation)
+ *   @device_rotation: device rotation
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -1276,7 +1291,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
         QCameraParameters &mParameter, QCameraStream *pMetaStream,
-        uint8_t meta_buf_index, uint32_t rotation)
+        uint8_t meta_buf_index, uint32_t rotation, int32_t device_rotation)
 {
     int32_t rc = 0;
     if (mStreams.size() < 1) {
@@ -1323,6 +1338,7 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
                 param.reprocess.meta_buf_index = meta_buf_index;
             }
 
+            /* Add jpeg rotation to pp config */
             if (rotation == 0) {
                 param.reprocess.frame_pp_config.rotation = ROTATE_0;
             } else if (rotation == 90) {
@@ -1333,6 +1349,19 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
                 param.reprocess.frame_pp_config.rotation = ROTATE_270;
             } else {
                 param.reprocess.frame_pp_config.rotation = ROTATE_0;
+            }
+
+            /* Add device rotation to pp config */
+            if (device_rotation == 0) {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_0;
+            } else if (device_rotation == 90) {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_90;
+            } else if (device_rotation == 180) {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_180;
+            } else if (device_rotation == 270) {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_270;
+            } else {
+                param.reprocess.frame_pp_config.device_rotation = ROTATE_0;
             }
 
             int flipMode = mParameter.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
