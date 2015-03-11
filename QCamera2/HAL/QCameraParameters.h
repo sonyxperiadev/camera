@@ -909,6 +909,7 @@ private:
     bool UpdateHFRFrameRate(const QCameraParameters& params);
     int32_t setRdiMode(const char *str);
     int32_t setSecureMode(const char *str);
+    int32_t setCDSMode(int32_t cds_mode, bool initCommit);
 
     int32_t parseGains(const char *gainStr, float &r_gain,
             float &g_gain, float &b_gain);
@@ -1057,6 +1058,7 @@ private:
     int32_t mZoomLevel;
     bool m_bStreamsConfigured;
     int32_t mParmZoomLevel;
+    int32_t mCds_mode;
 
     cam_capture_frame_config_t m_captureFrameConfig;
     int8_t mBufBatchCnt;
