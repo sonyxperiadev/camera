@@ -73,4 +73,10 @@ extern volatile uint32_t gMmCameraIntfLogLevel;
   #define CDBG_HIGH(fmt, args...) fprintf(stderr, fmt, ##args)
   #define CDBG_ERROR(fmt, args...) fprintf(stderr, fmt, ##args)
 #endif
+
+#ifdef _ANDROID_
+  #define CDBG_FATAL_IF(cond, ...) LOG_ALWAYS_FATAL_IF(cond, ## __VA_ARGS__)
+  #define CDBG_FATAL(...) LOG_ALWAYS_FATAL(__VA_ARGS__)
+#endif
+
 #endif /* __MM_CAMERA_DBG_H__ */
