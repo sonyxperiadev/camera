@@ -880,17 +880,17 @@ int QCameraHeapMemory::getMatchBufIndex(const void *opaque,
  *              ION memory allocated directly from /dev/ion and shared with framework
  *
  * PARAMETERS :
- *   @getMemory : camera memory request ops table
+ *   @memory    : camera memory request ops table
  *   @cached    : flag indicates if using cached memory
  *
  * RETURN     : none
  *==========================================================================*/
-QCameraStreamMemory::QCameraStreamMemory(camera_request_memory getMemory,
+QCameraStreamMemory::QCameraStreamMemory(camera_request_memory memory,
         bool cached,
         QCameraMemoryPool *pool,
         cam_stream_type_t streamType)
     :QCameraMemory(cached, pool, streamType),
-     mGetMemory(getMemory)
+     mGetMemory(memory)
 {
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++)
         mCameraMemory[i] = NULL;
@@ -1107,14 +1107,14 @@ void *QCameraStreamMemory::getPtr(uint32_t index) const
  *              VideoStream buffers also include metadata buffers
  *
  * PARAMETERS :
- *   @getMemory : camera memory request ops table
+ *   @memory    : camera memory request ops table
  *   @cached    : flag indicates if using cached ION memory
  *
  * RETURN     : none
  *==========================================================================*/
-QCameraVideoMemory::QCameraVideoMemory(camera_request_memory getMemory,
+QCameraVideoMemory::QCameraVideoMemory(camera_request_memory memory,
                                        bool cached)
-    : QCameraStreamMemory(getMemory, cached)
+    : QCameraStreamMemory(memory, cached)
 {
     memset(mMetadata, 0, sizeof(mMetadata));
 }
@@ -1322,18 +1322,18 @@ int QCameraVideoMemory::getMatchBufIndex(const void *opaque,
  *              preview stream buffers are allocated from gralloc native_windoe
  *
  * PARAMETERS :
- *   @getMemory : camera memory request ops table
+ *   @memory    : camera memory request ops table
  *
  * RETURN     : none
  *==========================================================================*/
-QCameraGrallocMemory::QCameraGrallocMemory(camera_request_memory getMemory)
+QCameraGrallocMemory::QCameraGrallocMemory(camera_request_memory memory)
         : QCameraMemory(true), mColorSpace(ITU_R_601_FR)
 {
     mMinUndequeuedBuffers = 0;
     mWindow = NULL;
     mWidth = mHeight = mStride = mScanline = 0;
     mFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
-    mGetMemory = getMemory;
+    mGetMemory = memory;
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++) {
         mBufferHandle[i] = NULL;
         mLocalFlag[i] = BUFFER_NOT_OWNED;

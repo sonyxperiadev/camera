@@ -1057,7 +1057,6 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       m_postprocessor(this),
       m_thermalAdapter(QCameraThermalAdapter::getInstance()),
       m_cbNotifier(this),
-      m_bShutterSoundPlayed(false),
       m_bPreviewStarted(false),
       m_bRecordStarted(false),
       m_currentFocusState(CAM_AF_SCANNING),
@@ -1790,7 +1789,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
         break;
     case CAM_STREAM_TYPE_VIDEO:
         {
-            char value[PROPERTY_VALUE_MAX];
             property_get("persist.camera.mem.usecache", value, "0");
             if (atoi(value) == 0) {
                 bCachedMem = QCAMERA_ION_USE_NOCACHE;
@@ -1868,8 +1866,8 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateMiscBuf(
         cam_stream_info_t *streamInfo)
 {
     int rc = NO_ERROR;
-    int bufNum = 0;
-    int bufSize = 0;
+    uint8_t bufNum = 0;
+    size_t bufSize = 0;
     QCameraHeapMemory *miscBuf = NULL;
     uint32_t feature_mask =
             streamInfo->reprocess_config.pp_feature_config.feature_mask;
@@ -2024,8 +2022,9 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     // Update pp config
     if (streamInfo->pp_config.feature_mask & CAM_QCOM_FEATURE_FLIP) {
         int flipMode = mParameters.getFlipMode(stream_type);
-        if (flipMode > 0)
-            streamInfo->pp_config.flip = flipMode;
+        if (flipMode > 0) {
+            streamInfo->pp_config.flip = (uint32_t)flipMode;
+        }
     }
     if (streamInfo->pp_config.feature_mask & CAM_QCOM_FEATURE_SHARPNESS) {
         streamInfo->pp_config.sharpness = mParameters.getInt(QCameraParameters::KEY_QC_SHARPNESS);
@@ -2679,6 +2678,13 @@ int32_t QCamera2HardwareInterface::configureFlashBracketing(bool enable)
     int32_t rc = NO_ERROR;
 
     cam_flash_bracketing_t flashBracket;
+
+    rc = mParameters.setToneMapMode(!enable, true);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Failed to configure tone map", __func__);
+        return rc;
+    }
+
     memset(&flashBracket, 0, sizeof(cam_flash_bracketing_t));
     flashBracket.enable = enable;
     //TODO: Hardcoded value.
@@ -3323,17 +3329,18 @@ end:
  *==========================================================================*/
 int QCamera2HardwareInterface::stopCaptureChannel(bool destroy)
 {
+    int rc = NO_ERROR;
     if (mParameters.isJpegPictureFormat() ||
         mParameters.isNV16PictureFormat() ||
         mParameters.isNV21PictureFormat()) {
-        stopChannel(QCAMERA_CH_TYPE_CAPTURE);
-        if (destroy) {
+        rc = stopChannel(QCAMERA_CH_TYPE_CAPTURE);
+        if (destroy && (NO_ERROR == rc)) {
             // Destroy camera channel but dont release context
-            delChannel(QCAMERA_CH_TYPE_CAPTURE, false);
+            rc = delChannel(QCAMERA_CH_TYPE_CAPTURE, false);
         }
     }
 
-    return NO_ERROR;
+    return rc;
 }
 
 /*===========================================================================
@@ -3393,8 +3400,20 @@ int QCamera2HardwareInterface::cancelPicture()
  *==========================================================================*/
 void QCamera2HardwareInterface::captureDone()
 {
-    if (++mInputCount >= mParameters.getBurstCountForAdvancedCapture()) {
-        unconfigureAdvancedCapture();
+    qcamera_sm_internal_evt_payload_t *payload =
+       (qcamera_sm_internal_evt_payload_t *)
+       malloc(sizeof(qcamera_sm_internal_evt_payload_t));
+    if (NULL != payload) {
+        memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+        payload->evt_type = QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE;
+        int32_t rc = processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: processEvt ZSL capture done failed", __func__);
+            free(payload);
+            payload = NULL;
+        }
+    } else {
+        ALOGE("%s: No memory for ZSL capture done event", __func__);
     }
 }
 
@@ -4518,6 +4537,66 @@ int32_t QCamera2HardwareInterface::processZoomEvent(cam_crop_data_t &crop_info)
 }
 
 /*===========================================================================
+ * FUNCTION   : processZSLCaptureDone
+ *
+ * DESCRIPTION: process ZSL capture done events
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::processZSLCaptureDone()
+{
+    int rc = NO_ERROR;
+
+    pthread_mutex_lock(&m_parm_lock);
+    if (++mInputCount >= mParameters.getBurstCountForAdvancedCapture()) {
+        rc = unconfigureAdvancedCapture();
+    }
+    pthread_mutex_unlock(&m_parm_lock);
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : processRetroAECUnlock
+ *
+ * DESCRIPTION: process retro burst AEC unlock events
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::processRetroAECUnlock()
+{
+    int rc = NO_ERROR;
+
+    CDBG_HIGH("%s : [ZSL Retro] LED assisted AF Release AEC Lock", __func__);
+    pthread_mutex_lock(&m_parm_lock);
+    rc = mParameters.setAecLock("false");
+    if (NO_ERROR != rc) {
+        ALOGE("%s: Error setting AEC lock", __func__);
+        pthread_mutex_unlock(&m_parm_lock);
+        return rc;
+    }
+
+    rc = mParameters.commitParameters();
+    if (NO_ERROR != rc) {
+        ALOGE("%s: Error during camera parameter commit", __func__);
+    } else {
+        m_bLedAfAecLock = FALSE;
+    }
+
+    pthread_mutex_unlock(&m_parm_lock);
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : processHDRData
  *
  * DESCRIPTION: process HDR scene events
@@ -5600,6 +5679,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
     CDBG_HIGH("%s: Minimum pproc feature mask required = %x", __func__,
             gCamCaps[mCameraId]->min_required_pp_mask);
     uint32_t required_mask = gCamCaps[mCameraId]->min_required_pp_mask;
+    int32_t zoomLevel = 0;
 
     switch(curCount) {
         case 1:
@@ -5688,9 +5768,10 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
             }
 
-            if(mParameters.isOptiZoomEnabled()) {
+            zoomLevel = mParameters.getParmZoomLevel();
+            if(mParameters.isOptiZoomEnabled() && (0 <= zoomLevel)) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_OPTIZOOM;
-                pp_config.zoom_level = mParameters.getParmZoomLevel();
+                pp_config.zoom_level = (uint8_t) zoomLevel;
             } else {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_OPTIZOOM;
             }
@@ -6082,7 +6163,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
     }
     pthread_mutex_unlock(&m_parm_lock);
 
-    if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() !=true) {
+    if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
         rc = addChannel(QCAMERA_CH_TYPE_ZSL);
         if (rc != NO_ERROR) {
             ALOGE("%s[%d]: failed!! rc = %d", __func__, __LINE__, rc);

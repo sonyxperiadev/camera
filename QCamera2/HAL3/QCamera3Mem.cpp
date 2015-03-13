@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -324,7 +324,7 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
 {
     int rc = OK;
     struct ion_handle_data handle_data;
-    struct ion_allocation_data alloc;
+    struct ion_allocation_data allocData;
     struct ion_fd_data ion_info_fd;
     int main_ion_fd = 0;
 
@@ -334,22 +334,22 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
         goto ION_OPEN_FAILED;
     }
 
-    memset(&alloc, 0, sizeof(alloc));
-    alloc.len = size;
+    memset(&allocData, 0, sizeof(allocData));
+    allocData.len = size;
     /* to make it page size aligned */
-    alloc.len = (alloc.len + 4095U) & (~4095U);
-    alloc.align = 4096;
-    alloc.flags = ION_FLAG_CACHED;
-    alloc.heap_id_mask = heap_id;
-    rc = ioctl(main_ion_fd, ION_IOC_ALLOC, &alloc);
+    allocData.len = (allocData.len + 4095U) & (~4095U);
+    allocData.align = 4096;
+    allocData.flags = ION_FLAG_CACHED;
+    allocData.heap_id_mask = heap_id;
+    rc = ioctl(main_ion_fd, ION_IOC_ALLOC, &allocData);
     if (rc < 0) {
-        ALOGE("ION allocation for len %d failed: %s\n", alloc.len,
+        ALOGE("ION allocation for len %d failed: %s\n", allocData.len,
             strerror(errno));
         goto ION_ALLOC_FAILED;
     }
 
     memset(&ion_info_fd, 0, sizeof(ion_info_fd));
-    ion_info_fd.handle = alloc.handle;
+    ion_info_fd.handle = allocData.handle;
     rc = ioctl(main_ion_fd, ION_IOC_SHARE, &ion_info_fd);
     if (rc < 0) {
         ALOGE("ION map failed %s\n", strerror(errno));
@@ -359,7 +359,7 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
     memInfo.main_ion_fd = main_ion_fd;
     memInfo.fd = ion_info_fd.fd;
     memInfo.handle = ion_info_fd.handle;
-    memInfo.size = alloc.len;
+    memInfo.size = allocData.len;
     return OK;
 
 ION_MAP_FAILED:

@@ -367,6 +367,8 @@ private:
     int32_t processASDUpdate(cam_auto_scene_t scene);
     int32_t processJpegNotify(qcamera_jpeg_evt_payload_t *jpeg_job);
     int32_t processHDRData(cam_asd_hdr_scene_data_t hdr_scene);
+    int32_t processRetroAECUnlock();
+    int32_t processZSLCaptureDone();
     int32_t processSceneData(cam_scene_mode_type scene);
     int32_t transAwbMetaToParams(cam_awb_params_t &awb_params);
     int32_t processFocusPositionInfo(cam_focus_pos_info_t &cur_pos_info);
@@ -432,10 +434,6 @@ private:
     bool needFDMetadata(qcamera_ch_type_enum_t channel_type);
     int32_t configureOnlineRotation(QCameraChannel &ch);
     int32_t declareSnapshotStreams();
-
-    bool removeSizeFromList(cam_dimension_t* size_list,
-                            uint8_t length,
-                            cam_dimension_t size);
     int32_t unconfigureAdvancedCapture();
     int32_t configureAdvancedCapture();
     int32_t configureAFBracketing(bool enable = true);
@@ -451,11 +449,7 @@ private:
     inline uint32_t getOutputImageCount() {return mOutputCount;}
     bool processUFDumps(qcamera_jpeg_evt_payload_t *evt);
     void captureDone();
-
     int32_t getPPConfig(cam_pp_feature_config_t &pp_config, int curCount);
-
-    static void copyList(cam_dimension_t* src_list,
-                   cam_dimension_t* dst_list, uint8_t len);
     static void camEvtHandle(uint32_t camera_handle,
                           mm_camera_event_t *evt,
                           void *user_data);
@@ -549,15 +543,9 @@ private:
 
     QCameraChannel *m_channels[QCAMERA_CH_TYPE_MAX]; // array holding channel ptr
 
-    bool m_bShutterSoundPlayed;         // if shutter sound had been played
     bool m_bPreviewStarted;             //flag indicates first preview frame callback is received
     bool m_bRecordStarted;             //flag indicates Recording is started for first time
 
-
-    // if auto focus is running, in other words, when auto_focus is called from service,
-    // and beforeany focus callback/cancel_focus happens. This flag is not an indication
-    // of whether lens is moving or not.
-    bool m_bAutoFocusRunning;
     // Signifies if ZSL Retro Snapshots are enabled
     bool bRetroPicture;
     // Signifies AEC locked during zsl snapshots
@@ -582,9 +570,6 @@ private:
     uint32_t mCaptureRotation;
     uint32_t mJpegExifRotation;
     bool mUseJpegExifRotation;
-    int32_t mFlash;
-    int32_t mRedEye;
-    int32_t mFlashPresence;
     bool mIs3ALocked;
     bool mPrepSnapRun;
     int32_t mZoomLevel;
@@ -626,12 +611,12 @@ private:
 
     struct DeffWork
     {
-        DeffWork(DefferedWorkCmd cmd,
-                 uint32_t id,
-                 DefferWorkArgs args)
-            : cmd(cmd),
-              id(id),
-              args(args){};
+        DeffWork(DefferedWorkCmd cmd_,
+                 uint32_t id_,
+                 DefferWorkArgs args_)
+            : cmd(cmd_),
+              id(id_),
+              args(args_){};
 
         DefferedWorkCmd cmd;
         uint32_t id;

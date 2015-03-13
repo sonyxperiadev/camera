@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -426,9 +426,9 @@ int32_t QCameraStream::unMapBuf(QCameraHeapMemory *heapBuf,
         cam_mapping_buf_type bufType)
 {
     int32_t rc = NO_ERROR;
-    int32_t cnt;
+    uint8_t cnt;
     ssize_t bufSize = BAD_INDEX;
-    int32_t i;
+    uint32_t i;
 
     cnt = heapBuf->getCnt();
     for (i = 0; i < cnt; i++) {
@@ -467,16 +467,16 @@ int32_t QCameraStream::mapBuf(QCameraHeapMemory *heapBuf,
         cam_mapping_buf_type bufType)
 {
     int32_t rc = NO_ERROR;
-    int32_t cnt;
+    uint8_t cnt;
     ssize_t bufSize = BAD_INDEX;
     int32_t i = 0;
 
     cnt = heapBuf->getCnt();
     for (i = 0; i < cnt; i++) {
-        bufSize = heapBuf->getSize(i);
+        bufSize = heapBuf->getSize((uint32_t)i);
         if (BAD_INDEX != bufSize) {
-            rc = mCamOps->map_stream_buf(mCamHandle, mChannelHandle, mHandle,
-                    bufType, i, -1, heapBuf->getFd(i), (uint32_t)bufSize);
+            rc = mCamOps->map_stream_buf(mCamHandle, mChannelHandle, mHandle, (uint8_t)bufType,
+                    (uint32_t)i, -1, heapBuf->getFd((uint32_t)i), (uint32_t)bufSize);
             if (rc < 0) {
                 ALOGE("Failed to map buffer");
                 goto err1;
@@ -492,10 +492,10 @@ int32_t QCameraStream::mapBuf(QCameraHeapMemory *heapBuf,
 err1:
     i -= 1;
     for (; i >= 0; i--) {
-        bufSize = heapBuf->getSize(i);
+        bufSize = heapBuf->getSize((uint32_t)i);
         if (BAD_INDEX != bufSize) {
             rc = mCamOps->unmap_stream_buf(mCamHandle, mChannelHandle, mHandle,
-                    bufType, i, -1);
+                    (uint8_t)bufType, (uint32_t)i, -1);
             if (rc < 0) {
                 ALOGE("Failed to unmap buffer");
             }

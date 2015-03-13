@@ -100,7 +100,6 @@
 #define MAX_TEST_PATTERN_CNT     8
 
 #define GPS_PROCESSING_METHOD_SIZE 33
-#define GPS_PROCESSING_METHOD_SIZE_IN_WORD (33+3)/4
 
 #define MAX_INFLIGHT_REQUESTS  6
 #define MIN_INFLIGHT_REQUESTS  3
@@ -754,8 +753,8 @@ typedef enum {
 } cam_is_type_t;
 
 typedef enum {
-   DIS_DISABLE,
-   DIS_ENABLE
+    DIS_DISABLE,
+    DIS_ENABLE
 } cam_dis_mode_t;
 
 typedef enum {
@@ -1259,6 +1258,12 @@ typedef struct {
     uint32_t streamID[MAX_NUM_STREAMS];
 } cam_stream_ID_t;
 
+typedef struct {
+    uint32_t frame_id;
+    uint32_t num_streams;
+    uint32_t stream_id[MAX_NUM_STREAMS];
+} cam_buf_divert_info_t;
+
 typedef  struct {
     uint8_t is_stats_valid;               /* if histgram data is valid */
     cam_hist_stats_t stats_data;          /* histogram data */
@@ -1447,6 +1452,7 @@ typedef enum {
     CAM_INTF_PARM_RDI_MODE,
     CAM_INTF_PARM_CDS_MODE,
     CAM_INTF_PARM_TONE_MAP_MODE,
+    CAM_INTF_BUF_DIVERT_INFO,
 
     /* stream based parameters */
     CAM_INTF_PARM_DO_REPROCESS,
@@ -1938,7 +1944,7 @@ typedef struct {
 } cam_opti_zoom_t;
 
 typedef struct {
-    uint32_t meta_max_size;
+    size_t meta_max_size;
 } cam_true_portrait_t;
 
 typedef enum {
@@ -2092,19 +2098,19 @@ typedef enum {
 } cam_focus_calibration_t;
 
 typedef enum {
-CAM_TEST_PATTERN_OFF,
-CAM_TEST_PATTERN_SOLID_COLOR,
-CAM_TEST_PATTERN_COLOR_BARS,
-CAM_TEST_PATTERN_COLOR_BARS_FADE_TO_GRAY,
-CAM_TEST_PATTERN_PN9,
+    CAM_TEST_PATTERN_OFF,
+    CAM_TEST_PATTERN_SOLID_COLOR,
+    CAM_TEST_PATTERN_COLOR_BARS,
+    CAM_TEST_PATTERN_COLOR_BARS_FADE_TO_GRAY,
+    CAM_TEST_PATTERN_PN9,
 } cam_test_pattern_mode_t;
 
 typedef struct {
-cam_test_pattern_mode_t mode;
-int32_t r;
-int32_t gr;
-int32_t gb;
-int32_t b;
+    cam_test_pattern_mode_t mode;
+    int32_t r;
+    int32_t gr;
+    int32_t gb;
+    int32_t b;
 } cam_test_pattern_data_t;
 
 typedef enum {

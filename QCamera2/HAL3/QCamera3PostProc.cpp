@@ -200,7 +200,6 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config,
         }
 
         // if reprocess is needed, start reprocess channel
-        QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
         CDBG("%s: Setting input channel as pInputChannel", __func__);
         m_pReprocChannel = hal_obj->addOfflineReprocChannel(config, m_parent, metadata);
         if (m_pReprocChannel == NULL) {
@@ -1317,7 +1316,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         encodeParam.main_dim.dst_dim = dst_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
         if (needJpegRotation) {
-           encodeParam.rotation = jpeg_settings->jpeg_orientation;
+           encodeParam.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
         }
 
         ret = mJpegHandle.create_session(mJpegClientHandle, &encodeParam, &mJpegSessionId);
@@ -1336,8 +1335,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     jpg_job.encode_job.dst_index = 0;
 
     if (needJpegRotation) {
-        jpg_job.encode_job.rotation =
-                jpeg_settings->jpeg_orientation;
+        jpg_job.encode_job.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
         CDBG("%s: %d: jpeg rotation is set to %d", __func__, __LINE__,
                 jpg_job.encode_job.rotation);
     }

@@ -700,7 +700,7 @@ public:
     void setMinPpMask(uint32_t min_pp_mask) { m_nMinRequiredPpMask = min_pp_mask; };
     bool sendStreamConfigInfo(cam_stream_size_info_t &stream_config_info);
     bool setStreamConfigure(bool isCapture, bool previewAsPostview, bool resetConfig);
-    int32_t addOnlineRotation(int32_t rotation, uint32_t streamId);
+    int32_t addOnlineRotation(uint32_t rotation, uint32_t streamId);
     uint8_t getNumOfExtraBuffersForImageProc();
     uint8_t getNumOfExtraBuffersForVideo();
     uint8_t getNumOfExtraBuffersForPreview();
@@ -708,7 +708,7 @@ public:
     inline bool isUbiFocusEnabled() {return m_bAFBracketingOn && !m_bReFocusOn;};
     inline bool isChromaFlashEnabled() {return m_bChromaFlashOn;};
     inline bool isTruePortraitEnabled() {return m_bTruePortraitOn;};
-    inline uint32_t getTPMaxMetaSize() {
+    inline size_t getTPMaxMetaSize() {
         return m_pCapability->true_portrait_settings_need.meta_max_size;};
     inline bool isSeeMoreEnabled() {return m_bSeeMoreOn;};
     inline bool isStillMoreEnabled() {return m_bStillMoreOn;};
@@ -730,7 +730,7 @@ public:
             return m_pCapability->refocus_af_bracketing_need.output_count;};
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus()
-            || isHDREnabled() || isStillMoreEnabled(); }
+            || isHDREnabled() || isStillMoreEnabled() || isTruePortraitEnabled(); }
     void updateCurrentFocusPosition(cam_focus_pos_info_t &cur_pos_info);
     void updateAEInfo(cam_3a_params_t &ae_params);
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
@@ -750,9 +750,6 @@ public:
     int32_t setStreamPpMask(cam_stream_type_t stream_type, uint32_t pp_mask);
     int32_t getStreamPpMask(cam_stream_type_t stream_type, uint32_t &pp_mask);
     int32_t getSharpness() {return m_nSharpness;};
-    int32_t AddSetParmEntryToBatch(parm_buffer_t *p_table,
-            cam_intf_parm_type_t paramType,
-            size_t paramLength, void *paramValue);
     int32_t updateFlashMode(cam_flash_mode_t flash_mode);
     cam_still_more_t getStillMoreSettings() {return m_stillmore_config;};
     void setStillMoreSettings(cam_still_more_t stillmore_config)
@@ -923,8 +920,6 @@ private:
     // ops for batch set/get params with server
     int32_t initBatchUpdate(parm_buffer_t *p_table);
     int32_t commitSetBatch();
-    int32_t AddGetParmEntryToBatch(parm_buffer_t *p_table,
-                                   cam_intf_parm_type_t paramType);
     int32_t commitGetBatch();
 
     // ops to tempororily update parameter entries and commit
@@ -1006,7 +1001,7 @@ private:
     bool m_bOISEnabled;
     cam_still_more_t m_stillmore_config;
 
-    uint8_t m_bMobiMask;
+    uint8_t m_MobiMask;
     QCameraAdjustFPS *m_AdjustFPS;
     bool m_bHDR1xFrameEnabled;          // if frame with exposure compensation 0 during HDR is enabled
     bool m_HDRSceneEnabled; // Auto HDR indication
