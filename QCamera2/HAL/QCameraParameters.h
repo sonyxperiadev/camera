@@ -218,6 +218,7 @@ public:
     static const char KEY_QC_MAX_WB_GAIN[];
     static const char WHITE_BALANCE_MANUAL[];
     static const char FOCUS_MODE_MANUAL_POSITION[];
+    static const char KEY_QC_LONG_SHOT[];
 
     static const char KEY_QC_MANUAL_FOCUS_POSITION[];
     static const char KEY_QC_MANUAL_FOCUS_POS_TYPE[];
@@ -900,7 +901,7 @@ private:
     bool UpdateHFRFrameRate(const QCameraParameters& params);
     int32_t setRdiMode(const char *str);
     int32_t setSecureMode(const char *str);
-
+    int32_t setLongshotParam(const QCameraParameters& params);
     int32_t parseGains(const char *gainStr, float &r_gain,
             float &g_gain, float &b_gain);
     int32_t setCacheVideoBuffers(const char *cacheVideoBufStr);
@@ -976,6 +977,7 @@ private:
     bool m_bRecordingHint;          // local copy of recording hint
     bool m_bRecordingHint_new;
     bool m_bHistogramEnabled;       // if histogram is enabled
+    bool m_bLongshotEnabled;       // if longshot is enabled
     uint32_t m_nFaceProcMask;       // face process mask
     bool m_bFaceDetectionOn;        //  if face Detection turned on by user
     bool m_bDebugFps;               // if FPS need to be logged
