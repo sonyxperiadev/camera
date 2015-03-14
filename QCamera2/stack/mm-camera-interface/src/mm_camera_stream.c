@@ -473,12 +473,6 @@ int32_t mm_stream_fsm_inited(mm_stream_t *my_obj,
             break;
         }
 
-        dev_name_value = mm_camera_util_get_dev_name(my_obj->ch_obj->cam_obj->my_hdl);
-        if (NULL == dev_name_value) {
-            CDBG_ERROR("%s: NULL device name\n", __func__);
-            rc = -1;
-            break;
-        }
         snprintf(dev_name, sizeof(dev_name), "/dev/%s",
                  dev_name_value);
 
