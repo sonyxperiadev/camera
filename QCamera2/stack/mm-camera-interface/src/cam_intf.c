@@ -63,6 +63,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_AF, metadata);
         case CAM_INTF_META_CHROMATIX_LITE_ASD:
             return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_ASD, metadata);
+        case CAM_INTF_BUF_DIVERT_INFO:
+            return POINTER_OF_META(CAM_INTF_BUF_DIVERT_INFO, metadata);
         case CAM_INTF_META_FRAME_NUMBER_VALID:
             return POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
         case CAM_INTF_META_URGENT_FRAME_NUMBER_VALID:
@@ -400,6 +402,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_AF, metadata);
         case CAM_INTF_META_CHROMATIX_LITE_ASD:
             return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_ASD, metadata);
+        case CAM_INTF_BUF_DIVERT_INFO:
+            return SIZE_OF_PARAM(CAM_INTF_BUF_DIVERT_INFO, metadata);
         case CAM_INTF_META_FRAME_NUMBER_VALID:
             return SIZE_OF_PARAM(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
         case CAM_INTF_META_URGENT_FRAME_NUMBER_VALID:
