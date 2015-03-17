@@ -1216,6 +1216,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
             memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
             param.type = CAM_STREAM_PARAM_TYPE_DO_REPROCESS;
             param.reprocess.buf_index = buf_index;
+            param.reprocess.frame_idx = frame->bufs[i]->frame_idx;
             param.reprocess.frame_pp_config.uv_upsample =
                             frame->bufs[i]->is_uv_subsampled;
             if (NULL != meta_buf) {
