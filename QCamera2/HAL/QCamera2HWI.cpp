@@ -2266,6 +2266,7 @@ int QCamera2HardwareInterface::startPreview()
     ATRACE_CALL();
     int32_t rc = NO_ERROR;
     CDBG_HIGH("%s: E", __func__);
+    updateThermalLevel((void *)&mThermalLevel);
     // start preview stream
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
         rc = startChannel(QCAMERA_CH_TYPE_ZSL);
@@ -6784,7 +6785,7 @@ int QCamera2HardwareInterface::calcThermalLevel(
             skipPattern = EVERY_4FRAME;
         }
         break;
-    case QCAMERA_THERMAL_SHUTDOWN:
+    case QCAMERA_THERMAL_MAX_ADJUSTMENT:
         {
             // Stop Preview?
             // Set lowest min FPS for now
@@ -6801,6 +6802,13 @@ int QCamera2HardwareInterface::calcThermalLevel(
             adjustedRange.video_max_fps = adjustedRange.max_fps;
         }
         break;
+    case QCAMERA_THERMAL_SHUTDOWN:
+        {
+            // send error notify
+            ALOGE("%s: Received shutdown thermal level. Closing camera", __func__);
+            sendEvtNotify(CAMERA_MSG_ERROR, CAMERA_ERROR_SERVER_DIED, 0);
+        }
+        break;
     default:
         {
             ALOGE("%s: Invalid thermal level %d", __func__, level);
@@ -6808,9 +6816,11 @@ int QCamera2HardwareInterface::calcThermalLevel(
         }
         break;
     }
-    CDBG_HIGH("%s: Thermal level %d, FPS [%3.2f,%3.2f, %3.2f,%3.2f], frameskip %d",
-          __func__, level, adjustedRange.min_fps, adjustedRange.max_fps,
-          adjustedRange.video_min_fps, adjustedRange.video_max_fps, skipPattern);
+    if (level >= QCAMERA_THERMAL_NO_ADJUSTMENT && level <= QCAMERA_THERMAL_MAX_ADJUSTMENT) {
+        CDBG_HIGH("%s: Thermal level %d, FPS [%3.2f,%3.2f, %3.2f,%3.2f], frameskip %d",
+                __func__, level, adjustedRange.min_fps, adjustedRange.max_fps,
+                adjustedRange.video_min_fps, adjustedRange.video_max_fps,skipPattern);
+    }
 
     return NO_ERROR;
 }
