@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1758,6 +1758,73 @@ int32_t mm_jpeg_jobmgr_thread_release(mm_jpeg_obj * my_obj)
   return rc;
 }
 
+/** mm_jpeg_alloc_workbuffer:
+ *
+ *  Arguments:
+ *    @my_obj: jpeg object
+ *    @work_bufs_need: number of work buffers required
+ *    @work_buf_size: size of the work buffer
+ *
+ *  Return:
+ *       greater or equal to 0 for success else failure
+ *
+ *  Description:
+ *       Allocates work buffer
+ *
+ **/
+int32_t mm_jpeg_alloc_workbuffer(mm_jpeg_obj *my_obj,
+  uint32_t work_bufs_need,
+  uint32_t work_buf_size)
+{
+  int32_t rc = 0;
+  uint32_t i;
+  CDBG_HIGH("%s, %d] work_bufs_need %d work_buf_cnt %d", __func__, __LINE__,
+    work_bufs_need, my_obj->work_buf_cnt);
+  for (i = my_obj->work_buf_cnt; i < work_bufs_need; i++) {
+    my_obj->ionBuffer[i].size = CEILING32(work_buf_size);
+    CDBG_HIGH("%s: Max picture size %d x %d, WorkBufSize = %zu", __func__,
+      my_obj->max_pic_w, my_obj->max_pic_h, my_obj->ionBuffer[i].size);
+    my_obj->ionBuffer[i].addr = (uint8_t *)buffer_allocate(&my_obj->ionBuffer[i], 1);
+    if (NULL == my_obj->ionBuffer[i].addr) {
+      CDBG_ERROR("%s:%d] Ion allocation failed",__func__, __LINE__);
+      while (i--) {
+        buffer_deallocate(&my_obj->ionBuffer[i]);
+        my_obj->work_buf_cnt--;
+      }
+      return -1;
+    }
+    my_obj->work_buf_cnt++;
+    rc = i;
+  }
+  CDBG_HIGH("%s, %d] rc %d ", __func__, __LINE__, rc);
+  return rc;
+}
+
+/** mm_jpeg_release_workbuffer:
+ *
+ *  Arguments:
+ *    @my_obj: jpeg object
+ *    @work_bufs_need: number of work buffers allocated
+ *
+ *  Return:
+ *       0 for success else failure
+ *
+ *  Description:
+ *       Releases the allocated work buffer
+ *
+ **/
+int32_t mm_jpeg_release_workbuffer(mm_jpeg_obj *my_obj,
+  uint32_t work_bufs_need)
+{
+  int32_t rc = 0;
+  uint32_t i;
+  CDBG_HIGH("%s, %d] release work_bufs %d ", __func__, __LINE__, work_bufs_need);
+  for (i = my_obj->work_buf_cnt; i < work_bufs_need; i++) {
+    buffer_deallocate(&my_obj->ionBuffer[i]);
+  }
+  return rc;
+}
+
 /** mm_jpeg_init:
  *
  *  Arguments:
@@ -1774,7 +1841,6 @@ int32_t mm_jpeg_init(mm_jpeg_obj *my_obj)
 {
   int32_t rc = 0;
   uint32_t work_buf_size;
-  unsigned int i = 0;
   unsigned int initial_workbufs_cnt = 1;
 
   /* init locks */
@@ -1808,34 +1874,24 @@ int32_t mm_jpeg_init(mm_jpeg_obj *my_obj)
     pthread_mutex_destroy(&my_obj->job_lock);
     return -1;
   }
-  work_buf_size = CEILING64((uint32_t)my_obj->max_pic_w) *
-    CEILING64((uint32_t)my_obj->max_pic_h) * 3U / 2U;
-  for (i = 0; i < initial_workbufs_cnt; i++) {
-    my_obj->ionBuffer[i].size = CEILING32(work_buf_size);
-    CDBG_HIGH("Max picture size %d x %d, WorkBufSize = %zu",
-        my_obj->max_pic_w, my_obj->max_pic_h, my_obj->ionBuffer[i].size);
 
-    my_obj->ionBuffer[i].addr = (uint8_t *)buffer_allocate(&my_obj->ionBuffer[i], 1);
-    if (NULL == my_obj->ionBuffer[i].addr) {
-      while (i--) {
-        buffer_deallocate(&my_obj->ionBuffer[i]);
-      }
-      mm_jpeg_jobmgr_thread_release(my_obj);
-      mm_jpeg_queue_deinit(&my_obj->ongoing_job_q);
-      pthread_mutex_destroy(&my_obj->job_lock);
-      CDBG_ERROR("%s:%d] Ion allocation failed",__func__, __LINE__);
-      return -1;
+  /* allocate work buffer if reproc source buffer is not supposed to be used */
+  if (!my_obj->reuse_reproc_buffer) {
+    work_buf_size = CEILING64((uint32_t)my_obj->max_pic_w) *
+     CEILING64((uint32_t)my_obj->max_pic_h) * 3U / 2U;
+    rc = mm_jpeg_alloc_workbuffer(my_obj, initial_workbufs_cnt, work_buf_size);
+    if (rc == -1) {
+      CDBG_ERROR("%s: Work buffer allocation failure", __func__);
+      return rc;
     }
   }
-
-  my_obj->work_buf_cnt = i;
 
   /* load OMX */
   if (OMX_ErrorNone != OMX_Init()) {
     /* roll back in error case */
     CDBG_ERROR("%s:%d] OMX_Init failed (%d)", __func__, __LINE__, rc);
-    for (i = 0; i < initial_workbufs_cnt; i++) {
-      buffer_deallocate(&my_obj->ionBuffer[i]);
+    if (!my_obj->reuse_reproc_buffer) {
+      mm_jpeg_release_workbuffer(my_obj, initial_workbufs_cnt);
     }
     mm_jpeg_jobmgr_thread_release(my_obj);
     mm_jpeg_queue_deinit(&my_obj->ongoing_job_q);
@@ -1975,9 +2031,17 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
   uint8_t client_idx = 0;
   mm_jpeg_job_q_node_t* node = NULL;
   mm_jpeg_job_session_t *p_session = NULL;
-  mm_jpeg_encode_job_t *p_jobparams  = &job->encode_job;
+  mm_jpeg_encode_job_t *p_jobparams  = NULL;
+  uint32_t work_bufs_need;
+  uint32_t work_buf_size;
 
   *job_id = 0;
+
+  if (!job) {
+    CDBG_ERROR("%s:%d] invalid job !!!", __func__, __LINE__);
+    return rc;
+  }
+  p_jobparams = &job->encode_job;
 
   /* check if valid session */
   session_idx = GET_SESSION_IDX(p_jobparams->session_id);
@@ -1993,6 +2057,41 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
   }
 
   p_session = &my_obj->clnt_mgr[client_idx].session[session_idx];
+
+  if (my_obj->reuse_reproc_buffer) {
+    p_session->work_buffer.addr           = p_jobparams->work_buf.buf_vaddr;
+    p_session->work_buffer.size           = p_jobparams->work_buf.buf_size;
+    p_session->work_buffer.ion_info_fd.fd = p_jobparams->work_buf.fd;
+    p_session->work_buffer.p_pmem_fd      = p_jobparams->work_buf.fd;
+
+    work_bufs_need = my_obj->num_sessions + 1;
+    if (work_bufs_need > MM_JPEG_CONCURRENT_SESSIONS_COUNT) {
+      work_bufs_need = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
+    }
+
+    if (p_session->work_buffer.addr) {
+      work_bufs_need--;
+      CDBG_HIGH("%s:%d] HAL passed the work buffer of size = %d; don't alloc internally",
+          __func__, __LINE__, p_session->work_buffer.size);
+    } else {
+      p_session->work_buffer = my_obj->ionBuffer[0];
+    }
+
+    CDBG_HIGH("%s:%d] >>>> Work bufs need %d, %d", __func__, __LINE__,
+      work_bufs_need, my_obj->work_buf_cnt);
+    if (work_bufs_need) {
+      work_buf_size = CEILING64(my_obj->max_pic_w) *
+        CEILING64(my_obj->max_pic_h) * 3 / 2;
+      rc = mm_jpeg_alloc_workbuffer(my_obj, work_bufs_need, work_buf_size);
+      if (rc == -1) {
+        CDBG_ERROR("%s: Work buffer allocation failure", __func__);
+        return rc;
+      } else {
+        p_session->work_buffer = my_obj->ionBuffer[rc];
+      }
+    }
+  }
+
   if (OMX_FALSE == p_session->active) {
     CDBG_ERROR("%s:%d] session not active %x", __func__, __LINE__,
       job->encode_job.session_id);
@@ -2159,7 +2258,7 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
   mm_jpeg_job_session_t * p_prev_session = NULL;
   *p_session_id = 0;
   uint32_t i = 0;
-  uint32_t num_omx_sessions;
+  uint32_t num_omx_sessions = 1;
   uint32_t work_buf_size;
   mm_jpeg_queue_t *p_session_handle_q, *p_out_buf_q;
   uint32_t work_bufs_need;
@@ -2179,28 +2278,23 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
     return -1;
   }
 
-  num_omx_sessions = 1;
   if (p_params->burst_mode) {
     num_omx_sessions = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
   }
-  work_bufs_need = my_obj->num_sessions + num_omx_sessions;
-  if (work_bufs_need > MM_JPEG_CONCURRENT_SESSIONS_COUNT) {
-    work_bufs_need = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
-  }
-  CDBG_HIGH("%s:%d] >>>> Work bufs need %d", __func__, __LINE__, work_bufs_need);
-  work_buf_size = CEILING64((uint32_t)my_obj->max_pic_w) *
-      CEILING64((uint32_t)my_obj->max_pic_h) * 3 / 2;
-  for (i = my_obj->work_buf_cnt; i < work_bufs_need; i++) {
-     my_obj->ionBuffer[i].size = CEILING32(work_buf_size);
-     CDBG_HIGH("Max picture size %d x %d, WorkBufSize = %zu",
-         my_obj->max_pic_w, my_obj->max_pic_h, my_obj->ionBuffer[i].size);
 
-     my_obj->ionBuffer[i].addr = (uint8_t *)buffer_allocate(&my_obj->ionBuffer[i], 1);
-     if (NULL == my_obj->ionBuffer[i].addr) {
-       CDBG_ERROR("%s:%d] Ion allocation failed",__func__, __LINE__);
-       goto error1;
-     }
-     my_obj->work_buf_cnt++;
+  if (!my_obj->reuse_reproc_buffer) {
+    work_bufs_need = my_obj->num_sessions + num_omx_sessions;
+    if (work_bufs_need > MM_JPEG_CONCURRENT_SESSIONS_COUNT) {
+      work_bufs_need = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
+    }
+    CDBG_HIGH("%s:%d] >>>> Work bufs need %d", __func__, __LINE__, work_bufs_need);
+    work_buf_size = CEILING64(my_obj->max_pic_w) *
+      CEILING64(my_obj->max_pic_h) * 3 / 2;
+    rc = mm_jpeg_alloc_workbuffer(my_obj, work_bufs_need, work_buf_size);
+    if (rc == -1) {
+      CDBG_ERROR("%s: Work buffer allocation failure", __func__);
+      return rc;
+    }
   }
 
   /* init omx handle queue */

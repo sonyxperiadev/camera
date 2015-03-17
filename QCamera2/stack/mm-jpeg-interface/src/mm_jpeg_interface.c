@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -327,6 +327,11 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_dimension picture_size)
 
     /* initialize jpeg obj */
     memset(jpeg_obj, 0, sizeof(mm_jpeg_obj));
+
+    /* by default reuse reproc source buffer if available */
+    jpeg_obj->reuse_reproc_buffer = 1;
+    CDBG_HIGH("%s, %d] reuse_reproc_buffer %d ", __func__, __LINE__,
+      jpeg_obj->reuse_reproc_buffer);
 
     /* used for work buf calculation */
     jpeg_obj->max_pic_w = picture_size.w;
