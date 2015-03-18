@@ -1077,15 +1077,14 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
        ALOGI("[KPI Perf] %s : PROFILE_FIRST_RECORD_FRAME", __func__);
        pme->m_bRecordStarted = false ;
     }
-    CDBG_HIGH("%s: Stream(%d), Timestamp: %ld %ld",
+    CDBG("%s: Stream(%d), Timestamp: %ld %ld",
           __func__,
           frame->stream_id,
           frame->ts.tv_sec,
           frame->ts.tv_nsec);
     nsecs_t timeStamp;
     timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
-    CDBG_HIGH("Send Video frame to services/encoder TimeStamp : %lld",
-        timeStamp);
+    CDBG("Send Video frame to services/encoder TimeStamp : %lld", timeStamp);
     QCameraMemory *videoMemObj = (QCameraMemory *)frame->mem_info;
     camera_memory_t *video_mem = NULL;
     if (NULL != videoMemObj) {
