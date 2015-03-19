@@ -47,6 +47,10 @@
 #include "QCameraThermalAdapter.h"
 #include "QCameraMem.h"
 
+#ifdef TARGET_TS_MAKEUP
+#include "ts_makeup_engine.h"
+#include "ts_detectface_engine.h"
+#endif
 extern "C" {
 #include <mm_camera_interface.h>
 #include <mm_jpeg_interface.h>
@@ -694,6 +698,16 @@ private:
     mm_jpeg_mpo_ops_t     mJpegMpoHandle;
     uint32_t              mJpegClientHandle;
     bool                  mJpegHandleOwner;
+   //ts add for makeup
+#ifdef TARGET_TS_MAKEUP
+    TSRect mFaceRect;
+    unsigned char *mMakeUpBuf;
+    int yuvDataRelocate(uint8_t* pSrcBuffer,uint8_t* pDstBuffer,cam_frame_len_offset_t offset);
+    int yuvDataRecover(uint8_t* pSrcBuffer,uint8_t* pDstBuffer,cam_frame_len_offset_t offset);
+    bool TsMakeupProcess_Preview(mm_camera_buf_def_t *pFrame,QCameraStream * pStream);
+    bool TsMakeupProcess_Snapshot(mm_camera_buf_def_t *pFrame,QCameraStream * pStream);
+    bool TsMakeupProcess(mm_camera_buf_def_t *frame,QCameraStream * stream,unsigned char *makeupOutBuf,TSRect& faceRect);
+#endif
 };
 
 }; // namespace qcamera
