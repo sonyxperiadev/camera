@@ -3007,8 +3007,8 @@ int32_t mm_stream_calc_offset_raw(cam_format_t fmt,
     case CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_10BPP_RGGB:
     case CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_10BPP_BGGR:
         /* Every 64 pixels occupy 80 bytes */
-        stride = PAD_TO_SIZE(dim->width, CAM_PAD_TO_64);
-        stride_in_bytes = stride * 5 / 4;
+        stride = PAD_TO_SIZE(dim->width, CAM_PAD_TO_4);
+        stride_in_bytes = PAD_TO_SIZE(stride * 5 / 4, CAM_PAD_TO_16);
         buf_planes->plane_info.num_planes = 1;
         buf_planes->plane_info.mp[0].offset = 0;
         buf_planes->plane_info.mp[0].len =
