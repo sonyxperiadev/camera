@@ -1124,6 +1124,42 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
             setYUVFrameInfo(frame);
         return processRawData(frame);
     }
+#ifdef TARGET_TS_MAKEUP
+    // find snapshot frame frame
+    mm_camera_buf_def_t *pReprocFrame = NULL;
+    QCameraStream * pSnapshotStream = NULL;
+    QCameraChannel *pChannel = m_parent->getChannelByHandle(frame->ch_id);
+    if (pChannel == NULL) {
+        for (int8_t i = 0; i < mTotalNumReproc; i++) {
+            if ((mPPChannels[i] != NULL) &&
+                    (mPPChannels[i]->getMyHandle() == frame->ch_id)) {
+                pChannel = mPPChannels[i];
+                break;
+            }
+        }
+    }
+    if (pChannel == NULL) {
+        ALOGE("%s:%d] No corresponding channel (ch_id = %d) exist, return here",
+              __func__, __LINE__, frame->ch_id);
+        return BAD_VALUE;
+    }
+
+    for (uint32_t i = 0; i < frame->num_bufs; i++) {
+        pSnapshotStream = pChannel->getStreamByHandle(frame->bufs[i]->stream_id);
+        if (pSnapshotStream != NULL) {
+            if (pSnapshotStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT)
+                    ||pSnapshotStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT))
+                pReprocFrame = frame->bufs[i];
+                break;
+            }
+    }
+    if(pReprocFrame != NULL && m_parent->mParameters.isFaceDetectionEnabled()){
+        m_parent->TsMakeupProcess_Snapshot(pReprocFrame,pSnapshotStream);
+    } else {
+        CDBG_HIGH("%s pReprocFrame == NULL || isFaceDetectionEnabled = %d",__func__,
+                m_parent->mParameters.isFaceDetectionEnabled());
+    }
+#endif
     if (m_parent->isLongshotEnabled() &&
             !m_parent->isCaptureShutterEnabled()) {
         // play shutter sound for longshot
