@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -38,6 +38,8 @@ extern "C" {
 #include <mm_camera_interface.h>
 }
 
+using namespace android;
+
 namespace qcamera {
 
 // Base class for all memory types. Abstract.
@@ -56,20 +58,20 @@ public:
     {
         return cacheOps(index, ION_IOC_CLEAN_INV_CACHES);
     }
-    int getFd(uint32_t index) const;
-    ssize_t getSize(uint32_t index) const;
-    uint32_t getCnt() const;
+    int getFd(uint32_t index);
+    ssize_t getSize(uint32_t index);
+    uint32_t getCnt();
 
     virtual int cacheOps(uint32_t index, unsigned int cmd) = 0;
-    virtual int getRegFlags(uint8_t *regFlags) const = 0;
+    virtual int getRegFlags(uint8_t *regFlags) = 0;
     virtual int getMatchBufIndex(void *object) = 0;
-    virtual void *getPtr(uint32_t index) const= 0;
+    virtual void *getPtr(uint32_t index) = 0;
 
     QCamera3Memory();
     virtual ~QCamera3Memory();
 
     int32_t getBufDef(const cam_frame_len_offset_t &offset,
-            mm_camera_buf_def_t &bufDef, uint32_t index) const;
+            mm_camera_buf_def_t &bufDef, uint32_t index);
 
 protected:
     struct QCamera3MemInfo {
@@ -80,10 +82,12 @@ protected:
     };
 
     int cacheOpsInternal(uint32_t index, unsigned int cmd, void *vaddr);
+    virtual void *getPtrLocked(uint32_t index) = 0;
 
     uint32_t mBufferCount;
     struct QCamera3MemInfo mMemInfo[MM_CAMERA_MAX_NUM_FRAMES];
     void *mPtr[MM_CAMERA_MAX_NUM_FRAMES];
+    Mutex mLock;
 };
 
 // Internal heap memory is used for memories used internally
@@ -98,9 +102,11 @@ public:
     void deallocate();
 
     virtual int cacheOps(uint32_t index, unsigned int cmd);
-    virtual int getRegFlags(uint8_t *regFlags) const;
+    virtual int getRegFlags(uint8_t *regFlags);
     virtual int getMatchBufIndex(void *object);
-    virtual void *getPtr(uint32_t index) const;
+    virtual void *getPtr(uint32_t index);
+protected:
+    virtual void *getPtrLocked(uint32_t index);
 private:
     int alloc(uint32_t count, size_t size, unsigned int heap_id);
     void dealloc();
@@ -118,15 +124,20 @@ public:
     virtual ~QCamera3GrallocMemory();
 
     int registerBuffer(buffer_handle_t *buffer, cam_stream_type_t type);
+    int32_t unregisterBuffer(size_t idx);
     void unregisterBuffers();
     virtual int cacheOps(uint32_t index, unsigned int cmd);
-    virtual int getRegFlags(uint8_t *regFlags) const;
+    virtual int getRegFlags(uint8_t *regFlags);
     virtual int getMatchBufIndex(void *object);
-    virtual void *getPtr(uint32_t index) const;
+    virtual void *getPtr(uint32_t index);
     int32_t markFrameNumber(uint32_t index, uint32_t frameNumber);
     int32_t getFrameNumber(uint32_t index);
     void *getBufferHandle(uint32_t index);
+protected:
+    virtual void *getPtrLocked(uint32_t index);
 private:
+    int32_t unregisterBufferLocked(size_t idx);
+    int32_t getFreeIndexLocked();
     buffer_handle_t *mBufferHandle[MM_CAMERA_MAX_NUM_FRAMES];
     struct private_handle_t *mPrivateHandle[MM_CAMERA_MAX_NUM_FRAMES];
     int32_t mCurrentFrameNumbers[MM_CAMERA_MAX_NUM_FRAMES];
