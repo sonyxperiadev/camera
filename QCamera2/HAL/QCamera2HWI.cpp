@@ -6240,6 +6240,17 @@ int32_t QCamera2HardwareInterface::preparePreview()
     } else {
         bool recordingHint = mParameters.getRecordingHintValue();
         if(!isRdiMode() && recordingHint) {
+            //stop face detection,longshot,etc if turned ON in Camera mode
+            int32_t arg; //dummy arg
+            if (isLongshotEnabled()) {
+                sendCommand(CAMERA_CMD_LONGSHOT_OFF, arg, arg);
+            }
+            if (mParameters.isFaceDetectionEnabled()) {
+                sendCommand(CAMERA_CMD_STOP_FACE_DETECTION, arg, arg);
+            }
+            if (mParameters.isHistogramEnabled()) {
+                sendCommand(CAMERA_CMD_HISTOGRAM_OFF, arg, arg);
+            }
             rc = addChannel(QCAMERA_CH_TYPE_SNAPSHOT);
             if (rc != NO_ERROR) {
                return rc;
