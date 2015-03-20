@@ -2519,10 +2519,10 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
             }
             mHDRBracketingEnabled = false;
             rc = mParameters.stopAEBracket();
+        } else if (mParameters.isChromaFlashEnabled()) {
+            rc = mParameters.resetFrameCapture(TRUE);
         } else if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
             rc = configureAFBracketing(false);
-        } else if (mParameters.isChromaFlashEnabled()) {
-            rc = configureFlashBracketing(false);
         } else if (mParameters.isOptiZoomEnabled()) {
             rc = mParameters.setAndCommitZoom(mZoomLevel);
         } else if (mParameters.isStillMoreEnabled()) {
@@ -2579,8 +2579,8 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     } else if (mParameters.isOptiZoomEnabled()) {
         rc = configureOptiZoom();
     } else if (mParameters.isChromaFlashEnabled()) {
-        rc = configureFlashBracketing();
-    } else if (mParameters.isHDREnabled()) {
+        rc = mParameters.configFrameCapture(TRUE);
+    } else if(mParameters.isHDREnabled()) {
         rc = configureHDRBracketing();
         if (mHDRBracketingEnabled) {
             rc = mParameters.setToneMapMode(false, true);
@@ -2655,43 +2655,6 @@ int32_t QCamera2HardwareInterface::configureAFBracketing(bool enable)
     if (enable) {
         mParameters.set3ALock(QCameraParameters::VALUE_TRUE);
         mIs3ALocked = true;
-    }
-    CDBG_HIGH("%s: X",__func__);
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : configureFlashBracketing
- *
- * DESCRIPTION: configure Flash Bracketing.
- *
- * PARAMETERS : none
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera2HardwareInterface::configureFlashBracketing(bool enable)
-{
-    CDBG_HIGH("%s: E",__func__);
-    int32_t rc = NO_ERROR;
-
-    cam_flash_bracketing_t flashBracket;
-
-    rc = mParameters.setToneMapMode(!enable, true);
-    if (rc != NO_ERROR) {
-        ALOGE("%s: Failed to configure tone map", __func__);
-        return rc;
-    }
-
-    memset(&flashBracket, 0, sizeof(cam_flash_bracketing_t));
-    flashBracket.enable = enable;
-    //TODO: Hardcoded value.
-    flashBracket.burst_count = 2;
-    //Send cmd to backend to set Flash Bracketing for chroma flash.
-    rc = mParameters.commitFlashBracket(flashBracket);
-    if ( NO_ERROR != rc ) {
-        ALOGE("%s: cannot configure AF bracketing", __func__);
     }
     CDBG_HIGH("%s: X",__func__);
     return rc;
@@ -2894,8 +2857,9 @@ int32_t QCamera2HardwareInterface::stopAdvancedCapture(
     if(mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_AF_BRACKETING);
     } else if (mParameters.isChromaFlashEnabled()) {
-        rc = pChannel->stopAdvancedCapture(MM_CAMERA_FLASH_BRACKETING);
-    } else if (mParameters.isHDREnabled() || mParameters.isAEBracketEnabled()) {
+        rc = pChannel->stopAdvancedCapture(MM_CAMERA_FRAME_CAPTURE);
+    } else if(mParameters.isHDREnabled()
+            || mParameters.isAEBracketEnabled()) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_AE_BRACKETING);
     } else if (mParameters.isOptiZoomEnabled()) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_ZOOM_1X);
@@ -2928,14 +2892,16 @@ int32_t QCamera2HardwareInterface::startAdvancedCapture(
 
     if(mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = pChannel->startAdvancedCapture(MM_CAMERA_AF_BRACKETING);
-    } else if (mParameters.isChromaFlashEnabled()) {
-        rc = pChannel->startAdvancedCapture(MM_CAMERA_FLASH_BRACKETING);
-    } else if (mParameters.isHDREnabled() || mParameters.isAEBracketEnabled()) {
-        rc = pChannel->startAdvancedCapture(MM_CAMERA_AE_BRACKETING);
     } else if (mParameters.isOptiZoomEnabled()) {
         rc = pChannel->startAdvancedCapture(MM_CAMERA_ZOOM_1X);
     } else if (mParameters.isStillMoreEnabled()) {
         CDBG_HIGH("%s: startAdvancedCapture not needed for StillMore", __func__);
+    } else if (mParameters.isHDREnabled()
+            || mParameters.isAEBracketEnabled()) {
+        rc = pChannel->startAdvancedCapture(MM_CAMERA_AE_BRACKETING);
+    } else if (mParameters.isChromaFlashEnabled()) {
+        cam_capture_frame_config_t config = mParameters.getCaptureFrameConfig();
+        rc = pChannel->startAdvancedCapture(MM_CAMERA_FRAME_CAPTURE, &config);
     } else {
         ALOGE("%s: No Advanced Capture feature enabled!",__func__);
         rc = BAD_VALUE;
