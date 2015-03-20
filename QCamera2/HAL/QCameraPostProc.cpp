@@ -1147,11 +1147,11 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
     for (uint32_t i = 0; i < frame->num_bufs; i++) {
         pSnapshotStream = pChannel->getStreamByHandle(frame->bufs[i]->stream_id);
         if (pSnapshotStream != NULL) {
-            if (pSnapshotStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT)
-                    ||pSnapshotStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT))
+            if (pSnapshotStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
                 pReprocFrame = frame->bufs[i];
                 break;
             }
+        }
     }
     if(pReprocFrame != NULL && m_parent->mParameters.isFaceDetectionEnabled()){
         m_parent->TsMakeupProcess_Snapshot(pReprocFrame,pSnapshotStream);

@@ -1225,6 +1225,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mJpegHandleOwner(false)
 {
 #ifdef TARGET_TS_MAKEUP
+    mMakeUpBuf = NULL;
     memset(&mFaceRect, -1, sizeof(mFaceRect));
 #endif
     getLogLevel();
