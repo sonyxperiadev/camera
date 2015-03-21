@@ -49,7 +49,6 @@
 #define EXTRA_ZSL_PREVIEW_STREAM_BUF     2
 #define CAMERA_MIN_JPEG_ENCODING_BUFFERS 2
 #define CAMERA_MIN_VIDEO_BUFFERS         9
-#define CAMERA_LONGSHOT_STAGES           4
 #define CAMERA_MIN_CALLBACK_BUFFERS      5
 
 //This multiplier signifies extra buffers that we need to allocate
@@ -1696,16 +1695,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                 bufferCnt -= 1;
             }
             if (mLongshotEnabled) {
-                char prop[PROPERTY_VALUE_MAX];
-                memset(prop, 0, sizeof(prop));
-                property_get("persist.camera.longshot.stages", prop, "0");
-                int longshotStages = atoi(prop);
-                if (longshotStages > 0 && longshotStages < CAMERA_LONGSHOT_STAGES) {
-                    bufferCnt = longshotStages;
-                }
-                else {
-                    bufferCnt = CAMERA_LONGSHOT_STAGES;
-                }
+                bufferCnt = mParameters.getLongshotStages();
             }
         }
         break;
