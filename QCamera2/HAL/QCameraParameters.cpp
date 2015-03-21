@@ -9157,11 +9157,11 @@ uint32_t QCameraParameters::getJpegQuality()
 /*===========================================================================
  * FUNCTION   : getJpegRotation
  *
- * DESCRIPTION: get rotation value
+ * DESCRIPTION: get jpeg rotation value
  *
  * PARAMETERS : none
  *
- * RETURN     : rotation value
+ * RETURN     : jpeg rotation value
  *==========================================================================*/
 uint32_t QCameraParameters::getJpegRotation() {
     int rotation = 0;
@@ -9173,6 +9173,26 @@ uint32_t QCameraParameters::getJpegRotation() {
             rotation = 0;
         }
     }
+    return (uint32_t)rotation;
+}
+
+/*===========================================================================
+ * FUNCTION   : getDeviceRotation
+ *
+ * DESCRIPTION: get device rotation value
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : device rotation value
+ *==========================================================================*/
+uint32_t QCameraParameters::getDeviceRotation() {
+    int rotation = 0;
+
+    rotation = getInt(KEY_ROTATION);
+    if (rotation < 0) {
+        rotation = 0;
+    }
+
     return (uint32_t)rotation;
 }
 
@@ -11117,17 +11137,20 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
  * PARAMETERS :
  *   @rotation: rotation
  *   @streamId: internal stream id
+ *   @device_rotation: device rotation
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::addOnlineRotation(uint32_t rotation, uint32_t streamId)
+int32_t QCameraParameters::addOnlineRotation(uint32_t rotation, uint32_t streamId,
+        int32_t device_rotation)
 {
     int32_t rc = NO_ERROR;
     cam_rotation_info_t rotation_info;
     memset(&rotation_info, 0, sizeof(cam_rotation_info_t));
 
+    /* Add jpeg rotation information */
     if (rotation == 0) {
         rotation_info.rotation = ROTATE_0;
     } else if (rotation == 90) {
@@ -11140,6 +11163,19 @@ int32_t QCameraParameters::addOnlineRotation(uint32_t rotation, uint32_t streamI
         rotation_info.rotation = ROTATE_0;
     }
     rotation_info.streamId = streamId;
+
+    /* Add device rotation information */
+    if (device_rotation == 0) {
+        rotation_info.device_rotation = ROTATE_0;
+    } else if (device_rotation == 90) {
+        rotation_info.device_rotation = ROTATE_90;
+    } else if (device_rotation == 180) {
+        rotation_info.device_rotation = ROTATE_180;
+    } else if (device_rotation == 270) {
+        rotation_info.device_rotation = ROTATE_270;
+    } else {
+        rotation_info.device_rotation = ROTATE_0;
+    }
 
     if(initBatchUpdate(m_pParamBuf) < 0 ) {
         ALOGE("%s:Failed to initialize group update table", __func__);
