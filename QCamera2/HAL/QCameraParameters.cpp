@@ -6437,11 +6437,23 @@ int32_t QCameraParameters::configureFlash(cam_capture_frame_config_t &frame_conf
     uint32_t i = 0;
 
     if (isChromaFlashEnabled()) {
+
+        rc = setToneMapMode(false, false);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to configure tone map", __func__);
+            return rc;
+        }
+
         CDBG_HIGH("%s : Enable Chroma Flash capture", __func__);
         cam_flash_mode_t flash_mode = CAM_FLASH_MODE_OFF;
-        frame_config.num_batch = 2;
+        frame_config.num_batch =
+                m_pCapability->chroma_flash_settings_need.burst_count;
+        if (frame_config.num_batch > CAM_MAX_FLASH_BRACKETING) {
+            frame_config.num_batch = CAM_MAX_FLASH_BRACKETING;
+        }
         for (i = 0; i < frame_config.num_batch; i++) {
-            flash_mode = (i == 0) ? CAM_FLASH_MODE_ON:CAM_FLASH_MODE_OFF;
+            flash_mode = (m_pCapability->chroma_flash_settings_need.flash_bracketing[i]) ?
+                    CAM_FLASH_MODE_ON:CAM_FLASH_MODE_OFF;
             frame_config.configs[i].num_frames = 1;
             frame_config.configs[i].type = CAM_CAPTURE_FLASH;
             frame_config.configs[i].flash_mode = flash_mode;
@@ -6645,6 +6657,11 @@ int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
             CDBG_HIGH("%s: Failed to enable tone map during HDR/AEBracketing", __func__);
         }
         rc = stopAEBracket();
+    } else if (isChromaFlashEnabled()) {
+        rc = setToneMapMode(true, false);
+        if (rc != NO_ERROR) {
+            CDBG_HIGH("%s: Failed to enable tone map during chroma flash", __func__);
+        }
     }
 
     rc = ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,
@@ -9131,15 +9148,7 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
         burstCount = m_pCapability->opti_zoom_settings_need.burst_count;
     } else if (isChromaFlashEnabled()) {
         //number of snapshots required for Chroma Flash.
-        if (m_captureFrameConfig.num_batch != 0) {
-            burstCount = 0;
-            for (uint32_t i = 0; i < m_captureFrameConfig.num_batch; i++) {
-                burstCount += m_captureFrameConfig.configs[i].num_frames;
-            }
-        } else {
-            CDBG("%s: Capture settings are not configured", __func__);
-            burstCount = 2;
-        }
+        burstCount = m_pCapability->chroma_flash_settings_need.burst_count;
     } else if (isStillMoreEnabled()) {
         //number of snapshots required for Still More.
         if (isSeeMoreEnabled()) {
@@ -11348,7 +11357,7 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
     } else if (m_bOptiZoomOn) {
         numOfBufs += m_pCapability->opti_zoom_settings_need.burst_count - 1;
     } else if (isChromaFlashEnabled()) {
-        numOfBufs += 1; /* flash and non flash */
+        numOfBufs += m_pCapability->chroma_flash_settings_need.burst_count - 1;
     } else if (isStillMoreEnabled()) {
         if (isSeeMoreEnabled()) {
             m_stillmore_config.burst_count = 1;
@@ -11385,7 +11394,7 @@ uint32_t QCameraParameters::getNumberInBufsForSingleShot()
     } else if (m_bOptiZoomOn) {
         numOfBufs = m_pCapability->opti_zoom_settings_need.burst_count;
     } else if (isChromaFlashEnabled()) {
-        numOfBufs = 1; /* flash and non flash */
+        numOfBufs = m_pCapability->chroma_flash_settings_need.burst_count;
     } else if (isHDREnabled()) {
         numOfBufs = m_pCapability->hdr_bracketing_setting.num_frames;
         if (isHDR1xFrameEnabled() && isHDR1xExtraBufferNeeded()) {

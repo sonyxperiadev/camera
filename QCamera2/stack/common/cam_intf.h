@@ -324,6 +324,8 @@ typedef struct{
     cam_opti_zoom_t      opti_zoom_settings_need;
     /* still more info */
     cam_still_more_t  stillmore_settings_need;
+    /* chroma flash info */
+    cam_chroma_flash_t chroma_flash_settings_need;
 
     cam_rational_type_t forward_matrix[3][3];
     cam_rational_type_t color_transform[3][3];
