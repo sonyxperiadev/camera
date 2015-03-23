@@ -4818,6 +4818,12 @@ int32_t QCamera2HardwareInterface::processASDUpdate(cam_auto_scene_t scene)
         return NO_MEMORY;
     }
 
+    int *pASDData = (int *)asdBuffer->data;
+    if (pASDData == NULL) {
+        ALOGE("%s: memory data ptr is NULL", __func__);
+        return UNKNOWN_ERROR;
+    }
+
 #ifndef VANILLA_HAL
     pASDData[0] = CAMERA_META_DATA_ASD;
     pASDData[1] = (int)data_len;
