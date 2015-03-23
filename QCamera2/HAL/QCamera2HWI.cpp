@@ -50,6 +50,7 @@
 #define CAMERA_MIN_JPEG_ENCODING_BUFFERS 2
 #define CAMERA_MIN_VIDEO_BUFFERS         9
 #define CAMERA_LONGSHOT_STAGES           4
+#define CAMERA_MIN_VIDEO_BATCH_BUFFERS   5
 
 //This multiplier signifies extra buffers that we need to allocate
 //for the output of pproc
@@ -1629,8 +1630,13 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
         break;
     case CAM_STREAM_TYPE_VIDEO:
         {
-            bufferCnt = CAMERA_MIN_VIDEO_BUFFERS +
-                    mParameters.getNumOfExtraBuffersForVideo();
+            if (mParameters.getBufBatchCount()) {
+                bufferCnt = CAMERA_MIN_VIDEO_BATCH_BUFFERS;
+            } else {
+                bufferCnt = CAMERA_MIN_VIDEO_BUFFERS;
+            }
+
+            bufferCnt += mParameters.getNumOfExtraBuffersForVideo();
             //if its 4K encoding usecase and power save feature enabled, then add extra buffer
             cam_dimension_t dim;
             mParameters.getStreamDimension(CAM_STREAM_TYPE_VIDEO, dim);
@@ -1991,7 +1997,20 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
         break;
     case CAM_STREAM_TYPE_VIDEO:
         streamInfo->dis_enable = mParameters.isDISEnabled();
-
+        if (mParameters.getBufBatchCount()) {
+            //Update stream info structure with Bacth mode info
+            streamInfo->streaming_mode = CAM_STREAMING_MODE_BATCH;
+            streamInfo->user_buf_info.frame_buf_cnt = mParameters.getBufBatchCount();
+            streamInfo->user_buf_info.size =
+                    (uint32_t)(sizeof(struct msm_camera_user_buf_cont_t));
+            cam_fps_range_t pFpsRange;
+            mParameters.getHfrFps(pFpsRange);
+            streamInfo->user_buf_info.frameInterval =
+                    (long)((1000/pFpsRange.video_max_fps) * 1000);
+            CDBG_HIGH("%s: Video Batch Count = %d, interval = %d", __func__,
+                    streamInfo->user_buf_info.frame_buf_cnt,
+                    streamInfo->user_buf_info.frameInterval);
+        }
     case CAM_STREAM_TYPE_PREVIEW:
         if (mParameters.getRecordingHintValue()) {
             const char* dis_param = mParameters.get(QCameraParameters::KEY_QC_DIS);
@@ -2053,6 +2072,85 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
 
     return streamInfoBuf;
 }
+
+/*===========================================================================
+ * FUNCTION   : allocateStreamUserBuf
+ *
+ * DESCRIPTION: alocate user ptr for stream buffers
+ *
+ * PARAMETERS :
+ *   @streamInfo  : stream info structure
+ *
+ * RETURN     : ptr to a memory obj that holds stream info buffer.
+ *                    NULL if failed
+
+ *==========================================================================*/
+QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
+        cam_stream_info_t *streamInfo)
+{
+    int rc = NO_ERROR;
+    QCameraMemory *mem = NULL;
+    bool bCachedMem = QCAMERA_ION_USE_CACHE;
+    int bufferCnt = 0;
+    int size = 0;
+
+    if (streamInfo->streaming_mode != CAM_STREAMING_MODE_BATCH) {
+        ALOGE("%s: Stream is not in BATCH mode. Invalid Stream", __func__);
+        return NULL;
+    }
+
+    // Allocate stream user buffer memory object
+    switch (streamInfo->stream_type) {
+    case CAM_STREAM_TYPE_VIDEO:
+    {
+        char value[PROPERTY_VALUE_MAX];
+        property_get("persist.camera.mem.usecache", value, "0");
+        if (atoi(value) == 0) {
+            bCachedMem = QCAMERA_ION_USE_NOCACHE;
+        }
+        CDBG_HIGH("%s: vidoe buf using cached memory = %d", __func__, bCachedMem);
+        mem = new QCameraVideoMemory(mGetMemory, bCachedMem);
+    }
+    break;
+
+    case CAM_STREAM_TYPE_PREVIEW:
+    case CAM_STREAM_TYPE_POSTVIEW:
+    case CAM_STREAM_TYPE_ANALYSIS:
+    case CAM_STREAM_TYPE_SNAPSHOT:
+    case CAM_STREAM_TYPE_RAW:
+    case CAM_STREAM_TYPE_METADATA:
+    case CAM_STREAM_TYPE_OFFLINE_PROC:
+    case CAM_STREAM_TYPE_CALLBACK:
+        ALOGE("%s: Stream type Not supported.for BATCH processing", __func__);
+    break;
+
+    case CAM_STREAM_TYPE_DEFAULT:
+    case CAM_STREAM_TYPE_MAX:
+    default:
+        break;
+    }
+    if (!mem) {
+        ALOGE("%s: Failed to allocate mem", __func__);
+        return NULL;
+    }
+
+    /*Size of this buffer will be number of batch buffer */
+    size = PAD_TO_SIZE((streamInfo->num_bufs * streamInfo->user_buf_info.size),
+            CAM_PAD_TO_4K);
+
+    CDBG_HIGH("%s: Allocating BATCH Buffer count = %d", __func__, streamInfo->num_bufs);
+
+    if (size > 0) {
+        // Allocating one buffer for all batch buffers
+        rc = mem->allocate(1, size, NON_SECURE);
+        if (rc < 0) {
+            delete mem;
+            return NULL;
+        }
+    }
+    return mem;
+}
+
 
 /*===========================================================================
  * FUNCTION   : setPreviewWindow

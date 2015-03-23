@@ -51,6 +51,7 @@ namespace qcamera {
  *   @initial_reg_flag: flag to indicate if buffer needs to be registered
  *                      at kernel initially
  *   @bufs       : output of allocated buffers
+ *   @plane_bufs       : individual plane buffers in case of user buf
  *   @ops_tbl    : ptr to buf mapping/unmapping ops
  *   @user_data  : user data ptr of ops_tbl
  *
@@ -63,6 +64,7 @@ int32_t QCamera3Stream::get_bufs(
                      uint8_t *num_bufs,
                      uint8_t **initial_reg_flag,
                      mm_camera_buf_def_t **bufs,
+                     mm_camera_buf_def_t **plane_bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                      void *user_data)
 {
@@ -538,7 +540,7 @@ int32_t QCamera3Stream::bufDone(uint32_t index)
 
         if (BAD_INDEX != bufSize) {
             rc = mMemOps->map_ops(index, -1, mStreamBufs->getFd(index),
-                    (size_t)bufSize, mMemOps->userdata);
+                    (size_t)bufSize, CAM_MAPPING_BUF_TYPE_STREAM_BUF, mMemOps->userdata);
             if (rc < 0) {
                 ALOGE("%s: Failed to map camera buffer %d", __func__, index);
                 return rc;
@@ -547,7 +549,7 @@ int32_t QCamera3Stream::bufDone(uint32_t index)
             rc = mStreamBufs->getBufDef(mFrameLenOffset, mBufDefs[index], index);
             if (NO_ERROR != rc) {
                 ALOGE("%s: Couldn't find camera buffer definition", __func__);
-                mMemOps->unmap_ops(index, -1, mMemOps->userdata);
+                mMemOps->unmap_ops(index, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, mMemOps->userdata);
                 return rc;
             }
         } else {
@@ -591,7 +593,7 @@ int32_t QCamera3Stream::bufRelease(int32_t index)
             return NO_INIT;
         }
 
-        rc = mMemOps->unmap_ops(index, -1, mMemOps->userdata);
+        rc = mMemOps->unmap_ops(index, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, mMemOps->userdata);
         if (rc < 0) {
             ALOGE("%s: Failed to un-map camera buffer %d", __func__, index);
             return rc;
@@ -652,11 +654,11 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
         ssize_t bufSize = mStreamBufs->getSize(i);
         if (BAD_INDEX != bufSize) {
             rc = ops_tbl->map_ops(i, -1, mStreamBufs->getFd(i),
-                    (size_t)bufSize, ops_tbl->userdata);
+                    (size_t)bufSize, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
             if (rc < 0) {
                 ALOGE("%s: map_stream_buf failed: %d", __func__, rc);
                 for (uint32_t j = 0; j < i; j++) {
-                    ops_tbl->unmap_ops(j, -1, ops_tbl->userdata);
+                    ops_tbl->unmap_ops(j, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
                 }
                 return INVALID_OPERATION;
             }
@@ -671,7 +673,7 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
     if (!regFlags) {
         ALOGE("%s: Out of memory", __func__);
         for (uint32_t i = 0; i < registeredBuffers; i++) {
-            ops_tbl->unmap_ops(i, -1, ops_tbl->userdata);
+            ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
         }
         return NO_MEMORY;
     }
@@ -681,7 +683,7 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
     if (mBufDefs == NULL) {
         ALOGE("%s: Failed to allocate mm_camera_buf_def_t %d", __func__, rc);
         for (uint32_t i = 0; i < registeredBuffers; i++) {
-            ops_tbl->unmap_ops(i, -1, ops_tbl->userdata);
+            ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
         }
         free(regFlags);
         regFlags = NULL;
@@ -696,7 +698,7 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
     if (rc < 0) {
         ALOGE("%s: getRegFlags failed %d", __func__, rc);
         for (uint32_t i = 0; i < registeredBuffers; i++) {
-            ops_tbl->unmap_ops(i, -1, ops_tbl->userdata);
+            ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
         }
         free(mBufDefs);
         mBufDefs = NULL;
@@ -730,7 +732,7 @@ int32_t QCamera3Stream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
 
     for (uint32_t i = 0; i < mNumBufs; i++) {
         if (NULL != mBufDefs[i].mem_info) {
-            rc = ops_tbl->unmap_ops(i, -1, ops_tbl->userdata);
+            rc = ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
             if (rc < 0) {
                 ALOGE("%s: un-map stream buf failed: %d", __func__, rc);
             }

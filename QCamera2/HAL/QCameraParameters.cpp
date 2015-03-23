@@ -845,6 +845,7 @@ QCameraParameters::QCameraParameters()
     mZoomLevel = 0;
     mParmZoomLevel = 0;
     mCurPPCount = 0;
+    mBufBatchCnt = 0;
 }
 
 /*===========================================================================
@@ -5634,6 +5635,9 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
               __func__, fps_range.min_fps, fps_range.max_fps,
               fps_range.video_min_fps, fps_range.video_max_fps);
     }
+
+    /* Setting Buffer batch count to use batch mode for higher fps*/
+    setBufBatchCount((int8_t)(fps_range.video_max_fps / fps_range.max_fps));
 
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
         return BAD_VALUE;
@@ -11671,6 +11675,42 @@ void QCameraParameters::setReprocCount()
     if ((getZoomLevel() != 0) && (isZSLMode())) {
         ALOGW("Zoom Present. Need 2nd pass for post processing");
         mTotalPPCount++;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : setBufBatchCount
+ *
+ * DESCRIPTION: Function to configure batch buffer
+ *
+ * PARAMETERS : int8_t buf_cnt
+ *                     Buffer batch count
+ *
+ * RETURN     :  None
+ *==========================================================================*/
+void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
+{
+    mBufBatchCnt = 0;
+    char value[PROPERTY_VALUE_MAX];
+    int8_t count = 0;
+
+    property_get("persist.camera.batchmode", value, "0");
+    count = atoi(value);
+
+    if (!(count != 0 || buf_cnt > CAMERA_MIN_BATCH_COUNT)) {
+        CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        return;
+    }
+
+    if ( buf_cnt > CAMERA_MIN_BATCH_COUNT) {
+        mBufBatchCnt = buf_cnt;
+        CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        return;
+    }
+
+    if ( count > 0) {
+        mBufBatchCnt = count;
+        CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
     }
 }
 

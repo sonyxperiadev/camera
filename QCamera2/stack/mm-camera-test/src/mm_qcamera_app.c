@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -249,14 +249,14 @@ void mm_app_dump_frame(mm_camera_buf_def_t *frame,
         if (file_fd < 0) {
             CDBG_ERROR("%s: cannot open file %s \n", __func__, file_name);
         } else {
-            for (i = 0; i < frame->num_planes; i++) {
+            for (i = 0; i < frame->planes_buf.num_planes; i++) {
                 CDBG("%s: saving file from address: %p, data offset: %d, "
                      "length: %d \n", __func__, frame->buffer,
-                    frame->planes[i].data_offset, frame->planes[i].length);
+                    frame->planes_buf.planes[i].data_offset, frame->planes_buf.planes[i].length);
                 write(file_fd,
                       (uint8_t *)frame->buffer + offset,
-                      frame->planes[i].length);
-                offset += (int)frame->planes[i].length;
+                      frame->planes_buf.planes[i].length);
+                offset += (int)frame->planes_buf.planes[i].length;
             }
 
             close(file_fd);
@@ -306,7 +306,7 @@ int mm_app_alloc_bufs(mm_camera_app_buf_t* app_bufs,
         mm_app_allocate_ion_memory(&app_bufs[i], ion_type);
 
         app_bufs[i].buf.buf_idx = i;
-        app_bufs[i].buf.num_planes = (int8_t)frame_offset_info->num_planes;
+        app_bufs[i].buf.planes_buf.num_planes = (int8_t)frame_offset_info->num_planes;
         app_bufs[i].buf.fd = app_bufs[i].mem_info.fd;
         app_bufs[i].buf.frame_len = app_bufs[i].mem_info.size;
         app_bufs[i].buf.buffer = app_bufs[i].mem_info.data;
@@ -314,19 +314,19 @@ int mm_app_alloc_bufs(mm_camera_app_buf_t* app_bufs,
 
         /* Plane 0 needs to be set seperately. Set other planes
              * in a loop. */
-        app_bufs[i].buf.planes[0].length = frame_offset_info->mp[0].len;
-        app_bufs[i].buf.planes[0].m.userptr =
+        app_bufs[i].buf.planes_buf.planes[0].length = frame_offset_info->mp[0].len;
+        app_bufs[i].buf.planes_buf.planes[0].m.userptr =
             (long unsigned int)app_bufs[i].buf.fd;
-        app_bufs[i].buf.planes[0].data_offset = frame_offset_info->mp[0].offset;
-        app_bufs[i].buf.planes[0].reserved[0] = 0;
+        app_bufs[i].buf.planes_buf.planes[0].data_offset = frame_offset_info->mp[0].offset;
+        app_bufs[i].buf.planes_buf.planes[0].reserved[0] = 0;
         for (j = 1; j < (uint8_t)frame_offset_info->num_planes; j++) {
-            app_bufs[i].buf.planes[j].length = frame_offset_info->mp[j].len;
-            app_bufs[i].buf.planes[j].m.userptr =
+            app_bufs[i].buf.planes_buf.planes[j].length = frame_offset_info->mp[j].len;
+            app_bufs[i].buf.planes_buf.planes[j].m.userptr =
                 (long unsigned int)app_bufs[i].buf.fd;
-            app_bufs[i].buf.planes[j].data_offset = frame_offset_info->mp[j].offset;
-            app_bufs[i].buf.planes[j].reserved[0] =
-                app_bufs[i].buf.planes[j-1].reserved[0] +
-                app_bufs[i].buf.planes[j-1].length;
+            app_bufs[i].buf.planes_buf.planes[j].data_offset = frame_offset_info->mp[j].offset;
+            app_bufs[i].buf.planes_buf.planes[j].reserved[0] =
+                app_bufs[i].buf.planes_buf.planes[j-1].reserved[0] +
+                app_bufs[i].buf.planes_buf.planes[j-1].length;
         }
     }
     CDBG("%s: X", __func__);
@@ -352,6 +352,7 @@ int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
                           uint8_t *num_bufs,
                           uint8_t **initial_reg_flag,
                           mm_camera_buf_def_t **bufs,
+                          mm_camera_buf_def_t **plane_bufs,
                           mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                           void *user_data)
 {
@@ -406,7 +407,7 @@ int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
                               -1,
                               pBufs[i].fd,
                               (uint32_t)pBufs[i].frame_len,
-                              ops_tbl->userdata);
+                              CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
         if (rc != MM_CAMERA_OK) {
             CDBG_ERROR("%s: mapping buf[%d] err = %d", __func__, i, rc);
             break;
@@ -416,7 +417,7 @@ int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
     if (rc != MM_CAMERA_OK) {
         int j;
         for (j=0; j>i; j++) {
-            ops_tbl->unmap_ops(pBufs[j].buf_idx, -1, ops_tbl->userdata);
+            ops_tbl->unmap_ops(pBufs[j].buf_idx, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
         }
         mm_app_release_bufs(stream->num_of_bufs, &stream->s_bufs[0]);
         free(pBufs);
@@ -440,7 +441,7 @@ int32_t mm_app_stream_deinitbuf(mm_camera_map_unmap_ops_tbl_t *ops_tbl,
 
     for (i = 0; i < stream->num_of_bufs ; i++) {
         /* mapping stream bufs first */
-        ops_tbl->unmap_ops(stream->s_bufs[i].buf.buf_idx, -1, ops_tbl->userdata);
+        ops_tbl->unmap_ops(stream->s_bufs[i].buf.buf_idx, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
     }
 
     mm_app_release_bufs(stream->num_of_bufs, &stream->s_bufs[0]);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -92,8 +92,10 @@ public:
     int32_t acquireStreamBufs();
 
     int32_t mapBuf(uint8_t buf_type, uint32_t buf_idx,
-            int32_t plane_idx, int fd, size_t size);
-    int32_t unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plane_idx);
+            int32_t plane_idx, int fd, size_t size,
+            mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
+    int32_t unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plane_idx,
+            mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
     int32_t setParameter(cam_stream_parm_buffer_t &param);
     int32_t getParameter(cam_stream_parm_buffer_t &param);
     int32_t syncRuntimeParams();
@@ -108,6 +110,7 @@ public:
     uint8_t getBufferCount() { return mNumBufs; }
     uint32_t getChannelHandle() { return mChannelHandle; }
     int32_t getNumQueuedBuf();
+    void *getFrameBuf(int index);
 
     uint32_t mDumpFrame;
     uint32_t mDumpMetaFrame;
@@ -124,6 +127,7 @@ private:
     cam_stream_info_t *mStreamInfo; // ptr to stream info buf
     mm_camera_stream_mem_vtbl_t mMemVtbl;
     uint8_t mNumBufs;
+    uint8_t mNumPlaneBufs;
     uint8_t mNumBufsNeedAlloc;
     uint8_t *mRegFlags;
     stream_cb_routine mDataCB;
@@ -135,8 +139,10 @@ private:
     QCameraHeapMemory *mStreamInfoBuf;
     QCameraHeapMemory *mMiscBuf;
     QCameraMemory *mStreamBufs;
+    QCameraMemory *mStreamBatchBufs;
     QCameraAllocator &mAllocator;
     mm_camera_buf_def_t *mBufDefs;
+    mm_camera_buf_def_t *mPlaneBufDefs;
     cam_frame_len_offset_t mFrameLenOffset;
     cam_padding_info_t mPaddingInfo;
     cam_rect_t mCropInfo;
@@ -156,6 +162,7 @@ private:
                      uint8_t *num_bufs,
                      uint8_t **initial_reg_flag,
                      mm_camera_buf_def_t **bufs,
+                     mm_camera_buf_def_t **plane_bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                      void *user_data);
 
@@ -164,6 +171,7 @@ private:
             uint8_t *num_bufs,
             uint8_t **initial_reg_flag,
             mm_camera_buf_def_t **bufs,
+            mm_camera_buf_def_t **plane_bufs,
             mm_camera_map_unmap_ops_tbl_t *ops_tbl,
             void *user_data);
 
@@ -184,14 +192,24 @@ private:
                      mm_camera_buf_def_t **bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl);
     int32_t putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl);
+
+    /* Used for deffered allocation of buffers */
+    int32_t allocateBatchBufs(cam_frame_len_offset_t *offset,
+            uint8_t *num_bufs, uint8_t **initial_reg_flag,
+            mm_camera_buf_def_t **bufs, mm_camera_buf_def_t **plane_bufs,
+            mm_camera_map_unmap_ops_tbl_t *ops_tbl);
+    int32_t releaseBatchBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl);
+
     int32_t invalidateBuf(uint32_t index);
     int32_t cleanInvalidateBuf(uint32_t index);
     int32_t calcOffset(cam_stream_info_t *streamInfo);
     int32_t unmapStreamInfoBuf();
     int32_t releaseStreamInfoBuf();
     int32_t releaseMiscBuf();
-    int32_t mapBuf(QCameraHeapMemory *heapBuf, cam_mapping_buf_type bufType);
-    int32_t unMapBuf(QCameraHeapMemory *heapBuf, cam_mapping_buf_type bufType);
+    int32_t mapBuf(QCameraMemory *heapBuf, cam_mapping_buf_type bufType,
+            mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
+    int32_t unMapBuf(QCameraMemory *heapBuf, cam_mapping_buf_type bufType,
+            mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
 
     bool mDefferedAllocation;
 
