@@ -7443,16 +7443,18 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
     }
 
     char value[PROPERTY_VALUE_MAX];
-    if (property_get("ro.product.manufacturer", value, "QCOM-AA") > 0) {
-        exif->addEntry(EXIFTAGID_MAKE, EXIF_ASCII,
-                (uint32_t)(strlen(value) + 1), (void *)value);
+    if (property_get("persist.sys.exif.make", value, "") > 0 ||
+            property_get("ro.product.manufacturer", value, "QCOM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_MAKE,
+                EXIF_ASCII, strlen(value) + 1, (void *)value);
     } else {
         ALOGE("%s: getExifMaker failed", __func__);
     }
 
-    if (property_get("ro.product.model", value, "QCAM-AA") > 0) {
-        exif->addEntry(EXIFTAGID_MODEL, EXIF_ASCII,
-                (uint32_t)(strlen(value) + 1), (void *)value);
+    if (property_get("persist.sys.exif.model", value, "") > 0 ||
+            property_get("ro.product.model", value, "QCAM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_MODEL,
+                EXIF_ASCII, strlen(value) + 1, (void *)value);
     } else {
         ALOGE("%s: getExifModel failed", __func__);
     }
