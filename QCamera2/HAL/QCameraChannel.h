@@ -93,7 +93,8 @@ public:
     int32_t takePicture(uint8_t num_of_snapshot, uint8_t num_of_retro_snapshot);
     int32_t cancelPicture();
     int32_t stopAdvancedCapture(mm_camera_advanced_capture_t type);
-    int32_t startAdvancedCapture(mm_camera_advanced_capture_t type);
+    int32_t startAdvancedCapture(mm_camera_advanced_capture_t type,
+            cam_capture_frame_config_t *config = NULL);
     int32_t flushSuperbuffer(uint32_t frame_idx);
 };
 

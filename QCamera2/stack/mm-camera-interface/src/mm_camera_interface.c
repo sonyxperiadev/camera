@@ -1634,18 +1634,18 @@ uint8_t get_num_of_cameras()
  *
  * PARAMETERS :
  *   @camera_handle: camera handle
- *   @advanced_capture_type : advanced capture type
+ *   @type : advanced capture type
  *   @ch_id        : channel handle
- *   @notify_mode  : notification mode
+ *   @trigger  : 1 for start and 0 for cancel/stop
+ *   @value  : input capture configaration
  *
  * RETURN     : int32_t type of status
  *              0  -- success
  *              -1 -- failure
  *==========================================================================*/
 static int32_t mm_camera_intf_process_advanced_capture(uint32_t camera_handle,
-    mm_camera_advanced_capture_t advanced_capture_type,
-    uint32_t ch_id,
-    int8_t start_flag)
+        uint32_t ch_id, mm_camera_advanced_capture_t type,
+        int8_t trigger, void *in_value)
 {
     int32_t rc = -1;
     mm_camera_obj_t * my_obj = NULL;
@@ -1658,8 +1658,8 @@ static int32_t mm_camera_intf_process_advanced_capture(uint32_t camera_handle,
     if(my_obj) {
         pthread_mutex_lock(&my_obj->cam_lock);
         pthread_mutex_unlock(&g_intf_lock);
-        rc = mm_camera_channel_advanced_capture(my_obj, advanced_capture_type,
-            ch_id, (uint32_t)start_flag);
+        rc = mm_camera_channel_advanced_capture(my_obj, ch_id, type,
+                (uint32_t)trigger, in_value);
     } else {
         pthread_mutex_unlock(&g_intf_lock);
     }

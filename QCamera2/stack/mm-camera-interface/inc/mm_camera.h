@@ -95,11 +95,15 @@ typedef enum {
     MM_CAMERA_GENERIC_CMD_TYPE_AF_BRACKETING,
     MM_CAMERA_GENERIC_CMD_TYPE_FLASH_BRACKETING,
     MM_CAMERA_GENERIC_CMD_TYPE_ZOOM_1X,
+    MM_CAMERA_GENERIC_CMD_TYPE_CAPTURE_SETTING,
 } mm_camera_generic_cmd_type_t;
 
 typedef struct {
     mm_camera_generic_cmd_type_t type;
     uint32_t payload[32];
+    union {
+        cam_capture_frame_config_t frame_config;
+    };
 } mm_camera_generic_cmd_t;
 
 typedef struct {
@@ -302,6 +306,7 @@ typedef enum {
     MM_CHANNEL_EVT_AE_BRACKETING,
     MM_CHANNEL_EVT_FLASH_BRACKETING,
     MM_CHANNEL_EVT_ZOOM_1X,
+    MM_CAMERA_EVT_CAPTURE_SETTING,
     MM_CHANNEL_EVT_GET_STREAM_QUEUED_BUF_COUNT,
 } mm_channel_evt_type_t;
 
@@ -418,6 +423,10 @@ typedef struct mm_channel {
     uint8_t isZoom1xFrameRequested;
     uint32_t burstSnapNum;
     char threadName[THREAD_NAME_SIZE];
+
+    /*Frame capture configaration*/
+    uint8_t cur_capture_idx;
+    cam_capture_frame_config_t *frame_config;
 } mm_channel_t;
 
 typedef struct {
@@ -670,7 +679,6 @@ extern int32_t mm_camera_cmd_thread_name(const char* name);
 extern int32_t mm_camera_cmd_thread_release(mm_camera_cmd_thread_t * cmd_thread);
 
 extern int32_t mm_camera_channel_advanced_capture(mm_camera_obj_t *my_obj,
-                                               mm_camera_advanced_capture_t advanced_capturetype,
-                                               uint32_t ch_id,
-                                               uint32_t start_flag);
+        uint32_t ch_id, mm_camera_advanced_capture_t type,
+        uint32_t trigger, void *in_value);
 #endif /* __MM_CAMERA_H__ */
