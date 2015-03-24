@@ -1117,7 +1117,7 @@ void QCamera3RawChannel::convertLegacyToRaw16(mm_camera_buf_def_t *frame)
       memset(&offset, 0, sizeof(cam_frame_len_offset_t));
       stream->getFrameOffset(offset);
 
-      uint32_t raw16_stride = ((uint32_t)dim.width + 15U) & ~15U;
+      uint32_t raw16_stride = (uint32_t)PAD_TO_SIZE(dim.width, 32);
       uint16_t* raw16_buffer = (uint16_t *)frame->buffer;
 
       // In-place format conversion.
@@ -1160,7 +1160,7 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
         memset(&offset, 0, sizeof(cam_frame_len_offset_t));
         stream->getFrameOffset(offset);
 
-        uint32_t raw16_stride = ((uint32_t)dim.width + 15U) & ~15U;
+        uint32_t raw16_stride = (uint32_t)PAD_TO_SIZE(dim.width, 32);
         uint16_t* raw16_buffer = (uint16_t *)frame->buffer;
 
         // In-place format conversion.
