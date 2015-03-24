@@ -1608,7 +1608,7 @@ int32_t QCameraParameters::setPreviewFormat(const QCameraParameters& params)
         char prop[PROPERTY_VALUE_MAX];
         int pFormat;
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.preview.ubwc", prop, "1");
+        property_get("persist.camera.preview.ubwc", prop, "0");
         pFormat = atoi(prop);
         if (pFormat == 1) {
             mPreviewFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
@@ -8862,11 +8862,11 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
 
     format = CAM_FORMAT_MAX;
     switch (streamType) {
-    case CAM_STREAM_TYPE_ANALYSIS:
     case CAM_STREAM_TYPE_PREVIEW:
-    case CAM_STREAM_TYPE_POSTVIEW:
         format = mPreviewFormat;
         break;
+    case CAM_STREAM_TYPE_POSTVIEW:
+    case CAM_STREAM_TYPE_ANALYSIS:
     case CAM_STREAM_TYPE_CALLBACK:
         format = mAppPreviewFormat;
         break;
@@ -9121,7 +9121,7 @@ int QCameraParameters::getPreviewHalPixelFormat() const
         break;
 #ifdef UBWC_PRESENT
     case CAM_FORMAT_YUV_420_NV12_UBWC:
-        halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP;
+        halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS_UBWC;
         break;
 #endif
     case CAM_FORMAT_YUV_422_NV16:

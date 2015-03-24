@@ -58,7 +58,7 @@ ifneq (,$(filter msm8974 msm8916 msm8226 msm8610 msm8916 apq8084 msm8084 msm8994
     LOCAL_CFLAGS += -DVENUS_PRESENT
 endif
 
-ifneq (,$(filter ,$(TARGET_BOARD_PLATFORM)))
+ifneq (,$(filter msm8996,$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DUBWC_PRESENT
 endif
 
