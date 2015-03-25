@@ -157,6 +157,7 @@ public:
     int processCaptureRequest(camera3_capture_request_t *request);
     void dump(int fd);
     int flush();
+    int flushPerf();
 
     int setFrameParameters(camera3_capture_request_t *request,
             cam_stream_ID_t streamID, int blob_request, uint32_t snapshotStreamId);
@@ -257,6 +258,7 @@ private:
     bool mFirstRequest;
     bool mFirstConfiguration;
     bool mFlush;
+    bool mFlushPerf;
     bool mEnableRawDump;
     QCamera3HeapMemory *mParamHeap;
     metadata_buffer_t* mParameters;
@@ -328,6 +330,9 @@ private:
 
     //mutex for serialized access to camera3_device_ops_t functions
     pthread_mutex_t mMutex;
+
+    //condition used to signal flush after buffers have returned
+    pthread_cond_t mBuffersCond;
 
     List<stream_info_t*> mStreamInfo;
 

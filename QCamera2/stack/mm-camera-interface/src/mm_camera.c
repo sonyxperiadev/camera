@@ -797,6 +797,28 @@ int32_t mm_camera_stop_zsl_snapshot(mm_camera_obj_t *my_obj)
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_flush
+ *
+ * DESCRIPTION: flush the current camera state and buffers
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_camera_flush(mm_camera_obj_t *my_obj)
+{
+    int32_t rc = -1;
+    int32_t value;
+    rc = mm_camera_util_s_ctrl(my_obj->ctrl_fd,
+            CAM_PRIV_FLUSH, &value);
+    pthread_mutex_unlock(&my_obj->cam_lock);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_add_channel
  *
  * DESCRIPTION: add a channel

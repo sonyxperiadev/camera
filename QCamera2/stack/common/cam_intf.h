@@ -52,7 +52,9 @@ typedef enum {
     /* stop ZSL snapshot.*/
     CAM_PRIV_STOP_ZSL_SNAPSHOT,
     /* event for related sensors synchronization. */
-    CAM_PRIV_SYNC_RELATED_SENSORS
+    CAM_PRIV_SYNC_RELATED_SENSORS,
+    /* flush */
+    CAM_PRIV_FLUSH
 } cam_private_ioctl_enum_t;
 
 /* capability struct definition for HAL 1*/

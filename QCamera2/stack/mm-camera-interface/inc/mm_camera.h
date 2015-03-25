@@ -556,6 +556,7 @@ extern int32_t mm_camera_prepare_snapshot(mm_camera_obj_t *my_obj,
                                           int32_t do_af_flag);
 extern int32_t mm_camera_start_zsl_snapshot(mm_camera_obj_t *my_obj);
 extern int32_t mm_camera_stop_zsl_snapshot(mm_camera_obj_t *my_obj);
+extern int32_t mm_camera_flush(mm_camera_obj_t *my_obj);
 extern int32_t mm_camera_start_zsl_snapshot_ch(mm_camera_obj_t *my_obj,
         uint32_t ch_id);
 extern int32_t mm_camera_stop_zsl_snapshot_ch(mm_camera_obj_t *my_obj,
