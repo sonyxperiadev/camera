@@ -122,7 +122,7 @@ int32_t QCamera3PostProcessor::init(QCamera3Memory* mMemory,
     max_size.w = (uint32_t)m_parent->m_max_pic_dim.width;
     max_size.h = (uint32_t)m_parent->m_max_pic_dim.height;
 
-    mJpegClientHandle = jpeg_open(&mJpegHandle,max_size);
+    mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, NULL);
     mJpegMem = mMemory;
     if(!mJpegClientHandle) {
         ALOGE("%s : jpeg_open did not work", __func__);
