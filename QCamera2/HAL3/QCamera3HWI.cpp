@@ -4697,6 +4697,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         switch (scalar_formats[j]) {
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW16:
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW_OPAQUE:
+        case HAL_PIXEL_FORMAT_RAW10:
             for (size_t i = 0; i < gCamCapability[cameraId]->supported_raw_dim_cnt; i++) {
                 available_min_durations[idx] = scalar_formats[j];
                 available_min_durations[idx+1] =
@@ -4722,7 +4723,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             break;
         }
     }
-    staticInfo.update(ANDROID_SCALER_AVAILABLE_PROCESSED_MIN_DURATIONS,
+    staticInfo.update(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS,
                       &available_min_durations[0], idx);
 
     int32_t max_jpeg_size = (int32_t)calcMaxJpegSize(cameraId);
@@ -5011,24 +5012,6 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_STATISTICS_INFO_AVAILABLE_HOT_PIXEL_MAP_MODES,
             available_hot_pixel_map_modes,
             sizeof(available_hot_pixel_map_modes)/sizeof(available_hot_pixel_map_modes[0]));
-
-    count = MIN(gCamCapability[cameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
-    size_t avail_min_frame_durations_size = count *
-            sizeof(scalar_formats)/sizeof(int32_t) * 4;
-    int64_t avail_min_frame_durations[avail_min_frame_durations_size];
-    size_t pos = 0;
-    for (size_t j = 0; j < scalar_formats_count; j++) {
-        for (size_t i = 0; i < count; i++) {
-           avail_min_frame_durations[pos]   = scalar_formats[j];
-           avail_min_frame_durations[pos+1] = gCamCapability[cameraId]->picture_sizes_tbl[i].width;
-           avail_min_frame_durations[pos+2] = gCamCapability[cameraId]->picture_sizes_tbl[i].height;
-           avail_min_frame_durations[pos+3] = gCamCapability[cameraId]->picture_min_duration[i];
-           pos+=4;
-        }
-    }
-    staticInfo.update(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS,
-                      avail_min_frame_durations,
-                      avail_min_frame_durations_size);
 
     val = lookupFwkName(REFERENCE_ILLUMINANT_MAP, METADATA_MAP_SIZE(REFERENCE_ILLUMINANT_MAP),
             gCamCapability[cameraId]->reference_illuminant1);
