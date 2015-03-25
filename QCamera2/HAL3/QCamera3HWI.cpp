@@ -4478,7 +4478,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
                       gCamCapability[cameraId]->optical_stab_modes_count);
 
-    staticInfo.update(ANDROID_LENS_POSITION,
+    staticInfo.update(ANDROID_LENS_POSE_TRANSLATION,
                       gCamCapability[cameraId]->lens_position,
                       sizeof(gCamCapability[cameraId]->lens_position)/ sizeof(float));
 
@@ -4981,7 +4981,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     float optical_axis_angle[2];
     optical_axis_angle[0] = 0; //need to verify
     optical_axis_angle[1] = 0; //need to verify
-    staticInfo.update(ANDROID_LENS_OPTICAL_AXIS_ANGLE,
+    staticInfo.update(ANDROID_LENS_POSE_ROTATION,
                       optical_axis_angle,
                       2);
 
@@ -5148,7 +5148,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,
        ANDROID_LENS_INFO_HYPERFOCAL_DISTANCE, ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE,
        ANDROID_LENS_INFO_SHADING_MAP_SIZE, ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION,
-       ANDROID_LENS_FACING, ANDROID_LENS_OPTICAL_AXIS_ANGLE,ANDROID_LENS_POSITION,
+       ANDROID_LENS_FACING, ANDROID_LENS_POSE_ROTATION,ANDROID_LENS_POSE_TRANSLATION,
        ANDROID_REQUEST_MAX_NUM_OUTPUT_STREAMS, ANDROID_REQUEST_MAX_NUM_INPUT_STREAMS,
        ANDROID_REQUEST_PIPELINE_MAX_DEPTH, ANDROID_REQUEST_AVAILABLE_CAPABILITIES,
        ANDROID_REQUEST_AVAILABLE_REQUEST_KEYS, ANDROID_REQUEST_AVAILABLE_RESULT_KEYS,
