@@ -40,6 +40,7 @@
 #include "mm_jpeg_dbg.h"
 #include "mm_jpeg_interface.h"
 #include "mm_jpeg.h"
+#include "mm_jpeg_mpo.h"
 
 static pthread_mutex_t g_intf_lock = PTHREAD_MUTEX_INITIALIZER;
 static mm_jpeg_obj* g_jpeg_obj = NULL;
@@ -277,6 +278,37 @@ static int32_t mm_jpeg_intf_close(uint32_t client_hdl)
   return rc;
 }
 
+/** mm_jpeg_intf_compose_mpo:
+ *
+ *  Arguments:
+ *    @mpo_info : MPO Information
+ *
+ *  Return:
+ *       0 success, failure otherwise
+ *
+ *  Description:
+ *       Compose MPO image from jpeg images
+ *
+ **/
+static int32_t mm_jpeg_intf_compose_mpo(mm_jpeg_mpo_info_t *mpo_info)
+{
+  int32_t rc = -1;
+  if (!mpo_info) {
+    CDBG_ERROR("%s:%d] Invalid input", __func__, __LINE__);
+    return rc;
+  }
+
+  if (mpo_info->num_of_images > MM_JPEG_MAX_MPO_IMAGES) {
+    CDBG_ERROR("%s:%d] Num of images exceeds max supported images in MPO",
+      __func__, __LINE__);
+    return rc;
+  }
+  //Call MPo composition
+  rc = mm_jpeg_mpo_compose(mpo_info);
+
+  return rc;
+}
+
 /** jpeg_open:
  *
  *  Arguments:
@@ -366,6 +398,9 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
       ops->create_session = mm_jpeg_intf_create_session;
       ops->destroy_session = mm_jpeg_intf_destroy_session;
       ops->close = mm_jpeg_intf_close;
+    }
+    if (NULL != mpo_ops) {
+      mpo_ops->compose_mpo = mm_jpeg_intf_compose_mpo;
     }
   } else {
     /* failed new client */
