@@ -662,6 +662,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_RETRO_BURST_NUM,              uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_BURST_LED_ON_PERIOD,          uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_LONGSHOT_ENABLE,              int8_t,                      1);
+    INCLUDE(CAM_INTF_PARM_SENSOR_HDR,                   int32_t,                     1);
 
     /* HAL3 specific */
     INCLUDE(CAM_INTF_META_STREAM_INFO,                  cam_stream_size_info_t,      1);
