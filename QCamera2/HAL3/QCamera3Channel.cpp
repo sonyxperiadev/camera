@@ -689,51 +689,6 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                         mCamera3Stream(stream),
                         mNumBufs(0),
                         mStreamType(stream_type),
-                        mWidth(stream->width),
-                        mHeight(stream->height),
-                        mBatchSize(0),
-                        mRotation(ROTATE_0)
-{
-}
-
-/*===========================================================================
- * FUNCTION   : QCamera3RegularChannel
- *
- * DESCRIPTION: constructor of QCamera3RegularChannel
- *
- * PARAMETERS :
- *   @cam_handle  : camera handle
- *   @cam_ops     : ptr to camera ops table
- *   @cb_routine  : callback routine to frame aggregator
- *   @padding_info: padding information for stream
- *   @userData    : pointer to hal object
- *   @stream      : camera3_stream_t structure
- *   @stream_type : Channel stream type
- *   @postprocess_mask: bit mask for postprocessing
- *   @width       : width overriding camera3_stream_t::width
- *   @height      : height overriding camera3_stream_t::height
- *   @numBuffers  : number of maximum dequeued buffers`
- *
- * RETURN     : none
- *==========================================================================*/
-QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
-                    mm_camera_ops_t *cam_ops,
-                    channel_cb_routine cb_routine,
-                    cam_padding_info_t *paddingInfo,
-                    void *userData,
-                    camera3_stream_t *stream,
-                    cam_stream_type_t stream_type,
-                    uint32_t postprocess_mask,
-                    uint32_t width, uint32_t height,
-                    uint32_t numBuffers) :
-                        QCamera3Channel(cam_handle, cam_ops, cb_routine,
-                                paddingInfo, postprocess_mask, userData,
-                                numBuffers),
-                        mCamera3Stream(stream),
-                        mNumBufs(0),
-                        mStreamType(stream_type),
-                        mWidth(width),
-                        mHeight(height),
                         mBatchSize(0),
                         mRotation(ROTATE_0)
 {
@@ -850,8 +805,8 @@ int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
         return -EINVAL;
     }
 
-    streamDim.width = mWidth;
-    streamDim.height = mHeight;
+    streamDim.width = mCamera3Stream->width;
+    streamDim.height = mCamera3Stream->height;
 
     CDBG("%s: batch size is %d", __func__, mBatchSize);
     rc = QCamera3Channel::addStream(mStreamType,
@@ -2007,14 +1962,16 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     } else {
        reproc_cfg.padding->height_padding = reproc_cfg.padding->width_padding;
     }
-
-    reproc_cfg.input_stream_dim.width = (int32_t)mYuvWidth;
-    reproc_cfg.input_stream_dim.height = (int32_t)mYuvHeight;
-    if (NULL == pInputBuffer)
-       reproc_cfg.src_channel = this;
-
-    reproc_cfg.output_stream_dim.width = (int32_t)mCamera3Stream->width;
-    reproc_cfg.output_stream_dim.height = (int32_t)mCamera3Stream->height;
+    if (NULL != pInputBuffer) {
+        reproc_cfg.input_stream_dim.width = (int32_t)pInputBuffer->stream->width;
+        reproc_cfg.input_stream_dim.height = (int32_t)pInputBuffer->stream->height;
+    } else {
+        reproc_cfg.input_stream_dim.width = (int32_t)mYuvWidth;
+        reproc_cfg.input_stream_dim.height = (int32_t)mYuvHeight;
+        reproc_cfg.src_channel = this;
+    }
+    reproc_cfg.output_stream_dim.width = mCamera3Stream->width;
+    reproc_cfg.output_stream_dim.height = mCamera3Stream->height;
     reproc_cfg.stream_type = mStreamType;
     reproc_cfg.stream_format = mStreamFormat;
     rc = mm_stream_calc_offset_snapshot(mStreamFormat, &reproc_cfg.input_stream_dim,

@@ -158,17 +158,6 @@ public:
                     uint32_t postprocess_mask,
                     uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
 
-    QCamera3RegularChannel(uint32_t cam_handle,
-                    mm_camera_ops_t *cam_ops,
-                    channel_cb_routine cb_routine,
-                    cam_padding_info_t *paddingInfo,
-                    void *userData,
-                    camera3_stream_t *stream,
-                    cam_stream_type_t stream_type,
-                    uint32_t postprocess_mask,
-                    uint32_t width, uint32_t height,
-                    uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
-
     virtual ~QCamera3RegularChannel();
 
     virtual int32_t start();
@@ -192,7 +181,6 @@ private:
     camera3_stream_t *mCamera3Stream;
     uint8_t mNumBufs;
     cam_stream_type_t mStreamType; // Stream type
-    uint32_t mWidth, mHeight;
     uint32_t mBatchSize;
     cam_rotation_t mRotation;
 };
