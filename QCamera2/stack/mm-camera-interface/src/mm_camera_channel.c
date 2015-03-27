@@ -2405,7 +2405,10 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
         if(super_buf->super_buf[buf_s_idx].frame_idx != 0) {
             //This can cause frame drop. We are overwriting same memory.
             pthread_mutex_unlock(&queue->que.lock);
-            CDBG_FATAL("FATAL: frame is already in camera ZSL queue");
+            //CDBG_FATAL("FATAL: frame is already in camera ZSL queue");
+            CDBG_ERROR("***FATAL: frame is already in camera ZSL queue***");
+            mm_channel_qbuf(ch_obj, buf_info->buf);
+            return 0;
         }
 
         /*Insert incoming buffer to super buffer*/
