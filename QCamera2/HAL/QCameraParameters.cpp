@@ -1095,8 +1095,20 @@ String8 QCameraParameters::createHfrValuesString(const cam_hfr_info_t *values,
     String8 str;
     int count = 0;
 
+    char value[PROPERTY_VALUE_MAX];
+    int8_t batch_count = 0;
+
+    property_get("persist.camera.batchcount", value, "0");
+    batch_count = atoi(value);
+
     for (size_t i = 0; i < len; i++ ) {
-        for (size_t j = 0; j < map_len; j ++)
+        for (size_t j = 0; j < map_len; j ++) {
+            if ((batch_count < CAMERA_MIN_BATCH_COUNT)
+                    && (map[j].val > CAM_HFR_MODE_120FPS)) {
+                /*TODO: Work around. Need to revert when we have
+                complete 240fps support*/
+                break;
+            }
             if (map[j].val == (int)values[i].mode) {
                 if (NULL != map[j].desc) {
                     if (count > 0) {
@@ -1107,6 +1119,7 @@ String8 QCameraParameters::createHfrValuesString(const cam_hfr_info_t *values,
                      break; //loop j
                 }
             }
+        }
     }
     if (count > 0) {
         str.append(",");
@@ -11745,6 +11758,11 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
     if (!(count != 0 || buf_cnt > CAMERA_MIN_BATCH_COUNT)) {
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
         return;
+    }
+
+    while((m_pCapability->max_batch_bufs_supported != 0)
+            && (m_pCapability->max_batch_bufs_supported < buf_cnt)) {
+        buf_cnt = buf_cnt / 2;
     }
 
     if (count > 0) {
