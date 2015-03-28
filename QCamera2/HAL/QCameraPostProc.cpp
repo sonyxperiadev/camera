@@ -503,13 +503,19 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
     }
 
     if (m_bThumbnailNeeded == TRUE) {
-        bool need_thumb_rotate = true;
         uint32_t jpeg_rotation = m_parent->getJpegRotation();
         m_parent->getThumbnailSize(encode_parm.thumb_dim.dst_dim);
 
         if (thumb_stream == NULL) {
             thumb_stream = main_stream;
-            need_thumb_rotate = false;
+        }
+        if (((90 == m_parent->getJpegRotation())
+                || (270 == m_parent->getJpegRotation()))
+                && (m_parent->needRotationReprocess())) {
+            // swap thumbnail dimensions
+            cam_dimension_t tmp_dim = encode_parm.thumb_dim.dst_dim;
+            encode_parm.thumb_dim.dst_dim.width = tmp_dim.height;
+            encode_parm.thumb_dim.dst_dim.height = tmp_dim.width;
         }
         pStreamMem = thumb_stream->getStreamBufs();
         if (pStreamMem == NULL) {
@@ -546,13 +552,8 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
         thumb_stream->getFrameDimension(src_dim);
         encode_parm.thumb_dim.src_dim = src_dim;
 
-        if (!m_parent->needRotationReprocess() || need_thumb_rotate) {
-            encode_parm.thumb_rotation = jpeg_rotation;
-        } else if ((90 == jpeg_rotation) || (270 == jpeg_rotation)) {
-            // swap thumbnail dimensions
-            cam_dimension_t tmp_dim = encode_parm.thumb_dim.dst_dim;
-            encode_parm.thumb_dim.dst_dim.width = tmp_dim.height;
-            encode_parm.thumb_dim.dst_dim.height = tmp_dim.width;
+        if (!m_parent->needRotationReprocess()) {
+            encode_parm.thumb_rotation = m_parent->getJpegRotation();
         }
         encode_parm.thumb_dim.crop = crop;
     }
@@ -1995,13 +1996,13 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             // we use the main stream/frame to encode thumbnail
             thumb_stream = main_stream;
             thumb_frame = main_frame;
-            if (m_parent->needRotationReprocess() &&
+        }
+        if (m_parent->needRotationReprocess() &&
                 ((90 == jpeg_rotation) || (270 == jpeg_rotation))) {
-                // swap thumbnail dimensions
-                cam_dimension_t tmp_dim = jpg_job.encode_job.thumb_dim.dst_dim;
-                jpg_job.encode_job.thumb_dim.dst_dim.width = tmp_dim.height;
-                jpg_job.encode_job.thumb_dim.dst_dim.height = tmp_dim.width;
-            }
+            // swap thumbnail dimensions
+            cam_dimension_t tmp_dim = jpg_job.encode_job.thumb_dim.dst_dim;
+            jpg_job.encode_job.thumb_dim.dst_dim.width = tmp_dim.height;
+            jpg_job.encode_job.thumb_dim.dst_dim.height = tmp_dim.width;
         }
 
         memset(&src_dim, 0, sizeof(cam_dimension_t));
