@@ -742,6 +742,7 @@ int QCamera2HardwareInterface::cancel_picture(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG_HIGH("[KPI Perf] %s: E PROFILE_CANCEL_PICTURE", __func__);
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_CANCEL_PICTURE, NULL);
@@ -750,7 +751,7 @@ int QCamera2HardwareInterface::cancel_picture(struct camera_device *device)
         ret = apiResult.status;
     }
     hw->unlockAPI();
-
+    CDBG_HIGH("[KPI Perf] %s: X", __func__);
     return ret;
 }
 
@@ -1151,6 +1152,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
  *==========================================================================*/
 QCamera2HardwareInterface::~QCamera2HardwareInterface()
 {
+    CDBG_HIGH("%s: E", __func__);
     mDefferedWorkThread.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
     mDefferedWorkThread.exit();
 
@@ -1166,6 +1168,7 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     pthread_mutex_destroy(&m_parm_lock);
     pthread_mutex_destroy(&m_int_lock);
     pthread_cond_destroy(&m_int_cond);
+    CDBG_HIGH("%s: X", __func__);
 }
 
 /*===========================================================================
@@ -1304,7 +1307,7 @@ int QCamera2HardwareInterface::closeCamera()
 {
     int rc = NO_ERROR;
     int i;
-
+    CDBG_HIGH("%s: E", __func__);
     if (!mCameraOpened) {
         return NO_ERROR;
     }
@@ -1979,6 +1982,9 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     streamInfo->num_bufs = getBufNumRequired(stream_type);
     streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     streamInfo->is_secure = NON_SECURE;
+    CDBG_HIGH("%s: stream_type %d, stream format %d,stream dimension %dx%d, num_bufs %d\n",
+           __func__, stream_type, streamInfo->fmt, streamInfo->dim.width,
+           streamInfo->dim.height, streamInfo->num_bufs);
     switch (stream_type) {
     case CAM_STREAM_TYPE_SNAPSHOT:
         if ((mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) ||
@@ -2169,6 +2175,7 @@ int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
 #endif
 
     mMsgEnabled |= msg_type;
+    CDBG_HIGH("%s (0x%x) : mMsgEnabled = 0x%x", __func__, msg_type , mMsgEnabled );
     return NO_ERROR;
 }
 
@@ -2202,6 +2209,7 @@ int QCamera2HardwareInterface::disableMsgType(int32_t msg_type)
 #endif
 
     mMsgEnabled &= ~msg_type;
+    CDBG_HIGH("%s (0x%x) : mMsgEnabled = 0x%x", __func__, msg_type , mMsgEnabled );
     return NO_ERROR;
 }
 
@@ -2442,6 +2450,8 @@ int QCamera2HardwareInterface::autoFocus()
     int rc = NO_ERROR;
     setCancelAutoFocus(false);
     cam_focus_mode_type focusMode = mParameters.getFocusMode();
+    CDBG_HIGH("[AF_DBG] %s: focusMode=%d, m_currentFocusState=%d, m_bAFRunning=%d",
+          __func__, focusMode, m_currentFocusState, isAFRunning());
 
     switch (focusMode) {
     case CAM_FOCUS_MODE_AUTO:
@@ -3946,6 +3956,7 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
         // Longshot can only be enabled when image capture
         // is not active.
         if ( !m_stateMachine.isCaptureRunning() ) {
+            CDBG_HIGH("%s: Longshot Enabled", __func__);
             mLongshotEnabled = true;
             rc = mParameters.setLongshotEnable(mLongshotEnabled);
 
@@ -3997,18 +4008,23 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
             }
         }
         mPrepSnapRun = false;
+        CDBG_HIGH("%s: Longshot Disabled", __func__);
         mLongshotEnabled = false;
         rc = mParameters.setLongshotEnable(mLongshotEnabled);
         break;
     case CAMERA_CMD_HISTOGRAM_ON:
     case CAMERA_CMD_HISTOGRAM_OFF:
         rc = setHistogram(command == CAMERA_CMD_HISTOGRAM_ON? true : false);
+        CDBG_HIGH("%s: Histogram -> %s", __func__,
+              mParameters.isHistogramEnabled() ? "Enabled" : "Disabled");
         break;
 #endif
     case CAMERA_CMD_START_FACE_DETECTION:
     case CAMERA_CMD_STOP_FACE_DETECTION:
         mParameters.setFaceDetectionOption(command == CAMERA_CMD_START_FACE_DETECTION? true : false);
         rc = setFaceDetection(command == CAMERA_CMD_START_FACE_DETECTION? true : false);
+        CDBG_HIGH("%s: FaceDetection -> %s", __func__,
+              mParameters.isFaceDetectionEnabled() ? "Enabled" : "Disabled");
         break;
 #ifndef VANILLA_HAL
     case CAMERA_CMD_HISTOGRAM_SEND_DATA:
@@ -4448,6 +4464,9 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
     m_currentFocusState = focus_data.focus_state;
 
     cam_focus_mode_type focusMode = mParameters.getFocusMode();
+    CDBG_HIGH("[AF_DBG] %s: focusMode=%d, m_currentFocusState=%d, m_bAFRunning=%d",
+         __func__, focusMode, m_currentFocusState, isAFRunning());
+
     switch (focusMode) {
     case CAM_FOCUS_MODE_AUTO:
     case CAM_FOCUS_MODE_MACRO:
@@ -6304,7 +6323,7 @@ void QCamera2HardwareInterface::playShutter(){
          CDBG("%s: shutter msg not enabled or NULL cb", __func__);
          return;
      }
-
+     CDBG_HIGH("%s: CAMERA_MSG_SHUTTER ", __func__);
      qcamera_callback_argm_t cbArg;
      memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
      cbArg.cb_type = QCAMERA_NOTIFY_CALLBACK;

@@ -184,6 +184,7 @@ static void mm_camera_event_notify(void* user_data)
                 break;
             case MSM_CAMERA_PRIV_SHUTDOWN:
                 {
+                    CDBG_ERROR("%s: Camera Event DAEMON DIED received", __func__);
                     evt.server_event_type = CAM_EVENT_TYPE_DAEMON_DIED;
                     mm_camera_enqueue_evt(my_obj, &evt);
                 }

@@ -1276,6 +1276,9 @@ int32_t mm_stream_qbuf(mm_stream_t *my_obj, mm_camera_buf_def_t *buf)
                 my_obj, my_obj->stream_info->stream_type);
         }
     }
+    CDBG_HIGH("%s: VIDIOC_QBUF:fd = %d, state = %d, stream type=%d, qbuf_index %d, frame_idx %d",
+               __func__, my_obj->fd, my_obj->state, my_obj->stream_info->stream_type,
+               buffer.index,buf->frame_idx);
 
     rc = ioctl(my_obj->fd, VIDIOC_QBUF, &buffer);
     if (0 > rc) {
