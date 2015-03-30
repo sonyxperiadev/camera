@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -111,6 +111,7 @@ public:
     int32_t start(const reprocess_config_t &config,
             metadata_buffer_t *metadata);
     int32_t stop();
+    int32_t flush();
     int32_t processData(qcamera_fwk_input_pp_data_t *frame);
     int32_t processData(mm_camera_super_buf_t *frame);
     int32_t processRawData(mm_camera_super_buf_t *frame);
@@ -119,7 +120,7 @@ public:
     int32_t processJpegSettingData(jpeg_settings_t *jpeg_settings);
     qcamera_hal3_jpeg_data_t *findJpegJobByJobId(uint32_t jobId);
     void releaseJpegJobData(qcamera_hal3_jpeg_data_t *job);
-    int32_t releaseOfflineBuffers();
+    int32_t releaseOfflineBuffers(bool all);
 
 private:
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);

@@ -3223,6 +3223,24 @@ int QCamera3HardwareInterface::flushPerf()
 
     CDBG("%s: Received buffers, now safe to return them", __func__);
 
+    //make sure the channels handle flush
+    //currently only required for the picture channel to release snapshot resources
+    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+            it != mStreamInfo.end(); it++) {
+        QCamera3Channel *channel = (*it)->channel;
+        if (channel) {
+            rc = channel->flush();
+            if (rc) {
+               ALOGE("%s: Flushing the channels failed with error %d", __func__, rc);
+               // even though the channel flush failed we need to continue and
+               // return the buffers we have to the framework, however the return
+               // value will be an error
+               rc = -ENODEV;
+            }
+        }
+    }
+
+    /* notify the frameworks and send errored results */
     List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
     frameNum = i->frame_number;
     CDBG("%s: Oldest frame num on  mPendingRequestsList = %d",

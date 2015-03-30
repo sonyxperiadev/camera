@@ -221,6 +221,34 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config,
 }
 
 /*===========================================================================
+ * FUNCTION   : flush
+ *
+ * DESCRIPTION: stop ongoing postprocess and jpeg jobs
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *
+ *==========================================================================*/
+int32_t QCamera3PostProcessor::flush()
+{
+    int32_t rc = NO_ERROR;
+    qcamera_hal3_jpeg_data_t *jpeg_job =
+            (qcamera_hal3_jpeg_data_t *)m_ongoingJpegQ.dequeue();
+    while (jpeg_job != NULL) {
+        rc = mJpegHandle.abort_job(jpeg_job->jobId);
+        releaseJpegJobData(jpeg_job);
+        free(jpeg_job);
+
+        jpeg_job = (qcamera_hal3_jpeg_data_t *)m_ongoingJpegQ.dequeue();
+    }
+    rc = releaseOfflineBuffers(true);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : stop
  *
  * DESCRIPTION: stop postprocessor. Data process and notify thread will be stopped.
@@ -832,18 +860,19 @@ void QCamera3PostProcessor::releaseSuperBuf(mm_camera_super_buf_t *super_buf)
  *
  * DESCRIPTION: function to release/unmap offline buffers if any
  *
- * PARAMETERS : None
+ * PARAMETERS :
+ * @allBuffers : flag that asks to release all buffers or only one
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3PostProcessor::releaseOfflineBuffers()
+int32_t QCamera3PostProcessor::releaseOfflineBuffers(bool allBuffers)
 {
     int32_t rc = NO_ERROR;
 
     if(NULL != m_pReprocChannel) {
-        rc = m_pReprocChannel->unmapOfflineBuffers(false);
+        rc = m_pReprocChannel->unmapOfflineBuffers(allBuffers);
     }
 
     return rc;

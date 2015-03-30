@@ -317,6 +317,23 @@ int32_t QCamera3Channel::stop()
 }
 
 /*===========================================================================
+ * FUNCTION   : flush
+ *
+ * DESCRIPTION: flush a channel
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3Channel::flush()
+{
+    ATRACE_CALL();
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : bufDone
  *
  * DESCRIPTION: return a stream buf back to kernel
@@ -1193,7 +1210,7 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
                 uint8_t upper_8bit = row_start[5*(x/4)+x%4];
                 uint8_t lower_2bit = ((row_start[5*(x/4)+4] >> (x%4)) & 0x3);
                 uint16_t raw16_pixel =
-                        (uint16_t)(((uint16_t)upper_8bit)<<2 | 
+                        (uint16_t)(((uint16_t)upper_8bit)<<2 |
                         (uint16_t)lower_2bit);
                 raw16_buffer[y*raw16_stride+x] = raw16_pixel;
             }
@@ -1581,7 +1598,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                 obj->mOfflineMetaMemory.deallocate();
                 obj->mOfflineMemory.unregisterBuffers();
             }
-            obj->m_postprocessor.releaseOfflineBuffers();
+            obj->m_postprocessor.releaseOfflineBuffers(false);
             obj->m_postprocessor.releaseJpegJobData(job);
             free(job);
         }
@@ -1630,6 +1647,46 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
     if (rc != 0) {
         ALOGE("Init Postprocessor failed");
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : flush
+ *
+ * DESCRIPTION: flush pic channel, which will stop all processing within, including
+ *              the reprocessing channel in postprocessor and YUV stream.
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3PicChannel::flush()
+{
+    int32_t rc = NO_ERROR;
+    if(!m_bIsActive) {
+        ALOGE("%s: Attempt to flush inactive channel",__func__);
+        return NO_INIT;
+    }
+
+    rc = m_postprocessor.flush();
+    if (rc == 0) {
+        ALOGE("%s: Postprocessor flush failed, rc = %d", __func__, rc);
+        return rc;
+    }
+
+    if (0 < mOfflineMetaMemory.getCnt()) {
+        mOfflineMetaMemory.deallocate();
+    }
+    if (0 < mOfflineMemory.getCnt()) {
+        mOfflineMemory.unregisterBuffers();
+    }
+    Mutex::Autolock lock(mFreeBuffersLock);
+    mFreeBufferList.clear();
+    for (uint32_t i = 0; i < mCamera3Stream->max_buffers; i++) {
+        mFreeBufferList.push_back(i);
+    }
+    return rc;
 }
 
 /*===========================================================================
