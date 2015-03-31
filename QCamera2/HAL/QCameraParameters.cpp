@@ -355,6 +355,10 @@ const char QCameraParameters::VIDEO_HFR_2X[] = "60";
 const char QCameraParameters::VIDEO_HFR_3X[] = "90";
 const char QCameraParameters::VIDEO_HFR_4X[] = "120";
 const char QCameraParameters::VIDEO_HFR_5X[] = "150";
+const char QCameraParameters::VIDEO_HFR_6X[] = "180";
+const char QCameraParameters::VIDEO_HFR_7X[] = "210";
+const char QCameraParameters::VIDEO_HFR_8X[] = "240";
+const char QCameraParameters::VIDEO_HFR_9X[] = "480";
 
 // Values for HDR Bracketing settings.
 const char QCameraParameters::AE_BRACKET_OFF[] = "Off";
@@ -631,10 +635,14 @@ const QCameraParameters::QCameraMap<cam_iso_mode_type>
 const QCameraParameters::QCameraMap<cam_hfr_mode_t>
         QCameraParameters::HFR_MODES_MAP[] = {
     { VIDEO_HFR_OFF, CAM_HFR_MODE_OFF },
-    { VIDEO_HFR_2X,  CAM_HFR_MODE_60FPS },
-    { VIDEO_HFR_3X,  CAM_HFR_MODE_90FPS },
-    { VIDEO_HFR_4X,  CAM_HFR_MODE_120FPS },
-    { VIDEO_HFR_5X,  CAM_HFR_MODE_150FPS }
+    { VIDEO_HFR_2X, CAM_HFR_MODE_60FPS },
+    { VIDEO_HFR_3X, CAM_HFR_MODE_90FPS },
+    { VIDEO_HFR_4X, CAM_HFR_MODE_120FPS },
+    { VIDEO_HFR_5X, CAM_HFR_MODE_150FPS },
+    { VIDEO_HFR_6X, CAM_HFR_MODE_180FPS },
+    { VIDEO_HFR_7X, CAM_HFR_MODE_210FPS },
+    { VIDEO_HFR_8X, CAM_HFR_MODE_240FPS },
+    { VIDEO_HFR_9X, CAM_HFR_MODE_480FPS }
 };
 
 const QCameraParameters::QCameraMap<cam_bracket_mode>
@@ -2028,6 +2036,22 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
             case CAM_HFR_MODE_150FPS:
                 min_fps = 150000;
                 max_fps = 150000;
+                break;
+            case CAM_HFR_MODE_180FPS:
+                min_fps = 180000;
+                max_fps = 180000;
+                break;
+            case CAM_HFR_MODE_210FPS:
+                min_fps = 210000;
+                max_fps = 210000;
+                break;
+            case CAM_HFR_MODE_240FPS:
+                min_fps = 240000;
+                max_fps = 240000;
+                break;
+            case CAM_HFR_MODE_480FPS:
+                min_fps = 480000;
+                max_fps = 480000;
                 break;
             case CAM_HFR_MODE_OFF:
             default:
@@ -5015,6 +5039,7 @@ int32_t QCameraParameters::initDefaultParameters()
             m_pCapability->hfr_tbl,
             m_pCapability->hfr_tbl_cnt);
     set(KEY_QC_SUPPORTED_HFR_SIZES, hfrSizeValues.string());
+    CDBG("HFR values %s HFR Sizes = %d", hfrValues.string(), hfrSizeValues.string());
     setHighFrameRate(CAM_HFR_MODE_OFF);
 
     // Set Focus algorithms
