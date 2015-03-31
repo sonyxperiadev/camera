@@ -1438,36 +1438,37 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             //Append at the end of jpeg image of buf_filled_len size
 
             jpegHeader.jpeg_blob_id = CAMERA3_JPEG_BLOB_ID;
-            jpegHeader.jpeg_size = (uint32_t)p_output->buf_filled_len;
+            if (JPEG_JOB_STATUS_DONE == status) {
+                jpegHeader.jpeg_size = (uint32_t)p_output->buf_filled_len;
+                char* jpeg_buf = (char *)p_output->buf_vaddr;
 
+                ssize_t maxJpegSize = -1;
 
-            char* jpeg_buf = (char *)p_output->buf_vaddr;
-            ssize_t maxJpegSize = -1;
+                // Gralloc buffer may have additional padding for 4K page size
+                // Follow size guidelines based on spec since framework relies
+                // on that to reach end of buffer and with it the header
 
-            // Gralloc buffer may have additional padding for 4K page size
-            // Follow size guidelines based on spec since framework relies
-            // on that to reach end of buffer and with it the header
+                //Handle same as resultBuffer, but for readablity
+                jpegBufferHandle =
+                        (buffer_handle_t *)obj->mMemory.getBufferHandle(bufIdx);
 
-            //Handle same as resultBuffer, but for readablity
-            jpegBufferHandle =
-                    (buffer_handle_t *)obj->mMemory.getBufferHandle(bufIdx);
+                if (NULL != jpegBufferHandle) {
+                    maxJpegSize = ((private_handle_t*)(*jpegBufferHandle))->width;
+                    if (maxJpegSize > obj->mMemory.getSize(bufIdx)) {
+                        maxJpegSize = obj->mMemory.getSize(bufIdx);
+                    }
 
-            if (NULL != jpegBufferHandle) {
-                maxJpegSize = ((private_handle_t*)(*jpegBufferHandle))->width;
-                if (maxJpegSize > obj->mMemory.getSize(bufIdx)) {
-                    maxJpegSize = obj->mMemory.getSize(bufIdx);
+                    size_t jpeg_eof_offset =
+                            (size_t)(maxJpegSize - (ssize_t)sizeof(jpegHeader));
+                    char *jpeg_eof = &jpeg_buf[jpeg_eof_offset];
+                    memcpy(jpeg_eof, &jpegHeader, sizeof(jpegHeader));
+                    obj->mMemory.cleanInvalidateCache(bufIdx);
+                } else {
+                    ALOGE("%s: JPEG buffer not found and index: %d",
+                            __func__,
+                            bufIdx);
+                    resultStatus = CAMERA3_BUFFER_STATUS_ERROR;
                 }
-
-                size_t jpeg_eof_offset =
-                        (size_t)(maxJpegSize - (ssize_t)sizeof(jpegHeader));
-                char *jpeg_eof = &jpeg_buf[jpeg_eof_offset];
-                memcpy(jpeg_eof, &jpegHeader, sizeof(jpegHeader));
-                obj->mMemory.cleanInvalidateCache(bufIdx);
-            } else {
-                ALOGE("%s: JPEG buffer not found and index: %d",
-                        __func__,
-                        bufIdx);
-                resultStatus = CAMERA3_BUFFER_STATUS_ERROR;
             }
 
             ////Use below data to issue framework callback
