@@ -402,6 +402,7 @@ typedef struct{
     uint32_t buf_alignment;
     uint32_t min_stride;
     uint32_t min_scanline;
+    uint8_t flash_dev_name[QCAMERA_MAX_FILEPATH_LENGTH];
 } cam_capability_t;
 
 typedef enum {
