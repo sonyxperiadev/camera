@@ -11424,6 +11424,45 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
 }
 
 /*===========================================================================
+ * FUNCTION   : getExifBufIndex
+ *
+ * DESCRIPTION: get index of metadata to be used for EXIF
+ *
+ * PARAMETERS : @captureIndex - index of current captured frame
+ *
+ * RETURN     : index of metadata to be used for EXIF
+ *==========================================================================*/
+uint32_t QCameraParameters::getExifBufIndex(uint32_t captureIndex)
+{
+    uint32_t index = captureIndex;
+
+    if (isUbiRefocus()) {
+        if (captureIndex < m_pCapability->refocus_af_bracketing_need.burst_count) {
+            index = captureIndex;
+        } else {
+            index = 0;
+        }
+    } else if (isChromaFlashEnabled()) {
+        index = m_pCapability->chroma_flash_settings_need.metadata_index;
+    } else if (isHDREnabled()) {
+        if (isHDR1xFrameEnabled() && isHDR1xExtraBufferNeeded()) {
+            index = m_pCapability->hdr_bracketing_setting.num_frames;
+        } else {
+            for (index = 0; index < m_pCapability->hdr_bracketing_setting.num_frames; index++) {
+                if (0 == m_pCapability->hdr_bracketing_setting.exp_val.values[index]) {
+                    break;
+                }
+            }
+            if (index == m_pCapability->hdr_bracketing_setting.num_frames) {
+                index = captureIndex;
+            }
+        }
+    }
+
+    return index;
+}
+
+/*===========================================================================
  * FUNCTION   : getNumberInBufsForSingleShot
  *
  * DESCRIPTION: get number of input buffers for single shot

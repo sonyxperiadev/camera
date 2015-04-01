@@ -215,6 +215,8 @@ private:
     uint32_t   m_JpegOutputMemCount;
     uint8_t mNewJpegSessionNeeded;
     int32_t m_bufCountPPQ;
+    Vector<mm_camera_buf_def_t *> m_InputMetadata; // store input metadata buffers for AOST cases
+    size_t m_PPindex;                   // counter for each incoming AOST buffer
 
 public:
     cam_dimension_t m_dst_dim;
