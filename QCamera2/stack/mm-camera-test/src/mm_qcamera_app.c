@@ -130,10 +130,10 @@ int mm_app_allocate_ion_memory(mm_camera_app_buf_t *buf, unsigned int ion_type)
     alloc.len = (alloc.len + 4095U) & (~4095U);
     alloc.align = 4096;
     alloc.flags = ION_FLAG_CACHED;
-    alloc.heap_id_mask = ion_type;
+    alloc.heap_id_mask = ION_HEAP(ION_SYSTEM_HEAP_ID);
     rc = ioctl(main_ion_fd, ION_IOC_ALLOC, &alloc);
     if (rc < 0) {
-        CDBG_ERROR("ION allocation failed\n");
+        CDBG_ERROR("ION allocation failed %s with rc = %d \n",strerror(errno), rc);
         goto ION_ALLOC_FAILED;
     }
 
@@ -244,7 +244,7 @@ void mm_app_dump_frame(mm_camera_buf_def_t *frame,
     int offset = 0;
     if ( frame != NULL) {
         snprintf(file_name, sizeof(file_name),
-                QCAMERA_DUMP_FRM_LOCATION"test/%s_%04d.%s", name, frame_idx, ext);
+                QCAMERA_DUMP_FRM_LOCATION"%s_%04d.%s", name, frame_idx, ext);
         file_fd = open(file_name, O_RDWR | O_CREAT, 0777);
         if (file_fd < 0) {
             CDBG_ERROR("%s: cannot open file %s \n", __func__, file_name);
@@ -1115,6 +1115,34 @@ int setVfeCommand(mm_camera_test_obj_t *test_obj, tune_cmd_t *value)
 ERROR:
     return rc;
 }
+
+int setmetainfoCommand(mm_camera_test_obj_t *test_obj, cam_stream_size_info_t *value)
+{
+    int rc = MM_CAMERA_OK;
+
+    rc = initBatchUpdate(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: Batch camera parameter update failed\n", __func__);
+        goto ERROR;
+    }
+
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
+            CAM_INTF_META_STREAM_INFO, *value)) {
+        CDBG_ERROR("%s: PP Command not added to batch\n", __func__);
+        rc = -1;
+        goto ERROR;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: Batch parameters commit failed\n", __func__);
+        goto ERROR;
+    }
+
+ERROR:
+    return rc;
+}
+
 
 int setPPCommand(mm_camera_test_obj_t *test_obj, tune_cmd_t *value)
 {
