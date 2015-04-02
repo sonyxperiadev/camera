@@ -396,6 +396,9 @@ typedef struct mm_jpeg_obj_t {
   uint32_t num_sessions;
   uint32_t reuse_reproc_buffer;
 
+  /*OTP Data - remains the same per camera session*/
+  cam_related_system_calibration_data_t *calibration_data;
+
 } mm_jpeg_obj;
 
 /** mm_jpeg_pending_func_t:
