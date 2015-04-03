@@ -1836,7 +1836,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         cbArg.cb_type = QCAMERA_DATA_CALLBACK;
         cbArg.msg_type = CAMERA_MSG_RAW_IMAGE;
         cbArg.data = mem;
-        cbArg.index = 1;
+        cbArg.index = 0;
         m_parent->m_cbNotifier.notifyCallback(cbArg);
     }
     if (NULL != m_parent->mNotifyCb &&
