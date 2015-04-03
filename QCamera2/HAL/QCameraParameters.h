@@ -916,6 +916,7 @@ private:
     int32_t parseGains(const char *gainStr, double &r_gain,
             double &g_gain, double &b_gain);
     int32_t setCacheVideoBuffers(const char *cacheVideoBufStr);
+    int32_t setCDSMode(int32_t cds_mode, bool initCommit);
 
     int32_t parse_pair(const char *str, int *first, int *second,
                        char delim, char **endptr);
@@ -1065,6 +1066,7 @@ private:
     bool m_bStreamsConfigured;
     int32_t mParmZoomLevel;
     bool m_bIsLowMemoryDevice;
+    int32_t mCds_mode;
 
     cam_capture_frame_config_t m_captureFrameConfig;
 };

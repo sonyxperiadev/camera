@@ -821,7 +821,8 @@ QCameraParameters::QCameraParameters()
       m_bHDRModeSensor(true),
       mOfflineRAW(false),
       m_bTruePortraitOn(false),
-      m_bIsLowMemoryDevice(false)
+      m_bIsLowMemoryDevice(false),
+      mCds_mode(CAM_CDS_MODE_OFF)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -923,7 +924,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bHDRModeSensor(true),
     mOfflineRAW(false),
     m_bTruePortraitOn(false),
-    m_bIsLowMemoryDevice(false)
+    m_bIsLowMemoryDevice(false),
+    mCds_mode(CAM_CDS_MODE_OFF)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -3928,6 +3930,7 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
                 }
                 CDBG("%s: CDS in video mode is set to = %s when TNR is enabled",
                         __func__, CDS_MODE_OFF);
+                mCds_mode = cds_mode;
             } else {
                 ALOGE("%s: Invalid argument for video CDS MODE %d", __func__, cds_mode);
             }
@@ -3977,6 +3980,7 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
                 }
                 CDBG("%s: CDS in snapshot mode is set to = %s when TNR is enabled",
                         __func__, CDS_MODE_OFF);
+                mCds_mode = cds_mode;
             } else {
                 ALOGE("%s: Invalid argument for snapshot CDS MODE %d", __func__, cds_mode);
             }
@@ -6471,6 +6475,12 @@ int32_t QCameraParameters::configureFlash(cam_capture_frame_config_t &frame_conf
             return rc;
         }
 
+        rc = setCDSMode(CAM_CDS_MODE_OFF, false);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to configure csd mode", __func__);
+            return rc;
+        }
+
         CDBG_HIGH("%s : Enable Chroma Flash capture", __func__);
         cam_flash_mode_t flash_mode = CAM_FLASH_MODE_OFF;
         frame_config.num_batch =
@@ -6688,6 +6698,12 @@ int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
         rc = setToneMapMode(true, false);
         if (rc != NO_ERROR) {
             CDBG_HIGH("%s: Failed to enable tone map during chroma flash", __func__);
+        }
+
+        rc = setCDSMode(mCds_mode, false);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to configure csd mode", __func__);
+            return rc;
         }
     }
 
@@ -6920,6 +6936,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                         rc = BAD_VALUE;
                     } else {
                         CDBG("%s: Set CDS in video mode = %d", __func__, cds_mode);
+                        mCds_mode = cds_mode;
                     }
                 } else {
                     ALOGE("%s: Invalid argument for video CDS MODE %d", __func__,  cds_mode);
@@ -6939,6 +6956,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                     rc = BAD_VALUE;
                 } else {
                     CDBG("%s: Set CDS in video mode from setprop = %d", __func__, cds_mode);
+                    mCds_mode = cds_mode;
                 }
             } else {
                 ALOGE("%s: Invalid prop for video CDS MODE %d", __func__,  cds_mode);
@@ -6957,6 +6975,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                         rc = BAD_VALUE;
                     } else {
                         CDBG("%s: Set CDS in capture mode = %d", __func__, cds_mode);
+                        mCds_mode = cds_mode;
                     }
                 } else {
                     ALOGE("%s: Invalid argument for snapshot CDS MODE %d", __func__,  cds_mode);
@@ -6976,6 +6995,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                     rc = BAD_VALUE;
                 } else {
                     CDBG("%s: Set CDS in snapshot mode from setprop = %d", __func__, cds_mode);
+                    mCds_mode = cds_mode;
                 }
             } else {
                 ALOGE("%s: Invalid prop for snapshot CDS MODE %d", __func__,  cds_mode);
@@ -12127,6 +12147,47 @@ uint8_t QCameraParameters::getLongshotStages()
         numStages = propStages;
     }
     return numStages;
+}
+
+/*===========================================================================
+ * FUNCTION   : setCDSMode
+ *
+ * DESCRIPTION: set CDS mode
+ *
+ * PARAMETERS :
+ *   @cds_mode : cds mode
+ *   @initCommit: if configuration list needs to be initialized and commited
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setCDSMode(int32_t cds_mode, bool initCommit)
+{
+    if (initCommit) {
+        if (initBatchUpdate(m_pParamBuf) < 0) {
+            ALOGE("%s:Failed to initialize group update table", __func__);
+            return FAILED_TRANSACTION;
+        }
+    }
+
+    int32_t rc = NO_ERROR;
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CDS_MODE, cds_mode)) {
+        ALOGE("%s:Failed to update cds mode", __func__);
+        return BAD_VALUE;
+    }
+
+    if (initCommit) {
+        rc = commitSetBatch();
+        if (NO_ERROR != rc) {
+            ALOGE("%s:Failed to set cds mode", __func__);
+            return rc;
+        }
+    }
+
+    CDBG_HIGH(" cds mode -> %d", cds_mode);
+
+    return rc;
 }
 
 }; // namespace qcamera
