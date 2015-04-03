@@ -735,7 +735,7 @@ public:
             return m_pCapability->refocus_af_bracketing_need.output_count;};
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus()
-            || isHDREnabled() || isStillMoreEnabled(); }
+            || isHDREnabled() || isStillMoreEnabled() || isTruePortraitEnabled(); }
     void updateCurrentFocusPosition(cam_focus_pos_info_t &cur_pos_info);
     void updateAEInfo(cam_3a_params_t &ae_params);
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
