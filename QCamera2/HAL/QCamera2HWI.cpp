@@ -1763,10 +1763,13 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                         stream_type);
             } else {
                 cam_dimension_t dim;
+                int minFPS, maxFPS;
                 QCameraGrallocMemory *grallocMemory =
                     new QCameraGrallocMemory(mGetMemory);
 
                 mParameters.getStreamDimension(stream_type, dim);
+                /* we are interested only in maxfps here */
+                mParameters.getPreviewFpsRange(&minFPS, &maxFPS);
                 int usage = 0;
                 if(mParameters.isUBWCEnabled()) {
                     cam_format_t fmt;
@@ -1780,7 +1783,7 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                     grallocMemory->setWindowInfo(mPreviewWindow,
                             dim.width,dim.height, stride, scanline,
                             mParameters.getPreviewHalPixelFormat(),
-                            usage);
+                            maxFPS, usage);
                 }
                 mem = grallocMemory;
             }
@@ -1792,14 +1795,18 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                 mem = new QCameraStreamMemory(mGetMemory, bCachedMem);
             } else {
                 cam_dimension_t dim;
+                int minFPS, maxFPS;
                 QCameraGrallocMemory *grallocMemory =
                         new QCameraGrallocMemory(mGetMemory);
 
                 mParameters.getStreamDimension(stream_type, dim);
-                if (grallocMemory)
+                /* we are interested only in maxfps here */
+                mParameters.getPreviewFpsRange(&minFPS, &maxFPS);
+                if (grallocMemory) {
                     grallocMemory->setWindowInfo(mPreviewWindow, dim.width,
                             dim.height, stride, scanline,
-                            mParameters.getPreviewHalPixelFormat());
+                            mParameters.getPreviewHalPixelFormat(), maxFPS);
+                }
                 mem = grallocMemory;
             }
         }
