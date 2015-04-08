@@ -1659,19 +1659,15 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             }
 
             bufferCnt += mParameters.getNumOfExtraBuffersForVideo();
-            //if its 4K encoding usecase and power save feature enabled, then add extra buffer
+            //if its 4K encoding usecase, then add extra buffer
             cam_dimension_t dim;
             mParameters.getStreamDimension(CAM_STREAM_TYPE_VIDEO, dim);
             if (is4k2kResolution(&dim)) {
-                 property_get("vidc.debug.perf.mode", value, "0");
-                 bool isPwrSavEnabled = (atoi(value) == 2);
-                 if (isPwrSavEnabled) {
-                     //get additional buffer count
-                     property_get("vidc.enc.dcvs.extra-buff-count", value, "0");
-                     bufferCnt += atoi(value);
-                 }
+                 //get additional buffer count
+                 property_get("vidc.enc.dcvs.extra-buff-count", value, "0");
+                 bufferCnt += atoi(value);
             }
-            ALOGI("Buffer count is %d width / height (%d/%d) ", bufferCnt, dim.width, dim.height);
+            ALOGI("Buffer count is %d, width / height (%d/%d) ", bufferCnt, dim.width, dim.height);
         }
         break;
     case CAM_STREAM_TYPE_METADATA:
