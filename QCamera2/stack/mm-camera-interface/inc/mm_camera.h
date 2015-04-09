@@ -467,11 +467,15 @@ typedef struct mm_channel {
     char threadName[THREAD_NAME_SIZE];
 
     /*Frame capture configaration*/
+    uint8_t isConfigCapture;
     uint8_t cur_capture_idx;
-    cam_capture_frame_config_t *frame_config;
+
     /*Buffer diverted*/
     uint8_t diverted_frame_id;
     uint32_t sessionid;
+
+    uint8_t capture_frame_id[MAX_CAPTURE_BATCH_NUM];
+    cam_capture_frame_config_t frameConfig;
 } mm_channel_t;
 
 typedef struct {
