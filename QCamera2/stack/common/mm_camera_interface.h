@@ -71,6 +71,33 @@
   } \
 })
 
+/*Declaring Buffer structure*/
+struct mm_camera_buf_def;
+
+/**mm_camera_plane_def_t : structure for frame plane info
+*    @num_planes : num of planes for the frame buffer, to be
+*               filled during mem allocation
+*    @planes : plane info for the frame buffer, to be filled
+*               during mem allocation
+**/
+typedef struct {
+    int8_t num_planes;
+    struct v4l2_plane planes[VIDEO_MAX_PLANES];
+} mm_camera_plane_buf_def_t;
+
+/**mm_camera_user_buf_def_t : structure for frame plane info
+*    @num_buffers : num of buffers in this user defined structure
+*....@bufs_used : Actual num of buffers used
+*    @buffers : individual stream buffers.
+**/
+typedef struct {
+    uint8_t num_buffers;
+    uint8_t bufs_used;     /*Num of Buffer filled by Kernel*/
+    uint8_t bufs_released; /*Number of plane buf freed by HAL for this usr buf*/
+    uint8_t buf_in_use;  /* Container buffer is freed to fill*/
+    uint32_t buf_idx[MSM_CAMERA_MAX_USER_BUFF_CNT];
+} mm_camera_user_buf_def_t;
+
 /** mm_camera_buf_def_t: structure for stream frame buf
 *    @stream_id : stream handler to uniquely identify a stream
 *               object
@@ -79,10 +106,7 @@
 *    @timespec_ts : time stamp, to be filled when DQBUF is
 *                 called
 *    @frame_idx : frame sequence num, to be filled when DQBUF
-*    @num_planes : num of planes for the frame buffer, to be
-*               filled during mem allocation
-*    @planes : plane info for the frame buffer, to be filled
-*               during mem allocation
+*    @plane_buf  : Frame plane defination
 *    @fd : file descriptor of the frame buffer, to be filled
 *        during mem allocation
 *    @buffer : pointer to the frame buffer, to be filled during
@@ -91,15 +115,18 @@
 *               mem allocation
 *    @mem_info : user specific pointer to additional mem info
 **/
-typedef struct {
+typedef struct mm_camera_buf_def {
     uint32_t stream_id;
     cam_stream_type_t stream_type;
+    cam_stream_buf_type buf_type;
     uint32_t buf_idx;
     uint8_t is_uv_subsampled;
     struct timespec ts;
     uint32_t frame_idx;
-    int8_t num_planes;
-    struct v4l2_plane planes[VIDEO_MAX_PLANES];
+    union {
+        mm_camera_plane_buf_def_t planes_buf;
+        mm_camera_user_buf_def_t user_buf;
+    };
     int fd;
     void *buffer;
     size_t frame_len;
@@ -168,6 +195,7 @@ typedef int32_t (*map_stream_buf_op_t) (uint32_t frame_idx,
                                         int32_t plane_idx,
                                         int fd,
                                         size_t size,
+                                        cam_mapping_buf_type type,
                                         void *userdata);
 
 /** unmap_stream_buf_op_t: function definition for operation of
@@ -181,6 +209,7 @@ typedef int32_t (*map_stream_buf_op_t) (uint32_t frame_idx,
 **/
 typedef int32_t (*unmap_stream_buf_op_t) (uint32_t frame_idx,
                                           int32_t plane_idx,
+                                          cam_mapping_buf_type type,
                                           void *userdata);
 
 /** mm_camera_map_unmap_ops_tbl_t: virtual table
@@ -210,6 +239,7 @@ typedef struct {
                        uint8_t *num_bufs,
                        uint8_t **initial_reg_flag,
                        mm_camera_buf_def_t **bufs,
+                       mm_camera_buf_def_t **plane_bufs,
                        mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                        void *user_data);
   int32_t (*put_bufs) (mm_camera_map_unmap_ops_tbl_t *ops_tbl,

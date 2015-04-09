@@ -1096,6 +1096,7 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
         free(super_frame);
         return;
     }
+
     mm_camera_buf_def_t *frame = super_frame->bufs[0];
 
     if (pme->needDebugFps()) {
@@ -1110,30 +1111,68 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
           frame->stream_id,
           frame->ts.tv_sec,
           frame->ts.tv_nsec);
-    nsecs_t timeStamp;
-    timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
-    CDBG("Send Video frame to services/encoder TimeStamp : %lld", timeStamp);
-    QCameraMemory *videoMemObj = (QCameraMemory *)frame->mem_info;
-    camera_memory_t *video_mem = NULL;
-    if (NULL != videoMemObj) {
-        video_mem = videoMemObj->getMemory(frame->buf_idx, (pme->mStoreMetaDataInFrame > 0)? true : false);
-    }
-    if (NULL != videoMemObj && NULL != video_mem) {
-        pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_VIDEO);
-        if ((pme->mDataCbTimestamp != NULL) &&
-            pme->msgTypeEnabledWithLock(CAMERA_MSG_VIDEO_FRAME) > 0) {
-            qcamera_callback_argm_t cbArg;
-            memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
-            cbArg.cb_type = QCAMERA_DATA_TIMESTAMP_CALLBACK;
-            cbArg.msg_type = CAMERA_MSG_VIDEO_FRAME;
-            cbArg.data = video_mem;
-            cbArg.timestamp = timeStamp;
-            int32_t rc = pme->m_cbNotifier.notifyCallback(cbArg);
-            if (rc != NO_ERROR) {
-                ALOGE("%s: fail sending data notify", __func__);
-                stream->bufDone(frame->buf_idx);
+
+    if (frame->buf_type == CAM_STREAM_BUF_TYPE_MPLANE) {
+        nsecs_t timeStamp;
+        timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
+        CDBG("Send Video frame to services/encoder TimeStamp : %lld",
+            timeStamp);
+        QCameraMemory *videoMemObj = (QCameraMemory *)frame->mem_info;
+        camera_memory_t *video_mem = NULL;
+        if (NULL != videoMemObj) {
+            video_mem = videoMemObj->getMemory(frame->buf_idx,
+                    (pme->mStoreMetaDataInFrame > 0)? true : false);
+        }
+        if (NULL != videoMemObj && NULL != video_mem) {
+            pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_VIDEO);
+            if ((pme->mDataCbTimestamp != NULL) &&
+                pme->msgTypeEnabledWithLock(CAMERA_MSG_VIDEO_FRAME) > 0) {
+                qcamera_callback_argm_t cbArg;
+                memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
+                cbArg.cb_type = QCAMERA_DATA_TIMESTAMP_CALLBACK;
+                cbArg.msg_type = CAMERA_MSG_VIDEO_FRAME;
+                cbArg.data = video_mem;
+                cbArg.timestamp = timeStamp;
+                int32_t rc = pme->m_cbNotifier.notifyCallback(cbArg);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s: fail sending data notify", __func__);
+                    stream->bufDone(frame->buf_idx);
+                }
             }
         }
+    } else {
+        for (int i = 0; i < super_frame->bufs[0]->user_buf.bufs_used; i++) {
+            frame = (mm_camera_buf_def_t *)stream->getFrameBuf(
+                    super_frame->bufs[0]->user_buf.buf_idx[i]);
+            nsecs_t timeStamp;
+            timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
+            CDBG_HIGH("Send Video frame to services/encoder TimeStamp : %lld",
+                    timeStamp);
+            QCameraMemory *videoMemObj = (QCameraMemory *)frame->mem_info;
+            camera_memory_t *video_mem = NULL;
+            if (NULL != videoMemObj) {
+                video_mem = videoMemObj->getMemory(frame->buf_idx,
+                        (pme->mStoreMetaDataInFrame > 0)? true : false);
+            }
+            if (NULL != videoMemObj && NULL != video_mem) {
+                pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_VIDEO);
+                if ((pme->mDataCbTimestamp != NULL) &&
+                        pme->msgTypeEnabledWithLock(CAMERA_MSG_VIDEO_FRAME) > 0) {
+                    qcamera_callback_argm_t cbArg;
+                    memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
+                    cbArg.cb_type = QCAMERA_DATA_TIMESTAMP_CALLBACK;
+                    cbArg.msg_type = CAMERA_MSG_VIDEO_FRAME;
+                    cbArg.data = video_mem;
+                    cbArg.timestamp = timeStamp;
+                    int32_t rc = pme->m_cbNotifier.notifyCallback(cbArg);
+                    if (rc != NO_ERROR) {
+                        ALOGE("%s: fail sending data notify", __func__);
+                        stream->bufDone(frame->buf_idx);
+                    }
+                }
+            }
+        }
+        super_frame->bufs[0]->user_buf.buf_in_use = 0;
     }
     free(super_frame);
     CDBG_HIGH("[KPI Perf] %s : END", __func__);

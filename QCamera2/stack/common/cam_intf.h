@@ -465,9 +465,14 @@ typedef struct {
 
     /* streaming type */
     cam_streaming_mode_t streaming_mode;
+
     /* num of frames needs to be generated.
      * only valid when streaming_mode = CAM_STREAMING_MODE_BURST */
     uint8_t num_of_burst;
+
+    /* num of frames in one batch.
+     * only valid when streaming_mode = CAM_STREAMING_MODE_BATCH */
+    cam_stream_user_buf_info_t user_buf_info;
 
     /* stream specific pp config */
     cam_pp_feature_config_t pp_config;
@@ -481,6 +486,7 @@ typedef struct {
 
     /* Image Stabilization type */
     cam_is_type_t is_type;
+
     /* Signifies Secure stream mode */
     cam_stream_secure_t is_secure;
 

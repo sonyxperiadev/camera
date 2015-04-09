@@ -202,22 +202,22 @@ int32_t QCamera3Memory::getBufDef(const cam_frame_len_offset_t &offset,
     bufDef.fd = mMemInfo[index].fd;
     bufDef.frame_len = mMemInfo[index].size;
     bufDef.mem_info = (void *)this;
-    bufDef.num_planes = (int8_t)offset.num_planes;
     bufDef.buffer = getPtr(index);
+    bufDef.planes_buf.num_planes = (int8_t)offset.num_planes;
     bufDef.buf_idx = (uint8_t)index;
 
     /* Plane 0 needs to be set separately. Set other planes in a loop */
-    bufDef.planes[0].length = offset.mp[0].len;
-    bufDef.planes[0].m.userptr = (long unsigned int)mMemInfo[index].fd;
-    bufDef.planes[0].data_offset = offset.mp[0].offset;
-    bufDef.planes[0].reserved[0] = 0;
-    for (int i = 1; i < bufDef.num_planes; i++) {
-         bufDef.planes[i].length = offset.mp[i].len;
-         bufDef.planes[i].m.userptr = (long unsigned int)mMemInfo[i].fd;
-         bufDef.planes[i].data_offset = offset.mp[i].offset;
-         bufDef.planes[i].reserved[0] =
-                 bufDef.planes[i-1].reserved[0] +
-                 bufDef.planes[i-1].length;
+    bufDef.planes_buf.planes[0].length = offset.mp[0].len;
+    bufDef.planes_buf.planes[0].m.userptr = (long unsigned int)mMemInfo[index].fd;
+    bufDef.planes_buf.planes[0].data_offset = offset.mp[0].offset;
+    bufDef.planes_buf.planes[0].reserved[0] = 0;
+    for (int i = 1; i < bufDef.planes_buf.num_planes; i++) {
+         bufDef.planes_buf.planes[i].length = offset.mp[i].len;
+         bufDef.planes_buf.planes[i].m.userptr = (long unsigned int)mMemInfo[i].fd;
+         bufDef.planes_buf.planes[i].data_offset = offset.mp[i].offset;
+         bufDef.planes_buf.planes[i].reserved[0] =
+                 bufDef.planes_buf.planes[i-1].reserved[0] +
+                 bufDef.planes_buf.planes[i-1].length;
     }
 
     return NO_ERROR;
