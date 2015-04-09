@@ -4050,6 +4050,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_NOISE_REDUCTION_STRENGTH, &fwk_noiseRedStrength, 1);
     }
 
+    IF_META_AVAILABLE(float, effectiveExposureFactor, CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR, metadata) {
+        camMetadata.update(ANDROID_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR, effectiveExposureFactor, 1);
+    }
+
     IF_META_AVAILABLE(cam_crop_region_t, hScalerCropRegion,
             CAM_INTF_META_SCALER_CROP_REGION, metadata) {
         int32_t scalerCropRegion[4];
@@ -6011,7 +6015,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             sizeof(available_edge_modes)/sizeof(available_edge_modes[0]));
 
     uint8_t available_noise_red_modes[] = {ANDROID_NOISE_REDUCTION_MODE_OFF,
-                                           ANDROID_NOISE_REDUCTION_MODE_FAST};
+                                           ANDROID_NOISE_REDUCTION_MODE_FAST,
+                                           ANDROID_NOISE_REDUCTION_MODE_MINIMAL};
     staticInfo.update(ANDROID_NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES,
             available_noise_red_modes,
             sizeof(available_noise_red_modes)/sizeof(available_noise_red_modes[0]));
@@ -7504,6 +7509,15 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 frame_settings.find(ANDROID_NOISE_REDUCTION_STRENGTH).data.u8[0];
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_NOISE_REDUCTION_STRENGTH,
                 noiseRedStrength)) {
+            rc = BAD_VALUE;
+        }
+    }
+
+    if (frame_settings.exists(ANDROID_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR)) {
+        float reprocessEffectiveExposureFactor =
+            frame_settings.find(ANDROID_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR).data.f[0];
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,
+                reprocessEffectiveExposureFactor)) {
             rc = BAD_VALUE;
         }
     }
