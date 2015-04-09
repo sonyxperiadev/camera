@@ -371,7 +371,6 @@ extern int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
                                  uint8_t *num_bufs,
                                  uint8_t **initial_reg_flag,
                                  mm_camera_buf_def_t **bufs,
-                                 mm_camera_buf_def_t **plane_bufs,
                                  mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                                  void *user_data);
 extern int32_t mm_app_stream_deinitbuf(mm_camera_map_unmap_ops_tbl_t *ops_tbl,

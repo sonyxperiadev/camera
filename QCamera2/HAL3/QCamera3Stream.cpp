@@ -51,7 +51,6 @@ namespace qcamera {
  *   @initial_reg_flag: flag to indicate if buffer needs to be registered
  *                      at kernel initially
  *   @bufs       : output of allocated buffers
- *   @plane_bufs       : individual plane buffers in case of user buf
  *   @ops_tbl    : ptr to buf mapping/unmapping ops
  *   @user_data  : user data ptr of ops_tbl
  *
@@ -64,7 +63,6 @@ int32_t QCamera3Stream::get_bufs(
                      uint8_t *num_bufs,
                      uint8_t **initial_reg_flag,
                      mm_camera_buf_def_t **bufs,
-                     mm_camera_buf_def_t **plane_bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                      void *user_data)
 {

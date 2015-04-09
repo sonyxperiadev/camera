@@ -110,7 +110,6 @@ public:
     uint8_t getBufferCount() { return mNumBufs; }
     uint32_t getChannelHandle() { return mChannelHandle; }
     int32_t getNumQueuedBuf();
-    void *getFrameBuf(int index);
 
     uint32_t mDumpFrame;
     uint32_t mDumpMetaFrame;
@@ -162,7 +161,6 @@ private:
                      uint8_t *num_bufs,
                      uint8_t **initial_reg_flag,
                      mm_camera_buf_def_t **bufs,
-                     mm_camera_buf_def_t **plane_bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                      void *user_data);
 
@@ -171,7 +169,6 @@ private:
             uint8_t *num_bufs,
             uint8_t **initial_reg_flag,
             mm_camera_buf_def_t **bufs,
-            mm_camera_buf_def_t **plane_bufs,
             mm_camera_map_unmap_ops_tbl_t *ops_tbl,
             void *user_data);
 
@@ -196,8 +193,8 @@ private:
     /* Used for deffered allocation of buffers */
     int32_t allocateBatchBufs(cam_frame_len_offset_t *offset,
             uint8_t *num_bufs, uint8_t **initial_reg_flag,
-            mm_camera_buf_def_t **bufs, mm_camera_buf_def_t **plane_bufs,
-            mm_camera_map_unmap_ops_tbl_t *ops_tbl);
+            mm_camera_buf_def_t **bufs, mm_camera_map_unmap_ops_tbl_t *ops_tbl);
+
     int32_t releaseBatchBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl);
 
     int32_t invalidateBuf(uint32_t index);
