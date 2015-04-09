@@ -6779,13 +6779,13 @@ int32_t QCameraParameters::configureFlash(cam_capture_frame_config_t &frame_conf
     } else if (mFlashValue != CAM_FLASH_MODE_OFF) {
         frame_config.num_batch = 1;
         for (i = 0; i < frame_config.num_batch; i++) {
-            frame_config.configs[i].num_frames = 1;
+            frame_config.configs[i].num_frames = getNumOfSnapshots();
             frame_config.configs[i].type = CAM_CAPTURE_FLASH;
             frame_config.configs[i].flash_mode =(cam_flash_mode_t)mFlashValue;
         }
     }
 
-    CDBG("%s: Chroma Flash cnt = %d", __func__,frame_config.num_batch);
+    CDBG("%s: Flash frame batch cnt = %d", __func__,frame_config.num_batch);
     return rc;
 }
 
@@ -6910,6 +6910,8 @@ int32_t QCameraParameters::configureAEBracketing(cam_capture_frame_config_t &fra
 int32_t QCameraParameters::configFrameCapture(bool commitSettings)
 {
     int32_t rc = NO_ERROR;
+    int32_t value;
+
     memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
 
     if (commitSettings) {
@@ -6919,7 +6921,16 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
         }
     }
 
-    if (isChromaFlashEnabled() || mFlashValue != CAM_FLASH_MODE_OFF) {
+    if (isHDREnabled() || m_bAeBracketingEnabled || m_bAFBracketingOn ||
+          m_bOptiZoomOn || m_bReFocusOn) {
+        value = CAM_FLASH_MODE_OFF;
+    } else if (isChromaFlashEnabled()) {
+        value = CAM_FLASH_MODE_ON;
+    } else {
+        value = mFlashValue;
+    }
+
+    if (value != CAM_FLASH_MODE_OFF) {
         configureFlash(m_captureFrameConfig);
     } else if(isHDREnabled()) {
         configureHDRBracketing (m_captureFrameConfig);
@@ -6975,7 +6986,7 @@ int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
             CDBG_HIGH("%s: Failed to enable tone map during HDR/AEBracketing", __func__);
         }
         rc = stopAEBracket();
-    } else if (isChromaFlashEnabled()) {
+    } else if ((isChromaFlashEnabled()) || (mFlashValue != CAM_FLASH_MODE_OFF)) {
         rc = setToneMapMode(true, false);
         if (rc != NO_ERROR) {
             CDBG_HIGH("%s: Failed to enable tone map during chroma flash", __func__);
@@ -9653,7 +9664,7 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
       }
     }
     if (burstCount <= 0) {
-        burstCount = 1;
+        burstCount = getNumOfSnapshots();
     }
 
     CDBG_HIGH("%s: Snapshot burst count = %d", __func__, burstCount);
