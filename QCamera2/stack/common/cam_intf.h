@@ -386,6 +386,9 @@ typedef struct{
       the decimal representation of a percentage
       ex: 10% margin = 0.1 */
     float supported_is_type_margins[IS_TYPE_MAX];
+
+    /* Max cpp batch size */
+    uint8_t max_batch_bufs_supported;
 } cam_capability_t;
 
 typedef enum {
