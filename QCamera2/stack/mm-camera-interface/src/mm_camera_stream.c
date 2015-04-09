@@ -27,6 +27,7 @@
  *
  */
 
+#include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
 #include <sys/ioctl.h>

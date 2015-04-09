@@ -34,6 +34,8 @@
 #define __CAMLIST_H
 
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define member_of(ptr, type, member) ({ \
   const typeof(((type *)0)->member) *__mptr = (ptr); \
