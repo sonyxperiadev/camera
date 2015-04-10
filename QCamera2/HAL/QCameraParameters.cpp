@@ -8918,7 +8918,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             int rawFormat;
             memset(raw_format, 0, sizeof(raw_format));
             /*Default value is CAM_FORMAT_BAYER_QCOM_RAW_10BPP_GBRG*/
-            property_get("persist.camera.raw.format", raw_format, "16");
+            property_get("persist.camera.raw.format", raw_format, "17");
             rawFormat = atoi(raw_format);
             format = (cam_format_t)rawFormat;
             CDBG_HIGH("%s: Raw stream format %d bundled with snapshot",

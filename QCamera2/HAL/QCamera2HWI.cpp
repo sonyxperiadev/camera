@@ -3785,7 +3785,7 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *r
         stopPreview();
 
         //getting the existing raw format type
-        property_get("persist.camera.raw.format", raw_format, "16");
+        property_get("persist.camera.raw.format", raw_format, "17");
         //setting it to a default know value for this task
         property_set("persist.camera.raw.format", "18");
 
