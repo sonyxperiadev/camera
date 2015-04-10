@@ -1967,6 +1967,7 @@ typedef struct {
     uint8_t burst_count;
     uint8_t output_count;
     uint8_t flash_bracketing[CAM_MAX_FLASH_BRACKETING];
+    uint8_t metadata_index;
 } cam_chroma_flash_t;
 
 typedef enum {
