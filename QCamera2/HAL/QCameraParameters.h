@@ -1055,6 +1055,8 @@ private:
 
     cam_capture_frame_config_t m_captureFrameConfig;
     int8_t mBufBatchCnt;
+
+    uint32_t mRotation;
 };
 
 }; // namespace qcamera
