@@ -1460,7 +1460,7 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
             CAM_INTF_META_NOISE_REDUCTION_MODE, prmDenoise);
 
     //rotation & device rotation
-    uint32_t prmRotation = getJpegRotation();
+    uint32_t prmRotation = mParameters.getJpegRotation();
     cam_rotation_info_t rotation_info;
     if (prmRotation == 0) {
        rotation_info.rotation = ROTATE_0;
@@ -1472,7 +1472,7 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
        rotation_info.rotation = ROTATE_270;
     }
 
-    uint32_t device_rotation = getDeviceRotation();
+    uint32_t device_rotation = mParameters.getDeviceRotation();
     if (device_rotation == 0) {
         rotation_info.device_rotation = ROTATE_0;
     } else if (device_rotation == 90) {
