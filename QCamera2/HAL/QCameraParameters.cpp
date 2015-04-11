@@ -934,6 +934,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mZoomLevel = 0;
     mParmZoomLevel = 0;
     mCurPPCount = 0;
+    mBufBatchCnt = 0;
 }
 
 /*===========================================================================
@@ -2076,6 +2077,9 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
                 __func__, mHfrMode, min_fps, max_fps);
     }
 
+    m_hfrFpsRange.min_fps = (float)parm_minfps;
+    m_hfrFpsRange.max_fps = (float)parm_maxfps;
+
     // Remember if HFR mode is ON
     if ((mHfrMode > CAM_HFR_MODE_OFF) && (mHfrMode < CAM_HFR_MODE_MAX)) {
         CDBG_HIGH("HFR mode is ON");
@@ -2086,6 +2090,13 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
         m_bHfrMode = false;
         CDBG_HIGH("HFR mode is OFF");
     }
+
+    if (m_bHfrMode && (mHfrMode > CAM_HFR_MODE_120FPS)
+            && (parm_maxfps != 0)) {
+        /* Setting Buffer batch count to use batch mode for higher fps*/
+        setBufBatchCount((int8_t)(m_hfrFpsRange.video_max_fps / parm_maxfps));
+    }
+
     return updateNeeded;
 }
 
@@ -5672,9 +5683,6 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
               __func__, fps_range.min_fps, fps_range.max_fps,
               fps_range.video_min_fps, fps_range.video_max_fps);
     }
-
-    /* Setting Buffer batch count to use batch mode for higher fps*/
-    setBufBatchCount((int8_t)(fps_range.video_max_fps / fps_range.max_fps));
 
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
         return BAD_VALUE;
