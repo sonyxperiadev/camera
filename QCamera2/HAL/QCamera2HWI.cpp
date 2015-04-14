@@ -1225,7 +1225,6 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mJpegHandleOwner(false)
 {
 #ifdef TARGET_TS_MAKEUP
-    mMakeUpBuf = NULL;
     memset(&mFaceRect, -1, sizeof(mFaceRect));
 #endif
     getLogLevel();
@@ -2744,14 +2743,6 @@ int QCamera2HardwareInterface::startPreview()
     }
 
     updatePostPreviewParameters();
-#ifdef TARGET_TS_MAKEUP
-    if (mMakeUpBuf == NULL) {
-        int pre_width, pre_height;
-        mParameters.getPreviewSize(&pre_width, &pre_height);
-        mMakeUpBuf = new unsigned char[pre_width*pre_height*3/2];
-        CDBG_HIGH("prewidht=%d,preheight=%d",pre_width, pre_height);
-    }
-#endif
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
@@ -2790,10 +2781,6 @@ int QCamera2HardwareInterface::stopPreview()
     m_cbNotifier.flushPreviewNotifications();
     //add for ts makeup
 #ifdef TARGET_TS_MAKEUP
-    if (mMakeUpBuf) {
-        delete []mMakeUpBuf;
-        mMakeUpBuf=NULL;
-    }
     ts_makeup_finish();
 #endif
     // delete all channels from preparePreview
