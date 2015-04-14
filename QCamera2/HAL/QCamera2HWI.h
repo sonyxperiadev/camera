@@ -705,12 +705,9 @@ private:
    //ts add for makeup
 #ifdef TARGET_TS_MAKEUP
     TSRect mFaceRect;
-    unsigned char *mMakeUpBuf;
-    int yuvDataRelocate(uint8_t* pSrcBuffer,uint8_t* pDstBuffer,cam_frame_len_offset_t offset);
-    int yuvDataRecover(uint8_t* pSrcBuffer,uint8_t* pDstBuffer,cam_frame_len_offset_t offset);
     bool TsMakeupProcess_Preview(mm_camera_buf_def_t *pFrame,QCameraStream * pStream);
     bool TsMakeupProcess_Snapshot(mm_camera_buf_def_t *pFrame,QCameraStream * pStream);
-    bool TsMakeupProcess(mm_camera_buf_def_t *frame,QCameraStream * stream,unsigned char *makeupOutBuf,TSRect& faceRect);
+    bool TsMakeupProcess(mm_camera_buf_def_t *frame,QCameraStream * stream,TSRect& faceRect);
 #endif
 };
 
