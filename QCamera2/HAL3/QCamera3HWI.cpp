@@ -843,9 +843,23 @@ int QCamera3HardwareInterface::validateStreamDimensions(
  * RETURN     : Boolen true/false decision
  *
  *==========================================================================*/
-bool QCamera3HardwareInterface::isSupportChannelNeeded(camera3_stream_configuration_t *streamList)
+bool QCamera3HardwareInterface::isSupportChannelNeeded(camera3_stream_configuration_t *streamList,
+        size_t numStreamsOnEncoder, bool bUseCommonFeatureMask,uint32_t commonFeatureMask)
 {
     uint32_t i;
+    uint32_t numOutputStreams = 0;
+
+    /* Check for condition where PProc pipeline does not have any streams*/
+    for (i=0; i<streamList->num_streams; i++) {
+        if (streamList->streams[i]->stream_type != CAMERA3_STREAM_INPUT) {
+            numOutputStreams++;
+        }
+    }
+    if (numStreamsOnEncoder == numOutputStreams &&
+            bUseCommonFeatureMask &&
+            commonFeatureMask == CAM_QCOM_FEATURE_NONE) {
+        return true;
+    }
 
     /* Dummy stream needed if only raw or jpeg streams present */
     for (i = 0;i < streamList->num_streams;i++) {
@@ -1379,7 +1393,8 @@ int QCamera3HardwareInterface::configureStreams(
         }
     }
 
-    if (isSupportChannelNeeded(streamList)) {
+    if (isSupportChannelNeeded(streamList, numStreamsOnEncoder, bUseCommonFeatureMask,
+            commonFeatureMask)) {
         mSupportChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mCameraHandle->ops,
@@ -1448,7 +1463,6 @@ int QCamera3HardwareInterface::configureStreams(
                      mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
                              newStream->width;
                 }
-
             }
             break;
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
@@ -1470,10 +1484,16 @@ int QCamera3HardwareInterface::configureStreams(
                     }
                 }
                 if (isZsl) {
-                    mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
-                            (int32_t)gCamCapability[mCameraId]->active_array_size.width;
-                    mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
-                            (int32_t)gCamCapability[mCameraId]->active_array_size.height;
+                    if (zslStream) {
+                        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
+                                (int32_t)zslStream->width;
+                        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
+                                (int32_t)zslStream->height;
+                    } else {
+                        ALOGE("%s: Error, No ZSL stream identified",__func__);
+                        pthread_mutex_unlock(&mMutex);
+                        return -EINVAL;
+                    }
                 } else if (m_bIs4KVideo) {
                     mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width = (int32_t)videoWidth;
                     mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height = (int32_t)videoHeight;
