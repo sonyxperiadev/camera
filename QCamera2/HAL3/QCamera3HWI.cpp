@@ -49,6 +49,7 @@
 #include "QCamera3Channel.h"
 #include "QCamera3PostProc.h"
 #include "QCamera3VendorTags.h"
+#include <cutils/properties.h>
 
 using namespace android;
 
@@ -1165,51 +1166,70 @@ int QCamera3HardwareInterface::configureStreams(
             mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
             mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
         } else {
-           //for non zsl streams find out the format
-           switch (newStream->format) {
-           case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED :
-              {
-                 if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
+            //for non zsl streams find out the format
+            switch (newStream->format) {
+            case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED :
+            {
+                char feature_mask_value[PROPERTY_VALUE_MAX];
+                uint32_t feature_mask;
+                int args_converted;
+                int property_len;
+
+                property_len = property_get("persist.camera.hal3.prv.feature",
+                        feature_mask_value, "0");
+                if ((property_len > 2) && (feature_mask_value[0] == '0') &&
+                        (feature_mask_value[1] == 'x')) {
+                    args_converted = sscanf(feature_mask_value, "0x%x", &feature_mask);
+                } else {
+                    args_converted = sscanf(feature_mask_value, "%d", &feature_mask);
+                }
+                if (1 != args_converted) {
+                    feature_mask = 0;
+                    ALOGE("%s: Wrong feature mask setting: %s", __func__, feature_mask_value);
+                }
+
+                if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
                     mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_VIDEO;
-                 } else {
+                } else {
                     mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_PREVIEW;
-                 }
-                 mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-              }
-              break;
-           case HAL_PIXEL_FORMAT_YCbCr_420_888:
-              mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_CALLBACK;
-              mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-              break;
-           case HAL_PIXEL_FORMAT_BLOB:
-              mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
-              if (m_bIs4KVideo && !isZsl) {
-                  mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-              } else {
-                  if (bUseCommonFeatureMask &&
-                          (((int32_t)newStream->width > maxViewfinderSize.width) ||
-                                  ((int32_t)newStream->height > maxViewfinderSize.height))) {
-                      mStreamConfigInfo.postprocess_mask[i] = commonFeatureMask;
-                  } else {
-                      mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
-                  }
-              }
-              if (m_bIs4KVideo) {
-                  mStreamConfigInfo.stream_sizes[i].width = (int32_t)videoWidth;
-                  mStreamConfigInfo.stream_sizes[i].height = (int32_t)videoHeight;
-              }
-              break;
-           case HAL_PIXEL_FORMAT_RAW_OPAQUE:
-           case HAL_PIXEL_FORMAT_RAW16:
-           case HAL_PIXEL_FORMAT_RAW10:
-              mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_RAW;
-              isRawStreamRequested = true;
-              break;
-           default:
-              mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_DEFAULT;
-              mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
-              break;
-           }
+                }
+                mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                mStreamConfigInfo.postprocess_mask[i] |= feature_mask;
+            }
+            break;
+            case HAL_PIXEL_FORMAT_YCbCr_420_888:
+                mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_CALLBACK;
+                mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+            break;
+            case HAL_PIXEL_FORMAT_BLOB:
+                mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
+                if (m_bIs4KVideo && !isZsl) {
+                    mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                } else {
+                    if (bUseCommonFeatureMask &&
+                            (((int32_t)newStream->width > maxViewfinderSize.width) ||
+                                    ((int32_t)newStream->height > maxViewfinderSize.height))) {
+                        mStreamConfigInfo.postprocess_mask[i] = commonFeatureMask;
+                    } else {
+                        mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
+                    }
+                }
+                if (m_bIs4KVideo) {
+                    mStreamConfigInfo.stream_sizes[i].width = (int32_t)videoWidth;
+                    mStreamConfigInfo.stream_sizes[i].height = (int32_t)videoHeight;
+                }
+                break;
+            case HAL_PIXEL_FORMAT_RAW_OPAQUE:
+            case HAL_PIXEL_FORMAT_RAW16:
+            case HAL_PIXEL_FORMAT_RAW10:
+                mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_RAW;
+                isRawStreamRequested = true;
+                break;
+            default:
+                mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_DEFAULT;
+                mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
+                break;
+            }
         }
         if (newStream->priv == NULL) {
             //New stream, construct channel
