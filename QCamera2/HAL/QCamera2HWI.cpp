@@ -1782,8 +1782,7 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                     cam_format_t fmt;
                     mParameters.getStreamFormat(CAM_STREAM_TYPE_PREVIEW,fmt);
                     if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
-                        //@TODO : Enable when Display team define UBWC usage flag
-                        //usage = GRALLOC_USAGE_PRIVATE_ALLOC_UBWC ;
+                        usage = GRALLOC_USAGE_PRIVATE_ALLOC_UBWC ;
                     }
                 }
                 if (grallocMemory) {

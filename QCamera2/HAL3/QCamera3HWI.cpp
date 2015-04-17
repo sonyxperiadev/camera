@@ -1342,10 +1342,9 @@ int QCamera3HardwareInterface::configureStreams(
             {
                 QCamera3Channel *channel = (QCamera3Channel*) newStream->priv;
                 cam_format_t fmt =
-                        channel->getStreamDefaultFormat(stream_config_info.type[i]);
+                        channel->getStreamDefaultFormat(mStreamConfigInfo.type[i]);
                 if(fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
-                    //TODO : Enable when Display team define UBWC usage flag
-                    //newStream->usage |= GRALLOC_USAGE_PRIVATE_ALLOC_UBWC;
+                    newStream->usage |= GRALLOC_USAGE_PRIVATE_ALLOC_UBWC;
                 }
             }
 #endif
