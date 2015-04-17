@@ -579,6 +579,7 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
     out_size = main_offset.frame_len;
     if (mJpegMemOpt) {
         encode_parm.get_memory = getJpegMemory;
+        encode_parm.put_memory = releaseJpegMemory;
         out_size = sizeof(omx_jpeg_ouput_buf_t);
         encode_parm.num_dst_bufs = encode_parm.num_src_bufs;
     }
@@ -2987,6 +2988,32 @@ int QCameraPostProcessor::getJpegMemory(omx_jpeg_ouput_buf_t *out_buf)
     out_buf->vaddr = cam_mem->data;
 
     return 0;
+}
+
+/*===========================================================================
+ * FUNCTION   : releaseJpegMemory
+ *
+ * DESCRIPTION: release jpeg memory function
+ *   to pass to jpeg interface, in case of abort
+ *
+ * PARAMETERS :
+ *   @out_buf : buffer descriptor struct
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCameraPostProcessor::releaseJpegMemory(omx_jpeg_ouput_buf_t *out_buf)
+{
+    if (out_buf && out_buf->mem_hdl) {
+      ALOGD("%s: releasing jpeg out buffer of size: %d", __func__, out_buf->size);
+      camera_memory_t *cam_mem = (camera_memory_t*)out_buf->mem_hdl;
+      cam_mem->release(cam_mem);
+      out_buf->mem_hdl = NULL;
+      out_buf->vaddr = NULL;
+      return NO_ERROR;
+    }
+    return -1;
 }
 
 /*===========================================================================

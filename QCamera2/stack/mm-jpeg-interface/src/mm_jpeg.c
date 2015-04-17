@@ -551,6 +551,92 @@ OMX_ERRORTYPE mm_jpeg_speed_mode(
   return rc;
 }
 
+/** mm_jpeg_get_mem:
+ *
+ *  Arguments:
+ *    @p_out_buf : jpeg output buffer
+ *    @p_jpeg_session: job session
+ *
+ *  Return:
+ *       0 for success else failure
+ *
+ *  Description:
+ *      gets the jpeg output buffer
+ *
+ **/
+static int32_t mm_jpeg_get_mem(
+  omx_jpeg_ouput_buf_t *p_out_buf, void* p_jpeg_session)
+{
+  int32_t rc = 0;
+  mm_jpeg_job_session_t *p_session = (mm_jpeg_job_session_t *)p_jpeg_session;
+  mm_jpeg_encode_params_t *p_params = NULL;
+  mm_jpeg_encode_job_t *p_encode_job = NULL;
+
+  if (!p_session) {
+    CDBG_ERROR("%s:%d] Invalid input", __func__, __LINE__);
+    return -1;
+  }
+  p_params = &p_session->params;
+  p_encode_job = &p_session->encode_job;
+  if (!p_params || !p_encode_job || !p_params->get_memory) {
+    CDBG_ERROR("%s:%d] Invalid jpeg encode params", __func__, __LINE__);
+    return -1;
+  }
+  p_params->get_memory(p_out_buf);
+  p_encode_job->ref_count++;
+  p_encode_job->alloc_out_buffer = p_out_buf;
+  CDBG("%s, %d] ref_count %d p_out_buf %p", __func__, __LINE__,
+    p_encode_job->ref_count, p_out_buf);
+  return rc;
+}
+
+/** mm_jpeg_put_mem:
+ *
+ *  Arguments:
+ *    @p_jpeg_session: job session
+ *
+ *  Return:
+ *       0 for success else failure
+ *
+ *  Description:
+ *      releases the jpeg output buffer
+ *
+ **/
+static int32_t mm_jpeg_put_mem(void* p_jpeg_session)
+{
+  int32_t rc = 0;
+  mm_jpeg_job_session_t *p_session = (mm_jpeg_job_session_t *)p_jpeg_session;
+  mm_jpeg_encode_params_t *p_params = NULL;
+  mm_jpeg_encode_job_t *p_encode_job = NULL;
+
+  if (!p_session) {
+    CDBG_ERROR("%s:%d] Invalid input", __func__, __LINE__);
+    return -1;
+  }
+  p_params = &p_session->params;
+  p_encode_job = &p_session->encode_job;
+  if (!p_params || !p_encode_job || !p_params->put_memory) {
+    CDBG_ERROR("%s:%d] Invalid jpeg encode params", __func__, __LINE__);
+    return -1;
+  }
+  if ((MM_JPEG_ABORT_NONE != p_session->abort_state) &&
+    p_encode_job->ref_count) {
+    omx_jpeg_ouput_buf_t *p_out_buf =
+      ( omx_jpeg_ouput_buf_t *) p_encode_job->alloc_out_buffer;
+    p_params->put_memory(p_out_buf);
+    p_encode_job->ref_count--;
+    p_encode_job->alloc_out_buffer = NULL;
+  } else if (p_encode_job->ref_count) {
+    p_encode_job->ref_count--;
+  } else {
+    CDBG_ERROR("%s:%d] Buffer already released %d",
+      __func__, __LINE__, p_encode_job->ref_count);
+    rc = -1;
+  }
+  CDBG("%s, %d] ref_count %d p_out_buf %p", __func__, __LINE__,
+    p_encode_job->ref_count, p_encode_job->alloc_out_buffer);
+  return rc;
+}
 
 /** mm_jpeg_mem_ops:
  *
@@ -573,8 +659,8 @@ OMX_ERRORTYPE mm_jpeg_mem_ops(
   QOMX_MEM_OPS mem_ops;
   mm_jpeg_encode_params_t *p_params = &p_session->params;
 
-  mem_ops.get_memory = p_params->get_memory;
-
+  mem_ops.get_memory = mm_jpeg_get_mem;
+  mem_ops.psession = p_session;
   rc = OMX_GetExtensionIndex(p_session->omx_handle,
     QOMX_IMAGE_EXT_MEM_OPS_NAME, &indextype);
   if (rc != OMX_ErrorNone) {
@@ -1224,15 +1310,17 @@ OMX_BOOL mm_jpeg_session_abort(mm_jpeg_job_session_t *p_session)
     pthread_mutex_unlock(&p_session->lock);
 
     ret = OMX_SendCommand(p_session->omx_handle, OMX_CommandStateSet,
-    OMX_StateIdle, NULL);
+      OMX_StateIdle, NULL);
 
     if (ret != OMX_ErrorNone) {
-      CDBG_ERROR("%s:%d] OMX_SendCommand returned error %d", __func__, __LINE__, ret);
+      CDBG_ERROR("%s:%d] OMX_SendCommand returned error %d",
+        __func__, __LINE__, ret);
       return 1;
     }
     rc = mm_jpegenc_destroy_job(p_session);
     if (rc != 0) {
-      CDBG_ERROR("%s:%d] Destroy job returned error %d", __func__, __LINE__, rc);
+      CDBG_ERROR("%s:%d] Destroy job returned error %d",
+        __func__, __LINE__, rc);
     }
 
     pthread_mutex_lock(&p_session->lock);
@@ -1243,8 +1331,10 @@ OMX_BOOL mm_jpeg_session_abort(mm_jpeg_job_session_t *p_session)
     CDBG("%s:%d] after wait", __func__, __LINE__);
   }
   p_session->abort_state = MM_JPEG_ABORT_DONE;
-  pthread_mutex_unlock(&p_session->lock);
 
+  mm_jpeg_put_mem((void *)p_session);
+
+  pthread_mutex_unlock(&p_session->lock);
 
   // Abort next session
   if (p_session->next_session) {
@@ -2777,6 +2867,7 @@ OMX_ERRORTYPE mm_jpeg_fbd(OMX_HANDLETYPE hComponent,
 
     mm_jpegenc_job_done(p_session);
 
+    mm_jpeg_put_mem((void *)p_session);
   }
   pthread_mutex_unlock(&p_session->lock);
   CDBG("%s:%d] ", __func__, __LINE__);

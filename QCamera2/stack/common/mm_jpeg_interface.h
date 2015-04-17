@@ -174,6 +174,9 @@ typedef struct {
 
   /* get memory function ptr */
   int (*get_memory)( omx_jpeg_ouput_buf_t *p_out_buf);
+
+  /* release memory function ptr */
+  int (*put_memory)( omx_jpeg_ouput_buf_t *p_out_buf);
 } mm_jpeg_encode_params_t;
 
 typedef struct {
@@ -212,6 +215,12 @@ typedef struct {
 
   /*session id*/
   uint32_t session_id;
+
+  /* jpeg output buffer ref count */
+  int32_t ref_count;
+
+  /* allocated jpeg output buffer */
+  void *alloc_out_buffer;
 
   /*Metadata stream*/
   metadata_buffer_t *p_metadata;
