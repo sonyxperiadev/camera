@@ -1196,13 +1196,14 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
                 m_parent->mParameters.isFaceDetectionEnabled());
     }
 #endif
-    if (m_parent->isLongshotEnabled() &&
-            !m_parent->isCaptureShutterEnabled()) {
+    if ((m_parent->isLongshotEnabled())
+            && (!m_parent->isCaptureShutterEnabled())
+            && (!m_parent->mCACDoneReceived)) {
         // play shutter sound for longshot
         // after reprocess is done
-        // TODO: Move this after CAC done event
         m_parent->playShutter();
     }
+    m_parent->mCACDoneReceived = FALSE;
 
     int8_t mCurReprocCount = job->reprocCount;
     if ( mCurReprocCount > 1 ) {
