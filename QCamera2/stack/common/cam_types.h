@@ -125,7 +125,8 @@ typedef enum {
 
 typedef enum {
     CAM_POSITION_BACK,
-    CAM_POSITION_FRONT
+    CAM_POSITION_FRONT,
+    CAM_POSITION_BACK_AUX
 } cam_position_t;
 
 typedef enum {
@@ -330,6 +331,7 @@ typedef enum {
     /* followings are per camera */
     CAM_MAPPING_BUF_TYPE_CAPABILITY,  /* mapping camera capability buffer */
     CAM_MAPPING_BUF_TYPE_PARM_BUF,    /* mapping parameters buffer */
+    CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF, /* mapping sync buffer */
 
     /* followings are per stream */
     CAM_MAPPING_BUF_TYPE_STREAM_BUF,        /* mapping stream buffers */
@@ -1093,6 +1095,10 @@ typedef struct {
     float diopter;
 } cam_focus_pos_info_t ;
 
+typedef struct {
+    float focalLengthRatio;
+}   cam_focal_length_ratio_t;
+
 /* Different autofocus cycle when calling do_autoFocus
  * CAM_AF_COMPLETE_EXISTING_SWEEP: Complete existing sweep
  * if one is ongoing, and lock.
@@ -1133,6 +1139,8 @@ typedef struct {
 
 typedef struct {
     uint32_t stream_id;
+    uint32_t frame_id;
+    struct timeval timestamp;
     cam_rect_t crop;
     cam_rect_t roi_map;
 } cam_stream_crop_info_t;
@@ -1338,6 +1346,18 @@ typedef struct {
     int32_t buf_idx;
 } cam_cac_info_t;
 
+typedef struct
+{
+  uint32_t id;            /* Frame ID */
+  long long timestamp;    /* Time stamp */
+  int32_t distance_in_mm; /* Distance of object in ROI's in mili meters */
+  int32_t confidence;     /* Confidence on distance from 0(No confidence)to 1024(max) */
+  uint32_t status;        /* Status of DCRF library execution call */
+  cam_rect_t focused_roi; /* ROI's for which distance is estimated */
+  uint32_t focused_x;     /* Focus location X inside ROI with distance estimation */
+  uint32_t focused_y;     /* Focus location Y inside ROI with distance estimation */
+} cam_dcrf_result_t;
+
 typedef  struct {
     uint8_t is_stats_valid;               /* if histgram data is valid */
     cam_hist_stats_t stats_data;          /* histogram data */
@@ -1429,6 +1449,9 @@ typedef  struct {
 
     uint8_t is_chromatix_lite_af_stats_valid;
     cam_chromatix_lite_af_stats_t chromatix_lite_af_stats_data;
+
+    uint8_t is_dcrf_result_valid;
+    cam_dcrf_result_t dcrf_result;
 } cam_metadata_info_t;
 
 typedef enum {
@@ -1736,6 +1759,23 @@ typedef enum {
     /* IMG LIB reprocess debug section */
     CAM_INTF_META_IMGLIB, /* cam_intf_meta_imglib_t */
 
+    /* parameters added for related cameras */
+    /* fetch calibration info for related cam subsystem */
+    CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION,
+    /* focal length ratio info */
+    CAM_INTF_META_AF_FOCAL_LENGTH_RATIO,
+    /* crop for binning & FOV adjust        */
+    CAM_INTF_META_SNAP_CROP_INFO_SENSOR,
+    /* crop for trimming edge pixels        */
+    CAM_INTF_META_SNAP_CROP_INFO_CAMIF,
+    /* crop for FOV adjust and zoom (part 1 of 2) */
+    CAM_INTF_META_SNAP_CROP_INFO_ISP,
+    /* crop for image-stabilization and zoom (part 2 of 2) */
+    CAM_INTF_META_SNAP_CROP_INFO_CPP,
+    /* parameter for enabling DCRF */
+    CAM_INTF_PARM_DCRF,
+    /* metadata tag for DCRF info*/
+    CAM_INTF_META_DCRF,
     CAM_INTF_PARM_MAX /* 180 */
 } cam_intf_parm_type_t;
 
@@ -1948,7 +1988,8 @@ typedef struct {
 #define CAM_QCOM_FEATURE_LLVD           (1U<<20)
 #define CAM_QCOM_FEATURE_DIS20          (1U<<21)
 #define CAM_QCOM_FEATURE_STILLMORE      (1U<<22)
-#define CAM_QCOM_FEATURE_MAX            (1U<<23)
+#define CAM_QCOM_FEATURE_DCRF           (1U<<23)
+#define CAM_QCOM_FEATURE_MAX            (1U<<24)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC)

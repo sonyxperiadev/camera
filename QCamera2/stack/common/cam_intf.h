@@ -33,7 +33,7 @@
 #include <media/msmb_isp.h>
 #include "cam_types.h"
 
-#define CAM_PRIV_IOCTL_BASE (V4L2_CID_PRIVATE_BASE + 14)
+#define CAM_PRIV_IOCTL_BASE (V4L2_CID_PRIVATE_BASE + MSM_CAMERA_PRIV_CMD_MAX)
 typedef enum {
     /* session based parameters */
     CAM_PRIV_PARM = CAM_PRIV_IOCTL_BASE,
@@ -51,6 +51,8 @@ typedef enum {
     CAM_PRIV_START_ZSL_SNAPSHOT,
     /* stop ZSL snapshot.*/
     CAM_PRIV_STOP_ZSL_SNAPSHOT,
+    /* event for related sensors synchronization. */
+    CAM_PRIV_SYNC_RELATED_SENSORS
 } cam_private_ioctl_enum_t;
 
 /* capability struct definition for HAL 1*/
@@ -421,6 +423,66 @@ typedef struct {
     uint32_t flip_mask;
 } cam_flip_mode_t;
 
+typedef enum {
+    CAM_SYNC_RELATED_SENSORS_ON,
+    CAM_SYNC_RELATED_SENSORS_OFF
+} cam_sync_related_sensors_control_t;
+
+typedef enum {
+    CAM_MODE_PRIMARY = 0,
+    CAM_MODE_SECONDARY
+} cam_sync_mode_t;
+
+typedef enum {
+    CAM_TYPE_MAIN = 0,
+    CAM_TYPE_AUX
+} cam_sync_type_t;
+
+typedef struct {
+    cam_sync_related_sensors_control_t sync_control;
+    cam_sync_type_t type;
+    cam_sync_mode_t mode;
+    uint32_t related_sensor_session_id;
+}cam_sync_related_sensors_event_info_t;
+
+typedef struct {
+    /*Focal length in pixels @ calibration resolution.*/
+    float       normalized_focal_length;
+    /*Native sensor resolution W that was used to capture calibration image*/
+    uint16_t    native_sensor_resolution_width;
+    /*Native sensor resolution H that was used to capture calibration image*/
+    uint16_t    native_sensor_resolution_height;
+    /*Image size W used internally by calibration tool*/
+    uint16_t    calibration_sensor_resolution_width;
+    /*Image size H used internally by calibration tool*/
+    uint16_t    calibration_sensor_resolution_height;
+    /*Focal length ratio @ Calibration*/
+    float       focal_length_ratio;
+}cam_related_sensor_calibration_data_t;
+
+typedef struct {
+    /*Version information */
+    float      calibration_format_version;
+    /*Main Camera Calibration*/
+    cam_related_sensor_calibration_data_t  main_cam_specific_calibration;
+    /*Aux Camera calibration*/
+    cam_related_sensor_calibration_data_t  aux_cam_specific_calibration;
+    /*Relative viewpoint matching matrix w.r.t Main*/
+    float      relative_rotation_matrix[9];
+    /*Relative geometric surface description parameters*/
+    float      relative_geometric_surface_parameters[32];
+    /*Relative offset of sensor center from optical axis along horizontal dimension*/
+    float      relative_principle_point_x_offset;
+    /*Relative offset of sensor center from optical axis along vertical dimension*/
+    float      relative_principle_point_y_offset;
+    /*0=Main Camera is on the left of Aux; 1=Main Camera is on the right of Aux*/
+    uint16_t   relative_position_flag;
+    /*Camera separation in mm*/
+    float      relative_baseline_distance;
+    /*Reserved for future use*/
+    float      extra_padding[64];
+}cam_related_system_calibration_data_t;
+
 #define IMG_NAME_SIZE 32
 typedef struct {
     cam_rect_t crop;  /* crop info for the image */
@@ -667,6 +729,15 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_DIS_ENABLE,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_LED_MODE,                     int32_t,                     1);
     INCLUDE(CAM_INTF_META_LED_MODE_OVERRIDE,            uint32_t,                    1);
+
+    /* dual camera specific params */
+    INCLUDE(CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION,  cam_related_system_calibration_data_t, 1);
+    INCLUDE(CAM_INTF_META_AF_FOCAL_LENGTH_RATIO,        cam_focal_length_ratio_t, 1);
+    INCLUDE(CAM_INTF_META_SNAP_CROP_INFO_SENSOR,        cam_stream_crop_info_t,   1);
+    INCLUDE(CAM_INTF_META_SNAP_CROP_INFO_CAMIF,         cam_stream_crop_info_t,   1);
+    INCLUDE(CAM_INTF_META_SNAP_CROP_INFO_ISP,           cam_stream_crop_info_t,   1);
+    INCLUDE(CAM_INTF_META_SNAP_CROP_INFO_CPP,           cam_stream_crop_info_t,   1);
+    INCLUDE(CAM_INTF_META_DCRF,                         cam_dcrf_result_t,        1);
 
     /* HAL1 specific */
     /* read only */
