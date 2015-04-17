@@ -120,6 +120,8 @@ QCameraStateMachine::QCameraStateMachine(QCamera2HardwareInterface *ctrl) :
                    smEvtProcRoutine,
                    this);
     pthread_setname_np(cmd_pid, "CAM_stMachine");
+    m_bDelayPreviewMsgs = false;
+    m_DelayedMsgs = 0;
 }
 
 /*===========================================================================
@@ -168,6 +170,31 @@ void QCameraStateMachine::releaseThread()
         }
         cmd_pid = 0;
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : applyDelayedMsgs
+ *
+ * DESCRIPTION: Enable if needed any delayed message types
+ *
+ * PARAMETERS : None
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraStateMachine::applyDelayedMsgs()
+{
+    int32_t rc = NO_ERROR;
+
+    if (m_bDelayPreviewMsgs && m_DelayedMsgs) {
+        rc = m_parent->enableMsgType(m_DelayedMsgs);
+        m_bDelayPreviewMsgs = false;
+        m_DelayedMsgs = 0;
+    } else if (m_bDelayPreviewMsgs) {
+        m_bDelayPreviewMsgs = false;
+    }
+
+    return rc;
 }
 
 /*===========================================================================
@@ -971,7 +998,13 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_ENABLE_MSG_TYPE:
         {
-            rc = m_parent->enableMsgType(*((int32_t *)payload));
+            int32_t enable_msgs = *((int32_t *)payload);
+            if (m_bDelayPreviewMsgs &&
+                    (enable_msgs & CAMERA_MSG_PREVIEW_FRAME)) {
+                enable_msgs &= ~CAMERA_MSG_PREVIEW_FRAME;
+                m_DelayedMsgs = CAMERA_MSG_PREVIEW_FRAME;
+            }
+            rc = m_parent->enableMsgType(enable_msgs);
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -980,7 +1013,14 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_DISABLE_MSG_TYPE:
         {
-            rc = m_parent->disableMsgType(*((int32_t *)payload));
+            int32_t disable_msgs = *((int32_t *)payload);
+            if (m_bDelayPreviewMsgs && m_DelayedMsgs) {
+                m_DelayedMsgs &= ~disable_msgs;
+                if (0 == m_DelayedMsgs) {
+                    m_bDelayPreviewMsgs = false;
+                }
+            }
+            rc = m_parent->disableMsgType(disable_msgs);
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -989,7 +1029,11 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_MSG_TYPE_ENABLED:
         {
-            int enabled = m_parent->msgTypeEnabled(*((int32_t *)payload));
+            int32_t msgs = *((int32_t *)payload);
+            int enabled = m_parent->msgTypeEnabled(msgs);
+            if (m_bDelayPreviewMsgs && m_DelayedMsgs) {
+                enabled |= (msgs & m_DelayedMsgs);
+            }
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
@@ -1055,6 +1099,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         {
             // no ops here
             CDBG_HIGH("%s: Already in previewing, no ops here to start preview", __func__);
+            applyDelayedMsgs();
             rc = NO_ERROR;
             result.status = rc;
             result.request_api = evt;
@@ -1065,6 +1110,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_STOP_PREVIEW:
         {
             rc = m_parent->stopPreview();
+            applyDelayedMsgs();
             m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
             result.status = rc;
             result.request_api = evt;
@@ -1074,6 +1120,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_PREVIEW_ENABLED:
         {
+            applyDelayedMsgs();
             rc = NO_ERROR;
             result.status = rc;
             result.request_api = evt;
@@ -1134,6 +1181,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             if (rc == NO_ERROR) {
                 // move state to recording state
                 m_state = QCAMERA_SM_STATE_RECORDING;
+                applyDelayedMsgs();
             }
             result.status = rc;
             result.request_api = evt;
@@ -1148,6 +1196,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                 // Do not signal API result in this case.
                 // Need to wait for snapshot done in metadta.
                 m_state = QCAMERA_SM_STATE_PREPARE_SNAPSHOT;
+                applyDelayedMsgs();
             } else {
                 // Do not change state in this case.
                 ALOGE("%s: prepareHardwareForSnapshot failed %d",
@@ -1167,6 +1216,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
            if ( m_parent->mParameters.getRecordingHintValue() == false) {
                if (m_parent->isZSLMode() || m_parent->isLongshotEnabled()) {
                    m_state = QCAMERA_SM_STATE_PREVIEW_PIC_TAKING;
+                   m_bDelayPreviewMsgs = true;
                    rc = m_parent->takePicture();
                    if (rc != NO_ERROR) {
                        // move state to previewing state
