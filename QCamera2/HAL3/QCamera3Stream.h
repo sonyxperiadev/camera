@@ -115,7 +115,6 @@ private:
                      uint8_t *num_bufs,
                      uint8_t **initial_reg_flag,
                      mm_camera_buf_def_t **bufs,
-                     mm_camera_buf_def_t **plane_bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                      void *user_data);
     static int32_t put_bufs(
