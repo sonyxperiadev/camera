@@ -1982,6 +1982,18 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                                             0);
                 }
                 break;
+            case CAM_EVENT_TYPE_CAC_DONE:
+                if (m_parent->isCACEnabled()) {
+                    CDBG("%s: CAC3 DEBUG : Received CAC Done", __func__);
+                    if (m_parent->isLongshotEnabled()
+                            && !m_parent->isCaptureShutterEnabled()) {
+                        // play shutter sound for longshot
+                        // after CAC stage is done
+                        m_parent->playShutter();
+                    }
+                    m_parent->mCACDoneReceived = TRUE;
+                }
+                break;
             default:
                 CDBG_HIGH("%s: no handling for server evt (%d) at this state",
                       __func__, cam_evt->server_event_type);
@@ -3221,6 +3233,18 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
+                }
+                break;
+            case CAM_EVENT_TYPE_CAC_DONE:
+                if (m_parent->isCACEnabled()) {
+                    CDBG("%s: CAC3 DEBUG : Received CAC Done", __func__);
+                    if ((m_parent->isLongshotEnabled())
+                            && (!m_parent->isCaptureShutterEnabled())) {
+                        // play shutter sound for longshot
+                        // after CAC stage is done
+                        m_parent->playShutter();
+                    }
+                    m_parent->mCACDoneReceived = TRUE;
                 }
                 break;
             default:
