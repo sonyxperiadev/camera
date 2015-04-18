@@ -659,6 +659,7 @@ typedef enum {
     CAM_SCENE_MODE_FACE_PRIORITY,
     CAM_SCENE_MODE_BARCODE,
     CAM_SCENE_MODE_HDR,
+    CAM_SCENE_MODE_AQUA,
     CAM_SCENE_MODE_MAX
 } cam_scene_mode_type;
 
@@ -675,6 +676,7 @@ typedef enum {
     CAM_EFFECT_MODE_EMBOSS,
     CAM_EFFECT_MODE_SKETCH,
     CAM_EFFECT_MODE_NEON,
+    CAM_EFFECT_MODE_BEAUTY,
     CAM_EFFECT_MODE_MAX
 } cam_effect_mode_type;
 
