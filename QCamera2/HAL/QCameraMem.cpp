@@ -1440,13 +1440,13 @@ QCameraGrallocMemory::~QCameraGrallocMemory()
  *   @stride  : stride of preview frame
  *   @scanline: scanline of preview frame
  *   @foramt  : format of preview image
- *   @usage : usage bit for gralloc
  *   @maxFPS : max fps of preview stream
+ *   @usage : usage bit for gralloc
  *
  * RETURN     : none
  *==========================================================================*/
 void QCameraGrallocMemory::setWindowInfo(preview_stream_ops_t *window,
-        int width, int height, int stride, int scanline, int format, int usage, int maxFPS)
+        int width, int height, int stride, int scanline, int format, int maxFPS, int usage)
 {
     mWindow = window;
     mWidth = width;
