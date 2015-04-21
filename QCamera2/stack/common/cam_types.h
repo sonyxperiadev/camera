@@ -1843,7 +1843,10 @@ typedef enum {
     CAM_INTF_PARM_FLIP,
     /*Frame divert info from ISP*/
     CAM_INTF_BUF_DIVERT_INFO, /* 190 */
-    CAM_INTF_PARM_MAX /* 191 */
+    /* Special event to request stream frames*/
+    CAM_INTF_PARM_REQUEST_FRAMES,
+
+    CAM_INTF_PARM_MAX /* 192 */
 } cam_intf_parm_type_t;
 
 typedef struct {
@@ -2064,7 +2067,7 @@ typedef struct {
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
-                                         CAM_QCOM_FEATURE_EZTUNE)
+                                         CAM_QCOM_FEATURE_EZTUNE|CAM_QCOM_FEATURE_CPP_TNR)
 
 #define CAM_QCOM_FEATURE_PP_PASS_1      CAM_QCOM_FEATURE_PP_SUPERSET
 #define CAM_QCOM_FEATURE_PP_PASS_2      CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP;

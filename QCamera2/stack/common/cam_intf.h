@@ -409,6 +409,7 @@ typedef enum {
     CAM_STREAM_PARAM_TYPE_SET_FLIP = CAM_INTF_PARM_STREAM_FLIP,
     CAM_STREAM_PARAM_TYPE_GET_OUTPUT_CROP = CAM_INTF_PARM_GET_OUTPUT_CROP,
     CAM_STREAM_PARAM_TYPE_GET_IMG_PROP = CAM_INTF_PARM_GET_IMG_PROP,
+    CAM_STREAM_PARAM_TYPE_REQUEST_FRAMES = CAM_INTF_PARM_REQUEST_FRAMES,
     CAM_STREAM_PARAM_TYPE_MAX
 } cam_stream_param_type_e;
 
@@ -534,6 +535,10 @@ typedef struct {
 } cam_stream_img_prop_t;
 
 typedef struct {
+    uint8_t enableStream; /*0 – stop and 1-start */
+} cam_request_frames;
+
+typedef struct {
     cam_stream_param_type_e type;
     union {
         cam_reprocess_param reprocess;  /* do reprocess */
@@ -541,6 +546,7 @@ typedef struct {
         cam_flip_mode_t flipInfo;       /* flip mode */
         cam_crop_data_t outputCrop;     /* output crop for current frame */
         cam_stream_img_prop_t imgProp;  /* image properties of current frame */
+        cam_request_frames frameRequest; /*do TNR process*/
     };
 } cam_stream_parm_buffer_t;
 
