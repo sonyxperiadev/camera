@@ -45,6 +45,12 @@ extern "C" {
 using namespace android;
 
 #define MIN_STREAMING_BUFFER_NUM 7+11
+
+#define QCAMERA_DUMP_FRM_PREVIEW       1
+#define QCAMERA_DUMP_FRM_VIDEO         (1<<1)
+#define QCAMERA_DUMP_FRM_SNAPSHOT      (1<<2)
+#define QCAMERA_DUMP_FRM_OFFLINE_PROC  (1<<3)
+
 typedef int64_t nsecs_t;
 
 namespace qcamera {
@@ -127,9 +133,13 @@ protected:
     channel_cb_routine mChannelCB;
     //cam_padding_info_t *mPaddingInfo;
     uint32_t mPostProcMask;
-    uint8_t mYUVDump;
+    uint32_t mYUVDump;
     cam_is_type_t mIsType;
     uint32_t mNumBuffers;
+    uint32_t frm_num;
+    uint32_t dumpFrmCnt;
+    uint32_t skip_mode;
+    uint32_t mDumpSkipCnt;
 };
 
 /* QCamera3RegularChannel is used to handle all streams that are directly
