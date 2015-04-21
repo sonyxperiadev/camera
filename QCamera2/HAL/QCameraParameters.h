@@ -632,6 +632,7 @@ public:
     bool isWNREnabled() {return m_bWNROn;};
     bool isTNRPreviewEnabled() {return m_bTNRPreviewOn;};
     bool isTNRVideoEnabled() {return m_bTNRVideoOn;};
+    bool isTNRSnapshotEnabled() {return m_bTNRSnapshotOn;};
     int32_t getCDSMode() {return mCds_mode;};
     bool isHfrMode() {return m_bHfrMode;};
     void getHfrFps(cam_fps_range_t &pFpsRange) { pFpsRange = m_hfrFpsRange;};
@@ -1044,6 +1045,7 @@ private:
     bool m_bWNROn;
     bool m_bTNRPreviewOn;
     bool m_bTNRVideoOn;
+    bool m_bTNRSnapshotOn;
     bool m_bInited;
     uint8_t m_nBurstNum;
     int m_nRetroBurstNum;

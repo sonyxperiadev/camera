@@ -812,6 +812,7 @@ QCameraParameters::QCameraParameters()
       m_bWNROn(false),
       m_bTNRPreviewOn(false),
       m_bTNRVideoOn(false),
+      m_bTNRSnapshotOn(false),
       m_bInited(false),
       m_nBurstNum(1),
       m_nRetroBurstNum(0),
@@ -928,6 +929,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bWNROn(false),
     m_bTNRPreviewOn(false),
     m_bTNRVideoOn(false),
+    m_bTNRSnapshotOn(false),
     m_bInited(false),
     m_nBurstNum(1),
     m_nRetroBurstNum(0),
@@ -4158,6 +4160,12 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
     char preview_value[PROPERTY_VALUE_MAX];
     bool prev_video_tnr = m_bTNRVideoOn;
     bool prev_preview_tnr = m_bTNRPreviewOn;
+    bool prev_snap_tnr = m_bTNRSnapshotOn;
+
+    char value[PROPERTY_VALUE_MAX];
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.tnr_cds", value, "0");
+    uint8_t tnr_cds = (uint8_t)atoi(value);
 
     if (m_bRecordingHint_new == true) {
         if (video_str) {
@@ -4222,34 +4230,51 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
         updateParamEntry(KEY_QC_TNR_MODE, preview_value);
     }
 
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.tnr.snapshot", value, VALUE_OFF);
+    if (!strcmp(value, VALUE_ON)) {
+        m_bTNRSnapshotOn = true;
+        CDBG("%s: TNR enabled for SNAPSHOT stream", __func__);
+    } else {
+        m_bTNRSnapshotOn = false;
+    }
+
     cam_denoise_param_t temp;
     memset(&temp, 0, sizeof(temp));
-    if (m_bTNRVideoOn || m_bTNRPreviewOn) {
+    if (m_bTNRVideoOn || m_bTNRPreviewOn || m_bTNRSnapshotOn) {
         temp.denoise_enable = 1;
-        temp.process_plates = getDenoiseProcessPlate(CAM_INTF_PARM_TEMPORAL_DENOISE);
+        temp.process_plates = getDenoiseProcessPlate(
+                CAM_INTF_PARM_TEMPORAL_DENOISE);
 
-        int32_t cds_mode = lookupAttr(CDS_MODES_MAP, PARAM_MAP_SIZE(CDS_MODES_MAP),
-                CDS_MODE_OFF);
+        if (!tnr_cds) {
+            int32_t cds_mode = lookupAttr(CDS_MODES_MAP,
+                    PARAM_MAP_SIZE(CDS_MODES_MAP), CDS_MODE_OFF);
 
-        if (cds_mode != NAME_NOT_FOUND) {
-            updateParamEntry(KEY_QC_VIDEO_CDS_MODE, CDS_MODE_OFF);
-            if (m_bTNRPreviewOn) {
-                updateParamEntry(KEY_QC_CDS_MODE, CDS_MODE_OFF);
+            if (cds_mode != NAME_NOT_FOUND) {
+                updateParamEntry(KEY_QC_VIDEO_CDS_MODE, CDS_MODE_OFF);
+                if (m_bTNRPreviewOn) {
+                    updateParamEntry(KEY_QC_CDS_MODE, CDS_MODE_OFF);
+                }
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                        CAM_INTF_PARM_CDS_MODE, cds_mode)) {
+                    ALOGE("%s:Failed CDS MODE to update table", __func__);
+                    return BAD_VALUE;
+                }
+                CDBG("%s: CDS is set to = %s when TNR is enabled",
+                        __func__, CDS_MODE_OFF);
+                mCds_mode = cds_mode;
+            } else {
+                ALOGE("%s: Invalid argument for video CDS MODE %d",
+                        __func__, cds_mode);
             }
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CDS_MODE, cds_mode)) {
-                ALOGE("%s:Failed CDS MODE to update table", __func__);
-                return BAD_VALUE;
-            }
-            CDBG("%s: CDS is set to = %s when TNR is enabled",
-                    __func__, CDS_MODE_OFF);
-            mCds_mode = cds_mode;
         } else {
-            ALOGE("%s: Invalid argument for video CDS MODE %d", __func__, cds_mode);
+            CDBG_HIGH("%s: Enabled TNR with CDS", __func__);
         }
     }
 
     if ((m_bTNRVideoOn != prev_video_tnr)
-            || (m_bTNRPreviewOn != prev_preview_tnr)) {
+            || (m_bTNRPreviewOn != prev_preview_tnr)
+            || (prev_snap_tnr != m_bTNRSnapshotOn)) {
         CDBG("%s: TNR enabled = %d, plates = %d", __func__,
                 temp.denoise_enable, temp.process_plates);
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
@@ -12511,6 +12536,11 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
          } else {
              feature_mask |= CAM_QCOM_FEATURE_CDS;
          }
+    }
+
+    if (isTNRSnapshotEnabled() && (CAM_STREAM_TYPE_SNAPSHOT == stream_type)
+            && (isZSLMode() || getRecordingHintValue())) {
+        feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
     }
 
     //Rotation could also have an effect on pp feature mask
