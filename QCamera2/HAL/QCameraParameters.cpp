@@ -4550,6 +4550,7 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setMobicat(params)))                      final_rc = rc;
     if ((rc = setSeeMore(params)))                      final_rc = rc;
     if ((rc = setStillMore(params)))                    final_rc = rc;
+    if ((rc = setCustomParams(params)))                 final_rc = rc;
 
     if ((rc = updateFlash(false)))                      final_rc = rc;
     if ((rc = setLongshotParam(params)))                final_rc = rc;
@@ -12016,6 +12017,40 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
         return;
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : setCustomParams
+ *
+ * DESCRIPTION: Function to update OEM specific custom parameter
+ *
+ * PARAMETERS : params: Input Parameter object
+ *
+ * RETURN     :  error value
+ *==========================================================================*/
+int32_t QCameraParameters::setCustomParams(const QCameraParameters& params)
+{
+    int32_t rc = NO_ERROR;
+
+    /* Application specific parameter can be read from "params" and update m_pParamBuf
+       We can also update internal OEM custom parameters in this funcion.
+       "CAM_CUSTOM_PARM_EXAMPLE" is used as a example */
+
+    /*Get the pointer of shared buffer for custom parameter*/
+    custom_parm_buffer_t *customParam =
+            (custom_parm_buffer_t *)POINTER_OF_META(CAM_INTF_PARM_CUSTOM, m_pParamBuf);
+
+
+    /*start updating custom parameter values*/
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(customParam, CAM_CUSTOM_PARM_EXAMPLE, 1)) {
+        ALOGE("%s : Failed to update CAM_CUSTOM_PARM_DUMMY", __func__);
+        return BAD_VALUE;
+    }
+
+    /*set custom parameter values to main parameter buffer. Update isvalid flag*/
+    ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CUSTOM);
+
+    return rc;
 }
 
 /*===========================================================================

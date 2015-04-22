@@ -566,6 +566,29 @@ typedef struct {
     } \
 }
 
+/************************************
+* Custom parameter data definition
+*************************************/
+typedef struct {
+    /*CAM_CUSTOM_PARM_EXAMPLE is added to explain custom param procedure*/
+    INCLUDE(CAM_CUSTOM_PARM_EXAMPLE,            int32_t,           1);
+} custom_parm_data_t;
+
+/************************************
+* Custom Parameter buffer definition
+*************************************/
+typedef struct {
+    union {
+        /* Hash table of 'is valid' flags */
+        uint8_t         is_valid[CAM_CUSTOM_PARM_MAX];
+
+        /* Hash table of 'is required' flags for the GET PARAM */
+        uint8_t         is_reqd[CAM_CUSTOM_PARM_MAX];
+    };
+    custom_parm_data_t data;
+} custom_parm_buffer_t;
+
+
 typedef struct {
 /**************************************************************************************
  *  ID from (cam_intf_metadata_type_t)                DATATYPE                     COUNT
@@ -763,6 +786,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_HW_DATA_OVERWRITE,            cam_hw_data_overwrite_t,     1);
     INCLUDE(CAM_INTF_META_IMGLIB,                       cam_intf_meta_imglib_t,      1);
     INCLUDE(CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,         cam_capture_frame_config_t,  1);
+    INCLUDE(CAM_INTF_PARM_CUSTOM,                       custom_parm_buffer_t,        1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
