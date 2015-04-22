@@ -72,6 +72,16 @@ typedef int64_t nsecs_t;
 #define NSEC_PER_USEC 1000LLU
 #define NSEC_PER_33MSEC 33000000LLU
 
+typedef enum {
+    SET_ENABLE,
+    SET_CONTROLENABLE,
+    SET_RELOAD_CHROMATIX,
+    SET_STATUS,
+} optype_t;
+
+#define MODULE_ALL 0
+
+
 extern volatile uint32_t gCamHal3LogLevel;
 
 class QCamera3MetadataChannel;
@@ -155,7 +165,6 @@ public:
             metadata_buffer_t *parm, uint32_t snapshotStreamId);
     camera_metadata_t* translateCbUrgentMetadataToResultMetadata (
                              metadata_buffer_t *metadata);
-
     camera_metadata_t* translateFromHalMetadata(metadata_buffer_t *metadata,
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
@@ -175,6 +184,8 @@ public:
     bool needOnlineRotation();
     uint32_t getJpegQuality();
     QCamera3Exif *getExifData();
+    mm_jpeg_exif_params_t get3AExifParams();
+    uint8_t getMobicatMask();
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
@@ -185,6 +196,7 @@ public:
         const char *const desc;
         cam_cds_mode_type_t val;
     } QCameraPropMap;
+
 
 private:
 
@@ -211,6 +223,7 @@ private:
             const camera3_capture_request_t *request);
 
     bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList);
+    int32_t setMobicat();
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
     mm_camera_vtbl_t  *mCameraHandle;
@@ -227,6 +240,9 @@ private:
     QCamera3SupportChannel *mAnalysisChannel;
     QCamera3RawDumpChannel *mRawDumpChannel;
 
+    void saveExifParams(metadata_buffer_t *metadata);
+    mm_jpeg_exif_params_t mExifParams;
+
      //First request yet to be processed after configureStreams
     bool mFirstRequest;
     bool mFirstConfiguration;
@@ -239,6 +255,7 @@ private:
     bool m_bIs4KVideo;
     bool m_bEisSupportedSize;
     bool m_bEisEnable;
+    uint8_t m_MobicatMask;
 
     /* Data structure to store pending request */
     typedef struct {

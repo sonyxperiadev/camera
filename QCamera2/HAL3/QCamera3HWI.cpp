@@ -309,6 +309,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       m_bIs4KVideo(false),
       m_bEisSupportedSize(false),
       m_bEisEnable(false),
+      m_MobicatMask(0),
       mMinProcessedFrameDuration(0),
       mMinJpegFrameDuration(0),
       mMinRawFrameDuration(0),
@@ -1889,6 +1890,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
                     i->capture_intent);
 
+            saveExifParams(metadata);
+
             if (i->blob_request) {
                 {
                     //Dump tuning metadata if enabled and available
@@ -2283,6 +2286,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
         int32_t tintless_value = 1;
         ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_PARM_TINTLESS, tintless_value);
+
+        setMobicat();
 
         /*set the capture intent, hal version, tintless, stream info,
          *and disenable parameters to the backend*/
@@ -3740,6 +3745,62 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     resultMetadata = camMetadata.release();
     return resultMetadata;
+}
+
+/*===========================================================================
+ * FUNCTION   : saveExifParams
+ *
+ * DESCRIPTION:
+ *
+ * PARAMETERS :
+ *   @metadata : metadata information from callback
+ *
+ * RETURN     : none
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::saveExifParams(metadata_buffer_t *metadata)
+{
+    IF_META_AVAILABLE(cam_ae_exif_debug_t, ae_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_AE, metadata) {
+        mExifParams.ae_debug_params = *ae_exif_debug_params;
+        mExifParams.ae_debug_params_valid = TRUE;
+    }
+    IF_META_AVAILABLE(cam_awb_exif_debug_t,awb_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_AWB, metadata) {
+        mExifParams.awb_debug_params = *awb_exif_debug_params;
+        mExifParams.awb_debug_params_valid = TRUE;
+    }
+    IF_META_AVAILABLE(cam_af_exif_debug_t,af_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_AF, metadata) {
+        mExifParams.af_debug_params = *af_exif_debug_params;
+        mExifParams.af_debug_params_valid = TRUE;
+    }
+    IF_META_AVAILABLE(cam_asd_exif_debug_t, asd_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_ASD, metadata) {
+        mExifParams.asd_debug_params = *asd_exif_debug_params;
+        mExifParams.asd_debug_params_valid = TRUE;
+    }
+    IF_META_AVAILABLE(cam_stats_buffer_exif_debug_t,stats_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_STATS, metadata) {
+        mExifParams.stats_debug_params = *stats_exif_debug_params;
+        mExifParams.stats_debug_params_valid = TRUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : get3AExifParams
+ *
+ * DESCRIPTION:
+ *
+ * PARAMETERS : none
+ *
+ *
+ * RETURN     : mm_jpeg_exif_params_t
+ *
+ *==========================================================================*/
+mm_jpeg_exif_params_t QCamera3HardwareInterface::get3AExifParams()
+{
+    return mExifParams;
 }
 
 /*===========================================================================
@@ -7254,6 +7315,58 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
         return NULL;
     }
     return pChannel;
+}
+
+/*===========================================================================
+ * FUNCTION   : getMobicatMask
+ *
+ * DESCRIPTION: returns mobicat mask
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : mobicat mask
+ *
+ *==========================================================================*/
+uint8_t QCamera3HardwareInterface::getMobicatMask()
+{
+    return m_MobicatMask;
+}
+
+/*===========================================================================
+ * FUNCTION   : setMobicat
+ *
+ * DESCRIPTION: set Mobicat on/off.
+ *
+ * PARAMETERS :
+ *   @params  : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::setMobicat()
+{
+    char value [PROPERTY_VALUE_MAX];
+    property_get("persist.camera.mobicat", value, "0");
+    int32_t ret = NO_ERROR;
+    uint8_t enableMobi = (uint8_t)atoi(value);
+
+    if (enableMobi) {
+        tune_cmd_t tune_cmd;
+        tune_cmd.type = SET_RELOAD_CHROMATIX;
+        tune_cmd.module = MODULE_ALL;
+        tune_cmd.value = TRUE;
+        ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                CAM_INTF_PARM_SET_VFE_COMMAND,
+                tune_cmd);
+
+        ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                CAM_INTF_PARM_SET_PP_COMMAND,
+                tune_cmd);
+    }
+    m_MobicatMask = enableMobi;
+
+    return ret;
 }
 
 /*===========================================================================
