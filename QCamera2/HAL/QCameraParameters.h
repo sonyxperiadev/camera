@@ -792,6 +792,14 @@ public:
     cam_capture_frame_config_t getCaptureFrameConfig()
             { return m_captureFrameConfig; };
 
+    /* Dual camera specific */
+    void setRelatedCamSyncInfo(
+            cam_sync_related_sensors_event_info_t* info);
+    const cam_sync_related_sensors_event_info_t*
+            getRelatedCamSyncInfo(void);
+    int32_t getRelatedCamCalibration(
+            cam_related_system_calibration_data_t* calib);
+    int32_t bundleRelatedCameras(bool sync, uint32_t sessionid);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -992,6 +1000,11 @@ private:
     mm_camera_vtbl_t *m_pCamOpsTbl;
     QCameraHeapMemory *m_pParamHeap;
     parm_buffer_t     *m_pParamBuf;  // ptr to param buf in m_pParamHeap
+    /* heap for mapping dual cam event info */
+    QCameraHeapMemory *m_pRelCamSyncHeap;
+    /* ptr to sync buffer in m_pRelCamSyncHeap */
+    cam_sync_related_sensors_event_info_t *m_pRelCamSyncBuf;
+    cam_sync_related_sensors_event_info_t m_relCamSyncInfo;
     cam_is_type_t mIsType;
 
     bool m_bZslMode;                // if ZSL is enabled

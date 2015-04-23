@@ -425,62 +425,85 @@ typedef struct {
 } cam_flip_mode_t;
 
 typedef enum {
+    /* start syncing for related cameras */
     CAM_SYNC_RELATED_SENSORS_ON,
+    /* stop syncing for related cameras */
     CAM_SYNC_RELATED_SENSORS_OFF
 } cam_sync_related_sensors_control_t;
 
 typedef enum {
+    /* Driving camera of the related camera sub-system */
+    /* Certain features are enabled only for primary camera
+       such as display mode for preview, autofocus etc
+       In certain configurations for eg. when optical zoom
+       limit is reached, Aux Camera would become
+       the driving camera and there will be role switch.*/
     CAM_MODE_PRIMARY = 0,
+    /* Non-driving camera of the related camera sub-system
+       no display mode set for secondary camera */
     CAM_MODE_SECONDARY
 } cam_sync_mode_t;
 
 typedef enum {
+    /* Main camera of the related cam subsystem which controls
+       HW sync at sensor level*/
     CAM_TYPE_MAIN = 0,
+    /* Aux camera of the related cam subsystem */
     CAM_TYPE_AUX
 } cam_sync_type_t;
 
+/* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;
     cam_sync_type_t type;
     cam_sync_mode_t mode;
+    /* session Id of the other camera session
+       Linking will be done with this session in the
+       backend */
     uint32_t related_sensor_session_id;
 }cam_sync_related_sensors_event_info_t;
 
+/* Related camera sensor specific calibration data */
 typedef struct {
-    /*Focal length in pixels @ calibration resolution.*/
+    /* Focal length in pixels @ calibration resolution.*/
     float       normalized_focal_length;
-    /*Native sensor resolution W that was used to capture calibration image*/
+    /* Native sensor resolution W that was used to capture calibration image */
     uint16_t    native_sensor_resolution_width;
-    /*Native sensor resolution H that was used to capture calibration image*/
+    /* Native sensor resolution H that was used to capture calibration image */
     uint16_t    native_sensor_resolution_height;
-    /*Image size W used internally by calibration tool*/
+    /* Image size W used internally by calibration tool */
     uint16_t    calibration_sensor_resolution_width;
-    /*Image size H used internally by calibration tool*/
+    /* Image size H used internally by calibration tool */
     uint16_t    calibration_sensor_resolution_height;
-    /*Focal length ratio @ Calibration*/
+    /* Focal length ratio @ Calibration */
     float       focal_length_ratio;
 }cam_related_sensor_calibration_data_t;
 
+/* Related Camera System Calibration data
+   Calibration data for the entire related cam sub-system is
+   in a shared EEPROM. We have 2 fields which are specific to
+   each sensor followed by a set of common calibration of the
+   entire related cam system*/
 typedef struct {
-    /*Version information */
+    /* Version information */
     float      calibration_format_version;
-    /*Main Camera Calibration*/
+    /* Main Camera Sensor specific calibration */
     cam_related_sensor_calibration_data_t  main_cam_specific_calibration;
-    /*Aux Camera calibration*/
+    /* Aux Camera Sensor specific calibration */
     cam_related_sensor_calibration_data_t  aux_cam_specific_calibration;
-    /*Relative viewpoint matching matrix w.r.t Main*/
+    /* Relative viewpoint matching matrix w.r.t Main */
     float      relative_rotation_matrix[9];
-    /*Relative geometric surface description parameters*/
+    /* Relative geometric surface description parameters */
     float      relative_geometric_surface_parameters[32];
-    /*Relative offset of sensor center from optical axis along horizontal dimension*/
+    /* Relative offset of sensor center from optical axis along horizontal dimension */
     float      relative_principle_point_x_offset;
-    /*Relative offset of sensor center from optical axis along vertical dimension*/
+    /* Relative offset of sensor center from optical axis along vertical dimension */
     float      relative_principle_point_y_offset;
-    /*0=Main Camera is on the left of Aux; 1=Main Camera is on the right of Aux*/
+    /* 0=Main Camera is on the left of Aux; 1=Main Camera is on the right of Aux */
     uint16_t   relative_position_flag;
-    /*Camera separation in mm*/
+    /* Camera separation in mm */
     float      relative_baseline_distance;
-    /*Reserved for future use*/
+    /* Reserved for future use */
     float      extra_padding[64];
 }cam_related_system_calibration_data_t;
 

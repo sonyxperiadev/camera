@@ -1369,6 +1369,72 @@ static int32_t mm_camera_intf_unmap_stream_buf(uint32_t camera_handle,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_intf_get_session_id
+ *
+ * DESCRIPTION: retrieve the session ID from the kernel for this HWI instance
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *   @sessionid: session id to be retrieved from server
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ * NOTE       : if this call succeeds, we will get a valid session id.
+ *==========================================================================*/
+static int32_t mm_camera_intf_get_session_id(uint32_t camera_handle,
+                                                       uint32_t* sessionid)
+{
+    int32_t rc = -1;
+    mm_camera_obj_t * my_obj = NULL;
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_get_session_id(my_obj, sessionid);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_intf_sync_related_sensors
+ *
+ * DESCRIPTION: retrieve the session ID from the kernel for this HWI instance
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *   @related_cam_info: pointer to the related cam info to be sent to the server
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ * NOTE       : if this call succeeds, we will get linking established in back end
+ *==========================================================================*/
+static int32_t mm_camera_intf_sync_related_sensors(uint32_t camera_handle,
+                              cam_sync_related_sensors_event_info_t* related_cam_info)
+{
+    int32_t rc = -1;
+    mm_camera_obj_t * my_obj = NULL;
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_sync_related_sensors(my_obj, related_cam_info);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : get_sensor_info
  *
  * DESCRIPTION: get sensor info like facing(back/front) and mount angle
@@ -1750,7 +1816,9 @@ static mm_camera_ops_t mm_camera_ops = {
     .cancel_super_buf_request = mm_camera_intf_cancel_super_buf_request,
     .flush_super_buf_queue = mm_camera_intf_flush_super_buf_queue,
     .configure_notify_mode = mm_camera_intf_configure_notify_mode,
-    .process_advanced_capture = mm_camera_intf_process_advanced_capture
+    .process_advanced_capture = mm_camera_intf_process_advanced_capture,
+    .get_session_id = mm_camera_intf_get_session_id,
+    .sync_related_sensors = mm_camera_intf_sync_related_sensors
 };
 
 /*===========================================================================

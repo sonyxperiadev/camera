@@ -771,6 +771,8 @@ QCameraParameters::QCameraParameters()
       m_pCamOpsTbl(NULL),
       m_pParamHeap(NULL),
       m_pParamBuf(NULL),
+      m_pRelCamSyncHeap(NULL),
+      m_pRelCamSyncBuf(NULL),
       mIsType(IS_TYPE_NONE),
       m_bZslMode(false),
       m_bZslMode_new(false),
@@ -856,6 +858,7 @@ QCameraParameters::QCameraParameters()
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
     memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
     memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
+    memset(&m_relCamSyncInfo, 0, sizeof(cam_sync_related_sensors_event_info_t));
     mTotalPPCount = 0;
     mZoomLevel = 0;
     mParmZoomLevel = 0;
@@ -881,6 +884,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_pCamOpsTbl(NULL),
     m_pParamHeap(NULL),
     m_pParamBuf(NULL),
+    m_pRelCamSyncHeap(NULL),
+    m_pRelCamSyncBuf(NULL),
     m_bZslMode(false),
     m_bZslMode_new(false),
     m_bForceZslMode(false),
@@ -942,6 +947,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
     memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
+    memset(&m_relCamSyncInfo, 0, sizeof(cam_sync_related_sensors_event_info_t));
     m_pTorch = NULL;
     m_bReleaseTorchCamera = false;
     mTotalPPCount = 0;
@@ -5458,11 +5464,46 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     }
     m_pParamBuf = (parm_buffer_t*) DATA_PTR(m_pParamHeap,0);
 
+    // Check if it is dual camera mode
+    if(m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        //Allocate related cam sync buffer
+        //this is needed for the payload that goes along with bundling cmd for related
+        //camera use cases
+        m_pRelCamSyncHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
+        rc = m_pRelCamSyncHeap->allocate(1,
+                sizeof(cam_sync_related_sensors_event_info_t), NON_SECURE);
+        if(rc != OK) {
+            rc = NO_MEMORY;
+            ALOGE("Failed to allocate Related cam sync Heap memory");
+            goto TRANS_INIT_ERROR3;
+        }
+
+        //Map memory for related cam sync buffer
+        rc = m_pCamOpsTbl->ops->map_buf(m_pCamOpsTbl->camera_handle,
+                CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF,
+                m_pRelCamSyncHeap->getFd(0),
+                sizeof(cam_sync_related_sensors_event_info_t));
+        if(rc < 0) {
+            ALOGE("%s:failed to map Related cam sync buffer",__func__);
+            rc = FAILED_TRANSACTION;
+            goto TRANS_INIT_ERROR4;
+        }
+        m_pRelCamSyncBuf =
+                (cam_sync_related_sensors_event_info_t*) DATA_PTR(m_pRelCamSyncHeap,0);
+    }
+
     initDefaultParameters();
 
     m_bInited = true;
 
     goto TRANS_INIT_DONE;
+
+TRANS_INIT_ERROR4:
+    m_pRelCamSyncHeap->deallocate();
+
+TRANS_INIT_ERROR3:
+    delete m_pRelCamSyncHeap;
+    m_pRelCamSyncHeap = NULL;
 
 TRANS_INIT_ERROR2:
     m_pParamHeap->deallocate();
@@ -5506,6 +5547,12 @@ void QCameraParameters::deinit()
         delete m_pParamHeap;
         m_pParamHeap = NULL;
         m_pParamBuf = NULL;
+    }
+    if (NULL != m_pRelCamSyncHeap) {
+        m_pRelCamSyncHeap->deallocate();
+        delete m_pRelCamSyncHeap;
+        m_pRelCamSyncHeap = NULL;
+        m_pRelCamSyncBuf = NULL;
     }
 
     m_AdjustFPS = NULL;
@@ -10545,6 +10592,136 @@ bool QCameraParameters::isYUVFrameInfoNeeded()
 const char *QCameraParameters::getFrameFmtString(cam_format_t fmt)
 {
     return lookupNameByValue(PICTURE_TYPES_MAP, PARAM_MAP_SIZE(PICTURE_TYPES_MAP), fmt);
+}
+
+/*===========================================================================
+ * FUNCTION   : setRelatedCamSyncInfo
+ *
+ * DESCRIPTION: set the related cam info parameters
+ * the related cam info is cached into params to make some decisions beforehand
+ *
+ * PARAMETERS :
+ *   @info  : ptr to related cam info parameters
+ *
+ * RETURN     :none
+ *==========================================================================*/
+void QCameraParameters::setRelatedCamSyncInfo(
+        cam_sync_related_sensors_event_info_t* info)
+{
+    m_relCamSyncInfo = *info;
+}
+
+/*===========================================================================
+ * FUNCTION   : getRelatedCamSyncInfo
+ *
+ * DESCRIPTION:returns the related cam sync info for this HWI instance
+ *
+ * PARAMETERS :none
+ *
+ * RETURN     : const pointer to cam_sync_related_sensors_event_info_t
+ *==========================================================================*/
+const cam_sync_related_sensors_event_info_t*
+        QCameraParameters::getRelatedCamSyncInfo(void)
+{
+    return &m_relCamSyncInfo;
+}
+
+/*===========================================================================
+ * FUNCTION   : bundleRelatedCameras
+ *
+ * DESCRIPTION: send trigger for bundling related camera sessions in the server
+ *
+ * PARAMETERS :
+ *   @sync        :indicates whether syncing is On or Off
+ *   @sessionid  :session id for other camera session
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::bundleRelatedCameras(bool sync,
+        uint32_t sessionid)
+{
+    int32_t rc = NO_ERROR;
+
+    if (NULL == m_pCamOpsTbl) {
+        ALOGE("%s: Ops not initialized", __func__);
+        return NO_INIT;
+    }
+
+    CDBG("%s: Sending Bundling cmd sync %d, SessionId %d ", __func__,
+            sync, sessionid);
+
+    if(m_pRelCamSyncBuf) {
+        if(sync) {
+            m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_ON;
+        }
+        else {
+            m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+        }
+        m_pRelCamSyncBuf->mode = m_relCamSyncInfo.mode;
+        m_pRelCamSyncBuf->type = m_relCamSyncInfo.type;
+        m_pRelCamSyncBuf->related_sensor_session_id = sessionid;
+
+        rc = m_pCamOpsTbl->ops->sync_related_sensors(
+                m_pCamOpsTbl->camera_handle, m_pRelCamSyncBuf);
+    } else {
+        ALOGE("%s: Related Cam SyncBuffer not allocated", __func__, rc);
+        return NO_INIT;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : getRelatedCamCalibration
+ *
+ * DESCRIPTION: fetch the related camera subsystem calibration data
+ *
+ * PARAMETERS :
+ *   @calib  : calibration data fetched
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::getRelatedCamCalibration(
+        cam_related_system_calibration_data_t* calib)
+{
+    int32_t rc = NO_ERROR;
+
+    if(initBatchUpdate(m_pParamBuf) < 0 ) {
+            ALOGE("%s:Failed to initialize group update table", __func__);
+            return BAD_TYPE;
+        }
+
+    ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+            CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION);
+
+    rc = commitGetBatch();
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to get related cam calibration info", __func__);
+        return rc;
+    }
+
+    READ_PARAM_ENTRY(m_pParamBuf,
+        CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION, *calib);
+
+    CDBG("%s: version %f ",__func__, calib->calibration_format_version);
+    CDBG("%s: normalized_focal_length %f ", __func__,
+            calib->main_cam_specific_calibration.normalized_focal_length);
+    CDBG("%s: native_sensor_resolution_width %d ", __func__,
+            calib->main_cam_specific_calibration.native_sensor_resolution_width);
+    CDBG("%s: native_sensor_resolution_height %d ", __func__,
+            calib->main_cam_specific_calibration.native_sensor_resolution_height);
+    CDBG("%s: sensor_resolution_width %d ", __func__,
+            calib->main_cam_specific_calibration.calibration_sensor_resolution_width);
+    CDBG("%s: sensor_resolution_height %d ", __func__,
+            calib->main_cam_specific_calibration.calibration_sensor_resolution_height);
+    CDBG("%s: focal_length_ratio %f ", __func__,
+            calib->main_cam_specific_calibration.focal_length_ratio);
+
+    return rc;
 }
 
 /*===========================================================================

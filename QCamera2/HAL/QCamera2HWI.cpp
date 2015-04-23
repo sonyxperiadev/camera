@@ -1133,6 +1133,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
 #endif
 
     memset(mDeffOngoingJobs, 0, sizeof(mDeffOngoingJobs));
+    memset(&mRelCamCalibData, 0, sizeof(cam_related_system_calibration_data_t));
 
     mDefferedWorkThread.launch(defferedWorkRoutine, this);
     mDefferedWorkThread.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
@@ -1260,7 +1261,28 @@ int QCamera2HardwareInterface::openCamera()
       }
     }
 
-    int32_t rc = m_postprocessor.init(jpegEvtHandle, this);
+    // Now PostProc need calibration data as initialization time for jpeg_open
+    // And calibration data is a get param for now, so params needs to be initialized
+    // before postproc init
+    int32_t rc = mParameters.init(gCamCaps[mCameraId], mCameraHandle, this, this);
+    if (rc != 0) {
+        ALOGE("Init Parameters failed");
+        mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
+        mCameraHandle = NULL;
+        return UNKNOWN_ERROR;
+    }
+
+    rc = mParameters.getRelatedCamCalibration(&mRelCamCalibData);
+    CDBG("%s: Dumping Calibration Data Version Id %f rc %d", __func__,
+            mRelCamCalibData.calibration_format_version, rc);
+    if (rc != 0) {
+        ALOGE("getRelatedCamCalibration failed");
+        mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
+        mCameraHandle = NULL;
+        return UNKNOWN_ERROR;
+    }
+
+    rc = m_postprocessor.init(jpegEvtHandle, this);
     if (rc != 0) {
         ALOGE("Init Postprocessor failed");
         mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
@@ -1281,12 +1303,99 @@ int QCamera2HardwareInterface::openCamera()
         gCamCaps[mCameraId]->padding_info.plane_padding = padding_info.plane_padding;
     }
 
-    mParameters.init(gCamCaps[mCameraId], mCameraHandle, this, this);
     mParameters.setMinPpMask(gCamCaps[mCameraId]->min_required_pp_mask);
 
     mCameraOpened = true;
 
     return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : bundleRelatedCameras
+ *
+ * DESCRIPTION: bundle cameras to enable syncing of cameras
+ *
+ * PARAMETERS :
+ *   @sync        :indicates whether syncing is On or Off
+ *   @sessionid  :session id for other camera session
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::bundleRelatedCameras(bool syncOn,
+            uint32_t sessionid)
+{
+    CDBG("%s: bundleRelatedCameras sync %d with sessionid %d", __func__,
+            syncOn, sessionid);
+
+    pthread_mutex_lock(&m_parm_lock);
+    int32_t rc = mParameters.bundleRelatedCameras(syncOn, sessionid);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: bundleRelatedCameras failed %d", __func__, rc);
+        pthread_mutex_unlock(&m_parm_lock);
+        return rc;
+    }
+    pthread_mutex_unlock(&m_parm_lock);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : getCameraSessionId
+ *
+ * DESCRIPTION: gets the backend session Id of this HWI instance
+ *
+ * PARAMETERS :
+ *   @sessionid  : pointer to the output session id
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::getCameraSessionId(uint32_t* session_id)
+{
+    int32_t rc = NO_ERROR;
+
+    if(session_id != NULL) {
+        rc = mCameraHandle->ops->get_session_id(mCameraHandle->camera_handle,
+                session_id);
+        CDBG("%s: Getting Camera Session Id %d", __func__, *session_id);
+    } else {
+        ALOGE("%s:Session Id is Null", __func__);
+        return UNKNOWN_ERROR;
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : getRelatedCamSyncInfo
+ *
+ * DESCRIPTION:returns the related cam sync info for this HWI instance
+ *
+ * PARAMETERS :none
+ *
+ * RETURN     : const pointer to cam_sync_related_sensors_event_info_t
+ *==========================================================================*/
+const cam_sync_related_sensors_event_info_t*
+        QCamera2HardwareInterface::getRelatedCamSyncInfo(void)
+{
+    return mParameters.getRelatedCamSyncInfo();
+}
+
+/*===========================================================================
+ * FUNCTION   : setRelatedCamSyncInfo
+ *
+ * DESCRIPTION:sets the related cam sync info for this HWI instance
+ *
+ * PARAMETERS :
+ *   @info  : ptr to related cam info parameters
+ *
+ * RETURN     :none
+ *==========================================================================*/
+void QCamera2HardwareInterface::setRelatedCamSyncInfo(
+        cam_sync_related_sensors_event_info_t* info)
+{
+    mParameters.setRelatedCamSyncInfo(info);
 }
 
 /*===========================================================================

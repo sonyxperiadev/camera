@@ -1960,3 +1960,64 @@ int32_t mm_camera_channel_advanced_capture(mm_camera_obj_t *my_obj,
     CDBG("%s: X",__func__);
     return rc;
 }
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_get_session_id
+ *
+ * DESCRIPTION: get the session identity
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *   @sessionid: pointer to the output session id
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ * NOTE       : if this call succeeds, we will get a valid session id
+ *==========================================================================*/
+int32_t mm_camera_get_session_id(mm_camera_obj_t *my_obj,
+        uint32_t* sessionid)
+{
+    int32_t rc = -1;
+    int32_t value = 0;
+    if(sessionid != NULL) {
+        rc = mm_camera_util_g_ctrl(my_obj->ctrl_fd,
+                MSM_CAMERA_PRIV_G_SESSION_ID, &value);
+        CDBG("%s: fd=%d, get_session_id, id=0x%x, value = %d, rc = %d\n",
+                __func__, my_obj->ctrl_fd, MSM_CAMERA_PRIV_G_SESSION_ID,
+                value, rc);
+        *sessionid = value;
+    }
+
+    pthread_mutex_unlock(&my_obj->cam_lock);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_sync_related_sensors
+ *
+ * DESCRIPTION: send sync cmd
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *   @parms        : ptr to the related cam info to be sent to server
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ * NOTE       : Assume the sync struct buf is already mapped to server via
+ *              domain socket. Corresponding fields of parameters to be set
+ *              are already filled in by upper layer caller.
+ *==========================================================================*/
+int32_t mm_camera_sync_related_sensors(mm_camera_obj_t *my_obj,
+        cam_sync_related_sensors_event_info_t* parms)
+{
+    int32_t rc = -1;
+    int32_t value = 0;
+    if (parms !=  NULL) {
+        rc = mm_camera_util_s_ctrl(my_obj->ctrl_fd,
+                CAM_PRIV_SYNC_RELATED_SENSORS, &value);
+    }
+    pthread_mutex_unlock(&my_obj->cam_lock);
+    return rc;
+}
