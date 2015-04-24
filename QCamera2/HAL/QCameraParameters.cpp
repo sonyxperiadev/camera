@@ -12297,8 +12297,8 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         }
     }
 
-    if (isTNRVideoEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
-            (CAM_STREAM_TYPE_VIDEO == stream_type))) {
+    if ((isTNRVideoEnabled() && (CAM_STREAM_TYPE_VIDEO == stream_type))
+            || (isTNRPreviewEnabled() && (CAM_STREAM_TYPE_PREVIEW == stream_type))) {
         feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
     }
     if (isEztuneEnabled() &&
