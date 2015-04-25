@@ -2102,7 +2102,6 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     }
 
     if (!((needReprocess()) && (CAM_STREAM_TYPE_SNAPSHOT == stream_type ||
-            CAM_STREAM_TYPE_POSTVIEW == stream_type ||
             CAM_STREAM_TYPE_RAW == stream_type))) {
         if (gCamCaps[mCameraId]->min_required_pp_mask & CAM_QCOM_FEATURE_CROP)
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_CROP;
