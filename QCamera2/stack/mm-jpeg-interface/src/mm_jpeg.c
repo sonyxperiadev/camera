@@ -615,6 +615,11 @@ static int32_t mm_jpeg_put_mem(void* p_jpeg_session)
   }
   p_params = &p_session->params;
   p_encode_job = &p_session->encode_job;
+
+  if (!p_params->get_memory) {
+    CDBG("%s:%d] get_mem not defined, ignore put mem", __func__, __LINE__);
+    return 0;
+  }
   if (!p_params || !p_encode_job || !p_params->put_memory) {
     CDBG_ERROR("%s:%d] Invalid jpeg encode params", __func__, __LINE__);
     return -1;
@@ -659,7 +664,13 @@ OMX_ERRORTYPE mm_jpeg_mem_ops(
   QOMX_MEM_OPS mem_ops;
   mm_jpeg_encode_params_t *p_params = &p_session->params;
 
-  mem_ops.get_memory = mm_jpeg_get_mem;
+  if (p_params->get_memory) {
+    mem_ops.get_memory = mm_jpeg_get_mem;
+  } else {
+    mem_ops.get_memory = NULL;
+    CDBG_HIGH("%s:%d] HAL get_mem handler undefined", __func__, __LINE__);
+  }
+
   mem_ops.psession = p_session;
   rc = OMX_GetExtensionIndex(p_session->omx_handle,
     QOMX_IMAGE_EXT_MEM_OPS_NAME, &indextype);
