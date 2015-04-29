@@ -281,15 +281,21 @@ static int32_t mm_jpeg_intf_close(uint32_t client_hdl)
  *
  *  Arguments:
  *    @ops: ops table pointer
+ *    @mpo_ops: mpo ops table ptr
+ *    @picture_size: Max available dim
+ *    @calibration_data: Static calibration data
  *
  *  Return:
  *       0 failure, success otherwise
  *
  *  Description:
- *       Open a jpeg client
+ *       Open a jpeg client. Calibration data will be cached
+ *       but memory manegement has to be done by the cient.
  *
  **/
-uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_dimension picture_size)
+uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
+  mm_dimension picture_size,
+  cam_related_system_calibration_data_t *calibration_data)
 {
   int32_t rc = 0;
   uint32_t clnt_hdl = 0;

@@ -411,7 +411,7 @@ static int encode_test(jpeg_test_input_t *p_input)
   pic_size.w = (uint32_t)p_input->width;
   pic_size.h = (uint32_t)p_input->height;
 
-  jpeg_obj.handle = jpeg_open(&jpeg_obj.ops, pic_size);
+  jpeg_obj.handle = jpeg_open(&jpeg_obj.ops, NULL, pic_size, NULL);
   if (jpeg_obj.handle == 0) {
     CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
     goto end;

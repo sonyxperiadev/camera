@@ -36,11 +36,17 @@
 #define MM_JPEG_MAX_BUF CAM_MAX_NUM_BUFS_PER_STREAM
 #define QUANT_SIZE 64
 #define QTABLE_MAX 2
+#define MM_JPEG_MAX_MPO_IMAGES 2
 
 typedef enum {
   MM_JPEG_FMT_YUV,
   MM_JPEG_FMT_BITSTREAM
 } mm_jpeg_format_t;
+
+typedef enum {
+  MM_JPEG_TYPE_JPEG,
+  MM_JPEG_TYPE_MPO
+} mm_jpeg_image_type_t;
 
 typedef struct {
   cam_3a_params_t cam_3a_params;
@@ -57,6 +63,18 @@ typedef struct {
   uint8_t asd_debug_params_valid;
   uint8_t stats_debug_params_valid;
 } mm_jpeg_exif_params_t;
+
+typedef struct {
+  /* Indicates if it is a single jpeg or part of a multi picture sequence*/
+  mm_jpeg_image_type_t type;
+
+  /*Indicates if image is the primary image in a sequence of images.
+  Applicable only to multi picture formats*/
+  uint8_t is_primary;
+
+  /*Number of images in the sequence*/
+  uint32_t num_of_images;
+} mm_jpeg_multi_image_t;
 
 typedef struct {
   uint32_t sequence;          /* for jpeg bit streams, assembling is based on sequence. sequence starts from 0 */
@@ -196,6 +214,7 @@ typedef struct {
   mm_jpeg_color_format color_format;
 
   jpeg_encode_callback_t jpeg_cb;
+
   void* userdata;
 
 } mm_jpeg_decode_params_t;
@@ -237,10 +256,14 @@ typedef struct {
 
   /* jpeg encoder QTable */
   uint8_t qtable_set[QTABLE_MAX];
+
   OMX_IMAGE_PARAM_QUANTIZATIONTABLETYPE qtable[QTABLE_MAX];
 
   /* flag to enable/disable mobicat */
   uint8_t mobicat_mask;
+
+  /*Info associated with multiple image sequence*/
+  mm_jpeg_multi_image_t multi_image_info;
 
   /* work buf */
   mm_jpeg_buf_t work_buf;
@@ -282,6 +305,23 @@ typedef struct {
 } mm_dimension;
 
 typedef struct {
+  /*Primary image in the MPO sequence*/
+  mm_jpeg_output_t primary_image;
+
+  /*All auxillary images in the sequence*/
+  mm_jpeg_output_t aux_images[MM_JPEG_MAX_MPO_IMAGES - 1];
+
+  /*Total number of images in the MPO sequence*/
+  int num_of_images;
+
+  /*Output MPO buffer*/
+  mm_jpeg_output_t output_buff;
+
+  /*Size of the allocated output buffer*/
+  size_t output_buff_size;
+} mm_jpeg_mpo_info_t;
+
+typedef struct {
   /* config a job -- async call */
   int (*start_job)(mm_jpeg_job_t* job, uint32_t* job_id);
 
@@ -297,6 +337,7 @@ typedef struct {
 
   /* close a jpeg client -- sync call */
   int (*close) (uint32_t clientHdl);
+
 } mm_jpeg_ops_t;
 
 typedef struct {
@@ -317,11 +358,25 @@ typedef struct {
   int (*close) (uint32_t clientHdl);
 } mm_jpegdec_ops_t;
 
+typedef struct {
+
+  /* Get Mpo size*/
+  int (*get_mpo_size)(mm_jpeg_output_t jpeg_buffer[MM_JPEG_MAX_MPO_IMAGES],
+    int num_of_images);
+
+  /* Compose MPO*/
+  int (*compose_mpo)(mm_jpeg_mpo_info_t *mpo_info);
+
+} mm_jpeg_mpo_ops_t;
+
 /* open a jpeg client -- sync call
  * returns client_handle.
  * failed if client_handle=0
- * jpeg ops tbl will be filled in if open succeeds */
-uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_dimension picture_size);
+ * jpeg ops tbl and mpo ops tbl will be filled in if open succeeds
+ * and calibration data will be cached */
+uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
+  mm_dimension picture_size,
+  cam_related_system_calibration_data_t *calibration_data);
 
 /* open a jpeg client -- sync call
  * returns client_handle.
