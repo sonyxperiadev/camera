@@ -50,7 +50,8 @@ LOCAL_SRC_FILES := \
     src/mm_jpeg_interface.c \
     src/mm_jpeg_ionbuf.c \
     src/mm_jpegdec_interface.c \
-    src/mm_jpegdec.c
+    src/mm_jpegdec.c \
+    src/mm_jpeg_mpo_composer.c
 
 LOCAL_MODULE           := libmmjpeg_interface
 LOCAL_PRELINK_MODULE   := false

@@ -60,6 +60,7 @@ typedef enum {
 #define QOMX_IMAGE_EXT_META_ENC_KEY_NAME      "OMX.QCOM.image.exttype.metaEncKey"
 #define QOMX_IMAGE_EXT_MEM_OPS_NAME      "OMX.QCOM.image.exttype.mem_ops"
 #define QOMX_IMAGE_EXT_JPEG_SPEED_NAME      "OMX.QCOM.image.exttype.jpeg.speed"
+#define QOMX_IMAGE_EXT_MULTI_IMAGE_NAME  "OMX.QCOM.image.exttype.multi.image"
 
 /** QOMX_IMAGE_EXT_INDEXTYPE
 *  This enum is an extension of the OMX_INDEXTYPE enum and
@@ -98,6 +99,9 @@ typedef enum {
 
   //Name: OMX.QCOM.image.exttype.jpeg.speed
   QOMX_IMAGE_EXT_JPEG_SPEED = 0x07F000B,
+
+  //Name: OMX.QCOM.image.exttype.multi.image
+  QOMX_IMAGE_EXT_MULTI_IMAGE = 0x07F000C,
 
 } QOMX_IMAGE_EXT_INDEXTYPE;
 
@@ -311,6 +315,29 @@ typedef enum {
 typedef struct {
   QOMX_JPEG_SPEED_MODE speedMode;
 } QOMX_JPEG_SPEED;
+
+/** OMX_IMAGE_TYPE
+* Enum specifying the values for the jpeg
+* image type setting
+**/
+typedef enum {
+  QOMX_JPEG_IMAGE_TYPE_JPEG,
+  QOMX_JPEG_IMAGE_TYPE_MPO
+} OMX_IMAGE_TYPE;
+
+/** QOMX_JPEG_IMAGE_SEQUENCE_INFO
+* Struct specifying the parameters for
+* sequence of jpeg images
+* @image_type : jpeg image type
+* @is_primary_image: Flag indicating if the image is a
+    primary image in the sequence
+* @num_of_images: Number of images in the sequence
+**/
+typedef struct {
+  OMX_IMAGE_TYPE image_type;
+  OMX_U8 is_primary_image;
+  OMX_U32 num_of_images;
+} QOMX_JPEG_MULTI_IMAGE_INFO;
 
 #ifdef __cplusplus
  }
