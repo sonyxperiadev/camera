@@ -980,6 +980,7 @@ private:
     // ops to tempororily update parameter entries and commit
     int32_t updateParamEntry(const char *key, const char *value);
     int32_t commitParamChanges();
+    void updateViewAngles();
 
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];

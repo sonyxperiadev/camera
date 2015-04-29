@@ -41,6 +41,7 @@
 #include "QCamera2HWI.h"
 #include "QCameraParameters.h"
 
+#define PI 3.14159265
 #define ASPECT_TOLERANCE 0.001
 #define CAMERA_DEFAULT_LONGSHOT_STAGES 4
 #define CAMERA_MIN_LONGSHOT_STAGES 2
@@ -1423,6 +1424,8 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
                 // set the new value
                 CDBG_HIGH("%s: Requested picture size %d x %d", __func__, width, height);
                 CameraParameters::setPictureSize(width, height);
+                // Update View angles based on Picture Aspect ratio
+                updateViewAngles();
                 return NO_ERROR;
             }
         }
@@ -1439,6 +1442,8 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
             snprintf(val, sizeof(val), "%dx%d", width, height);
             updateParamEntry(KEY_PICTURE_SIZE, val);
             CDBG_HIGH("%s: %s", __func__, val);
+            // Update View angles based on Picture Aspect ratio
+            updateViewAngles();
             return NO_ERROR;
         }
     }
@@ -1470,6 +1475,64 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
     }
     ALOGE("Invalid picture size requested: %dx%d", width, height);
     return BAD_VALUE;
+}
+
+/*===========================================================================
+ * FUNCTION   : updateViewAngles
+ *
+ * DESCRIPTION: Update the Horizontal & Vertical based on the Aspect ratio of Preview and
+ *                        Picture aspect ratio
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::updateViewAngles()
+{
+    double stillAspectRatio, maxPictureAspectRatio;
+    int stillWidth, stillHeight, maxWidth, maxHeight;
+    // The crop factors from the full sensor array to the still picture crop region
+    double horizCropFactor = 1.f,vertCropFactor = 1.f;
+    float horizViewAngle, vertViewAngle, maxHfov, maxVfov;
+
+    // Get current Picture & max Snapshot sizes
+    getPictureSize(&stillWidth, &stillHeight);
+    maxWidth  = m_pCapability->picture_sizes_tbl[0].width;
+    maxHeight = m_pCapability->picture_sizes_tbl[0].height;
+
+    // Get default maximum FOV from corresponding sensor driver
+    maxHfov = m_pCapability->hor_view_angle;
+    maxVfov = m_pCapability->ver_view_angle;
+
+    stillAspectRatio = (double)stillWidth/stillHeight;
+    maxPictureAspectRatio = (double)maxWidth/maxHeight;
+    CDBG("%s: Stillwidth: %d, height: %d", __func__, stillWidth, stillHeight);
+    CDBG("%s: Max width: %d, height: %d", __func__, maxWidth, maxHeight);
+    CDBG("%s: still aspect: %f, Max Pic Aspect: %f", __func__,
+            stillAspectRatio, maxPictureAspectRatio);
+
+    // crop as per the Maximum Snapshot aspect ratio
+    if (stillAspectRatio < maxPictureAspectRatio)
+        horizCropFactor = stillAspectRatio/maxPictureAspectRatio;
+    else
+        vertCropFactor = maxPictureAspectRatio/stillAspectRatio;
+
+    CDBG("%s: horizCropFactor %f, vertCropFactor %f",
+            __func__, horizCropFactor, vertCropFactor);
+
+    // Now derive the final FOV's based on field of view formula is i.e,
+    // angle of view = 2 * arctangent ( d / 2f )
+    // where d is the physical sensor dimension of interest, and f is
+    // the focal length. This only applies to rectilinear sensors, for focusing
+    // at distances >> f, etc.
+    // Here d/2f is nothing but the Maximum Horizontal or Veritical FOV
+    horizViewAngle = (180/PI)*2*atan(horizCropFactor*tan((maxHfov/2)*(PI/180)));
+    vertViewAngle = (180/PI)*2*atan(horizCropFactor*tan((maxVfov/2)*(PI/180)));
+
+    setFloat(QCameraParameters::KEY_HORIZONTAL_VIEW_ANGLE, horizViewAngle);
+    setFloat(QCameraParameters::KEY_VERTICAL_VIEW_ANGLE, vertViewAngle);
+    CDBG_HIGH("%s: Final horizViewAngle %f, vertViewAngle %f",
+           __func__, horizViewAngle, vertViewAngle);
 }
 
 /*===========================================================================
