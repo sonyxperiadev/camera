@@ -3870,7 +3870,7 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
     const char *prev_val  = get(KEY_QC_ZSL);
     int32_t rc = NO_ERROR;
 
-    if(m_bForceZslMode) {
+    if(m_bForceZslMode && !m_bZslMode) {
         // Force ZSL mode to ON
         set(KEY_QC_ZSL, VALUE_ON);
         m_bZslMode_new = true;
@@ -3880,7 +3880,6 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
             rc = BAD_VALUE;
         }
-
     } else if (str_val != NULL) {
         if (prev_val == NULL || strcmp(str_val, prev_val) != 0) {
             int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
