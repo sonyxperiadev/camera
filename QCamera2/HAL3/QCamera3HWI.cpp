@@ -6162,13 +6162,19 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
 
     //aeLockAvailable to be set to true if capabilities has MANUAL_SENSOR and/or
     //BURST_CAPTURE.
-    uint8_t aeLockAvailable = ANDROID_CONTROL_AE_LOCK_AVAILABLE_TRUE;
-    staticInfo.update(ANDROID_CONTROL_AE_LOCK_AVAILABLE, &aeLockAvailable, 1);
+    uint8_t aeLockAvailable = (gCamCapability[cameraId]->sensor_type.sens_type == CAM_SENSOR_RAW) ?
+            ANDROID_CONTROL_AE_LOCK_AVAILABLE_TRUE : ANDROID_CONTROL_AE_LOCK_AVAILABLE_FALSE;
+
+    staticInfo.update(ANDROID_CONTROL_AE_LOCK_AVAILABLE,
+            &aeLockAvailable, 1);
 
     //awbLockAvailable to be set to true if capabilities has
     //MANUAL_POST_PROCESSING and/or BURST_CAPTURE.
-    uint8_t awbLockAvailable = ANDROID_CONTROL_AWB_LOCK_AVAILABLE_TRUE;
-    staticInfo.update(ANDROID_CONTROL_AWB_LOCK_AVAILABLE, &awbLockAvailable, 1);
+    uint8_t awbLockAvailable = (gCamCapability[cameraId]->sensor_type.sens_type == CAM_SENSOR_RAW) ?
+            ANDROID_CONTROL_AWB_LOCK_AVAILABLE_TRUE : ANDROID_CONTROL_AWB_LOCK_AVAILABLE_FALSE;
+
+    staticInfo.update(ANDROID_CONTROL_AWB_LOCK_AVAILABLE,
+            &awbLockAvailable, 1);
 
     int32_t max_input_streams = 1;
     staticInfo.update(ANDROID_REQUEST_MAX_NUM_INPUT_STREAMS,
