@@ -1458,7 +1458,7 @@ typedef  struct {
 } cam_metadata_info_t;
 
 typedef enum {
-    CAM_INTF_PARM_HAL_VERSION,
+    CAM_INTF_PARM_HAL_VERSION = 0x1,
 
     /* Overall mode of 3A control routines. We need to have this parameter
      * because not all android.control.* have an OFF option, for example,
