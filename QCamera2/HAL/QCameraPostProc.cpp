@@ -283,7 +283,9 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
             !m_parent->isLongshotEnabled() && (mTotalNumReproc > 0)) {
 
         QCameraChannel *pChannel = NULL;
-        pChannel = m_parent->needReprocess() ? mPPChannels[0] : pSrcChannel;
+        int ppChannel_idx = mTotalNumReproc - 1;
+        pChannel = m_parent->needReprocess() ? mPPChannels[ppChannel_idx] :
+                pSrcChannel;
         QCameraStream *pSnapshotStream = NULL;
         QCameraStream *pThumbStream = NULL;
         bool thumb_stream_needed = ((!m_parent->isZSLMode() ||
@@ -315,7 +317,7 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
         // If thumbnail is not part of the reprocess channel, then
         // try to get it from the source channel
         if ((thumb_stream_needed) && (NULL == pThumbStream) &&
-                (pChannel == mPPChannels[0])) {
+                (pChannel == mPPChannels[ppChannel_idx])) {
             for (uint32_t i = 0; i < pSrcChannel->getNumOfStreams(); ++i) {
                 QCameraStream *pStream = pSrcChannel->getStreamByIndex(i);
 
