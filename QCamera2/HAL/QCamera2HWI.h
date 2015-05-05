@@ -356,9 +356,6 @@ private:
     void playShutter();
     void getThumbnailSize(cam_dimension_t &dim);
     uint32_t getJpegQuality();
-    uint32_t getJpegRotation();
-    uint32_t getDeviceRotation();
-    void getOrientation();
     inline bool getCancelAutoFocus(){ return mCancelAutoFocus; }
     inline void setCancelAutoFocus(bool flag){ mCancelAutoFocus = flag; }
     QCameraExif *getExifData();

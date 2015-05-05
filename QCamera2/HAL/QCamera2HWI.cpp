@@ -3124,7 +3124,6 @@ int QCamera2HardwareInterface::takePicture()
     CDBG_HIGH("%s: [ZSL Retro] numSnapshots = %d, numRetroSnapshots = %d",
           __func__, numSnapshots, numRetroSnapshots);
 
-    getOrientation();
     if (mParameters.isZSLMode()) {
         QCameraPicChannel *pZSLChannel =
             (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
@@ -3380,7 +3379,8 @@ int32_t QCamera2HardwareInterface::configureOnlineRotation(QCameraChannel &ch)
     streamId = pStream->getMyServerID();
     // Update online rotation configuration
     pthread_mutex_lock(&m_parm_lock);
-    rc = mParameters.addOnlineRotation(getJpegRotation(), streamId, getDeviceRotation());
+    rc = mParameters.addOnlineRotation(mParameters.getJpegRotation(), streamId,
+            mParameters.getDeviceRotation());
     if (rc != NO_ERROR) {
         ALOGE("%s: addOnlineRotation failed %d", __func__, rc);
         pthread_mutex_unlock(&m_parm_lock);
@@ -3857,7 +3857,6 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
 {
     int rc = NO_ERROR;
 
-    getOrientation();
     QCameraChannel *pChannel = NULL;
 
     // Configure advanced capture
@@ -5920,7 +5919,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
 
             if (needRotationReprocess()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-                uint32_t rotation = getJpegRotation();
+                uint32_t rotation = mParameters.getJpegRotation();
                 if (rotation == 0) {
                     pp_config.rotation = ROTATE_0;
                 } else if (rotation == 90) {
@@ -6022,7 +6021,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
             pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_PASS_2;
             if (needRotationReprocess()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-                uint32_t rotation = getJpegRotation();
+                uint32_t rotation = mParameters.getJpegRotation();
                 if (rotation == 0) {
                     pp_config.rotation = ROTATE_0;
                 } else if (rotation == 90) {
@@ -7260,9 +7259,10 @@ bool QCamera2HardwareInterface::needReprocess()
         return false;
     }
     if ((gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION) > 0 &&
-            (getJpegRotation() > 0)) {
+            (mParameters.getJpegRotation() > 0)) {
             // current rotation is not zero, and pp has the capability to process rotation
-            CDBG_HIGH("%s: need to do reprocess for rotation=%d", __func__, getJpegRotation());
+            CDBG_HIGH("%s: need to do reprocess for rotation=%d",
+                    __func__, mParameters.getJpegRotation());
             pthread_mutex_unlock(&m_parm_lock);
             return true;
     }
@@ -7347,9 +7347,10 @@ bool QCamera2HardwareInterface::needRotationReprocess()
     }
 
     if ((gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION) > 0 &&
-            (getJpegRotation() > 0)) {
+            (mParameters.getJpegRotation() > 0)) {
         // current rotation is not zero, and pp has the capability to process rotation
-        CDBG_HIGH("%s: need to do reprocess for rotation=%d", __func__, getJpegRotation());
+        CDBG_HIGH("%s: need to do reprocess for rotation=%d",
+                __func__, mParameters.getJpegRotation());
         pthread_mutex_unlock(&m_parm_lock);
         return true;
     }
@@ -7424,50 +7425,6 @@ uint32_t QCamera2HardwareInterface::getJpegQuality()
     quality =  mParameters.getJpegQuality();
     pthread_mutex_unlock(&m_parm_lock);
     return quality;
-}
-
-/*===========================================================================
- * FUNCTION   : getJpegRotation
- *
- * DESCRIPTION: get rotation information to be passed into jpeg encoding
- *
- * PARAMETERS : none
- *
- * RETURN     : rotation information
- *==========================================================================*/
-uint32_t QCamera2HardwareInterface::getJpegRotation() {
-    return mCaptureRotation;
-}
-
-/*===========================================================================
- * FUNCTION   : getDeviceRotation
- *
- * DESCRIPTION: get device rotation information
- *
- * PARAMETERS : none
- *
- * RETURN     : device rotation information
- *==========================================================================*/
-uint32_t QCamera2HardwareInterface::getDeviceRotation() {
-    return mDeviceRotation;
-}
-
-/*===========================================================================
- * FUNCTION   : getOrientation
- *
- * DESCRIPTION: get rotation information from camera parameters
- *
- * PARAMETERS : none
- *
- * RETURN     : rotation information
- *==========================================================================*/
-void QCamera2HardwareInterface::getOrientation() {
-    pthread_mutex_lock(&m_parm_lock);
-    mCaptureRotation = mParameters.getJpegRotation();
-    mDeviceRotation = mParameters.getDeviceRotation();
-    mUseJpegExifRotation = mParameters.useJpegExifRotation();
-    mJpegExifRotation = mParameters.getJpegExifRotation();
-    pthread_mutex_unlock(&m_parm_lock);
 }
 
 /*===========================================================================
@@ -7633,9 +7590,9 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
         ALOGE("%s: getExifSoftware failed", __func__);
     }
 
-    if (mUseJpegExifRotation) {
+    if (mParameters.useJpegExifRotation()) {
         int16_t orientation;
-        switch (mJpegExifRotation) {
+        switch (mParameters.getJpegExifRotation()) {
         case 0:
             orientation = 1;
             break;
