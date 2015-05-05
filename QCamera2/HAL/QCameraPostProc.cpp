@@ -449,7 +449,7 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
 
     // set rotation only when no online rotation or offline pp rotation is done before
     if (!m_parent->needRotationReprocess()) {
-        encode_parm.rotation = m_parent->getJpegRotation();
+        encode_parm.rotation = m_parent->mParameters.getJpegRotation();
     }
 
     encode_parm.main_dim.src_dim = src_dim;
@@ -509,7 +509,7 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
 
     if (m_bThumbnailNeeded == TRUE) {
         bool need_thumb_rotate = true;
-        uint32_t jpeg_rotation = m_parent->getJpegRotation();
+        uint32_t jpeg_rotation = m_parent->mParameters.getJpegRotation();
         m_parent->getThumbnailSize(encode_parm.thumb_dim.dst_dim);
 
         if (thumb_stream == NULL) {
@@ -1818,7 +1818,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         return BAD_VALUE;
     }
 
-    const uint32_t jpeg_rotation = m_parent->getJpegRotation();
+    const uint32_t jpeg_rotation = m_parent->mParameters.getJpegRotation();
 
     ret = queryStreams(&main_stream,
             &thumb_stream,
