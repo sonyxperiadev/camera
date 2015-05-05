@@ -86,6 +86,7 @@ namespace qcamera {
 
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
+static pthread_mutex_t gCamLock = PTHREAD_MUTEX_INITIALIZER;
 volatile uint32_t gCamHal3LogLevel = 1;
 
 const QCamera3HardwareInterface::QCameraPropMap QCamera3HardwareInterface::CDS_MAP [] = {
@@ -5639,10 +5640,11 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
     ATRACE_CALL();
     int rc = 0;
 
+    pthread_mutex_lock(&gCamLock);
     if (NULL == gCamCapability[cameraId]) {
         rc = initCapabilities(cameraId);
         if (rc < 0) {
-            //pthread_mutex_unlock(&g_camlock);
+            pthread_mutex_unlock(&gCamLock);
             return rc;
         }
     }
@@ -5650,6 +5652,7 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
     if (NULL == gStaticMetadata[cameraId]) {
         rc = initStaticMetadata(cameraId);
         if (rc < 0) {
+            pthread_mutex_unlock(&gCamLock);
             return rc;
         }
     }
@@ -5673,6 +5676,8 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
     info->orientation = (int)gCamCapability[cameraId]->sensor_mount_angle;
     info->device_version = CAMERA_DEVICE_API_VERSION_3_2;
     info->static_camera_characteristics = gStaticMetadata[cameraId];
+
+    pthread_mutex_unlock(&gCamLock);
 
     return rc;
 }
