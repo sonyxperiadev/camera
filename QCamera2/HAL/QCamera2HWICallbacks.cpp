@@ -1958,6 +1958,7 @@ void QCamera2HardwareInterface::callback_stream_cb_routine(mm_camera_super_buf_t
             ALOGE("%s: Preview callback was not sent succesfully", __func__);
         }
     }
+    stream->bufDone(frame->buf_idx);
     free(super_frame);
     CDBG_HIGH("[KPI Perf] %s: X", __func__);
 }

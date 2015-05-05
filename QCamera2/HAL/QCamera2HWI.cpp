@@ -2482,6 +2482,17 @@ int QCamera2HardwareInterface::startPreview()
         if (focusMode == CAM_FOCUS_MODE_CONTINOUS_PICTURE)
             mCameraHandle->ops->cancel_auto_focus(mCameraHandle->camera_handle);
     }
+
+    if (rc == NO_ERROR && (msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME))
+            && (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL)) {
+        rc = startChannel(QCAMERA_CH_TYPE_CALLBACK);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: failed to start callback stream", __func__);
+            stopChannel(QCAMERA_CH_TYPE_ZSL);
+            stopChannel(QCAMERA_CH_TYPE_PREVIEW);
+        }
+    }
+
     updatePostPreviewParameters();
     CDBG_HIGH("%s: X", __func__);
     return rc;
@@ -2563,7 +2574,7 @@ int QCamera2HardwareInterface::startRecording()
         mParameters.updateRecordingHintValue(TRUE);
         rc = preparePreview();
         if (rc == NO_ERROR) {
-            rc = startChannel(QCAMERA_CH_TYPE_PREVIEW);
+            rc = startPreview();
         }
     }
 

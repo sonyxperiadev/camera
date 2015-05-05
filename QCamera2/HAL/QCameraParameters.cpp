@@ -1638,7 +1638,8 @@ int32_t QCameraParameters::setPreviewFormat(const QCameraParameters& params)
         char prop[PROPERTY_VALUE_MAX];
         int pFormat;
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.preview.ubwc", prop, "0");
+        property_get("persist.camera.preview.ubwc", prop, "1");
+
         pFormat = atoi(prop);
         if (pFormat == 1) {
             mPreviewFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
@@ -8982,7 +8983,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             char prop[PROPERTY_VALUE_MAX];
             int pFormat;
             memset(prop, 0, sizeof(prop));
-            property_get("persist.camera.video.ubwc", prop, "0");
+            property_get("persist.camera.video.ubwc", prop, "1");
             pFormat = atoi(prop);
             if (pFormat == 1) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
@@ -11742,7 +11743,8 @@ bool QCameraParameters::needThumbnailReprocess(uint32_t *pFeatureMask)
     if (isUbiFocusEnabled() || isChromaFlashEnabled() ||
             isOptiZoomEnabled() || isUbiRefocus() ||
             isStillMoreEnabled() ||
-            (isHDREnabled() && !isHDRThumbnailProcessNeeded())) {
+            (isHDREnabled() && !isHDRThumbnailProcessNeeded())
+            || isUBWCEnabled()) {
         *pFeatureMask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_UBIFOCUS;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_REFOCUS;
