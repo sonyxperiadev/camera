@@ -2573,7 +2573,11 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                         break;
                     case QCAMERA_DUMP_FRM_SNAPSHOT:
                         {
-                            mParameters.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, dim);
+                            if (!mParameters.isPostProcScaling()) {
+                                mParameters.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, dim);
+                            } else {
+                                stream->getFrameDimension(dim);
+                            }
                             snprintf(buf, sizeof(buf), "%ds_%dx%d_%d.yuv",
                                     dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
                         }
