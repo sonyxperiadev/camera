@@ -2210,6 +2210,12 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             jpg_job.encode_job.thumb_dim.dst_dim.height);
     }
 
+    CDBG("%s, main_dim src w/h (%dx%d), dst w/h (%dx%d)", __func__,
+            jpg_job.encode_job.main_dim.src_dim.width,
+            jpg_job.encode_job.main_dim.src_dim.height,
+            jpg_job.encode_job.main_dim.dst_dim.width,
+            jpg_job.encode_job.main_dim.dst_dim.height);
+
     if (thumb_frame != NULL) {
         // dump thumbnail frame if enabled
         m_parent->dumpFrameToFile(thumb_stream, thumb_frame, QCAMERA_DUMP_FRM_THUMBNAIL);

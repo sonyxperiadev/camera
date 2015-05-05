@@ -621,8 +621,6 @@ private:
     bool m_HDRSceneEnabled;
     bool mLongshotEnabled;
 
-    uint32_t m_max_pic_width;
-    uint32_t m_max_pic_height;
     pthread_t mLiveSnapshotThread;
     pthread_t mIntPicThread;
     bool mFlashNeeded;
