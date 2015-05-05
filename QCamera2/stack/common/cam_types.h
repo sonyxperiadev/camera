@@ -1943,7 +1943,6 @@ typedef struct {
 #define CAM_QCOM_FEATURE_PP_PASS_1      CAM_QCOM_FEATURE_PP_SUPERSET
 #define CAM_QCOM_FEATURE_PP_PASS_2      CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP;
 
-
 // Counter clock wise
 typedef enum {
     ROTATE_0 = 1<<0,
