@@ -1437,11 +1437,12 @@ int32_t mm_channel_stop(mm_channel_t *my_obj)
             s_obj = mm_channel_util_get_stream_by_handler(my_obj,
                                                           my_obj->streams[i].my_hdl);
             if (NULL != s_obj) {
-                stream_type = s_obj->stream_info->stream_type;
-                /* remember meta data stream index */
-                if ((stream_type == CAM_STREAM_TYPE_METADATA) &&
-                        (s_obj->ch_obj == my_obj)) {
-                    meta_stream_idx = num_streams_to_stop;
+                if (s_obj->ch_obj == my_obj) {
+                    stream_type = s_obj->stream_info->stream_type;
+                    /* remember meta data stream index */
+                    if (stream_type == CAM_STREAM_TYPE_METADATA) {
+                        meta_stream_idx = num_streams_to_stop;
+                    }
                 }
                 s_objs[num_streams_to_stop++] = s_obj;
             }
