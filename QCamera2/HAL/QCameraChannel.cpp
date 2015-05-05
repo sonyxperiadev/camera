@@ -1134,18 +1134,14 @@ int32_t QCameraReprocessChannel::stop()
  *
  * PARAMETERS :
  *   @frame   : frame to be performed a reprocess
- *   @Parameter    : camera parameter reference
  *   @meta_buf : Metadata buffer for reprocessing
- *   @rotation: online rotation (i.e. jpeg rotation)
- *   @device_rotation: device rotation
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame,
-        QCameraParameters &Parameter, mm_camera_buf_def_t *meta_buf, uint32_t rotation,
-        int32_t device_rotation)
+        mm_camera_buf_def_t *meta_buf)
 {
     int32_t rc = 0;
     OfflineBuffer mappedBuffer;
@@ -1185,6 +1181,37 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
                           __func__);
                     break;
                 }
+                // we have meta data sent together with reprocess frame
+                uint32_t stream_id = frame->bufs[i]->stream_id;
+                QCameraStream *srcStream =
+                        m_pSrcChannel->getStreamByHandle(stream_id);
+                metadata_buffer_t *pMetaData =
+                        (metadata_buffer_t *)meta_buf->buffer;
+                if ((NULL != pMetaData) && (NULL != srcStream)) {
+                    IF_META_AVAILABLE(cam_crop_data_t, crop, CAM_INTF_META_CROP_DATA, pMetaData) {
+                        if (MAX_NUM_STREAMS > crop->num_of_streams) {
+                            for (int j = 0; j < MAX_NUM_STREAMS; j++) {
+                                if (crop->crop_info[j].stream_id ==
+                                            srcStream->getMyServerID()) {
+                                    // Store crop/roi information for offline reprocess
+                                    // in the reprocess stream slot
+                                    crop->crop_info[crop->num_of_streams].crop =
+                                            crop->crop_info[j].crop;
+                                    crop->crop_info[crop->num_of_streams].roi_map =
+                                            crop->crop_info[j].roi_map;
+                                    crop->crop_info[crop->num_of_streams].stream_id =
+                                            mStreams[0]->getMyServerID();
+                                    crop->num_of_streams++;
+
+                                    break;
+                                }
+                            }
+                        } else {
+                            ALOGE("%s: No space to add reprocess stream crop/roi information",
+                                    __func__);
+                        }
+                    }
+                }
             }
             mappedBuffer.index = meta_buf_index;
             mappedBuffer.stream = pStream;
@@ -1209,62 +1236,12 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
 
             cam_stream_parm_buffer_t param;
             memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+
             param.type = CAM_STREAM_PARAM_TYPE_DO_REPROCESS;
             param.reprocess.buf_index = buf_index;
             param.reprocess.frame_idx = frame->bufs[i]->frame_idx;
-            param.reprocess.frame_pp_config.uv_upsample =
-                            frame->bufs[i]->is_uv_subsampled;
-            if (NULL != meta_buf) {
-                // we have meta data sent together with reprocess frame
-                param.reprocess.meta_present = 1;
-                param.reprocess.meta_buf_index = meta_buf_index;
-                uint32_t stream_id = frame->bufs[i]->stream_id;
-                QCameraStream *srcStream =
-                        m_pSrcChannel->getStreamByHandle(stream_id);
-                metadata_buffer_t *pMetaData =
-                        (metadata_buffer_t *)meta_buf->buffer;
-                if ((NULL != pMetaData) && (NULL != srcStream)) {
-                    IF_META_AVAILABLE(cam_crop_data_t, crop, CAM_INTF_META_CROP_DATA, pMetaData) {
-                        for (int j = 0; j < MAX_NUM_STREAMS; j++) {
-                            if (crop->crop_info[j].stream_id == srcStream->getMyServerID()) {
-                                param.reprocess.frame_pp_config.crop.crop_enabled = 1;
-                                param.reprocess.frame_pp_config.crop.input_crop =
-                                        crop->crop_info[j].crop;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (rotation == 0) {
-                param.reprocess.frame_pp_config.rotation = ROTATE_0;
-            } else if (rotation == 90) {
-                param.reprocess.frame_pp_config.rotation = ROTATE_90;
-            } else if (rotation == 180) {
-                param.reprocess.frame_pp_config.rotation = ROTATE_180;
-            } else if (rotation == 270) {
-                param.reprocess.frame_pp_config.rotation = ROTATE_270;
-            } else {
-                param.reprocess.frame_pp_config.rotation = ROTATE_0;
-            }
-
-            if (device_rotation == 0) {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_0;
-            } else if (device_rotation == 90) {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_90;
-            } else if (device_rotation == 180) {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_180;
-            } else if (device_rotation == 270) {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_270;
-            } else {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_0;
-            }
-
-            int flipMode = Parameter.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
-            if (0 <= flipMode) {
-                param.reprocess.frame_pp_config.flip = (uint32_t)flipMode;
-            }
+            param.reprocess.meta_present = 1;
+            param.reprocess.meta_buf_index = meta_buf_index;
 
             rc = pStream->setParameter(param);
             if (rc != NO_ERROR) {
@@ -1287,8 +1264,6 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
  *   @mParameter : camera parameters
  *   @pMetaStream: Metadata stream handle
  *   @meta_buf_index : Metadata buffer index
- *   @rotation: online rotation (i.e. jpeg rotation)
- *   @device_rotation: device rotation
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -1296,7 +1271,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
         QCameraParameters &mParameter, QCameraStream *pMetaStream,
-        uint8_t meta_buf_index, uint32_t rotation, int32_t device_rotation)
+        uint8_t meta_buf_index)
 {
     int32_t rc = 0;
     if (mStreams.size() < 1) {
@@ -1327,43 +1302,11 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
             param.type = CAM_STREAM_PARAM_TYPE_DO_REPROCESS;
             param.reprocess.buf_index = frame->bufs[i]->buf_idx;
             param.reprocess.frame_idx = frame->bufs[i]->frame_idx;
-            param.reprocess.frame_pp_config.uv_upsample = frame->bufs[i]->is_uv_subsampled;
             if (pMetaStream != NULL) {
                 // we have meta data frame bundled, sent together with reprocess frame
                 param.reprocess.meta_present = 1;
                 param.reprocess.meta_stream_handle = pMetaStream->getMyServerID();
                 param.reprocess.meta_buf_index = meta_buf_index;
-            }
-
-            /* Add jpeg rotation to pp config */
-            if (rotation == 0) {
-                param.reprocess.frame_pp_config.rotation = ROTATE_0;
-            } else if (rotation == 90) {
-                param.reprocess.frame_pp_config.rotation = ROTATE_90;
-            } else if (rotation == 180) {
-                param.reprocess.frame_pp_config.rotation = ROTATE_180;
-            } else if (rotation == 270) {
-                param.reprocess.frame_pp_config.rotation = ROTATE_270;
-            } else {
-                param.reprocess.frame_pp_config.rotation = ROTATE_0;
-            }
-
-            /* Add device rotation to pp config */
-            if (device_rotation == 0) {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_0;
-            } else if (device_rotation == 90) {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_90;
-            } else if (device_rotation == 180) {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_180;
-            } else if (device_rotation == 270) {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_270;
-            } else {
-                param.reprocess.frame_pp_config.device_rotation = ROTATE_0;
-            }
-
-            int flipMode = mParameter.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
-            if (0 <= flipMode) {
-                param.reprocess.frame_pp_config.flip = (uint32_t)flipMode;
             }
 
             CDBG_HIGH("Frame for reprocessing id = %d buf Id = %d meta index = %d",
