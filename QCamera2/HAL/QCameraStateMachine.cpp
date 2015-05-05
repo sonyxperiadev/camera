@@ -596,6 +596,14 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
+                    //close the camera backend
+                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
+                    if (handle && handle->ops) {
+                        handle->ops->error_close_camera(handle->camera_handle);
+                    } else {
+                        ALOGE("%s: Could not close because the handle or ops is NULL",
+                                __func__);
+                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -901,6 +909,14 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
+                    //close the camera backend
+                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
+                    if (handle && handle->ops) {
+                        handle->ops->error_close_camera(handle->camera_handle);
+                    } else {
+                        ALOGE("%s: Could not close because the handle or ops is NULL",
+                                __func__);
+                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1368,6 +1384,14 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
+                    //close the camera backend
+                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
+                    if (handle && handle->ops) {
+                        handle->ops->error_close_camera(handle->camera_handle);
+                    } else {
+                        ALOGE("%s: Could not close because the handle or ops is NULL",
+                                __func__);
+                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1526,6 +1550,14 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
+                    //close the camera backend
+                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
+                    if (handle && handle->ops) {
+                        handle->ops->error_close_camera(handle->camera_handle);
+                    } else {
+                        ALOGE("%s: Could not close because the handle or ops is NULL",
+                                __func__);
+                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1878,6 +1910,14 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                     result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
                     m_parent->signalAPIResult(&result);
 
+                    //close the camera backend
+                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
+                    if (handle && handle->ops) {
+                        handle->ops->error_close_camera(handle->camera_handle);
+                    } else {
+                        ALOGE("%s: Could not close because the handle or ops is NULL",
+                                __func__);
+                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -2280,6 +2320,14 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
+                    //close the camera backend
+                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
+                    if (handle && handle->ops) {
+                        handle->ops->error_close_camera(handle->camera_handle);
+                    } else {
+                        ALOGE("%s: Could not close because the handle or ops is NULL",
+                                __func__);
+                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -2635,6 +2683,14 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
+                    //close the camera backend
+                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
+                    if (handle && handle->ops) {
+                        handle->ops->error_close_camera(handle->camera_handle);
+                    } else {
+                        ALOGE("%s: Could not close because the handle or ops is NULL",
+                                __func__);
+                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -3092,6 +3148,14 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
+                    //close the camera backend
+                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
+                    if (handle && handle->ops) {
+                        handle->ops->error_close_camera(handle->camera_handle);
+                    } else {
+                        ALOGE("%s: Could not close because the handle or ops is NULL",
+                                __func__);
+                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
