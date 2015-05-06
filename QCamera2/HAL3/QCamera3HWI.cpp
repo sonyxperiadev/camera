@@ -5993,6 +5993,9 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       &partial_result_count,
                        1);
 
+    int32_t max_stall_duration = MAX_REPROCESS_STALL;
+    staticInfo.update(ANDROID_REPROCESS_MAX_CAPTURE_STALL, &max_stall_duration, 1);
+
     Vector<uint8_t> available_capabilities;
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);

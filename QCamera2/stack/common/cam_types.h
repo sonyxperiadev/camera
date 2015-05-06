@@ -122,6 +122,8 @@
 #define EXTRA_FRAME_SYNC_BUFFERS     4 /* Extra frame sync buffers in dc mode*/
 #define MM_CAMERA_FRAME_SYNC_NODES   EXTRA_FRAME_SYNC_BUFFERS
 
+#define MAX_REPROCESS_STALL 2
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3
