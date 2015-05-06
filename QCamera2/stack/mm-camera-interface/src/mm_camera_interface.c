@@ -47,7 +47,7 @@
 
 static pthread_mutex_t g_intf_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static mm_camera_ctrl_t g_cam_ctrl = {0, {{0}}, {0}, {{0}}};
+static mm_camera_ctrl_t g_cam_ctrl = {0, {{0}}, {0}, {{0}}, {0}, {0}};
 
 static pthread_mutex_t g_handler_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint16_t g_handler_history_count = 0; /* history count for handler */
@@ -1483,6 +1483,7 @@ void get_sensor_info()
             uint32_t temp;
             uint32_t mount_angle;
             uint32_t facing;
+            int32_t type = 0;
 
             memset(&entity, 0, sizeof(entity));
             entity.id = num_entities++;
@@ -1496,19 +1497,23 @@ void get_sensor_info()
                 entity.group_id == MSM_CAMERA_SUBDEV_SENSOR) {
                 temp = entity.flags >> 8;
                 mount_angle = (temp & 0xFF) * 90;
-                facing = (temp >> 8);
-                ALOGD("index = %u flag = %x mount_angle = %u facing = %u\n",
-                    (unsigned int)num_cameras, (unsigned int)temp,
-                    (unsigned int)mount_angle, (unsigned int)facing);
+                facing = (temp & 0xFF00) >> 8;
+                type = (temp & 0xFF0000) >> 16;
+                ALOGI("index = %u flag = %x mount_angle = %u "
+                        "facing = %u type: %u\n",
+                        (unsigned int)num_cameras, (unsigned int)temp,
+                        (unsigned int)mount_angle, (unsigned int)facing,
+                        (unsigned int)type);
                 g_cam_ctrl.info[num_cameras].facing = (int)facing;
                 g_cam_ctrl.info[num_cameras].orientation = (int)mount_angle;
+                g_cam_ctrl.cam_type[num_cameras] = type;
                 num_cameras++;
                 continue;
             }
         }
 
         CDBG("%s: dev_info[id=%zu,name='%s']\n",
-            __func__, num_cameras, g_cam_ctrl.video_dev_name[num_cameras]);
+                __func__, num_cameras, g_cam_ctrl.video_dev_name[num_cameras]);
 
         close(dev_fd);
         dev_fd = -1;
@@ -1531,14 +1536,35 @@ void sort_camera_info(int num_cam)
 {
     int idx = 0, i;
     struct camera_info temp_info[MM_CAMERA_MAX_NUM_SENSORS];
+    cam_sync_type_t temp_type[MM_CAMERA_MAX_NUM_SENSORS];
+    cam_sync_mode_t temp_mode[MM_CAMERA_MAX_NUM_SENSORS];
     char temp_dev_name[MM_CAMERA_MAX_NUM_SENSORS][MM_CAMERA_DEV_NAME_LEN];
     memset(temp_info, 0, sizeof(temp_info));
     memset(temp_dev_name, 0, sizeof(temp_dev_name));
+    memset(temp_type, 0, sizeof(temp_type));
+    memset(temp_mode, 0, sizeof(temp_mode));
 
-    /* firstly save the back cameras info*/
+    /* firstly save the main back cameras info*/
     for (i = 0; i < num_cam; i++) {
-        if (g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) {
+        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
+            (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
             temp_info[idx] = g_cam_ctrl.info[i];
+            temp_type[idx] = g_cam_ctrl.cam_type[i];
+            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+            CDBG("%s: Found Back Main Camera: i: %d idx: %d", __func__, i, idx);
+            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+                MM_CAMERA_DEV_NAME_LEN);
+        }
+    }
+
+    /* save the aux back cameras info*/
+    for (i = 0; i < num_cam; i++) {
+        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
+            (g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX)) {
+            temp_info[idx] = g_cam_ctrl.info[i];
+            temp_type[idx] = g_cam_ctrl.cam_type[i];
+            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+            CDBG("%s: Found Back Aux Camera: i: %d idx: %d", __func__, i, idx);
             memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
         }
@@ -1546,8 +1572,25 @@ void sort_camera_info(int num_cam)
 
     /* then save the front cameras info*/
     for (i = 0; i < num_cam; i++) {
-        if (g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) {
+        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
+            (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
             temp_info[idx] = g_cam_ctrl.info[i];
+            temp_type[idx] = g_cam_ctrl.cam_type[i];
+            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+            CDBG("%s: Found Front Main Camera: i: %d idx: %d", __func__, i, idx);
+            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+                MM_CAMERA_DEV_NAME_LEN);
+        }
+    }
+
+    /* save the aux front cameras info*/
+    for (i = 0; i < num_cam; i++) {
+        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
+            (g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX)) {
+            temp_info[idx] = g_cam_ctrl.info[i];
+            temp_type[idx] = g_cam_ctrl.cam_type[i];
+            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+            CDBG("%s: Found Front Aux Camera: i: %d idx: %d", __func__, i, idx);
             memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
         }
@@ -1555,7 +1598,13 @@ void sort_camera_info(int num_cam)
 
     if (idx == num_cam) {
         memcpy(g_cam_ctrl.info, temp_info, sizeof(temp_info));
+        memcpy(g_cam_ctrl.cam_type, temp_type, sizeof(temp_type));
+        memcpy(g_cam_ctrl.cam_mode, temp_mode, sizeof(temp_mode));
         memcpy(g_cam_ctrl.video_dev_name, temp_dev_name, sizeof(temp_dev_name));
+        for (i = 0; i < num_cam; i++) {
+            CDBG_HIGH("%s: Camera id: %d facing: %d, type: %d", __func__,
+                i, g_cam_ctrl.info[i].facing, g_cam_ctrl.cam_type[i]);
+        }
     } else {
         ALOGE("%s: Failed to sort all cameras!", __func__);
         ALOGE("%s: Number of cameras %d sorted %d", __func__, num_cam, idx);
@@ -1777,8 +1826,9 @@ static int32_t mm_camera_intf_process_advanced_capture(uint32_t camera_handle,
     return rc;
 }
 
-struct camera_info *get_cam_info(uint32_t camera_id)
+struct camera_info *get_cam_info(uint32_t camera_id, cam_sync_type_t *pCamType)
 {
+    *pCamType = g_cam_ctrl.cam_type[camera_id];
     return &g_cam_ctrl.info[camera_id];
 }
 

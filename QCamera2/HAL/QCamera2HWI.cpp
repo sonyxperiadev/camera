@@ -118,6 +118,7 @@ int QCamera2HardwareInterface::set_preview_window(struct camera_device *device,
         ALOGE("%s: NULL camera device", __func__);
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     hw->lockAPI();
     qcamera_api_result_t apiResult;
@@ -127,6 +128,7 @@ int QCamera2HardwareInterface::set_preview_window(struct camera_device *device,
         rc = apiResult.status;
     }
     hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 
     return rc;
 }
@@ -160,6 +162,7 @@ void QCamera2HardwareInterface::set_CallBacks(struct camera_device *device,
         ALOGE("NULL camera device");
         return;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     qcamera_sm_evt_setcb_payload_t payload;
     payload.notify_cb = notify_cb;
@@ -175,6 +178,8 @@ void QCamera2HardwareInterface::set_CallBacks(struct camera_device *device,
         hw->waitAPIResult(QCAMERA_SM_EVT_SET_CALLBACKS, &apiResult);
     }
     hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
+
 }
 
 /*===========================================================================
@@ -197,6 +202,8 @@ void QCamera2HardwareInterface::enable_msg_type(struct camera_device *device, in
         ALOGE("NULL camera device");
         return;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t rc = hw->processAPI(QCAMERA_SM_EVT_ENABLE_MSG_TYPE, (void *)&msg_type);
@@ -204,6 +211,8 @@ void QCamera2HardwareInterface::enable_msg_type(struct camera_device *device, in
         hw->waitAPIResult(QCAMERA_SM_EVT_ENABLE_MSG_TYPE, &apiResult);
     }
     hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
+
 }
 
 /*===========================================================================
@@ -226,6 +235,8 @@ void QCamera2HardwareInterface::disable_msg_type(struct camera_device *device, i
         ALOGE("NULL camera device");
         return;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t rc = hw->processAPI(QCAMERA_SM_EVT_DISABLE_MSG_TYPE, (void *)&msg_type);
@@ -233,6 +244,8 @@ void QCamera2HardwareInterface::disable_msg_type(struct camera_device *device, i
         hw->waitAPIResult(QCAMERA_SM_EVT_DISABLE_MSG_TYPE, &apiResult);
     }
     hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
+
 }
 
 /*===========================================================================
@@ -257,6 +270,8 @@ int QCamera2HardwareInterface::msg_type_enabled(struct camera_device *device, in
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_MSG_TYPE_ENABLED, (void *)&msg_type);
@@ -265,9 +280,48 @@ int QCamera2HardwareInterface::msg_type_enabled(struct camera_device *device, in
         ret = apiResult.enabled;
     }
     hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 
    return ret;
 }
+
+/*===========================================================================
+ * FUNCTION   : prepare_preview
+ *
+ * DESCRIPTION: prepare preview
+ *
+ * PARAMETERS :
+ *   @device  : ptr to camera device struct
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::prepare_preview(struct camera_device *device)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+        reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
+    ALOGI("[KPI Perf] %s: E PROFILE_PREPARE_PREVIEW camera id %d",
+            __func__, hw->getCameraId());
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+    qcamera_sm_evt_enum_t evt = QCAMERA_SM_EVT_PREPARE_PREVIEW;
+    ret = hw->processAPI(evt, NULL);
+    if (ret == NO_ERROR) {
+        hw->waitAPIResult(evt, &apiResult);
+        ret = apiResult.status;
+    }
+    hw->unlockAPI();
+    ALOGI("[KPI Perf] %s: X", __func__);
+    return ret;
+}
+
 
 /*===========================================================================
  * FUNCTION   : start_preview
@@ -291,7 +345,8 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    ALOGI("[KPI Perf] %s: E PROFILE_START_PREVIEW", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_START_PREVIEW camera id %d",
+            __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     qcamera_sm_evt_enum_t evt = QCAMERA_SM_EVT_START_PREVIEW;
@@ -328,7 +383,8 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
         ALOGE("NULL camera device");
         return;
     }
-    ALOGI("[KPI Perf] %s: E PROFILE_STOP_PREVIEW", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_STOP_PREVIEW camera id %d",
+            __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_STOP_PREVIEW, NULL);
@@ -360,6 +416,7 @@ int QCamera2HardwareInterface::preview_enabled(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     hw->lockAPI();
     qcamera_api_result_t apiResult;
@@ -369,6 +426,7 @@ int QCamera2HardwareInterface::preview_enabled(struct camera_device *device)
         ret = apiResult.enabled;
     }
     hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }
@@ -396,6 +454,7 @@ int QCamera2HardwareInterface::store_meta_data_in_buffers(
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     hw->lockAPI();
     qcamera_api_result_t apiResult;
@@ -405,6 +464,7 @@ int QCamera2HardwareInterface::store_meta_data_in_buffers(
         ret = apiResult.status;
     }
     hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }
@@ -431,7 +491,8 @@ int QCamera2HardwareInterface::start_recording(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    ALOGI("[KPI Perf] %s: E PROFILE_START_RECORDING", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_START_RECORDING camera id %d",
+            __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_START_RECORDING, NULL);
@@ -464,7 +525,8 @@ void QCamera2HardwareInterface::stop_recording(struct camera_device *device)
         ALOGE("NULL camera device");
         return;
     }
-    ALOGI("[KPI Perf] %s: E PROFILE_STOP_RECORDING", __func__);
+    ALOGI("[KPI Perf] %s: E PROFILE_STOP_RECORDING camera id %d",
+            __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_STOP_RECORDING, NULL);
@@ -496,6 +558,7 @@ int QCamera2HardwareInterface::recording_enabled(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_RECORDING_ENABLED, NULL);
@@ -504,6 +567,7 @@ int QCamera2HardwareInterface::recording_enabled(struct camera_device *device)
         ret = apiResult.enabled;
     }
     hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }
@@ -533,7 +597,7 @@ void QCamera2HardwareInterface::release_recording_frame(
         ALOGE("%s: Error!! Frame info is NULL", __func__);
         return;
     }
-    CDBG("%s: E", __func__);
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_RELEASE_RECORIDNG_FRAME, (void *)opaque);
@@ -541,7 +605,7 @@ void QCamera2HardwareInterface::release_recording_frame(
         hw->waitAPIResult(QCAMERA_SM_EVT_RELEASE_RECORIDNG_FRAME, &apiResult);
     }
     hw->unlockAPI();
-    CDBG("%s: X", __func__);
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 }
 
 /*===========================================================================
@@ -566,7 +630,8 @@ int QCamera2HardwareInterface::auto_focus(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    CDBG_HIGH("[KPI Perf] %s : E PROFILE_AUTO_FOCUS", __func__);
+    CDBG_HIGH("[KPI Perf] %s : E PROFILE_AUTO_FOCUS camera id %d",
+            __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_START_AUTO_FOCUS, NULL);
@@ -602,7 +667,8 @@ int QCamera2HardwareInterface::cancel_auto_focus(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    ALOGE("[KPI Perf] %s : E PROFILE_CANCEL_AUTO_FOCUS", __func__);
+    CDBG_HIGH("[KPI Perf] %s : E PROFILE_CANCEL_AUTO_FOCUS camera id %d",
+            __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_STOP_AUTO_FOCUS, NULL);
@@ -637,8 +703,8 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    ALOGI("[KPI Perf] %s: E PROFILE_TAKE_PICTURE", __func__);
-    hw->lockAPI();
+    ALOGI("[KPI Perf] %s: E PROFILE_TAKE_PICTURE camera id %d",
+            __func__, hw->getCameraId());
     qcamera_api_result_t apiResult;
 
    /** Added support for Retro-active Frames:
@@ -647,7 +713,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
      *  before LED estimation is triggered.
      */
 
-    CDBG_HIGH("%s: [ZSL Retro]: numRetroSnap %d, isLiveSnap %d, isZSL %d, isHDR %d",
+    CDBG_HIGH("%s: numRetroSnap %d, isLiveSnap %d, isZSL %d, isHDR %d",
        __func__, hw->mParameters.getNumOfRetroSnapshots(),
        hw->isLiveSnapshot(), hw->isZSLMode(), hw->isHDRMode());
 
@@ -656,6 +722,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
         !hw->isLiveSnapshot() && hw->isZSLMode() &&
         !hw->isHDRMode() && !hw->isLongshotEnabled()) {
         // Set Retro Picture Mode
+        hw->lockAPI();
         hw->setRetroPicture(1);
         hw->m_bLedAfAecLock = 0;
         CDBG_HIGH("%s: [ZSL Retro] mode", __func__);
@@ -669,50 +736,38 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
           hw->waitAPIResult(QCAMERA_SM_EVT_TAKE_PICTURE, &apiResult);
             ret = apiResult.status;
         }
+        /* Unlock API since it is acquired in prepare snapshot seperately */
+        hw->unlockAPI();
 
-
-        // Start Preparing for normal Frames
-        CDBG_HIGH("%s: [ZSL Retro]  Start Prepare Snapshot", __func__);
         /* Prepare snapshot in case LED needs to be flashed */
-        ret = hw->processAPI(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, NULL);
-        if (ret == NO_ERROR) {
-            hw->waitAPIResult(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, &apiResult);
-            ret = apiResult.status;
-            CDBG_HIGH("%s: [ZSL Retro] Prep Snapshot done", __func__);
-        }
-        hw->mPrepSnapRun = true;
+        CDBG_HIGH("%s: [ZSL Retro]  Start Prepare Snapshot", __func__);
+        ret = hw->prepare_snapshot(device);
     }
     else {
         hw->setRetroPicture(0);
-        CDBG_HIGH("%s: [ZSL Retro] Normal Pic Taking Mode", __func__);
-
-        CDBG_HIGH("%s: [ZSL Retro] Start Prepare Snapshot", __func__);
-        /* Prepare snapshot in case LED needs to be flashed */
-        if (hw->mFlashNeeded == 1 || hw->mParameters.isChromaFlashEnabled()) {
-            // Start Preparing for normal Frames
-            CDBG_HIGH("%s: [ZSL Retro]  Start Prepare Snapshot", __func__);
-            /* Prepare snapshot in case LED needs to be flashed */
-            ret = hw->processAPI(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, NULL);
-            if (ret == NO_ERROR) {
-              hw->waitAPIResult(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, &apiResult);
-                ret = apiResult.status;
-                CDBG_HIGH("%s: [ZSL Retro] Prep Snapshot done", __func__);
-
-            }
-            hw->mPrepSnapRun = true;
+        // Check if prepare snapshot is done
+        if (!hw->mPrepSnapRun) {
+            // Ignore the status from prepare_snapshot
+            hw->prepare_snapshot(device);
         }
-        /* Regardless what the result value for prepare_snapshot,
-         * go ahead with capture anyway. Just like the way autofocus
-         * is handled in capture case. */
+
+        // Regardless what the result value for prepare_snapshot,
+        // go ahead with capture anyway. Just like the way autofocus
+        // is handled in capture case
         /* capture */
         CDBG_HIGH("%s: [ZSL Retro] Capturing normal frames", __func__);
+        hw->lockAPI();
         ret = hw->processAPI(QCAMERA_SM_EVT_TAKE_PICTURE, NULL);
         if (ret == NO_ERROR) {
           hw->waitAPIResult(QCAMERA_SM_EVT_TAKE_PICTURE, &apiResult);
             ret = apiResult.status;
         }
+        hw->unlockAPI();
+        if (!hw->isLongshotEnabled()){
+            // For longshot mode, we prepare snapshot only once
+            hw->mPrepSnapRun = false;
+         }
     }
-    hw->unlockAPI();
     ALOGI("[KPI Perf] %s: X", __func__);
     return ret;
 }
@@ -739,7 +794,8 @@ int QCamera2HardwareInterface::cancel_picture(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
-    CDBG_HIGH("[KPI Perf] %s: E PROFILE_CANCEL_PICTURE", __func__);
+    CDBG_HIGH("[KPI Perf] %s: E PROFILE_CANCEL_PICTURE camera id %d",
+            __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_CANCEL_PICTURE, NULL);
@@ -748,7 +804,8 @@ int QCamera2HardwareInterface::cancel_picture(struct camera_device *device)
         ret = apiResult.status;
     }
     hw->unlockAPI();
-    CDBG_HIGH("[KPI Perf] %s: X", __func__);
+    CDBG_HIGH("[KPI Perf] %s: X camera id %d", __func__, hw->getCameraId());
+
     return ret;
 }
 
@@ -776,6 +833,7 @@ int QCamera2HardwareInterface::set_parameters(struct camera_device *device,
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_SET_PARAMS, (void *)parms);
@@ -784,6 +842,7 @@ int QCamera2HardwareInterface::set_parameters(struct camera_device *device,
         ret = apiResult.status;
     }
     hw->unlockAPI();
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }
@@ -808,6 +867,7 @@ char* QCamera2HardwareInterface::get_parameters(struct camera_device *device)
         ALOGE("NULL camera device");
         return NULL;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t rc = hw->processAPI(QCAMERA_SM_EVT_GET_PARAMS, NULL);
@@ -816,6 +876,7 @@ char* QCamera2HardwareInterface::get_parameters(struct camera_device *device)
         ret = apiResult.params;
     }
     hw->unlockAPI();
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }
@@ -841,6 +902,7 @@ void QCamera2HardwareInterface::put_parameters(struct camera_device *device,
         ALOGE("NULL camera device");
         return;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_PUT_PARAMS, (void *)parm);
@@ -848,6 +910,7 @@ void QCamera2HardwareInterface::put_parameters(struct camera_device *device,
         hw->waitAPIResult(QCAMERA_SM_EVT_PUT_PARAMS, &apiResult);
     }
     hw->unlockAPI();
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 }
 
 /*===========================================================================
@@ -878,6 +941,7 @@ int QCamera2HardwareInterface::send_command(struct camera_device *device,
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     qcamera_sm_evt_command_payload_t payload;
     memset(&payload, 0, sizeof(qcamera_sm_evt_command_payload_t));
@@ -892,6 +956,7 @@ int QCamera2HardwareInterface::send_command(struct camera_device *device,
         ret = apiResult.status;
     }
     hw->unlockAPI();
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }
@@ -915,6 +980,7 @@ void QCamera2HardwareInterface::release(struct camera_device *device)
         ALOGE("NULL camera device");
         return;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_RELEASE, NULL);
@@ -922,6 +988,7 @@ void QCamera2HardwareInterface::release(struct camera_device *device)
         hw->waitAPIResult(QCAMERA_SM_EVT_RELEASE, &apiResult);
     }
     hw->unlockAPI();
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 }
 
 /*===========================================================================
@@ -951,6 +1018,7 @@ int QCamera2HardwareInterface::dump(struct camera_device *device, int fd)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_DUMP, (void *)&fd);
@@ -959,6 +1027,7 @@ int QCamera2HardwareInterface::dump(struct camera_device *device, int fd)
         ret = apiResult.status;
     }
     hw->unlockAPI();
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }
@@ -979,7 +1048,6 @@ int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
 {
     ATRACE_CALL();
     int ret = NO_ERROR;
-    ALOGI("[KPI Perf] %s: E",__func__);
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(
             reinterpret_cast<camera_device_t *>(hw_dev)->priv);
@@ -987,6 +1055,7 @@ int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
         ALOGE("%s: NULL camera device", __func__);
         return BAD_VALUE;
     }
+    ALOGI("[KPI Perf] %s: E camera id %d",__func__, hw->getCameraId());
     delete hw;
     ALOGI("[KPI Perf] %s: X",__func__);
     return ret;
@@ -1018,6 +1087,7 @@ int QCamera2HardwareInterface::register_face_image(struct camera_device *device,
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
     qcamera_sm_evt_reg_face_payload_t payload;
     memset(&payload, 0, sizeof(qcamera_sm_evt_reg_face_payload_t));
     payload.img_ptr = img_ptr;
@@ -1030,7 +1100,53 @@ int QCamera2HardwareInterface::register_face_image(struct camera_device *device,
         ret = apiResult.handle;
     }
     hw->unlockAPI();
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
 
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : prepare_snapshot
+ *
+ * DESCRIPTION: prepares hardware for snapshot
+ *
+ * PARAMETERS :
+ *   @device  : ptr to camera device struct
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::prepare_snapshot(struct camera_device *device)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+        reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
+    ALOGI("[KPI Perf] %s: E PROFILE_PREPARE_SNAPSHOT camera id %d",
+            __func__, hw->getCameraId());
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+
+    /* Prepare snapshot in case LED needs to be flashed */
+    if (hw->mFlashNeeded || hw->mParameters.isChromaFlashEnabled()) {
+        CDBG_HIGH("%s: mFlashNeeded: %d ChromaFlash :%d",
+                __func__, hw->mFlashNeeded,
+                hw->mParameters.isChromaFlashEnabled());
+        /* Prepare snapshot in case LED needs to be flashed */
+        ret = hw->processAPI(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, NULL);
+        if (ret == NO_ERROR) {
+          hw->waitAPIResult(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, &apiResult);
+            ret = apiResult.status;
+        }
+        hw->mPrepSnapRun = true;
+    }
+    hw->unlockAPI();
+    ALOGI("[KPI Perf] %s: X, ret: %d", __func__, ret);
     return ret;
 }
 
@@ -1097,7 +1213,9 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mInputCount(0),
       mAdvancedCaptureConfigured(false),
       mHDRBracketingEnabled(false),
-      mNumPreviewFaces(-1)
+      mNumPreviewFaces(-1),
+      mJpegClientHandle(0),
+      mJpegHandleOwner(false)
 {
     getLogLevel();
     ATRACE_CALL();
@@ -1220,11 +1338,12 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
  *==========================================================================*/
 int QCamera2HardwareInterface::openCamera()
 {
-    int32_t l_curr_width = 0;
-    int32_t l_curr_height = 0;
+    uint32_t l_curr_width = 0;
+    uint32_t l_curr_height = 0;
     m_max_pic_width = 0;
     m_max_pic_height = 0;
     size_t i;
+    int32_t rc = NO_ERROR;
 
     if (mCameraHandle) {
         ALOGE("Failure: Camera already opened");
@@ -1238,9 +1357,8 @@ int QCamera2HardwareInterface::openCamera()
     if (NULL == gCamCaps[mCameraId]) {
         if(NO_ERROR != initCapabilities(mCameraId,mCameraHandle)) {
             ALOGE("initCapabilities failed.");
-            mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
-            mCameraHandle = NULL;
-            return UNKNOWN_ERROR;
+            rc = UNKNOWN_ERROR;
+            goto error_exit;
         }
     }
 
@@ -1264,7 +1382,7 @@ int QCamera2HardwareInterface::openCamera()
     // Now PostProc need calibration data as initialization time for jpeg_open
     // And calibration data is a get param for now, so params needs to be initialized
     // before postproc init
-    int32_t rc = mParameters.init(gCamCaps[mCameraId], mCameraHandle, this, this);
+    rc = mParameters.init(gCamCaps[mCameraId], mCameraHandle, this, this);
     if (rc != 0) {
         ALOGE("Init Parameters failed");
         mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
@@ -1282,14 +1400,25 @@ int QCamera2HardwareInterface::openCamera()
         return UNKNOWN_ERROR;
     }
 
+    if(!mJpegClientHandle) {
+        rc = initJpegHandle();
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Error!! creating JPEG handle failed", __func__);
+            goto error_exit;
+        }
+    }
+    CDBG_HIGH("%s: mJpegClientHandle : %d", __func__, mJpegClientHandle);
+
+    rc = m_postprocessor.setJpegHandle(&mJpegHandle, mJpegClientHandle);
+    if (rc != 0) {
+        ALOGE("%s: Error!! set JPEG handle failed", __func__);
+        goto error_exit;
+    }
     rc = m_postprocessor.init(jpegEvtHandle, this);
     if (rc != 0) {
-        ALOGE("Init Postprocessor failed");
-        mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
-        mCameraHandle = NULL;
-        return UNKNOWN_ERROR;
+        ALOGE("%s: Error!! Init Postprocessor failed", __func__);
+        goto error_exit;
     }
-
     // update padding info from jpeg
     cam_padding_info_t padding_info;
     m_postprocessor.getJpegPaddingReq(padding_info);
@@ -1305,7 +1434,16 @@ int QCamera2HardwareInterface::openCamera()
 
     mParameters.setMinPpMask(gCamCaps[mCameraId]->qcom_supported_feature_mask);
     mCameraOpened = true;
+
     return NO_ERROR;
+error_exit:
+    if(mJpegClientHandle) {
+        deinitJpegHandle();
+    }
+    mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
+    mCameraHandle = NULL;
+    return rc;
+
 }
 
 /*===========================================================================
@@ -1437,6 +1575,7 @@ int QCamera2HardwareInterface::closeCamera()
     // stop and deinit postprocessor
     waitDefferedWork(mReprocJob);
     m_postprocessor.stop();
+    deinitJpegHandle();
     m_postprocessor.deinit();
 
     m_thermalAdapter.deinit();
@@ -1549,13 +1688,13 @@ allocate_failed:
  *              none-zero failure code
  *==========================================================================*/
 int QCamera2HardwareInterface::getCapabilities(uint32_t cameraId,
-        struct camera_info *info)
+        struct camera_info *info, cam_sync_type_t *p_cam_type)
 {
     ATRACE_CALL();
     int rc = NO_ERROR;
-    struct  camera_info *p_info;
+    struct  camera_info *p_info = NULL;
     pthread_mutex_lock(&g_camlock);
-    p_info = get_cam_info(cameraId);
+    p_info = get_cam_info(cameraId, p_cam_type);
     p_info->device_version = CAMERA_DEVICE_API_VERSION_1_0;
     p_info->static_camera_characteristics = NULL;
     memcpy(info, p_info, sizeof (struct camera_info));
@@ -2341,6 +2480,28 @@ int QCamera2HardwareInterface::setCallBacks(camera_notify_callback notify_cb,
     mCallbackCookie  = user;
     m_cbNotifier.setCallbacks(notify_cb, data_cb, data_cb_timestamp, user);
     return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setJpegCallBacks
+ *
+ * DESCRIPTION: set JPEG callbacks impl
+ *
+ * PARAMETERS :
+ *   @jpegCb  : Jpeg callback method
+ *   @callbackCookie    : callback cookie
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+void QCamera2HardwareInterface::setJpegCallBacks(jpeg_data_callback jpegCb,
+                                            void *callbackCookie)
+{
+    CDBG_HIGH("%s: camera id %d", __func__, getCameraId());
+    mJpegCb        = jpegCb;
+    mJpegCallbackCookie  = callbackCookie;
+    m_cbNotifier.setJpegCallBacks(mJpegCb, mJpegCallbackCookie);
 }
 
 /*===========================================================================
@@ -7946,6 +8107,115 @@ int32_t QCamera2HardwareInterface::queueDefferedWork(DefferedWorkCmd cmd,
         }
     }
     return -1;
+}
+
+/*===========================================================================
+ * FUNCTION   : initJpegHandle
+ *
+ * DESCRIPTION: Opens JPEG client and gets a handle
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::initJpegHandle() {
+    // Check if JPEG client handle is present
+    CDBG_HIGH("%s: E", __func__);
+    if(!mJpegClientHandle) {
+        mm_dimension max_size = {0, 0};
+        //set max pic size
+        max_size.w = m_max_pic_width;
+        max_size.h = m_max_pic_height;
+        mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, NULL);
+        if(!mJpegClientHandle) {
+            ALOGE("%s: Error !! jpeg_open failed!! ", __func__);
+            return UNKNOWN_ERROR;
+        }
+        // Set JPEG initialized as true to signify that this camera
+        // has initialized the handle
+        mJpegHandleOwner = true;
+    }
+    CDBG_HIGH("%s: X mJpegHandleOwner: %d, mJpegClientHandle: %d camera id: %d",
+            __func__, mJpegHandleOwner, mJpegClientHandle, mCameraId);
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : deinitJpegHandle
+ *
+ * DESCRIPTION: Closes JPEG client using handle
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::deinitJpegHandle() {
+    int32_t rc = NO_ERROR;
+    CDBG_HIGH("%s: E", __func__);
+    // Check if JPEG client handle is present and inited by this camera
+    if(mJpegHandleOwner && mJpegClientHandle) {
+        rc = mJpegHandle.close(mJpegClientHandle);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Error!! Closing mJpegClientHandle: %d failed",
+                    __func__, mJpegClientHandle);
+        }
+        memset(&mJpegHandle, 0, sizeof(mJpegHandle));
+        mJpegHandleOwner = false;
+    }
+    mJpegClientHandle = 0;
+    CDBG_HIGH("%s: X rc = %d", __func__, rc);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setJpegHandleInfo
+ *
+ * DESCRIPTION: sets JPEG client handle info
+ *
+ * PARAMETERS:
+ *                  @ops                    : JPEG ops
+ *                  @pJpegClientHandle : o/p Jpeg Client Handle
+ *
+ *
+ * RETURN     : none
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::setJpegHandleInfo(
+        mm_jpeg_ops_t *ops, uint32_t pJpegClientHandle) {
+
+    if (pJpegClientHandle) {
+        CDBG_HIGH("%s: Setting JPEG client handle %d",
+                __func__, pJpegClientHandle);
+        memcpy(&mJpegHandle, ops, sizeof(mm_jpeg_ops_t));
+        mJpegClientHandle = pJpegClientHandle;
+        return NO_ERROR;
+    }
+    else {
+        CDBG_HIGH("%s: Error!! No Handle found: %d",
+                __func__, pJpegClientHandle);
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getJpegHandleInfo
+ *
+ * DESCRIPTION: gets JPEG client handle info
+ *
+ * PARAMETERS:
+ *                  @ops                    : JPEG ops
+ *                  @pJpegClientHandle : o/p Jpeg Client Handle
+ *
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera2HardwareInterface::getJpegHandleInfo(
+        mm_jpeg_ops_t *ops, uint32_t *pJpegClientHandle) {
+    // Copy JPEG ops if present
+    if (ops) {
+        memcpy(ops, &mJpegHandle, sizeof(mm_jpeg_ops_t));
+    }
+    *pJpegClientHandle = mJpegClientHandle;
+    return;
 }
 
 /*===========================================================================

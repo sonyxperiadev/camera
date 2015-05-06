@@ -431,6 +431,19 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             m_parent->signalAPIResult(&result);
         }
         break;
+    case QCAMERA_SM_EVT_PREPARE_PREVIEW:
+        {
+            rc = m_parent->preparePreview();
+            if (rc == NO_ERROR) {
+                //prepare preview success, move to ready state
+                m_state = QCAMERA_SM_STATE_PREVIEW_READY;
+            }
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
     case QCAMERA_SM_EVT_START_PREVIEW:
         {
             if (m_parent->mPreviewWindow == NULL) {
@@ -781,8 +794,44 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
             m_parent->signalAPIResult(&result);
         }
         break;
+    case QCAMERA_SM_EVT_PREPARE_PREVIEW:
+        {
+            // no ops here
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
+        {
+            rc = m_parent->startPreview();
+            if (rc != NO_ERROR) {
+                m_parent->unpreparePreview();
+                m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
+            } else {
+                m_state = QCAMERA_SM_STATE_PREVIEWING;
+            }
+            // no ops here
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
     case QCAMERA_SM_EVT_START_PREVIEW:
         {
+            if (m_parent->mPreviewWindow != NULL) {
+                rc = m_parent->startPreview();
+                if (rc != NO_ERROR) {
+                    m_parent->unpreparePreview();
+                    m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
+                } else {
+                    m_state = QCAMERA_SM_STATE_PREVIEWING;
+                }
+            }
             // no ops here
             rc = NO_ERROR;
             result.status = rc;
@@ -886,7 +935,6 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
             m_parent->signalAPIResult(&result);
         }
         break;
-    case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
     case QCAMERA_SM_EVT_START_RECORDING:
     case QCAMERA_SM_EVT_STOP_RECORDING:
     case QCAMERA_SM_EVT_PREPARE_SNAPSHOT:
@@ -1104,6 +1152,17 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_PUT_PARAMS:
         {
             rc = m_parent->putParameters((char*)payload);
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_PREPARE_PREVIEW:
+        {
+            // no ops here
+            CDBG_HIGH("%s: Already in preview ready state, no ops here", __func__);
+            rc = NO_ERROR;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -1457,6 +1516,7 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
     case QCAMERA_SM_EVT_SET_PARAMS:
     case QCAMERA_SM_EVT_GET_PARAMS:
     case QCAMERA_SM_EVT_PUT_PARAMS:
+    case QCAMERA_SM_EVT_PREPARE_PREVIEW:
     case QCAMERA_SM_EVT_START_PREVIEW:
     case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
     case QCAMERA_SM_EVT_STOP_PREVIEW:
@@ -1832,6 +1892,7 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_START_RECORDING:
     case QCAMERA_SM_EVT_STOP_RECORDING:
     case QCAMERA_SM_EVT_RELEASE_RECORIDNG_FRAME:
+    case QCAMERA_SM_EVT_PREPARE_PREVIEW:
     case QCAMERA_SM_EVT_START_PREVIEW:
     case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
     case QCAMERA_SM_EVT_RELEASE:
@@ -2007,6 +2068,7 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
 
     ALOGV("%s: event (%d)", __func__, evt);
     switch (evt) {
+    case QCAMERA_SM_EVT_PREPARE_PREVIEW:
     case QCAMERA_SM_EVT_START_PREVIEW:
     case QCAMERA_SM_EVT_SET_PREVIEW_WINDOW:
         {
@@ -2613,6 +2675,7 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
         }
         break;
     case QCAMERA_SM_EVT_START_RECORDING:
+    case QCAMERA_SM_EVT_PREPARE_PREVIEW:
     case QCAMERA_SM_EVT_START_PREVIEW:
     case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
     case QCAMERA_SM_EVT_PREPARE_SNAPSHOT:
@@ -3050,6 +3113,7 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
         }
         break;
     case QCAMERA_SM_EVT_STOP_RECORDING:
+    case QCAMERA_SM_EVT_PREPARE_PREVIEW:
     case QCAMERA_SM_EVT_START_PREVIEW:
     case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
     case QCAMERA_SM_EVT_SET_PREVIEW_WINDOW:

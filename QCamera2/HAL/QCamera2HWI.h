@@ -142,6 +142,9 @@ typedef enum {
 typedef void (*camera_release_callback)(void *user_data,
                                         void *cookie,
                                         int32_t cb_status);
+typedef void (*jpeg_data_callback)(int32_t msg_type,
+        const camera_memory_t *data, unsigned int index,
+        camera_frame_metadata_t *metadata, void *user);
 
 typedef struct {
     qcamera_callback_type_m  cb_type;    // event type
@@ -175,6 +178,8 @@ public:
                               camera_data_callback dataCb,
                               camera_data_timestamp_callback dataCbTimestamp,
                               void *callbackCookie);
+    virtual void setJpegCallBacks(
+            jpeg_data_callback jpegCb, void *callbackCookie);
     virtual int32_t startSnapshots();
     virtual void stopSnapshots();
     virtual void exit();
@@ -189,6 +194,8 @@ private:
     camera_data_callback           mDataCb;
     camera_data_timestamp_callback mDataCbTimestamp;
     void                          *mCallbackCookie;
+    jpeg_data_callback             mJpegCb;
+    void                          *mJpegCallbackCookie;
     QCamera2HardwareInterface     *mParent;
 
     QCameraQueue     mDataQ;
@@ -244,6 +251,9 @@ public:
     static int register_face_image(struct camera_device *,
                                    void *img_ptr,
                                    cam_pp_offline_src_config_t *config);
+    static int prepare_preview(struct camera_device *);
+    static int prepare_snapshot(struct camera_device *device);
+
 public:
     QCamera2HardwareInterface(uint32_t cameraId);
     virtual ~QCamera2HardwareInterface();
@@ -258,7 +268,8 @@ public:
     void setRelatedCamSyncInfo(
             cam_sync_related_sensors_event_info_t* info);
 
-    static int getCapabilities(uint32_t cameraId, struct camera_info *info);
+    static int getCapabilities(uint32_t cameraId,
+            struct camera_info *info, cam_sync_type_t *cam_type);
     static int initCapabilities(uint32_t cameraId, mm_camera_vtbl_t *cameraHandle);
 
     // Implementation of QCameraAllocator
@@ -285,7 +296,14 @@ public:
     friend class QCameraStateMachine;
     friend class QCameraPostProcessor;
     friend class QCameraCbNotifier;
-
+    void setJpegCallBacks(jpeg_data_callback jpegCb,
+                            void *callbackCookie);
+    int32_t initJpegHandle();
+    int32_t deinitJpegHandle();
+    int32_t setJpegHandleInfo(mm_jpeg_ops_t *ops, uint32_t pJpegClientHandle);
+    void getJpegHandleInfo(mm_jpeg_ops_t *ops, uint32_t *pJpegClientHandle);
+    uint32_t getCameraId() { return mCameraId; };
+    void getParams(QCameraParameters **pParm) {*pParm = &mParameters;};
 private:
     int setPreviewWindow(struct preview_stream_ops *window);
     int setCallBacks(
@@ -522,6 +540,8 @@ private:
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
+    cam_sync_type_t  mCameraType;
+    cam_sync_mode_t  mCameraMode;
     mm_camera_vtbl_t *mCameraHandle;
     bool mCameraOpened;
 
@@ -536,7 +556,9 @@ private:
     camera_data_callback           mDataCb;
     camera_data_timestamp_callback mDataCbTimestamp;
     camera_request_memory          mGetMemory;
+    jpeg_data_callback             mJpegCb;
     void                          *mCallbackCookie;
+    void                          *mJpegCallbackCookie;
 
     QCameraStateMachine m_stateMachine;   // state machine
     bool m_smThreadActive;
@@ -575,8 +597,8 @@ private:
     bool m_HDRSceneEnabled;
     bool mLongshotEnabled;
 
-    int32_t m_max_pic_width;
-    int32_t m_max_pic_height;
+    uint32_t m_max_pic_width;
+    uint32_t m_max_pic_height;
     pthread_t mLiveSnapshotThread;
     pthread_t mIntPicThread;
     bool mFlashNeeded;
@@ -658,6 +680,9 @@ private:
     bool mAdvancedCaptureConfigured;
     bool mHDRBracketingEnabled;
     int32_t mNumPreviewFaces;
+    mm_jpeg_ops_t              mJpegHandle;
+    uint32_t                   mJpegClientHandle;
+    bool                       mJpegHandleOwner;
 };
 
 }; // namespace qcamera

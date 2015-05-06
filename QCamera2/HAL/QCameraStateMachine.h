@@ -56,6 +56,7 @@ typedef enum {
     QCAMERA_SM_EVT_GET_PARAMS,               // get parameters
     QCAMERA_SM_EVT_PUT_PARAMS,               // put parameters, release param buf
 
+    QCAMERA_SM_EVT_PREPARE_PREVIEW,          // prepare preview (zsl, camera mode, camcorder mode)
     QCAMERA_SM_EVT_START_PREVIEW,            // start preview (zsl, camera mode, camcorder mode)
     QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW,  // start no display preview (zsl, camera mode, camcorder mode)
     QCAMERA_SM_EVT_STOP_PREVIEW,             // stop preview (zsl, camera mode, camcorder mode)
