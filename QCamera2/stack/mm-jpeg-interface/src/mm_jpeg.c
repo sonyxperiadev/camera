@@ -704,8 +704,9 @@ OMX_ERRORTYPE mm_jpeg_metadata(
 {
   OMX_ERRORTYPE rc = OMX_ErrorNone;
   OMX_INDEXTYPE indexType;
-  mm_jpeg_encode_job_t *p_jobparams = &p_session->encode_job;
   QOMX_METADATA lMeta;
+  mm_jpeg_encode_job_t *p_jobparams = &p_session->encode_job;
+  mm_jpeg_obj *my_obj = (mm_jpeg_obj *) p_session->jpeg_obj;
 
   rc = OMX_GetExtensionIndex(p_session->omx_handle,
       QOMX_IMAGE_EXT_METADATA_NAME, &indexType);
@@ -718,6 +719,7 @@ OMX_ERRORTYPE mm_jpeg_metadata(
   lMeta.metadata = (OMX_U8 *)p_jobparams->p_metadata;
   lMeta.metaPayloadSize = sizeof(*p_jobparams->p_metadata);
   lMeta.mobicat_mask = p_jobparams->mobicat_mask;
+  lMeta.static_metadata = (OMX_U8 *)my_obj->calibration_data;
 
   rc = OMX_SetConfig(p_session->omx_handle, indexType, &lMeta);
   if (rc != OMX_ErrorNone) {
@@ -2098,6 +2100,7 @@ int32_t mm_jpeg_deinit(mm_jpeg_obj *my_obj)
       CDBG_ERROR("%s:%d] Error releasing ION buffer", __func__, __LINE__);
     }
   }
+  my_obj->calibration_data = NULL;
 
   /* destroy locks */
   pthread_mutex_destroy(&my_obj->job_lock);

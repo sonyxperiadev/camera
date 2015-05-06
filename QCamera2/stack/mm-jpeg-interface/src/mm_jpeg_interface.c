@@ -375,6 +375,11 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
     jpeg_obj->max_pic_w = picture_size.w;
     jpeg_obj->max_pic_h = picture_size.h;
 
+    /*Cache OTP Data for the session*/
+    if (NULL != calibration_data) {
+      jpeg_obj->calibration_data = calibration_data;
+    }
+
     rc = mm_jpeg_init(jpeg_obj);
     if(0 != rc) {
       CDBG_ERROR("%s:%d] mm_jpeg_init err = %d", __func__, __LINE__, rc);

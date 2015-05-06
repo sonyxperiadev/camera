@@ -224,11 +224,16 @@ typedef struct {
 /**QOMX_METADATA
  *
  * meta data to be set in EXIF
+ * @metadata: Dynamic metadata associated with each image
+ * @metaPayloadSize : Size of dynamic metadata
+ * @mobicat_mask : Mobicat MASk
+ * @static_metadata: Static metadata associated with each image
  */
 typedef struct {
   OMX_U8  *metadata;
   OMX_U32 metaPayloadSize;
   OMX_U8 mobicat_mask;
+  OMX_U8 *static_metadata;
 } QOMX_METADATA;
 
 /**QOMX_META_ENC_KEY
