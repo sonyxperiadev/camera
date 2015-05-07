@@ -607,7 +607,7 @@ public:
     int32_t initDefaultParameters();
     int32_t updateParameters(QCameraParameters&, bool &needRestart);
     int32_t commitParameters();
-    int getPreviewHalPixelFormat() const;
+    int getPreviewHalPixelFormat();
     int32_t getStreamRotation(cam_stream_type_t streamType,
                                cam_pp_feature_config_t &featureConfig,
                                cam_dimension_t &dim);
