@@ -4876,7 +4876,7 @@ int32_t QCameraParameters::initDefaultParameters()
     CameraParameters::setPreviewFormat(PIXEL_FORMAT_YUV420SP);
 
     // Set default Video Format
-    set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_YUV420SP);
+    set(KEY_VIDEO_FRAME_FORMAT, "YVU420SemiPlanar");
 
     // Set supported picture formats
     String8 pictureTypeValues(PIXEL_FORMAT_JPEG);
@@ -9104,11 +9104,23 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
                                             cam_format_t &format)
 {
     int32_t ret = NO_ERROR;
-
     format = CAM_FORMAT_MAX;
     switch (streamType) {
     case CAM_STREAM_TYPE_PREVIEW:
-        format = mPreviewFormat;
+#if VENUS_PRESENT
+        cam_dimension_t preview;
+        cam_dimension_t video;
+        getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
+        getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
+        if (getRecordingHintValue() == true &&
+                video.width == preview.width &&
+                video.height == preview.height &&
+                mPreviewFormat == CAM_FORMAT_YUV_420_NV21) {
+            format = CAM_FORMAT_YUV_420_NV21_VENUS;
+        }
+        else
+#endif
+            format = mPreviewFormat;
         break;
     case CAM_STREAM_TYPE_POSTVIEW:
     case CAM_STREAM_TYPE_CALLBACK:
@@ -9151,13 +9163,13 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             if (pFormat == 1) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
-                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+                format = CAM_FORMAT_YUV_420_NV21_VENUS;
             }
         }
 #elif VENUS_PRESENT
-        format = CAM_FORMAT_YUV_420_NV12_VENUS;
+        format = CAM_FORMAT_YUV_420_NV21_VENUS;
 #else
-        format = CAM_FORMAT_YUV_420_NV12;
+        format = CAM_FORMAT_YUV_420_NV21;
 #endif
         break;
     case CAM_STREAM_TYPE_RAW:
@@ -9353,11 +9365,13 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
  *
  * RETURN     : HAL pixel format
  *==========================================================================*/
-int QCameraParameters::getPreviewHalPixelFormat() const
+int QCameraParameters::getPreviewHalPixelFormat()
 {
     int32_t halPixelFormat;
+    cam_format_t fmt;
+    getStreamFormat(CAM_STREAM_TYPE_PREVIEW,fmt);
 
-    switch (mPreviewFormat) {
+    switch (fmt) {
     case CAM_FORMAT_YUV_420_NV12:
         halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP;
         break;
@@ -9372,6 +9386,9 @@ int QCameraParameters::getPreviewHalPixelFormat() const
         break;
     case CAM_FORMAT_YUV_420_NV12_VENUS:
         halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS;
+        break;
+    case CAM_FORMAT_YUV_420_NV21_VENUS:
+        halPixelFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP_VENUS;
         break;
 #ifdef UBWC_PRESENT
     case CAM_FORMAT_YUV_420_NV12_UBWC:
