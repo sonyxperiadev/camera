@@ -53,6 +53,7 @@ public:
     void flushNodes(match_fn match);
     void flushNodes(match_fn_data match, void *spec_data);
     void* dequeue(bool bFromHead = true);
+    void* peek();
     bool isEmpty();
     int getCurrentSize() {return m_size;}
 private:
