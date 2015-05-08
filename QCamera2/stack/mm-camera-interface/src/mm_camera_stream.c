@@ -1048,13 +1048,15 @@ int32_t mm_stream_write_user_buf(mm_stream_t * my_obj,
             cont_buf->buf_cnt = my_obj->buf[buf->buf_idx].user_buf.bufs_used;
             for (i = 0; i < (int32_t)cont_buf->buf_cnt; i++) {
                 cont_buf->buf_idx[i] = my_obj->buf[buf->buf_idx].user_buf.buf_idx[i];
-                my_obj->buf[buf->buf_idx].user_buf.buf_idx[i] = -1;
             }
             rc = mm_stream_qbuf(my_obj, buf);
             if(rc < 0) {
                 CDBG_ERROR("%s: mm_camera_stream_qbuf(idx=%d) err=%d\n",
                            __func__, buf->buf_idx, rc);
             } else {
+                for (i = 0; i < (int32_t)cont_buf->buf_cnt; i++) {
+                    my_obj->buf[buf->buf_idx].user_buf.buf_idx[i] = -1;
+                }
                 my_obj->buf_status[buf->buf_idx].in_kernel = 1;
                 my_obj->buf[buf->buf_idx].user_buf.buf_in_use = 1;
             }
@@ -1103,13 +1105,15 @@ int32_t mm_stream_write_user_buf(mm_stream_t * my_obj,
             cont_buf->buf_cnt = my_obj->buf[index].user_buf.bufs_used;
             for (i = 0; i < (int32_t)cont_buf->buf_cnt; i++) {
                 cont_buf->buf_idx[i] = my_obj->buf[index].user_buf.buf_idx[i];
-                my_obj->buf[index].user_buf.buf_idx[i] = -1;
             }
             rc = mm_stream_qbuf(my_obj, &my_obj->buf[index]);
             if(rc < 0) {
                 CDBG_ERROR("%s: mm_camera_stream_qbuf(idx=%d) err=%d\n",
                            __func__, index, rc);
             } else {
+                for (i = 0; i < (int32_t)cont_buf->buf_cnt; i++) {
+                    my_obj->buf[index].user_buf.buf_idx[i] = -1;
+                }
                 my_obj->buf_status[index].in_kernel = 1;
                 my_obj->buf[index].user_buf.buf_in_use = 1;
                 my_obj->cur_bufs_staged = 0;
