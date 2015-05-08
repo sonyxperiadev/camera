@@ -754,6 +754,27 @@ typedef struct {
     int32_t (*process_advanced_capture) (uint32_t camera_handle,
              uint32_t ch_id, mm_camera_advanced_capture_t type,
              int8_t start_flag, void *in_value);
+
+   /** get_session_id: gets the backend session id from the kernel
+     *    @camera_handle : camera handle
+     *    @sessionid : session id to be retrieved
+     *     Return value: 0 -- success
+     *                -1 -- failure
+     *  Note: if this call succeeds, we will get a valid session id
+     **/
+    int32_t (*get_session_id) (uint32_t camera_handle,
+            uint32_t* sessionid);
+
+    /** sync_related_sensors: sends sync cmd
+      *    @camera_handle : camera handle
+      *    @related_cam_info : related cam info to be sent to server
+      *     Return value: 0 -- success
+      *                -1 -- failure
+      *  Note: if this call succeeds, we will get linking established in back end
+      **/
+     int32_t (*sync_related_sensors) (uint32_t camera_handle,
+            cam_sync_related_sensors_event_info_t*
+            related_cam_info);
 } mm_camera_ops_t;
 
 /** mm_camera_vtbl_t: virtual table for camera operations

@@ -249,6 +249,15 @@ public:
     virtual ~QCamera2HardwareInterface();
     int openCamera(struct hw_device_t **hw_device);
 
+    // Dual camera specific oprations
+    int bundleRelatedCameras(bool syncOn,
+            uint32_t related_sensor_session_id);
+    int getCameraSessionId(uint32_t* session_id);
+    const cam_sync_related_sensors_event_info_t* getRelatedCamSyncInfo(
+            void);
+    void setRelatedCamSyncInfo(
+            cam_sync_related_sensors_event_info_t* info);
+
     static int getCapabilities(uint32_t cameraId, struct camera_info *info);
     static int initCapabilities(uint32_t cameraId, mm_camera_vtbl_t *cameraHandle);
 
@@ -519,6 +528,8 @@ private:
     uint32_t          mCameraId;
     mm_camera_vtbl_t *mCameraHandle;
     bool mCameraOpened;
+
+    cam_related_system_calibration_data_t mRelCamCalibData;
 
     preview_stream_ops_t *mPreviewWindow;
     QCameraParameters mParameters;

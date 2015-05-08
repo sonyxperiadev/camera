@@ -124,9 +124,14 @@ typedef enum {
 } cam_status_t;
 
 typedef enum {
+    /* back main camera */
     CAM_POSITION_BACK,
+    /* front main camera */
     CAM_POSITION_FRONT,
-    CAM_POSITION_BACK_AUX
+    /* back aux camera */
+    CAM_POSITION_BACK_AUX,
+    /* front aux camera */
+    CAM_POSITION_FRONT_AUX
 } cam_position_t;
 
 typedef enum {
@@ -334,7 +339,8 @@ typedef enum {
     /* followings are per camera */
     CAM_MAPPING_BUF_TYPE_CAPABILITY,  /* mapping camera capability buffer */
     CAM_MAPPING_BUF_TYPE_PARM_BUF,    /* mapping parameters buffer */
-    CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF, /* mapping sync buffer */
+    /* this buffer is needed for the payload to be sent with bundling related cameras cmd */
+    CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF, /* mapping sync buffer.*/
 
     /* followings are per stream */
     CAM_MAPPING_BUF_TYPE_STREAM_BUF,        /* mapping stream buffers */
@@ -1100,7 +1106,7 @@ typedef struct {
 
 typedef struct {
     float focalLengthRatio;
-}   cam_focal_length_ratio_t;
+} cam_focal_length_ratio_t;
 
 /* Different autofocus cycle when calling do_autoFocus
  * CAM_AF_COMPLETE_EXISTING_SWEEP: Complete existing sweep
@@ -1353,7 +1359,7 @@ typedef struct
 {
   uint32_t id;            /* Frame ID */
   long long timestamp;    /* Time stamp */
-  int32_t distance_in_mm; /* Distance of object in ROI's in mili meters */
+  int32_t distance_in_mm; /* Distance of object in ROI's in milimeters */
   int32_t confidence;     /* Confidence on distance from 0(No confidence)to 1024(max) */
   uint32_t status;        /* Status of DCRF library execution call */
   cam_rect_t focused_roi; /* ROI's for which distance is estimated */
@@ -1760,7 +1766,7 @@ typedef enum {
     /* Offline Data Overwrite */
     CAM_INTF_PARM_HW_DATA_OVERWRITE,
     /* IMG LIB reprocess debug section */
-    CAM_INTF_META_IMGLIB, /* cam_intf_meta_imglib_t */
+    CAM_INTF_META_IMGLIB, /* cam_intf_meta_imglib_t */ /* 180 */
     /* OEM specific parameters */
     CAM_INTF_PARM_CUSTOM,
     /* parameters added for related cameras */
@@ -1768,20 +1774,20 @@ typedef enum {
     CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION,
     /* focal length ratio info */
     CAM_INTF_META_AF_FOCAL_LENGTH_RATIO,
-    /* crop for binning & FOV adjust        */
+    /* crop for binning & FOV adjust */
     CAM_INTF_META_SNAP_CROP_INFO_SENSOR,
-    /* crop for trimming edge pixels        */
+    /* crop for trimming edge pixels */
     CAM_INTF_META_SNAP_CROP_INFO_CAMIF,
-    /* crop for FOV adjust and zoom (part 1 of 2) */
+    /* crop for FOV adjust and zoom */
     CAM_INTF_META_SNAP_CROP_INFO_ISP,
-    /* crop for image-stabilization and zoom (part 2 of 2) */
+    /* crop for image-stabilization and zoom */
     CAM_INTF_META_SNAP_CROP_INFO_CPP,
     /* parameter for enabling DCRF */
     CAM_INTF_PARM_DCRF,
-    /* metadata tag for DCRF info*/
+    /* metadata tag for DCRF info */
     CAM_INTF_META_DCRF,
-    /* FLIP mode parameter*/
-    CAM_INTF_PARM_FLIP,
+    /* FLIP mode parameter */
+    CAM_INTF_PARM_FLIP, /* 190 */
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
