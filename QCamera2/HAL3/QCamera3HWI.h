@@ -66,6 +66,9 @@ namespace qcamera {
 #define FALSE 0
 #endif
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 /* Time related macros */
 typedef int64_t nsecs_t;
 #define NSEC_PER_SEC 1000000000LLU
