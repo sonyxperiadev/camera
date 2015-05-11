@@ -6587,6 +6587,11 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
         return NO_ERROR;
     }
 
+    if ((fd_type == QCAMERA_FD_PREVIEW) && (fd_data->update_flag == FALSE)) {
+        // Don't send callback to app if this is skipped by fd at backend
+        return NO_ERROR;
+    }
+
     cam_dimension_t display_dim;
     mParameters.getStreamDimension(CAM_STREAM_TYPE_PREVIEW, display_dim);
     if (display_dim.width <= 0 || display_dim.height <= 0) {
