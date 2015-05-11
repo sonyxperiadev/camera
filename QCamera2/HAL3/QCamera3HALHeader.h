@@ -38,6 +38,9 @@ using namespace android;
 
 namespace qcamera {
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 class QCamera3Channel;
 
     typedef enum {

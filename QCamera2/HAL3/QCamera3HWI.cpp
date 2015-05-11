@@ -796,6 +796,61 @@ bool QCamera3HardwareInterface::isSupportChannelNeeded(camera3_stream_configurat
     return true;
 }
 
+/*==============================================================================
+ * FUNCTION   : getSensorOutputSize
+ *
+ * DESCRIPTION: Get sensor output size based on current stream configuratoin
+ *
+ * PARAMETERS :
+ *   @sensor_dim : sensor output dimension (output)
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_dim)
+{
+    int32_t rc = NO_ERROR;
+
+    cam_dimension_t max_dim = {0, 0};
+    for (uint32_t i = 0; i < mStreamConfigInfo.num_streams; i++) {
+        if (mStreamConfigInfo.stream_sizes[i].width > max_dim.width)
+            max_dim.width = mStreamConfigInfo.stream_sizes[i].width;
+        if (mStreamConfigInfo.stream_sizes[i].height > max_dim.height)
+            max_dim.height = mStreamConfigInfo.stream_sizes[i].height;
+    }
+
+    clear_metadata_buffer(mParameters);
+
+    rc = ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_MAX_DIMENSION,
+            max_dim);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update table for CAM_INTF_PARM_MAX_DIMENSION", __func__);
+        return rc;
+    }
+
+    rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Failed to set CAM_INTF_PARM_MAX_DIMENSION", __func__);
+        return rc;
+    }
+
+    clear_metadata_buffer(mParameters);
+    ADD_GET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_RAW_DIMENSION);
+
+    rc = mCameraHandle->ops->get_parms(mCameraHandle->camera_handle,
+            mParameters);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Failed to get CAM_INTF_PARM_RAW_DIMENSION", __func__);
+        return rc;
+    }
+
+    READ_PARAM_ENTRY(mParameters, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+    ALOGI("%s: sensor output dimension = %d x %d", __func__, sensor_dim.width, sensor_dim.height);
+
+    return rc;
+}
 
 /*===========================================================================
  * FUNCTION   : configureStreams
@@ -2271,6 +2326,19 @@ int QCamera3HardwareInterface::processCaptureRequest(
         mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
 
+        cam_dimension_t sensor_dim;
+        memset(&sensor_dim, 0, sizeof(sensor_dim));
+        rc = getSensorOutputSize(sensor_dim);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to get sensor output size", __func__);
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
+
+        mCropRegionMapper.update(gCamCapability[mCameraId]->active_array_size.width,
+                gCamCapability[mCameraId]->active_array_size.height,
+                sensor_dim.width, sensor_dim.height);
+
         for (size_t i = 0; i < request->num_output_buffers; i++) {
             const camera3_stream_buffer_t& output = request->output_buffers[i];
             QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
@@ -3236,6 +3304,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         scalerCropRegion[1] = hScalerCropRegion->top;
         scalerCropRegion[2] = hScalerCropRegion->width;
         scalerCropRegion[3] = hScalerCropRegion->height;
+
+        // Adjust crop region from sensor output coordinate system to active
+        // array coordinate system.
+        mCropRegionMapper.toActiveArray(scalerCropRegion[0], scalerCropRegion[1],
+                scalerCropRegion[2], scalerCropRegion[3]);
+
         camMetadata.update(ANDROID_SCALER_CROP_REGION, scalerCropRegion, 4);
     }
 
@@ -6550,6 +6624,11 @@ int QCamera3HardwareInterface::translateToHalMetadata
         scalerCropRegion.top = frame_settings.find(ANDROID_SCALER_CROP_REGION).data.i32[1];
         scalerCropRegion.width = frame_settings.find(ANDROID_SCALER_CROP_REGION).data.i32[2];
         scalerCropRegion.height = frame_settings.find(ANDROID_SCALER_CROP_REGION).data.i32[3];
+
+        // Map coordinate system from active array to sensor output.
+        mCropRegionMapper.toSensor(scalerCropRegion.left, scalerCropRegion.top,
+                scalerCropRegion.width, scalerCropRegion.height);
+
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SCALER_CROP_REGION,
                 scalerCropRegion)) {
             rc = BAD_VALUE;
