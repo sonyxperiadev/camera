@@ -80,6 +80,7 @@ public:
                   cam_stream_type_t streamType = CAM_STREAM_TYPE_DEFAULT,
                   cam_stream_buf_type buf_Type = CAM_STREAM_BUF_TYPE_MPLANE);
     virtual ~QCameraMemory();
+    virtual void reset();
 
     void getBufDef(const cam_frame_len_offset_t &offset,
             mm_camera_buf_def_t &bufDef, uint32_t index) const;

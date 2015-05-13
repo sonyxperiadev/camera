@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -226,7 +226,7 @@ static void mm_camera_poll_proc_pipe(mm_camera_poll_thread_t *poll_cb)
 
         if (MM_CAMERA_POLL_TYPE_EVT == poll_cb->poll_type &&
                 poll_cb->num_fds < MAX_STREAM_NUM_IN_BUNDLE) {
-            if (poll_cb->poll_entries[0].fd > 0) {
+            if (poll_cb->poll_entries[0].fd >= 0) {
                 /* fd is valid, we update poll_fds */
                 poll_cb->poll_fds[poll_cb->num_fds].fd = poll_cb->poll_entries[0].fd;
                 poll_cb->poll_fds[poll_cb->num_fds].events = POLLIN|POLLRDNORM|POLLPRI;
@@ -235,7 +235,7 @@ static void mm_camera_poll_proc_pipe(mm_camera_poll_thread_t *poll_cb)
         } else if (MM_CAMERA_POLL_TYPE_DATA == poll_cb->poll_type &&
                 poll_cb->num_fds <= MAX_STREAM_NUM_IN_BUNDLE) {
             for(i = 0; i < MAX_STREAM_NUM_IN_BUNDLE; i++) {
-                if(poll_cb->poll_entries[i].fd > 0) {
+                if(poll_cb->poll_entries[i].fd >= 0) {
                     /* fd is valid, we update poll_fds to this fd */
                     poll_cb->poll_fds[poll_cb->num_fds].fd = poll_cb->poll_entries[i].fd;
                     poll_cb->poll_fds[poll_cb->num_fds].events = POLLIN|POLLRDNORM|POLLPRI;
@@ -495,8 +495,20 @@ int32_t mm_camera_poll_thread_launch(mm_camera_poll_thread_t * poll_cb,
                                      mm_camera_poll_thread_type_t poll_type)
 {
     int32_t rc = 0;
+    size_t i = 0, cnt = 0;
     poll_cb->poll_type = poll_type;
 
+    //Initialize poll_fds
+    cnt = sizeof(poll_cb->poll_fds) / sizeof(poll_cb->poll_fds[0]);
+    for (i = 0; i < cnt; i++) {
+        poll_cb->poll_fds[i].fd = -1;
+    }
+    //Initialize poll_entries
+    cnt = sizeof(poll_cb->poll_entries) / sizeof(poll_cb->poll_entries[0]);
+    for (i = 0; i < cnt; i++) {
+        poll_cb->poll_entries[i].fd = -1;
+    }
+    //Initialize pipe fds
     poll_cb->pfds[0] = -1;
     poll_cb->pfds[1] = -1;
     rc = pipe(poll_cb->pfds);

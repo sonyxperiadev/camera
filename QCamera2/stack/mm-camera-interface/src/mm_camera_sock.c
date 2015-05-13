@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -97,7 +97,7 @@ int mm_camera_socket_create(int cam_id, mm_camera_sock_type_t sock_type)
  *==========================================================================*/
 void mm_camera_socket_close(int fd)
 {
-    if (fd > 0) {
+    if (fd >= 0) {
       close(fd);
     }
 }
@@ -142,7 +142,7 @@ int mm_camera_socket_sendmsg(
     msgh.msg_controllen = 0;
 
     /* if sendfd is valid, we need to pass it through control msg */
-    if( sendfd > 0) {
+    if( sendfd >= 0) {
       msgh.msg_control = control;
       msgh.msg_controllen = sizeof(control);
       cmsghp = CMSG_FIRSTHDR(&msgh);

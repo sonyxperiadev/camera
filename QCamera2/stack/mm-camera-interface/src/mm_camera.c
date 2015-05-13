@@ -1819,7 +1819,7 @@ int32_t mm_camera_unmap_buf(mm_camera_obj_t *my_obj,
     rc = mm_camera_util_sendmsg(my_obj,
                                 &packet,
                                 sizeof(cam_sock_packet_t),
-                                0);
+                                -1);
     pthread_mutex_unlock(&my_obj->cam_lock);
     return rc;
 }

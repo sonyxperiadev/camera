@@ -1575,12 +1575,12 @@ void sort_camera_info(int num_cam)
 uint8_t get_num_of_cameras()
 {
     int rc = 0;
-    int dev_fd = 0;
+    int dev_fd = -1;
     struct media_device_info mdev_info;
     int num_media_devices = 0;
     int8_t num_cameras = 0;
     char subdev_name[32];
-    int32_t sd_fd = 0;
+    int32_t sd_fd = -1;
     struct sensor_init_cfg_data cfg;
     char prop[PROPERTY_VALUE_MAX];
     uint32_t globalLogLevel = 0;
