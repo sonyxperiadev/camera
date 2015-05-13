@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -158,7 +158,7 @@ void mm_jpegdec_test_free(buffer_t *p_buffer)
   if (p_buffer->addr == NULL)
     return;
 
-  if (p_buffer->p_pmem_fd > 0)
+  if (p_buffer->p_pmem_fd >= 0)
     buffer_deallocate(p_buffer);
   else
     free(p_buffer->addr);

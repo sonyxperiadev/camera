@@ -62,8 +62,8 @@ QCamera3Memory::QCamera3Memory()
 {
     mBufferCount = 0;
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
-        mMemInfo[i].fd = 0;
-        mMemInfo[i].main_ion_fd = 0;
+        mMemInfo[i].fd = -1;
+        mMemInfo[i].main_ion_fd = -1;
         mMemInfo[i].handle = 0;
         mMemInfo[i].size = 0;
     }
@@ -352,7 +352,7 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
     struct ion_handle_data handle_data;
     struct ion_allocation_data allocData;
     struct ion_fd_data ion_info_fd;
-    int main_ion_fd = 0;
+    int main_ion_fd = -1;
 
     main_ion_fd = open("/dev/ion", O_RDONLY);
     if (main_ion_fd < 0) {
@@ -412,17 +412,17 @@ void QCamera3HeapMemory::deallocOneBuffer(QCamera3MemInfo &memInfo)
 {
     struct ion_handle_data handle_data;
 
-    if (memInfo.fd > 0) {
+    if (memInfo.fd >= 0) {
         close(memInfo.fd);
-        memInfo.fd = 0;
+        memInfo.fd = -1;
     }
 
-    if (memInfo.main_ion_fd > 0) {
+    if (memInfo.main_ion_fd >= 0) {
         memset(&handle_data, 0, sizeof(handle_data));
         handle_data.handle = memInfo.handle;
         ioctl(memInfo.main_ion_fd, ION_IOC_FREE, &handle_data);
         close(memInfo.main_ion_fd);
-        memInfo.main_ion_fd = 0;
+        memInfo.main_ion_fd = -1;
     }
     memInfo.handle = 0;
     memInfo.size = 0;
@@ -491,7 +491,7 @@ int QCamera3HeapMemory::allocate(uint32_t count, size_t size, bool queueAll)
                     mMemInfo[i].fd, 0);
         if (vaddr == MAP_FAILED) {
             for (int32_t j = (int32_t)(i - 1); j >= 0; j --) {
-                munmap(mPtr[i], mMemInfo[i].size);
+                munmap(mPtr[j], mMemInfo[j].size);
                 rc = NO_MEMORY;
                 break;
             }
@@ -749,6 +749,7 @@ int32_t QCamera3GrallocMemory::unregisterBufferLocked(size_t idx)
     }
     close(mMemInfo[idx].main_ion_fd);
     memset(&mMemInfo[idx], 0, sizeof(struct QCamera3MemInfo));
+    mMemInfo[idx].main_ion_fd = -1;
     mBufferHandle[idx] = NULL;
     mPrivateHandle[idx] = NULL;
     mBufferCount--;
