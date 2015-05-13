@@ -955,7 +955,7 @@ int mm_app_close_fb(mm_camera_test_obj_t *test_obj)
     }
 
     close(test_obj->fb_fd);
-    test_obj->fb_fd = 0;
+    test_obj->fb_fd = -1;
 
     return rc;
 }
