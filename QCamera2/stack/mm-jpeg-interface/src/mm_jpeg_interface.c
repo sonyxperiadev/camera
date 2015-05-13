@@ -367,7 +367,11 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
     memset(jpeg_obj, 0, sizeof(mm_jpeg_obj));
 
     /* by default reuse reproc source buffer if available */
-    jpeg_obj->reuse_reproc_buffer = 1;
+    if (mpo_ops == NULL) {
+      jpeg_obj->reuse_reproc_buffer = 1;
+    } else {
+      jpeg_obj->reuse_reproc_buffer = 0;
+    }
     CDBG_HIGH("%s, %d] reuse_reproc_buffer %d ", __func__, __LINE__,
       jpeg_obj->reuse_reproc_buffer);
 
