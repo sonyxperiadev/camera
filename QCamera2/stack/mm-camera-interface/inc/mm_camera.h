@@ -357,6 +357,7 @@ typedef struct {
     uint8_t num_of_bufs;
     mm_camera_buf_info_t super_buf[MAX_STREAM_NUM_IN_BUNDLE];
     uint8_t matched;
+    uint8_t expected;
     uint32_t frame_idx;
 } mm_channel_queue_node_t;
 
@@ -439,6 +440,8 @@ typedef struct mm_channel {
     /*Frame capture configaration*/
     uint8_t cur_capture_idx;
     cam_capture_frame_config_t *frame_config;
+    /*Buffer diverted*/
+    uint8_t diverted_frame_id;
 } mm_channel_t;
 
 typedef struct {

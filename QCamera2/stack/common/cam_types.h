@@ -1367,6 +1367,12 @@ typedef struct
   uint32_t focused_y;     /* Focus location Y inside ROI with distance estimation */
 } cam_dcrf_result_t;
 
+typedef struct {
+    uint32_t frame_id;
+    uint32_t num_streams;
+    uint32_t stream_id[MAX_NUM_STREAMS];
+} cam_buf_divert_info_t;
+
 typedef  struct {
     uint8_t is_stats_valid;               /* if histgram data is valid */
     cam_hist_stats_t stats_data;          /* histogram data */
@@ -1786,9 +1792,11 @@ typedef enum {
     CAM_INTF_PARM_DCRF,
     /* metadata tag for DCRF info */
     CAM_INTF_META_DCRF,
-    /* FLIP mode parameter */
-    CAM_INTF_PARM_FLIP, /* 190 */
-    CAM_INTF_PARM_MAX
+    /* FLIP mode parameter*/
+    CAM_INTF_PARM_FLIP,
+    /*Frame divert info from ISP*/
+    CAM_INTF_BUF_DIVERT_INFO, /* 190 */
+    CAM_INTF_PARM_MAX /* 191 */
 } cam_intf_parm_type_t;
 
 typedef struct {
