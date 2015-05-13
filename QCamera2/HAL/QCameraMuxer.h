@@ -90,6 +90,31 @@ typedef struct {
     cam_sync_mode_t mode[MAX_NUM_CAMERA_PER_BUNDLE];
 } qcamera_logical_descriptor_t;
 
+/* Struct@ cam_compose_jpeg_info_t
+ *
+ *  Description@ This structure stores information about individual Jpeg images
+ *  received from multiple related physical camera instances. These images would then be
+ *  composed together into a single MPO image later.
+ */
+typedef struct {
+    // msg_type is same as data callback msg_type
+    int32_t msg_type;
+    // ptr to actual data buffer
+    camera_memory_t *buffer;
+    // index of the buffer same as received in data callback
+    unsigned int index;
+    // metadata associated with the buffer
+    camera_frame_metadata_t *metadata;
+    // user contains the caller's identity
+    // this contains a reference to the physical cam structure
+    // of the HWI instance which had requested for this data buffer
+    void *user;
+    // this indicates validity of the buffer
+    // this flag is used by multiple threads to check validity of
+    // Jpegs received by other threads
+    bool valid;
+}cam_compose_jpeg_info_t;
+
 /* Class@ QCameraMuxer
  *
  * Description@ Muxer interface
@@ -156,31 +181,59 @@ public:
     typedef void (*jpeg_data_callback)(int32_t msg_type,
             const camera_memory_t *data, unsigned int index,
             camera_frame_metadata_t *metadata, void *user);
-    // Temporary implementation to handle both JPEG callbacks
-    // This will be revisited
+    // both will be merged into a single callback function when actual frame
+    // id syncing is implemented
+    // Jpeg callback function for the primary related cam instance
     static void jpeg1_data_callback(int32_t msg_type,
             const camera_memory_t *data, unsigned int index,
             camera_frame_metadata_t *metadata, void *user);
+    // Jpeg callback function for the secondary/aux related cam instance
     static void jpeg2_data_callback(int32_t msg_type,
             const camera_memory_t *data, unsigned int index,
             camera_frame_metadata_t *metadata, void *user);
+    // add notify error msgs to the notifer queue of the primary related cam instance
+    int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
+    // function to compose all JPEG images from all physical related camera instances
+    void composeMpo(void);
 
 public:
     /* Public Members  Variables   */
+    // Jpeg and Mpo ops need to be shared between 2 HWI instances
+    // hence these are cached in the muxer alongwith Jpeg handle
     mm_jpeg_ops_t mJpegOps;
+    mm_jpeg_mpo_ops_t mJpegMpoOps;
     uint32_t mJpegClientHandle;
     // Stores Camera Data Callback function
     camera_data_callback mDataCb;
+    // Stores Camera GetMemory Callback function
+    camera_request_memory mGetMemoryCb;
 
 private:
     /* Private Member Variables  */
-    qcamera_physical_descriptor_t *mPhyCamera;
-    qcamera_logical_descriptor_t *mLogicalCamera;
-    const camera_module_callbacks_t *mCallbacks;
-    bool bDualCameraEnabled;
-    bool bAuxCameraExposed;
+    qcamera_physical_descriptor_t *m_pPhyCamera;
+    qcamera_logical_descriptor_t *m_pLogicalCamera;
+    const camera_module_callbacks_t *m_pCallbacks;
+    bool m_bDualCameraEnabled;
+    bool m_bAuxCameraExposed;
     uint8_t m_nPhyCameras;
     uint8_t m_nLogicalCameras;
+
+    // Main Camera Jpeg
+    cam_compose_jpeg_info_t m_relCamMainJpeg;
+    // Aux Camera Jpeg
+    cam_compose_jpeg_info_t m_relCamAuxJpeg;
+    // Final Mpo Jpeg Buffer
+    camera_memory_t *m_pRelCamMpoJpeg;
+    // Lock needed to synchronize between multiple callback threads
+    pthread_mutex_t m_JpegLock;
+    // this callback cookie would be used for sending Final mpo Jpeg to the framework
+    void *m_pMpoCallbackCookie;
+    // this callback cookie would be used for caching main related cam phy instance
+    // this is needed for error scenarios
+    // incase of error, we use this cookie to get HWI instance and send errors in notify cb
+    void *m_pJpegCallbackCookie;
+    // flag to indicate whether we need to dump dual camera snapshots
+    bool m_bDumpImages;
 
     /* Private Member Methods */
     int setupLogicalCameras();
@@ -188,13 +241,22 @@ private:
     int getNumberOfCameras();
     int getCameraInfo(int camera_id, struct camera_info *info,
             cam_sync_type_t *p_cam_type);
-    int setCallbacks(const camera_module_callbacks_t *callbacks);
-    int setDataCallback(camera_data_callback data_cb);
+    int32_t setCallbacks(const camera_module_callbacks_t *callbacks);
+    int32_t setDataCallback(camera_data_callback data_cb);
+    int32_t setMemoryCallback(camera_request_memory get_memory);
     qcamera_logical_descriptor_t* getLogicalCamera(
             struct camera_device * device);
     qcamera_physical_descriptor_t* getPhysicalCamera(
             qcamera_logical_descriptor_t* log_cam, uint32_t index);
+    int32_t setMpoCallbackCookie(void* mpoCbCookie);
+    void* getMpoCallbackCookie();
+    int32_t setMainJpegCallbackCookie(void* jpegCbCookie);
+    void* getMainJpegCallbackCookie();
     void setJpegHandle(uint32_t handle) { mJpegClientHandle = handle;};
+    // function to store single JPEG from 1 related physical camera instance
+    int storeJpeg(cam_sync_type_t cam_type, int32_t msg_type,
+            const camera_memory_t *data, unsigned int index,
+            camera_frame_metadata_t *metadata, void *user);
 
 };// End namespace qcamera
 

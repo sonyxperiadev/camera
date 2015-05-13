@@ -135,7 +135,7 @@ public:
     inline bool getJpegMemOpt() {return mJpegMemOpt;}
     inline void setJpegMemOpt(bool val) {mJpegMemOpt = val;}
     int32_t setJpegHandle(mm_jpeg_ops_t *pJpegHandle,
-            uint32_t clientHandle);
+            mm_jpeg_mpo_ops_t* pJpegMpoHandle, uint32_t clientHandle);
 private:
     int32_t sendDataNotify(int32_t msg_type,
                            camera_memory_t *data,
@@ -189,6 +189,7 @@ private:
     jpeg_encode_callback_t     mJpegCB;
     void *                     mJpegUserData;
     mm_jpeg_ops_t              mJpegHandle;
+    mm_jpeg_mpo_ops_t          mJpegMpoHandle; // handle for mpo composition for dualcam
     uint32_t                   mJpegClientHandle;
     uint32_t                   mJpegSessionId;
 

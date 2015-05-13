@@ -793,7 +793,7 @@ public:
             { return m_captureFrameConfig; };
 
     /* Dual camera specific */
-    void setRelatedCamSyncInfo(
+    int32_t setRelatedCamSyncInfo(
             cam_sync_related_sensors_event_info_t* info);
     const cam_sync_related_sensors_event_info_t*
             getRelatedCamSyncInfo(void);
