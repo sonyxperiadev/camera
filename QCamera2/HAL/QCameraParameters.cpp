@@ -7136,6 +7136,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                     } else {
                         CDBG("%s: Set CDS in video mode = %d", __func__, cds_mode);
                         mCds_mode = cds_mode;
+                        m_bNeedRestart = true;
                     }
                 } else {
                     ALOGE("%s: Invalid argument for video CDS MODE %d", __func__,  cds_mode);
@@ -7175,6 +7176,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                     } else {
                         CDBG("%s: Set CDS in capture mode = %d", __func__, cds_mode);
                         mCds_mode = cds_mode;
+                        m_bNeedRestart = true;
                     }
                 } else {
                     ALOGE("%s: Invalid argument for snapshot CDS MODE %d", __func__,  cds_mode);
@@ -12178,6 +12180,14 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
     }
 
+    if (isCDSEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
+            (CAM_STREAM_TYPE_VIDEO == stream_type) ||
+            (CAM_STREAM_TYPE_CALLBACK == stream_type) ||
+            ((CAM_STREAM_TYPE_SNAPSHOT == stream_type) &&
+            getRecordingHintValue() && is4k2kVideoResolution()))) {
+         feature_mask |= CAM_QCOM_FEATURE_CDS;
+    }
+
     //Rotation could also have an effect on pp feature mask
     cam_pp_feature_config_t config;
     cam_dimension_t dim;
@@ -12598,7 +12608,7 @@ int32_t QCameraParameters::setToneMapMode(uint32_t enable, bool initCommit)
  *
  * PARAMETERS : none
  *
- * RETURN	  : number of stages
+ * RETURN     : number of stages
  *==========================================================================*/
 uint8_t QCameraParameters::getLongshotStages()
 {

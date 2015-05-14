@@ -1008,6 +1008,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 //Don't do WNR for thumbnail
                 streamInfo->reprocess_config.pp_feature_config.feature_mask &=
                         ~CAM_QCOM_FEATURE_DENOISE2D;
+                streamInfo->reprocess_config.pp_feature_config.feature_mask &=
+                        ~CAM_QCOM_FEATURE_CDS;
 
                 if (param.isHDREnabled()
                   && !param.isHDRThumbnailProcessNeeded()){
