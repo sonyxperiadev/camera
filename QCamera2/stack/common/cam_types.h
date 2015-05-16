@@ -1134,8 +1134,23 @@ typedef enum {
     CAM_AF_INACTIVE
 } cam_autofocus_state_t;
 
+typedef enum {
+    /* Inactive state signfies that AF algo is not running */
+    CAM_AF_STATE_INACTIVE,
+
+    /* Passive events received in CAF (continuous picture/video) modes*/
+    CAM_AF_STATE_PASSIVE_SCAN,
+    CAM_AF_STATE_PASSIVE_FOCUSED,
+    CAM_AF_STATE_PASSIVE_UNFOCUSED,
+
+    /* Active events received only when AutoFocus() is called explicitly */
+    CAM_AF_STATE_ACTIVE_SCAN,
+    CAM_AF_STATE_FOCUSED_LOCKED,
+    CAM_AF_STATE_NOT_FOCUSED_LOCKED,
+} cam_af_state_t;
+
 typedef struct {
-    cam_autofocus_state_t focus_state;           /* state of focus */
+    cam_af_state_t focus_state;           /* state of focus */
     cam_focus_distances_info_t focus_dist;       /* focus distance */
     cam_focus_mode_type focus_mode;        /* focus mode from backend */
     uint32_t focused_frame_idx;
@@ -2224,16 +2239,6 @@ typedef enum {
     CAM_FILTER_ARRANGEMENT_UYVY,
     CAM_FILTER_ARRANGEMENT_YUYV,
 } cam_color_filter_arrangement_t;
-
-typedef enum {
-    CAM_AF_STATE_INACTIVE,
-    CAM_AF_STATE_PASSIVE_SCAN,
-    CAM_AF_STATE_PASSIVE_FOCUSED,
-    CAM_AF_STATE_ACTIVE_SCAN,
-    CAM_AF_STATE_FOCUSED_LOCKED,
-    CAM_AF_STATE_NOT_FOCUSED_LOCKED,
-    CAM_AF_STATE_PASSIVE_UNFOCUSED
-} cam_af_state_t;
 
 typedef enum {
   CAM_AF_LENS_STATE_STATIONARY,
