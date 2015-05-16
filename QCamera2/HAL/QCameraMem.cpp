@@ -641,16 +641,32 @@ int QCameraMemoryPool::findBufferLocked(
         return NAME_NOT_FOUND;
     }
 
-    List<struct QCameraMemory::QCameraMemInfo>::iterator it;
-    it = mPools[streamType].begin();
-    for ( ; it != mPools[streamType].end() ; it++) {
-        if ( ((*it).size >= size) &&
-            ((*it).heap_id == heap_id) &&
-            ((*it).cached == cached) ) {
-            memInfo = *it;
-            mPools[streamType].erase(it);
-            rc = NO_ERROR;
-            break;
+    List<struct QCameraMemory::QCameraMemInfo>::iterator it = mPools[streamType].begin();
+    if (streamType == CAM_STREAM_TYPE_OFFLINE_PROC) {
+        for( ; it != mPools[streamType].end() ; it++) {
+            if( ((*it).size == size) &&
+                    ((*it).heap_id == heap_id) &&
+                    ((*it).cached == cached) ) {
+                memInfo = *it;
+                ALOGE("%s : Found buffer %lx size %d",
+                        __func__, (unsigned long)memInfo.handle, memInfo.size);
+                mPools[streamType].erase(it);
+                rc = NO_ERROR;
+                break;
+            }
+        }
+    } else {
+        for( ; it != mPools[streamType].end() ; it++) {
+            if(((*it).size >= size) &&
+                    ((*it).heap_id == heap_id) &&
+                    ((*it).cached == cached) ) {
+                memInfo = *it;
+                ALOGE("%s : Found buffer %lx size %d",
+                        __func__, (unsigned long)memInfo.handle, memInfo.size);
+                mPools[streamType].erase(it);
+                rc = NO_ERROR;
+                break;
+            }
         }
     }
 
