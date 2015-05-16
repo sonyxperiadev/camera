@@ -1059,6 +1059,8 @@ typedef struct {
     cam_face_detection_info_t faces[MAX_ROI];  /* detailed information of faces detected */
     qcamera_face_detect_type_t fd_type;        /* face detect for preview or snapshot frame*/
     cam_dimension_t fd_frame_dim;              /* frame dims on which fd is applied */
+    uint8_t update_flag;                       /* flag to inform whether HAL needs to send cb
+                                                * to app or not */
 } cam_face_detection_data_t;
 
 #define CAM_HISTOGRAM_STATS_SIZE 256
