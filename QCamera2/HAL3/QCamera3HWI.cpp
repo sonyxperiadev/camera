@@ -7314,7 +7314,7 @@ bool QCamera3HardwareInterface::needRotationReprocess()
  *==========================================================================*/
 bool QCamera3HardwareInterface::needReprocess(uint32_t postprocess_mask)
 {
-    if (gCamCapability[mCameraId]->min_required_pp_mask > 0) {
+    if (gCamCapability[mCameraId]->qcom_supported_feature_mask > 0) {
         // TODO: add for ZSL HDR later
         // pp module has min requirement for zsl reprocess, or WNR in ZSL mode
         if(postprocess_mask == CAM_QCOM_FEATURE_NONE){
