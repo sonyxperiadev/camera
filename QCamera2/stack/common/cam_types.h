@@ -35,7 +35,7 @@
 #include <inttypes.h>
 #include <media/msmb_camera.h>
 
-#define CAM_MAX_NUM_BUFS_PER_STREAM 24
+#define CAM_MAX_NUM_BUFS_PER_STREAM 64
 #define MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES 8096
 #define AWB_DEBUG_DATA_SIZE               (7029)
 #define AEC_DEBUG_DATA_SIZE               (1720)
@@ -761,7 +761,7 @@ typedef struct  {
 typedef enum {
     CAM_STREAMING_MODE_CONTINUOUS, /* continous streaming */
     CAM_STREAMING_MODE_BURST,      /* burst streaming */
-    CAM_STREAMING_MODE_BATCH,
+    CAM_STREAMING_MODE_BATCH,      /* stream frames in batches */
     CAM_STREAMING_MODE_MAX
 } cam_streaming_mode_t;
 
@@ -1703,7 +1703,8 @@ typedef enum {
     CAM_INTF_PARM_WB_MANUAL,
     /* IMG LIB reprocess debug section */
     CAM_INTF_META_IMGLIB, /* cam_intf_meta_imglib_t */
-
+    /* FLIP mode parameter*/
+    CAM_INTF_PARM_FLIP,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -1967,6 +1968,7 @@ typedef struct {
     uint8_t burst_count;
     uint8_t output_count;
     uint8_t flash_bracketing[CAM_MAX_FLASH_BRACKETING];
+    uint8_t metadata_index;
 } cam_chroma_flash_t;
 
 typedef enum {

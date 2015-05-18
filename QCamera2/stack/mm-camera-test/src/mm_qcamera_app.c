@@ -352,7 +352,6 @@ int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
                           uint8_t *num_bufs,
                           uint8_t **initial_reg_flag,
                           mm_camera_buf_def_t **bufs,
-                          mm_camera_buf_def_t **plane_bufs,
                           mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                           void *user_data)
 {
@@ -417,7 +416,8 @@ int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
     if (rc != MM_CAMERA_OK) {
         int j;
         for (j=0; j>i; j++) {
-            ops_tbl->unmap_ops(pBufs[j].buf_idx, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+            ops_tbl->unmap_ops(pBufs[j].buf_idx, -1,
+                    CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
         }
         mm_app_release_bufs(stream->num_of_bufs, &stream->s_bufs[0]);
         free(pBufs);
@@ -441,7 +441,8 @@ int32_t mm_app_stream_deinitbuf(mm_camera_map_unmap_ops_tbl_t *ops_tbl,
 
     for (i = 0; i < stream->num_of_bufs ; i++) {
         /* mapping stream bufs first */
-        ops_tbl->unmap_ops(stream->s_bufs[i].buf.buf_idx, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+        ops_tbl->unmap_ops(stream->s_bufs[i].buf.buf_idx, -1,
+                CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
     }
 
     mm_app_release_bufs(stream->num_of_bufs, &stream->s_bufs[0]);

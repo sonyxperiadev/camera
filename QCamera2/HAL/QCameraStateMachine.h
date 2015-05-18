@@ -228,12 +228,16 @@ private:
     // main statemachine process routine
     static void *smEvtProcRoutine(void *data);
 
+    int32_t applyDelayedMsgs();
+
     QCamera2HardwareInterface *m_parent;  // ptr to HWI
     qcamera_state_enum_t m_state;         // statemachine state
     QCameraQueue api_queue;               // cmd queue for APIs
     QCameraQueue evt_queue;               // cmd queue for evt from mm-camera-intf/mm-jpeg-intf
     pthread_t cmd_pid;                    // cmd thread ID
     cam_semaphore_t cmd_sem;              // semaphore for cmd thread
+    bool m_bDelayPreviewMsgs;             // Delay preview callback enable during ZSL snapshot
+    int32_t m_DelayedMsgs;
 };
 
 }; // namespace qcamera

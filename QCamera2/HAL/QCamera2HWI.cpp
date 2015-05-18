@@ -50,7 +50,7 @@
 #define CAMERA_MIN_JPEG_ENCODING_BUFFERS 2
 #define CAMERA_MIN_VIDEO_BUFFERS         9
 #define CAMERA_LONGSHOT_STAGES           4
-#define CAMERA_MIN_VIDEO_BATCH_BUFFERS   5
+#define CAMERA_MIN_VIDEO_BATCH_BUFFERS   6
 
 //This multiplier signifies extra buffers that we need to allocate
 //for the output of pproc
@@ -1274,7 +1274,7 @@ int QCamera2HardwareInterface::openCamera()
         gCamCaps[mCameraId]->padding_info.plane_padding = padding_info.plane_padding;
     }
 
-    mParameters.init(gCamCaps[mCameraId], mCameraHandle, this, this);
+    mParameters.init(gCamCaps[mCameraId], mCameraHandle, this);
     mParameters.setMinPpMask(gCamCaps[mCameraId]->min_required_pp_mask);
 
     mCameraOpened = true;
@@ -1450,55 +1450,6 @@ int QCamera2HardwareInterface::getCapabilities(uint32_t cameraId,
 }
 
 /*===========================================================================
- * FUNCTION   : prepareTorchCamera
- *
- * DESCRIPTION: initializes the camera ( if needed )
- *              so torch can be configured.
- *
- * PARAMETERS :
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int QCamera2HardwareInterface::prepareTorchCamera()
-{
-    int rc = NO_ERROR;
-
-    if ( ( !m_stateMachine.isPreviewRunning() ) &&
-            !m_stateMachine.isPreviewReady() &&
-            ( m_channels[QCAMERA_CH_TYPE_PREVIEW] == NULL ) ) {
-        rc = addChannel(QCAMERA_CH_TYPE_PREVIEW);
-    }
-
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : releaseTorchCamera
- *
- * DESCRIPTION: releases all previously acquired camera resources ( if any )
- *              needed for torch configuration.
- *
- * PARAMETERS :
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int QCamera2HardwareInterface::releaseTorchCamera()
-{
-    if ( !m_stateMachine.isPreviewRunning() &&
-            !m_stateMachine.isPreviewReady() &&
-            ( m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL ) ) {
-        delete m_channels[QCAMERA_CH_TYPE_PREVIEW];
-        m_channels[QCAMERA_CH_TYPE_PREVIEW] = NULL;
-    }
-
-    return NO_ERROR;
-}
-
-/*===========================================================================
  * FUNCTION   : getBufNumRequired
  *
  * DESCRIPTION: return number of stream buffers needed for given stream type
@@ -1637,19 +1588,15 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             }
 
             bufferCnt += mParameters.getNumOfExtraBuffersForVideo();
-            //if its 4K encoding usecase and power save feature enabled, then add extra buffer
+            //if its 4K encoding usecase, then add extra buffer
             cam_dimension_t dim;
             mParameters.getStreamDimension(CAM_STREAM_TYPE_VIDEO, dim);
             if (is4k2kResolution(&dim)) {
-                 property_get("vidc.debug.perf.mode", value, "0");
-                 bool isPwrSavEnabled = (atoi(value) == 2);
-                 if (isPwrSavEnabled) {
-                     //get additional buffer count
-                     property_get("vidc.enc.dcvs.extra-buff-count", value, "0");
-                     bufferCnt += atoi(value);
-                 }
+                 //get additional buffer count
+                 property_get("vidc.enc.dcvs.extra-buff-count", value, "0");
+                 bufferCnt += atoi(value);
             }
-            ALOGI("Buffer count is %d width / height (%d/%d) ", bufferCnt, dim.width, dim.height);
+            ALOGI("Buffer count is %d, width / height (%d/%d) ", bufferCnt, dim.width, dim.height);
         }
         break;
     case CAM_STREAM_TYPE_METADATA:
@@ -1998,7 +1945,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     case CAM_STREAM_TYPE_VIDEO:
         streamInfo->dis_enable = mParameters.isDISEnabled();
         if (mParameters.getBufBatchCount()) {
-            //Update stream info structure with Bacth mode info
+            //Update stream info structure with batch mode info
             streamInfo->streaming_mode = CAM_STREAMING_MODE_BATCH;
             streamInfo->user_buf_info.frame_buf_cnt = mParameters.getBufBatchCount();
             streamInfo->user_buf_info.size =
@@ -2076,7 +2023,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
 /*===========================================================================
  * FUNCTION   : allocateStreamUserBuf
  *
- * DESCRIPTION: alocate user ptr for stream buffers
+ * DESCRIPTION: allocate user ptr for stream buffers
  *
  * PARAMETERS :
  *   @streamInfo  : stream info structure
@@ -2090,7 +2037,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
 {
     int rc = NO_ERROR;
     QCameraMemory *mem = NULL;
-    bool bCachedMem = QCAMERA_ION_USE_CACHE;
     int bufferCnt = 0;
     int size = 0;
 
@@ -2101,15 +2047,11 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
 
     // Allocate stream user buffer memory object
     switch (streamInfo->stream_type) {
-    case CAM_STREAM_TYPE_VIDEO:
-    {
-        char value[PROPERTY_VALUE_MAX];
-        property_get("persist.camera.mem.usecache", value, "0");
-        if (atoi(value) == 0) {
-            bCachedMem = QCAMERA_ION_USE_NOCACHE;
-        }
-        CDBG_HIGH("%s: vidoe buf using cached memory = %d", __func__, bCachedMem);
-        mem = new QCameraVideoMemory(mGetMemory, bCachedMem);
+    case CAM_STREAM_TYPE_VIDEO: {
+        QCameraVideoMemory *video_mem = new QCameraVideoMemory(
+                mGetMemory, FALSE, CAM_STREAM_BUF_TYPE_USERPTR);
+        video_mem->allocateMeta(streamInfo->num_bufs);
+        mem = static_cast<QCameraMemory *>(video_mem);
     }
     break;
 
@@ -3049,7 +2991,6 @@ int QCamera2HardwareInterface::takePicture()
     CDBG_HIGH("%s: [ZSL Retro] numSnapshots = %d, numRetroSnapshots = %d",
           __func__, numSnapshots, numRetroSnapshots);
 
-    getOrientation();
     if (mParameters.isZSLMode()) {
         QCameraPicChannel *pZSLChannel =
             (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
@@ -3303,7 +3244,8 @@ int32_t QCamera2HardwareInterface::configureOnlineRotation(QCameraChannel &ch)
     streamId = pStream->getMyServerID();
     // Update online rotation configuration
     pthread_mutex_lock(&m_parm_lock);
-    rc = mParameters.addOnlineRotation(getJpegRotation(), streamId, getDeviceRotation());
+    rc = mParameters.addOnlineRotation(mParameters.getJpegRotation(), streamId,
+            mParameters.getDeviceRotation());
     if (rc != NO_ERROR) {
         ALOGE("%s: addOnlineRotation failed %d", __func__, rc);
         pthread_mutex_unlock(&m_parm_lock);
@@ -3780,7 +3722,6 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
 {
     int rc = NO_ERROR;
 
-    getOrientation();
     QCameraChannel *pChannel = NULL;
 
     // Configure advanced capture
@@ -5167,11 +5108,9 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
     QCameraChannel *pChannel = NULL;
 
     if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
-        // Using the no preview torch WA it is possible
-        // to already have a preview channel present before
-        // start preview gets called.
-        ALOGD(" %s : Preview Channel already added!", __func__);
-        return NO_ERROR;
+        // if we had preview channel before, delete it first
+        delete m_channels[QCAMERA_CH_TYPE_PREVIEW];
+        m_channels[QCAMERA_CH_TYPE_PREVIEW] = NULL;
     }
 
     pChannel = new QCameraChannel(mCameraHandle->camera_handle,
@@ -5417,11 +5356,6 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
         // if we had ZSL channel before, delete it first
         delete m_channels[QCAMERA_CH_TYPE_ZSL];
         m_channels[QCAMERA_CH_TYPE_ZSL] = NULL;
-    }
-
-     if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
-        delete m_channels[QCAMERA_CH_TYPE_PREVIEW];
-        m_channels[QCAMERA_CH_TYPE_PREVIEW] = NULL;
     }
 
     pChannel = new QCameraPicChannel(mCameraHandle->camera_handle,
@@ -5783,7 +5717,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
 
             if (needRotationReprocess()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-                uint32_t rotation = getJpegRotation();
+                uint32_t rotation = mParameters.getJpegRotation();
                 if (rotation == 0) {
                     pp_config.rotation = ROTATE_0;
                 } else if (rotation == 90) {
@@ -5873,7 +5807,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
             pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_PASS_2;
             if (needRotationReprocess()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
-                uint32_t rotation = getJpegRotation();
+                uint32_t rotation = mParameters.getJpegRotation();
                 if (rotation == 0) {
                     pp_config.rotation = ROTATE_0;
                 } else if (rotation == 90) {
@@ -7040,9 +6974,10 @@ bool QCamera2HardwareInterface::needReprocess()
         return false;
     }
     if ((gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION) > 0 &&
-            (getJpegRotation() > 0)) {
+            (mParameters.getJpegRotation() > 0)) {
             // current rotation is not zero, and pp has the capability to process rotation
-            CDBG_HIGH("%s: need to do reprocess for rotation=%d", __func__, getJpegRotation());
+            CDBG_HIGH("%s: need to do reprocess for rotation=%d",
+                    __func__, mParameters.getJpegRotation());
             pthread_mutex_unlock(&m_parm_lock);
             return true;
     }
@@ -7127,9 +7062,10 @@ bool QCamera2HardwareInterface::needRotationReprocess()
     }
 
     if ((gCamCaps[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION) > 0 &&
-            (getJpegRotation() > 0)) {
+            (mParameters.getJpegRotation() > 0)) {
         // current rotation is not zero, and pp has the capability to process rotation
-        CDBG_HIGH("%s: need to do reprocess for rotation=%d", __func__, getJpegRotation());
+        CDBG_HIGH("%s: need to do reprocess for rotation=%d",
+                __func__, mParameters.getJpegRotation());
         pthread_mutex_unlock(&m_parm_lock);
         return true;
     }
@@ -7204,50 +7140,6 @@ uint32_t QCamera2HardwareInterface::getJpegQuality()
     quality =  mParameters.getJpegQuality();
     pthread_mutex_unlock(&m_parm_lock);
     return quality;
-}
-
-/*===========================================================================
- * FUNCTION   : getJpegRotation
- *
- * DESCRIPTION: get rotation information to be passed into jpeg encoding
- *
- * PARAMETERS : none
- *
- * RETURN     : rotation information
- *==========================================================================*/
-uint32_t QCamera2HardwareInterface::getJpegRotation() {
-    return mCaptureRotation;
-}
-
-/*===========================================================================
- * FUNCTION   : getDeviceRotation
- *
- * DESCRIPTION: get device rotation information
- *
- * PARAMETERS : none
- *
- * RETURN     : device rotation information
- *==========================================================================*/
-uint32_t QCamera2HardwareInterface::getDeviceRotation() {
-    return mDeviceRotation;
-}
-
-/*===========================================================================
- * FUNCTION   : getOrientation
- *
- * DESCRIPTION: get rotation information from camera parameters
- *
- * PARAMETERS : none
- *
- * RETURN     : rotation information
- *==========================================================================*/
-void QCamera2HardwareInterface::getOrientation() {
-    pthread_mutex_lock(&m_parm_lock);
-    mCaptureRotation = mParameters.getJpegRotation();
-    mDeviceRotation = mParameters.getDeviceRotation();
-    mUseJpegExifRotation = mParameters.useJpegExifRotation();
-    mJpegExifRotation = mParameters.getJpegExifRotation();
-    pthread_mutex_unlock(&m_parm_lock);
 }
 
 /*===========================================================================
@@ -7411,9 +7303,9 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
         ALOGE("%s: getExifSoftware failed", __func__);
     }
 
-    if (mUseJpegExifRotation) {
+    if (mParameters.useJpegExifRotation()) {
         int16_t orientation;
-        switch (mJpegExifRotation) {
+        switch (mParameters.getJpegExifRotation()) {
         case 0:
             orientation = 1;
             break;

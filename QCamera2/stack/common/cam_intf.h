@@ -387,6 +387,9 @@ typedef struct{
       the decimal representation of a percentage
       ex: 10% margin = 0.1 */
     float supported_is_type_margins[IS_TYPE_MAX];
+
+    /* Max cpp batch size */
+    uint8_t max_batch_bufs_supported;
 } cam_capability_t;
 
 typedef enum {
@@ -407,8 +410,6 @@ typedef struct {
     uint8_t meta_present;         /* if there is meta data associated with this reprocess frame */
     uint32_t meta_stream_handle;  /* meta data stream ID. only valid if meta_present != 0 */
     uint32_t meta_buf_index;      /* buf index to meta data buffer. only valid if meta_present != 0 */
-
-    cam_per_frame_pp_config_t frame_pp_config; /* per frame post-proc configuration */
 
     /* opaque metadata required for reprocessing */
     int32_t private_data[MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES];
@@ -756,6 +757,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_ROTATION,                     cam_rotation_info_t,         1);
     INCLUDE(CAM_INTF_META_IMGLIB,                       cam_intf_meta_imglib_t,      1);
     INCLUDE(CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,         cam_capture_frame_config_t,  1);
+    INCLUDE(CAM_INTF_PARM_FLIP,                         int32_t,                     1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

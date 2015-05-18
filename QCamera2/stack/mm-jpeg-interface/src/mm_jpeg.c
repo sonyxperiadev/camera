@@ -38,6 +38,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <cutils/trace.h>
+#include <math.h>
 
 #include "mm_jpeg_dbg.h"
 #include "mm_jpeg_interface.h"
@@ -848,6 +849,49 @@ OMX_ERRORTYPE mm_jpeg_session_config_ports(mm_jpeg_job_session_t* p_session)
   return ret;
 }
 
+/** mm_jpeg_get_thumbnail_crop
+ *
+ *  Arguments:
+ *    @p_thumb_dim: thumbnail dimension
+ *    @p_main_dim: main image dimension
+ *    @crop_width : flag indicating if width needs to be cropped
+ *
+ *  Return:
+ *       OMX error values
+ *
+ *  Description:
+ *    If the main image and thumbnail ascpect ratios are differnt,
+ *    re-calculate the thumbnail crop info to prevent distortion
+ *
+ */
+OMX_ERRORTYPE mm_jpeg_get_thumbnail_crop(mm_jpeg_dim_t *p_thumb_dim,
+  mm_jpeg_dim_t *p_main_dim, uint8_t crop_width) {
+  OMX_ERRORTYPE ret = OMX_ErrorNone;
+  int cropped_width = 0, cropped_height = 0;
+
+  if (crop_width) {
+   //Keep height constant
+   cropped_height = p_thumb_dim->src_dim.height;
+   cropped_width = floor((cropped_height * p_thumb_dim->dst_dim.width) /
+      p_thumb_dim->dst_dim.height);
+  } else {
+    //Keep width constant
+    cropped_width = p_thumb_dim->src_dim.width;
+    cropped_height = floor((cropped_width * p_thumb_dim->dst_dim.height) /
+      p_thumb_dim->dst_dim.width);
+  }
+  p_thumb_dim->crop.left = floor(p_thumb_dim->src_dim.width - cropped_width) / 2;
+  p_thumb_dim->crop.top = floor(p_thumb_dim->src_dim.height - cropped_height) / 2;
+  p_thumb_dim->crop.width = cropped_width;
+  p_thumb_dim->crop.height = cropped_height;
+
+  CDBG_HIGH("%s %d New thumbnail crop: left %d, top %d, crop width %d, crop height %d",
+    __func__, __LINE__, p_thumb_dim->crop.left, p_thumb_dim->crop.top,
+    p_thumb_dim->crop.width, p_thumb_dim->crop.height);
+
+  return ret;
+}
+
 /** mm_jpeg_omx_config_thumbnail:
  *
  *  Arguments:
@@ -868,6 +912,7 @@ OMX_ERRORTYPE mm_jpeg_session_config_thumbnail(mm_jpeg_job_session_t* p_session)
   mm_jpeg_encode_params_t *p_params = &p_session->params;
   mm_jpeg_encode_job_t *p_jobparams = &p_session->encode_job;
   mm_jpeg_dim_t *p_thumb_dim = &p_jobparams->thumb_dim;
+  mm_jpeg_dim_t *p_main_dim = &p_jobparams->main_dim;
   QOMX_YUV_FRAME_INFO *p_frame_info = &thumbnail_info.tmbOffset;
   mm_jpeg_buf_t *p_tmb_buf = &p_params->src_thumb_buf[p_jobparams->thumb_index];
 
@@ -921,10 +966,6 @@ OMX_ERRORTYPE mm_jpeg_session_config_thumbnail(mm_jpeg_job_session_t* p_session)
   thumbnail_info.scaling_enabled = 1;
   thumbnail_info.input_width = (OMX_U32)p_thumb_dim->src_dim.width;
   thumbnail_info.input_height = (OMX_U32)p_thumb_dim->src_dim.height;
-  thumbnail_info.crop_info.nWidth = (OMX_U32)p_thumb_dim->crop.width;
-  thumbnail_info.crop_info.nHeight = (OMX_U32)p_thumb_dim->crop.height;
-  thumbnail_info.crop_info.nLeft = p_thumb_dim->crop.left;
-  thumbnail_info.crop_info.nTop = p_thumb_dim->crop.top;
   thumbnail_info.rotation = (OMX_U32)p_params->thumb_rotation;
   thumbnail_info.quality = (OMX_U32)p_params->thumb_quality;
   thumbnail_info.output_width = (OMX_U32)p_thumb_dim->dst_dim.width;
@@ -948,6 +989,48 @@ OMX_ERRORTYPE mm_jpeg_session_config_thumbnail(mm_jpeg_job_session_t* p_session)
       p_thumb_dim->src_dim.height);
     thumbnail_info.output_width = (OMX_U32)p_thumb_dim->src_dim.width;
     thumbnail_info.output_height = (OMX_U32)p_thumb_dim->src_dim.height;
+  }
+
+  //If the main image and thumbnail aspect ratio are different, reset the
+  // thumbnail crop info to avoid distortion
+  double main_aspect_ratio = (double)p_main_dim->dst_dim.width /
+    (double)p_main_dim->dst_dim.height;
+  double thumb_aspect_ratio = (double)thumbnail_info.output_width /
+    (double)thumbnail_info.output_height;
+
+  if ((thumb_aspect_ratio - main_aspect_ratio) > ASPECT_TOLERANCE) {
+    mm_jpeg_get_thumbnail_crop(p_thumb_dim, p_main_dim, 0);
+  } else if((main_aspect_ratio - thumb_aspect_ratio) > ASPECT_TOLERANCE){
+    mm_jpeg_get_thumbnail_crop(p_thumb_dim, p_main_dim, 1);
+  }
+
+  //Fill thumbnail crop info
+  thumbnail_info.crop_info.nWidth = (OMX_U32)p_thumb_dim->crop.width;
+  thumbnail_info.crop_info.nHeight = (OMX_U32)p_thumb_dim->crop.height;
+  thumbnail_info.crop_info.nLeft = p_thumb_dim->crop.left;
+  thumbnail_info.crop_info.nTop = p_thumb_dim->crop.top;
+
+  //If main image cropping/scaling is enabled, thumb FOV should be within
+  //main image FOV
+  if ((p_main_dim->crop.width != p_main_dim->src_dim.width) ||
+    (p_main_dim->crop.height != p_main_dim->src_dim.height)) {
+    if ((p_thumb_dim->crop.left < p_main_dim->crop.left) ||
+      ((p_thumb_dim->crop.left + p_thumb_dim->crop.width) >
+      (p_main_dim->crop.left + p_main_dim->crop.width)) ||
+      (p_thumb_dim->crop.top < p_main_dim->crop.top) ||
+      ((p_thumb_dim->crop.top + p_thumb_dim->crop.height) >
+      (p_main_dim->crop.top + p_main_dim->crop.height))) {
+       //Reset the FOV for the thumbnail
+       CDBG_HIGH("%s:%d] Resetting the thumbnail FOV wrt main image",
+         __func__, __LINE__);
+       thumbnail_info.crop_info.nLeft = p_main_dim->crop.left;
+       thumbnail_info.crop_info.nTop = p_main_dim->crop.height;
+       if ((p_thumb_dim->crop.width > p_main_dim->crop.width) ||
+         (p_thumb_dim->crop.height > p_main_dim->crop.height)) {
+         thumbnail_info.crop_info.nWidth = p_main_dim->crop.width;
+         thumbnail_info.crop_info.nHeight = p_main_dim->crop.height;
+       }
+     }
   }
 
   memset(p_frame_info, 0x0, sizeof(*p_frame_info));

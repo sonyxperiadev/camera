@@ -44,15 +44,7 @@ static const char ExifUndefinedPrefix[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 #define EXIF_ASCII_PREFIX_SIZE           8   //(sizeof(ExifAsciiPrefix))
 #define FOCAL_LENGTH_DECIMAL_PRECISION   100
 
-#define CAMERA_MIN_BATCH_COUNT           4
-
-class QCameraTorchInterface
-{
-public:
-    virtual int prepareTorchCamera() = 0;
-    virtual int releaseTorchCamera() = 0;
-    virtual ~QCameraTorchInterface() {}
-};
+#define CAMERA_MIN_BATCH_COUNT           1
 
 class QCameraAdjustFPS
 {
@@ -533,6 +525,10 @@ public:
     static const char VIDEO_HFR_3X[];
     static const char VIDEO_HFR_4X[];
     static const char VIDEO_HFR_5X[];
+    static const char VIDEO_HFR_6X[];
+    static const char VIDEO_HFR_7X[];
+    static const char VIDEO_HFR_8X[];
+    static const char VIDEO_HFR_9X[];
 
     // Values for feature on/off settings.
     static const char VALUE_OFF[];
@@ -587,10 +583,7 @@ public:
     void setTouchIndexAf(int x, int y);
     void getTouchIndexAf(int *x, int *y);
 
-    int32_t init(cam_capability_t *,
-                 mm_camera_vtbl_t *,
-                 QCameraAdjustFPS *,
-                 QCameraTorchInterface *);
+    int32_t init(cam_capability_t *, mm_camera_vtbl_t *, QCameraAdjustFPS *);
     void deinit();
     int32_t assign(QCameraParameters& params);
     int32_t initDefaultParameters();
@@ -707,6 +700,7 @@ public:
     uint8_t getNumOfExtraBuffersForImageProc();
     uint8_t getNumOfExtraBuffersForVideo();
     uint8_t getNumOfExtraBuffersForPreview();
+    uint32_t getExifBufIndex(uint32_t captureIndex);
     bool needThumbnailReprocess(uint32_t *pFeatureMask);
     inline bool isUbiFocusEnabled() {return m_bAFBracketingOn && !m_bReFocusOn;};
     inline bool isChromaFlashEnabled() {return m_bChromaFlashOn;};
@@ -753,6 +747,7 @@ public:
     int32_t setStreamPpMask(cam_stream_type_t stream_type, uint32_t pp_mask);
     int32_t getStreamPpMask(cam_stream_type_t stream_type, uint32_t &pp_mask);
     int32_t getSharpness() {return m_nSharpness;};
+    int32_t getEffect() {return mParmEffect;};
     int32_t updateFlashMode(cam_flash_mode_t flash_mode);
     int32_t configureFlash(cam_capture_frame_config_t &frame_config);
     int32_t configureAEBracketing(cam_capture_frame_config_t &frame_config);
@@ -909,6 +904,7 @@ private:
     bool UpdateHFRFrameRate(const QCameraParameters& params);
     int32_t setRdiMode(const char *str);
     int32_t setSecureMode(const char *str);
+    int32_t setCDSMode(int32_t cds_mode, bool initCommit);
 
     int32_t parseGains(const char *gainStr, float &r_gain,
             float &g_gain, float &b_gain);
@@ -1021,9 +1017,6 @@ private:
     bool m_bHDRThumbnailProcessNeeded;        // if thumbnail need to be processed for HDR
     bool m_bHDR1xExtraBufferNeeded;     // if extra frame with exposure compensation 0 during HDR is needed
     bool m_bHDROutputCropEnabled;     // if HDR output frame need to be scaled to user resolution
-    QCameraTorchInterface *m_pTorch; // Interface for enabling torch
-    bool m_bReleaseTorchCamera; // Release camera resources after torch gets disabled
-
     DefaultKeyedVector<String8,String8> m_tempMap; // map for temororily store parameters to be set
     cam_fps_range_t m_default_fps_range;
     bool m_bAFBracketingOn;
@@ -1057,9 +1050,13 @@ private:
     int32_t mZoomLevel;
     bool m_bStreamsConfigured;
     int32_t mParmZoomLevel;
+    int32_t mCds_mode;
+    int32_t mParmEffect;
 
     cam_capture_frame_config_t m_captureFrameConfig;
     int8_t mBufBatchCnt;
+
+    uint32_t mRotation;
 };
 
 }; // namespace qcamera

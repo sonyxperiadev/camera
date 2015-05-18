@@ -71,10 +71,10 @@
   } \
 })
 
-/*Declaring Buffer structure*/
+/* Declaring Buffer structure */
 struct mm_camera_buf_def;
 
-/**mm_camera_plane_def_t : structure for frame plane info
+/** mm_camera_plane_def_t : structure for frame plane info
 *    @num_planes : num of planes for the frame buffer, to be
 *               filled during mem allocation
 *    @planes : plane info for the frame buffer, to be filled
@@ -85,17 +85,18 @@ typedef struct {
     struct v4l2_plane planes[VIDEO_MAX_PLANES];
 } mm_camera_plane_buf_def_t;
 
-/**mm_camera_user_buf_def_t : structure for frame plane info
+/** mm_camera_user_buf_def_t : structure for frame plane info
 *    @num_buffers : num of buffers in this user defined structure
-*....@bufs_used : Actual num of buffers used
-*    @buffers : individual stream buffers.
+*    @bufs_used : actual number of buffer filled
+*    @buf_in_use : flag to notify buffer usage status.
+*    @plane_buf : Plane buffer array pointer.
 **/
 typedef struct {
     uint8_t num_buffers;
     uint8_t bufs_used;     /*Num of Buffer filled by Kernel*/
-    uint8_t bufs_released; /*Number of plane buf freed by HAL for this usr buf*/
     uint8_t buf_in_use;  /* Container buffer is freed to fill*/
-    uint32_t buf_idx[MSM_CAMERA_MAX_USER_BUFF_CNT];
+    int32_t buf_idx[MSM_CAMERA_MAX_USER_BUFF_CNT];
+    struct mm_camera_buf_def *plane_buf;
 } mm_camera_user_buf_def_t;
 
 /** mm_camera_buf_def_t: structure for stream frame buf
@@ -106,7 +107,7 @@ typedef struct {
 *    @timespec_ts : time stamp, to be filled when DQBUF is
 *                 called
 *    @frame_idx : frame sequence num, to be filled when DQBUF
-*    @plane_buf  : Frame plane defination
+*    @plane_buf  : Frame plane definition
 *    @fd : file descriptor of the frame buffer, to be filled
 *        during mem allocation
 *    @buffer : pointer to the frame buffer, to be filled during
@@ -239,7 +240,6 @@ typedef struct {
                        uint8_t *num_bufs,
                        uint8_t **initial_reg_flag,
                        mm_camera_buf_def_t **bufs,
-                       mm_camera_buf_def_t **plane_bufs,
                        mm_camera_map_unmap_ops_tbl_t *ops_tbl,
                        void *user_data);
   int32_t (*put_bufs) (mm_camera_map_unmap_ops_tbl_t *ops_tbl,

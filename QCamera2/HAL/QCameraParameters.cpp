@@ -355,6 +355,10 @@ const char QCameraParameters::VIDEO_HFR_2X[] = "60";
 const char QCameraParameters::VIDEO_HFR_3X[] = "90";
 const char QCameraParameters::VIDEO_HFR_4X[] = "120";
 const char QCameraParameters::VIDEO_HFR_5X[] = "150";
+const char QCameraParameters::VIDEO_HFR_6X[] = "180";
+const char QCameraParameters::VIDEO_HFR_7X[] = "210";
+const char QCameraParameters::VIDEO_HFR_8X[] = "240";
+const char QCameraParameters::VIDEO_HFR_9X[] = "480";
 
 // Values for HDR Bracketing settings.
 const char QCameraParameters::AE_BRACKET_OFF[] = "Off";
@@ -631,10 +635,14 @@ const QCameraParameters::QCameraMap<cam_iso_mode_type>
 const QCameraParameters::QCameraMap<cam_hfr_mode_t>
         QCameraParameters::HFR_MODES_MAP[] = {
     { VIDEO_HFR_OFF, CAM_HFR_MODE_OFF },
-    { VIDEO_HFR_2X,  CAM_HFR_MODE_60FPS },
-    { VIDEO_HFR_3X,  CAM_HFR_MODE_90FPS },
-    { VIDEO_HFR_4X,  CAM_HFR_MODE_120FPS },
-    { VIDEO_HFR_5X,  CAM_HFR_MODE_150FPS }
+    { VIDEO_HFR_2X, CAM_HFR_MODE_60FPS },
+    { VIDEO_HFR_3X, CAM_HFR_MODE_90FPS },
+    { VIDEO_HFR_4X, CAM_HFR_MODE_120FPS },
+    { VIDEO_HFR_5X, CAM_HFR_MODE_150FPS },
+    { VIDEO_HFR_6X, CAM_HFR_MODE_180FPS },
+    { VIDEO_HFR_7X, CAM_HFR_MODE_210FPS },
+    { VIDEO_HFR_8X, CAM_HFR_MODE_240FPS },
+    { VIDEO_HFR_9X, CAM_HFR_MODE_480FPS }
 };
 
 const QCameraParameters::QCameraMap<cam_bracket_mode>
@@ -815,14 +823,13 @@ QCameraParameters::QCameraParameters()
       mHfrMode(CAM_HFR_MODE_OFF),
       m_bHDRModeSensor(true),
       mOfflineRAW(false),
-      m_bTruePortraitOn(false)
+      m_bTruePortraitOn(false),
+      mCds_mode(CAM_CDS_MODE_OFF)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
     property_get("persist.debug.sf.showfps", value, "0");
     m_bDebugFps = atoi(value) > 0 ? true : false;
-    m_bReleaseTorchCamera = false;
-    m_pTorch = NULL;
 
     // For thermal mode, it should be set as system property
     // because system property applies to all applications, while
@@ -846,6 +853,7 @@ QCameraParameters::QCameraParameters()
     mParmZoomLevel = 0;
     mCurPPCount = 0;
     mBufBatchCnt = 0;
+    mRotation = 0;
 }
 
 /*===========================================================================
@@ -916,18 +924,19 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mHfrMode(CAM_HFR_MODE_OFF),
     m_bHDRModeSensor(true),
     mOfflineRAW(false),
-    m_bTruePortraitOn(false)
+    m_bTruePortraitOn(false),
+    mCds_mode(CAM_CDS_MODE_OFF),
+    mParmEffect(CAM_EFFECT_MODE_OFF)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
     memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
-    m_pTorch = NULL;
-    m_bReleaseTorchCamera = false;
     mTotalPPCount = 0;
     mZoomLevel = 0;
     mParmZoomLevel = 0;
     mCurPPCount = 0;
+    mRotation = 0;
 }
 
 /*===========================================================================
@@ -1085,8 +1094,20 @@ String8 QCameraParameters::createHfrValuesString(const cam_hfr_info_t *values,
     String8 str;
     int count = 0;
 
+    char value[PROPERTY_VALUE_MAX];
+    int8_t batch_count = 0;
+
+    property_get("persist.camera.batchcount", value, "0");
+    batch_count = atoi(value);
+
     for (size_t i = 0; i < len; i++ ) {
-        for (size_t j = 0; j < map_len; j ++)
+        for (size_t j = 0; j < map_len; j ++) {
+            if ((batch_count < CAMERA_MIN_BATCH_COUNT)
+                    && (map[j].val > CAM_HFR_MODE_120FPS)) {
+                /*TODO: Work around. Need to revert when we have
+                complete 240fps support*/
+                break;
+            }
             if (map[j].val == (int)values[i].mode) {
                 if (NULL != map[j].desc) {
                     if (count > 0) {
@@ -1097,6 +1118,7 @@ String8 QCameraParameters::createHfrValuesString(const cam_hfr_info_t *values,
                      break; //loop j
                 }
             }
+        }
     }
     if (count > 0) {
         str.append(",");
@@ -2027,6 +2049,22 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
                 min_fps = 150000;
                 max_fps = 150000;
                 break;
+            case CAM_HFR_MODE_180FPS:
+                min_fps = 180000;
+                max_fps = 180000;
+                break;
+            case CAM_HFR_MODE_210FPS:
+                min_fps = 210000;
+                max_fps = 210000;
+                break;
+            case CAM_HFR_MODE_240FPS:
+                min_fps = 240000;
+                max_fps = 240000;
+                break;
+            case CAM_HFR_MODE_480FPS:
+                min_fps = 480000;
+                max_fps = 480000;
+                break;
             case CAM_HFR_MODE_OFF:
             default:
                 // Set Video Fps to zero
@@ -2041,6 +2079,9 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
                 __func__, mHfrMode, min_fps, max_fps);
     }
 
+    m_hfrFpsRange.min_fps = (float)parm_minfps;
+    m_hfrFpsRange.max_fps = (float)parm_maxfps;
+
     // Remember if HFR mode is ON
     if ((mHfrMode > CAM_HFR_MODE_OFF) && (mHfrMode < CAM_HFR_MODE_MAX)) {
         CDBG_HIGH("HFR mode is ON");
@@ -2051,6 +2092,13 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
         m_bHfrMode = false;
         CDBG_HIGH("HFR mode is OFF");
     }
+
+    if (m_bHfrMode && (mHfrMode > CAM_HFR_MODE_120FPS)
+            && (parm_maxfps != 0)) {
+        /* Setting Buffer batch count to use batch mode for higher fps*/
+        setBufBatchCount((int8_t)(m_hfrFpsRange.video_max_fps / parm_maxfps));
+    }
+
     return updateNeeded;
 }
 
@@ -2863,6 +2911,7 @@ int32_t QCameraParameters::setRotation(const QCameraParameters& params)
 
             ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_JPEG_ORIENTATION,
                     rotation);
+            mRotation = rotation;
         } else {
             ALOGE("Invalid rotation value: %d", rotation);
             return BAD_VALUE;
@@ -3821,7 +3870,7 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
     const char *prev_val  = get(KEY_QC_ZSL);
     int32_t rc = NO_ERROR;
 
-    if(m_bForceZslMode) {
+    if(m_bForceZslMode && !m_bZslMode) {
         // Force ZSL mode to ON
         set(KEY_QC_ZSL, VALUE_ON);
         m_bZslMode_new = true;
@@ -3831,7 +3880,6 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
             rc = BAD_VALUE;
         }
-
     } else if (str_val != NULL) {
         if (prev_val == NULL || strcmp(str_val, prev_val) != 0) {
             int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
@@ -3952,6 +4000,7 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
                 }
                 CDBG("%s: CDS in video mode is set to = %s when TNR is enabled",
                         __func__, CDS_MODE_OFF);
+                mCds_mode = cds_mode;
             } else {
                 ALOGE("%s: Invalid argument for video CDS MODE %d", __func__, cds_mode);
             }
@@ -4001,6 +4050,7 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
                 }
                 CDBG("%s: CDS in snapshot mode is set to = %s when TNR is enabled",
                         __func__, CDS_MODE_OFF);
+                mCds_mode = cds_mode;
             } else {
                 ALOGE("%s: Invalid argument for snapshot CDS MODE %d", __func__, cds_mode);
             }
@@ -5011,6 +5061,7 @@ int32_t QCameraParameters::initDefaultParameters()
             m_pCapability->hfr_tbl,
             m_pCapability->hfr_tbl_cnt);
     set(KEY_QC_SUPPORTED_HFR_SIZES, hfrSizeValues.string());
+    CDBG("HFR values %s HFR Sizes = %d", hfrValues.string(), hfrSizeValues.string());
     setHighFrameRate(CAM_HFR_MODE_OFF);
 
     // Set Focus algorithms
@@ -5350,22 +5401,21 @@ int32_t QCameraParameters::initDefaultParameters()
  * PARAMETERS :
  *   @capabilities  : ptr to camera capabilities
  *   @mmops         : ptr to memory ops table for mapping/unmapping
+ *   @adjustFPS     : object reference for additional (possibly thermal)
+ *                    framerate adjustment
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraParameters::init(cam_capability_t *capabilities,
-                                mm_camera_vtbl_t *mmOps,
-                                QCameraAdjustFPS *adjustFPS,
-                                QCameraTorchInterface *torch)
+        mm_camera_vtbl_t *mmOps, QCameraAdjustFPS *adjustFPS)
 {
     int32_t rc = NO_ERROR;
 
     m_pCapability = capabilities;
     m_pCamOpsTbl = mmOps;
     m_AdjustFPS = adjustFPS;
-    m_pTorch = torch;
 
     //Allocate Set Param Buffer
     m_pParamHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
@@ -5636,9 +5686,6 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
               fps_range.video_min_fps, fps_range.video_max_fps);
     }
 
-    /* Setting Buffer batch count to use batch mode for higher fps*/
-    setBufBatchCount((int8_t)(fps_range.video_max_fps / fps_range.max_fps));
-
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
         return BAD_VALUE;
     }
@@ -5697,6 +5744,7 @@ int32_t QCameraParameters::setEffect(const char *effect)
             CDBG_HIGH("%s: Setting effect %s", __func__, effect);
             updateParamEntry(KEY_EFFECT, effect);
             uint8_t prmEffect = static_cast<uint8_t>(value);
+            mParmEffect = prmEffect;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_EFFECT, prmEffect)) {
                 return BAD_VALUE;
             }
@@ -6355,15 +6403,6 @@ int32_t QCameraParameters::setFlash(const char *flashStr)
         int32_t value = lookupAttr(FLASH_MODES_MAP, PARAM_MAP_SIZE(FLASH_MODES_MAP), flashStr);
         if (value != NAME_NOT_FOUND) {
             CDBG_HIGH("%s: Setting Flash value %s", __func__, flashStr);
-
-            if (NULL != m_pTorch && !m_bRecordingHint_new) {
-                if ( value == CAM_FLASH_MODE_TORCH ) {
-                    m_pTorch->prepareTorchCamera();
-                } else {
-                    m_bReleaseTorchCamera = true;
-                }
-            }
-
             updateParamEntry(KEY_FLASH_MODE, flashStr);
             mFlashValue = value;
             return NO_ERROR;
@@ -6445,6 +6484,12 @@ int32_t QCameraParameters::configureFlash(cam_capture_frame_config_t &frame_conf
         rc = setToneMapMode(false, false);
         if (rc != NO_ERROR) {
             ALOGE("%s: Failed to configure tone map", __func__);
+            return rc;
+        }
+
+        rc = setCDSMode(CAM_CDS_MODE_OFF, false);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to configure csd mode", __func__);
             return rc;
         }
 
@@ -6665,6 +6710,12 @@ int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
         rc = setToneMapMode(true, false);
         if (rc != NO_ERROR) {
             CDBG_HIGH("%s: Failed to enable tone map during chroma flash", __func__);
+        }
+
+        rc = setCDSMode(mCds_mode, false);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to configure csd mode", __func__);
+            return rc;
         }
     }
 
@@ -6897,6 +6948,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                         rc = BAD_VALUE;
                     } else {
                         CDBG("%s: Set CDS in video mode = %d", __func__, cds_mode);
+                        mCds_mode = cds_mode;
                     }
                 } else {
                     ALOGE("%s: Invalid argument for video CDS MODE %d", __func__,  cds_mode);
@@ -6916,6 +6968,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                     rc = BAD_VALUE;
                 } else {
                     CDBG("%s: Set CDS in video mode from setprop = %d", __func__, cds_mode);
+                    mCds_mode = cds_mode;
                 }
             } else {
                 ALOGE("%s: Invalid prop for video CDS MODE %d", __func__,  cds_mode);
@@ -6934,6 +6987,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                         rc = BAD_VALUE;
                     } else {
                         CDBG("%s: Set CDS in capture mode = %d", __func__, cds_mode);
+                        mCds_mode = cds_mode;
                     }
                 } else {
                     ALOGE("%s: Invalid argument for snapshot CDS MODE %d", __func__,  cds_mode);
@@ -6953,6 +7007,7 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                     rc = BAD_VALUE;
                 } else {
                     CDBG("%s: Set CDS in snapshot mode from setprop = %d", __func__, cds_mode);
+                    mCds_mode = cds_mode;
                 }
             } else {
                 ALOGE("%s: Invalid prop for snapshot CDS MODE %d", __func__,  cds_mode);
@@ -9316,7 +9371,7 @@ uint32_t QCameraParameters::getJpegRotation() {
 
     //If exif rotation is set, do not rotate captured image
     if (!useJpegExifRotation()) {
-        rotation = getInt(KEY_ROTATION);
+        rotation = mRotation;
         if (rotation < 0) {
             rotation = 0;
         }
@@ -9336,7 +9391,7 @@ uint32_t QCameraParameters::getJpegRotation() {
 uint32_t QCameraParameters::getDeviceRotation() {
     int rotation = 0;
 
-    rotation = getInt(KEY_ROTATION);
+    rotation = mRotation;
     if (rotation < 0) {
         rotation = 0;
     }
@@ -9357,7 +9412,7 @@ uint32_t QCameraParameters::getJpegExifRotation() {
     int rotation = 0;
 
     if (useJpegExifRotation()) {
-        rotation = getInt(KEY_ROTATION);
+        rotation = mRotation;
         if (rotation < 0) {
             rotation = 0;
         }
@@ -10495,11 +10550,6 @@ int32_t QCameraParameters::commitParamChanges()
         m_bSceneTransitionAuto = false;
     }
 
-    if ( m_bReleaseTorchCamera && ( NULL != m_pTorch) ) {
-        m_pTorch->releaseTorchCamera();
-        m_bReleaseTorchCamera = false;
-    }
-
 
     return NO_ERROR;
 }
@@ -11379,6 +11429,45 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
 }
 
 /*===========================================================================
+ * FUNCTION   : getExifBufIndex
+ *
+ * DESCRIPTION: get index of metadata to be used for EXIF
+ *
+ * PARAMETERS : @captureIndex - index of current captured frame
+ *
+ * RETURN     : index of metadata to be used for EXIF
+ *==========================================================================*/
+uint32_t QCameraParameters::getExifBufIndex(uint32_t captureIndex)
+{
+    uint32_t index = captureIndex;
+
+    if (isUbiRefocus()) {
+        if (captureIndex < m_pCapability->refocus_af_bracketing_need.burst_count) {
+            index = captureIndex;
+        } else {
+            index = 0;
+        }
+    } else if (isChromaFlashEnabled()) {
+        index = m_pCapability->chroma_flash_settings_need.metadata_index;
+    } else if (isHDREnabled()) {
+        if (isHDR1xFrameEnabled() && isHDR1xExtraBufferNeeded()) {
+            index = m_pCapability->hdr_bracketing_setting.num_frames;
+        } else {
+            for (index = 0; index < m_pCapability->hdr_bracketing_setting.num_frames; index++) {
+                if (0 == m_pCapability->hdr_bracketing_setting.exp_val.values[index]) {
+                    break;
+                }
+            }
+            if (index == m_pCapability->hdr_bracketing_setting.num_frames) {
+                index = captureIndex;
+            }
+        }
+    }
+
+    return index;
+}
+
+/*===========================================================================
  * FUNCTION   : getNumberInBufsForSingleShot
  *
  * DESCRIPTION: get number of input buffers for single shot
@@ -11585,8 +11674,8 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         }
     }
 
-    if (isTNRVideoEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
-            (CAM_STREAM_TYPE_VIDEO == stream_type))) {
+    if ((isTNRVideoEnabled() && (CAM_STREAM_TYPE_VIDEO == stream_type))
+            || (isTNRPreviewEnabled() && (CAM_STREAM_TYPE_PREVIEW == stream_type))) {
         feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
     }
 
@@ -11694,7 +11783,7 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
     char value[PROPERTY_VALUE_MAX];
     int8_t count = 0;
 
-    property_get("persist.camera.batchmode", value, "0");
+    property_get("persist.camera.batchcount", value, "0");
     count = atoi(value);
 
     if (!(count != 0 || buf_cnt > CAMERA_MIN_BATCH_COUNT)) {
@@ -11702,15 +11791,21 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
         return;
     }
 
-    if ( buf_cnt > CAMERA_MIN_BATCH_COUNT) {
-        mBufBatchCnt = buf_cnt;
+    while((m_pCapability->max_batch_bufs_supported != 0)
+            && (m_pCapability->max_batch_bufs_supported < buf_cnt)) {
+        buf_cnt = buf_cnt / 2;
+    }
+
+    if (count > 0) {
+        mBufBatchCnt = count;
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
         return;
     }
 
-    if ( count > 0) {
-        mBufBatchCnt = count;
+    if (buf_cnt > CAMERA_MIN_BATCH_COUNT) {
+        mBufBatchCnt = buf_cnt;
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        return;
     }
 }
 
@@ -11940,6 +12035,47 @@ int32_t QCameraParameters::setToneMapMode(uint32_t enable, bool initCommit)
             return rc;
         }
     }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setCDSMode
+ *
+ * DESCRIPTION: set CDS mode
+ *
+ * PARAMETERS :
+ *   @cds_mode : cds mode
+ *   @initCommit: if configuration list needs to be initialized and commited
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setCDSMode(int32_t cds_mode, bool initCommit)
+{
+    if (initCommit) {
+        if (initBatchUpdate(m_pParamBuf) < 0) {
+            ALOGE("%s:Failed to initialize group update table", __func__);
+            return FAILED_TRANSACTION;
+        }
+    }
+
+    int32_t rc = NO_ERROR;
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CDS_MODE, cds_mode)) {
+        ALOGE("%s:Failed to update cds mode", __func__);
+        return BAD_VALUE;
+    }
+
+    if (initCommit) {
+        rc = commitSetBatch();
+        if (NO_ERROR != rc) {
+            ALOGE("%s:Failed to set cds mode", __func__);
+            return rc;
+        }
+    }
+
+    CDBG_HIGH(" cds mode -> %d", cds_mode);
 
     return rc;
 }

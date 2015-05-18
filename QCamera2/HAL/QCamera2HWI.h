@@ -194,11 +194,8 @@ private:
     QCameraCmdThread mProcTh;
     bool             mActive;
 };
-
 class QCamera2HardwareInterface : public QCameraAllocator,
-                                  public QCameraThermalCallback,
-                                  public QCameraAdjustFPS,
-                                  public QCameraTorchInterface
+        public QCameraThermalCallback, public QCameraAdjustFPS
 {
 public:
     /* static variable and functions accessed by camera service */
@@ -267,10 +264,6 @@ public:
 
     virtual int recalcFPSRange(int &minFPS, int &maxFPS,
             cam_fps_range_t &adjustedRange);
-
-    // Implementation of QCameraTorchInterface
-    virtual int prepareTorchCamera();
-    virtual int releaseTorchCamera();
 
     friend class QCameraStateMachine;
     friend class QCameraPostProcessor;
@@ -355,9 +348,6 @@ private:
     void playShutter();
     void getThumbnailSize(cam_dimension_t &dim);
     uint32_t getJpegQuality();
-    uint32_t getJpegRotation();
-    uint32_t getDeviceRotation();
-    void getOrientation();
     inline bool getCancelAutoFocus(){ return mCancelAutoFocus; }
     inline void setCancelAutoFocus(bool flag){ mCancelAutoFocus = flag; }
     QCameraExif *getExifData();
@@ -450,6 +440,8 @@ private:
     inline uint32_t getOutputImageCount() {return mOutputCount;}
     bool processUFDumps(qcamera_jpeg_evt_payload_t *evt);
     void captureDone();
+    int32_t updateMetadata(metadata_buffer_t *pMetaData);
+
     int32_t getPPConfig(cam_pp_feature_config_t &pp_config, int curCount);
     static void camEvtHandle(uint32_t camera_handle,
                           mm_camera_event_t *evt,
