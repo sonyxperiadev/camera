@@ -5959,6 +5959,13 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_CONTROL_SCENE_MODE_OVERRIDES,
             scene_mode_overrides, supported_scene_modes_cnt * 3);
 
+    uint8_t available_control_modes[] = {ANDROID_CONTROL_MODE_OFF,
+                                         ANDROID_CONTROL_MODE_AUTO,
+                                         ANDROID_CONTROL_MODE_USE_SCENE_MODE};
+    staticInfo.update(ANDROID_CONTROL_AVAILABLE_MODES,
+            available_control_modes,
+            3);
+
     uint8_t avail_antibanding_modes[CAM_ANTIBANDING_MODE_MAX];
     size = 0;
     count = CAM_ANTIBANDING_MODE_MAX;
