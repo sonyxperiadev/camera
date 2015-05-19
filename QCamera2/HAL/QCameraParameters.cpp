@@ -1530,6 +1530,7 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
     property_get("persist.camera.opt.livepic", value, "1");
     bool useOptimal = atoi(value) > 0 ? true : false;
     bool vHdrOn;
+    int32_t liveSnapWidth = 0, liveSnapHeight = 0;
     // use picture size from user setting
     params.getPictureSize(&m_LiveSnapshotSize.width, &m_LiveSnapshotSize.height);
 
@@ -1629,6 +1630,32 @@ int32_t QCameraParameters::setLiveSnapshotSize(const QCameraParameters& params)
                 if (m_LiveSnapshotSize.width < width && m_LiveSnapshotSize.height < height) {
                     m_LiveSnapshotSize.width = width;
                     m_LiveSnapshotSize.height = height;
+                }
+            }
+        }
+    }
+    //To read liveshot resolution from setprop instead of matching aspect ratio.
+    //The setprop resolution format should be WxH.
+    //e.g: adb shell setprop persist.camera.liveshot.size 1280x720
+    memset(value, 0, PROPERTY_VALUE_MAX);
+    property_get("persist.camera.liveshot.size", value, "");
+    if (strlen(value) > 0) {
+        char *saveptr = NULL;
+        char *token = strtok_r(value, "x", &saveptr);
+        if (token != NULL) {
+            liveSnapWidth = atoi(token);
+        }
+        token = strtok_r(NULL, "x", &saveptr);
+        if (token != NULL) {
+            liveSnapHeight = atoi(token);
+        }
+        if ((liveSnapWidth!=0) && (liveSnapHeight!=0)) {
+            for (size_t i = 0; i < m_pCapability->picture_sizes_tbl_cnt; ++i) {
+                if (liveSnapWidth ==  m_pCapability->picture_sizes_tbl[i].width
+                        && liveSnapHeight ==  m_pCapability->picture_sizes_tbl[i].height) {
+                   m_LiveSnapshotSize.width = liveSnapWidth;
+                   m_LiveSnapshotSize.height = liveSnapHeight;
+                   break;
                 }
             }
         }
