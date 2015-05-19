@@ -6582,6 +6582,9 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
     uint32_t rotation = mParameters.getJpegRotation();
     int32_t effect = mParameters.getEffectValue();
 
+    pp_config.cur_reproc_count = curCount;
+    pp_config.total_reproc_count = mParameters.getReprocCount();
+
     switch(curCount) {
         case 1:
             //Configure feature mask for first pass of reprocessing

@@ -249,7 +249,9 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
         }
 
         m_bufCountPPQ = 0;
-        m_parent->mParameters.setReprocCount();
+        if (!m_parent->isLongshotEnabled()) {
+            m_parent->mParameters.setReprocCount();
+        }
         mTotalNumReproc = m_parent->mParameters.getReprocCount();
         m_parent->mParameters.setCurPPCount(0);
 
