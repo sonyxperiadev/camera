@@ -12519,11 +12519,13 @@ void QCameraParameters::setReprocCount()
     property_get("persist.camera.multi_pass", value, "0");
     multpass = atoi(value);
 
-   if ( multpass == 0 ) {
-       return;
-   }
+    if ( multpass == 0 ) {
+        return;
+    }
 
-    if ((getZoomLevel() != 0) && (isZSLMode())) {
+    if ((getZoomLevel() != 0)
+            && (getBurstCountForAdvancedCapture()
+            == getNumOfSnapshots())) {
         ALOGW("Zoom Present. Need 2nd pass for post processing");
         mTotalPPCount++;
     }
