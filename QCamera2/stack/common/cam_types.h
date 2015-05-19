@@ -2196,6 +2196,8 @@ typedef struct {
     cam_flash_value_t flash_value;
     cam_misc_buf_param_t misc_buf_param;
     uint32_t burst_cnt;
+    uint8_t cur_reproc_count;
+    uint8_t total_reproc_count;
 } cam_pp_feature_config_t;
 
 typedef struct {
