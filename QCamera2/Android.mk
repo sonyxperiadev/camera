@@ -23,6 +23,7 @@ LOCAL_SRC_FILES += \
 #HAL 1.0 source
 LOCAL_SRC_FILES += \
         HAL/QCamera2HWI.cpp \
+        HAL/QCameraMuxer.cpp \
         HAL/QCameraMem.cpp \
         HAL/QCameraStateMachine.cpp \
         HAL/QCameraChannel.cpp \

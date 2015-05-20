@@ -121,6 +121,34 @@ QCameraPostProcessor::~QCameraPostProcessor()
 }
 
 /*===========================================================================
+ * FUNCTION   : setJpegHandle
+ *
+ * DESCRIPTION: set JPEG client handles
+ *
+ * PARAMETERS :
+ *   @pJpegHandle    : JPEG ops handle
+ *   @clientHandle    : JPEG client handle
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraPostProcessor::setJpegHandle(mm_jpeg_ops_t *pJpegHandle,
+        uint32_t clientHandle)
+{
+    CDBG_HIGH("%s: E mJpegClientHandle: %d, clientHandle: %d",
+            __func__, mJpegClientHandle, clientHandle);
+
+    if(pJpegHandle) {
+        memcpy(&mJpegHandle, pJpegHandle, sizeof(mm_jpeg_ops_t));
+    }
+    mJpegClientHandle = clientHandle;
+    CDBG_HIGH("%s: X mJpegClientHandle: %d, clientHandle: %d",
+            __func__, mJpegClientHandle, clientHandle);
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : init
  *
  * DESCRIPTION: initialization of postprocessor
@@ -137,28 +165,8 @@ int32_t QCameraPostProcessor::init(jpeg_encode_callback_t jpeg_cb, void *user_da
 {
     mJpegCB = jpeg_cb;
     mJpegUserData = user_data;
-    mm_dimension max_size;
-
-    if ((0 > m_parent->m_max_pic_width) || (0 > m_parent->m_max_pic_height)) {
-        ALOGE("%s : Negative dimension %dx%d", __func__,
-                m_parent->m_max_pic_width, m_parent->m_max_pic_height);
-        return BAD_VALUE;
-    }
-
-    //set max pic size
-    memset(&max_size, 0, sizeof(mm_dimension));
-    max_size.w = (uint32_t)m_parent->m_max_pic_width;
-    max_size.h = (uint32_t)m_parent->m_max_pic_height;
-
-    mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, NULL);
-    if(!mJpegClientHandle) {
-        ALOGE("%s : jpeg_open did not work", __func__);
-        return UNKNOWN_ERROR;
-    }
-
     m_dataProcTh.launch(dataProcessRoutine, this);
     m_saveProcTh.launch(dataSaveRoutine, this);
-
     m_parent->mParameters.setReprocCount();
     m_bInited = TRUE;
     return NO_ERROR;
@@ -180,14 +188,6 @@ int32_t QCameraPostProcessor::deinit()
     if (m_bInited == TRUE) {
         m_dataProcTh.exit();
         m_saveProcTh.exit();
-
-        if(mJpegClientHandle > 0) {
-            int rc = mJpegHandle.close(mJpegClientHandle);
-            CDBG_HIGH("%s: Jpeg closed, rc = %d, mJpegClientHandle = %x",
-                  __func__, rc, mJpegClientHandle);
-            mJpegClientHandle = 0;
-            memset(&mJpegHandle, 0, sizeof(mJpegHandle));
-        }
         m_bInited = FALSE;
     }
     return NO_ERROR;
@@ -731,7 +731,7 @@ bool QCameraPostProcessor::validatePostProcess(mm_camera_super_buf_t *frame)
         }
     }
 
-    if (m_pReprocChannel != NULL && pChannel == m_pReprocChannel->getSrcChannel()) {
+    if ((m_pReprocChannel != NULL) && (pChannel == m_pReprocChannel->getSrcChannel())) {
         QCameraStream *pStream = NULL;
         for (uint8_t i = 0; i < m_pReprocChannel->getNumOfStreams(); i++) {
             pStream = m_pReprocChannel->getStreamByIndex(i);

@@ -2585,11 +2585,16 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                                                                          NULL);
                                         }
                                     }
-                                    pme->mDataCb(cb->msg_type,
-                                                 cb->data,
-                                                 cb->index,
-                                                 cb->metadata,
-                                                 pme->mCallbackCookie);
+                                    if (pme->mJpegCb) {
+                                        ALOGI("%s: Calling JPEG Callback!! for camera %d",
+                                            __func__, pme->mParent->getCameraId() );
+                                        pme->mJpegCb(cb->msg_type, cb->data, cb->index,
+                                                cb->metadata, pme->mJpegCallbackCookie);
+                                    }
+                                    else {
+                                        pme->mDataCb(cb->msg_type, cb->data, cb->index,
+                                                cb->metadata, pme->mCallbackCookie);
+                                    }
                                 }
                             }
                             break;
@@ -2702,6 +2707,27 @@ void QCameraCbNotifier::setCallbacks(camera_notify_callback notifyCb,
         ALOGE("%s : Camera callback notifier already initialized!",
               __func__);
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : setJpegCallBacks
+ *
+ * DESCRIPTION: Initializes the JPEG callback function, which would be used for
+ *              communication with the upper layers and launches the callback
+ *              context in which the callbacks will occur.
+ *
+ * PARAMETERS :
+ *   @jpegCb          : notification callback
+ *   @callbackCookie    : callback context data
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCameraCbNotifier::setJpegCallBacks(
+        jpeg_data_callback jpegCb, void *callbackCookie)
+{
+    CDBG_HIGH("%s: Setting JPEG Callback notifier", __func__);
+    mJpegCb        = jpegCb;
+    mJpegCallbackCookie  = callbackCookie;
 }
 
 /*===========================================================================

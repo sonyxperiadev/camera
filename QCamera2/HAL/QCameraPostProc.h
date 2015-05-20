@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -134,6 +134,8 @@ public:
     QCameraReprocessChannel * getReprocChannel(uint8_t index);
     inline bool getJpegMemOpt() {return mJpegMemOpt;}
     inline void setJpegMemOpt(bool val) {mJpegMemOpt = val;}
+    int32_t setJpegHandle(mm_jpeg_ops_t *pJpegHandle,
+            uint32_t clientHandle);
 private:
     int32_t sendDataNotify(int32_t msg_type,
                            camera_memory_t *data,
