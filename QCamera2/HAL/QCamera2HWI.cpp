@@ -1167,6 +1167,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mPreviewWindow(NULL),
       mMsgEnabled(0),
       mStoreMetaDataInFrame(0),
+      mJpegCb(NULL),
+      mJpegCallbackCookie(NULL),
       m_stateMachine(this),
       m_smThreadActive(true),
       m_postprocessor(this),
