@@ -12224,6 +12224,14 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
          feature_mask |= CAM_QCOM_FEATURE_CDS;
     }
 
+    // enable DCRF feature mask on analysis stream in case of dual camera
+    if ((m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) &&
+            (CAM_STREAM_TYPE_ANALYSIS == stream_type)) {
+        feature_mask |= CAM_QCOM_FEATURE_DCRF;
+    } else {
+        feature_mask &= ~CAM_QCOM_FEATURE_DCRF;
+    }
+
     //Rotation could also have an effect on pp feature mask
     cam_pp_feature_config_t config;
     cam_dimension_t dim;

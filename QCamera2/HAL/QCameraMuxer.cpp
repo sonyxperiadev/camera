@@ -557,7 +557,8 @@ int QCameraMuxer::start_preview(struct camera_device * device)
     }
 
     if (cam->numCameras > 1) {
-        // Set up sync camera sessions
+        uint sessionId = 0;
+        // Set up sync for camera sessions
         for (uint32_t i = 0; i < cam->numCameras; i++) {
             pCam = gMuxer->getPhysicalCamera(cam, i);
             CHECK_CAMERA_ERROR(pCam);
@@ -565,24 +566,40 @@ int QCameraMuxer::start_preview(struct camera_device * device)
             QCamera2HardwareInterface *hwi = pCam->hwi;
             CHECK_HWI_ERROR(hwi);
 
-            uint32_t sessionId = 0;
-            if (pCam->mode == CAM_MODE_PRIMARY) {
-                sessionId = cam->sId[CAM_MODE_SECONDARY];
+            if(pCam->mode == CAM_MODE_PRIMARY) {
+                // bundle primary cam with all aux cameras
+                for (uint32_t j = 0; j < cam->numCameras; j++) {
+                    if (j == cam->nPrimaryPhyCamIndex) {
+                        continue;
+                    }
+                    sessionId = cam->sId[j];
+                    CDBG_HIGH("%s: Related cam id: %d, server id: %d sync ON"
+                            " related session_id %d", __func__,
+                            cam->pId[i], cam->sId[i], sessionId);
+                    rc = hwi->bundleRelatedCameras(true, sessionId);
+                    if (rc != NO_ERROR) {
+                        ALOGE("%s: Error Bundling physical cameras !! ", __func__);
+                        return rc;
+                    }
+                }
             }
-            else {
-                sessionId = cam->sId[CAM_MODE_PRIMARY];
+
+            if (pCam->mode == CAM_MODE_SECONDARY) {
+                // bundle all aux cam with primary cams
+                sessionId = cam->sId[cam->nPrimaryPhyCamIndex];
+                CDBG_HIGH("%s: Related cam id: %d, server id: %d sync ON"
+                        " related session_id %d", __func__,
+                        cam->pId[i], cam->sId[i], sessionId);
+                rc = hwi->bundleRelatedCameras(true, sessionId);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s: Error Bundling physical cameras !! ", __func__);
+                    return rc;
+                }
             }
-            CDBG_HIGH("%s: Related cam id: %d, server id: %d sync ON"
-                    " related session_id %d", __func__,
-                    cam->pId[i], cam->sId[i], sessionId);
-            rc = hwi->bundleRelatedCameras(true, sessionId);
-            if (rc != NO_ERROR) {
-                ALOGE("%s: Error Bundling physical cameras !! ", __func__);
-                return rc;
-            }
-            // Remember Sync is ON
-            cam->bSyncOn = true;
         }
+
+        // Remember Sync is ON
+        cam->bSyncOn = true;
     }
     // Start Preview for all cameras
     for (uint32_t i = 0; i < cam->numCameras; i++) {
@@ -1301,25 +1318,46 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
 
     // Unlink camera sessions
     if (cam->bSyncOn) {
-        for (uint32_t i = 0; i < cam->numCameras; i++) {
-            pCam = gMuxer->getPhysicalCamera(cam, i);
-            CHECK_CAMERA_ERROR(pCam);
+        if (cam->numCameras > 1) {
+            uint sessionId = 0;
+            // unbundle primary camera with all aux cameras
+            for (uint32_t i = 0; i < cam->numCameras; i++) {
+                pCam = gMuxer->getPhysicalCamera(cam, i);
+                CHECK_CAMERA_ERROR(pCam);
 
-            QCamera2HardwareInterface *hwi = pCam->hwi;
-            CHECK_HWI_ERROR(hwi);
+                QCamera2HardwareInterface *hwi = pCam->hwi;
+                CHECK_HWI_ERROR(hwi);
 
-            uint32_t sessionId = 0;
-            if (pCam->mode == CAM_MODE_PRIMARY) {
-                sessionId = cam->sId[CAM_MODE_SECONDARY];
-            }
-            else {
-                sessionId = cam->sId[CAM_MODE_PRIMARY];
-            }
-            CDBG_HIGH("%s: Related cam id: %d, server id: %d sync OFF session_id %d",
-                    __func__, cam->pId[i], cam->sId[i], sessionId);
-            rc = hwi->bundleRelatedCameras(false, sessionId);
-            if (rc != NO_ERROR) {
-                ALOGE("%s: Error un-bundling cameras !! ", __func__);
+                if(pCam->mode == CAM_MODE_PRIMARY) {
+                    // bundle primary cam with all aux cameras
+                    for (uint32_t j = 0; j < cam->numCameras; j++) {
+                        if (j == cam->nPrimaryPhyCamIndex) {
+                            continue;
+                        }
+                        sessionId = cam->sId[j];
+                        CDBG_HIGH("%s: Related cam id: %d, server id: %d sync OFF"
+                                " related session_id %d", __func__,
+                                cam->pId[i], cam->sId[i], sessionId);
+                        rc = hwi->bundleRelatedCameras(false, sessionId);
+                        if (rc != NO_ERROR) {
+                            ALOGE("%s: Error Bundling physical cameras !! ", __func__);
+                            return rc;
+                        }
+                    }
+                }
+
+                if (pCam->mode == CAM_MODE_SECONDARY) {
+                    // unbundle all aux cam with primary cams
+                    sessionId = cam->sId[cam->nPrimaryPhyCamIndex];
+                    CDBG_HIGH("%s: Related cam id: %d, server id: %d sync OFF"
+                            " related session_id %d", __func__,
+                            cam->pId[i], cam->sId[i], sessionId);
+                    rc = hwi->bundleRelatedCameras(false, sessionId);
+                    if (rc != NO_ERROR) {
+                        ALOGE("%s: Error Bundling physical cameras !! ", __func__);
+                        return rc;
+                    }
+                }
             }
         }
         cam->bSyncOn = false;
@@ -1425,6 +1463,7 @@ int QCameraMuxer::setupLogicalCameras()
     int index = 0;
     for (i = 0; i < m_nPhyCameras ; i++) {
         if (m_pPhyCamera[i].mode == CAM_MODE_PRIMARY) {
+            m_pLogicalCamera[index].nPrimaryPhyCamIndex = 0;
             m_pLogicalCamera[index].id = index;
             m_pLogicalCamera[index].device_version = CAMERA_DEVICE_API_VERSION_1_0;
             m_pLogicalCamera[index].pId[0] = i;
@@ -1435,7 +1474,7 @@ int QCameraMuxer::setupLogicalCameras()
             CDBG_HIGH("%s[%d]: Logical Main Camera ID: %d, facing: %d,"
                     "Phy Id: %d type: %d mode: %d",
                     __func__, __LINE__, m_pLogicalCamera[index].id,
-                    m_pLogicalCamera[i].facing,
+                    m_pLogicalCamera[index].facing,
                     m_pLogicalCamera[index].pId[0],
                     m_pLogicalCamera[index].type[0],
                     m_pLogicalCamera[index].mode[0]);
@@ -1521,7 +1560,9 @@ int QCameraMuxer::getCameraInfo(int camera_id,
         ALOGE("%s : Error! Cameras not initialized!", __func__);
         return NO_INIT;
     }
-    uint32_t phy_id = m_pLogicalCamera[camera_id].pId[0];
+    uint32_t phy_id =
+            m_pLogicalCamera[camera_id].pId[
+            m_pLogicalCamera[camera_id].nPrimaryPhyCamIndex];
     rc = QCamera2HardwareInterface::getCapabilities(phy_id, info, &cam_type);
     CDBG_HIGH("%s: X", __func__);
     return rc;
@@ -1897,8 +1938,8 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
             aux_Jpeg->buffer->size;
 
     CDBG("%s: MPO buffer size %d\n"
-            "expected size %d, mpo_compose_info.output_buff_size %d", __func__,
-            m_pRelCamMpoJpeg->size,
+            "expected size %d, mpo_compose_info.output_buff_size %d",
+            __func__, m_pRelCamMpoJpeg->size,
             main_Jpeg->buffer->size + aux_Jpeg->buffer->size,
             mpo_compose_info.output_buff_size);
 
@@ -1954,6 +1995,7 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
     CDBG("%s: Compose mpo returned %d", __func__, rc);
 
     if(rc != NO_ERROR) {
+        ALOGE("%s : ComposeMpo failed, ret = %d", __func__, rc);
         gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
         pthread_mutex_unlock(&m_JpegLock);
         return;
@@ -2065,7 +2107,8 @@ void QCameraMuxer::releaseJpegInfo(void *data, void *user_data)
     cam_compose_jpeg_info_t *jpegInfo = (cam_compose_jpeg_info_t *)data;
     if(jpegInfo && jpegInfo->release_cb) {
         if (jpegInfo->release_data != NULL) {
-            jpegInfo->release_cb(jpegInfo->release_data, jpegInfo->release_cookie,
+            jpegInfo->release_cb(jpegInfo->release_data,
+                    jpegInfo->release_cookie,
                     NO_ERROR);
         }
     }
@@ -2146,7 +2189,8 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                                     main_jpeg_node->buffer->data,
                                     main_jpeg_node->buffer->size);
                             // find matching aux node in Aux Jpeg Queue
-                            aux_jpeg_node = (cam_compose_jpeg_info_t *) gMuxer->
+                            aux_jpeg_node =
+                                    (cam_compose_jpeg_info_t *) gMuxer->
                                     m_AuxJpegQ.dequeue();
                             if (aux_jpeg_node) {
                                 CDBG("%s: aux_jpeg_node found frame idx %d"
@@ -2248,7 +2292,7 @@ void QCameraMuxer::jpeg_data_callback(int32_t msg_type,
  * DESCRIPTION: Stores jpegs from multiple related cam instances into a common Queue
  *
  * PARAMETERS :
- *   @cam_type : indicated whether main or aux camera sent the Jpeg callback
+ *   @cam_type : indicates whether main or aux camera sent the Jpeg callback
  *   @msg_type : callback msg type
  *   @data : data ptr of the buffer
  *   @index : index of the frame
