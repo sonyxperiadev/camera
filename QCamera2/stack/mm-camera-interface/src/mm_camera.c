@@ -301,7 +301,10 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     if (my_obj->ctrl_fd < 0) {
         CDBG_ERROR("%s: cannot open control fd of '%s' (%s)\n",
                  __func__, dev_name, strerror(errno));
-        rc = -1;
+        if (errno == EBUSY)
+            rc = -EUSERS;
+        else
+            rc = -1;
         goto on_error;
     }
 
