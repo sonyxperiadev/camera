@@ -428,7 +428,7 @@ typedef struct {
 
 typedef enum {
     /* start syncing for related cameras */
-    CAM_SYNC_RELATED_SENSORS_ON,
+    CAM_SYNC_RELATED_SENSORS_ON = 1,
     /* stop syncing for related cameras */
     CAM_SYNC_RELATED_SENSORS_OFF
 } cam_sync_related_sensors_control_t;
