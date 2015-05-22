@@ -2244,7 +2244,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
 
     const cam_sync_related_sensors_event_info_t* related_cam_info =
             m_parent->getRelatedCamSyncInfo();
-    if (related_cam_info != NULL) {
+    if (related_cam_info->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
         jpg_job.encode_job.multi_image_info.type = MM_JPEG_TYPE_MPO;
         if (related_cam_info->type == CAM_TYPE_MAIN ) {
             jpg_job.encode_job.multi_image_info.is_primary = TRUE;

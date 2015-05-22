@@ -80,6 +80,8 @@ typedef struct {
     uint32_t numCameras;
     // To signify if the LINK/UNLINK established between physical cameras
     bool bSyncOn;
+    // index of the primary physical camera session in the bundle
+    uint8_t nPrimaryPhyCamIndex;
     // Signifies Physical Camera ID of each camera
     uint32_t pId[MAX_NUM_CAMERA_PER_BUNDLE];
     // Signifies server camera ID of each camera
