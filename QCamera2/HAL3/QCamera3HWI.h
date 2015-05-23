@@ -228,6 +228,8 @@ private:
 
     int32_t getSensorOutputSize(cam_dimension_t &sensor_dim);
 
+    void updatePowerHint(bool bWasVideo, bool bIsVideo);
+
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
     mm_camera_vtbl_t  *mCameraHandle;
