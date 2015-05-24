@@ -120,6 +120,123 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
                    ION_IOC_INV_CACHES);
 }
 
+static void mm_app_snapshot_notify_cb(mm_camera_super_buf_t *bufs,
+                                      void *user_data)
+{
+
+    int rc = 0;
+    uint32_t i = 0;
+    mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
+    mm_camera_channel_t *channel = NULL;
+    mm_camera_stream_t *p_stream = NULL;
+    mm_camera_stream_t *m_stream = NULL;
+    mm_camera_buf_def_t *p_frame = NULL;
+    mm_camera_buf_def_t *m_frame = NULL;
+
+    /* find channel */
+    for (i = 0; i < MM_CHANNEL_TYPE_MAX; i++) {
+        if (pme->channels[i].ch_id == bufs->ch_id) {
+            channel = &pme->channels[i];
+            break;
+        }
+    }
+    if (NULL == channel) {
+        CDBG_ERROR("%s: Wrong channel id (%d)", __func__, bufs->ch_id);
+        rc = -1;
+        goto error;
+    }
+
+    /* find snapshot stream */
+    for (i = 0; i < channel->num_streams; i++) {
+        if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+            m_stream = &channel->streams[i];
+            break;
+        }
+    }
+    if (NULL == m_stream) {
+        CDBG_ERROR("%s: cannot find snapshot stream", __func__);
+        rc = -1;
+        goto error;
+    }
+
+    /* find snapshot frame */
+    for (i = 0; i < bufs->num_bufs; i++) {
+        if (bufs->bufs[i]->stream_id == m_stream->s_id) {
+            m_frame = bufs->bufs[i];
+            break;
+        }
+    }
+    if (NULL == m_frame) {
+        CDBG_ERROR("%s: main frame is NULL", __func__);
+        rc = -1;
+        goto error;
+    }
+
+    mm_app_dump_frame(m_frame, "main", "yuv", m_frame->frame_idx);
+
+    /* find postview stream */
+    for (i = 0; i < channel->num_streams; i++) {
+        if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_POSTVIEW) {
+            p_stream = &channel->streams[i];
+            break;
+        }
+    }
+    if (NULL != p_stream) {
+        /* find preview frame */
+        for (i = 0; i < bufs->num_bufs; i++) {
+            if (bufs->bufs[i]->stream_id == p_stream->s_id) {
+                p_frame = bufs->bufs[i];
+                break;
+            }
+        }
+        if (NULL != p_frame) {
+            mm_app_dump_frame(p_frame, "postview", "yuv", p_frame->frame_idx);
+        }
+    }
+
+    mm_app_cache_ops((mm_camera_app_meminfo_t *)m_frame->mem_info,
+                     ION_IOC_CLEAN_INV_CACHES);
+
+    pme->jpeg_buf.buf.buffer = (uint8_t *)malloc(m_frame->frame_len);
+    if ( NULL == pme->jpeg_buf.buf.buffer ) {
+        CDBG_ERROR("%s: error allocating jpeg output buffer", __func__);
+        goto error;
+    }
+
+    pme->jpeg_buf.buf.frame_len = m_frame->frame_len;
+    /* create a new jpeg encoding session */
+    rc = createEncodingSession(pme, m_stream, m_frame);
+    if (0 != rc) {
+        CDBG_ERROR("%s: error creating jpeg session", __func__);
+        free(pme->jpeg_buf.buf.buffer);
+        goto error;
+    }
+
+    /* start jpeg encoding job */
+    rc = encodeData(pme, bufs, m_stream);
+    if (0 != rc) {
+        CDBG_ERROR("%s: error creating jpeg session", __func__);
+        free(pme->jpeg_buf.buf.buffer);
+        goto error;
+    }
+
+error:
+    /* buf done rcvd frames in error case */
+    if ( 0 != rc ) {
+        for (i=0; i<bufs->num_bufs; i++) {
+            if (MM_CAMERA_OK != pme->cam->ops->qbuf(bufs->camera_handle,
+                                                    bufs->ch_id,
+                                                    bufs->bufs[i])) {
+                CDBG_ERROR("%s: Failed in Qbuf\n", __func__);
+            }
+            mm_app_cache_ops((mm_camera_app_meminfo_t *)bufs->bufs[i]->mem_info,
+                             ION_IOC_INV_CACHES);
+        }
+    }
+
+    CDBG("%s: END\n", __func__);
+}
+
 static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
                                      void *user_data)
 {
@@ -398,7 +515,6 @@ mm_camera_stream_t * mm_app_add_metadata_stream(mm_camera_test_obj_t *test_obj,
     int rc = MM_CAMERA_OK;
     mm_camera_stream_t *stream = NULL;
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
-
     stream = mm_app_add_stream(test_obj, channel);
     if (NULL == stream) {
         CDBG_ERROR("%s: add stream failed\n", __func__);
@@ -442,6 +558,23 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
     int rc = MM_CAMERA_OK;
     mm_camera_stream_t *stream = NULL;
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
+    cam_stream_size_info_t abc ;
+    memset (&abc , 0, sizeof (cam_stream_size_info_t));
+
+    abc.num_streams = 1;
+    abc.postprocess_mask[0] = 2178;
+    abc.stream_sizes[0].width = DEFAULT_PREVIEW_WIDTH;
+    abc.stream_sizes[0].height = DEFAULT_PREVIEW_HEIGHT;
+    abc.type[0] = CAM_STREAM_TYPE_PREVIEW;
+
+    abc.buffer_info.min_buffers = 10;
+    abc.buffer_info.max_buffers = 10;
+    abc.is_type = IS_TYPE_NONE;
+
+    rc = setmetainfoCommand(test_obj, &abc);
+    if (rc != MM_CAMERA_OK) {
+       CDBG_ERROR("%s: meta info command failed\n", __func__);
+    }
 
     stream = mm_app_add_stream(test_obj, channel);
     if (NULL == stream) {
@@ -547,6 +680,28 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
     int rc = MM_CAMERA_OK;
     mm_camera_stream_t *stream = NULL;
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
+    cam_stream_size_info_t abc_snap ;
+    memset (&abc_snap , 0, sizeof (cam_stream_size_info_t));
+
+    abc_snap.num_streams = 2;
+    abc_snap.postprocess_mask[1] = 2178;
+    abc_snap.stream_sizes[1].width = DEFAULT_PREVIEW_WIDTH;
+    abc_snap.stream_sizes[1].height = DEFAULT_PREVIEW_HEIGHT;
+    abc_snap.type[1] = CAM_STREAM_TYPE_POSTVIEW;
+
+    abc_snap.postprocess_mask[0] = 0;
+    abc_snap.stream_sizes[0].width = DEFAULT_SNAPSHOT_WIDTH;
+    abc_snap.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+    abc_snap.type[0] = CAM_STREAM_TYPE_SNAPSHOT;
+
+    abc_snap.buffer_info.min_buffers = 7;
+    abc_snap.buffer_info.max_buffers = 7;
+    abc_snap.is_type = IS_TYPE_NONE;
+
+    rc = setmetainfoCommand(test_obj, &abc_snap);
+    if (rc != MM_CAMERA_OK) {
+       CDBG_ERROR("%s: meta info command snapshot failed\n", __func__);
+    }
 
     stream = mm_app_add_stream(test_obj, channel);
     if (NULL == stream) {
@@ -578,8 +733,8 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
         stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     } else {
-        stream->s_config.stream_info->dim.width = (int32_t)test_obj->buffer_width;
-        stream->s_config.stream_info->dim.height = (int32_t)test_obj->buffer_height;
+        stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
+        stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     }
     stream->s_config.padding_info = cam_cap->padding_info;
 
@@ -627,6 +782,8 @@ int mm_app_stop_and_del_channel(mm_camera_test_obj_t *test_obj,
     int rc = MM_CAMERA_OK;
     mm_camera_stream_t *stream = NULL;
     uint8_t i;
+    cam_stream_size_info_t abc ;
+    memset (&abc , 0, sizeof (cam_stream_size_info_t));
 
     rc = mm_app_stop_channel(test_obj, channel);
     if (MM_CAMERA_OK != rc) {
@@ -645,6 +802,12 @@ int mm_app_stop_and_del_channel(mm_camera_test_obj_t *test_obj,
         CDBG_ERROR("%s: num_streams = %d. Should not be more than %d\n",
             __func__, channel->num_streams, MAX_STREAM_NUM_IN_BUNDLE);
     }
+
+    rc = setmetainfoCommand(test_obj, &abc);
+    if (rc != MM_CAMERA_OK) {
+       CDBG_ERROR("%s: meta info command failed\n", __func__);
+    }
+
     rc = mm_app_del_channel(test_obj, channel);
     if (MM_CAMERA_OK != rc) {
         CDBG_ERROR("%s:delete channel failed rc=%d\n", __func__, rc);
@@ -697,7 +860,6 @@ int mm_app_start_preview(mm_camera_test_obj_t *test_obj)
 int mm_app_stop_preview(mm_camera_test_obj_t *test_obj)
 {
     int rc = MM_CAMERA_OK;
-
     mm_camera_channel_t *channel =
         mm_app_get_channel_by_type(test_obj, MM_CHANNEL_TYPE_PREVIEW);
 
@@ -717,7 +879,6 @@ int mm_app_start_preview_zsl(mm_camera_test_obj_t *test_obj)
     mm_camera_stream_t *s_metadata = NULL;
     mm_camera_stream_t *s_main = NULL;
     mm_camera_channel_attr_t attr;
-
     memset(&attr, 0, sizeof(mm_camera_channel_attr_t));
     attr.notify_mode = MM_CAMERA_SUPER_BUF_NOTIFY_CONTINUOUS;
     attr.look_back = 2;
@@ -745,6 +906,19 @@ int mm_app_start_preview_zsl(mm_camera_test_obj_t *test_obj)
         return rc;
     }
 
+    s_main = mm_app_add_snapshot_stream(test_obj,
+                                        channel,
+                                        mm_app_snapshot_notify_cb,
+                                        (void *)test_obj,
+                                        PREVIEW_BUF_NUM,
+                                        0);
+    if (NULL == s_main) {
+        CDBG_ERROR("%s: add main snapshot stream failed\n", __func__);
+        mm_app_del_stream(test_obj, channel, s_preview);
+        mm_app_del_channel(test_obj, channel);
+        return rc;
+    }
+
     s_metadata = mm_app_add_metadata_stream(test_obj,
                                             channel,
                                             mm_app_metadata_notify_cb,
@@ -752,19 +926,6 @@ int mm_app_start_preview_zsl(mm_camera_test_obj_t *test_obj)
                                             PREVIEW_BUF_NUM);
     if (NULL == s_metadata) {
         CDBG_ERROR("%s: add metadata stream failed\n", __func__);
-        mm_app_del_channel(test_obj, channel);
-        return rc;
-    }
-
-    s_main = mm_app_add_snapshot_stream(test_obj,
-                                        channel,
-                                        NULL,
-                                        NULL,
-                                        PREVIEW_BUF_NUM,
-                                        0);
-    if (NULL == s_main) {
-        CDBG_ERROR("%s: add main snapshot stream failed\n", __func__);
-        mm_app_del_stream(test_obj, channel, s_preview);
         mm_app_del_channel(test_obj, channel);
         return rc;
     }

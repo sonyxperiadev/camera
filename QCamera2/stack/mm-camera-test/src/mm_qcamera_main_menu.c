@@ -1964,16 +1964,6 @@ static int submain()
                 CDBG_HIGH("\n Take JPEG snapshot\n");
 
                 rc = mm_camera_lib_send_command(&lib_handle,
-                                                MM_CAMERA_LIB_DO_AF,
-                                                NULL,
-                                                NULL);
-
-                if (rc != MM_CAMERA_OK) {
-                    CDBG_ERROR("%s:mm_camera_lib_send_command() err=%d\n", __func__, rc);
-                    goto ERROR;
-                }
-
-                rc = mm_camera_lib_send_command(&lib_handle,
                                                 MM_CAMERA_LIB_JPEG_CAPTURE,
                                                 &snap_dim,
                                                 NULL);

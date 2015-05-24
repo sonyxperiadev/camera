@@ -341,8 +341,6 @@ static void mm_app_snapshot_notify_cb(mm_camera_super_buf_t *bufs,
     mm_camera_buf_def_t *p_frame = NULL;
     mm_camera_buf_def_t *m_frame = NULL;
 
-    CDBG("%s: BEGIN\n", __func__);
-
     /* find channel */
     for (i = 0; i < MM_CHANNEL_TYPE_MAX; i++) {
         if (pme->channels[i].ch_id == bufs->ch_id) {
@@ -520,7 +518,7 @@ mm_camera_stream_t * mm_app_add_postview_stream(mm_camera_test_obj_t *test_obj,
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
     if (MM_CAMERA_OK != rc) {
-        CDBG_ERROR("%s:config preview stream err=%d\n", __func__, rc);
+        CDBG_ERROR("%s:config postview stream err=%d\n", __func__, rc);
         return NULL;
     }
 
@@ -599,9 +597,8 @@ int mm_app_start_capture(mm_camera_test_obj_t *test_obj,
     int32_t rc = MM_CAMERA_OK;
     mm_camera_channel_t *channel = NULL;
     mm_camera_stream_t *s_main = NULL;
-    mm_camera_stream_t *s_metadata = NULL;
+    mm_camera_stream_t *s_post = NULL;
     mm_camera_channel_attr_t attr;
-
     memset(&attr, 0, sizeof(mm_camera_channel_attr_t));
     attr.notify_mode = MM_CAMERA_SUPER_BUF_NOTIFY_CONTINUOUS;
     attr.max_unmatched_frames = 3;
@@ -614,21 +611,11 @@ int mm_app_start_capture(mm_camera_test_obj_t *test_obj,
         CDBG_ERROR("%s: add channel failed", __func__);
         return -MM_CAMERA_E_GENERAL;
     }
-    s_metadata = mm_app_add_metadata_stream(test_obj,
-                                            channel,
-                                            mm_app_snapshot_metadata_notify_cb,
-                                            (void *)test_obj,
-                                            CAPTURE_BUF_NUM);
-     if (NULL == s_metadata) {
-        CDBG_ERROR("%s: add metadata stream failed\n", __func__);
-        mm_app_del_channel(test_obj, channel);
-        return -MM_CAMERA_E_GENERAL;
-    }
 
     s_main = mm_app_add_snapshot_stream(test_obj,
                                         channel,
-                                        NULL,
-                                        NULL,
+                                        mm_app_snapshot_notify_cb,
+                                        (void *)test_obj,
                                         CAPTURE_BUF_NUM,
                                         num_snapshots);
     if (NULL == s_main) {
@@ -637,11 +624,22 @@ int mm_app_start_capture(mm_camera_test_obj_t *test_obj,
         return rc;
     }
 
+    s_post = mm_app_add_postview_stream(test_obj,
+                                        channel,
+                                        NULL,
+                                        NULL,
+                                        CAPTURE_BUF_NUM,
+                                        num_snapshots);
+    if (NULL == s_main) {
+        CDBG_ERROR("%s: add main postview stream failed\n", __func__);
+        mm_app_del_channel(test_obj, channel);
+        return rc;
+    }
+
     rc = mm_app_start_channel(test_obj, channel);
     if (MM_CAMERA_OK != rc) {
         CDBG_ERROR("%s:start zsl failed rc=%d\n", __func__, rc);
         mm_app_del_stream(test_obj, channel, s_main);
-        mm_app_del_stream(test_obj, channel, s_metadata);
         mm_app_del_channel(test_obj, channel);
         return rc;
     }
