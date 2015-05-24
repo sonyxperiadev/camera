@@ -558,13 +558,25 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
     int rc = MM_CAMERA_OK;
     mm_camera_stream_t *stream = NULL;
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
+    cam_dimension_t preview_dim = {0, 0};
+
+    if ((test_obj->preview_resolution.user_input_display_width == 0) ||
+           ( test_obj->preview_resolution.user_input_display_height == 0)) {
+        preview_dim.width = DEFAULT_PREVIEW_WIDTH;
+        preview_dim.height = DEFAULT_PREVIEW_HEIGHT;
+    } else {
+        preview_dim.width = test_obj->preview_resolution.user_input_display_width;
+        preview_dim.height = test_obj->preview_resolution.user_input_display_height;
+    }
+    ALOGI("%s, preview dimesion: %d x %d\n", __func__, preview_dim.width, preview_dim.height);
+
     cam_stream_size_info_t abc ;
     memset (&abc , 0, sizeof (cam_stream_size_info_t));
 
     abc.num_streams = 1;
     abc.postprocess_mask[0] = 2178;
-    abc.stream_sizes[0].width = DEFAULT_PREVIEW_WIDTH;
-    abc.stream_sizes[0].height = DEFAULT_PREVIEW_HEIGHT;
+    abc.stream_sizes[0].width = preview_dim.width;
+    abc.stream_sizes[0].height = preview_dim.height;
     abc.type[0] = CAM_STREAM_TYPE_PREVIEW;
 
     abc.buffer_info.min_buffers = 10;
@@ -597,14 +609,8 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.stream_info->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     stream->s_config.stream_info->fmt = DEFAULT_PREVIEW_FORMAT;
 
-    if ((test_obj->preview_resolution.user_input_display_width == 0) ||
-           ( test_obj->preview_resolution.user_input_display_height == 0)) {
-        stream->s_config.stream_info->dim.width = DEFAULT_PREVIEW_WIDTH;
-        stream->s_config.stream_info->dim.height = DEFAULT_PREVIEW_HEIGHT;
-    } else {
-        stream->s_config.stream_info->dim.width = test_obj->preview_resolution.user_input_display_width;
-        stream->s_config.stream_info->dim.height = test_obj->preview_resolution.user_input_display_height;
-    }
+    stream->s_config.stream_info->dim.width = preview_dim.width;
+    stream->s_config.stream_info->dim.height = preview_dim.height;
 
     stream->s_config.padding_info = cam_cap->padding_info;
 
