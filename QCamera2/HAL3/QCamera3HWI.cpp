@@ -1748,22 +1748,23 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     int32_t frame_number_valid, urgent_frame_number_valid;
     uint32_t frame_number, urgent_frame_number;
     int64_t capture_time;
-    cam_frame_dropped_t cam_frame_drop;
 
     int32_t *p_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
     uint32_t *p_frame_number = POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
     int64_t *p_capture_time = POINTER_OF_META(CAM_INTF_META_SENSOR_TIMESTAMP, metadata);
-    cam_frame_dropped_t *p_cam_frame_drop =
-            POINTER_OF_META(CAM_INTF_META_FRAME_DROPPED, metadata);
     int32_t *p_urgent_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER_VALID, metadata);
     uint32_t *p_urgent_frame_number =
             POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER, metadata);
+    IF_META_AVAILABLE(cam_frame_dropped_t, p_cam_frame_drop, CAM_INTF_META_FRAME_DROPPED,
+            metadata) {
+        CDBG("%s: Dropped frame info for frame_number_valid %d, frame_number %d",
+                __func__, *p_frame_number_valid, *p_frame_number);
+    }
 
     if ((NULL == p_frame_number_valid) || (NULL == p_frame_number) || (NULL == p_capture_time) ||
-            (NULL == p_cam_frame_drop) || (NULL == p_urgent_frame_number_valid) ||
-            (NULL == p_urgent_frame_number)) {
+            (NULL == p_urgent_frame_number_valid) || (NULL == p_urgent_frame_number)) {
         ALOGE("%s: Invalid metadata", __func__);
         mMetadataChannel->bufDone(metadata_buf);
         free(metadata_buf);
@@ -1772,7 +1773,6 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         frame_number_valid = *p_frame_number_valid;
         frame_number = *p_frame_number;
         capture_time = *p_capture_time;
-        cam_frame_drop = *p_cam_frame_drop;
         urgent_frame_number_valid = *p_urgent_frame_number_valid;
         urgent_frame_number = *p_urgent_frame_number;
     }
@@ -1844,7 +1844,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
         // Check whether any stream buffer corresponding to this is dropped or not
         // If dropped, then send the ERROR_BUFFER for the corresponding stream
-        if (cam_frame_drop.frame_dropped) {
+        if (p_cam_frame_drop && p_cam_frame_drop->frame_dropped) {
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
@@ -1852,8 +1852,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     j != i->buffers.end(); j++) {
                 QCamera3Channel *channel = (QCamera3Channel *)j->stream->priv;
                 uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
-                for (uint32_t k = 0; k < cam_frame_drop.cam_stream_ID.num_streams; k++) {
-                   if (streamID == cam_frame_drop.cam_stream_ID.streamID[k]) {
+                for (uint32_t k = 0; k < p_cam_frame_drop->cam_stream_ID.num_streams; k++) {
+                   if (streamID == p_cam_frame_drop->cam_stream_ID.streamID[k]) {
                        // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
                        CDBG("%s: Start of reporting error frame#=%u, streamID=%u",
                               __func__, i->frame_number, streamID);
