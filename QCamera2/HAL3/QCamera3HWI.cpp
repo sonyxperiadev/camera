@@ -3968,7 +3968,7 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
         if (NAME_NOT_FOUND != val) {
             uint8_t fwkAfMode = (uint8_t)val;
             camMetadata.update(ANDROID_CONTROL_AF_MODE, &fwkAfMode, 1);
-            CDBG("%s: urgent Metadata : ANDROID_CONTROL_AF_MODE", __func__);
+            CDBG("%s: urgent Metadata : ANDROID_CONTROL_AF_MODE %d", __func__, val);
         } else {
             CDBG_HIGH("%s: urgent Metadata not found : ANDROID_CONTROL_AF_MODE %d", __func__,
                     val);
@@ -6399,6 +6399,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 fwk_focusMode);
         if (NAME_NOT_FOUND != val) {
             uint8_t focusMode = (uint8_t)val;
+            CDBG("%s: set focus mode %d", __func__, focusMode);
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_FOCUS_MODE, focusMode)) {
                 rc = BAD_VALUE;
             }

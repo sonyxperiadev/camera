@@ -1134,19 +1134,17 @@ typedef enum {
     CAM_AF_INACTIVE
 } cam_autofocus_state_t;
 
+//Don't change the order of the AF states below. It should match
+//with the corresponding enum in frameworks (camera3.h and
+//CameraMetadata.java)
 typedef enum {
-    /* Inactive state signfies that AF algo is not running */
     CAM_AF_STATE_INACTIVE,
-
-    /* Passive events received in CAF (continuous picture/video) modes*/
     CAM_AF_STATE_PASSIVE_SCAN,
     CAM_AF_STATE_PASSIVE_FOCUSED,
-    CAM_AF_STATE_PASSIVE_UNFOCUSED,
-
-    /* Active events received only when AutoFocus() is called explicitly */
     CAM_AF_STATE_ACTIVE_SCAN,
     CAM_AF_STATE_FOCUSED_LOCKED,
     CAM_AF_STATE_NOT_FOCUSED_LOCKED,
+    CAM_AF_STATE_PASSIVE_UNFOCUSED
 } cam_af_state_t;
 
 typedef struct {
