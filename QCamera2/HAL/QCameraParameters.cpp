@@ -5630,8 +5630,13 @@ void QCameraParameters::deinit()
         m_pCamOpsTbl->ops->unmap_buf(
                              m_pCamOpsTbl->camera_handle,
                              CAM_MAPPING_BUF_TYPE_PARM_BUF);
+
+        m_pCamOpsTbl->ops->unmap_buf(
+                m_pCamOpsTbl->camera_handle,
+                CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
         m_pCamOpsTbl = NULL;
     }
+
     m_pCapability = NULL;
     if (NULL != m_pParamHeap) {
         m_pParamHeap->deallocate();
@@ -10703,12 +10708,21 @@ const char *QCameraParameters::getFrameFmtString(cam_format_t fmt)
  * PARAMETERS :
  *   @info  : ptr to related cam info parameters
  *
- * RETURN     :none
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
  *==========================================================================*/
-void QCameraParameters::setRelatedCamSyncInfo(
+int32_t QCameraParameters::setRelatedCamSyncInfo(
         cam_sync_related_sensors_event_info_t* info)
 {
-    m_relCamSyncInfo = *info;
+    if(info != NULL){
+        memcpy(&m_relCamSyncInfo, info,
+                sizeof(cam_sync_related_sensors_event_info_t));
+        return NO_ERROR;
+    } else {
+        ALOGE("%s: info buffer is null", __func__);
+        return UNKNOWN_ERROR;
+    }
 }
 
 /*===========================================================================
@@ -10789,10 +10803,14 @@ int32_t QCameraParameters::getRelatedCamCalibration(
 {
     int32_t rc = NO_ERROR;
 
+    if(!calib) {
+        return BAD_TYPE;
+    }
+
     if(initBatchUpdate(m_pParamBuf) < 0 ) {
-            ALOGE("%s:Failed to initialize group update table", __func__);
-            return BAD_TYPE;
-        }
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return BAD_TYPE;
+    }
 
     ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
             CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION);
@@ -10804,20 +10822,20 @@ int32_t QCameraParameters::getRelatedCamCalibration(
     }
 
     READ_PARAM_ENTRY(m_pParamBuf,
-        CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION, *calib);
+            CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION, *calib);
 
-    CDBG("%s: version %f ",__func__, calib->calibration_format_version);
-    CDBG("%s: normalized_focal_length %f ", __func__,
+    CDBG("%s: CALIB version %f ",__func__, calib->calibration_format_version);
+    CDBG("%s: CALIB normalized_focal_length %f ", __func__,
             calib->main_cam_specific_calibration.normalized_focal_length);
-    CDBG("%s: native_sensor_resolution_width %d ", __func__,
+    CDBG("%s: CALIB native_sensor_resolution_width %d ", __func__,
             calib->main_cam_specific_calibration.native_sensor_resolution_width);
-    CDBG("%s: native_sensor_resolution_height %d ", __func__,
+    CDBG("%s: CALIB native_sensor_resolution_height %d ", __func__,
             calib->main_cam_specific_calibration.native_sensor_resolution_height);
-    CDBG("%s: sensor_resolution_width %d ", __func__,
+    CDBG("%s: CALIB sensor_resolution_width %d ", __func__,
             calib->main_cam_specific_calibration.calibration_sensor_resolution_width);
-    CDBG("%s: sensor_resolution_height %d ", __func__,
+    CDBG("%s: CALIB sensor_resolution_height %d ", __func__,
             calib->main_cam_specific_calibration.calibration_sensor_resolution_height);
-    CDBG("%s: focal_length_ratio %f ", __func__,
+    CDBG("%s: CALIB focal_length_ratio %f ", __func__,
             calib->main_cam_specific_calibration.focal_length_ratio);
 
     return rc;

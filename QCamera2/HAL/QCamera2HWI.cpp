@@ -1254,6 +1254,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
 
     memset(mDeffOngoingJobs, 0, sizeof(mDeffOngoingJobs));
     memset(&mRelCamCalibData, 0, sizeof(cam_related_system_calibration_data_t));
+    memset(&mJpegHandle, 0, sizeof(mJpegHandle));
+    memset(&mJpegMpoHandle, 0, sizeof(mJpegMpoHandle));
 
     mDefferedWorkThread.launch(defferedWorkRoutine, this);
     mDefferedWorkThread.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
@@ -1411,7 +1413,8 @@ int QCamera2HardwareInterface::openCamera()
     }
     CDBG_HIGH("%s: mJpegClientHandle : %d", __func__, mJpegClientHandle);
 
-    rc = m_postprocessor.setJpegHandle(&mJpegHandle, mJpegClientHandle);
+    rc = m_postprocessor.setJpegHandle(&mJpegHandle, &mJpegMpoHandle,
+            mJpegClientHandle);
     if (rc != 0) {
         ALOGE("%s: Error!! set JPEG handle failed", __func__);
         goto error_exit;
@@ -1528,12 +1531,18 @@ const cam_sync_related_sensors_event_info_t*
  * PARAMETERS :
  *   @info  : ptr to related cam info parameters
  *
- * RETURN     :none
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
  *==========================================================================*/
-void QCamera2HardwareInterface::setRelatedCamSyncInfo(
+int32_t QCamera2HardwareInterface::setRelatedCamSyncInfo(
         cam_sync_related_sensors_event_info_t* info)
 {
-    mParameters.setRelatedCamSyncInfo(info);
+    if(info) {
+        return mParameters.setRelatedCamSyncInfo(info);
+    } else {
+        return BAD_TYPE;
+    }
 }
 
 /*===========================================================================
@@ -8135,7 +8144,8 @@ int32_t QCamera2HardwareInterface::queueDefferedWork(DefferedWorkCmd cmd,
 /*===========================================================================
  * FUNCTION   : initJpegHandle
  *
- * DESCRIPTION: Opens JPEG client and gets a handle
+ * DESCRIPTION: Opens JPEG client and gets a handle.
+ *                     Sends Dual cam calibration info if present
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -8149,7 +8159,10 @@ int32_t QCamera2HardwareInterface::initJpegHandle() {
         //set max pic size
         max_size.w = m_max_pic_width;
         max_size.h = m_max_pic_height;
-        mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, NULL);
+        // TODO- Check sanity of calibration data, needs header updates, will be done as
+        // part of new gerrit
+        mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle, max_size,
+                &mRelCamCalibData);
         if(!mJpegClientHandle) {
             ALOGE("%s: Error !! jpeg_open failed!! ", __func__);
             return UNKNOWN_ERROR;
@@ -8183,6 +8196,7 @@ int32_t QCamera2HardwareInterface::deinitJpegHandle() {
                     __func__, mJpegClientHandle);
         }
         memset(&mJpegHandle, 0, sizeof(mJpegHandle));
+        memset(&mJpegMpoHandle, 0, sizeof(mJpegMpoHandle));
         mJpegHandleOwner = false;
     }
     mJpegClientHandle = 0;
@@ -8197,24 +8211,27 @@ int32_t QCamera2HardwareInterface::deinitJpegHandle() {
  *
  * PARAMETERS:
  *                  @ops                    : JPEG ops
+ *                  @mpo_ops             : Jpeg MPO ops
  *                  @pJpegClientHandle : o/p Jpeg Client Handle
  *
- *
- * RETURN     : none
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera2HardwareInterface::setJpegHandleInfo(
-        mm_jpeg_ops_t *ops, uint32_t pJpegClientHandle) {
+int32_t QCamera2HardwareInterface::setJpegHandleInfo(mm_jpeg_ops_t *ops,
+        mm_jpeg_mpo_ops_t *mpo_ops, uint32_t pJpegClientHandle) {
 
-    if (pJpegClientHandle) {
-        CDBG_HIGH("%s: Setting JPEG client handle %d",
-                __func__, pJpegClientHandle);
+    if (pJpegClientHandle && ops && mpo_ops) {
+        CDBG_HIGH("%s: Setting JPEG client handle %d", __func__,
+                pJpegClientHandle);
         memcpy(&mJpegHandle, ops, sizeof(mm_jpeg_ops_t));
+        memcpy(&mJpegMpoHandle, mpo_ops, sizeof(mm_jpeg_mpo_ops_t));
         mJpegClientHandle = pJpegClientHandle;
         return NO_ERROR;
     }
     else {
-        CDBG_HIGH("%s: Error!! No Handle found: %d",
-                __func__, pJpegClientHandle);
+        CDBG_HIGH("%s: Error!! No Handle found: %d", __func__,
+                pJpegClientHandle);
         return BAD_VALUE;
     }
 }
@@ -8226,19 +8243,26 @@ int32_t QCamera2HardwareInterface::setJpegHandleInfo(
  *
  * PARAMETERS:
  *                  @ops                    : JPEG ops
+ *                  @mpo_ops             : Jpeg MPO ops
  *                  @pJpegClientHandle : o/p Jpeg Client Handle
  *
- *
- * RETURN     : none
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
  *==========================================================================*/
-void QCamera2HardwareInterface::getJpegHandleInfo(
-        mm_jpeg_ops_t *ops, uint32_t *pJpegClientHandle) {
+int32_t QCamera2HardwareInterface::getJpegHandleInfo(mm_jpeg_ops_t *ops,
+        mm_jpeg_mpo_ops_t *mpo_ops, uint32_t *pJpegClientHandle) {
     // Copy JPEG ops if present
-    if (ops) {
+    if (ops && mpo_ops && pJpegClientHandle) {
         memcpy(ops, &mJpegHandle, sizeof(mm_jpeg_ops_t));
+        memcpy(mpo_ops, &mJpegMpoHandle, sizeof(mm_jpeg_mpo_ops_t));
+        *pJpegClientHandle = mJpegClientHandle;
+        CDBG_HIGH("%s: Getting JPEG client handle %d", __func__,
+                pJpegClientHandle);
+        return NO_ERROR;
+    } else {
+        return BAD_VALUE;
     }
-    *pJpegClientHandle = mJpegClientHandle;
-    return;
 }
 
 /*===========================================================================
