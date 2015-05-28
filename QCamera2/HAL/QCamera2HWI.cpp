@@ -4862,6 +4862,11 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
     int32_t ret = NO_ERROR;
     CDBG_HIGH("%s: E",__func__);
 
+    if (getRelatedCamSyncInfo()->mode == CAM_MODE_SECONDARY) {
+        // Ignore focus updates
+        CDBG_HIGH("%s: X Secondary Camera, no need to process!! ", __func__);
+        return ret;
+    }
     cam_focus_mode_type focusMode = mParameters.getFocusMode();
     CDBG_HIGH("[AF_DBG] %s: focusMode=%d, focusState=%d",
             __func__, focusMode, focus_data.focus_state);
