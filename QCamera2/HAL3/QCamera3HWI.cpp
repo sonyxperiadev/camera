@@ -51,6 +51,11 @@
 #include "QCamera3VendorTags.h"
 #include <cutils/properties.h>
 
+#include <binder/Parcel.h>
+#include <binder/IServiceManager.h>
+#include <utils/RefBase.h>
+#include <QServiceUtils.h>
+
 using namespace android;
 
 namespace qcamera {
@@ -83,8 +88,9 @@ namespace qcamera {
 
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
-static pthread_mutex_t gCamLock = PTHREAD_MUTEX_INITIALIZER;
+extern pthread_mutex_t gCamLock;
 volatile uint32_t gCamHal3LogLevel = 1;
+extern uint8_t gNumCameraSessions;
 
 const QCamera3HardwareInterface::QCameraPropMap QCamera3HardwareInterface::CDS_MAP [] = {
     {"On",  CAM_CDS_MODE_ON},
@@ -571,6 +577,14 @@ int QCamera3HardwareInterface::openCamera()
         return FAILED_TRANSACTION;
     }
     mFirstConfiguration = true;
+
+    //Notify display HAL that a camera session is active
+    pthread_mutex_lock(&gCamLock);
+    if (gNumCameraSessions++ == 0) {
+        setCameraLaunchStatus(true);
+    }
+    pthread_mutex_unlock(&gCamLock);
+
     return NO_ERROR;
 }
 
@@ -593,6 +607,13 @@ int QCamera3HardwareInterface::closeCamera()
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
     mCameraOpened = false;
+
+    //Notify display HAL that there is no active camera session
+    pthread_mutex_lock(&gCamLock);
+    if (--gNumCameraSessions == 0) {
+        setCameraLaunchStatus(false);
+    }
+    pthread_mutex_unlock(&gCamLock);
 
     return rc;
 }

@@ -47,6 +47,10 @@ namespace qcamera {
 
 QCamera2Factory *gQCamera2Factory = NULL;
 QCameraMuxer *gQCameraMuxer = NULL;
+pthread_mutex_t gCamLock = PTHREAD_MUTEX_INITIALIZER;
+//Total number of cameras opened simultaneously.
+//This variable updation is protected by gCamLock.
+uint8_t gNumCameraSessions = 0;
 
 /*===========================================================================
  * FUNCTION   : QCamera2Factory
