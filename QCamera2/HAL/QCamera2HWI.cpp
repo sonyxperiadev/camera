@@ -7321,6 +7321,14 @@ int QCamera2HardwareInterface::calcThermalLevel(
         break;
     }
     if (level >= QCAMERA_THERMAL_NO_ADJUSTMENT && level <= QCAMERA_THERMAL_MAX_ADJUSTMENT) {
+        if (mParameters.getRecordingHintValue() == true) {
+            adjustedRange.min_fps = minFPS / 1000.0f;
+            adjustedRange.max_fps = maxFPS / 1000.0f;
+            adjustedRange.video_min_fps = minVideoFps / 1000.0f;
+            adjustedRange.video_max_fps = maxVideoFps / 1000.0f;
+            skipPattern = NO_SKIP;
+            CDBG_HIGH("%s: No FPS mitigation in camcorder mode", __func__);
+        }
         CDBG_HIGH("%s: Thermal level %d, FPS [%3.2f,%3.2f, %3.2f,%3.2f], frameskip %d",
                 __func__, level, adjustedRange.min_fps, adjustedRange.max_fps,
                 adjustedRange.video_min_fps, adjustedRange.video_max_fps,skipPattern);
