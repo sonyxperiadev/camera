@@ -138,10 +138,11 @@ public:
             mm_jpeg_mpo_ops_t* pJpegMpoHandle, uint32_t clientHandle);
 private:
     int32_t sendDataNotify(int32_t msg_type,
-                           camera_memory_t *data,
-                           uint8_t index,
-                           camera_frame_metadata_t *metadata,
-                           qcamera_release_data_t *release_data);
+            camera_memory_t *data,
+            uint8_t index,
+            camera_frame_metadata_t *metadata,
+            qcamera_release_data_t *release_data,
+            uint32_t super_buf_frame_idx = 0);
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
     qcamera_jpeg_data_t *findJpegJobByJobId(uint32_t jobId);
     mm_jpeg_color_format getColorfmtFromImgFmt(cam_format_t img_fmt);

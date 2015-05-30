@@ -2560,6 +2560,10 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                                     ALOGE("%s : notify callback not set!",
                                           __func__);
                                 }
+                                if (cb->release_cb) {
+                                    cb->release_cb(cb->user_data, cb->cookie,
+                                            cbStatus);
+                                }
                             }
                             break;
                         case QCAMERA_DATA_CALLBACK:
@@ -2574,6 +2578,10 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                                     ALOGE("%s : data callback not set!",
                                           __func__);
                                 }
+                                if (cb->release_cb) {
+                                    cb->release_cb(cb->user_data, cb->cookie,
+                                            cbStatus);
+                                }
                             }
                             break;
                         case QCAMERA_DATA_TIMESTAMP_CALLBACK:
@@ -2587,6 +2595,10 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                                 } else {
                                     ALOGE("%s:data cb with tmp not set!",
                                           __func__);
+                                }
+                                if (cb->release_cb) {
+                                    cb->release_cb(cb->user_data, cb->cookie,
+                                            cbStatus);
                                 }
                             }
                             break;
@@ -2607,14 +2619,30 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                                         }
                                     }
                                     if (pme->mJpegCb) {
-                                        ALOGI("%s: Calling JPEG Callback!! for camera %d",
-                                            __func__, pme->mParent->getCameraId() );
-                                        pme->mJpegCb(cb->msg_type, cb->data, cb->index,
-                                                cb->metadata, pme->mJpegCallbackCookie);
+                                        ALOGI("%s: Calling JPEG Callback!! for camera %d"
+                                                "release_data %p",
+                                                "frame_idx %d",
+                                                __func__, pme->mParent->getCameraId(),
+                                                cb->user_data,
+                                                cb->frame_index);
+                                        pme->mJpegCb(cb->msg_type, cb->data,
+                                                cb->index, cb->metadata,
+                                                pme->mJpegCallbackCookie,
+                                                cb->frame_index, cb->release_cb,
+                                                cb->cookie, cb->user_data);
+                                        // incase of non-null Jpeg cb we transfer
+                                        // ownership of buffer to muxer. hence
+                                        // release_cb should not be called
+                                        // muxer will release after its done with
+                                        // processing the buffer
                                     }
                                     else {
                                         pme->mDataCb(cb->msg_type, cb->data, cb->index,
                                                 cb->metadata, pme->mCallbackCookie);
+                                        if (cb->release_cb) {
+                                            cb->release_cb(cb->user_data, cb->cookie,
+                                                    cbStatus);
+                                        }
                                     }
                                 }
                             }
@@ -2625,6 +2653,10 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                                       __func__,
                                       cb->cb_type);
                                 cbStatus = BAD_VALUE;
+                                if (cb->release_cb) {
+                                    cb->release_cb(cb->user_data, cb->cookie,
+                                            cbStatus);
+                                }
                             }
                             break;
                         };
@@ -2633,11 +2665,11 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                               __func__,
                               cb->msg_type);
                         cbStatus = INVALID_OPERATION;
+                        if (cb->release_cb) {
+                            cb->release_cb(cb->user_data, cb->cookie, cbStatus);
+                        }
                     }
-                    if ( cb->release_cb ) {
-                        cb->release_cb(cb->user_data, cb->cookie, cbStatus);
-                    }
-                    delete cb;
+                delete cb;
                 } else {
                     ALOGE("%s: invalid cb type passed", __func__);
                 }

@@ -113,6 +113,16 @@ typedef struct {
     // this flag is used by multiple threads to check validity of
     // Jpegs received by other threads
     bool valid;
+    // frame id of the Jpeg. this is needed for frame sync between aux
+    // and main camera sessions
+    uint32_t frame_idx;
+    // release callback function to release this Jpeg memory later after
+    // composition is completed
+    camera_release_callback release_cb;
+    // cookie for the release callback function
+    void *release_cookie;
+    // release data info for what needs to be released
+    void *release_data;
 }cam_compose_jpeg_info_t;
 
 /* Class@ QCameraMuxer
@@ -178,23 +188,21 @@ public:
     static void release(struct camera_device *);
     static int dump(struct camera_device *, int fd);
     /* End of operational methods */
-    typedef void (*jpeg_data_callback)(int32_t msg_type,
+
+    static void jpeg_data_callback(int32_t msg_type,
             const camera_memory_t *data, unsigned int index,
-            camera_frame_metadata_t *metadata, void *user);
-    // both will be merged into a single callback function when actual frame
-    // id syncing is implemented
-    // Jpeg callback function for the primary related cam instance
-    static void jpeg1_data_callback(int32_t msg_type,
-            const camera_memory_t *data, unsigned int index,
-            camera_frame_metadata_t *metadata, void *user);
-    // Jpeg callback function for the secondary/aux related cam instance
-    static void jpeg2_data_callback(int32_t msg_type,
-            const camera_memory_t *data, unsigned int index,
-            camera_frame_metadata_t *metadata, void *user);
+            camera_frame_metadata_t *metadata, void *user,
+            uint32_t frame_idx, camera_release_callback release_cb,
+            void *release_cookie, void *release_data);
     // add notify error msgs to the notifer queue of the primary related cam instance
-    int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
+    static int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
     // function to compose all JPEG images from all physical related camera instances
-    void composeMpo(void);
+    void composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
+        cam_compose_jpeg_info_t* aux_Jpeg);
+    static void* composeMpoRoutine(void* data);
+    static bool matchFrameId(void *data, void *user_data, void *match_data);
+    static bool findPreviousJpegs(void *data, void *user_data, void *match_data);
+    static void releaseJpegInfo(void *data, void *user_data);
 
 public:
     /* Public Members  Variables   */
@@ -218,13 +226,15 @@ private:
     uint8_t m_nPhyCameras;
     uint8_t m_nLogicalCameras;
 
-    // Main Camera Jpeg
-    cam_compose_jpeg_info_t m_relCamMainJpeg;
-    // Aux Camera Jpeg
-    cam_compose_jpeg_info_t m_relCamAuxJpeg;
+    // Main Camera session Jpeg Queue
+    QCameraQueue m_MainJpegQ;
+    // Aux Camera session Jpeg Queue
+    QCameraQueue m_AuxJpegQ;
+    // thread for mpo composition
+    QCameraCmdThread m_ComposeMpoTh;
     // Final Mpo Jpeg Buffer
     camera_memory_t *m_pRelCamMpoJpeg;
-    // Lock needed to synchronize between multiple callback threads
+    // Lock needed to synchronize between multiple composition requests
     pthread_mutex_t m_JpegLock;
     // this callback cookie would be used for sending Final mpo Jpeg to the framework
     void *m_pMpoCallbackCookie;
@@ -254,9 +264,11 @@ private:
     void* getMainJpegCallbackCookie();
     void setJpegHandle(uint32_t handle) { mJpegClientHandle = handle;};
     // function to store single JPEG from 1 related physical camera instance
-    int storeJpeg(cam_sync_type_t cam_type, int32_t msg_type,
+    int32_t storeJpeg(cam_sync_type_t cam_type, int32_t msg_type,
             const camera_memory_t *data, unsigned int index,
-            camera_frame_metadata_t *metadata, void *user);
+            camera_frame_metadata_t *metadata, void *user,
+            uint32_t frame_idx, camera_release_callback release_cb,
+            void *release_cookie, void *release_data);
 
 };// End namespace qcamera
 
