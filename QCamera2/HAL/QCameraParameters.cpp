@@ -3205,6 +3205,12 @@ int32_t QCameraParameters::setLensShadeValue(const QCameraParameters& params)
 int32_t QCameraParameters::setFocusAreas(const QCameraParameters& params)
 {
     const char *str = params.get(KEY_FOCUS_AREAS);
+
+    if (getRelatedCamSyncInfo()->mode == CAM_MODE_SECONDARY) {
+        // Ignore focus areas for secondary camera
+        CDBG_HIGH("%s: Ignore focus areas for secondary camera!! ", __func__);
+        return NO_ERROR;
+    }
     if (str != NULL) {
         int max_num_af_areas = getInt(KEY_MAX_NUM_FOCUS_AREAS);
         if(max_num_af_areas == 0) {
