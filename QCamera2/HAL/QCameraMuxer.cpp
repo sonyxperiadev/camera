@@ -40,6 +40,7 @@
 
 #include "QCameraMuxer.h"
 #include "QCamera2HWI.h"
+#include "QCameraPostProc.h"
 
 #include <sys/stat.h>
 #include <utils/Errors.h>
@@ -125,26 +126,31 @@ void QCameraMuxer::getCameraMuxer(
  *
  *==========================================================================*/
 QCameraMuxer::QCameraMuxer(uint32_t num_of_cameras)
+    : mJpegClientHandle(0),
+      m_pPhyCamera(NULL),
+      m_pLogicalCamera(NULL),
+      m_pCallbacks(NULL),
+      m_bDualCameraEnabled(FALSE),
+      m_bAuxCameraExposed(FALSE),
+      m_nPhyCameras(num_of_cameras),
+      m_nLogicalCameras(0),
+      m_MainJpegQ(releaseJpegInfo, this),
+      m_AuxJpegQ(releaseJpegInfo, this),
+      m_pRelCamMpoJpeg(NULL),
+      m_pMpoCallbackCookie(NULL),
+      m_pJpegCallbackCookie(NULL),
+      m_bDumpImages(FALSE)
 {
-    m_pPhyCamera        = NULL;
-    m_pLogicalCamera    = NULL;
-    m_pCallbacks        = NULL;
-    m_nPhyCameras       = num_of_cameras;
-    mJpegClientHandle   = 0;
-    m_pRelCamMpoJpeg    = NULL;
-    m_pMpoCallbackCookie  = NULL;
-    m_pJpegCallbackCookie = NULL;
-    m_bDumpImages        = FALSE;
-    m_bDualCameraEnabled = FALSE;
-    m_bAuxCameraExposed  = FALSE;
     setupLogicalCameras();
-    memset(&m_relCamMainJpeg, 0, sizeof(m_relCamMainJpeg));
-    memset(&m_relCamAuxJpeg, 0, sizeof(m_relCamAuxJpeg));
     memset(&mJpegOps, 0, sizeof(mJpegOps));
     memset(&mJpegMpoOps, 0, sizeof(mJpegMpoOps));
     memset(&mGetMemoryCb, 0, sizeof(mGetMemoryCb));
     memset(&mDataCb, 0, sizeof(mDataCb));
+
+    // initialize mutex for MPO composition
     pthread_mutex_init(&m_JpegLock, NULL);
+    // launch MPO composition thread
+    m_ComposeMpoTh.launch(composeMpoRoutine, this);
 
     //Check whether dual camera images need to be dumped
     char prop[PROPERTY_VALUE_MAX];
@@ -168,24 +174,18 @@ QCameraMuxer::~QCameraMuxer() {
         delete [] m_pPhyCamera;
         m_pPhyCamera = NULL;
     }
-    if(NULL != m_relCamAuxJpeg.buffer) {
-        if(NULL != m_relCamAuxJpeg.buffer->data) {
-            free(m_relCamAuxJpeg.buffer->data);
-        }
-        free(m_relCamAuxJpeg.buffer);
-    }
-    if(NULL != m_relCamMainJpeg.buffer) {
-        if(NULL != m_relCamMainJpeg.buffer->data) {
-            free(m_relCamMainJpeg.buffer->data);
-        }
-        free(m_relCamMainJpeg.buffer);
-    }
-    memset(&m_relCamMainJpeg, 0, sizeof(m_relCamMainJpeg));
-    memset(&m_relCamAuxJpeg, 0, sizeof(m_relCamAuxJpeg));
+
     if (NULL != m_pRelCamMpoJpeg) {
         m_pRelCamMpoJpeg->release(m_pRelCamMpoJpeg);
         m_pRelCamMpoJpeg = NULL;
     }
+    // flush Jpeg Queues
+    m_MainJpegQ.flush();
+    m_AuxJpegQ.flush();
+
+    // stop and exit MPO composition thread
+    m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, FALSE);
+    m_ComposeMpoTh.exit();
 
     pthread_mutex_destroy(&m_JpegLock);
 }
@@ -391,22 +391,20 @@ void QCameraMuxer::set_callBacks(struct camera_device * device,
         QCamera2HardwareInterface *hwi = pCam->hwi;
         CHECK_HWI(hwi);
 
-        hwi->set_CallBacks(pCam->dev, notify_cb,data_cb, data_cb_timestamp,
+        hwi->set_CallBacks(pCam->dev, notify_cb, data_cb, data_cb_timestamp,
                 get_memory, user);
+
         // Set JPG callbacks
-        // Need to revisit this to make it single callback
         // sending the physical camera description with the Jpeg callback
         // this will be retrieved in callbacks to get the cam instance
         // delivering JPEGs
+        hwi->setJpegCallBacks(jpeg_data_callback, (void*)pCam);
+
         if (pCam->mode == CAM_MODE_PRIMARY) {
-            hwi->setJpegCallBacks(jpeg1_data_callback, (void*)pCam);
             rc = gMuxer->setMainJpegCallbackCookie((void*)(pCam));
             if(rc != NO_ERROR) {
                 ALOGE("%s: Error setting Jpeg callback cookie", __func__);
             }
-        }
-        else {
-            hwi->setJpegCallBacks(jpeg2_data_callback, (void*)pCam);
         }
     }
     // Store callback in Muxer to send data callbacks
@@ -962,6 +960,11 @@ int QCameraMuxer::take_picture(struct camera_device * device)
         }
     }
 
+    // initialize Jpeg Queues
+    gMuxer->m_MainJpegQ.init();
+    gMuxer->m_AuxJpegQ.init();
+    gMuxer->m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
+
     // Call take picture on both cameras
     for (uint32_t i = 0; i < cam->numCameras; i++) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
@@ -1014,6 +1017,11 @@ int QCameraMuxer::cancel_picture(struct camera_device * device)
             return rc;
         }
     }
+    gMuxer->m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, FALSE, FALSE);
+    // flush Jpeg Queues
+    gMuxer->m_MainJpegQ.flush();
+    gMuxer->m_AuxJpegQ.flush();
+
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
@@ -1179,6 +1187,23 @@ int QCameraMuxer::send_command(struct camera_device * device,
             return rc;
         }
     }
+
+        switch (cmd) {
+#ifndef VANILLA_HAL
+        case CAMERA_CMD_LONGSHOT_OFF:
+            gMuxer->m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC,
+                    FALSE, FALSE);
+            // flush Jpeg Queues
+            gMuxer->m_MainJpegQ.flush();
+            gMuxer->m_AuxJpegQ.flush();
+        break;
+#endif
+        default:
+            // do nothing
+            rc = NO_ERROR;
+        break;
+        }
+
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
@@ -1808,8 +1833,10 @@ int32_t QCameraMuxer::sendEvtNotify(int32_t msg_type, int32_t ext1,
     CDBG_HIGH("%s: E", __func__);
     int rc = NO_ERROR;
 
+    CHECK_MUXER_ERROR();
+
     qcamera_physical_descriptor_t *pCam = NULL;
-    pCam = (qcamera_physical_descriptor_t*)getMainJpegCallbackCookie();
+    pCam = (qcamera_physical_descriptor_t*)(gMuxer->getMainJpegCallbackCookie());
 
     CHECK_CAMERA_ERROR(pCam);
 
@@ -1826,53 +1853,64 @@ int32_t QCameraMuxer::sendEvtNotify(int32_t msg_type, int32_t ext1,
  * DESCRIPTION: Composition of the 2 MPOs
  *
  * PARAMETERS : none
+ *   @main_Jpeg: pointer to info to Main Jpeg
+ *   @aux_Jpeg : pointer to info to Aux JPEG
  *
   * RETURN : none
  *==========================================================================*/
-void QCameraMuxer::composeMpo(void)
+void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
+        cam_compose_jpeg_info_t* aux_Jpeg)
 {
-    CDBG_HIGH("%s: E", __func__);
+    CDBG_HIGH("%s: E Main Jpeg %p Aux Jpeg %p", __func__, main_Jpeg, aux_Jpeg);
 
     CHECK_MUXER();
+    if(main_Jpeg == NULL || aux_Jpeg == NULL) {
+        ALOGE("%s : input buffers invalid, ret = NO_MEMORY", __func__);
+        gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
+        return;
+    }
 
-    m_pRelCamMpoJpeg = mGetMemoryCb(-1, m_relCamMainJpeg.buffer->size +
-            m_relCamAuxJpeg.buffer->size, 1, m_pMpoCallbackCookie);
+    pthread_mutex_lock(&m_JpegLock);
+
+    m_pRelCamMpoJpeg = mGetMemoryCb(-1, main_Jpeg->buffer->size +
+            aux_Jpeg->buffer->size, 1, m_pMpoCallbackCookie);
     if (NULL == m_pRelCamMpoJpeg) {
         ALOGE("%s : getMemory for mpo, ret = NO_MEMORY", __func__);
         gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
+        pthread_mutex_unlock(&m_JpegLock);
         return;
     }
 
     // fill all structures to send for composition
     mm_jpeg_mpo_info_t mpo_compose_info;
     mpo_compose_info.num_of_images = 2;
-    mpo_compose_info.primary_image.buf_filled_len = m_relCamMainJpeg.buffer->size;
+    mpo_compose_info.primary_image.buf_filled_len = main_Jpeg->buffer->size;
     mpo_compose_info.primary_image.buf_vaddr =
-            (uint8_t*)m_relCamMainJpeg.buffer->data;
-    mpo_compose_info.aux_images[0].buf_filled_len = m_relCamAuxJpeg.buffer->size;
+            (uint8_t*)(main_Jpeg->buffer->data);
+    mpo_compose_info.aux_images[0].buf_filled_len = aux_Jpeg->buffer->size;
     mpo_compose_info.aux_images[0].buf_vaddr =
-            (uint8_t*)m_relCamAuxJpeg.buffer->data;
+            (uint8_t*)(aux_Jpeg->buffer->data);
     mpo_compose_info.output_buff.buf_vaddr =
             (uint8_t*)m_pRelCamMpoJpeg->data;
     mpo_compose_info.output_buff.buf_filled_len = 0;
-    mpo_compose_info.output_buff_size = m_relCamMainJpeg.buffer->size +
-            m_relCamAuxJpeg.buffer->size;
+    mpo_compose_info.output_buff_size = main_Jpeg->buffer->size +
+            aux_Jpeg->buffer->size;
 
-    CDBG("%s: MPO buffer size %d,\
-            expected size %d, mpo_compose_info.output_buff_size %d", __func__,
+    CDBG("%s: MPO buffer size %d\n"
+            "expected size %d, mpo_compose_info.output_buff_size %d", __func__,
             m_pRelCamMpoJpeg->size,
-            m_relCamMainJpeg.buffer->size + m_relCamAuxJpeg.buffer->size,
+            main_Jpeg->buffer->size + aux_Jpeg->buffer->size,
             mpo_compose_info.output_buff_size);
 
-    CDBG("%s: MPO primary buffer filled lengths,\
-            mpo_compose_info.primary_image.buf_filled_len %,\
-            mpo_compose_info.primary_image.buf_vaddr %p", __func__,
+    CDBG("%s: MPO primary buffer filled lengths\n"
+            "mpo_compose_info.primary_image.buf_filled_len %d\n"
+            "mpo_compose_info.primary_image.buf_vaddr %p", __func__,
             mpo_compose_info.primary_image.buf_filled_len,
             mpo_compose_info.primary_image.buf_vaddr);
 
-    CDBG("%s: MPO aux buffer filled lengths,\
-            mpo_compose_info.aux_images[0].buf_filled_len %d,\
-            mpo_compose_info.aux_images[0].buf_vaddr %p", __func__,
+    CDBG("%s: MPO aux buffer filled lengths\n"
+            "mpo_compose_info.aux_images[0].buf_filled_len %d"
+            "mpo_compose_info.aux_images[0].buf_vaddr %p", __func__,
             mpo_compose_info.aux_images[0].buf_filled_len,
             mpo_compose_info.aux_images[0].buf_vaddr);
 
@@ -1917,6 +1955,7 @@ void QCameraMuxer::composeMpo(void)
 
     if(rc != NO_ERROR) {
         gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
+        pthread_mutex_unlock(&m_JpegLock);
         return;
     }
 
@@ -1938,65 +1977,232 @@ void QCameraMuxer::composeMpo(void)
         }
     }
 
-    mDataCb(m_relCamMainJpeg.msg_type,
+    mDataCb(main_Jpeg->msg_type,
             m_pRelCamMpoJpeg,
-            m_relCamMainJpeg.index,
-            m_relCamMainJpeg.metadata,
+            main_Jpeg->index,
+            main_Jpeg->metadata,
             m_pMpoCallbackCookie);
 
-    m_relCamAuxJpeg.msg_type = 0;
-    free(m_relCamAuxJpeg.buffer->data);
-    free(m_relCamAuxJpeg.buffer);
-    free(m_relCamMainJpeg.buffer->data);
-    free(m_relCamMainJpeg.buffer);
-    memset(&m_relCamMainJpeg, 0, sizeof(cam_compose_jpeg_info_t));
-    memset(&m_relCamAuxJpeg, 0, sizeof(cam_compose_jpeg_info_t));
     if (NULL != m_pRelCamMpoJpeg) {
         m_pRelCamMpoJpeg->release(m_pRelCamMpoJpeg);
         m_pRelCamMpoJpeg = NULL;
     }
+
+    pthread_mutex_unlock(&m_JpegLock);
     CDBG_HIGH("%s: X", __func__);
     return;
 }
 
 /*===========================================================================
- * FUNCTION   : jpeg1_data_callback
+ * FUNCTION   : matchFrameId
  *
- * DESCRIPTION: JPEG data callback for snapshot, callback from 1 related cam instance
+ * DESCRIPTION: function to match frame ids within queue nodes
  *
  * PARAMETERS :
- *   @msg_type : callback msg type
- *   @data : data ptr of the buffer
- *   @index : index of the frame
- *   @metadata : metadata associated with the buffer
- *   @user : callback cookie returned back to the user
+ *   @data: pointer to queue node to be matched for condition
+ *   @user_data: caller can add more info here
+ *   @match_data : value to be matched against
  *
- * RETURN : none
+ * RETURN     : true or false based on whether match was successful or not
  *==========================================================================*/
-void QCameraMuxer::jpeg1_data_callback(int32_t msg_type,
-           const camera_memory_t *data, unsigned int index,
-           camera_frame_metadata_t *metadata, void *user)
+bool QCameraMuxer::matchFrameId(void *data, void *user_data,
+        void *match_data)
 {
-    CDBG_HIGH("%s: jpeg1 received: data %p size %d data ptr %p", __func__, data,
-            data->size, data->data);
-    CHECK_MUXER();
+    CDBG_HIGH("%s: E", __func__);
 
-    if(data != NULL) {
-        int rc = gMuxer->storeJpeg(CAM_TYPE_MAIN, msg_type, data, index,
-                metadata, user);
-        if(rc != NO_ERROR) {
-            gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
-        }
-    } else {
-        gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
+    if (!data || !match_data) {
+        return false;
     }
-    return;
+
+    cam_compose_jpeg_info_t * node = (cam_compose_jpeg_info_t *) data;
+    uint32_t frame_idx = *((uint32_t *) match_data);
+    CDBG_HIGH("%s: X", __func__);
+    return node->frame_idx == frame_idx;
 }
 
 /*===========================================================================
- * FUNCTION   : jpeg2_data_callback
+ * FUNCTION   : findPreviousJpegs
  *
- * DESCRIPTION: JPEG data callback for snapshot, callback from 2nd related cam instance
+ * DESCRIPTION: Finds Jpegs in the queue with index less than delivered one
+ *
+ * PARAMETERS :
+ *   @data: pointer to queue node to be matched for condition
+ *   @user_data: caller can add more info here
+ *   @match_data : value to be matched against
+ *
+ * RETURN     : true or false based on whether match was successful or not
+ *==========================================================================*/
+bool QCameraMuxer::findPreviousJpegs(void *data, void *user_data,
+        void *match_data)
+{
+    CDBG_HIGH("%s: E", __func__);
+
+    if (!data || !match_data) {
+        return false;
+    }
+    cam_compose_jpeg_info_t * node = (cam_compose_jpeg_info_t *) data;
+    uint32_t frame_idx = *((uint32_t *) match_data);
+    CDBG_HIGH("%s: X", __func__);
+    return node->frame_idx < frame_idx;
+}
+
+/*===========================================================================
+ * FUNCTION   : releaseJpegInfo
+ *
+ * DESCRIPTION: callback function for the release of individual nodes
+ *                     in the JPEG queues.
+ *
+ * PARAMETERS :
+ *   @data      : ptr to the data to be released
+ *   @user_data : caller can add more info here
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCameraMuxer::releaseJpegInfo(void *data, void *user_data)
+{
+    CDBG_HIGH("%s: E", __func__);
+
+    cam_compose_jpeg_info_t *jpegInfo = (cam_compose_jpeg_info_t *)data;
+    if(jpegInfo && jpegInfo->release_cb) {
+        if (jpegInfo->release_data != NULL) {
+            jpegInfo->release_cb(jpegInfo->release_data, jpegInfo->release_cookie,
+                    NO_ERROR);
+        }
+    }
+    CDBG_HIGH("%s: X", __func__);
+}
+
+/*===========================================================================
+ * FUNCTION   : composeMpoRoutine
+ *
+ * DESCRIPTION: specialized thread for MPO composition
+ *
+ * PARAMETERS :
+ *   @data   : pointer to the thread owner
+ *
+ * RETURN     : void* to thread
+ *==========================================================================*/
+void* QCameraMuxer::composeMpoRoutine(void *data)
+{
+    CDBG_HIGH("%s: E", __func__);
+    if (!gMuxer) {
+        ALOGE("%s[%d]: Error getting muxer ", __func__, __LINE__);
+        return NULL;
+    }
+
+    int running = 1;
+    int ret;
+    uint8_t is_active = FALSE;
+    QCameraCmdThread *cmdThread = &gMuxer->m_ComposeMpoTh;
+    cmdThread->setName("CAM_ComposeMpo");
+    char saveName[PROPERTY_VALUE_MAX];
+
+    do {
+        do {
+            ret = cam_sem_wait(&cmdThread->cmd_sem);
+            if (ret != 0 && errno != EINVAL) {
+                ALOGE("%s: cam_sem_wait error (%s)", __func__, strerror(errno));
+                return NULL;
+            }
+        } while (ret != 0);
+
+        // we got notified about new cmd avail in cmd queue
+        camera_cmd_type_t cmd = cmdThread->getCmd();
+        switch (cmd) {
+        case CAMERA_CMD_TYPE_START_DATA_PROC:
+            {
+                CDBG_HIGH("%s: start ComposeMpo processing", __func__);
+                is_active = TRUE;
+
+                // signal cmd is completed
+                cam_sem_post(&cmdThread->sync_sem);
+            }
+            break;
+        case CAMERA_CMD_TYPE_STOP_DATA_PROC:
+            {
+                CDBG_HIGH("%s: stop ComposeMpo processing", __func__);
+                is_active = FALSE;
+
+                // signal cmd is completed
+                cam_sem_post(&cmdThread->sync_sem);
+            }
+            break;
+        case CAMERA_CMD_TYPE_DO_NEXT_JOB:
+            {
+                if (is_active == TRUE) {
+                    CDBG_HIGH("%s: Mpo Composition Requested", __func__);
+                    cam_compose_jpeg_info_t *main_jpeg_node = NULL;
+                    cam_compose_jpeg_info_t *aux_jpeg_node = NULL;
+                    bool foundMatch = false;
+                    while (!gMuxer->m_MainJpegQ.isEmpty() &&
+                            !gMuxer->m_AuxJpegQ.isEmpty()) {
+                        main_jpeg_node = (cam_compose_jpeg_info_t *)
+                                gMuxer->m_MainJpegQ.dequeue();
+                        if (main_jpeg_node) {
+                            CDBG("%s: main_jpeg_node found frame idx %d"
+                                    "ptr %p buffer_ptr %p buffer_size %d",
+                                    __func__, main_jpeg_node->frame_idx,
+                                    main_jpeg_node,
+                                    main_jpeg_node->buffer->data,
+                                    main_jpeg_node->buffer->size);
+                            // find matching aux node in Aux Jpeg Queue
+                            aux_jpeg_node = (cam_compose_jpeg_info_t *) gMuxer->
+                                    m_AuxJpegQ.dequeue();
+                            if (aux_jpeg_node) {
+                                CDBG("%s: aux_jpeg_node found frame idx %d"
+                                        "ptr %p buffer_ptr %p buffer_size %d",
+                                        __func__, aux_jpeg_node->frame_idx,
+                                        aux_jpeg_node,
+                                        aux_jpeg_node->buffer->data,
+                                        aux_jpeg_node->buffer->size);
+                                foundMatch = true;
+                                // start MPO composition
+                                gMuxer->composeMpo(main_jpeg_node,
+                                        aux_jpeg_node);
+                            }
+                        }
+                        if (main_jpeg_node) {
+                            if ( main_jpeg_node->release_cb ) {
+                                main_jpeg_node->release_cb(
+                                        main_jpeg_node->release_data,
+                                        main_jpeg_node->release_cookie,
+                                        NO_ERROR);
+                            }
+                            free(main_jpeg_node);
+                        } else {
+                            CDBG_HIGH("%s: Mpo Match not found", __func__);
+                        }
+                        if (aux_jpeg_node) {
+                            if ( aux_jpeg_node->release_cb ) {
+                                aux_jpeg_node->release_cb(
+                                        aux_jpeg_node->release_data,
+                                        aux_jpeg_node->release_cookie,
+                                        NO_ERROR);
+                            }
+                            free(aux_jpeg_node);
+                        } else {
+                            CDBG_HIGH("%s: Mpo Match not found", __func__);
+                        }
+                    }
+                }
+            break;
+            }
+        case CAMERA_CMD_TYPE_EXIT:
+            CDBG_HIGH("%s : ComposeMpo thread exit", __func__);
+            running = 0;
+            break;
+        default:
+            break;
+        }
+    } while (running);
+    CDBG_HIGH("%s: X", __func__);
+    return NULL;
+}
+
+/*===========================================================================
+ * FUNCTION   : jpeg_data_callback
+ *
+ * DESCRIPTION: JPEG data callback for snapshot
  *
  * PARAMETERS :
  *   @msg_type : callback msg type
@@ -2004,26 +2210,35 @@ void QCameraMuxer::jpeg1_data_callback(int32_t msg_type,
  *   @index : index of the frame
  *   @metadata : metadata associated with the buffer
  *   @user : callback cookie returned back to the user
+ *   @frame_idx : frame index for matching frames
+ *   @release_cb : callback function for releasing the data memory
+ *   @release_cookie : cookie for the release callback function
+ *   @release_data :pointer indicating what needs to be released
  *
  * RETURN : none
  *==========================================================================*/
-void QCameraMuxer::jpeg2_data_callback(int32_t msg_type,
+void QCameraMuxer::jpeg_data_callback(int32_t msg_type,
            const camera_memory_t *data, unsigned int index,
-           camera_frame_metadata_t *metadata, void *user)
+           camera_frame_metadata_t *metadata, void *user,
+           uint32_t frame_idx, camera_release_callback release_cb,
+           void *release_cookie, void *release_data)
 {
-    CDBG_HIGH("%s: jpeg2 received: data %p size %d data ptr %p", __func__, data,
-            data->size, data->data);
+    CDBG_HIGH("%s: E", __func__);
     CHECK_MUXER();
 
     if(data != NULL) {
-        int rc = gMuxer->storeJpeg(CAM_TYPE_AUX, msg_type, data, index,
-            metadata, user);
+        CDBG_HIGH("%s: jpeg received: data %p size %d data ptr %p frameIdx %d",
+            __func__, data, data->size, data->data, frame_idx);
+        int rc = gMuxer->storeJpeg(((qcamera_physical_descriptor_t*)(user))->type,
+                msg_type, data, index, metadata, user, frame_idx, release_cb,
+                release_cookie, release_data);
         if(rc != NO_ERROR) {
             gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
         }
     } else {
         gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
     }
+    CDBG_HIGH("%s: X", __func__);
     return;
 }
 
@@ -2039,80 +2254,88 @@ void QCameraMuxer::jpeg2_data_callback(int32_t msg_type,
  *   @index : index of the frame
  *   @metadata : metadata associated with the buffer
  *   @user : callback cookie returned back to the user
+ *   @frame_idx : frame index for matching frames
+ *   @release_cb : callback function for releasing the data memory
+ *   @release_cookie : cookie for the release callback function
+ *   @release_data :pointer indicating what needs to be released
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
+int32_t QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
         int32_t msg_type, const camera_memory_t *data, unsigned int index,
-        camera_frame_metadata_t *metadata, void *user)
+        camera_frame_metadata_t *metadata, void *user,uint32_t frame_idx,
+        camera_release_callback release_cb, void *release_cookie,
+        void *release_data)
 {
-    CDBG_HIGH("%s: jpeg recieved: size %d data ptr %p", __func__, data->size,
-            data->data);
+    CDBG_HIGH("%s: E jpeg received: data %p size %d data ptr %p frameIdx %d",
+            __func__, data, data->size, data->data, frame_idx);
+
     CHECK_MUXER_ERROR();
 
-    pthread_mutex_lock(&m_JpegLock);
+    cam_compose_jpeg_info_t* pJpegFrame =
+            (cam_compose_jpeg_info_t*)malloc(sizeof(cam_compose_jpeg_info_t));
+    if (!pJpegFrame) {
+        ALOGE("%s: Allocation failed for MPO nodes", __func__);
+        return NO_MEMORY;
+    }
+    memset(pJpegFrame, 0, sizeof(*pJpegFrame));
 
+    pJpegFrame->msg_type = msg_type;
+    pJpegFrame->buffer = const_cast<camera_memory_t*>(data);
+    pJpegFrame->index = index;
+    pJpegFrame->metadata = metadata;
+    pJpegFrame->user = user;
+    pJpegFrame->valid = true;
+    pJpegFrame->frame_idx = frame_idx;
+    pJpegFrame->release_cb = release_cb;
+    pJpegFrame->release_cookie = release_cookie;
+    pJpegFrame->release_data = release_data;
     if(cam_type == CAM_TYPE_MAIN) {
-        m_relCamMainJpeg.msg_type = msg_type;
-        m_relCamMainJpeg.buffer = (camera_memory_t*)malloc(sizeof(camera_memory_t));
-        if(m_relCamMainJpeg.buffer != NULL) {
-            m_relCamMainJpeg.buffer->data = (uint8_t*)malloc(data->size);
-            if(m_relCamMainJpeg.buffer->data != NULL) {
-                memcpy((uint8_t*)(m_relCamMainJpeg.buffer->data),
-                        (uint8_t*)(data->data), data->size);
-                m_relCamMainJpeg.buffer->size = data->size;
-                m_relCamMainJpeg.buffer->handle = data->handle;
-                m_relCamMainJpeg.buffer->release = data->release;
-                m_relCamMainJpeg.index = index;
-                m_relCamMainJpeg.metadata = metadata;
-                m_relCamMainJpeg.user = user;
-                m_relCamMainJpeg.valid = true;
-                CDBG("%s: Jpeg1 valid true \n", __func__);
-            } else {
-                ALOGE("%s: Jpeg1Buffer Failed to allocate memory \n", __func__);
-                pthread_mutex_unlock(&m_JpegLock);
-                return NO_MEMORY;
+        if (m_MainJpegQ.enqueue((void *)pJpegFrame)) {
+            CDBG("%s:Main FrameIdx %d", __func__, pJpegFrame->frame_idx);
+            if (m_MainJpegQ.getCurrentSize() > 0) {
+                CDBG("%s: Trigger Compose", __func__);
+                m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
             }
         } else {
-            ALOGE("%s: Jpeg1Buffer Failed to allocate memory \n", __func__);
-            pthread_mutex_unlock(&m_JpegLock);
+            ALOGE("%s: Enqueue Failed for Main Jpeg Q", __func__);
+            if ( pJpegFrame->release_cb ) {
+                // release other buffer also here
+                pJpegFrame->release_cb(
+                        pJpegFrame->release_data,
+                        pJpegFrame->release_cookie,
+                        NO_ERROR);
+            }
+            free(pJpegFrame);
+            pJpegFrame = NULL;
             return NO_MEMORY;
         }
-    }else {
-        m_relCamAuxJpeg.msg_type = msg_type;
-        m_relCamAuxJpeg.buffer = (camera_memory_t*)malloc(sizeof(camera_memory_t));
-        if(m_relCamAuxJpeg.buffer != NULL) {
-            m_relCamAuxJpeg.buffer->data = (uint8_t*)malloc(data->size);
-            if(m_relCamAuxJpeg.buffer->data != NULL) {
-                memcpy((uint8_t*)(m_relCamAuxJpeg.buffer->data),
-                        (uint8_t*)(data->data), data->size);
-                m_relCamAuxJpeg.buffer->size = data->size;
-                m_relCamAuxJpeg.buffer->handle = data->handle;
-                m_relCamAuxJpeg.buffer->release = data->release;
-                m_relCamAuxJpeg.index = index;
-                m_relCamAuxJpeg.metadata = metadata;
-                m_relCamAuxJpeg.user = user;
-                m_relCamAuxJpeg.valid = true;
-                CDBG("%s: Jpeg2 valid true \n", __func__);
-            } else {
-                ALOGE("%s: Jpeg2Buffer Failed to allocate memory \n", __func__);
-                pthread_mutex_unlock(&m_JpegLock);
-                return NO_MEMORY;
+
+    } else {
+        if (m_AuxJpegQ.enqueue((void *)pJpegFrame)) {
+            CDBG("%s:Aux FrameIdx %d", __func__, pJpegFrame->frame_idx);
+            if (m_AuxJpegQ.getCurrentSize() > 0) {
+                CDBG("%s: Trigger Compose", __func__);
+                m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
             }
         } else {
-            ALOGE("%s: Jpeg2Buffer Failed to allocate memory \n", __func__);
-            pthread_mutex_unlock(&m_JpegLock);
+            ALOGE("%s: Enqueue Failed for Aux Jpeg Q", __func__);
+            if ( pJpegFrame->release_cb ) {
+                // release other buffer also here
+                pJpegFrame->release_cb(
+                        pJpegFrame->release_data,
+                        pJpegFrame->release_cookie,
+                        NO_ERROR);
+            }
+            free(pJpegFrame);
+            pJpegFrame = NULL;
             return NO_MEMORY;
         }
     }
+    CDBG_HIGH("%s: X", __func__);
 
-    if(m_relCamMainJpeg.valid && m_relCamAuxJpeg.valid) {
-        gMuxer->composeMpo();
-    }
-
-    pthread_mutex_unlock(&m_JpegLock);
     return NO_ERROR;
 }
 
