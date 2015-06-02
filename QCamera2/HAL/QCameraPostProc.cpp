@@ -761,6 +761,19 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
         return UNKNOWN_ERROR;
     }
 
+    mm_camera_buf_def_t *meta_frame = NULL;
+    for (uint32_t i = 0; i < frame->num_bufs; i++) {
+        // look through input superbuf
+        if (frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
+            meta_frame = frame->bufs[i];
+            break;
+        }
+    }
+    if (meta_frame != NULL) {
+        //Function to upadte metadata for frame based parameter
+        m_parent->updateMetadata((metadata_buffer_t *)meta_frame->buffer);
+    }
+
     if (m_parent->needReprocess()) {
         if ((!m_parent->isLongshotEnabled() &&
              !m_parent->m_stateMachine.isNonZSLCaptureRunning()) ||
@@ -796,20 +809,9 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
             pp_request_job = NULL;
             return NO_ERROR;
         }
-        if (m_parent->mParameters.isAdvCamFeaturesEnabled()) {
-            // find meta data frame
-            mm_camera_buf_def_t *meta_frame = NULL;
-            for (uint32_t i = 0; i < frame->num_bufs; i++) {
-                // look through input superbuf
-                if (frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
-                    meta_frame = frame->bufs[i];
-                    break;
-                }
-            }
-
-            if (meta_frame != NULL) {
-               m_InputMetadata.add(meta_frame);
-            }
+        if (m_parent->mParameters.isAdvCamFeaturesEnabled()
+                && (meta_frame != NULL)) {
+            m_InputMetadata.add(meta_frame);
         }
     } else if (m_parent->mParameters.isNV16PictureFormat() ||
         m_parent->mParameters.isNV21PictureFormat()) {
@@ -834,16 +836,6 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
 
         memset(jpeg_job, 0, sizeof(qcamera_jpeg_data_t));
         jpeg_job->src_frame = frame;
-
-        // find meta data frame
-        mm_camera_buf_def_t *meta_frame = NULL;
-        for (uint32_t i = 0; i < frame->num_bufs; i++) {
-            // look through input superbuf
-            if (frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
-                meta_frame = frame->bufs[i];
-                break;
-            }
-        }
 
         if (meta_frame != NULL) {
             // fill in meta data frame ptr
