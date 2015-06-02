@@ -481,6 +481,34 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
 }
 
 /*===========================================================================
+ * FUNCTION   : isUBWCEnabled
+ *
+ * DESCRIPTION: Function to get UBWC hardware support.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : TRUE -- UBWC format supported
+ *              FALSE -- UBWC is not supported.
+ *==========================================================================*/
+bool QCamera3Channel::isUBWCEnabled()
+{
+#ifdef UBWC_PRESENT
+    char value[PROPERTY_VALUE_MAX];
+    int disable = false;
+    bool ubwc_enabled = TRUE;
+
+    property_get("debug.gralloc.gfx_ubwc_disable", value, "0");
+    disable = atoi(value);
+    if (disable) {
+        ubwc_enabled = FALSE;
+    }
+    return ubwc_enabled;
+#else
+    return FALSE;
+#endif
+}
+
+/*===========================================================================
  * FUNCTION   : getStreamDefaultFormat
  *
  * DESCRIPTION: return default buffer format for the stream
@@ -496,8 +524,7 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
 
     switch (type) {
     case CAM_STREAM_TYPE_PREVIEW:
-#if UBWC_PRESENT
-        {
+        if (isUBWCEnabled()) {
             char prop[PROPERTY_VALUE_MAX];
             int pFormat;
             memset(prop, 0, sizeof(prop));
@@ -508,14 +535,12 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
             } else {
                 streamFormat = CAM_FORMAT_YUV_420_NV21;
             }
+        } else {
+            streamFormat = CAM_FORMAT_YUV_420_NV21;
         }
-#else
-        streamFormat = CAM_FORMAT_YUV_420_NV21;
-#endif
         break;
     case CAM_STREAM_TYPE_VIDEO:
-#if UBWC_PRESENT
-        {
+        if (isUBWCEnabled()) {
             char prop[PROPERTY_VALUE_MAX];
             int pFormat;
             memset(prop, 0, sizeof(prop));
@@ -526,12 +551,13 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
             } else {
                 streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
             }
-        }
-#elif VENUS_PRESENT
+        } else {
+#if VENUS_PRESENT
         streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
 #else
         streamFormat = CAM_FORMAT_YUV_420_NV12;
 #endif
+        }
         break;
     case CAM_STREAM_TYPE_SNAPSHOT:
         streamFormat = CAM_FORMAT_YUV_420_NV21;

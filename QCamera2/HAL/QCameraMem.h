@@ -206,10 +206,12 @@ public:
     virtual int getMatchBufIndex(const void *opaque, bool metadata) const;
     int allocateMeta(uint8_t buf_cnt);
     void deallocateMeta();
+    void setVideoInfo(int usage);
 
 private:
     camera_memory_t *mMetadata[MM_CAMERA_MAX_NUM_FRAMES];
     uint8_t mMetaBufCount;
+    int mUsage;
 };
 
 
