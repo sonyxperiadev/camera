@@ -1432,6 +1432,11 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
 {
     int32_t rc = NO_ERROR;
 
+    if (pMetaData == NULL) {
+        ALOGE("%s: Null Metadata buffer", __func__);
+        return rc;
+    }
+
     // Sharpness
     cam_edge_application_t edge_application;
     memset(&edge_application, 0x00, sizeof(cam_edge_application_t));
@@ -1834,9 +1839,6 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             ALOGE("%s: No memory for focus_pos_update qcamera_sm_internal_evt_payload_t", __func__);
         }
     }
-
-    //Function to upadte metadata for frame based parameter
-    pme->updateMetadata(pMetaData);
 
     stream->bufDone(frame->buf_idx);
     free(super_frame);
