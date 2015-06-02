@@ -320,7 +320,7 @@ int mm_jpeg_mpo_update_header(mm_jpeg_mpo_info_t *mpo_info)
   aux_start_addr = mpo_info->output_buff.buf_vaddr +
     mpo_info->primary_image.buf_filled_len;
 
-  for (i = 1; i < mpo_info->num_of_images; i++) {
+  for (i = 0; i < mpo_info->num_of_images - 1; i++) {
     //Go to MP Entry val for each image
     mp_entry_val_offset += MP_INDEX_ENTRY_VALUE_BYTES;
     current_offset = mp_entry_val_offset;
