@@ -97,6 +97,7 @@ public:
                 QCamera3Stream *stream, void *userdata);
     void dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
             cam_frame_len_offset_t offset, uint8_t name);
+    bool isUBWCEnabled();
     cam_format_t getStreamDefaultFormat(cam_stream_type_t type);
 
     void *mUserData;

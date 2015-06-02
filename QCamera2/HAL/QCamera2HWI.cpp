@@ -2208,7 +2208,19 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
             }
             CDBG_HIGH("%s: %s video buf allocated ", __func__,
                     (bCachedMem == 0) ? "Uncached" : "Cached" );
-            mem = new QCameraVideoMemory(mGetMemory, bCachedMem);
+            QCameraVideoMemory *videoMemory =
+                    new QCameraVideoMemory(mGetMemory, bCachedMem);
+
+            int usage = 0;
+            if(mParameters.isUBWCEnabled()) {
+                cam_format_t fmt;
+                mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
+                if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
+                    usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
+                    videoMemory->setVideoInfo(usage);
+                }
+            }
+            mem = videoMemory;
         }
         break;
     case CAM_STREAM_TYPE_CALLBACK:
@@ -2649,21 +2661,21 @@ void QCamera2HardwareInterface::setJpegCallBacks(jpeg_data_callback jpegCb,
  *==========================================================================*/
 int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
 {
-#if UBWC_PRESENT
-    int32_t rc = NO_ERROR;
+    if (mParameters.isUBWCEnabled()) {
+        int32_t rc = NO_ERROR;
 
-    /*Need Special CALLBACK stream incase application requesting for
-       Preview callback  in UBWC case*/
-    if (!(msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
-            (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
-        if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
-            rc = startChannel(QCAMERA_CH_TYPE_CALLBACK);
-            if (rc != NO_ERROR) {
-                ALOGE("%s : START Callback Channel failed", __func__);
+        /*Need Special CALLBACK stream incase application requesting for
+              Preview callback  in UBWC case*/
+        if (!(msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
+                (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
+            if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
+                rc = startChannel(QCAMERA_CH_TYPE_CALLBACK);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s : START Callback Channel failed", __func__);
+                }
             }
         }
     }
-#endif
 
     mMsgEnabled |= msg_type;
     CDBG_HIGH("%s (0x%x) : mMsgEnabled = 0x%x", __func__, msg_type , mMsgEnabled );
@@ -2684,20 +2696,20 @@ int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
  *==========================================================================*/
 int QCamera2HardwareInterface::disableMsgType(int32_t msg_type)
 {
-#if UBWC_PRESENT
-    int32_t rc = NO_ERROR;
+    if (mParameters.isUBWCEnabled()) {
+        int32_t rc = NO_ERROR;
 
-    /*STOP CALLBACK STREAM*/
-    if ((msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
-            (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
-        if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
-            rc = stopChannel(QCAMERA_CH_TYPE_CALLBACK);
-            if (rc != NO_ERROR) {
-                ALOGE("%s : STOP Callback Channel failed", __func__);
+        /*STOP CALLBACK STREAM*/
+        if ((msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
+                (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
+            if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
+                rc = stopChannel(QCAMERA_CH_TYPE_CALLBACK);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s : STOP Callback Channel failed", __func__);
+                }
             }
         }
     }
-#endif
 
     mMsgEnabled &= ~msg_type;
     CDBG_HIGH("%s (0x%x) : mMsgEnabled = 0x%x", __func__, msg_type , mMsgEnabled );

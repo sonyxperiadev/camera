@@ -1736,26 +1736,24 @@ int32_t QCameraParameters::setPreviewFormat(const QCameraParameters& params)
     int32_t previewFormat = lookupAttr(PREVIEW_FORMATS_MAP,
             PARAM_MAP_SIZE(PREVIEW_FORMATS_MAP), str);
     if (previewFormat != NAME_NOT_FOUND) {
-#if UBWC_PRESENT
-        char prop[PROPERTY_VALUE_MAX];
-        int pFormat;
-        memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.preview.ubwc", prop, "1");
+        if (isUBWCEnabled()) {
+            char prop[PROPERTY_VALUE_MAX];
+            int pFormat;
+            memset(prop, 0, sizeof(prop));
+            property_get("persist.camera.preview.ubwc", prop, "1");
 
-        pFormat = atoi(prop);
-        if (pFormat == 1) {
-            mPreviewFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
-            mAppPreviewFormat = (cam_format_t)previewFormat;
+            pFormat = atoi(prop);
+            if (pFormat == 1) {
+                mPreviewFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
+                mAppPreviewFormat = (cam_format_t)previewFormat;
+            } else {
+                mPreviewFormat = (cam_format_t)previewFormat;
+                mAppPreviewFormat = (cam_format_t)previewFormat;
+            }
         } else {
             mPreviewFormat = (cam_format_t)previewFormat;
             mAppPreviewFormat = (cam_format_t)previewFormat;
         }
-#else
-        {
-            mPreviewFormat = (cam_format_t)previewFormat;
-            mAppPreviewFormat = (cam_format_t)previewFormat;
-        }
-#endif
         CameraParameters::setPreviewFormat(str);
         CDBG_HIGH("%s: format %d\n", __func__, mPreviewFormat);
         return NO_ERROR;
@@ -9153,8 +9151,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
-#if UBWC_PRESENT
-        {
+        if (isUBWCEnabled()) {
             char prop[PROPERTY_VALUE_MAX];
             int pFormat;
             memset(prop, 0, sizeof(prop));
@@ -9165,12 +9162,13 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             } else {
                 format = CAM_FORMAT_YUV_420_NV21_VENUS;
             }
-        }
-#elif VENUS_PRESENT
-        format = CAM_FORMAT_YUV_420_NV21_VENUS;
+        } else {
+#if VENUS_PRESENT
+            format = CAM_FORMAT_YUV_420_NV21_VENUS;
 #else
-        format = CAM_FORMAT_YUV_420_NV21;
+            format = CAM_FORMAT_YUV_420_NV21;
 #endif
+        }
         break;
     case CAM_STREAM_TYPE_RAW:
         if (isRdiMode()) {
@@ -9390,11 +9388,9 @@ int QCameraParameters::getPreviewHalPixelFormat()
     case CAM_FORMAT_YUV_420_NV21_VENUS:
         halPixelFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP_VENUS;
         break;
-#ifdef UBWC_PRESENT
     case CAM_FORMAT_YUV_420_NV12_UBWC:
         halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS_UBWC;
         break;
-#endif
     case CAM_FORMAT_YUV_422_NV16:
     case CAM_FORMAT_YUV_422_NV61:
     default:
@@ -12413,7 +12409,21 @@ void QCameraParameters::setReprocCount()
 bool QCameraParameters::isUBWCEnabled()
 {
 #ifdef UBWC_PRESENT
-    return TRUE;
+    char value[PROPERTY_VALUE_MAX];
+    int disable = false;
+    bool ubwc_enabled = TRUE;
+
+    property_get("debug.gralloc.gfx_ubwc_disable", value, "0");
+    disable = atoi(value);
+    if (disable) {
+        ubwc_enabled = FALSE;
+    }
+
+    //Disable UBWC if it is YUV sensor
+    if (m_pCapability->sensor_type.sens_type == CAM_SENSOR_YUV) {
+        ubwc_enabled = FALSE;
+    }
+    return ubwc_enabled;
 #else
     return FALSE;
 #endif

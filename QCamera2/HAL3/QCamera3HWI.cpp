@@ -1471,16 +1471,15 @@ int QCamera3HardwareInterface::configureStreams(
                 }
             }
 
-#if UBWC_PRESENT
-            {
-                QCamera3Channel *channel = (QCamera3Channel*) newStream->priv;
+            QCamera3Channel *channel = (QCamera3Channel*) newStream->priv;
+            if (channel != NULL && channel->isUBWCEnabled()) {
                 cam_format_t fmt =
                         channel->getStreamDefaultFormat(mStreamConfigInfo.type[i]);
                 if(fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
                     newStream->usage |= GRALLOC_USAGE_PRIVATE_ALLOC_UBWC;
                 }
             }
-#endif
+
             for (List<stream_info_t*>::iterator it=mStreamInfo.begin();
                     it != mStreamInfo.end(); it++) {
                 if ((*it)->stream == newStream) {
