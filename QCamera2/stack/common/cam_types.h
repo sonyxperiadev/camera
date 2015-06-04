@@ -1850,7 +1850,9 @@ typedef enum {
     CAM_INTF_PARM_FLIP,
     /*Frame divert info from ISP*/
     CAM_INTF_BUF_DIVERT_INFO, /* 190 */
-    CAM_INTF_PARM_MAX /* 191 */
+    /* Use AV timer */
+    CAM_INTF_META_USE_AV_TIMER,
+    CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
 typedef struct {
