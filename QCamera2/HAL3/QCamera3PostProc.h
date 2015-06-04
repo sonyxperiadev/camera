@@ -44,6 +44,7 @@ namespace qcamera {
 
 class QCamera3Exif;
 class QCamera3Channel;
+class QCamera3ProcessingChannel;
 class QCamera3PicChannel;
 class QCamera3ReprocessChannel;
 class QCamera3Stream;
@@ -100,16 +101,16 @@ private:
 class QCamera3PostProcessor
 {
 public:
-    QCamera3PostProcessor(QCamera3PicChannel *ch_ctrl);
+    QCamera3PostProcessor(QCamera3ProcessingChannel *ch_ctrl);
     virtual ~QCamera3PostProcessor();
 
     int32_t init(QCamera3Memory *mMemory,
-                 jpeg_encode_callback_t jpeg_cb,
-                 uint32_t postprocess_mask,
-                 void *user_data);
+            uint32_t postprocess_mask);
+    int32_t initJpeg(jpeg_encode_callback_t jpeg_cb,
+            cam_dimension_t *m_max_pic_dim,
+            void *user_data);
     int32_t deinit();
-    int32_t start(const reprocess_config_t &config,
-            metadata_buffer_t *metadata);
+    int32_t start(const reprocess_config_t &config);
     int32_t stop();
     int32_t flush();
     int32_t processData(qcamera_fwk_input_pp_data_t *frame);
@@ -132,6 +133,8 @@ private:
     int32_t getFWKJpegEncodeConfig(mm_jpeg_encode_params_t& encode_parm,
             qcamera_fwk_input_pp_data_t *frame,
             jpeg_settings_t *jpeg_settings);
+    QCamera3Exif * getExifData(metadata_buffer_t *metadata,
+            jpeg_settings_t *jpeg_settings);
     int32_t encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_data,
                        uint8_t &needNewSess);
     int32_t encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_data,
@@ -148,7 +151,7 @@ private:
     static void *dataProcessRoutine(void *data);
 
 private:
-    QCamera3PicChannel         *m_parent;
+    QCamera3ProcessingChannel  *m_parent;
     jpeg_encode_callback_t     mJpegCB;
     void *                     mJpegUserData;
     mm_jpeg_ops_t              mJpegHandle;
@@ -157,7 +160,7 @@ private:
     uint32_t                   mPostProcMask;
 
     uint32_t                   m_bThumbnailNeeded;
-    QCamera3Memory             *mJpegMem;
+    QCamera3Memory             *mOutputMem;
     QCamera3ReprocessChannel *  m_pReprocChannel;
 
     QCameraQueue m_inputPPQ;            // input queue for postproc

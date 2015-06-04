@@ -1514,11 +1514,11 @@ int QCamera3HardwareInterface::configureStreams(
             //New stream, construct channel
             switch (newStream->stream_type) {
             case CAMERA3_STREAM_INPUT:
-                newStream->usage = GRALLOC_USAGE_HW_CAMERA_READ;
+                newStream->usage |= GRALLOC_USAGE_HW_CAMERA_READ;
                 newStream->usage |= GRALLOC_USAGE_HW_CAMERA_WRITE;//WR for inplace algo's
                 break;
             case CAMERA3_STREAM_BIDIRECTIONAL:
-                newStream->usage = GRALLOC_USAGE_HW_CAMERA_READ |
+                newStream->usage |= GRALLOC_USAGE_HW_CAMERA_READ |
                     GRALLOC_USAGE_HW_CAMERA_WRITE;
                 break;
             case CAMERA3_STREAM_OUTPUT:
@@ -1532,7 +1532,7 @@ int QCamera3HardwareInterface::configureStreams(
                 else if (newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL)
                     CDBG("%s: ZSL usage flag skipping", __func__);
                 else
-                    newStream->usage = GRALLOC_USAGE_HW_CAMERA_WRITE;
+                    newStream->usage |= GRALLOC_USAGE_HW_CAMERA_WRITE;
                 break;
             default:
                 ALOGE("%s: Invalid stream_type %d", __func__, newStream->stream_type);
@@ -1564,6 +1564,7 @@ int QCamera3HardwareInterface::configureStreams(
                             newStream,
                             (cam_stream_type_t) mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                            mMetadataChannel,
                             numBuffers);
                     if (channel == NULL) {
                         ALOGE("%s: allocation of channel failed", __func__);
@@ -1581,6 +1582,7 @@ int QCamera3HardwareInterface::configureStreams(
                             mCameraHandle->ops, captureResultCb,
                             &gCamCapability[mCameraId]->padding_info,
                             this, newStream, CAM_QCOM_FEATURE_NONE,
+                            mMetadataChannel,
                             (newStream->format == HAL_PIXEL_FORMAT_RAW16));
                     if (mRawChannel == NULL) {
                         ALOGE("%s: allocation of raw channel failed", __func__);
@@ -8481,14 +8483,13 @@ bool QCamera3HardwareInterface::needJpegRotation()
  * RETURN     : Ptr to the newly created channel obj. NULL if failed.
  *==========================================================================*/
 QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
-        const reprocess_config_t &config, QCamera3PicChannel *picChHandle,
-        metadata_buffer_t *metadata)
+        const reprocess_config_t &config, QCamera3ProcessingChannel *inputChHandle)
 {
     int32_t rc = NO_ERROR;
     QCamera3ReprocessChannel *pChannel = NULL;
 
     pChannel = new QCamera3ReprocessChannel(mCameraHandle->camera_handle,
-            mCameraHandle->ops, NULL, config.padding, CAM_QCOM_FEATURE_NONE, this, picChHandle);
+            mCameraHandle->ops, NULL, config.padding, CAM_QCOM_FEATURE_NONE, this, inputChHandle);
     if (NULL == pChannel) {
         ALOGE("%s: no mem for reprocess channel", __func__);
         return NULL;

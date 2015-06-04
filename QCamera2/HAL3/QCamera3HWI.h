@@ -175,7 +175,7 @@ public:
     int initParameters();
     void deinitParameters();
     QCamera3ReprocessChannel *addOfflineReprocChannel(const reprocess_config_t &config,
-            QCamera3PicChannel *picChHandle, metadata_buffer_t *metadata);
+            QCamera3ProcessingChannel *inputChHandle);
     bool needRotationReprocess();
     bool needReprocess(uint32_t postprocess_mask);
     bool needJpegRotation();
