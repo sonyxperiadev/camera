@@ -12272,20 +12272,35 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
          feature_mask |= CAM_QCOM_FEATURE_CDS;
     }
 
-    // enable DCRF feature mask on analysis stream in case of dual camera
-    if ((m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) &&
-            (CAM_STREAM_TYPE_ANALYSIS == stream_type)) {
-        feature_mask |= CAM_QCOM_FEATURE_DCRF;
-    } else {
-        feature_mask &= ~CAM_QCOM_FEATURE_DCRF;
-    }
-
     //Rotation could also have an effect on pp feature mask
     cam_pp_feature_config_t config;
     cam_dimension_t dim;
     memset(&config, 0, sizeof(cam_pp_feature_config_t));
     getStreamRotation(stream_type, config, dim);
     feature_mask |= config.feature_mask;
+
+    // Dual Camera scenarios
+    // all feature masks are disabled for preview and analysis streams
+    // for aux session
+    // all required feature masks for aux session preview and analysis streams need
+    // to be enabled explicitly here
+    if (m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        if (((CAM_STREAM_TYPE_ANALYSIS == stream_type) ||
+                (CAM_STREAM_TYPE_PREVIEW == stream_type)) &&
+                (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY)) {
+            CDBG_HIGH("%s: Disabling all pp feature masks for aux preview and "
+                    "analysis streams", __func__);
+            feature_mask = 0;
+        }
+
+        // all feature masks need to be enabled here
+        // enable DCRF feature mask on analysis stream in case of dual camera
+        if (CAM_STREAM_TYPE_ANALYSIS == stream_type) {
+            feature_mask |= CAM_QCOM_FEATURE_DCRF;
+        } else {
+            feature_mask &= ~CAM_QCOM_FEATURE_DCRF;
+        }
+    }
 
     // Store stream feature mask
     setStreamPpMask(stream_type, feature_mask);
