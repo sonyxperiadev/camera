@@ -1355,9 +1355,21 @@ int32_t QCameraParameters::setPreviewSize(const QCameraParameters& params)
         }
     }
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
-        // Set the default preview size for secondary camera
-        width = m_pCapability->preview_sizes_tbl[0].width;
-        height = m_pCapability->preview_sizes_tbl[0].height;
+        char prop[PROPERTY_VALUE_MAX];
+        // set prop to configure aux preview size
+        property_get("persist.camera.aux.preview.size", prop, "0");
+        parse_pair(prop, &width, &height, 'x', NULL);
+        bool foundMatch = false;
+        for (size_t i = 0; i < m_pCapability->preview_sizes_tbl_cnt; ++i) {
+            if (width ==  m_pCapability->preview_sizes_tbl[i].width &&
+                    height ==  m_pCapability->preview_sizes_tbl[i].height) {
+               foundMatch = true;
+            }
+        }
+        if (!foundMatch) {
+            width = m_pCapability->preview_sizes_tbl[0].width;
+            height = m_pCapability->preview_sizes_tbl[0].height;
+        }
         // check if need to restart preview in case of preview size change
         if (width != old_width || height != old_height) {
             m_bNeedRestart = true;
@@ -1424,9 +1436,21 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
         }
     }
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
-        // Set the default preview size for secondary camera
-        width = m_pCapability->picture_sizes_tbl[0].width;
-        height = m_pCapability->picture_sizes_tbl[0].height;
+        char prop[PROPERTY_VALUE_MAX];
+        // set prop to configure aux preview size
+        property_get("persist.camera.aux.picture.size", prop, "0");
+        parse_pair(prop, &width, &height, 'x', NULL);
+        bool foundMatch = false;
+        for (size_t i = 0; i < m_pCapability->picture_sizes_tbl_cnt; ++i) {
+            if (width ==  m_pCapability->picture_sizes_tbl[i].width &&
+                    height ==  m_pCapability->picture_sizes_tbl[i].height) {
+               foundMatch = true;
+            }
+        }
+        if (!foundMatch) {
+            width = m_pCapability->picture_sizes_tbl[0].width;
+            height = m_pCapability->picture_sizes_tbl[0].height;
+        }
         // check if need to restart preview in case of preview size change
         if (width != old_width || height != old_height) {
             m_bNeedRestart = true;
