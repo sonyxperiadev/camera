@@ -4915,11 +4915,11 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
         if (!mActiveAF) {
             break;
         }
-        // If the HAL focus mode is AUTO and AF focus mode is INFINITY, send event to app
-        if ((focusMode == CAM_FOCUS_MODE_AUTO) &&
-                (focus_data.focus_mode == CAM_FOCUS_MODE_INFINITY) &&
+        // If the HAL focus mode is different from AF INFINITY focus mode, send event to app
+        if ((focus_data.focus_mode == CAM_FOCUS_MODE_INFINITY) &&
                 (focus_data.focus_state == CAM_AF_STATE_INACTIVE)) {
             ret = sendEvtNotify(CAMERA_MSG_FOCUS, true, 0);
+            mActiveAF = false; // reset the mActiveAF in this special case
             break;
         }
 
@@ -4960,11 +4960,11 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
     case CAM_FOCUS_MODE_CONTINOUS_VIDEO:
     case CAM_FOCUS_MODE_CONTINOUS_PICTURE:
 
-        // If the HAL focus mode is AUTO and AF focus mode is INFINITY, send event to app
-        if ((focusMode == CAM_FOCUS_MODE_CONTINOUS_PICTURE) &&
-                (focus_data.focus_mode == CAM_FOCUS_MODE_INFINITY) &&
+        // If the HAL focus mode is different from AF INFINITY focus mode, send event to app
+        if ((focus_data.focus_mode == CAM_FOCUS_MODE_INFINITY) &&
                 (focus_data.focus_state == CAM_AF_STATE_INACTIVE)) {
             ret = sendEvtNotify(CAMERA_MSG_FOCUS, false, 0);
+            mActiveAF = false; // reset the mActiveAF in this special case
             break;
         }
 
