@@ -600,6 +600,7 @@ public:
     void setTouchIndexAf(int x, int y);
     void getTouchIndexAf(int *x, int *y);
 
+    int32_t allocate();
     int32_t init(cam_capability_t *,
                  mm_camera_vtbl_t *,
                  QCameraAdjustFPS *,
