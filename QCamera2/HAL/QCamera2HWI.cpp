@@ -1229,6 +1229,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mRawdataJob(0),
       mMetadataAllocJob(0),
       mInitPProcJob(0),
+      mParamAllocJob(0),
+      mParamInitJob(0),
       mOutputCount(0),
       mInputCount(0),
       mAdvancedCaptureConfigured(false),
@@ -1404,6 +1406,11 @@ int QCamera2HardwareInterface::openCamera()
         return ALREADY_EXISTS;
     }
 
+    // alloc param buffer
+    DeferWorkArgs args;
+    memset(&args, 0, sizeof(args));
+    mParamAllocJob = queueDeferredWork(CMD_DEF_PARAM_ALLOC, args);
+
     if (gCamCapability[mCameraId] != NULL) {
         // allocate metadata buffers
         DeferWorkArgs args;
@@ -1453,41 +1460,15 @@ int QCamera2HardwareInterface::openCamera()
                 (void *) this);
     }
 
-    // Now PostProc need calibration data as initialization time for jpeg_open
-    // And calibration data is a get param for now, so params needs to be initialized
-    // before postproc init
-    rc = mParameters.init(gCamCapability[mCameraId], mCameraHandle, this, this);
-    if (rc != 0) {
-        ALOGE("Init Parameters failed");
-        mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
-        mCameraHandle = NULL;
-        return UNKNOWN_ERROR;
-    }
-
-    rc = mParameters.getRelatedCamCalibration(&mRelCamCalibData);
-    CDBG("%s: Dumping Calibration Data Version Id %d rc %d", __func__,
-            mRelCamCalibData.calibration_format_version, rc);
-    if (rc != 0) {
-        ALOGE("getRelatedCamCalibration failed");
-        mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
-        mCameraHandle = NULL;
-        return UNKNOWN_ERROR;
-    } else {
-        m_bRelCamCalibValid = true;
-    }
-
-    mParameters.setMinPpMask(gCamCapability[mCameraId]->qcom_supported_feature_mask);
-
-    mExifParams.debug_params =
-            (mm_jpeg_debug_exif_params_t *) malloc (sizeof(mm_jpeg_debug_exif_params_t));
-    if (mExifParams.debug_params) {
-        memset(mExifParams.debug_params, 0, sizeof(mm_jpeg_debug_exif_params_t));
-    } else {
-        ALOGE("%s: Out of Memory. Allocation failed for 3A debug exif params", __func__);
-        mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
-        mCameraHandle = NULL;
-        return NO_MEMORY;
-    }
+    // Init params in the background
+    // 1. It's safe to queue init job, even if alloc job is not yet complete.
+    // It will be queued to the same thread, so the alloc is guaranteed to
+    // finish first.
+    // 2. However, it is not safe to begin param init until after camera is
+    // open. That is why we wait until after camera open completes to schedule
+    // this task.
+    memset(&args, 0, sizeof(args));
+    mParamInitJob = queueDeferredWork(CMD_DEF_PARAM_INIT, args);
 
     mCameraOpened = true;
 
@@ -1789,7 +1770,7 @@ int QCamera2HardwareInterface::initCapabilities(uint32_t cameraId,
     gCamCapability[cameraId] =
             (cam_capability_t *)malloc(sizeof(cam_capability_t));
 
-     if (!gCamCapability[cameraId]) {
+    if (!gCamCapability[cameraId]) {
         ALOGE("%s: out of memory", __func__);
         goto query_failed;
     }
@@ -2855,6 +2836,7 @@ int QCamera2HardwareInterface::startPreview()
     ATRACE_CALL();
     int32_t rc = NO_ERROR;
     CDBG_HIGH("%s: E", __func__);
+    waitDeferredWork(mParamInitJob);
     updateThermalLevel((void *)&mThermalLevel);
     // start preview stream
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
@@ -4595,6 +4577,8 @@ char* QCamera2HardwareInterface::getParameters()
 {
     char* strParams = NULL;
     String8 str;
+
+    waitDeferredWork(mParamInitJob);
 
     int cur_width, cur_height;
     pthread_mutex_lock(&m_parm_lock);
@@ -7764,6 +7748,8 @@ int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
     enum msm_vfe_frame_skip_pattern skipPattern;
     qcamera_thermal_level_enum_t level = *(qcamera_thermal_level_enum_t *)thermal_level;
 
+    waitDeferredWork(mParamInitJob);
+
     pthread_mutex_lock(&m_parm_lock);
 
     if (!mCameraOpened) {
@@ -7806,6 +7792,9 @@ int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
 int QCamera2HardwareInterface::updateParameters(const char *parms, bool &needRestart)
 {
     int rc = NO_ERROR;
+
+    waitDeferredWork(mParamInitJob);
+
     pthread_mutex_lock(&m_parm_lock);
     String8 str = String8(parms);
     QCameraParameters param(str);
@@ -8574,6 +8563,61 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         }
                     }
                     break;
+                case CMD_DEF_PARAM_ALLOC:
+                    {
+                        pme->mParameters.allocate();
+                    }
+                    break;
+                case CMD_DEF_PARAM_INIT:
+                    {
+                        int32_t rc = NO_ERROR;
+                        uint32_t camId = pme->mCameraId;
+                        cam_capability_t * cap = gCamCapability[camId];
+
+                        if (pme->mCameraHandle == NULL) {
+                            ALOGE("%s: Camera handle is null", __func__);
+                            break;
+                        }
+
+                        // Now PostProc need calibration data as initialization
+                        // time for jpeg_open and calibration data is a
+                        // get param for now, so params needs to be initialized
+                        // before postproc init
+                        pme->mParameters.init(cap,
+                                pme->mCameraHandle,
+                                pme,
+                                pme);
+                        rc = pme->mParameters.getRelatedCamCalibration(
+                            &pme->mRelCamCalibData);
+                        CDBG("%s: Dumping Calibration Data Version Id %f rc %d",
+                                __func__,
+                                pme->mRelCamCalibData.calibration_format_version,
+                                rc);
+                        if (rc != 0) {
+                            ALOGE("getRelatedCamCalibration failed");
+                            pme->mCameraHandle->ops->close_camera(
+                                pme->mCameraHandle->camera_handle);
+                            pme->mCameraHandle = NULL;
+                            break;
+                        }
+                        pme->mParameters.setMinPpMask(
+                            cap->qcom_supported_feature_mask);
+
+                        pme->mExifParams.debug_params =
+                                (mm_jpeg_debug_exif_params_t *)
+                                malloc(sizeof(mm_jpeg_debug_exif_params_t));
+                        if (!pme->mExifParams.debug_params) {
+                            ALOGE("%s: Out of Memory. Allocation failed for "
+                                    "3A debug exif params", __func__);
+                            pme->mCameraHandle->ops->close_camera(
+                                pme->mCameraHandle->camera_handle);
+                            pme->mCameraHandle = NULL;
+                            break;
+                        }
+                        memset(pme->mExifParams.debug_params, 0,
+                                sizeof(mm_jpeg_debug_exif_params_t));
+                    }
+                    break;
                 default:
                     ALOGE("%s[%d]:  Incorrect command : %d",
                             __func__,
@@ -8750,7 +8794,7 @@ int32_t QCamera2HardwareInterface::getJpegHandleInfo(mm_jpeg_ops_t *ops,
  
     waitDeferredWork(mInitPProcJob);
 
-   // Copy JPEG ops if present
+    // Copy JPEG ops if present
     if (ops && mpo_ops && pJpegClientHandle) {
         memcpy(ops, &mJpegHandle, sizeof(mm_jpeg_ops_t));
         memcpy(mpo_ops, &mJpegMpoHandle, sizeof(mm_jpeg_mpo_ops_t));

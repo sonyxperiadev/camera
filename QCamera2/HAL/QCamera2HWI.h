@@ -651,6 +651,8 @@ private:
         CMD_DEF_PPROC_INIT,
         CMD_DEF_METADATA_ALLOC,
         CMD_DEF_CREATE_JPEG_SESSION,
+        CMD_DEF_PARAM_ALLOC,
+        CMD_DEF_PARAM_INIT,
         CMD_DEF_MAX
     };
 
@@ -713,6 +715,8 @@ private:
     uint32_t mRawdataJob;
     uint32_t mMetadataAllocJob;
     uint32_t mInitPProcJob;
+    uint32_t mParamAllocJob;
+    uint32_t mParamInitJob;
     uint32_t mOutputCount;
     uint32_t mInputCount;
     bool mAdvancedCaptureConfigured;
