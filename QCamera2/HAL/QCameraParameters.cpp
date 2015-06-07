@@ -5669,6 +5669,39 @@ int32_t QCameraParameters::initDefaultParameters()
 }
 
 /*===========================================================================
+ * FUNCTION   : allocate
+ *
+ * DESCRIPTION: Allocate buffer memory for parameter obj (if necessary)
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::allocate()
+{
+    int32_t rc = NO_ERROR;
+
+    if (m_pParamHeap != NULL) {
+        return rc;
+    }
+
+    //Allocate Set Param Buffer
+    m_pParamHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
+    if (m_pParamHeap == NULL) {
+        return NO_MEMORY;
+    }
+
+    rc = m_pParamHeap->allocate(1, sizeof(parm_buffer_t), NON_SECURE);
+    if(rc != OK) {
+        rc = NO_MEMORY;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : init
  *
  * DESCRIPTION: initialize parameter obj
@@ -5693,13 +5726,10 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     m_AdjustFPS = adjustFPS;
     m_pTorch = torch;
 
-    //Allocate Set Param Buffer
-    m_pParamHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
-    rc = m_pParamHeap->allocate(1, sizeof(parm_buffer_t), NON_SECURE);
-    if(rc != OK) {
-        rc = NO_MEMORY;
-        ALOGE("Failed to allocate SETPARM Heap memory");
-        goto TRANS_INIT_ERROR1;
+    if (m_pParamHeap == NULL) {
+        ALOGE("%s: Parameter buffers have not been allocated", __func__);
+        rc = UNKNOWN_ERROR;
+        goto TRANS_INIT_DONE;
     }
 
     //Map memory for parameters buffer
