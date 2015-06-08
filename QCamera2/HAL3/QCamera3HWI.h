@@ -55,6 +55,11 @@ extern "C" {
 #endif //#ifdef CDBG_HIGH
 #define CDBG_HIGH(fmt, args...) ALOGD_IF(gCamHal3LogLevel >= 1, fmt, ##args)
 
+#ifdef CDBG_FATAL_IF
+#undef CDBG_FATAL_IF
+#endif //#ifdef CDBG_FATAL_IF
+#define CDBG_FATAL_IF(cond, ...) LOG_ALWAYS_FATAL_IF(cond, ## __VA_ARGS__)
+
 using namespace android;
 
 namespace qcamera {
@@ -266,6 +271,7 @@ private:
     bool m_bEisSupportedSize;
     bool m_bEisEnable;
     uint8_t m_MobicatMask;
+    int8_t  m_overrideAppFaceDetection;
 
     /* Data structure to store pending request */
     typedef struct {
