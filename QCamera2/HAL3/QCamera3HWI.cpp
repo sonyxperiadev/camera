@@ -575,7 +575,7 @@ int QCamera3HardwareInterface::openCamera()
 {
     int rc = 0;
 
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     if (mCameraHandle) {
         ALOGE("Failure: Camera already opened");
         return ALREADY_EXISTS;
@@ -634,7 +634,7 @@ int QCamera3HardwareInterface::openCamera()
  *==========================================================================*/
 int QCamera3HardwareInterface::closeCamera()
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     int rc = NO_ERROR;
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
@@ -2882,6 +2882,9 @@ int QCamera3HardwareInterface::processCaptureRequest(
         streamID.num_streams++;
     }
 
+    if (blob_request) {
+        KPI_ATRACE_INT("SNAPSHOT", 1);
+    }
     if (blob_request && mRawDumpChannel) {
         CDBG("%s: Trigger Raw based on blob request if Raw dump is enabled", __func__);
         streamID.streamID[streamID.num_streams] =
@@ -3167,7 +3170,7 @@ void QCamera3HardwareInterface::dump(int fd)
  *==========================================================================*/
 int QCamera3HardwareInterface::flush()
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     unsigned int frameNum = 0;
     camera3_capture_result_t result;
     camera3_stream_buffer_t *pStream_Buf = NULL;
