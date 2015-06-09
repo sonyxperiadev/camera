@@ -123,7 +123,6 @@ const QCamera3HardwareInterface::QCameraMap<
 const QCamera3HardwareInterface::QCameraMap<
         camera_metadata_enum_android_control_scene_mode_t,
         cam_scene_mode_type> QCamera3HardwareInterface::SCENE_MODES_MAP[] = {
-    { ANDROID_CONTROL_SCENE_MODE_DISABLED,       CAM_SCENE_MODE_OFF},
     { ANDROID_CONTROL_SCENE_MODE_FACE_PRIORITY,  CAM_SCENE_MODE_FACE_PRIORITY },
     { ANDROID_CONTROL_SCENE_MODE_ACTION,         CAM_SCENE_MODE_ACTION },
     { ANDROID_CONTROL_SCENE_MODE_PORTRAIT,       CAM_SCENE_MODE_PORTRAIT },
@@ -4995,12 +4994,16 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     count = CAM_SCENE_MODE_MAX;
     count = MIN(gCamCapability[cameraId]->supported_scene_modes_cnt, count);
     for (size_t i = 0; i < count; i++) {
-        int val = lookupFwkName(SCENE_MODES_MAP, METADATA_MAP_SIZE(SCENE_MODES_MAP),
-                gCamCapability[cameraId]->supported_scene_modes[i]);
-        if (NAME_NOT_FOUND != val) {
-            avail_scene_modes[supported_scene_modes_cnt] = (uint8_t)val;
-            supported_indexes[supported_scene_modes_cnt] = (uint8_t)i;
-            supported_scene_modes_cnt++;
+        if (gCamCapability[cameraId]->supported_scene_modes[i] !=
+                CAM_SCENE_MODE_OFF) {
+            int val = lookupFwkName(SCENE_MODES_MAP,
+                    METADATA_MAP_SIZE(SCENE_MODES_MAP),
+                    gCamCapability[cameraId]->supported_scene_modes[i]);
+            if (NAME_NOT_FOUND != val) {
+                avail_scene_modes[supported_scene_modes_cnt] = (uint8_t)val;
+                supported_indexes[supported_scene_modes_cnt] = (uint8_t)i;
+                supported_scene_modes_cnt++;
+            }
         }
     }
     uint8_t scene_mode_overrides[(CAM_SCENE_MODE_MAX +
@@ -5022,6 +5025,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         scene_mode_overrides[(3 * supported_scene_modes_cnt) + 2] =
                 ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO;
         supported_scene_modes_cnt++;
+    }
+
+    if (supported_scene_modes_cnt == 0) {
+        supported_scene_modes_cnt = 1;
+        avail_scene_modes[0] = ANDROID_CONTROL_SCENE_MODE_DISABLED;
     }
 
     staticInfo.update(ANDROID_CONTROL_AVAILABLE_SCENE_MODES,
