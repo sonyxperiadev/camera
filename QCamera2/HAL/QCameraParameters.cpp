@@ -3995,7 +3995,8 @@ int32_t QCameraParameters::setRecordingHint(const QCameraParameters& params)
             if(value != NAME_NOT_FOUND){
                 updateParamEntry(KEY_RECORDING_HINT, str);
                 setRecordingHintValue(value);
-                if (getFaceDetectionOption() == true) {
+                if ((getFaceDetectionOption() == true)
+                        && (!m_pCapability->hw_analysis_supported)) {
                     setFaceDetection(value > 0 ? false : true, false);
                 }
                 if (m_bDISEnabled) {
@@ -12040,8 +12041,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             stream_config_info.num_streams++;
         }
 
-        if (getRecordingHintValue() != true) {
-            /* Analysis stream is used only in capture usecase */
+        if ((getRecordingHintValue() != true) ||
+                (m_pCapability->hw_analysis_supported)) {
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_ANALYSIS;
             getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
