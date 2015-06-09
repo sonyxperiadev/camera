@@ -340,6 +340,36 @@ static int32_t mm_camera_intf_prepare_snapshot(uint32_t camera_handle,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_intf_flush
+ *
+ * DESCRIPTION: flush the current camera state and buffers
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+static int32_t mm_camera_intf_flush(uint32_t camera_handle)
+{
+    int32_t rc = -1;
+    mm_camera_obj_t * my_obj = NULL;
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_flush(my_obj);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_intf_close
  *
  * DESCRIPTION: close a camera by its handle
@@ -1888,7 +1918,8 @@ static mm_camera_ops_t mm_camera_ops = {
     .configure_notify_mode = mm_camera_intf_configure_notify_mode,
     .process_advanced_capture = mm_camera_intf_process_advanced_capture,
     .get_session_id = mm_camera_intf_get_session_id,
-    .sync_related_sensors = mm_camera_intf_sync_related_sensors
+    .sync_related_sensors = mm_camera_intf_sync_related_sensors,
+    .flush = mm_camera_intf_flush
 };
 
 /*===========================================================================

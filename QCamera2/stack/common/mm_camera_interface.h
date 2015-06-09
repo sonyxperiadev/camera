@@ -775,6 +775,12 @@ typedef struct {
      int32_t (*sync_related_sensors) (uint32_t camera_handle,
             cam_sync_related_sensors_event_info_t*
             related_cam_info);
+    /** flush: function definition for flush
+     *  @camera_handle: camera handler
+     *  Return value: 0 -- success
+     *               -1 -- failure
+     **/
+    int32_t (*flush) (uint32_t camera_handle);
 } mm_camera_ops_t;
 
 /** mm_camera_vtbl_t: virtual table for camera operations
