@@ -42,6 +42,21 @@ namespace qcamera {
 #define NUM_BATCH_BUFS   (MAX_INFLIGHT_REQUESTS)
 #define MAX_BATCH_SIZE   32
 
+const char* QCamera3Stream::mStreamNames[] = {
+        "CAM_DEFAULT",
+        "CAM_PREVIEW",
+        "CAM_POSTVIEW",
+        "CAM_SNAPSHOT",
+        "CAM_VIDEO",
+        "CAM_CALLBACK",
+        "CAM_IMPL_DEFINED",
+        "CAM_METADATA",
+        "CAM_RAW",
+        "CAM_OFFLINE_PROC",
+        "CAM_PARM",
+        "CAM_ANALYSIS"
+        "CAM_MAX" };
+
 /*===========================================================================
  * FUNCTION   : get_bufs
  *
@@ -551,7 +566,8 @@ void *QCamera3Stream::dataProcRoutine(void *data)
     int ret;
     QCamera3Stream *pme = (QCamera3Stream *)data;
     QCameraCmdThread *cmdThread = &pme->mProcTh;
-    cmdThread->setName("cam_stream_proc");
+
+    cmdThread->setName(mStreamNames[pme->mStreamInfo->stream_type]);
 
     CDBG("%s: E", __func__);
     do {
