@@ -6457,7 +6457,6 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
             }
 
             if (mParameters.getofflineRAW()) {
-                memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_RAW_PROCESSING;
             }
 
