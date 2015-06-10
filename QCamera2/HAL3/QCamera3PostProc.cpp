@@ -26,14 +26,12 @@
 * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 */
-#define ATRACE_TAG ATRACE_TAG_CAMERA
 
 #define LOG_TAG "QCamera3PostProc"
 //#define LOG_NDEBUG 0
 
 #include <stdlib.h>
 #include <utils/Errors.h>
-#include <utils/Trace.h>
 
 #include "QCamera3PostProc.h"
 #include "QCamera3HWI.h"

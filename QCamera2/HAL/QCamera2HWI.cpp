@@ -28,7 +28,6 @@
 */
 
 #define LOG_TAG "QCamera2HWI"
-#define ATRACE_TAG ATRACE_TAG_CAMERA
 
 #include <utils/Log.h>
 #include <cutils/properties.h>
@@ -36,7 +35,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <utils/Errors.h>
-#include <utils/Trace.h>
 #include <gralloc_priv.h>
 #include <gui/Surface.h>
 #include <binder/Parcel.h>
@@ -347,7 +345,7 @@ int QCamera2HardwareInterface::prepare_preview(struct camera_device *device)
  *==========================================================================*/
 int QCamera2HardwareInterface::start_preview(struct camera_device *device)
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     int ret = NO_ERROR;
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
@@ -386,7 +384,7 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
  *==========================================================================*/
 void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
     if (!hw) {
@@ -632,7 +630,7 @@ void QCamera2HardwareInterface::release_recording_frame(
  *==========================================================================*/
 int QCamera2HardwareInterface::auto_focus(struct camera_device *device)
 {
-    ATRACE_INT("Camera:AutoFocus", 1);
+    KPI_ATRACE_INT("Camera:AutoFocus", 1);
     int ret = NO_ERROR;
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
@@ -705,7 +703,7 @@ int QCamera2HardwareInterface::cancel_auto_focus(struct camera_device *device)
  *==========================================================================*/
 int QCamera2HardwareInterface::take_picture(struct camera_device *device)
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     int ret = NO_ERROR;
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
@@ -1056,7 +1054,7 @@ int QCamera2HardwareInterface::dump(struct camera_device *device, int fd)
  *==========================================================================*/
 int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     int ret = NO_ERROR;
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(
@@ -1329,7 +1327,7 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
  *==========================================================================*/
 int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     int rc = NO_ERROR;
     if (mCameraOpened) {
         *hw_device = NULL;
@@ -2864,7 +2862,7 @@ int QCamera2HardwareInterface::msgTypeEnabledWithLock(int32_t msg_type)
  *==========================================================================*/
 int QCamera2HardwareInterface::startPreview()
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     int32_t rc = NO_ERROR;
     CDBG_HIGH("%s: E", __func__);
     updateThermalLevel((void *)&mThermalLevel);
@@ -2921,7 +2919,7 @@ int32_t QCamera2HardwareInterface::updatePostPreviewParameters() {
  *==========================================================================*/
 int QCamera2HardwareInterface::stopPreview()
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     CDBG_HIGH("%s: E", __func__);
     mNumPreviewFaces = -1;
     mActiveAF = false;
@@ -4202,6 +4200,9 @@ int QCamera2HardwareInterface::takeLiveSnapshot()
 {
     int rc = NO_ERROR;
     rc= pthread_create(&mLiveSnapshotThread, NULL, Live_Snapshot_thread, (void *) this);
+    if (!rc) {
+        pthread_setname_np(mLiveSnapshotThread, "CAM_liveSnap");
+    }
     return rc;
 }
 
@@ -4220,6 +4221,9 @@ int QCamera2HardwareInterface::takePictureInternal()
 {
     int rc = NO_ERROR;
     rc= pthread_create(&mIntPicThread, NULL, Int_Pic_thread, (void *) this);
+    if (!rc) {
+        pthread_setname_np(mIntPicThread, "CAM_IntPic");
+    }
     return rc;
 }
 
@@ -8740,6 +8744,9 @@ void QCamera2HardwareInterface::getLogLevel()
     if (0 <= val) {
         globalLogLevel = (uint32_t)val;
     }
+
+    property_get("persist.camera.kpi.debug", prop, "1");
+    gKpiDebugLevel = atoi(prop);
 
     /* Highest log level among hal.logs and global.logs is selected */
     if (gCamHalLogLevel < globalLogLevel)

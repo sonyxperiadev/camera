@@ -118,11 +118,11 @@ uint8_t mm_camera_util_chip_is_a_family(void)
 static void mm_camera_dispatch_app_event(mm_camera_cmdcb_t *cmd_cb,
                                          void* user_data)
 {
-    mm_camera_cmd_thread_name("mm_cam_event");
     int i;
     mm_camera_event_t *event = &cmd_cb->u.evt;
     mm_camera_obj_t * my_obj = (mm_camera_obj_t *)user_data;
     if (NULL != my_obj) {
+        mm_camera_cmd_thread_name(my_obj->evt_thread.threadName);
         pthread_mutex_lock(&my_obj->cb_lock);
         for(i = 0; i < MM_CAMERA_EVT_ENTRY_MAX; i++) {
             if(my_obj->evt.evt[i].evt_cb) {
@@ -345,7 +345,7 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     /* launch event poll thread
      * we will add evt fd into event poll thread upon user first register for evt */
     CDBG("%s : Launch evt Poll Thread in Cam Open", __func__);
-    snprintf(my_obj->evt_thread.threadName, THREAD_NAME_SIZE, "CAM_Poll");
+    snprintf(my_obj->evt_poll_thread.threadName, THREAD_NAME_SIZE, "CAM_evntPoll");
     mm_camera_poll_thread_launch(&my_obj->evt_poll_thread,
                                  MM_CAMERA_POLL_TYPE_EVT);
     mm_camera_evt_sub(my_obj, TRUE);
