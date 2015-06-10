@@ -37,6 +37,7 @@
 #include <utils/Condition.h>
 #include <QCameraParameters.h>
 
+#include "QCameraTrace.h"
 #include "QCameraQueue.h"
 #include "QCameraCmdThread.h"
 #include "QCameraChannel.h"

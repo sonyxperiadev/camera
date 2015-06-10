@@ -29,6 +29,7 @@
 
 #include <pthread.h>
 #include <errno.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -343,9 +344,9 @@ static void *mm_camera_poll_fn(mm_camera_poll_thread_t *poll_cb)
  *==========================================================================*/
 static void *mm_camera_poll_thread(void *data)
 {
-    prctl(PR_SET_NAME, (unsigned long)"mm_cam_poll_th", 0, 0, 0);
     mm_camera_poll_thread_t *poll_cb = (mm_camera_poll_thread_t *)data;
 
+    mm_camera_cmd_thread_name(poll_cb->threadName);
     /* add pipe read fd into poll first */
     poll_cb->poll_fds[poll_cb->num_fds++].fd = poll_cb->pfds[0];
 
@@ -533,11 +534,7 @@ int32_t mm_camera_poll_thread_launch(mm_camera_poll_thread_t * poll_cb,
     if(!poll_cb->status) {
         pthread_cond_wait(&poll_cb->cond_v, &poll_cb->mutex);
     }
-    if (!poll_cb->threadName) {
-        pthread_setname_np(poll_cb->pid, "CAM_poll");
-    } else {
-        pthread_setname_np(poll_cb->pid, poll_cb->threadName);
-    }
+
     pthread_mutex_unlock(&poll_cb->mutex);
     CDBG("%s: End",__func__);
     return rc;
@@ -582,6 +579,7 @@ static void *mm_camera_cmd_thread(void *data)
                 (mm_camera_cmd_thread_t *)data;
     mm_camera_cmdcb_t* node = NULL;
 
+    mm_camera_cmd_thread_name(cmd_thread->threadName);
     do {
         do {
             ret = cam_sem_wait(&cmd_thread->cmd_sem);
@@ -639,12 +637,6 @@ int32_t mm_camera_cmd_thread_launch(mm_camera_cmd_thread_t * cmd_thread,
                    NULL,
                    mm_camera_cmd_thread,
                    (void *)cmd_thread);
-
-    if (!cmd_thread->threadName) {
-        pthread_setname_np(cmd_thread->cmd_pid, "CAM_launch");
-    } else {
-        pthread_setname_np(cmd_thread->cmd_pid, cmd_thread->threadName);
-    }
     return rc;
 }
 
@@ -652,7 +644,8 @@ int32_t mm_camera_cmd_thread_name(const char* name)
 {
     int32_t rc = 0;
     /* name the thread */
-    prctl(PR_SET_NAME, (unsigned long)name, 0, 0, 0);
+    if (name && strlen(name))
+        prctl(PR_SET_NAME, (unsigned long)name, 0, 0, 0);
     return rc;
 }
 

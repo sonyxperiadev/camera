@@ -52,6 +52,8 @@ pthread_mutex_t gCamLock = PTHREAD_MUTEX_INITIALIZER;
 //This variable updation is protected by gCamLock.
 uint8_t gNumCameraSessions = 0;
 
+volatile uint32_t gKpiDebugLevel = 1;
+
 /*===========================================================================
  * FUNCTION   : QCamera2Factory
  *
