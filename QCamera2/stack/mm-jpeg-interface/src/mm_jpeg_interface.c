@@ -48,6 +48,7 @@ static mm_jpeg_obj* g_jpeg_obj = NULL;
 static pthread_mutex_t g_handler_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint16_t g_handler_history_count = 0; /* history count for handler */
 volatile uint32_t gMmJpegIntfLogLevel = 1;
+volatile uint32_t gKpiDebugLevel = 0;
 
 /** mm_jpeg_util_generate_handler:
  *
@@ -346,6 +347,9 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
   if (0 <= val) {
       globalLogLevel = (uint32_t)val;
   }
+
+  property_get("persist.camera.kpi.debug", prop, "0");
+  gKpiDebugLevel = atoi(prop);
 
   /* Highest log level among hal.logs and global.logs is selected */
   if (gMmJpegIntfLogLevel < globalLogLevel)

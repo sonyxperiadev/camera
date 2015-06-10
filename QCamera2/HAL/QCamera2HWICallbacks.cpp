@@ -28,13 +28,11 @@
 */
 
 #define LOG_TAG "QCamera2HWI"
-#define ATRACE_TAG ATRACE_TAG_CAMERA
 
 #include <time.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <utils/Errors.h>
-#include <utils/Trace.h>
 #include <utils/Timers.h>
 #include <QComOMXMetadata.h>
 #include "QCamera2HWI.h"
@@ -383,7 +381,7 @@ int32_t QCamera2HardwareInterface::selectScene(QCameraChannel *pChannel,
 void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t *recvd_frame,
                                                            void *userdata)
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     char value[PROPERTY_VALUE_MAX];
     CDBG_HIGH("[KPI Perf] %s: E PROFILE_YUV_CB_TO_HAL", __func__);
     bool dump_yuv = false;
@@ -792,7 +790,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
                                                           QCameraStream * stream,
                                                           void *userdata)
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     CDBG_HIGH("[KPI Perf] %s : BEGIN", __func__);
     int err = NO_ERROR;
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
@@ -2817,7 +2815,7 @@ void * QCameraCbNotifier::cbNotifyRoutine(void * data)
                         case QCAMERA_NOTIFY_CALLBACK:
                             {
                                 if (cb->msg_type == CAMERA_MSG_FOCUS) {
-                                    ATRACE_INT("Camera:AutoFocus", 0);
+                                    KPI_ATRACE_INT("Camera:AutoFocus", 0);
                                     CDBG_HIGH("[KPI Perf] %s : PROFILE_SENDING_FOCUS_EVT_TO APP",
                                         __func__);
                                 }

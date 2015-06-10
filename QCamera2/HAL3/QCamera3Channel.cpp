@@ -27,7 +27,6 @@
 *
 */
 
-#define ATRACE_TAG ATRACE_TAG_CAMERA
 #define LOG_TAG "QCamera3Channel"
 //#define LOG_NDEBUG 0
 #include <fcntl.h>
@@ -40,7 +39,6 @@
 #include <gralloc_priv.h>
 #include <utils/Log.h>
 #include <utils/Errors.h>
-#include <utils/Trace.h>
 #include <cutils/properties.h>
 #include "QCamera3Channel.h"
 #include "QCamera3HWI.h"
@@ -1173,7 +1171,7 @@ void QCamera3MetadataChannel::streamCbRoutine(
                         mm_camera_super_buf_t *super_frame,
                         QCamera3Stream * /*stream*/)
 {
-    ATRACE_CALL();
+    ATRACE_NAME("metadata_stream_cb_routine");
     uint32_t requestNumber = 0;
     if (super_frame == NULL || super_frame->num_bufs != 1) {
         ALOGE("%s: super_frame is not valid", __func__);

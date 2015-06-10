@@ -92,9 +92,6 @@ public:
             const cam_frame_len_offset_t &plane_offset,
             mm_camera_buf_def_t *planebufDef, QCameraMemory *bufs) const;
 
-    void traceLogAllocStart(size_t size, int count, const char *allocName);
-    void traceLogAllocEnd(size_t size);
-
 protected:
 
     friend class QCameraMemoryPool;
