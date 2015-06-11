@@ -71,7 +71,7 @@ QCameraMemory::QCameraMemory(bool cached,
      mBufType(bufType)
 {
     mBufferCount = 0;
-    memset(mMemInfo, 0, sizeof(mMemInfo));
+    reset();
 }
 
 /*===========================================================================
@@ -188,6 +188,30 @@ ssize_t QCameraMemory::getSize(uint32_t index) const
 uint8_t QCameraMemory::getCnt() const
 {
     return mBufferCount;
+}
+
+/*===========================================================================
+ * FUNCTION   : reset
+ *
+ * DESCRIPTION: reset member variables
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraMemory::reset()
+{
+    size_t i, count;
+
+    memset(mMemInfo, 0, sizeof(mMemInfo));
+
+    count = sizeof(mMemInfo) / sizeof(mMemInfo[0]);
+    for (i = 0; i < count; i++) {
+        mMemInfo[i].fd = -1;
+        mMemInfo[i].main_ion_fd = -1;
+    }
+
+    return;
 }
 
 /*===========================================================================
@@ -446,7 +470,7 @@ int QCameraMemory::allocOneBuffer(QCameraMemInfo &memInfo,
     struct ion_handle_data handle_data;
     struct ion_allocation_data alloc;
     struct ion_fd_data ion_info_fd;
-    int main_ion_fd = 0;
+    int main_ion_fd = -1;
 
     main_ion_fd = open("/dev/ion", O_RDONLY);
     if (main_ion_fd < 0) {
@@ -520,17 +544,17 @@ void QCameraMemory::deallocOneBuffer(QCameraMemInfo &memInfo)
 {
     struct ion_handle_data handle_data;
 
-    if (memInfo.fd > 0) {
+    if (memInfo.fd >= 0) {
         close(memInfo.fd);
-        memInfo.fd = 0;
+        memInfo.fd = -1;
     }
 
-    if (memInfo.main_ion_fd > 0) {
+    if (memInfo.main_ion_fd >= 0) {
         memset(&handle_data, 0, sizeof(handle_data));
         handle_data.handle = memInfo.handle;
         ioctl(memInfo.main_ion_fd, ION_IOC_FREE, &handle_data);
         close(memInfo.main_ion_fd);
-        memInfo.main_ion_fd = 0;
+        memInfo.main_ion_fd = -1;
     }
     memInfo.handle = 0;
     memInfo.size = 0;
@@ -1663,7 +1687,7 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/,
                 mLocalFlag[i] = BUFFER_NOT_OWNED;
                 mBufferHandle[i] = NULL;
             }
-            memset(&mMemInfo, 0, sizeof(mMemInfo));
+            reset();
             goto end;
         }
 
@@ -1687,7 +1711,7 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/,
                 mLocalFlag[i] = BUFFER_NOT_OWNED;
                 mBufferHandle[i] = NULL;
             }
-            memset(&mMemInfo, 0, sizeof(mMemInfo));
+            reset();
             ret = UNKNOWN_ERROR;
             goto end;
         } else {
@@ -1712,7 +1736,7 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/,
                     mBufferHandle[i] = NULL;
                 }
                 close(mMemInfo[cnt].main_ion_fd);
-                memset(&mMemInfo, 0, sizeof(mMemInfo));
+                reset();
                 ret = UNKNOWN_ERROR;
                 goto end;
             }

@@ -787,6 +787,61 @@ bool QCamera3HardwareInterface::isSupportChannelNeeded(camera3_stream_configurat
     return true;
 }
 
+/*==============================================================================
+ * FUNCTION   : getSensorOutputSize
+ *
+ * DESCRIPTION: Get sensor output size based on current stream configuratoin
+ *
+ * PARAMETERS :
+ *   @sensor_dim : sensor output dimension (output)
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_dim)
+{
+    int32_t rc = NO_ERROR;
+
+    cam_dimension_t max_dim = {0, 0};
+    for (uint32_t i = 0; i < mStreamConfigInfo.num_streams; i++) {
+        if (mStreamConfigInfo.stream_sizes[i].width > max_dim.width)
+            max_dim.width = mStreamConfigInfo.stream_sizes[i].width;
+        if (mStreamConfigInfo.stream_sizes[i].height > max_dim.height)
+            max_dim.height = mStreamConfigInfo.stream_sizes[i].height;
+    }
+
+    clear_metadata_buffer(mParameters);
+
+    rc = ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_MAX_DIMENSION,
+            max_dim);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update table for CAM_INTF_PARM_MAX_DIMENSION", __func__);
+        return rc;
+    }
+
+    rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Failed to set CAM_INTF_PARM_MAX_DIMENSION", __func__);
+        return rc;
+    }
+
+    clear_metadata_buffer(mParameters);
+    ADD_GET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_RAW_DIMENSION);
+
+    rc = mCameraHandle->ops->get_parms(mCameraHandle->camera_handle,
+            mParameters);
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Failed to get CAM_INTF_PARM_RAW_DIMENSION", __func__);
+        return rc;
+    }
+
+    READ_PARAM_ENTRY(mParameters, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+    ALOGI("%s: sensor output dimension = %d x %d", __func__, sensor_dim.width, sensor_dim.height);
+
+    return rc;
+}
 
 /*===========================================================================
  * FUNCTION   : configureStreams
@@ -1693,22 +1748,23 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     int32_t frame_number_valid, urgent_frame_number_valid;
     uint32_t frame_number, urgent_frame_number;
     int64_t capture_time;
-    cam_frame_dropped_t cam_frame_drop;
 
     int32_t *p_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
     uint32_t *p_frame_number = POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
     int64_t *p_capture_time = POINTER_OF_META(CAM_INTF_META_SENSOR_TIMESTAMP, metadata);
-    cam_frame_dropped_t *p_cam_frame_drop =
-            POINTER_OF_META(CAM_INTF_META_FRAME_DROPPED, metadata);
     int32_t *p_urgent_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER_VALID, metadata);
     uint32_t *p_urgent_frame_number =
             POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER, metadata);
+    IF_META_AVAILABLE(cam_frame_dropped_t, p_cam_frame_drop, CAM_INTF_META_FRAME_DROPPED,
+            metadata) {
+        CDBG("%s: Dropped frame info for frame_number_valid %d, frame_number %d",
+                __func__, *p_frame_number_valid, *p_frame_number);
+    }
 
     if ((NULL == p_frame_number_valid) || (NULL == p_frame_number) || (NULL == p_capture_time) ||
-            (NULL == p_cam_frame_drop) || (NULL == p_urgent_frame_number_valid) ||
-            (NULL == p_urgent_frame_number)) {
+            (NULL == p_urgent_frame_number_valid) || (NULL == p_urgent_frame_number)) {
         ALOGE("%s: Invalid metadata", __func__);
         mMetadataChannel->bufDone(metadata_buf);
         free(metadata_buf);
@@ -1717,7 +1773,6 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         frame_number_valid = *p_frame_number_valid;
         frame_number = *p_frame_number;
         capture_time = *p_capture_time;
-        cam_frame_drop = *p_cam_frame_drop;
         urgent_frame_number_valid = *p_urgent_frame_number_valid;
         urgent_frame_number = *p_urgent_frame_number;
     }
@@ -1789,33 +1844,36 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
         // Check whether any stream buffer corresponding to this is dropped or not
         // If dropped, then send the ERROR_BUFFER for the corresponding stream
-        if (cam_frame_drop.frame_dropped) {
+        // The API does not expect a blob buffer to be dropped
+        if (p_cam_frame_drop && p_cam_frame_drop->frame_dropped) {
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
             for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
                     j != i->buffers.end(); j++) {
-                QCamera3Channel *channel = (QCamera3Channel *)j->stream->priv;
-                uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
-                for (uint32_t k = 0; k < cam_frame_drop.cam_stream_ID.num_streams; k++) {
-                   if (streamID == cam_frame_drop.cam_stream_ID.streamID[k]) {
-                       // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
-                       CDBG("%s: Start of reporting error frame#=%u, streamID=%u",
-                              __func__, i->frame_number, streamID);
-                       notify_msg.type = CAMERA3_MSG_ERROR;
-                       notify_msg.message.error.frame_number = i->frame_number;
-                       notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER ;
-                       notify_msg.message.error.error_stream = j->stream;
-                       mCallbackOps->notify(mCallbackOps, &notify_msg);
-                       CDBG("%s: End of reporting error frame#=%u, streamID=%u",
-                              __func__, i->frame_number, streamID);
-                       PendingFrameDropInfo PendingFrameDrop;
-                       PendingFrameDrop.frame_number=i->frame_number;
-                       PendingFrameDrop.stream_ID = streamID;
-                       // Add the Frame drop info to mPendingFrameDropList
-                       mPendingFrameDropList.push_back(PendingFrameDrop);
+               if (j->stream->format != HAL_PIXEL_FORMAT_BLOB) {
+                   QCamera3Channel *channel = (QCamera3Channel *)j->stream->priv;
+                   uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
+                   for (uint32_t k = 0; k < p_cam_frame_drop->cam_stream_ID.num_streams; k++) {
+                       if (streamID == p_cam_frame_drop->cam_stream_ID.streamID[k]) {
+                           // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
+                           CDBG("%s: Start of reporting error frame#=%u, streamID=%u",
+                                   __func__, i->frame_number, streamID);
+                           notify_msg.type = CAMERA3_MSG_ERROR;
+                           notify_msg.message.error.frame_number = i->frame_number;
+                           notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER ;
+                           notify_msg.message.error.error_stream = j->stream;
+                           mCallbackOps->notify(mCallbackOps, &notify_msg);
+                           CDBG("%s: End of reporting error frame#=%u, streamID=%u",
+                                  __func__, i->frame_number, streamID);
+                           PendingFrameDropInfo PendingFrameDrop;
+                           PendingFrameDrop.frame_number=i->frame_number;
+                           PendingFrameDrop.stream_ID = streamID;
+                           // Add the Frame drop info to mPendingFrameDropList
+                           mPendingFrameDropList.push_back(PendingFrameDrop);
+                      }
                    }
-                }
+               }
             }
         }
 
@@ -2257,6 +2315,19 @@ int QCamera3HardwareInterface::processCaptureRequest(
          *and disenable parameters to the backend*/
         mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
+
+        cam_dimension_t sensor_dim;
+        memset(&sensor_dim, 0, sizeof(sensor_dim));
+        rc = getSensorOutputSize(sensor_dim);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to get sensor output size", __func__);
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
+
+        mCropRegionMapper.update(gCamCapability[mCameraId]->active_array_size.width,
+                gCamCapability[mCameraId]->active_array_size.height,
+                sensor_dim.width, sensor_dim.height);
 
         for (size_t i = 0; i < request->num_output_buffers; i++) {
             const camera3_stream_buffer_t& output = request->output_buffers[i];
@@ -3223,6 +3294,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         scalerCropRegion[1] = hScalerCropRegion->top;
         scalerCropRegion[2] = hScalerCropRegion->width;
         scalerCropRegion[3] = hScalerCropRegion->height;
+
+        // Adjust crop region from sensor output coordinate system to active
+        // array coordinate system.
+        mCropRegionMapper.toActiveArray(scalerCropRegion[0], scalerCropRegion[1],
+                scalerCropRegion[2], scalerCropRegion[3]);
+
         camMetadata.update(ANDROID_SCALER_CROP_REGION, scalerCropRegion, 4);
     }
 
@@ -6470,6 +6547,11 @@ int QCamera3HardwareInterface::translateToHalMetadata
         scalerCropRegion.top = frame_settings.find(ANDROID_SCALER_CROP_REGION).data.i32[1];
         scalerCropRegion.width = frame_settings.find(ANDROID_SCALER_CROP_REGION).data.i32[2];
         scalerCropRegion.height = frame_settings.find(ANDROID_SCALER_CROP_REGION).data.i32[3];
+
+        // Map coordinate system from active array to sensor output.
+        mCropRegionMapper.toSensor(scalerCropRegion.left, scalerCropRegion.top,
+                scalerCropRegion.width, scalerCropRegion.height);
+
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SCALER_CROP_REGION,
                 scalerCropRegion)) {
             rc = BAD_VALUE;

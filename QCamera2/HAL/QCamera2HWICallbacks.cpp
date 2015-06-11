@@ -132,7 +132,6 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
 
     /* indicate the parent that capture is done */
     pme->captureDone();
-
     // save a copy for the superbuf
     mm_camera_super_buf_t* frame =
                (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
@@ -400,7 +399,6 @@ void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t
         ALOGE("%s: Capture channel doesn't exist, return here", __func__);
         return;
     }
-
     // save a copy for the superbuf
     mm_camera_super_buf_t* frame =
                (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
@@ -1940,7 +1938,7 @@ void QCamera2HardwareInterface::dumpJpegToFile(const void *data,
                 }
 
                 int file_fd = open(buf, O_RDWR | O_CREAT, 0777);
-                if (file_fd > 0) {
+                if (file_fd >= 0) {
                     ssize_t written_len = write(file_fd, data, size);
                     fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
                     CDBG_HIGH("%s: written number of bytes %zd\n",
@@ -2003,7 +2001,7 @@ void QCamera2HardwareInterface::dumpMetadataToFile(QCameraStream *stream,
             snprintf(buf, sizeof(buf), "%um_%s_%d.bin", dumpFrmCnt, type, frame->frame_idx);
             filePath.append(buf);
             int file_fd = open(filePath.string(), O_RDWR | O_CREAT, 0777);
-            if (file_fd > 0) {
+            if (file_fd >= 0) {
                 ssize_t written_len = 0;
                 metadata->tuning_params.tuning_data_version = TUNING_DATA_VERSION;
                 void *data = (void *)((uint8_t *)&metadata->tuning_params.tuning_data_version);
@@ -2174,7 +2172,7 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                     filePath.append(buf);
                     int file_fd = open(filePath.string(), O_RDWR | O_CREAT, 0777);
                     ssize_t written_len = 0;
-                    if (file_fd > 0) {
+                    if (file_fd >= 0) {
                         void *data = NULL;
 
                         fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
