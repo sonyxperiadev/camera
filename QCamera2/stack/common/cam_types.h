@@ -113,6 +113,10 @@
 #define LIKELY(x)       __builtin_expect((x), true)
 #define UNLIKELY(x)     __builtin_expect((x), false)
 
+#define RELCAM_CALIB_ROT_MATRIX_MAX 9
+#define RELCAM_CALIB_SURFACE_PARMS_MAX 32
+#define RELCAM_CALIB_RESERVED_MAX 64
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3
@@ -1169,8 +1173,6 @@ typedef struct {
 
 typedef struct {
     uint32_t stream_id;
-    uint32_t frame_id;
-    struct timeval timestamp;
     cam_rect_t crop;
     cam_rect_t roi_map;
 } cam_stream_crop_info_t;
@@ -1396,9 +1398,9 @@ typedef struct {
 typedef struct
 {
   uint32_t id;            /* Frame ID */
-  long long timestamp;    /* Time stamp */
-  int32_t distance_in_mm; /* Distance of object in ROI's in milimeters */
-  int32_t confidence;     /* Confidence on distance from 0(No confidence)to 1024(max) */
+  uint64_t timestamp;    /* Time stamp */
+  uint32_t distance_in_mm; /* Distance of object in ROI's in milimeters */
+  uint32_t confidence;     /* Confidence on distance from 0(No confidence)to 1024(max) */
   uint32_t status;        /* Status of DCRF library execution call */
   cam_rect_t focused_roi; /* ROI's for which distance is estimated */
   uint32_t focused_x;     /* Focus location X inside ROI with distance estimation */
