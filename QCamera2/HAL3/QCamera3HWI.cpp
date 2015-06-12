@@ -79,6 +79,7 @@ namespace qcamera {
 #define MIN_FPS_FOR_BATCH_MODE (120)
 #define PREVIEW_FPS_FOR_HFR    (30)
 #define DEFAULT_VIDEO_FPS      (30.0)
+#define MAX_HFR_BATCH_SIZE     (4)
 
 #define REGIONS_TUPLE_COUNT    5
 
@@ -1012,6 +1013,7 @@ int QCamera3HardwareInterface::configureStreams(
     ATRACE_CALL();
     int rc = 0;
     bool bWasVideo = m_bIsVideo;
+    uint32_t numBuffers = MAX_INFLIGHT_REQUESTS;
 
     // Sanity check stream_list
     if (streamList == NULL) {
@@ -1527,13 +1529,24 @@ int QCamera3HardwareInterface::configureStreams(
                 switch (newStream->format) {
                 case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
                 case HAL_PIXEL_FORMAT_YCbCr_420_888:
+                    /* use higher number of buffers for HFR mode */
+                    if((newStream->format ==
+                            HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) &&
+                            (newStream->usage &
+                            private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) &&
+                            (streamList->operation_mode ==
+                            CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)
+                      ) {
+                        numBuffers = MAX_INFLIGHT_REQUESTS * MAX_HFR_BATCH_SIZE;
+                    }
                     channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
                             &gCamCapability[mCameraId]->padding_info,
                             this,
                             newStream,
                             (cam_stream_type_t) mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
-                            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams]);
+                            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                            numBuffers);
                     if (channel == NULL) {
                         ALOGE("%s: allocation of channel failed", __func__);
                         pthread_mutex_unlock(&mMutex);
@@ -2629,6 +2642,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
     int rc = NO_ERROR;
     int32_t request_id;
     CameraMetadata meta;
+    uint32_t minInFlightRequests = MIN_INFLIGHT_REQUESTS;
+    uint32_t maxInFlightRequests = MAX_INFLIGHT_REQUESTS;
 
     pthread_mutex_lock(&mMutex);
 
@@ -3150,7 +3165,11 @@ int QCamera3HardwareInterface::processCaptureRequest(
     //Block on conditional variable
 
     mPendingRequest++;
-    while (mPendingRequest >= MIN_INFLIGHT_REQUESTS) {
+    if (mBatchSize) {
+        minInFlightRequests = MIN_INFLIGHT_REQUESTS * mBatchSize;
+        maxInFlightRequests = MAX_INFLIGHT_REQUESTS * mBatchSize;
+    }
+    while (mPendingRequest >= minInFlightRequests) {
         if (!isValidTimeout) {
             CDBG("%s: Blocking on conditional wait", __func__);
             pthread_cond_wait(&mRequestCond, &mMutex);
@@ -3167,7 +3186,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         CDBG("%s: Unblocked", __func__);
         if (mWokenUpByDaemon) {
             mWokenUpByDaemon = false;
-            if (mPendingRequest < MAX_INFLIGHT_REQUESTS)
+            if (mPendingRequest < maxInFlightRequests)
                 break;
         }
     }
@@ -5732,11 +5751,30 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         }
 
         if (fps > 0) {
-            /* (width, height, fps_min, fps_max) */
-            available_hfr_configs.add(gCamCapability[cameraId]->hfr_tbl[i].dim.width);
-            available_hfr_configs.add(gCamCapability[cameraId]->hfr_tbl[i].dim.height);
+            /* For each HFR frame rate, need to advertise one variable fps range
+             * and one fixed fps range. Eg: for 120 FPS, advertise [30, 120] and
+             * [120, 120]. While camcorder preview alone is running [30, 120] is
+             * set by the app. When video recording is started, [120, 120] is
+             * set. This way sensor configuration does not change when recording
+             * is started */
+
+            /* (width, height, fps_min, fps_max, batch_size_max) */
+            available_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim.width);
+            available_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim.height);
+            available_hfr_configs.add(PREVIEW_FPS_FOR_HFR);
+            available_hfr_configs.add(fps);
+            available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
+
+            /* (width, height, fps_min, fps_max, batch_size_max) */
+            available_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim.width);
+            available_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim.height);
             available_hfr_configs.add(fps);
             available_hfr_configs.add(fps);
+            available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
        }
     }
     //Advertise HFR capability only if the property is set
@@ -5746,7 +5784,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     uint8_t hfrEnable = (uint8_t)atoi(prop);
 
     if(hfrEnable && available_hfr_configs.array()) {
-        staticInfo.update(ANDROID_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS,
+        staticInfo.update(
+                ANDROID_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS,
                 available_hfr_configs.array(), available_hfr_configs.size());
     }
 
@@ -6010,6 +6049,10 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     }
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_PRIVATE_REPROCESSING);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING);
+    if (hfrEnable) {
+        available_capabilities.add(
+                ANDROID_REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO);
+    }
 
     if (CAM_SENSOR_YUV != gCamCapability[cameraId]->sensor_type.sens_type) {
         available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_RAW);
@@ -8318,6 +8361,9 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
             if (max_fps >= MIN_FPS_FOR_BATCH_MODE) {
                 mHFRVideoFps = max_fps;
                 mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
+                if (mBatchSize > MAX_HFR_BATCH_SIZE) {
+                    mBatchSize = MAX_HFR_BATCH_SIZE;
+                }
             }
         }
     } else {
