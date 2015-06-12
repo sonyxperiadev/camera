@@ -1169,6 +1169,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
     : mCameraId(cameraId),
       mCameraHandle(NULL),
       mCameraOpened(false),
+      m_bRelCamCalibValid(false),
       mPreviewWindow(NULL),
       mMsgEnabled(0),
       mStoreMetaDataInFrame(0),
@@ -1403,13 +1404,15 @@ int QCamera2HardwareInterface::openCamera()
     }
 
     rc = mParameters.getRelatedCamCalibration(&mRelCamCalibData);
-    CDBG("%s: Dumping Calibration Data Version Id %f rc %d", __func__,
+    CDBG("%s: Dumping Calibration Data Version Id %d rc %d", __func__,
             mRelCamCalibData.calibration_format_version, rc);
     if (rc != 0) {
         ALOGE("getRelatedCamCalibration failed");
         mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
         mCameraHandle = NULL;
         return UNKNOWN_ERROR;
+    } else {
+        m_bRelCamCalibValid = true;
     }
 
     if(!mJpegClientHandle) {
@@ -8304,11 +8307,14 @@ int32_t QCamera2HardwareInterface::initJpegHandle() {
         //set max pic size
         max_size.w = m_max_pic_width;
         max_size.h = m_max_pic_height;
-        // TODO- Check sanity of calibration data, needs header updates, will be done as
-        // part of new gerrit
-        mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle, max_size,
-                &mRelCamCalibData);
-        if(!mJpegClientHandle) {
+        if (m_bRelCamCalibValid) {
+            mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle,
+                    max_size, &mRelCamCalibData);
+        } else {
+            mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle,
+                    max_size, NULL);
+        }
+        if (!mJpegClientHandle) {
             ALOGE("%s: Error !! jpeg_open failed!! ", __func__);
             return UNKNOWN_ERROR;
         }

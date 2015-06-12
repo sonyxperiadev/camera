@@ -561,6 +561,7 @@ private:
     bool mCameraOpened;
 
     cam_related_system_calibration_data_t mRelCamCalibData;
+    bool m_bRelCamCalibValid;
 
     preview_stream_ops_t *mPreviewWindow;
     QCameraParameters mParameters;
