@@ -10899,7 +10899,7 @@ int32_t QCameraParameters::getRelatedCamCalibration(
     READ_PARAM_ENTRY(m_pParamBuf,
             CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION, *calib);
 
-    CDBG("%s: CALIB version %f ",__func__, calib->calibration_format_version);
+    CDBG("%s: CALIB version %d ",__func__, calib->calibration_format_version);
     CDBG("%s: CALIB normalized_focal_length %f ", __func__,
             calib->main_cam_specific_calibration.normalized_focal_length);
     CDBG("%s: CALIB native_sensor_resolution_width %d ", __func__,
