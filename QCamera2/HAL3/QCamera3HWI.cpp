@@ -86,7 +86,8 @@ namespace qcamera {
                                                 CAM_QCOM_FEATURE_ROTATION |\
                                                 CAM_QCOM_FEATURE_SHARPNESS |\
                                                 CAM_QCOM_FEATURE_SCALE |\
-                                                CAM_QCOM_FEATURE_CAC )
+                                                CAM_QCOM_FEATURE_CAC |\
+                                                CAM_QCOM_FEATURE_CDS )
 
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
@@ -1328,6 +1329,7 @@ int QCamera3HardwareInterface::configureStreams(
                 mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
                 if (m_bIs4KVideo && !isZsl) {
                     mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                    mStreamConfigInfo.postprocess_mask[i] &= ~CAM_QCOM_FEATURE_CDS;
                 } else {
                     if (bUseCommonFeatureMask &&
                             (((int32_t)newStream->width > maxViewfinderSize.width) ||
