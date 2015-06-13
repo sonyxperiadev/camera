@@ -71,6 +71,7 @@ namespace qcamera {
 #define MAX_RAW_STREAMS        1
 #define MAX_STALLING_STREAMS   1
 #define MAX_PROCESSED_STREAMS  3
+#define REGIONS_TUPLE_COUNT    5
 
 #define METADATA_MAP_SIZE(MAP) (sizeof(MAP)/sizeof(MAP[0]))
 
@@ -3673,9 +3674,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
 
     IF_META_AVAILABLE(cam_area_t, hAeRegions, CAM_INTF_META_AEC_ROI, metadata) {
-        int32_t aeRegions[MAX_ROI];
+        int32_t aeRegions[REGIONS_TUPLE_COUNT];
         convertToRegions(hAeRegions->rect, aeRegions, hAeRegions->weight);
-        camMetadata.update(ANDROID_CONTROL_AE_REGIONS, aeRegions, MAX_ROI);
+        camMetadata.update(ANDROID_CONTROL_AE_REGIONS, aeRegions,
+                REGIONS_TUPLE_COUNT);
         CDBG("%s: Metadata : ANDROID_CONTROL_AE_REGIONS: FWK: [%d,%d,%d,%d] HAL: [%d,%d,%d,%d]",
                 __func__, aeRegions[0], aeRegions[1], aeRegions[2], aeRegions[3],
                 hAeRegions->rect.left, hAeRegions->rect.top, hAeRegions->rect.width,
@@ -3684,9 +3686,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     IF_META_AVAILABLE(cam_area_t, hAfRegions, CAM_INTF_META_AF_ROI, metadata) {
         /*af regions*/
-        int32_t afRegions[MAX_ROI];
+        int32_t afRegions[REGIONS_TUPLE_COUNT];
         convertToRegions(hAfRegions->rect, afRegions, hAfRegions->weight);
-        camMetadata.update(ANDROID_CONTROL_AF_REGIONS, afRegions, MAX_ROI);
+        camMetadata.update(ANDROID_CONTROL_AF_REGIONS, afRegions,
+                REGIONS_TUPLE_COUNT);
         CDBG("%s: Metadata : ANDROID_CONTROL_AF_REGIONS: FWK: [%d,%d,%d,%d] HAL: [%d,%d,%d,%d]",
                 __func__, afRegions[0], afRegions[1], afRegions[2], afRegions[3],
                 hAfRegions->rect.left, hAfRegions->rect.top, hAfRegions->rect.width,
