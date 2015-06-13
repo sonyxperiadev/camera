@@ -2718,6 +2718,8 @@ int QCamera2HardwareInterface::startPreview()
 }
 
 int32_t QCamera2HardwareInterface::updatePostPreviewParameters() {
+    //Reset focus state to INACTIVE
+    m_currentFocusState = CAM_AF_STATE_INACTIVE;
     // Enable OIS only in Camera mode and 4k2k camcoder mode
     int32_t rc = NO_ERROR;
     rc = mParameters.updateOisValue(1);
