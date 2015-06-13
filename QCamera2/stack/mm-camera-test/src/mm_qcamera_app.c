@@ -494,14 +494,14 @@ int mm_app_open(mm_camera_app_t *cam_app,
                 int cam_id,
                 mm_camera_test_obj_t *test_obj)
 {
-    int32_t rc;
+    int32_t rc = 0;
     cam_frame_len_offset_t offset_info;
 
     CDBG("%s:BEGIN\n", __func__);
 
-    test_obj->cam = cam_app->hal_lib.mm_camera_open((uint8_t)cam_id);
-    if(test_obj->cam == NULL) {
-        CDBG_ERROR("%s:dev open error\n", __func__);
+    rc = cam_app->hal_lib.mm_camera_open((uint8_t)cam_id, &(test_obj->cam));
+    if(rc || !test_obj->cam) {
+        CDBG_ERROR("%s:dev open error. rc = %d, vtbl = %p\n", __func__, rc, test_obj->cam);
         return -MM_CAMERA_E_GENERAL;
     }
 
