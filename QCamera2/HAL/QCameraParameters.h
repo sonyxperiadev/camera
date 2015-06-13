@@ -641,7 +641,7 @@ public:
     int setRecordingHintValue(int32_t value); // set local copy of video hint and send to server
                                               // no change in parameters value
     uint32_t getJpegQuality();
-    uint32_t getJpegRotation();
+    uint32_t getRotation();
     uint32_t getDeviceRotation();
     uint32_t getJpegExifRotation();
     bool useJpegExifRotation();
@@ -796,6 +796,8 @@ public:
 
     cam_capture_frame_config_t getCaptureFrameConfig()
             { return m_captureFrameConfig; };
+    void setJpegRotation(int rotation);
+    uint32_t getJpegRotation() { return mJpegRotation;};
 
     /* Dual camera specific */
     int32_t setRelatedCamSyncInfo(
@@ -1101,6 +1103,7 @@ private:
     int8_t mBufBatchCnt;
 
     uint32_t mRotation;
+    uint32_t mJpegRotation;
 };
 
 }; // namespace qcamera
