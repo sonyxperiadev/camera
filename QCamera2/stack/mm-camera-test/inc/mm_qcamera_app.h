@@ -249,7 +249,6 @@ typedef struct {
     mm_camera_stream_t *reproc_stream;
     metadata_buffer_t *metadata;
     int8_t is_chromatix_reload;
-    tune_chromatix_t tune_data;
 } mm_camera_test_obj_t;
 
 typedef struct {

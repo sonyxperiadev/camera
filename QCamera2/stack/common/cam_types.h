@@ -860,20 +860,6 @@ typedef struct {
 } cam_capture_frame_config_t;
 
 typedef struct {
-    uint8_t chromatixData[CHROMATIX_SIZE];
-    uint8_t snapchromatixData[CHROMATIX_SIZE];
-    uint8_t common_chromatixData[COMMONCHROMATIX_SIZE];
-    uint8_t cpp_chromatixData[CPPCHROMATIX_SIZE];
-    uint8_t cpp_chromatixSnapData[CPPCHROMATIX_SIZE];
-    uint8_t postproc_chromatixData[SWPOSTPROCCHROMATIX_SIZE];
-    uint8_t a3_chromatixData[A3CHROMATIX_SIZE];
-} tune_chromatix_t;
-
-typedef struct {
-    uint8_t af_tuneData[AFTUNE_SIZE];
-} tune_autofocus_t;
-
-typedef struct {
     uint8_t stepsize;
     uint8_t direction;
     int32_t num_steps;
