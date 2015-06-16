@@ -95,6 +95,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
     mYUVDump = (uint8_t) atoi(prop);
     mIsType = IS_TYPE_NONE;
     mNumBuffers = numBuffers;
+    mPerFrameMapUnmapEnable = true;
 }
 
 /*===========================================================================
@@ -202,7 +203,8 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
                                   cam_dimension_t streamDim,
                                   uint8_t minStreamBufNum,
                                   uint32_t postprocessMask,
-                                  cam_is_type_t isType)
+                                  cam_is_type_t isType,
+                                  uint32_t batchSize)
 {
     int32_t rc = NO_ERROR;
 
@@ -225,9 +227,10 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
         ALOGE("%s: No mem for Stream", __func__);
         return NO_MEMORY;
     }
+    CDBG("%s: batch size is %d", __func__, batchSize);
 
     rc = pStream->init(streamType, streamFormat, streamDim, NULL, minStreamBufNum,
-                       postprocessMask, isType, streamCbRoutine, this);
+            postprocessMask, isType, batchSize, streamCbRoutine, this);
     if (rc == 0) {
         mStreams[m_numStreams] = pStream;
         m_numStreams++;
@@ -314,6 +317,60 @@ int32_t QCamera3Channel::stop()
 
     m_bIsActive = false;
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setBatchSize
+ *
+ * DESCRIPTION: Set batch size for the channel. This is a dummy implementation
+ *              for the base class
+ *
+ * PARAMETERS :
+ *   @batchSize  : Number of image buffers in a batch
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success always
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3Channel::setBatchSize(uint32_t batchSize)
+{
+    CDBG("%s: Dummy method. batchSize: %d unused ", __func__, batchSize);
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : queueBatchBuf
+ *
+ * DESCRIPTION: This is a dummy implementation for the base class
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success always
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3Channel::queueBatchBuf()
+{
+    CDBG("%s: Dummy method. Unused ", __func__);
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setPerFrameMapUnmap
+ *
+ * DESCRIPTION: Sets internal enable flag
+ *
+ * PARAMETERS :
+ *  @enable : Bool value for the enable flag
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success always
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3Channel::setPerFrameMapUnmap(bool enable)
+{
+    mPerFrameMapUnmapEnable = enable;
+    return NO_ERROR;
 }
 
 /*===========================================================================
@@ -581,7 +638,8 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                         mNumBufs(0),
                         mStreamType(stream_type),
                         mWidth(stream->width),
-                        mHeight(stream->height)
+                        mHeight(stream->height),
+                        mBatchSize(0)
 {
 }
 
@@ -622,7 +680,8 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                         mNumBufs(0),
                         mStreamType(stream_type),
                         mWidth(width),
-                        mHeight(height)
+                        mHeight(height),
+                        mBatchSize(0)
 {
 }
 
@@ -701,12 +760,14 @@ int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
     streamDim.width = (int32_t)mWidth;
     streamDim.height = (int32_t)mHeight;
 
+    CDBG("%s: batch size is %d", __func__, mBatchSize);
     rc = QCamera3Channel::addStream(mStreamType,
             streamFormat,
             streamDim,
             mNumBufs,
             mPostProcMask,
-            mIsType);
+            mIsType,
+            mBatchSize);
 
     return rc;
 }
@@ -729,6 +790,71 @@ int32_t QCamera3RegularChannel::start()
 
     if (0 < mMemory.getCnt()) {
         rc = QCamera3Channel::start();
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setBatchSize
+ *
+ * DESCRIPTION: Set batch size for the channel.
+ *
+ * PARAMETERS :
+ *   @batchSize  : Number of image buffers in a batch
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success always
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3RegularChannel::setBatchSize(uint32_t batchSize)
+{
+    int32_t rc = NO_ERROR;
+
+    mBatchSize = batchSize;
+    CDBG("%s: Batch size set: %d", __func__, mBatchSize);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : getStreamTypeMask
+ *
+ * DESCRIPTION: Get bit mask of all stream types in this channel.
+ *              If stream is not initialized, then generate mask based on
+ *              local streamType
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : Bit mask of all stream types in this channel
+ *==========================================================================*/
+uint32_t QCamera3RegularChannel::getStreamTypeMask()
+{
+    if (mStreams[0]) {
+        return QCamera3Channel::getStreamTypeMask();
+    } else {
+        return (1U << mStreamType);
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : queueBatchBuf
+ *
+ * DESCRIPTION: queue batch container to downstream
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success always
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3RegularChannel::queueBatchBuf()
+{
+    int32_t rc = NO_ERROR;
+
+    if (mStreams[0]) {
+        rc = mStreams[0]->queueBatchBuf();
+    }
+    if (rc != NO_ERROR) {
+        ALOGE("%s: stream->queueBatchContainer failed", __func__);
     }
     return rc;
 }
@@ -895,16 +1021,18 @@ void QCamera3RegularChannel::streamCbRoutine(
     result.status = CAMERA3_BUFFER_STATUS_OK;
     result.acquire_fence = -1;
     result.release_fence = -1;
-    int32_t rc = stream->bufRelease(frameIndex);
-    if (NO_ERROR != rc) {
-        ALOGE("%s: Error %d releasing stream buffer %d",
-                __func__, rc, frameIndex);
-    }
+    if(mPerFrameMapUnmapEnable) {
+        int32_t rc = stream->bufRelease(frameIndex);
+        if (NO_ERROR != rc) {
+            ALOGE("%s: Error %d releasing stream buffer %d",
+                    __func__, rc, frameIndex);
+        }
 
-    rc = mMemory.unregisterBuffer(frameIndex);
-    if (NO_ERROR != rc) {
-        ALOGE("%s: Error %d unregistering stream buffer %d",
-                __func__, rc, frameIndex);
+        rc = mMemory.unregisterBuffer(frameIndex);
+        if (NO_ERROR != rc) {
+            ALOGE("%s: Error %d unregistering stream buffer %d",
+                    __func__, rc, frameIndex);
+        }
     }
 
     if (0 <= resultFrameNumber) {
@@ -1193,7 +1321,7 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
                 uint8_t upper_8bit = row_start[5*(x/4)+x%4];
                 uint8_t lower_2bit = ((row_start[5*(x/4)+4] >> (x%4)) & 0x3);
                 uint16_t raw16_pixel =
-                        (uint16_t)(((uint16_t)upper_8bit)<<2 | 
+                        (uint16_t)(((uint16_t)upper_8bit)<<2 |
                         (uint16_t)lower_2bit);
                 raw16_buffer[y*raw16_stride+x] = raw16_pixel;
             }
@@ -3436,6 +3564,7 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
             (uint8_t)mNumBuffers,
             reprocess_config.pp_feature_config.feature_mask,
             is_type,
+            0,/* batchSize */
             QCamera3Channel::streamCbRoutine, this);
 
     if (rc == 0) {

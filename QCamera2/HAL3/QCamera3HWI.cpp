@@ -76,6 +76,10 @@ namespace qcamera {
 #define MAX_RAW_STREAMS        1
 #define MAX_STALLING_STREAMS   1
 #define MAX_PROCESSED_STREAMS  3
+/* Batch mode is enabled only if FPS set is equal to or greater than this */
+#define MIN_FPS_FOR_BATCH_MODE (120)
+#define PREVIEW_FPS_FOR_HFR    (30)
+#define DEFAULT_VIDEO_FPS      (30.0)
 
 #define FLUSH_TIMEOUT 3
 
@@ -325,7 +329,10 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mMetaFrameCount(0U),
       mUpdateDebugLevel(false),
       mCallbacks(callbacks),
-      mCaptureIntent(0)
+      mCaptureIntent(0),
+      mBatchSize(0),
+      mToBeQueuedVidBufs(0),
+      mHFRVideoFps(DEFAULT_VIDEO_FPS)
 {
     getLogLevel();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
@@ -1835,25 +1842,138 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
 }
 
 /*===========================================================================
+ * FUNCTION   : handleBatchMetadata
+ *
+ * DESCRIPTION: Handles metadata buffer callback in batch mode
+ *
+ * PARAMETERS : @metadata_buf: metadata buffer
+ *              @free_and_bufdone_meta_buf: Buf done on the meta buf and free
+ *                 the meta buf in this method
+ *
+ * RETURN     :
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::handleBatchMetadata(
+        mm_camera_super_buf_t *metadata_buf, bool free_and_bufdone_meta_buf)
+{
+    ATRACE_CALL();
+
+    if (NULL == metadata_buf) {
+        ALOGE("%s: metadata_buf is NULL", __func__);
+        return;
+    }
+    metadata_buffer_t *metadata =
+            (metadata_buffer_t *)metadata_buf->bufs[0]->buffer;
+    int32_t frame_number_valid, urgent_frame_number_valid;
+    uint32_t last_frame_number, last_urgent_frame_number;
+    uint32_t frame_number, urgent_frame_number = 0;
+    int64_t last_frame_capture_time = 0, first_frame_capture_time, capture_time;
+    bool invalid_metadata = false;
+
+    int32_t *p_frame_number_valid =
+            POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
+    uint32_t *p_frame_number =
+            POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
+    int64_t *p_capture_time =
+            POINTER_OF_META(CAM_INTF_META_SENSOR_TIMESTAMP, metadata);
+    int32_t *p_urgent_frame_number_valid =
+            POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER_VALID, metadata);
+    uint32_t *p_urgent_frame_number =
+            POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER, metadata);
+
+    if ((NULL == p_frame_number_valid) || (NULL == p_frame_number) ||
+            (NULL == p_capture_time) || (NULL == p_urgent_frame_number_valid) ||
+            (NULL == p_urgent_frame_number)) {
+        ALOGE("%s: Invalid metadata", __func__);
+        invalid_metadata = true;
+    } else {
+        frame_number_valid = *p_frame_number_valid;
+        last_frame_number = *p_frame_number;
+        last_frame_capture_time = *p_capture_time;
+        urgent_frame_number_valid = *p_urgent_frame_number_valid;
+        last_urgent_frame_number = *p_urgent_frame_number;
+    }
+
+    // If reported capture_time is 0, skip handling this metadata
+    if (!last_frame_capture_time) {
+        goto done_batch_metadata;
+    }
+
+    for (size_t i = 0; i < mBatchSize; i++) {
+        /* handleMetadataWithLock is called even for invalid_metadata for
+         * pipeline depth calculation */
+        if (!invalid_metadata) {
+            /* Infer frame number. Batch metadata contains frame number of the
+             * last frame */
+            if (urgent_frame_number_valid) {
+                urgent_frame_number =
+                        last_urgent_frame_number + 1 - mBatchSize + i;
+                CDBG("%s: last urgent frame_number in batch: %d, "
+                        "inferred urgent frame_number: %d",
+                        __func__, last_urgent_frame_number, urgent_frame_number);
+                ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                        CAM_INTF_META_URGENT_FRAME_NUMBER, urgent_frame_number);
+            }
+
+            /* Infer frame number. Batch metadata contains frame number of the
+             * last frame */
+            if (frame_number_valid) {
+                frame_number = last_frame_number + 1 - mBatchSize + i;
+                CDBG("%s: last frame_number in batch: %d, "
+                        "inferred frame_number: %d",
+                        __func__, last_frame_number, frame_number);
+                ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                        CAM_INTF_META_FRAME_NUMBER, frame_number);
+            }
+
+            //Infer timestamp
+            first_frame_capture_time = last_frame_capture_time -
+                    (((mBatchSize - 1) * NSEC_PER_SEC) / mHFRVideoFps);
+            capture_time =
+                    first_frame_capture_time + (i * NSEC_PER_SEC / mHFRVideoFps);
+            ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                    CAM_INTF_META_SENSOR_TIMESTAMP, capture_time);
+            CDBG("%s: batch capture_time: %lld, capture_time: %lld",
+                    __func__, last_frame_capture_time, capture_time);
+        }
+        pthread_mutex_lock(&mMutex);
+        handleMetadataWithLock(metadata_buf,
+                false /* free_and_bufdone_meta_buf */);
+        pthread_mutex_unlock(&mMutex);
+    }
+
+done_batch_metadata:
+    /* BufDone metadata buffer */
+    if (free_and_bufdone_meta_buf) {
+        mMetadataChannel->bufDone(metadata_buf);
+        free(metadata_buf);
+    }
+}
+
+/*===========================================================================
  * FUNCTION   : handleMetadataWithLock
  *
  * DESCRIPTION: Handles metadata buffer callback with mMutex lock held.
  *
  * PARAMETERS : @metadata_buf: metadata buffer
+ *              @free_and_bufdone_meta_buf: Buf done on the meta buf and free
+ *                 the meta buf in this method
  *
  * RETURN     :
  *
  *==========================================================================*/
 void QCamera3HardwareInterface::handleMetadataWithLock(
-    mm_camera_super_buf_t *metadata_buf)
+    mm_camera_super_buf_t *metadata_buf, bool free_and_bufdone_meta_buf)
 {
     ATRACE_CALL();
     if (mFlushPerf) {
         //during flush do not send metadata from this thread
         CDBG("%s: not sending metadata during flush",
                             __func__);
-        mMetadataChannel->bufDone(metadata_buf);
-        free(metadata_buf);
+        if (free_and_bufdone_meta_buf) {
+            mMetadataChannel->bufDone(metadata_buf);
+            free(metadata_buf);
+        }
         return;
     }
 
@@ -1880,8 +2000,10 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     if ((NULL == p_frame_number_valid) || (NULL == p_frame_number) || (NULL == p_capture_time) ||
             (NULL == p_urgent_frame_number_valid) || (NULL == p_urgent_frame_number)) {
         ALOGE("%s: Invalid metadata", __func__);
-        mMetadataChannel->bufDone(metadata_buf);
-        free(metadata_buf);
+        if (free_and_bufdone_meta_buf) {
+            mMetadataChannel->bufDone(metadata_buf);
+            free(metadata_buf);
+        }
         goto done_metadata;
     } else {
         frame_number_valid = *p_frame_number_valid;
@@ -1890,7 +2012,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         urgent_frame_number_valid = *p_urgent_frame_number_valid;
         urgent_frame_number = *p_urgent_frame_number;
     }
-
+    //Partial result on process_capture_result for timestamp
     if (urgent_frame_number_valid) {
         CDBG("%s: valid urgent frame_number = %u, capture_time = %lld",
           __func__, urgent_frame_number, capture_time);
@@ -1936,14 +2058,15 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
     if (!frame_number_valid) {
         CDBG("%s: Not a valid normal frame number, used as SOF only", __func__);
-        mMetadataChannel->bufDone(metadata_buf);
-        free(metadata_buf);
+        if (free_and_bufdone_meta_buf) {
+            mMetadataChannel->bufDone(metadata_buf);
+            free(metadata_buf);
+        }
         goto done_metadata;
     }
     CDBG("%s: valid frame_number = %u, capture_time = %lld", __func__,
             frame_number, capture_time);
 
-    // Go through the pending requests info and send shutter/results to frameworks
     for (List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
         i != mPendingRequestsList.end() && i->frame_number <= frame_number;) {
         camera3_capture_result_t result;
@@ -1990,6 +2113,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                }
             }
         }
+
+        //TODO: batch handling for dropped metadata
 
         // Send empty metadata with already filled buffers for dropped metadata
         // and send valid metadata with already filled buffers for current metadata
@@ -2050,8 +2175,10 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 mPictureChannel->queueReprocMetadata(metadata_buf);
             } else {
                 // Return metadata buffer
-                mMetadataChannel->bufDone(metadata_buf);
-                free(metadata_buf);
+                if (free_and_bufdone_meta_buf) {
+                    mMetadataChannel->bufDone(metadata_buf);
+                    free(metadata_buf);
+                }
             }
         }
         if (!result.result) {
@@ -2463,6 +2590,10 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 ALOGE("%s: extractSceneMode failed", __func__);
             }
         }
+
+        //TODO: validate the arguments, HSV scenemode should have only the
+        //advertised fps ranges
+
         /*set the capture intent, hal version, tintless, stream info,
          *and disenable parameters to the backend*/
         rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
@@ -2483,6 +2614,25 @@ int QCamera3HardwareInterface::processCaptureRequest(
         mCropRegionMapper.update(gCamCapability[mCameraId]->active_array_size.width,
                 gCamCapability[mCameraId]->active_array_size.height,
                 sensor_dim.width, sensor_dim.height);
+
+        /* Set batchmode before initializing channel. Since registerBuffer
+         * internally initializes some of the channels, better set batchmode
+         * even before first register buffer */
+        for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+            it != mStreamInfo.end(); it++) {
+            QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
+            if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())
+                    && mBatchSize) {
+                rc = channel->setBatchSize(mBatchSize);
+                //Disable per frame map unmap for HFR/batchmode case
+                rc |= channel->setPerFrameMapUnmap(false);
+                if (NO_ERROR != rc) {
+                    ALOGE("%s : Channel init failed %d", __func__, rc);
+                    pthread_mutex_unlock(&mMutex);
+                    return rc;
+                }
+            }
+        }
 
         for (size_t i = 0; i < request->num_output_buffers; i++) {
             const camera3_stream_buffer_t& output = request->output_buffers[i];
@@ -2578,7 +2728,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
         for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
             it != mStreamInfo.end(); it++) {
             QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-            CDBG_HIGH("%s: Start Regular Channel mask=%d", __func__, channel->getStreamTypeMask());
+            CDBG_HIGH("%s: Start Channel mask=%d",
+                    __func__, channel->getStreamTypeMask());
             rc = channel->start();
             if (rc < 0) {
                 ALOGE("%s: channel start failed", __func__);
@@ -2613,6 +2764,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         mWokenUpByDaemon = false;
         mPendingRequest = 0;
         mFirstConfiguration = false;
+        mBatchStreamID.num_streams = 0;
     }
 
     uint32_t frameNumber = request->frame_number;
@@ -2669,8 +2821,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
         streamID.streamID[streamID.num_streams] =
             channel->getStreamID(channel->getStreamTypeMask());
         streamID.num_streams++;
-
-
     }
 
     if (blob_request && mRawDumpChannel) {
@@ -2681,11 +2831,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
     }
 
     if(request->input_buffer == NULL) {
+        //TODO: reduce the set_params traffic to batchSize()
        rc = setFrameParameters(request, streamID, blob_request, snapshotStreamId);
         if (rc < 0) {
             ALOGE("%s: fail to set frame parameters", __func__);
             pthread_mutex_unlock(&mMutex);
             return rc;
+        }
+        if (mBatchSize) {
+            rc = setBatchMetaStreamID(streamID);
         }
     } else {
         sp<Fence> acquireFence = new Fence(request->input_buffer->acquire_fence);
@@ -2802,6 +2956,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
             CDBG("%s: %d, request with buffer %p, frame_number %d", __func__,
                 __LINE__, output.buffer, frameNumber);
            rc = channel->request(output.buffer, frameNumber);
+           if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())
+                && mBatchSize) {
+               mToBeQueuedVidBufs++;
+               if (mToBeQueuedVidBufs == mBatchSize) {
+                   channel->queueBatchBuf();
+               }
+           }
         }
         if (rc < 0)
             ALOGE("%s: request failed", __func__);
@@ -2809,9 +2970,27 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
     if(request->input_buffer == NULL) {
         /*set the parameters to backend*/
-        rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
-        if (rc < 0) {
-            ALOGE("%s: set_parms failed", __func__);
+        //For batch mode, set_params called once per batch, for non-batch this
+        //condition is always true as mToBeQueuedVidBufs = mBatchSize = 0
+        if (mToBeQueuedVidBufs == mBatchSize) {
+            if(mBatchSize) {
+                /* generate parameters for the batch */
+                rc = setFrameParameters(request, mBatchStreamID, blob_request,
+                        snapshotStreamId);
+                if (rc < 0) {
+                    ALOGE("%s: fail to set batch frame parameters", __func__);
+                    pthread_mutex_unlock(&mMutex);
+                    return rc;
+                }
+            }
+
+            rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
+                    mParameters);
+            if (rc < 0) {
+                ALOGE("%s: set_parms failed", __func__);
+            }
+            /* reset to zero coz, the batch is queued */
+            mToBeQueuedVidBufs = 0;
         }
     }
 
@@ -3415,12 +3594,21 @@ int QCamera3HardwareInterface::flushPerf()
 void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_buf,
                 camera3_stream_buffer_t *buffer, uint32_t frame_number)
 {
-    pthread_mutex_lock(&mMutex);
-    if (metadata_buf)
-        handleMetadataWithLock(metadata_buf);
-    else
+    if (metadata_buf) {
+        if (mBatchSize) {
+            handleBatchMetadata(metadata_buf,
+                    true /* free_and_bufdone_meta_buf */);
+        } else { /* mBatchSize = 0 */
+            pthread_mutex_lock(&mMutex);
+            handleMetadataWithLock(metadata_buf,
+                    true /* free_and_bufdone_meta_buf */);
+            pthread_mutex_unlock(&mMutex);
+        }
+    } else {
+        pthread_mutex_lock(&mMutex);
         handleBufferWithLock(buffer, frame_number);
-    pthread_mutex_unlock(&mMutex);
+        pthread_mutex_unlock(&mMutex);
+    }
     return;
 }
 
@@ -7782,7 +7970,7 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
                         __func__);
                 return BAD_VALUE;
             }
-            switch (min_fps) {
+            switch (max_fps) {
             case 60:
                 hfrMode = CAM_HFR_MODE_60FPS;
                 break;
@@ -7812,6 +8000,10 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
                 break;
             }
             sceneMode = CAM_SCENE_MODE_OFF;
+            if (max_fps >= MIN_FPS_FOR_BATCH_MODE) {
+                mHFRVideoFps = max_fps;
+                mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
+            }
         }
     } else {
        sceneMode = CAM_SCENE_MODE_OFF;
@@ -8033,6 +8225,41 @@ void QCamera3HardwareInterface::getLogLevel()
         gCamHal3LogLevel = globalLogLevel;
 
     return;
+}
+
+/*===========================================================================
+* FUNCTION   : setBatchMetaStreamID
+*
+* DESCRIPTION: Updates batchmetaStreamID structure with given per-frame streamID
+*              structure
+*
+* PARAMETERS :
+*   @streamID: Per-frame streamID
+*
+* RETURN     :
+*              NO_ERROR  -- success
+*              none-zero failure code
+*==========================================================================*/
+int32_t QCamera3HardwareInterface::setBatchMetaStreamID(
+        cam_stream_ID_t &streamID)
+{
+    int32_t rc = NO_ERROR;
+
+    for(size_t i = 0; i < streamID.num_streams; i++) {
+        bool streamIdPresent = false;
+        for(size_t j = 0; j < mBatchStreamID.num_streams; j++) {
+            if (mBatchStreamID.streamID[j] == streamID.streamID[i]) {
+                streamIdPresent = true;
+            }
+        }
+        /* If streamId is not already present in the batchStreamID, add the
+         * entry */
+        if (!streamIdPresent) {
+            mBatchStreamID.streamID[mBatchStreamID.num_streams++] =
+                    streamID.streamID[i];
+        }
+    }
+    return rc;
 }
 
 }; //end namespace qcamera

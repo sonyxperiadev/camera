@@ -110,6 +110,9 @@
 #define QCAMERA_DUMP_FRM_LOCATION "/data/misc/camera/"
 #define QCAMERA_MAX_FILEPATH_LENGTH 64
 
+#define LIKELY(x)       __builtin_expect((x), true)
+#define UNLIKELY(x)     __builtin_expect((x), false)
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3

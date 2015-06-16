@@ -212,7 +212,10 @@ private:
     void deriveMinFrameDuration();
     int32_t handlePendingReprocResults(uint32_t frame_number);
     int64_t getMinFrameDuration(const camera3_capture_request_t *request);
-    void handleMetadataWithLock(mm_camera_super_buf_t *metadata_buf);
+    void handleMetadataWithLock(mm_camera_super_buf_t *metadata_buf,
+            bool free_and_bufdone_meta_buf);
+    void handleBatchMetadata(mm_camera_super_buf_t *metadata_buf,
+            bool free_and_bufdone_meta_buf);
     void handleBufferWithLock(camera3_stream_buffer_t *buffer,
             uint32_t frame_number);
     void unblockRequestIfNecessary();
@@ -232,6 +235,7 @@ private:
             metadata_buffer_t *hal_metadata);
     int32_t extractSceneMode(const CameraMetadata &frame_settings, uint8_t metaMode,
             metadata_buffer_t *hal_metadata);
+    int32_t setBatchMetaStreamID(cam_stream_ID_t &streamID);
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
 
@@ -347,6 +351,13 @@ private:
 
     uint8_t mCaptureIntent;
     metadata_buffer_t mRreprocMeta; //scratch meta buffer
+    /* 0: Not batch, non-zero: Number of image buffers in a batch */
+    uint8_t mBatchSize;
+    // Used only in batch mode
+    uint8_t mToBeQueuedVidBufs;
+    // Fixed video fps
+    float mHFRVideoFps;
+    cam_stream_ID_t mBatchStreamID;
 
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;
