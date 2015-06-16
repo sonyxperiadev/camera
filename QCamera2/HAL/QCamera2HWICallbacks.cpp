@@ -1647,7 +1647,13 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
     } else {
         rotation_info.device_rotation = ROTATE_0;
     }
+
     ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData, CAM_INTF_PARM_ROTATION, rotation_info);
+
+    //CPP CDS
+    int32_t prmCDSMode = mParameters.getCDSMode();
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
+            CAM_INTF_PARM_CDS_MODE, prmCDSMode);
 
     return rc;
 }

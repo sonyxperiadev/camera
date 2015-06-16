@@ -6566,14 +6566,19 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_STILLMORE;
             }
 
-            if (mParameters.isCDSEnabled()) {
-                pp_config.feature_mask |= CAM_QCOM_FEATURE_CDS;
+            if (mParameters.getCDSMode() != CAM_CDS_MODE_OFF) {
+                if (feature_mask & CAM_QCOM_FEATURE_DSDN) {
+                    pp_config.feature_mask |= CAM_QCOM_FEATURE_DSDN;
+                } else {
+                    pp_config.feature_mask |= CAM_QCOM_FEATURE_CDS;
+                }
             }
 
             if (curCount != mParameters.getReprocCount()) {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_PP_PASS_2;
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_ROTATION;
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CDS;
+                pp_config.feature_mask &= ~CAM_QCOM_FEATURE_DSDN;
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_CROP;
             } else {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_SCALE;
@@ -6607,8 +6612,12 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                     pp_config.rotation = ROTATE_270;
                 }
             }
-            if (mParameters.isCDSEnabled()) {
-                pp_config.feature_mask |= CAM_QCOM_FEATURE_CDS;
+            if (mParameters.getCDSMode() != CAM_CDS_MODE_OFF) {
+                if (feature_mask & CAM_QCOM_FEATURE_DSDN) {
+                    pp_config.feature_mask |= CAM_QCOM_FEATURE_DSDN;
+                } else {
+                    pp_config.feature_mask |= CAM_QCOM_FEATURE_CDS;
+                }
             }
             break;
 

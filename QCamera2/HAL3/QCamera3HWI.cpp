@@ -1004,14 +1004,22 @@ int QCamera3HardwareInterface::configureStreams(
     bool bJpegExceeds4K = false;
     bool bUseCommonFeatureMask = false;
     uint32_t commonFeatureMask = 0;
+
     //@todo Remove fullFeatureMask and possibly m_bTnrEnabled once CPP checks
     //      both feature mask and param for TNR enable.
     uint32_t fullFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+    if (gCamCapability[mCameraId]->qcom_supported_feature_mask
+            & CAM_QCOM_FEATURE_DSDN) {
+        //Use CPP CDS incase h/w supports it.
+        fullFeatureMask &= ~CAM_QCOM_FEATURE_CDS;
+        fullFeatureMask |= CAM_QCOM_FEATURE_DSDN;
+    }
     if (m_bTnrEnabled != 0)
     {
         fullFeatureMask |= CAM_QCOM_FEATURE_CPP_TNR;
         // TNR and CDS cannot be enabled at the same time. Unmask CDS feature.
         fullFeatureMask &= ~CAM_QCOM_FEATURE_CDS;
+        fullFeatureMask &= ~CAM_QCOM_FEATURE_DSDN;
     }
     maxViewfinderSize = gCamCapability[mCameraId]->max_viewfinder_size;
 
@@ -8071,6 +8079,12 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
     memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
 
     pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+    if (gCamCapability[mCameraId]->qcom_supported_feature_mask
+            & CAM_QCOM_FEATURE_DSDN) {
+        //Use CPP CDS incase h/w supports it.
+        pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CDS;
+        pp_config.feature_mask |= CAM_QCOM_FEATURE_DSDN;
+    }
 
     rc = pChannel->addReprocStreamsFromSource(pp_config,
             config,
