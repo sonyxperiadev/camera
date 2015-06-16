@@ -2600,6 +2600,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
 
             if (i->input_buffer->release_fence != -1) {
                int32_t rc = sync_wait(i->input_buffer->release_fence, TIMEOUT_NEVER);
+               close(i->input_buffer->release_fence);
                if (rc != OK) {
                ALOGE("%s: input buffer sync wait failed %d", __func__, rc);
                }
@@ -3040,6 +3041,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         if (output.acquire_fence != -1) {
            rc = sync_wait(output.acquire_fence, TIMEOUT_NEVER);
+           close(output.acquire_fence);
            if (rc != OK) {
               ALOGE("%s: sync wait failed %d", __func__, rc);
               pthread_mutex_unlock(&mMutex);
@@ -3095,6 +3097,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         if (request->input_buffer->acquire_fence != -1) {
            rc = sync_wait(request->input_buffer->acquire_fence, TIMEOUT_NEVER);
+           close(request->input_buffer->acquire_fence);
            if (rc != OK) {
               ALOGE("%s: input buffer sync wait failed %d", __func__, rc);
               pthread_mutex_unlock(&mMutex);
