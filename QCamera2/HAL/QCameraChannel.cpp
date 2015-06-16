@@ -1007,6 +1007,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                         ~CAM_QCOM_FEATURE_DENOISE2D;
                 streamInfo->reprocess_config.pp_feature_config.feature_mask &=
                         ~CAM_QCOM_FEATURE_CDS;
+                streamInfo->reprocess_config.pp_feature_config.feature_mask &=
+                        ~CAM_QCOM_FEATURE_DSDN;
 
                 if (param.isHDREnabled()
                   && !param.isHDRThumbnailProcessNeeded()){
