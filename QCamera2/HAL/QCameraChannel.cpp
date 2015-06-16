@@ -970,6 +970,7 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 streamInfo->streaming_mode = CAM_STREAMING_MODE_BURST;
                 streamInfo->num_of_burst = burstNum;
             }
+            streamInfo->num_bufs = minStreamBufNum;
 
             cam_stream_reproc_config_t rp_cfg;
             memset(&rp_cfg, 0, sizeof(cam_stream_reproc_config_t));
