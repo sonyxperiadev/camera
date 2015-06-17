@@ -1224,6 +1224,10 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mJpegClientHandle(0),
       mJpegHandleOwner(false)
 {
+#ifdef TARGET_TS_MAKEUP
+    mMakeUpBuf = NULL;
+    memset(&mFaceRect, -1, sizeof(mFaceRect));
+#endif
     getLogLevel();
     ATRACE_CALL();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
@@ -2701,6 +2705,14 @@ int QCamera2HardwareInterface::startPreview()
     }
 
     updatePostPreviewParameters();
+#ifdef TARGET_TS_MAKEUP
+    if (mMakeUpBuf == NULL) {
+        int pre_width, pre_height;
+        mParameters.getPreviewSize(&pre_width, &pre_height);
+        mMakeUpBuf = new unsigned char[pre_width*pre_height*3/2];
+        CDBG_HIGH("prewidht=%d,preheight=%d",pre_width, pre_height);
+    }
+#endif
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
@@ -2737,6 +2749,14 @@ int QCamera2HardwareInterface::stopPreview()
     stopChannel(QCAMERA_CH_TYPE_PREVIEW);
 
     m_cbNotifier.flushPreviewNotifications();
+    //add for ts makeup
+#ifdef TARGET_TS_MAKEUP
+    if (mMakeUpBuf) {
+        delete []mMakeUpBuf;
+        mMakeUpBuf=NULL;
+    }
+    ts_makeup_finish();
+#endif
     // delete all channels from preparePreview
     unpreparePreview();
     CDBG_HIGH("%s: X", __func__);
@@ -7098,6 +7118,12 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
                 MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].mouth_center.y, display_dim.height, 2000, -1000);
 
 #ifndef VANILLA_HAL
+#ifdef TARGET_TS_MAKEUP
+            mFaceRect.left = fd_data->faces[i].face_boundary.left;
+            mFaceRect.top = fd_data->faces[i].face_boundary.top;
+            mFaceRect.right = fd_data->faces[i].face_boundary.width+mFaceRect.left;
+            mFaceRect.bottom = fd_data->faces[i].face_boundary.height+mFaceRect.top;
+#endif
             faces[i].smile_degree = fd_data->faces[i].smile_degree;
             faces[i].smile_score = fd_data->faces[i].smile_confidence;
             faces[i].blink_detected = fd_data->faces[i].blink_detected;
@@ -7117,7 +7143,11 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
 
         }
     }
-
+    else{
+#ifdef TARGET_TS_MAKEUP
+        memset(&mFaceRect,-1,sizeof(mFaceRect));
+#endif
+    }
     qcamera_callback_argm_t cbArg;
     memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
     cbArg.cb_type = QCAMERA_DATA_CALLBACK;

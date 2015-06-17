@@ -571,6 +571,11 @@ public:
     static const char VIDEO_ROTATION_180[];
     static const char VIDEO_ROTATION_270[];
 
+#ifdef TARGET_TS_MAKEUP
+    static const char KEY_TS_MAKEUP[];
+    static const char KEY_TS_MAKEUP_WHITEN[];
+    static const char KEY_TS_MAKEUP_CLEAN[];
+#endif
     enum {
         CAMERA_ORIENTATION_UNKNOWN = 0,
         CAMERA_ORIENTATION_PORTRAIT = 1,
