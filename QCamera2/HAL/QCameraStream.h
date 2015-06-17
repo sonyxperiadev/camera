@@ -96,6 +96,7 @@ public:
             mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
     int32_t mapBufs(cam_buf_map_type_list bufMapList,
             mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
+    int32_t mapNewBuffer(uint32_t index);
     int32_t unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plane_idx,
             mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
     int32_t setParameter(cam_stream_parm_buffer_t &param);

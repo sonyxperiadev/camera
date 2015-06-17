@@ -747,15 +747,25 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
 
     // Display the buffer.
     CDBG("%p displayBuffer %d E", pme, idx);
+    uint8_t numMapped = memory->getMappable();
     int dequeuedIdx = memory->displayBuffer(idx);
     if (dequeuedIdx < 0 || dequeuedIdx >= memory->getCnt()) {
         CDBG_HIGH("%s: Invalid dequeued buffer index %d from display",
               __func__, dequeuedIdx);
     } else {
-        // Return dequeued buffer back to driver
-        err = stream->bufDone((uint32_t)dequeuedIdx);
-        if ( err < 0) {
-            ALOGE("stream bufDone failed %d", err);
+        // This buffer has not yet been mapped to the backend
+        if (dequeuedIdx == numMapped) {
+            err = stream->mapNewBuffer((uint32_t)dequeuedIdx);
+        }
+
+        if (err < 0) {
+            ALOGE("buffer mapping failed %d", err);
+        } else {
+            // Return dequeued buffer back to driver
+            err = stream->bufDone((uint32_t)dequeuedIdx);
+            if ( err < 0) {
+                ALOGE("stream bufDone failed %d", err);
+            }
         }
     }
 
