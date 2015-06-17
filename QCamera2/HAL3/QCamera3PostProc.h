@@ -55,6 +55,8 @@ typedef struct {
     mm_camera_buf_def_t metadata_buffer;
     mm_camera_buf_def_t input_buffer;
     reprocess_config_t reproc_config;
+    buffer_handle_t *output_buffer;
+    uint32_t frameNumber;
 } qcamera_fwk_input_pp_data_t;
 
 typedef struct {

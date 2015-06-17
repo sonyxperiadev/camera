@@ -354,7 +354,7 @@ private:
     const camera_module_callbacks_t *mCallbacks;
 
     uint8_t mCaptureIntent;
-    metadata_buffer_t mRreprocMeta; //scratch meta buffer
+    metadata_buffer_t mReprocMeta; //scratch meta buffer
     /* 0: Not batch, non-zero: Number of image buffers in a batch */
     uint8_t mBatchSize;
     // Used only in batch mode

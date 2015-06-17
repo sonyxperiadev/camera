@@ -230,13 +230,16 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
             ALOGE("%s: cannot add reprocess channel", __func__);
             return UNKNOWN_ERROR;
         }
-
-        rc = m_pReprocChannel->start();
-        if (rc != 0) {
-            ALOGE("%s: cannot start reprocess channel", __func__);
-            delete m_pReprocChannel;
-            m_pReprocChannel = NULL;
-            return rc;
+        /*start the reprocess channel only if buffers are already allocated, thus
+          only start it in an intermediate reprocess type, defer it for others*/
+        if (config.reprocess_type == REPROCESS_TYPE_JPEG) {
+            rc = m_pReprocChannel->start();
+            if (rc != 0) {
+                ALOGE("%s: cannot start reprocess channel", __func__);
+                delete m_pReprocChannel;
+                m_pReprocChannel = NULL;
+                return rc;
+            }
         }
     }
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);

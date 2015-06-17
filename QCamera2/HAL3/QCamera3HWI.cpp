@@ -1544,7 +1544,6 @@ int QCamera3HardwareInterface::configureStreams(
                 QCamera3Channel *channel = NULL;
                 switch (newStream->format) {
                 case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-                case HAL_PIXEL_FORMAT_YCbCr_420_888:
                     /* use higher number of buffers for HFR mode */
                     if((newStream->format ==
                             HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) &&
@@ -1562,12 +1561,31 @@ int QCamera3HardwareInterface::configureStreams(
                             &gCamCapability[mCameraId]->padding_info,
                             this,
                             newStream,
-                            (cam_stream_type_t) mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                            (cam_stream_type_t)
+                                    mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                             mMetadataChannel,
                             numBuffers);
                     if (channel == NULL) {
                         ALOGE("%s: allocation of channel failed", __func__);
+                        pthread_mutex_unlock(&mMutex);
+                        return -ENOMEM;
+                    }
+                    newStream->max_buffers = channel->getNumBuffers();
+                    newStream->priv = channel;
+                    break;
+                case HAL_PIXEL_FORMAT_YCbCr_420_888:
+                    channel = new QCamera3YUVChannel(mCameraHandle->camera_handle,
+                            mCameraHandle->ops, captureResultCb,
+                            &gCamCapability[mCameraId]->padding_info,
+                            this,
+                            newStream,
+                            (cam_stream_type_t)
+                                    mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                            mMetadataChannel);
+                    if (channel == NULL) {
+                        ALOGE("%s: allocation of YUV channel failed", __func__);
                         pthread_mutex_unlock(&mMutex);
                         return -ENOMEM;
                     }
@@ -2908,7 +2926,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
             it != mStreamInfo.end(); it++) {
             QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-            CDBG_HIGH("%s: Start Channel mask=%d",
+            CDBG_HIGH("%s: Start Processing Channel mask=%d",
                     __func__, channel->getStreamTypeMask());
             rc = channel->start();
             if (rc < 0) {
@@ -2927,7 +2945,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                       it != mStreamInfo.end(); it++) {
                     QCamera3Channel *channel =
                         (QCamera3Channel *)(*it)->stream->priv;
-                    ALOGE("%s: Stopping Regular Channel mask=%d", __func__,
+                    ALOGE("%s: Stopping Processing Channel mask=%d", __func__,
                         channel->getStreamTypeMask());
                     channel->stop();
                 }
@@ -3104,7 +3122,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
     mMetadataChannel->request(NULL, frameNumber);
 
     if(request->input_buffer != NULL){
-        rc = setReprocParameters(request, &mRreprocMeta, snapshotStreamId);
+        rc = setReprocParameters(request, &mReprocMeta, snapshotStreamId);
         if (NO_ERROR != rc) {
             ALOGE("%s: fail to set reproc parameters", __func__);
             pthread_mutex_unlock(&mMutex);
@@ -3125,7 +3143,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
             if(request->input_buffer != NULL){
                 rc = channel->request(output.buffer, frameNumber,
-                        request->input_buffer, &mRreprocMeta);
+                        request->input_buffer, &mReprocMeta);
                 if (rc < 0) {
                     ALOGE("%s: Fail to request on picture channel", __func__);
                     pthread_mutex_unlock(&mMutex);
@@ -3147,20 +3165,31 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     return rc;
                 }
             }
+        } else if (output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+            rc = channel->request(output.buffer, frameNumber,
+                    request->input_buffer, (request->input_buffer)? &mReprocMeta : mParameters);
+            if (rc < 0) {
+                ALOGE("%s: Fail to request on YUV channel", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
         } else {
             CDBG("%s: %d, request with buffer %p, frame_number %d", __func__,
                 __LINE__, output.buffer, frameNumber);
-           rc = channel->request(output.buffer, frameNumber);
-           if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())
-                && mBatchSize) {
-               mToBeQueuedVidBufs++;
-               if (mToBeQueuedVidBufs == mBatchSize) {
-                   channel->queueBatchBuf();
-               }
-           }
+            rc = channel->request(output.buffer, frameNumber);
+            if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())
+                    && mBatchSize) {
+                mToBeQueuedVidBufs++;
+                if (mToBeQueuedVidBufs == mBatchSize) {
+                    channel->queueBatchBuf();
+                }
+            }
+            if (rc < 0) {
+                ALOGE("%s: request failed", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
         }
-        if (rc < 0)
-            ALOGE("%s: request failed", __func__);
     }
 
     if(request->input_buffer == NULL) {
