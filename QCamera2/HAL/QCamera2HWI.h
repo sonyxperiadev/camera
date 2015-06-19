@@ -148,7 +148,9 @@ typedef void (*camera_release_callback)(void *user_data,
                                         int32_t cb_status);
 typedef void (*jpeg_data_callback)(int32_t msg_type,
         const camera_memory_t *data, unsigned int index,
-        camera_frame_metadata_t *metadata, void *user);
+        camera_frame_metadata_t *metadata, void *user,
+        uint32_t frame_idx, camera_release_callback release_cb,
+        void *release_cookie, void *release_data);
 
 typedef struct {
     qcamera_callback_type_m  cb_type;    // event type
@@ -162,6 +164,7 @@ typedef struct {
     void                    *user_data;  // any data needs to be released after callback
     void                    *cookie;     // release callback cookie
     camera_release_callback  release_cb; // release callback
+    uint32_t                 frame_index;  // frame index for the buffer
 } qcamera_callback_argm_t;
 
 class QCameraCbNotifier {
@@ -409,9 +412,10 @@ private:
 
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
     int32_t sendDataNotify(int32_t msg_type,
-                           camera_memory_t *data,
-                           uint8_t index,
-                           camera_frame_metadata_t *metadata);
+            camera_memory_t *data,
+            uint8_t index,
+            camera_frame_metadata_t *metadata,
+            uint32_t frame_idx);
 
     int32_t sendPreviewCallback(QCameraStream *stream,
             QCameraMemory *memory, uint32_t idx);

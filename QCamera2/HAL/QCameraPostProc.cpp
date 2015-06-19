@@ -663,6 +663,7 @@ int32_t QCameraPostProcessor::sendEvtNotify(int32_t msg_type,
  *   @metadata: ptr to meta data buffer if there is any
  *   @release_data : ptr to struct indicating if data need to be released
  *                   after notify
+ *   @super_buf_frame_idx : super buffer frame index
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -672,7 +673,8 @@ int32_t QCameraPostProcessor::sendDataNotify(int32_t msg_type,
                                              camera_memory_t *data,
                                              uint8_t index,
                                              camera_frame_metadata_t *metadata,
-                                             qcamera_release_data_t *release_data)
+                                             qcamera_release_data_t *release_data,
+                                             uint32_t super_buf_frame_idx)
 {
     qcamera_data_argm_t *data_cb = (qcamera_data_argm_t *)malloc(sizeof(qcamera_data_argm_t));
     if (NULL == data_cb) {
@@ -697,6 +699,7 @@ int32_t QCameraPostProcessor::sendDataNotify(int32_t msg_type,
     cbArg.user_data = data_cb;
     cbArg.cookie = this;
     cbArg.release_cb = releaseNotifyData;
+    cbArg.frame_index = super_buf_frame_idx;
     int rc = m_parent->m_cbNotifier.notifyCallback(cbArg);
     if ( NO_ERROR != rc ) {
         ALOGE("%s: Error enqueuing jpeg data into notify queue", __func__);
@@ -952,6 +955,13 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
             return rc;
         }
     } else {
+        /* To be removed later when ISP Frame sync feature is available
+                qcamera_jpeg_data_t *jpeg_job =
+                    (qcamera_jpeg_data_t *)m_ongoingJpegQ.dequeue(matchJobId,
+                    (void*)&evt->jobId);
+                    uint32_t frame_idx = jpeg_job->src_frame->bufs[0]->frame_idx;*/
+        uint32_t frame_idx = 75;
+        CDBG_HIGH(" %s : FRAME INDEX %d", __func__, frame_idx);
         // Release jpeg job data
         m_ongoingJpegQ.flushNodes(matchJobId, (void*)&evt->jobId);
 
@@ -1016,10 +1026,11 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
         release_data.data = jpeg_mem;
         CDBG_HIGH("[KPI Perf] %s: PROFILE_JPEG_CB ",__func__);
         rc = sendDataNotify(CAMERA_MSG_COMPRESSED_IMAGE,
-                            jpeg_mem,
-                            0,
-                            NULL,
-                            &release_data);
+                jpeg_mem,
+                0,
+                NULL,
+                &release_data,
+                frame_idx);
         m_parent->setOutputImageCount(m_parent->getOutputImageCount() + 1);
 
 end:
@@ -1046,10 +1057,11 @@ end:
             m_DataMem = NULL;
             CDBG_HIGH("[KPI Perf] %s: send jpeg callback for depthmap ",__func__);
             rc = sendDataNotify(CAMERA_MSG_COMPRESSED_IMAGE,
-                jpeg_mem,
-                0,
-                NULL,
-                &release_data);
+                    jpeg_mem,
+                    0,
+                    NULL,
+                    &release_data,
+                    frame_idx);
             if (rc != NO_ERROR) {
                 // send error msg to upper layer
                 sendEvtNotify(CAMERA_MSG_ERROR,
@@ -1405,6 +1417,8 @@ void QCameraPostProcessor::releaseNotifyData(void *user_data,
                                              void *cookie,
                                              int32_t cb_status)
 {
+    CDBG("%s : releaseNotifyData release_data %p", __func__, user_data);
+
     qcamera_data_argm_t *app_cb = ( qcamera_data_argm_t * ) user_data;
     QCameraPostProcessor *postProc = ( QCameraPostProcessor * ) cookie;
     if ( ( NULL != app_cb ) && ( NULL != postProc ) ) {
@@ -2466,6 +2480,10 @@ void *QCameraPostProcessor::dataSaveRoutine(void *data)
                     ALOGE("%s: Invalid jpeg event data", __func__);
                     continue;
                 }
+                //qcamera_jpeg_data_t *jpeg_job =
+                //        (qcamera_jpeg_data_t *)pme->m_ongoingJpegQ.dequeue(false);
+                //uint32_t frame_idx = jpeg_job->src_frame->bufs[0]->frame_idx;
+                uint32_t frame_idx = 75;
 
                 pme->m_ongoingJpegQ.flushNodes(matchJobId, (void*)&job_data->jobId);
 
@@ -2516,10 +2534,11 @@ void *QCameraPostProcessor::dataSaveRoutine(void *data)
                     release_data.unlinkFile = true;
                     CDBG_HIGH("[KPI Perf] %s: PROFILE_JPEG_CB ",__func__);
                     ret = pme->sendDataNotify(CAMERA_MSG_COMPRESSED_IMAGE,
-                                        jpeg_mem,
-                                        0,
-                                        NULL,
-                                        &release_data);
+                            jpeg_mem,
+                            0,
+                            NULL,
+                            &release_data,
+                            frame_idx);
                 }
 
 end:
