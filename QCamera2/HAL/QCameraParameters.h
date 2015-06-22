@@ -760,7 +760,6 @@ public:
     int32_t updateDebugLevel();
     bool is4k2kVideoResolution();
     bool isUBWCEnabled();
-    bool isEztuneEnabled() { return m_bEztuneEnabled; };
     int getBrightness();
     int32_t updateOisValue(bool oisValue);
     int32_t setIntEvent(cam_int_evt_params_t params);
@@ -945,7 +944,6 @@ private:
             double &g_gain, double &b_gain);
     int32_t setCacheVideoBuffers(const char *cacheVideoBufStr);
     int32_t setCDSMode(int32_t cds_mode, bool initCommit);
-    int32_t setEztune();
 
     int32_t parse_pair(const char *str, int *first, int *second,
                        char delim, char **endptr);
@@ -1104,7 +1102,7 @@ private:
     int32_t mParmEffect;
     cam_capture_frame_config_t m_captureFrameConfig;
     int8_t mBufBatchCnt;
-    bool m_bEztuneEnabled;
+
     uint32_t mRotation;
     uint32_t mJpegRotation;
 };

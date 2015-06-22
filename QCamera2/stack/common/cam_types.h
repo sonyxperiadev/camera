@@ -2033,12 +2033,10 @@ typedef struct {
 #define CAM_QCOM_FEATURE_STILLMORE      (1U<<22)
 #define CAM_QCOM_FEATURE_DCRF           (1U<<23)
 #define CAM_QCOM_FEATURE_CDS            (1U<<24)
-#define CAM_QCOM_FEATURE_EZTUNE         (1U<<25)
-#define CAM_QCOM_FEATURE_MAX            (1U<<26)
+#define CAM_QCOM_FEATURE_MAX            (1U<<25)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
-                                         CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
-                                         CAM_QCOM_FEATURE_EZTUNE)
+                                         CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC)
 
 #define CAM_QCOM_FEATURE_PP_PASS_1      CAM_QCOM_FEATURE_PP_SUPERSET
 #define CAM_QCOM_FEATURE_PP_PASS_2      CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP;
