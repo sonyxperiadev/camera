@@ -272,7 +272,7 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
     }
 
     // Wait on Postproc initialization if needed
-    pme->waitDefferedWork(pme->mReprocJob);
+    pme->waitDeferredWork(pme->mReprocJob);
 
     // send to postprocessor
     pme->m_postprocessor.processData(frame);
@@ -449,7 +449,7 @@ void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t
     }
 
     // Wait on Postproc initialization if needed
-    pme->waitDefferedWork(pme->mReprocJob);
+    pme->waitDeferredWork(pme->mReprocJob);
 
     // send to postprocessor
     pme->m_postprocessor.processData(frame);
@@ -667,7 +667,7 @@ void QCamera2HardwareInterface::postproc_channel_cb_routine(mm_camera_super_buf_
     *frame = *recvd_frame;
 
     // Wait on JPEG create session
-    pme->waitDefferedWork(pme->mJpegJob);
+    pme->waitDeferredWork(pme->mJpegJob);
 
     // send to postprocessor
     pme->m_postprocessor.processPPData(frame);
