@@ -31,6 +31,7 @@
 #include "mm_jpeg_ionbuf.h"
 #include <sys/time.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define MAX_NUM_BUFS (12)
 
@@ -72,11 +73,13 @@ typedef struct {
   int tmb_height;
   int main_quality;
   int thumb_quality;
+  char *qtable_luma_file;
+  char *qtable_chroma_file;
 } jpeg_test_input_t;
 
 /* Static constants */
 /*  default Luma Qtable */
-const uint8_t DEFAULT_QTABLE_0[QUANT_SIZE] = {
+uint8_t DEFAULT_QTABLE_0[QUANT_SIZE] = {
   16, 11, 10, 16, 24, 40, 51, 61,
   12, 12, 14, 19, 26, 58, 60, 55,
   14, 13, 16, 24, 40, 57, 69, 56,
@@ -88,7 +91,7 @@ const uint8_t DEFAULT_QTABLE_0[QUANT_SIZE] = {
 };
 
 /*  default Chroma Qtable */
-const uint8_t DEFAULT_QTABLE_1[QUANT_SIZE] = {
+uint8_t DEFAULT_QTABLE_1[QUANT_SIZE] = {
   17, 18, 24, 47, 99, 99, 99, 99,
   18, 21, 26, 66, 99, 99, 99, 99,
   24, 26, 56, 99, 99, 99, 99, 99,
@@ -136,7 +139,8 @@ static const mm_jpeg_intf_test_colfmt_t color_formats[] =
 
 static jpeg_test_input_t jpeg_input[] = {
   { QCAMERA_DUMP_FRM_LOCATION"test_1.yuv", 4000, 3008, QCAMERA_DUMP_FRM_LOCATION"test_1.jpg", 0, 0,
-  { MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2, {3, 2}, "YCRCBLP_H2V2" }, 0, 320, 240, 80, 80}
+    { MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2, {3, 2}, "YCRCBLP_H2V2" },
+      0, 320, 240, 80, 80, NULL, NULL}
 };
 
 static void mm_jpeg_encode_callback(jpeg_job_status_t status,
@@ -242,6 +246,45 @@ int mm_jpeg_test_read(mm_jpeg_intf_test_t *p_obj, uint32_t idx)
   return 0;
 }
 
+/** mm_jpeg_test_read_qtable:
+ *
+ *  Arguments:
+ *    @filename: Qtable filename
+ *    @chroma_flag: Flag indicating chroma qtable
+ *
+ *  Return:
+ *    0 success, failure otherwise
+ *
+ *  Description:
+ *    Reads qtable from file and sets it in appropriate qtable
+ *    based on flag.
+ **/
+int mm_jpeg_test_read_qtable(const char *filename, bool chroma_flag)
+{
+  FILE *fp = NULL;
+  int i;
+
+  if (filename == NULL)
+    return 0;
+
+  fp = fopen(filename, "r");
+  if (!fp) {
+    CDBG_ERROR("%s:%d] error cannot open file", __func__, __LINE__);
+    return -1;
+  }
+
+  if (chroma_flag) {
+    for (i = 0; i < QUANT_SIZE; i++)
+      fscanf(fp, "%hhu,", &DEFAULT_QTABLE_1[i]);
+  } else {
+    for (i = 0; i < QUANT_SIZE; i++)
+      fscanf(fp, "%hhu,", &DEFAULT_QTABLE_0[i]);
+  }
+
+  fclose(fp);
+  return 0;
+}
+
 static int encode_init(jpeg_test_input_t *p_input, mm_jpeg_intf_test_t *p_obj)
 {
   int rc = -1;
@@ -272,7 +315,22 @@ static int encode_init(jpeg_test_input_t *p_input, mm_jpeg_intf_test_t *p_obj)
 
     rc = mm_jpeg_test_read(p_obj, i);
     if (rc) {
-      CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+      CDBG_ERROR("%s:%d] Error, unable to read input image",
+        __func__, __LINE__);
+      return -1;
+    }
+
+    mm_jpeg_test_read_qtable(p_input->qtable_luma_file, false);
+    if (rc) {
+      CDBG_ERROR("%s:%d] Error, unable to read luma qtable",
+        __func__, __LINE__);
+      return -1;
+    }
+
+    mm_jpeg_test_read_qtable(p_input->qtable_chroma_file, true);
+    if (rc) {
+      CDBG_ERROR("%s:%d] Error, unable to read chrome qtable",
+        __func__, __LINE__);
       return -1;
     }
 
@@ -484,7 +542,7 @@ static int mm_jpeg_test_get_input(int argc, char *argv[],
   char *in_files[MAX_FILE_CNT];
   char *out_files[MAX_FILE_CNT];
 
-  while ((c = getopt(argc, argv, "-I:O:W:H:F:BTx:y:Q:q:")) != -1) {
+  while ((c = getopt(argc, argv, "-I:O:W:H:F:BTx:y:Q:J:K:q:")) != -1) {
     switch (c) {
     case 'B':
       fprintf(stderr, "%-25s\n", "Using burst mode");
@@ -546,6 +604,16 @@ static int mm_jpeg_test_get_input(int argc, char *argv[],
       p_test->thumb_quality = atoi(optarg);
       fprintf(stderr, "%-25s%d\n", "Thumb quality: ", p_test->thumb_quality);
       break;
+    case 'J':
+      p_test->qtable_luma_file = optarg;
+      fprintf(stderr, "%-25s%s\n", "Qtable luma path",
+        p_test->qtable_luma_file);
+      break;
+    case 'K':
+      p_test->qtable_chroma_file = optarg;
+      fprintf(stderr, "%-25s%s\n", "Qtable chroma path",
+        p_test->qtable_chroma_file);
+      break;
     default:;
     }
   }
@@ -601,6 +669,10 @@ static void mm_jpeg_test_print_usage()
   fprintf(stderr, "  -B \t\tBurst mode. Utilize both encoder engines on"
           "supported targets\n");
   fprintf(stderr, "  -M \t\tUse minimum number of output buffers \n");
+  fprintf(stderr, "  -J \t\tLuma QTable filename. Comma separated 8x8"
+    " matrix\n");
+  fprintf(stderr, "  -K \t\tChroma QTable filename. Comma separated"
+    " 8x8 matrix\n");
   fprintf(stderr, "\n");
 }
 
