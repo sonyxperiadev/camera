@@ -3579,8 +3579,7 @@ int QCamera2HardwareInterface::takePicture()
 
                 // normal capture case
                 // need to stop preview channel
-                stopChannel(QCAMERA_CH_TYPE_PREVIEW);
-                delChannel(QCAMERA_CH_TYPE_PREVIEW);
+                stopPreview();
 
                 if (NO_ERROR == rc) {
                     rc = declareSnapshotStreams();
@@ -3617,9 +3616,7 @@ int QCamera2HardwareInterface::takePicture()
             } else {
                 // normal capture case
                 // need to stop preview channel
-
-                stopChannel(QCAMERA_CH_TYPE_PREVIEW);
-                delChannel(QCAMERA_CH_TYPE_PREVIEW);
+                stopPreview();
 
                 rc = declareSnapshotStreams();
                 if (NO_ERROR != rc) {
@@ -3694,8 +3691,8 @@ int QCamera2HardwareInterface::takePicture()
             }
         } else {
 
-            stopChannel(QCAMERA_CH_TYPE_PREVIEW);
-            delChannel(QCAMERA_CH_TYPE_PREVIEW);
+            // Stop Preview before taking NZSL snapshot
+            stopPreview();
 
             rc = mParameters.updateRAW(gCamCaps[mCameraId]->raw_dim[0]);
             if (NO_ERROR != rc) {
