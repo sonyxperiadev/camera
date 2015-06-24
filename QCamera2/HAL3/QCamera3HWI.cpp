@@ -2127,7 +2127,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             notify_msg.type = CAMERA3_MSG_SHUTTER;
             notify_msg.message.shutter.frame_number = i->frame_number;
             notify_msg.message.shutter.timestamp = (uint64_t)capture_time -
-                    (urgent_frame_number - i->frame_number) * NSEC_PER_33MSEC;
+                    (frame_number - i->frame_number) * NSEC_PER_33MSEC;
             mCallbackOps->notify(mCallbackOps, &notify_msg);
             i->timestamp = (nsecs_t)notify_msg.message.shutter.timestamp;
             CDBG("%s: Support notification !!!! notify frame_number = %u, capture_time = %llu",
