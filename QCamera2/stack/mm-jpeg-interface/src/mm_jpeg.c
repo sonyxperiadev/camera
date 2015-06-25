@@ -2266,7 +2266,7 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
   if (p_params->burst_mode) {
     num_omx_sessions = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
   }
-  work_bufs_need = my_obj->num_sessions + num_omx_sessions;
+  work_bufs_need = num_omx_sessions;
   if (work_bufs_need > MM_JPEG_CONCURRENT_SESSIONS_COUNT) {
     work_bufs_need = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
   }
@@ -2285,6 +2285,7 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
      }
      my_obj->work_buf_cnt++;
   }
+
 
   /* init omx handle queue */
   p_session_handle_q = (mm_jpeg_queue_t *) malloc(sizeof(*p_session_handle_q));
@@ -2334,10 +2335,11 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
     }
     p_prev_session = p_session;
 
-    buf_idx = my_obj->num_sessions + i;
+    buf_idx = i;
     if (buf_idx < MM_JPEG_CONCURRENT_SESSIONS_COUNT) {
       p_session->work_buffer = my_obj->ionBuffer[buf_idx];
     } else {
+      CDBG_ERROR("%s %d: Invalid Index, Setting buffer add to null", __func__, __LINE__);
       p_session->work_buffer.addr = NULL;
       p_session->work_buffer.ion_fd = -1;
       p_session->work_buffer.p_pmem_fd = -1;
