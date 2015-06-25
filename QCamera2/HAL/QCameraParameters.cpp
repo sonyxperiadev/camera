@@ -5535,6 +5535,10 @@ int32_t QCameraParameters::initDefaultParameters()
 
     set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, videoRotationValues.string());
     set(KEY_QC_VIDEO_ROTATION, VIDEO_ROTATION_0);
+
+    //Check for EZTune
+    setEztune();
+
     return rc;
 }
 
@@ -11494,6 +11498,21 @@ cam_dimension_t *QCameraReprocScaleParam::getTotalSizeTbl()
 }
 
 /*===========================================================================
+ * FUNCTION   : setEztune
+ *
+ * DESCRIPTION: Enable/Disable EZtune
+ *
+ *==========================================================================*/
+int32_t QCameraParameters::setEztune()
+{
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.eztune.enable", prop, "0");
+    m_bEztuneEnabled = atoi(prop);
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : isHDREnabled
  *
  * DESCRIPTION: if HDR is enabled
@@ -12214,6 +12233,11 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
     if (isTNRVideoEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
             (CAM_STREAM_TYPE_VIDEO == stream_type))) {
         feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
+    }
+    if (isEztuneEnabled() &&
+            ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
+            (CAM_STREAM_TYPE_SNAPSHOT == stream_type))) {
+        feature_mask |= CAM_QCOM_FEATURE_EZTUNE;
     }
 
     if (isCDSEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
