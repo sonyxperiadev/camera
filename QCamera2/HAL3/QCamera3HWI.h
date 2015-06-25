@@ -363,6 +363,7 @@ private:
     // Fixed video fps
     float mHFRVideoFps;
     cam_stream_ID_t mBatchStreamID;
+    uint8_t mOpMode;
 
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;
@@ -393,6 +394,8 @@ private:
             cam_test_pattern_mode_t> TEST_PATTERN_MAP[];
     static const QCameraMap<camera_metadata_enum_android_sensor_reference_illuminant1_t,
             cam_illuminat_t> REFERENCE_ILLUMINANT_MAP[];
+    static const QCameraMap<int32_t,
+            cam_hfr_mode_t> HFR_MODE_MAP[];
 
     static const QCameraPropMap CDS_MAP[];
 };

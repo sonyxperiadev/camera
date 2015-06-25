@@ -275,6 +275,18 @@ const QCamera3HardwareInterface::QCameraMap<
     { ANDROID_SENSOR_REFERENCE_ILLUMINANT1_WHITE_FLUORESCENT, CAM_AWB_COLD_FLO},
 };
 
+const QCamera3HardwareInterface::QCameraMap<
+        int32_t, cam_hfr_mode_t> QCamera3HardwareInterface::HFR_MODE_MAP[] = {
+    { 60, CAM_HFR_MODE_60FPS},
+    { 90, CAM_HFR_MODE_90FPS},
+    { 120, CAM_HFR_MODE_120FPS},
+    { 150, CAM_HFR_MODE_150FPS},
+    { 180, CAM_HFR_MODE_180FPS},
+    { 210, CAM_HFR_MODE_210FPS},
+    { 240, CAM_HFR_MODE_240FPS},
+    { 480, CAM_HFR_MODE_480FPS},
+};
+
 camera3_device_ops_t QCamera3HardwareInterface::mCameraOps = {
     initialize:                         QCamera3HardwareInterface::initialize,
     configure_streams:                  QCamera3HardwareInterface::configure_streams,
@@ -332,7 +344,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mCaptureIntent(0),
       mBatchSize(0),
       mToBeQueuedVidBufs(0),
-      mHFRVideoFps(DEFAULT_VIDEO_FPS)
+      mHFRVideoFps(DEFAULT_VIDEO_FPS),
+      mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE)
 {
     getLogLevel();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
@@ -1037,6 +1050,9 @@ int QCamera3HardwareInterface::configureStreams(
         return BAD_VALUE;
     }
 
+    mOpMode = streamList->operation_mode;
+    CDBG("%s: mOpMode: %d", __func__, mOpMode);
+
     /* first invalidate all the steams in the mStreamList
      * if they appear again, they will be validated */
     for (List<stream_info_t*>::iterator it = mStreamInfo.begin();
@@ -1509,7 +1525,7 @@ int QCamera3HardwareInterface::configureStreams(
                 /* For video encoding stream, set read/write rarely
                  * flag so that they may be set to un-cached */
                 if (newStream->usage & GRALLOC_USAGE_HW_VIDEO_ENCODER)
-                    newStream->usage =
+                    newStream->usage |=
                          (GRALLOC_USAGE_SW_READ_RARELY |
                          GRALLOC_USAGE_SW_WRITE_RARELY |
                          GRALLOC_USAGE_HW_CAMERA_WRITE);
@@ -1536,7 +1552,7 @@ int QCamera3HardwareInterface::configureStreams(
                             private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) &&
                             (streamList->operation_mode ==
                             CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)
-                      ) {
+                    ) {
                         numBuffers = MAX_INFLIGHT_REQUESTS * MAX_HFR_BATCH_SIZE;
                     }
                     channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
@@ -2754,6 +2770,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         /*set the capture intent, hal version, tintless, stream info,
          *and disenable parameters to the backend*/
+        CDBG("%s: set_parms META_STREAM_INFO ", __func__ );
         rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
         if (rc < 0) {
@@ -3138,7 +3155,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     return rc;
                 }
             }
-
+            CDBG("%s: set_parms  mToBeQueuedVidBufs == mBatchSize ", __func__);
             rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
             if (rc < 0) {
@@ -3927,31 +3944,16 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, expCompensation, 1);
     }
 
-    /* HFR and BEST_MODE need to be both available to derive SCENE_MODE
-     * Framework sets scenemode to indicate HFR and hence corresponding
-     * translatation is required from hfr mode to scenemode */
-    int32_t hfrMode = CAM_HFR_MODE_OFF;
-    uint32_t sceneMode = CAM_SCENE_MODE_OFF;
-
-    IF_META_AVAILABLE(int32_t, pHfrMode, CAM_INTF_PARM_HFR, metadata) {
-        hfrMode = *pHfrMode;
-    }
-    IF_META_AVAILABLE(uint32_t, pBestshotMode, CAM_INTF_PARM_BESTSHOT_MODE, metadata) {
-        uint8_t fwkSceneMode;
-        sceneMode = *pBestshotMode;
-
-        if ((hfrMode != CAM_HFR_MODE_OFF) && (hfrMode < CAM_HFR_MODE_MAX))
-            fwkSceneMode = ANDROID_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO;
-        else {
-            fwkSceneMode =
-                    (uint8_t)lookupFwkName(SCENE_MODES_MAP,
-                    sizeof(SCENE_MODES_MAP)/
-                    sizeof(SCENE_MODES_MAP[0]), sceneMode);
+    IF_META_AVAILABLE(uint32_t, sceneMode, CAM_INTF_PARM_BESTSHOT_MODE, metadata) {
+        int val = (uint8_t)lookupFwkName(SCENE_MODES_MAP,
+                METADATA_MAP_SIZE(SCENE_MODES_MAP),
+                *sceneMode);
+        if (NAME_NOT_FOUND != val) {
+            uint8_t fwkSceneMode = (uint8_t)val;
+            camMetadata.update(ANDROID_CONTROL_SCENE_MODE, &fwkSceneMode, 1);
+            CDBG("%s: urgent Metadata : ANDROID_CONTROL_SCENE_MODE: %d",
+                    __func__, fwkSceneMode);
         }
-        camMetadata.update(ANDROID_CONTROL_SCENE_MODE,
-                &fwkSceneMode, 1);
-        CDBG("%s: urgent Metadata : ANDROID_CONTROL_SCENE_MODE: %d",
-                __func__, fwkSceneMode);
     }
 
     IF_META_AVAILABLE(uint32_t, ae_lock, CAM_INTF_PARM_AEC_LOCK, metadata) {
@@ -5809,10 +5811,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       avail_effects,
                       size);
 
-    /* '+1' for HighSpeedVideo scenemode. Backend does not have a High speed
-        video scene mode. If HFR is supported, add HSV scenemode */
-    uint8_t avail_scene_modes[CAM_SCENE_MODE_MAX + 1];
-    uint8_t supported_indexes[CAM_SCENE_MODE_MAX + 1];
+    uint8_t avail_scene_modes[CAM_SCENE_MODE_MAX];
+    uint8_t supported_indexes[CAM_SCENE_MODE_MAX];
     size_t supported_scene_modes_cnt = 0;
     count = CAM_SCENE_MODE_MAX;
     count = MIN(gCamCapability[cameraId]->supported_scene_modes_cnt, count);
@@ -5829,7 +5829,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             }
         }
     }
-    uint8_t scene_mode_overrides[(CAM_SCENE_MODE_MAX + 1) * 3];
+    staticInfo.update(ANDROID_CONTROL_AVAILABLE_SCENE_MODES,
+                      avail_scene_modes,
+                      supported_scene_modes_cnt);
+
+    uint8_t scene_mode_overrides[CAM_SCENE_MODE_MAX  * 3];
     makeOverridesList(gCamCapability[cameraId]->scene_mode_overrides,
                       supported_scene_modes_cnt,
                       CAM_SCENE_MODE_MAX,
@@ -5837,26 +5841,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       supported_indexes,
                       cameraId);
 
-    if (hfrEnable && gCamCapability[cameraId]->hfr_tbl_cnt > 0) {
-        avail_scene_modes[supported_scene_modes_cnt] =
-                ANDROID_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO;
-        scene_mode_overrides[3 * supported_scene_modes_cnt] =
-                ANDROID_CONTROL_AE_MODE_ON;
-        scene_mode_overrides[3 * supported_scene_modes_cnt + 1] =
-                ANDROID_CONTROL_AWB_MODE_AUTO;
-        scene_mode_overrides[3 * supported_scene_modes_cnt + 2] =
-                ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO;
-        supported_scene_modes_cnt++;
-    }
-
     if (supported_scene_modes_cnt == 0) {
         supported_scene_modes_cnt = 1;
         avail_scene_modes[0] = ANDROID_CONTROL_SCENE_MODE_DISABLED;
     }
 
-    staticInfo.update(ANDROID_CONTROL_AVAILABLE_SCENE_MODES,
-                      avail_scene_modes,
-                      supported_scene_modes_cnt);
     staticInfo.update(ANDROID_CONTROL_SCENE_MODE_OVERRIDES,
             scene_mode_overrides, supported_scene_modes_cnt * 3);
 
@@ -7205,10 +7194,30 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
     fps_range.video_min_fps = fps_range.min_fps;
     fps_range.video_max_fps = fps_range.max_fps;
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
-        rc = BAD_VALUE;
+        return BAD_VALUE;
     }
     CDBG("%s: fps: [%f %f] vid_fps: [%f %f]", __func__, fps_range.min_fps,
             fps_range.max_fps, fps_range.video_min_fps, fps_range.video_max_fps);
+
+    /* In case of HFR, use max_fps as the indication of sensor mode */
+    int val = lookupHalName(HFR_MODE_MAP, METADATA_MAP_SIZE(HFR_MODE_MAP),
+            (int32_t)fps_range.max_fps);
+    if (NAME_NOT_FOUND != val) {
+        cam_hfr_mode_t hfrMode = (cam_hfr_mode_t)val;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, hfrMode)) {
+            return BAD_VALUE;
+        }
+
+        if (fps_range.max_fps >= MIN_FPS_FOR_BATCH_MODE) {
+            mHFRVideoFps = fps_range.max_fps;
+            mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
+            if (mBatchSize > MAX_HFR_BATCH_SIZE) {
+                mBatchSize = MAX_HFR_BATCH_SIZE;
+            }
+        }
+        CDBG("%s: hfrMode: %d batchSize: %d", __func__, hfrMode, mBatchSize);
+    }
+
     return rc;
 }
 
@@ -8299,88 +8308,36 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
         const CameraMetadata &frame_settings, uint8_t metaMode,
         metadata_buffer_t *hal_metadata)
 {
-    int32_t sceneMode, hfrMode;
     int32_t rc = NO_ERROR;
 
     if (metaMode == ANDROID_CONTROL_MODE_USE_SCENE_MODE) {
-        camera_metadata_ro_entry entry = frame_settings.find(ANDROID_CONTROL_SCENE_MODE);
+        camera_metadata_ro_entry entry =
+                frame_settings.find(ANDROID_CONTROL_SCENE_MODE);
         if (0 == entry.count)
             return rc;
 
         uint8_t fwk_sceneMode = entry.data.u8[0];
 
-        if (fwk_sceneMode != ANDROID_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO) {
-            sceneMode = lookupHalName(SCENE_MODES_MAP,
-                    sizeof(SCENE_MODES_MAP)/sizeof(SCENE_MODES_MAP[0]),
-                    fwk_sceneMode);
-            hfrMode = CAM_HFR_MODE_OFF;
-        } else {
-            if (!frame_settings.exists(ANDROID_CONTROL_AE_TARGET_FPS_RANGE)) {
-                CDBG("%s: No valid TARGET_FPS_RANGE in setting.", __func__);
-                return rc;
-            }
-            int32_t min_fps =
-                frame_settings.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[0];
-            int32_t max_fps =
-                frame_settings.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
-            if (min_fps != max_fps) {
-                ALOGE("%s: for HIGH_SPEED_VIDEO, min_fps and max_fps should be same",
-                        __func__);
-                return BAD_VALUE;
-            }
-            switch (max_fps) {
-            case 60:
-                hfrMode = CAM_HFR_MODE_60FPS;
-                break;
-            case 90:
-                hfrMode = CAM_HFR_MODE_90FPS;
-                break;
-            case 120:
-                hfrMode = CAM_HFR_MODE_120FPS;
-                break;
-            case 150:
-                hfrMode = CAM_HFR_MODE_150FPS;
-                break;
-            case 180:
-                hfrMode = CAM_HFR_MODE_180FPS;
-                break;
-            case 210:
-                hfrMode = CAM_HFR_MODE_210FPS;
-                break;
-            case 240:
-                hfrMode = CAM_HFR_MODE_240FPS;
-                break;
-            case 480:
-                hfrMode = CAM_HFR_MODE_480FPS;
-                break;
-            default:
-                hfrMode = CAM_HFR_MODE_OFF;
-                break;
-            }
-            sceneMode = CAM_SCENE_MODE_OFF;
-            if (max_fps >= MIN_FPS_FOR_BATCH_MODE) {
-                mHFRVideoFps = max_fps;
-                mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
-                if (mBatchSize > MAX_HFR_BATCH_SIZE) {
-                    mBatchSize = MAX_HFR_BATCH_SIZE;
-                }
+        int val = lookupHalName(SCENE_MODES_MAP,
+                sizeof(SCENE_MODES_MAP)/sizeof(SCENE_MODES_MAP[0]),
+                fwk_sceneMode);
+        if (NAME_NOT_FOUND != val) {
+            uint8_t sceneMode = (uint8_t)val;
+            CDBG("%s: sceneMode: %d", __func__, sceneMode);
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                    CAM_INTF_PARM_BESTSHOT_MODE, sceneMode)) {
+                rc = BAD_VALUE;
             }
         }
-    } else {
-       sceneMode = CAM_SCENE_MODE_OFF;
-       hfrMode = CAM_HFR_MODE_OFF;
+    } else if ((ANDROID_CONTROL_MODE_OFF == metaMode) ||
+            (ANDROID_CONTROL_MODE_AUTO == metaMode)) {
+        uint8_t sceneMode = CAM_SCENE_MODE_OFF;
+        CDBG("%s: sceneMode: %d", __func__, sceneMode);
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                CAM_INTF_PARM_BESTSHOT_MODE, sceneMode)) {
+            rc = BAD_VALUE;
+        }
     }
-
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR,
-            hfrMode)) {
-        rc = BAD_VALUE;
-    }
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_BESTSHOT_MODE,
-            sceneMode)) {
-        rc = BAD_VALUE;
-    }
-    CDBG("%s: sceneMode: %d hfrMode: %d", __func__, sceneMode, hfrMode);
-
     return rc;
 }
 
