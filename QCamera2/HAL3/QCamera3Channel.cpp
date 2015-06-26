@@ -2097,7 +2097,7 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
         memset(settings->gps_processing_method, 0,
                 sizeof(settings->gps_processing_method));
         strlcpy(settings->gps_processing_method, (const char *)proc_methods,
-                sizeof(settings->gps_processing_method)+1);
+                sizeof(settings->gps_processing_method));
     }
 
     return m_postprocessor.processJpegSettingData(settings);
@@ -2275,7 +2275,7 @@ int32_t getExifGpsProcessingMethod(char *gpsProcessingMethod,
         count = EXIF_ASCII_PREFIX_SIZE;
         strlcpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE,
                 value,
-                strlen(value)+1);
+                GPS_PROCESSING_METHOD_SIZE);
         count += (uint32_t)strlen(value);
         gpsProcessingMethod[count++] = '\0'; // increase 1 for the last NULL char
         return NO_ERROR;
