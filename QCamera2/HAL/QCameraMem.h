@@ -166,6 +166,14 @@ private:
     void *mPtr[MM_CAMERA_MAX_NUM_FRAMES];
 };
 
+class QCameraMetadataStreamMemory : public QCameraHeapMemory {
+public:
+    QCameraMetadataStreamMemory(bool cached);
+    virtual ~QCameraMetadataStreamMemory();
+
+    virtual int getRegFlags(uint8_t *regFlags) const;
+};
+
 // Externel heap memory is used for memories shared with
 // framework. They are allocated from /dev/ion or gralloc.
 class QCameraStreamMemory : public QCameraMemory {
