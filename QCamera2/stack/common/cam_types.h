@@ -1640,7 +1640,6 @@ typedef enum {
     CAM_INTF_META_FACE_DETECTION,
     /* Whether optical image stabilization is enabled. */
     CAM_INTF_META_LENS_OPT_STAB_MODE,
-
     /* specific to HAl1 */
     CAM_INTF_META_AUTOFOCUS_DATA,
     CAM_INTF_PARM_QUERY_FLASH4SNAP,
@@ -1952,13 +1951,15 @@ typedef enum {
     /*3A low light level information*/
     CAM_INTF_META_LOW_LIGHT,
     /* dynamic feature detection */
-    CAM_INTF_META_IMG_DYN_FEAT,
+    CAM_INTF_META_IMG_DYN_FEAT, /* 200 */
     /*Parameter entry to communicate manual
     capture type*/
     CAM_INTF_PARM_MANUAL_CAPTURE_TYPE,
     /*AF state change detected by AF module*/
     CAM_INTF_AF_STATE_TRANSITION,
-    CAM_INTF_PARM_MAX /* 201 */
+    /* Whether EIS is enabled */
+    CAM_INTF_META_VIDEO_STAB_MODE,
+    CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
 typedef struct {
