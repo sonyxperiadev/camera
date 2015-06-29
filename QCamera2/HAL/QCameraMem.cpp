@@ -980,6 +980,55 @@ int QCameraHeapMemory::getMatchBufIndex(const void *opaque,
 }
 
 /*===========================================================================
+ * FUNCTION   : QCameraMetadataStreamMemory
+ *
+ * DESCRIPTION: constructor of QCameraMetadataStreamMemory
+ *              for ion memory used internally in HAL for metadata
+ *
+ * PARAMETERS :
+ *   @cached  : flag indicates if using cached memory
+ *
+ * RETURN     : none
+ *==========================================================================*/
+QCameraMetadataStreamMemory::QCameraMetadataStreamMemory(bool cached)
+    : QCameraHeapMemory(cached)
+{
+}
+
+/*===========================================================================
+ * FUNCTION   : ~QCameraMetadataStreamMemory
+ *
+ * DESCRIPTION: destructor of QCameraMetadataStreamMemory
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+QCameraMetadataStreamMemory::~QCameraMetadataStreamMemory()
+{
+}
+
+/*===========================================================================
+ * FUNCTION   : getRegFlags
+ *
+ * DESCRIPTION: query initial reg flags
+ *
+ * PARAMETERS :
+ *   @regFlags: initial reg flags of the allocated buffers
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCameraMetadataStreamMemory::getRegFlags(uint8_t *regFlags) const
+{
+    for (int i = 0; i < mBufferCount; i ++) {
+        regFlags[i] = 1;
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : QCameraStreamMemory
  *
  * DESCRIPTION: constructor of QCameraStreamMemory
