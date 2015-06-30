@@ -1554,6 +1554,8 @@ int QCamera3HardwareInterface::configureStreams(
                             CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)
                     ) {
                         numBuffers = MAX_INFLIGHT_REQUESTS * MAX_HFR_BATCH_SIZE;
+                        ALOGI("%s: num video buffers in HFR mode: %d",
+                                __func__, numBuffers);
                     }
                     channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
@@ -2660,6 +2662,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
     CameraMetadata meta;
     uint32_t minInFlightRequests = MIN_INFLIGHT_REQUESTS;
     uint32_t maxInFlightRequests = MAX_INFLIGHT_REQUESTS;
+    bool isVidBufRequested = false;
 
     pthread_mutex_lock(&mMutex);
 
@@ -2996,6 +2999,10 @@ int QCamera3HardwareInterface::processCaptureRequest(
         streamID.streamID[streamID.num_streams] =
             channel->getStreamID(channel->getStreamTypeMask());
         streamID.num_streams++;
+
+        if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
+            isVidBufRequested = true;
+        }
     }
 
     if (blob_request && mRawDumpChannel) {
@@ -3006,15 +3013,29 @@ int QCamera3HardwareInterface::processCaptureRequest(
     }
 
     if(request->input_buffer == NULL) {
-        //TODO: reduce the set_params traffic to batchSize()
-       rc = setFrameParameters(request, streamID, blob_request, snapshotStreamId);
-        if (rc < 0) {
-            ALOGE("%s: fail to set frame parameters", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
+        /* Parse the settings:
+         * - For every request in NORMAL MODE
+         * - For every request in HFR mode during preview only case
+         * - For first request of every batch in HFR mode during video
+         * recording. In batchmode the same settings except frame number is
+         * repeated in each request of the batch.
+         */
+        if (!mBatchSize ||
+           (mBatchSize && !isVidBufRequested) ||
+           (mBatchSize && isVidBufRequested && !mToBeQueuedVidBufs)) {
+            rc = setFrameParameters(request, streamID, blob_request, snapshotStreamId);
+            if (rc < 0) {
+                ALOGE("%s: fail to set frame parameters", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
         }
-        if (mBatchSize) {
-            rc = setBatchMetaStreamID(streamID);
+        /* For batchMode HFR, setFrameParameters is not called for every
+         * request. But only frame number of the latest request is parsed */
+        if (mBatchSize && ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                CAM_INTF_META_FRAME_NUMBER, request->frame_number)) {
+            ALOGE("%s: Failed to set the frame number in the parameters", __func__);
+            return BAD_VALUE;
         }
     } else {
         sp<Fence> acquireFence = new Fence(request->input_buffer->acquire_fence);
@@ -3141,21 +3162,17 @@ int QCamera3HardwareInterface::processCaptureRequest(
     }
 
     if(request->input_buffer == NULL) {
-        /*set the parameters to backend*/
-        //For batch mode, set_params called once per batch, for non-batch this
-        //condition is always true as mToBeQueuedVidBufs = mBatchSize = 0
-        if (mToBeQueuedVidBufs == mBatchSize) {
-            if(mBatchSize) {
-                /* generate parameters for the batch */
-                rc = setFrameParameters(request, mBatchStreamID, blob_request,
-                        snapshotStreamId);
-                if (rc < 0) {
-                    ALOGE("%s: fail to set batch frame parameters", __func__);
-                    pthread_mutex_unlock(&mMutex);
-                    return rc;
-                }
-            }
-            CDBG("%s: set_parms  mToBeQueuedVidBufs == mBatchSize ", __func__);
+        /* Set the parameters to backend:
+         * - For every request in NORMAL MODE
+         * - For every request in HFR mode during preview only case
+         * - Once every batch in HFR mode during video recording
+         */
+        if (!mBatchSize ||
+           (mBatchSize && !isVidBufRequested) ||
+           (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize))) {
+            CDBG("%s: set_parms  batchSz: %d IsVidBufReq: %d vidBufTobeQd: %d ",
+                    __func__, mBatchSize, isVidBufRequested,
+                    mToBeQueuedVidBufs);
             rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
             if (rc < 0) {
@@ -3183,7 +3200,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
     mPendingRequest++;
     if (mBatchSize) {
-        minInFlightRequests = MIN_INFLIGHT_REQUESTS * mBatchSize;
+        /* For HFR, more buffers are dequeued upfront to improve the performance */
+        minInFlightRequests = (MIN_INFLIGHT_REQUESTS + 1) * mBatchSize;
         maxInFlightRequests = MAX_INFLIGHT_REQUESTS * mBatchSize;
     }
     while (mPendingRequest >= minInFlightRequests) {
@@ -7193,31 +7211,73 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
             settings.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
     fps_range.video_min_fps = fps_range.min_fps;
     fps_range.video_max_fps = fps_range.max_fps;
+
+    CDBG("%s: aeTargetFpsRange fps: [%f %f]", __func__,
+            fps_range.min_fps, fps_range.max_fps);
+    /* In CONSTRAINED_HFR_MODE, sensor_fps is derived from aeTargetFpsRange as
+     * follows:
+     * ---------------------------------------------------------------|
+     *      Video stream is absent in configure_streams               |
+     *    (Camcorder preview before the first video record            |
+     * ---------------------------------------------------------------|
+     * vid_buf_requested | aeTgtFpsRng | snsrFpsMode | sensorFpsRange |
+     *                   |             |             | vid_min/max_fps|
+     * ---------------------------------------------------------------|
+     *        NO         |  [ 30, 240] |     30      |  [ 30,  30]    |
+     *                   |-------------|-------------|----------------|
+     *                   |  [240, 240] |     30      |  [ 30,  30]    |
+     * ---------------------------------------------------------------|
+     *     Video stream is present in configure_streams               |
+     * ---------------------------------------------------------------|
+     * vid_buf_requested | aeTgtFpsRng | snsrFpsMode | sensorFpsRange |
+     *                   |             |             | vid_min/max_fps|
+     * ---------------------------------------------------------------|
+     *        NO         |  [ 30, 240] |     240     |  [240, 240]    |
+     * (camcorder prev   |-------------|-------------|----------------|
+     *  after video rec  |  [240, 240] |     240     |  [240, 240]    |
+     *  is stopped)      |             |             |                |
+     * ---------------------------------------------------------------|
+     *       YES         |  [ 30, 240] |     240     |  [240, 240]    |
+     *                   |-------------|-------------|----------------|
+     *                   |  [240, 240] |     240     |  [240, 240]    |
+     * ---------------------------------------------------------------|
+     */
+    mBatchSize = 0;
+    if (CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE == mOpMode) {
+        int val = lookupHalName(HFR_MODE_MAP, METADATA_MAP_SIZE(HFR_MODE_MAP),
+                fps_range.max_fps);
+        if (NAME_NOT_FOUND != val) {
+            cam_hfr_mode_t hfrMode = (cam_hfr_mode_t)val;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, hfrMode)) {
+                return BAD_VALUE;
+            }
+
+            if (fps_range.max_fps >= MIN_FPS_FOR_BATCH_MODE) {
+                mHFRVideoFps = fps_range.max_fps;
+                mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
+                if (mBatchSize > MAX_HFR_BATCH_SIZE) {
+                    mBatchSize = MAX_HFR_BATCH_SIZE;
+                }
+             }
+            CDBG("%s: hfrMode: %d batchSize: %d", __func__, hfrMode, mBatchSize);
+
+            if (!m_bIsVideo) {
+                if (fps_range.min_fps > PREVIEW_FPS_FOR_HFR) {
+                    fps_range.min_fps = PREVIEW_FPS_FOR_HFR;
+                }
+                fps_range.max_fps = fps_range.min_fps;
+                fps_range.video_max_fps = fps_range.min_fps;
+            } else {
+                fps_range.min_fps = fps_range.video_max_fps;
+            }
+            fps_range.video_min_fps = fps_range.video_max_fps;
+         }
+    }
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
         return BAD_VALUE;
     }
     CDBG("%s: fps: [%f %f] vid_fps: [%f %f]", __func__, fps_range.min_fps,
             fps_range.max_fps, fps_range.video_min_fps, fps_range.video_max_fps);
-
-    /* In case of HFR, use max_fps as the indication of sensor mode */
-    int val = lookupHalName(HFR_MODE_MAP, METADATA_MAP_SIZE(HFR_MODE_MAP),
-            (int32_t)fps_range.max_fps);
-    if (NAME_NOT_FOUND != val) {
-        cam_hfr_mode_t hfrMode = (cam_hfr_mode_t)val;
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, hfrMode)) {
-            return BAD_VALUE;
-        }
-
-        if (fps_range.max_fps >= MIN_FPS_FOR_BATCH_MODE) {
-            mHFRVideoFps = fps_range.max_fps;
-            mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
-            if (mBatchSize > MAX_HFR_BATCH_SIZE) {
-                mBatchSize = MAX_HFR_BATCH_SIZE;
-            }
-        }
-        CDBG("%s: hfrMode: %d batchSize: %d", __func__, hfrMode, mBatchSize);
-    }
-
     return rc;
 }
 
@@ -8555,40 +8615,6 @@ void QCamera3HardwareInterface::getLogLevel()
     return;
 }
 
-/*===========================================================================
-* FUNCTION   : setBatchMetaStreamID
-*
-* DESCRIPTION: Updates batchmetaStreamID structure with given per-frame streamID
-*              structure
-*
-* PARAMETERS :
-*   @streamID: Per-frame streamID
-*
-* RETURN     :
-*              NO_ERROR  -- success
-*              none-zero failure code
-*==========================================================================*/
-int32_t QCamera3HardwareInterface::setBatchMetaStreamID(
-        cam_stream_ID_t &streamID)
-{
-    int32_t rc = NO_ERROR;
-
-    for(size_t i = 0; i < streamID.num_streams; i++) {
-        bool streamIdPresent = false;
-        for(size_t j = 0; j < mBatchStreamID.num_streams; j++) {
-            if (mBatchStreamID.streamID[j] == streamID.streamID[i]) {
-                streamIdPresent = true;
-            }
-        }
-        /* If streamId is not already present in the batchStreamID, add the
-         * entry */
-        if (!streamIdPresent) {
-            mBatchStreamID.streamID[mBatchStreamID.num_streams++] =
-                    streamID.streamID[i];
-        }
-    }
-    return rc;
-}
 /*===========================================================================
  * FUNCTION   : validateStreamRotations
  *
