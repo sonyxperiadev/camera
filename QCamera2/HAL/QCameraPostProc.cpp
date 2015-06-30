@@ -2687,7 +2687,11 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                     if (NULL != jpeg_job) {
                         // To avoid any race conditions,
                         // sync any stream specific parameters here.
-                        pme->syncStreamParams(jpeg_job->src_frame, NULL);
+                        if (pme->m_parent->mParameters.isAdvCamFeaturesEnabled()) {
+                            // Sync stream params, only if advanced features configured
+                            // Reduces the latency for normal snapshot.
+                            pme->syncStreamParams(jpeg_job->src_frame, NULL);
+                        }
 
                         // add into ongoing jpeg job Q
                         if (pme->m_ongoingJpegQ.enqueue((void *)jpeg_job)) {
@@ -2831,7 +2835,11 @@ int32_t QCameraPostProcessor::doReprocess()
     qcamera_pp_data_t *pp_job =
             (qcamera_pp_data_t *)malloc(sizeof(qcamera_pp_data_t));
     if (pp_job != NULL) {
-        syncStreamParams(src_frame, src_reproc_frame);
+        if (m_parent->mParameters.isAdvCamFeaturesEnabled()) {
+            // No need to sync stream params, if none of the advanced features configured
+            // Reduces the latency for normal snapshot.
+            syncStreamParams(src_frame, src_reproc_frame);
+        }
         memset(pp_job, 0, sizeof(qcamera_pp_data_t));
         if (mPPChannels[mCurReprocCount] != NULL) {
             // add into ongoing PP job Q
