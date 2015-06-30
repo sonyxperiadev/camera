@@ -473,9 +473,12 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         closeCamera();
 
     mPendingBuffersMap.mPendingBufferList.clear();
-    mPendingRequestsList.clear();
     mPendingReprocessResultList.clear();
-
+    for (List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
+                i != mPendingRequestsList.end(); i++) {
+        clearInputBuffer(i->input_buffer);
+        i = mPendingRequestsList.erase(i);
+    }
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         if (mDefaultMetadata[i])
             free_camera_metadata(mDefaultMetadata[i]);
@@ -1756,7 +1759,11 @@ int QCamera3HardwareInterface::configureStreams(
     mStreamConfigInfo.buffer_info.max_buffers = MAX_INFLIGHT_REQUESTS;
 
     /* Initialize mPendingRequestInfo and mPendnigBuffersMap */
-    mPendingRequestsList.clear();
+    for (List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
+                i != mPendingRequestsList.end(); i++) {
+        clearInputBuffer(i->input_buffer);
+        i = mPendingRequestsList.erase(i);
+    }
     mPendingFrameDropList.clear();
     // Initialize/Reset the pending buffers list
     mPendingBuffersMap.num_buffers = 0;
@@ -2021,6 +2028,7 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
                     result.partial_result = PARTIAL_RESULT_COUNT;
                     mCallbackOps->process_capture_result(mCallbackOps, &result);
 
+                    clearInputBuffer(k->input_buffer);
                     mPendingRequestsList.erase(k);
                     mPendingRequest--;
                     break;
@@ -2377,6 +2385,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             ALOGE("%s: metadata is NULL", __func__);
         }
         result.frame_number = i->frame_number;
+        result.input_buffer = i->input_buffer;
         result.num_output_buffers = 0;
         result.output_buffers = NULL;
         for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
@@ -2442,6 +2451,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             free_camera_metadata((camera_metadata_t *)result.result);
         }
         // erase the element from the list
+        clearInputBuffer(i->input_buffer);
         i = mPendingRequestsList.erase(i);
 
         if (!mPendingReprocessResultList.empty()) {
@@ -2614,6 +2624,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
                 mCallbackOps->notify(mCallbackOps, &notify_msg);
                 mCallbackOps->process_capture_result(mCallbackOps, &result);
                 CDBG("%s: Notify reprocess now %d!", __func__, frame_number);
+                clearInputBuffer(i->input_buffer);
                 i = mPendingRequestsList.erase(i);
                 mPendingRequest--;
             } else {
@@ -2683,6 +2694,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
     uint32_t minInFlightRequests = MIN_INFLIGHT_REQUESTS;
     uint32_t maxInFlightRequests = MAX_INFLIGHT_REQUESTS;
     bool isVidBufRequested = false;
+    camera3_stream_buffer_t *pInputBuffer;
 
     pthread_mutex_lock(&mMutex);
 
@@ -3076,8 +3088,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
     pendingRequest.blob_request = blob_request;
     pendingRequest.timestamp = 0;
     pendingRequest.bUrgentReceived = 0;
-
-    pendingRequest.input_buffer = request->input_buffer;
+    if (request->input_buffer) {
+        pendingRequest.input_buffer =
+                (camera3_stream_buffer_t*)malloc(sizeof(camera3_stream_buffer_t));
+        memcpy(pendingRequest.input_buffer, request->input_buffer, sizeof(camera3_stream_buffer_t));
+        pInputBuffer = pendingRequest.input_buffer;
+    } else {
+       pendingRequest.input_buffer = NULL;
+       pInputBuffer = NULL;
+    }
     pendingRequest.settings = request->settings;
     pendingRequest.pipeline_depth = 0;
     pendingRequest.partial_result_cnt = 0;
@@ -3143,7 +3162,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
             if(request->input_buffer != NULL){
                 rc = channel->request(output.buffer, frameNumber,
-                        request->input_buffer, &mReprocMeta);
+                        pInputBuffer, &mReprocMeta);
                 if (rc < 0) {
                     ALOGE("%s: Fail to request on picture channel", __func__);
                     pthread_mutex_unlock(&mMutex);
@@ -3167,7 +3186,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         } else if (output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
             rc = channel->request(output.buffer, frameNumber,
-                    request->input_buffer, (request->input_buffer)? &mReprocMeta : mParameters);
+                    pInputBuffer,
+                    pInputBuffer? &mReprocMeta : mParameters);
             if (rc < 0) {
                 ALOGE("%s: Fail to request on YUV channel", __func__);
                 pthread_mutex_unlock(&mMutex);
@@ -3512,7 +3532,11 @@ int QCamera3HardwareInterface::flush()
     }
 
     /* Reset pending buffer list and requests list */
-    mPendingRequestsList.clear();
+    for (List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
+                i != mPendingRequestsList.end(); i++) {
+        clearInputBuffer(i->input_buffer);
+        i = mPendingRequestsList.erase(i);
+    }
     /* Reset pending frame Drop list and requests list */
     mPendingFrameDropList.clear();
 
@@ -3939,6 +3963,24 @@ template <class mapType> cam_cds_mode_type_t lookupProp(const mapType *arr,
         }
     }
     return CAM_CDS_MODE_MAX;
+}
+
+/*===========================================================================
+ * FUNCTION   : clearInputBuffer
+ *
+ * DESCRIPTION: free the input buffer
+ *
+ * PARAMETERS :
+ *   @input_buffer : ptr to input buffer data to be freed
+ *
+ * RETURN     : NONE
+ *==========================================================================*/
+void QCamera3HardwareInterface::clearInputBuffer(camera3_stream_buffer_t *input_buffer)
+{
+    if (input_buffer) {
+        free(input_buffer);
+        input_buffer = NULL;
+    }
 }
 
 /*===========================================================================

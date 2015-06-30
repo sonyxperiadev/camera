@@ -242,6 +242,7 @@ private:
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
+    void clearInputBuffer(camera3_stream_buffer_t *input_buffer);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
