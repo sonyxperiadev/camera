@@ -2997,6 +2997,10 @@ int QCamera2HardwareInterface::takePicture()
     uint8_t numRetroSnapshots = mParameters.getNumOfRetroSnapshots();
     CDBG_HIGH("%s: E", __func__);
 
+    //Set rotation value from user settings as Jpeg rotation
+    //to configure back-end modules.
+    mParameters.setJpegRotation(mParameters.getRotation());
+
     // Check if retro-active snapshots are not enabled
     if (!isRetroPicture() || !mParameters.isZSLMode()) {
       numRetroSnapshots = 0;
@@ -3632,6 +3636,10 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *r
     qcamera_api_result_t apiResult;
 
     lockAPI();
+    //Set rotation value from user settings as Jpeg rotation
+    //to configure back-end modules.
+    mParameters.setJpegRotation(mParameters.getRotation());
+
     setRetroPicture(0);
     /* Prepare snapshot in case LED needs to be flashed */
     if (mFlashNeeded == 1 || mParameters.isChromaFlashEnabled()) {
@@ -3752,6 +3760,10 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
     int rc = NO_ERROR;
 
     QCameraChannel *pChannel = NULL;
+
+    //Set rotation value from user settings as Jpeg rotation
+    //to configure back-end modules.
+    mParameters.setJpegRotation(mParameters.getRotation());
 
     // Configure advanced capture
     if (mParameters.isUbiFocusEnabled() ||
