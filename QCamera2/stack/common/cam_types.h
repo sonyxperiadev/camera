@@ -1318,6 +1318,7 @@ typedef struct {
     cam_dimension_t dim;
     size_t size;
     char path[QCAMERA_MAX_FILEPATH_LENGTH];
+    cam_format_t picture_format;
 } cam_int_evt_params_t;
 
 typedef struct {
