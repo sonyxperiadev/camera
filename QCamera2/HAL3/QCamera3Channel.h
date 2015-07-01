@@ -182,10 +182,19 @@ public:
 
     int32_t queueReprocMetadata(mm_camera_super_buf_t *metadata);
     int32_t metadataBufDone(mm_camera_super_buf_t *recvd_frame);
+    int32_t translateStreamTypeAndFormat(camera3_stream_t *stream,
+            cam_stream_type_t &streamType,
+            cam_format_t &streamFormat);
     int32_t setReprocConfig(reprocess_config_t &reproc_cfg,
             camera3_stream_buffer_t *pInputBuffer,
             metadata_buffer_t *metadata,
             cam_format_t streamFormat);
+    int32_t setFwkInputPPData(qcamera_fwk_input_pp_data_t *src_frame,
+            camera3_stream_buffer_t *pInputBuffer,
+            reprocess_config_t *reproc_cfg,
+            metadata_buffer_t *metadata,
+            buffer_handle_t *output_buffer,
+            uint32_t frameNumber);
 
     QCamera3PostProcessor m_postprocessor; // post processor
     void showDebugFPS(int32_t streamType);

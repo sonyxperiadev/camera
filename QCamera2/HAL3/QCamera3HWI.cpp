@@ -485,7 +485,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     mPendingBuffersMap.mPendingBufferList.clear();
     mPendingReprocessResultList.clear();
     for (pendingRequestIterator i = mPendingRequestsList.begin();
-            i != mPendingRequestsList.end(); i++) {
+            i != mPendingRequestsList.end();) {
         i = erasePendingRequest(i);
     }
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
@@ -1839,7 +1839,7 @@ int QCamera3HardwareInterface::configureStreams(
 
     /* Initialize mPendingRequestInfo and mPendnigBuffersMap */
     for (pendingRequestIterator i = mPendingRequestsList.begin();
-            i != mPendingRequestsList.end(); i++) {
+            i != mPendingRequestsList.end();) {
         i = erasePendingRequest(i);
     }
     mPendingFrameDropList.clear();
@@ -2106,7 +2106,7 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
                     result.partial_result = PARTIAL_RESULT_COUNT;
                     mCallbackOps->process_capture_result(mCallbackOps, &result);
 
-                    k = erasePendingRequest(k);
+                    erasePendingRequest(k);
                     mPendingRequest--;
                     break;
                 }
@@ -8640,6 +8640,7 @@ bool QCamera3HardwareInterface::needJpegRotation()
  *
  * PARAMETERS :
  *   @config  : reprocess configuration
+ *   @inputChHandle : pointer to the input (source) channel
  *
  *
  * RETURN     : Ptr to the newly created channel obj. NULL if failed.

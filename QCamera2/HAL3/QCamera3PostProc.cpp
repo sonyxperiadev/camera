@@ -202,7 +202,6 @@ int32_t QCamera3PostProcessor::initJpeg(jpeg_encode_callback_t jpeg_cb,
  *
  * PARAMETERS :
  *   @config        : reprocess configuration
- *   @metadata      : metadata for the reprocessing
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -1856,7 +1855,7 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
  *==========================================================================*/
 int32_t getRational(rat_t *rat, int num, int denom)
 {
-    if ((0 > num) || (0 > denom)) {
+    if ((0 > num) || (0 >= denom)) {
         ALOGE("%s: Negative values", __func__);
         return BAD_VALUE;
     }
@@ -2031,7 +2030,7 @@ int32_t getExifGpsProcessingMethod(char *gpsProcessingMethod,
  *
  * PARAMETERS :
  *   @latitude : ptr to rational struct to store latitude info
- *   @ladRef   : charater to indicate latitude reference
+ *   @latRef   : character to indicate latitude reference
  *   @value    : value of the latitude
  *
  * RETURN     : int32_t type of status
@@ -2066,7 +2065,7 @@ int32_t getExifLatitude(rat_t *latitude, char *latRef, double value)
  *
  * PARAMETERS :
  *   @longitude : ptr to rational struct to store longitude info
- *   @lonRef    : charater to indicate longitude reference
+ *   @lonRef    : character to indicate longitude reference
  *   @value     : value of the longitude
  *
  * RETURN     : int32_t type of status
@@ -2101,7 +2100,7 @@ int32_t getExifLongitude(rat_t *longitude, char *lonRef, double value)
  *
  * PARAMETERS :
  *   @altitude : ptr to rational struct to store altitude info
- *   @altRef   : charater to indicate altitude reference
+ *   @altRef   : character to indicate altitude reference
  *   @argValue : altitude value
  *
  * RETURN     : int32_t type of status
@@ -2134,6 +2133,7 @@ int32_t getExifAltitude(rat_t *altitude, char *altRef, double argValue)
  *   @gpsDateStamp : GPS date time stamp string
  *   @bufLen       : length of the string
  *   @gpsTimeStamp : ptr to rational struct to store time stamp info
+ *   @value        : timestamp value
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -2191,7 +2191,9 @@ int32_t getExifExposureValue(srat_t* exposure_val, int32_t exposure_comp,
  *
  * DESCRIPTION: get exif data to be passed into jpeg encoding
  *
- * PARAMETERS : none
+ * PARAMETERS :
+ * @metadata      : metadata of the encoding request
+ * @jpeg_settings : jpeg_settings for encoding
  *
  * RETURN     : exif data from user setting and GPS
  *==========================================================================*/
