@@ -4076,8 +4076,10 @@ void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt, char *raw_fo
 
         if (true == m_bIntJpegEvtPending) {
             params.event_type = 0;
+            mParameters.getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT, params.picture_format);
         } else if (true == m_bIntRawEvtPending) {
             params.event_type = 1;
+            mParameters.getStreamFormat(CAM_STREAM_TYPE_RAW, params.picture_format);
         }
         pthread_mutex_unlock(&m_int_lock);
 
