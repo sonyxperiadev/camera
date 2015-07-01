@@ -4198,6 +4198,15 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR, effectiveExposureFactor, 1);
     }
 
+    IF_META_AVAILABLE(cam_black_level_metadata_t, blackLevelInd, CAM_INTF_META_BLACK_LEVEL_IND, metadata) {
+        cam_black_level_metadata_t *fwk_blackLevelInd = (cam_black_level_metadata_t*)blackLevelInd;
+        ALOGE("blackLevelLock = %d %d %d %d",
+          fwk_blackLevelInd->cam_black_level[0],
+          fwk_blackLevelInd->cam_black_level[1],
+          fwk_blackLevelInd->cam_black_level[2],
+          fwk_blackLevelInd->cam_black_level[3]);
+    }
+
     IF_META_AVAILABLE(cam_crop_region_t, hScalerCropRegion,
             CAM_INTF_META_SCALER_CROP_REGION, metadata) {
         int32_t scalerCropRegion[4];
