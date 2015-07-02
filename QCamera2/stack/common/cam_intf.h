@@ -465,6 +465,7 @@ typedef struct {
        Linking will be done with this session in the
        backend */
     uint32_t related_sensor_session_id;
+    uint8_t is_frame_sync_enabled;
 }cam_sync_related_sensors_event_info_t;
 
 /* Related camera sensor specific calibration data */
