@@ -246,6 +246,8 @@ private:
     void *m_pJpegCallbackCookie;
     // flag to indicate whether we need to dump dual camera snapshots
     bool m_bDumpImages;
+    // flag to indicate whether MPO is enabled or not
+    bool m_bMpoEnabled;
 
     /* Private Member Methods */
     int setupLogicalCameras();
