@@ -139,7 +139,8 @@ QCameraMuxer::QCameraMuxer(uint32_t num_of_cameras)
       m_pRelCamMpoJpeg(NULL),
       m_pMpoCallbackCookie(NULL),
       m_pJpegCallbackCookie(NULL),
-      m_bDumpImages(FALSE)
+      m_bDumpImages(FALSE),
+      m_bMpoEnabled(TRUE)
 {
     setupLogicalCameras();
     memset(&mJpegOps, 0, sizeof(mJpegOps));
@@ -959,6 +960,11 @@ int QCameraMuxer::take_picture(struct camera_device * device)
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
     CHECK_CAMERA_ERROR(cam);
 
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.dual.camera.mpo", prop, "1");
+    gMuxer->m_bMpoEnabled = atoi(prop);
+    CDBG_HIGH("%s: dualCamera MPO Enabled:%d ", __func__, gMuxer->m_bMpoEnabled);
+
     // prepare snapshot for main camera
     for (uint32_t i = 0; i < cam->numCameras; i++) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
@@ -973,8 +979,9 @@ int QCameraMuxer::take_picture(struct camera_device * device)
                 ALOGE("%s: Error preparing for snapshot !! ", __func__);
                 return rc;
             }
-            break;
         }
+        // set Mpo composition for each session
+        rc = hwi->setMpoComposition(gMuxer->m_bMpoEnabled);
     }
 
     // initialize Jpeg Queues
@@ -2272,7 +2279,7 @@ void QCameraMuxer::jpeg_data_callback(int32_t msg_type,
 
     if(data != NULL) {
         CDBG_HIGH("%s: jpeg received: data %p size %d data ptr %p frameIdx %d",
-            __func__, data, data->size, data->data, frame_idx);
+                __func__, data, data->size, data->data, frame_idx);
         int rc = gMuxer->storeJpeg(((qcamera_physical_descriptor_t*)(user))->type,
                 msg_type, data, index, metadata, user, frame_idx, release_cb,
                 release_cookie, release_data);
@@ -2317,6 +2324,23 @@ int32_t QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
             __func__, data, data->size, data->data, frame_idx);
 
     CHECK_MUXER_ERROR();
+
+    if (!m_bMpoEnabled) {
+        if (cam_type == CAM_TYPE_MAIN) {
+            // send data callback only incase of main camera
+            // aux image is ignored and released back
+            mDataCb(msg_type,
+                    data,
+                    index,
+                    metadata,
+                    m_pMpoCallbackCookie);
+        }
+        if (release_cb) {
+            release_cb(release_data, release_cookie, NO_ERROR);
+        }
+        CDBG_HIGH("%s: X", __func__);
+        return NO_ERROR;
+    }
 
     cam_compose_jpeg_info_t* pJpegFrame =
             (cam_compose_jpeg_info_t*)malloc(sizeof(cam_compose_jpeg_info_t));
