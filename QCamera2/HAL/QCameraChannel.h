@@ -90,7 +90,7 @@ public:
                       mm_camera_ops_t *cam_ops);
     QCameraPicChannel();
     virtual ~QCameraPicChannel();
-    int32_t takePicture(uint8_t num_of_snapshot, uint8_t num_of_retro_snapshot);
+    int32_t takePicture(mm_camera_req_buf_t *buf);
     int32_t cancelPicture();
     int32_t stopAdvancedCapture(mm_camera_advanced_capture_t type);
     int32_t startAdvancedCapture(mm_camera_advanced_capture_t type,

@@ -87,11 +87,6 @@ typedef struct {
     mm_camera_buf_def_t *buf; /* ref to buf */
 } mm_camera_buf_info_t;
 
-typedef struct {
-    uint32_t num_buf_requested;
-    uint32_t num_retro_buf_requested;
-} mm_camera_req_buf_t;
-
 typedef enum {
     MM_CAMERA_GENERIC_CMD_TYPE_AE_BRACKETING,
     MM_CAMERA_GENERIC_CMD_TYPE_AF_BRACKETING,
@@ -386,6 +381,41 @@ typedef struct {
     void *user_data;
 } mm_channel_bundle_t;
 
+/* Nodes used for frame sync */
+typedef struct {
+    /* Frame idx */
+    uint32_t frame_idx;
+    /* Frame present for corresponding channel*/
+    uint32_t frame_valid[MAX_NUM_CAMERA_PER_BUNDLE];
+    /* Frame present in all channels*/
+    uint32_t matched;
+} mm_channel_sync_node_t;
+
+/* Frame sync information */
+typedef struct {
+    /* Number of camera channels that need to be synced*/
+    uint8_t num_cam;
+    /* position of the next node to be updated */
+    uint8_t pos;
+    /* circular node array used to store frame information */
+    mm_channel_sync_node_t node[MM_CAMERA_FRAME_SYNC_NODES];
+    /* Channel corresponding to each camera */
+    struct mm_channel *ch_obj[MAX_NUM_CAMERA_PER_BUNDLE];
+    /* Cb corresponding to each camera */
+    mm_camera_buf_notify_t cb[MAX_NUM_CAMERA_PER_BUNDLE];
+} mm_channel_frame_sync_info_t;
+
+/* Node information for multiple superbuf callbacks
+*  This can be used to batch nodes before sending to upper layer */
+typedef struct {
+    /* Number of nodes to be sent*/
+    uint8_t num_nodes;
+    /* queue node information*/
+    mm_channel_queue_node_t *node[MAX_NUM_CAMERA_PER_BUNDLE];
+    /* channel information*/
+    struct mm_channel *ch_obj[MAX_NUM_CAMERA_PER_BUNDLE];
+} mm_channel_node_info_t;
+
 typedef enum {
     MM_CHANNEL_BRACKETING_STATE_OFF,
     MM_CHANNEL_BRACKETING_STATE_WAIT_GOOD_FRAME_IDX,
@@ -403,6 +433,7 @@ typedef struct mm_channel {
     /* num of pending suferbuffers */
     uint32_t pending_cnt;
     uint32_t pending_retro_cnt;
+    mm_camera_req_buf_type_t req_type;
     uint32_t bWaitForPrepSnapshotDone;
     uint32_t unLockAEC;
     /* num of pending suferbuffers */
@@ -442,6 +473,7 @@ typedef struct mm_channel {
     cam_capture_frame_config_t *frame_config;
     /*Buffer diverted*/
     uint8_t diverted_frame_id;
+    uint32_t sessionid;
 } mm_channel_t;
 
 typedef struct {
@@ -488,6 +520,7 @@ typedef struct mm_camera_obj {
     mm_camera_event_t evt_rcvd;
 
     pthread_mutex_t msg_lock; /* lock for sending msg through socket */
+    uint32_t sessionid; /* Camera server session id */
 } mm_camera_obj_t;
 
 typedef struct {
@@ -588,9 +621,7 @@ extern int32_t mm_camera_start_channel(mm_camera_obj_t *my_obj,
 extern int32_t mm_camera_stop_channel(mm_camera_obj_t *my_obj,
                                       uint32_t ch_id);
 extern int32_t mm_camera_request_super_buf(mm_camera_obj_t *my_obj,
-                                           uint32_t ch_id,
-                                           uint32_t num_buf_requested,
-                                           uint32_t num_retro_buf_requested);
+        uint32_t ch_id, mm_camera_req_buf_t *buf);
 extern int32_t mm_camera_cancel_super_buf_request(mm_camera_obj_t *my_obj,
                                                   uint32_t ch_id);
 extern int32_t mm_camera_flush_super_buf_queue(mm_camera_obj_t *my_obj,

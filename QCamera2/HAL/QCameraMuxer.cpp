@@ -140,7 +140,8 @@ QCameraMuxer::QCameraMuxer(uint32_t num_of_cameras)
       m_pMpoCallbackCookie(NULL),
       m_pJpegCallbackCookie(NULL),
       m_bDumpImages(FALSE),
-      m_bMpoEnabled(TRUE)
+      m_bMpoEnabled(TRUE),
+      m_bFrameSyncEnabled(FALSE)
 {
     setupLogicalCameras();
     memset(&mJpegOps, 0, sizeof(mJpegOps));
@@ -987,10 +988,16 @@ int QCameraMuxer::take_picture(struct camera_device * device)
     // initialize Jpeg Queues
     gMuxer->m_MainJpegQ.init();
     gMuxer->m_AuxJpegQ.init();
-    gMuxer->m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
+    gMuxer->m_ComposeMpoTh.sendCmd(
+            CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
 
-    // Call take picture on both cameras
-    for (uint32_t i = 0; i < cam->numCameras; i++) {
+    // As frame sync for dual cameras is enabled, the take picture call
+    // for secondary camera is handled only till HAL level to init corresponding
+    // pproc channel and update statemachine.
+    // This call is forwarded to mm-camera-intf only for primary camera
+    // Primary camera should receive the take picture call after all secondary
+    // camera statemachines are updated
+    for (int32_t i = cam->numCameras-1 ; i >= 0; i--) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
         CHECK_CAMERA_ERROR(pCam);
 
@@ -1747,6 +1754,11 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
         ALOGE("%s : Hal descriptor table is not initialized!", __func__);
         return NO_INIT;
     }
+
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.dc.frame.sync", prop, "0");
+    m_bFrameSyncEnabled = atoi(prop);
+
     // Get logical camera
     cam = &m_pLogicalCamera[camera_id];
 
@@ -1779,6 +1791,7 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
             info.sync_control = CAM_SYNC_RELATED_SENSORS_ON;
             info.mode = m_pPhyCamera[phyId].mode;
             info.type = m_pPhyCamera[phyId].type;
+            info.is_frame_sync_enabled = m_bFrameSyncEnabled;
             rc = hw->setRelatedCamSyncInfo(&info);
             if (rc != NO_ERROR) {
                 ALOGE("%s: setRelatedCamSyncInfo failed %d", __func__, rc);

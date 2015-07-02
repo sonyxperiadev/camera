@@ -117,6 +117,10 @@
 #define RELCAM_CALIB_SURFACE_PARMS_MAX 32
 #define RELCAM_CALIB_RESERVED_MAX 64
 
+#define MAX_NUM_CAMERA_PER_BUNDLE    2 /* Max number of cameras per bundle */
+#define EXTRA_FRAME_SYNC_BUFFERS     4 /* Extra frame sync buffers in dc mode*/
+#define MM_CAMERA_FRAME_SYNC_NODES   EXTRA_FRAME_SYNC_BUFFERS
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3

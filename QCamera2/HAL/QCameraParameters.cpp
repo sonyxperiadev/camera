@@ -3951,9 +3951,11 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
 
     // Aux Camera Mode, set no display mode
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
-        m_bNoDisplayMode = true;
-        set(KEY_QC_NO_DISPLAY_MODE, 1);
-        m_bNeedRestart = true;
+        if (!m_bNoDisplayMode) {
+            set(KEY_QC_NO_DISPLAY_MODE, 1);
+            m_bNoDisplayMode = true;
+            m_bNeedRestart = true;
+        }
         return NO_ERROR;
     }
 
@@ -4388,7 +4390,11 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
     } else {
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.backlookcnt", prop, "2");
-        set(KEY_QC_ZSL_BURST_LOOKBACK, prop);
+        uint32_t look_back_cnt = atoi(prop);
+        if (m_relCamSyncInfo.is_frame_sync_enabled) {
+            look_back_cnt += EXTRA_FRAME_SYNC_BUFFERS;
+        }
+        set(KEY_QC_ZSL_BURST_LOOKBACK, look_back_cnt);
         CDBG_HIGH("%s: [ZSL Retro] look back count: %s", __func__, prop);
     }
 
@@ -4398,7 +4404,11 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
     } else {
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.queuedepth", prop, "2");
-        set(KEY_QC_ZSL_QUEUE_DEPTH, prop);
+        uint32_t queue_depth = atoi(prop);
+        if (m_relCamSyncInfo.is_frame_sync_enabled) {
+            queue_depth += EXTRA_FRAME_SYNC_BUFFERS;
+        }
+        set(KEY_QC_ZSL_QUEUE_DEPTH, queue_depth);
         CDBG_HIGH("%s: [ZSL Retro] queue depth: %s", __func__, prop);
     }
 

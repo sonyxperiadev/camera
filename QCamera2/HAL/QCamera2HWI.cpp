@@ -3667,13 +3667,41 @@ int QCamera2HardwareInterface::takePicture()
                         mCameraHandle->camera_handle,
                         pZSLChannel->getMyHandle());
             }
-            rc = pZSLChannel->takePicture(numSnapshots, numRetroSnapshots);
-            if (rc != NO_ERROR) {
-                ALOGE("%s: cannot take ZSL picture, stop pproc", __func__);
-                waitDefferedWork(mReprocJob);
-                waitDefferedWork(mJpegJob);
-                m_postprocessor.stop();
-                return rc;
+            // If frame sync is ON and it is a SECONDARY camera,
+            // we do not need to send the take picture command to interface
+            // It will be handled along with PRIMARY camera takePicture request
+            mm_camera_req_buf_t buf;
+            memset(&buf, 0x0, sizeof(buf));
+            if ((getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
+                    (getRelatedCamSyncInfo()->sync_control ==
+                    CAM_SYNC_RELATED_SENSORS_ON)) {
+                if (getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY) {
+                    buf.type = MM_CAMERA_REQ_FRAME_SYNC_BUF;
+                    buf.num_buf_requested = numSnapshots;
+                    rc = pZSLChannel->takePicture(&buf);
+                    if (rc != NO_ERROR) {
+                        ALOGE("%s: FS_DBG cannot take ZSL picture, stop pproc",
+                                __func__);
+                        waitDefferedWork(mReprocJob);
+                        waitDefferedWork(mJpegJob);
+                        m_postprocessor.stop();
+                        return rc;
+                    }
+                    ALOGI("%s: PRIMARY camera: send frame sync takePicture!!",
+                            __func__);
+                }
+            } else {
+                buf.type = MM_CAMERA_REQ_SUPER_BUF;
+                buf.num_buf_requested = numSnapshots;
+                buf.num_retro_buf_requested = numRetroSnapshots;
+                rc = pZSLChannel->takePicture(&buf);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s: cannot take ZSL picture, stop pproc", __func__);
+                    waitDefferedWork(mReprocJob);
+                    waitDefferedWork(mJpegJob);
+                    m_postprocessor.stop();
+                    return rc;
+                }
             }
         } else {
             ALOGE("%s: ZSL channel is NULL", __func__);
@@ -3954,7 +3982,11 @@ int32_t QCamera2HardwareInterface::longShot()
     }
 
     if (NULL != pChannel) {
-        rc = pChannel->takePicture(numSnapshots, 0);
+        mm_camera_req_buf_t buf;
+        memset(&buf, 0x0, sizeof(buf));
+        buf.type = MM_CAMERA_REQ_SUPER_BUF;
+        buf.num_buf_requested = numSnapshots;
+        rc = pChannel->takePicture(&buf);
     } else {
         ALOGE(" %s : Capture channel not initialized!", __func__);
         rc = NO_INIT;
@@ -6110,6 +6142,13 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     attr.post_frame_skip = mParameters.getZSLBurstInterval();
     attr.water_mark = mParameters.getZSLQueueDepth();
     attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
+
+    //Enabled matched queue
+    if (getRelatedCamSyncInfo()->is_frame_sync_enabled) {
+        CDBG_HIGH("%s: Enabling frame sync for dual camera, camera Id: %d",
+                __func__, mCameraId);
+        attr.enable_frame_sync = 1;
+    }
     rc = pChannel->init(&attr,
                         zsl_channel_cb,
                         this);
