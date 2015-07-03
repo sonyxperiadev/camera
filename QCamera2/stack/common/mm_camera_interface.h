@@ -222,6 +222,9 @@ typedef int32_t (*map_stream_buf_op_t) (uint32_t frame_idx,
                                         cam_mapping_buf_type type,
                                         void *userdata);
 
+typedef int32_t (*map_stream_bufs_op_t) (const cam_buf_map_type_list *buf_map_list,
+                                         void *userdata);
+
 /** unmap_stream_buf_op_t: function definition for operation of
 *                          unmapping stream buffers via domain
 *                          socket
@@ -245,6 +248,7 @@ typedef int32_t (*unmap_stream_buf_op_t) (uint32_t frame_idx,
 **/
 typedef struct {
     map_stream_buf_op_t map_ops;
+    map_stream_bufs_op_t bundled_map_ops;
     unmap_stream_buf_op_t unmap_ops;
     void *userdata;
 } mm_camera_map_unmap_ops_tbl_t;
@@ -418,6 +422,16 @@ typedef struct {
                         uint8_t buf_type,
                         int fd,
                         size_t size);
+
+    /** map_bufs: function definition for mapping multiple camera buffers
+     *           via domain socket
+     *    @camera_handle : camera handler
+     *    @buf_map_list : list of buffers to map
+     *  Return value: 0 -- success
+     *                -1 -- failure
+     **/
+    int32_t (*map_bufs) (uint32_t camera_handle,
+                         const cam_buf_map_type_list *buf_map_list);
 
     /** unmap_buf: fucntion definition for unmapping a camera buffer
      *           via domain socket
@@ -614,6 +628,18 @@ typedef struct {
                                int32_t plane_idx,
                                int fd,
                                size_t size);
+
+    /** map_stream_bufs: function definition for mapping multiple
+     *                 stream buffers via domain socket
+     *    @camera_handle : camera handler
+     *    @ch_id : channel handler
+     *    @buf_map_list : list of buffers to map
+     *  Return value: 0 -- success
+     *                -1 -- failure
+     **/
+    int32_t (*map_stream_bufs) (uint32_t camera_handle,
+                                uint32_t ch_id,
+                                const cam_buf_map_type_list *buf_map_list);
 
     /** unmap_stream_buf: fucntion definition for unmapping
      *                 stream buffer via domain socket

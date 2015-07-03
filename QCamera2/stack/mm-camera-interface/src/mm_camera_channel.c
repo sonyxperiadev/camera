@@ -90,9 +90,11 @@ int32_t mm_channel_get_stream_parm(mm_channel_t *my_obj,
 int32_t mm_channel_do_stream_action(mm_channel_t *my_obj,
                                     mm_evt_paylod_do_stream_action_t *payload);
 int32_t mm_channel_map_stream_buf(mm_channel_t *my_obj,
-                                  mm_evt_paylod_map_stream_buf_t *payload);
+                                  cam_buf_map_type *payload);
+int32_t mm_channel_map_stream_bufs(mm_channel_t *my_obj,
+                                   cam_buf_map_type_list *payload);
 int32_t mm_channel_unmap_stream_buf(mm_channel_t *my_obj,
-                                    mm_evt_paylod_unmap_stream_buf_t *payload);
+                                    cam_buf_unmap_type *payload);
 
 /* state machine function declare */
 int32_t mm_channel_fsm_fn_notused(mm_channel_t *my_obj,
@@ -762,15 +764,22 @@ int32_t mm_channel_fsm_fn_stopped(mm_channel_t *my_obj,
         break;
     case MM_CHANNEL_EVT_MAP_STREAM_BUF:
         {
-            mm_evt_paylod_map_stream_buf_t *payload =
-                (mm_evt_paylod_map_stream_buf_t *)in_val;
+            cam_buf_map_type *payload =
+                (cam_buf_map_type *)in_val;
             rc = mm_channel_map_stream_buf(my_obj, payload);
+        }
+        break;
+    case MM_CHANNEL_EVT_MAP_STREAM_BUFS:
+        {
+            cam_buf_map_type_list *payload =
+                (cam_buf_map_type_list *)in_val;
+            rc = mm_channel_map_stream_bufs(my_obj, payload);
         }
         break;
     case MM_CHANNEL_EVT_UNMAP_STREAM_BUF:
         {
-            mm_evt_paylod_unmap_stream_buf_t *payload =
-                (mm_evt_paylod_unmap_stream_buf_t *)in_val;
+            cam_buf_unmap_type *payload =
+                (cam_buf_unmap_type *)in_val;
             rc = mm_channel_unmap_stream_buf(my_obj, payload);
         }
         break;
@@ -878,10 +887,10 @@ int32_t mm_channel_fsm_fn_active(mm_channel_t *my_obj,
         break;
     case MM_CHANNEL_EVT_MAP_STREAM_BUF:
         {
-            mm_evt_paylod_map_stream_buf_t *payload =
-                (mm_evt_paylod_map_stream_buf_t *)in_val;
+            cam_buf_map_type *payload =
+                (cam_buf_map_type *)in_val;
             if (payload != NULL) {
-                uint8_t type = payload->buf_type;
+                uint8_t type = payload->type;
                 if ((type == CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF) ||
                         (type == CAM_MAPPING_BUF_TYPE_OFFLINE_META_BUF)) {
                     rc = mm_channel_map_stream_buf(my_obj, payload);
@@ -891,12 +900,27 @@ int32_t mm_channel_fsm_fn_active(mm_channel_t *my_obj,
             }
         }
         break;
+    case MM_CHANNEL_EVT_MAP_STREAM_BUFS:
+        {
+            cam_buf_map_type_list *payload =
+                (cam_buf_map_type_list *)in_val;
+            if ((payload != NULL) && (payload->length > 0)) {
+                uint8_t type = payload->buf_maps[0].type;
+                if ((type == CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF) ||
+                        (type == CAM_MAPPING_BUF_TYPE_OFFLINE_META_BUF)) {
+                    rc = mm_channel_map_stream_bufs(my_obj, payload);
+                }
+            } else {
+                CDBG_ERROR("%s: cannot map regualr stream buf in active state", __func__);
+            }
+        }
+        break;
     case MM_CHANNEL_EVT_UNMAP_STREAM_BUF:
         {
-            mm_evt_paylod_unmap_stream_buf_t *payload =
-                (mm_evt_paylod_unmap_stream_buf_t *)in_val;
+            cam_buf_unmap_type *payload =
+                (cam_buf_unmap_type *)in_val;
             if (payload != NULL) {
-                uint8_t type = payload->buf_type;
+                uint8_t type = payload->type;
                 if ((type == CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF) ||
                         (type == CAM_MAPPING_BUF_TYPE_OFFLINE_META_BUF)) {
                     rc = mm_channel_unmap_stream_buf(my_obj, payload);
@@ -2063,7 +2087,7 @@ int32_t mm_channel_do_stream_action(mm_channel_t *my_obj,
  *              -1 -- failure
  *==========================================================================*/
 int32_t mm_channel_map_stream_buf(mm_channel_t *my_obj,
-                                  mm_evt_paylod_map_stream_buf_t *payload)
+                                  cam_buf_map_type *payload)
 {
     int32_t rc = -1;
     mm_stream_t* s_obj = mm_channel_util_get_stream_by_handler(my_obj,
@@ -2075,11 +2099,46 @@ int32_t mm_channel_map_stream_buf(mm_channel_t *my_obj,
         }
 
         rc = mm_stream_map_buf(s_obj,
-                               payload->buf_type,
-                               payload->buf_idx,
+                               payload->type,
+                               payload->frame_idx,
                                payload->plane_idx,
                                payload->fd,
                                payload->size);
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_channel_map_stream_bufs
+ *
+ * DESCRIPTION: mapping stream buffers via domain socket to server
+ *
+ * PARAMETERS :
+ *   @my_obj       : channel object
+ *   @payload      : ptr to payload for mapping
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_channel_map_stream_bufs(mm_channel_t *my_obj,
+                                   cam_buf_map_type_list *payload)
+{
+    int32_t rc = -1;
+    if ((payload == NULL) || (payload->length == 0)) {
+        return rc;
+    }
+
+    mm_stream_t* s_obj = mm_channel_util_get_stream_by_handler(my_obj,
+                                                               payload->buf_maps[0].stream_id);
+    if (NULL != s_obj) {
+        if (s_obj->ch_obj != my_obj) {
+            /* No op. on linked streams */
+            return 0;
+        }
+
+        rc = mm_stream_map_bufs(s_obj, payload);
     }
 
     return rc;
@@ -2099,7 +2158,7 @@ int32_t mm_channel_map_stream_buf(mm_channel_t *my_obj,
  *              -1 -- failure
  *==========================================================================*/
 int32_t mm_channel_unmap_stream_buf(mm_channel_t *my_obj,
-                                    mm_evt_paylod_unmap_stream_buf_t *payload)
+                                    cam_buf_unmap_type *payload)
 {
     int32_t rc = -1;
     mm_stream_t* s_obj = mm_channel_util_get_stream_by_handler(my_obj,
@@ -2110,8 +2169,8 @@ int32_t mm_channel_unmap_stream_buf(mm_channel_t *my_obj,
             return 0;
         }
 
-        rc = mm_stream_unmap_buf(s_obj, payload->buf_type,
-                                 payload->buf_idx, payload->plane_idx);
+        rc = mm_stream_unmap_buf(s_obj, payload->type,
+                                 payload->frame_idx, payload->plane_idx);
     }
 
     return rc;
