@@ -1619,6 +1619,61 @@ int32_t mm_stream_map_buf(mm_stream_t * my_obj,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_stream_map_bufs
+ *
+ * DESCRIPTION: mapping stream buffers via domain socket to server
+ *
+ * PARAMETERS :
+ *   @my_obj       : stream object
+ *   @buf_map_list : list of buffer objects to map
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+
+int32_t mm_stream_map_bufs(mm_stream_t * my_obj,
+                           const cam_buf_map_type_list *buf_map_list)
+{
+    if (NULL == my_obj || NULL == my_obj->ch_obj || NULL == my_obj->ch_obj->cam_obj) {
+        CDBG_ERROR("%s: NULL obj of stream/channel/camera", __func__);
+        return -1;
+    }
+
+    cam_sock_packet_t packet;
+    memset(&packet, 0, sizeof(cam_sock_packet_t));
+    packet.msg_type = CAM_MAPPING_TYPE_FD_BUNDLED_MAPPING;
+
+    memcpy(&packet.payload.buf_map_list, buf_map_list,
+           sizeof(packet.payload.buf_map_list));
+
+    int sendfds[CAM_MAX_NUM_BUFS_PER_STREAM];
+    uint32_t numbufs = packet.payload.buf_map_list.length;
+    if (numbufs < 1) {
+      CDBG("%s: No buffers, suppressing the mapping command", __func__);
+      return 0;
+    }
+
+    uint32_t i;
+    for (i = 0; i < numbufs; i++) {
+        packet.payload.buf_map_list.buf_maps[i].stream_id = my_obj->server_stream_id;
+        sendfds[i] = packet.payload.buf_map_list.buf_maps[i].fd;
+    }
+
+    for (i = numbufs; i < CAM_MAX_NUM_BUFS_PER_STREAM; i++) {
+        packet.payload.buf_map_list.buf_maps[i].fd = -1;
+        sendfds[i] = -1;
+    }
+
+    int32_t ret = mm_camera_util_bundled_sendmsg(my_obj->ch_obj->cam_obj,
+                                                 &packet,
+                                                 sizeof(cam_sock_packet_t),
+                                                 sendfds,
+                                                 numbufs);
+    return ret;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_stream_unmap_buf
  *
  * DESCRIPTION: unmapping stream buffer via domain socket to server
@@ -1699,6 +1754,31 @@ static int32_t mm_stream_map_buf_ops(uint32_t frame_idx,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_stream_bundled_map_buf_ops
+ *
+ * DESCRIPTION: ops for mapping bundled stream buffers via domain socket to server.
+ *              This function will be passed to upper layer as part of ops table
+ *              to be used by upper layer when allocating stream buffers and mapping
+ *              buffers to server via domain socket.
+ *
+ * PARAMETERS :
+ *   @buf_map_list : list of buffer mapping information
+ *   @userdata     : user data ptr (stream object)
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+static int32_t mm_stream_bundled_map_buf_ops(
+        const cam_buf_map_type_list *buf_map_list,
+        void *userdata)
+{
+    mm_stream_t *my_obj = (mm_stream_t *)userdata;
+    return mm_stream_map_bufs(my_obj,
+                              buf_map_list);
+}
+
+/*===========================================================================
  * FUNCTION   : mm_stream_unmap_buf_ops
  *
  * DESCRIPTION: ops for unmapping stream buffer via domain socket to server.
@@ -1758,6 +1838,7 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
     }
 
     my_obj->map_ops.map_ops = mm_stream_map_buf_ops;
+    my_obj->map_ops.bundled_map_ops = mm_stream_bundled_map_buf_ops;
     my_obj->map_ops.unmap_ops = mm_stream_unmap_buf_ops;
     my_obj->map_ops.userdata = my_obj;
 
@@ -1848,6 +1929,7 @@ int32_t mm_stream_deinit_bufs(mm_stream_t * my_obj)
 
     /* release bufs */
     ops_tbl.map_ops = mm_stream_map_buf_ops;
+    ops_tbl.bundled_map_ops = mm_stream_bundled_map_buf_ops;
     ops_tbl.unmap_ops = mm_stream_unmap_buf_ops;
     ops_tbl.userdata = my_obj;
 

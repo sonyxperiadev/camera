@@ -94,6 +94,8 @@ public:
     int32_t mapBuf(uint8_t buf_type, uint32_t buf_idx,
             int32_t plane_idx, int fd, size_t size,
             mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
+    int32_t mapBufs(cam_buf_map_type_list bufMapList,
+            mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
     int32_t unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plane_idx,
             mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
     int32_t setParameter(cam_stream_parm_buffer_t &param);
@@ -203,7 +205,7 @@ private:
     int32_t unmapStreamInfoBuf();
     int32_t releaseStreamInfoBuf();
     int32_t releaseMiscBuf();
-    int32_t mapBuf(QCameraMemory *heapBuf, cam_mapping_buf_type bufType,
+    int32_t mapBufs(QCameraMemory *heapBuf, cam_mapping_buf_type bufType,
             mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);
     int32_t unMapBuf(QCameraMemory *heapBuf, cam_mapping_buf_type bufType,
             mm_camera_map_unmap_ops_tbl_t *ops_tbl = NULL);

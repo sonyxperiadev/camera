@@ -35,7 +35,6 @@
 
 #include "mm_camera_dbg.h"
 #include "mm_camera_sock.h"
-#include "cam_types.h"
 
 /*===========================================================================
  * FUNCTION   : mm_camera_socket_create
@@ -155,6 +154,69 @@ int mm_camera_socket_sendmsg(
         CDBG("%s: cmsg data=%d", __func__, *((int *) CMSG_DATA(cmsghp)));
       } else {
         CDBG("%s: ctrl msg NULL", __func__);
+        return -1;
+      }
+    }
+
+    return sendmsg(fd, &(msgh), 0);
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_socket_bundle_sendmsg
+ *
+ * DESCRIPTION:  send msg through domain socket
+ *   @fd      : socket fd
+ *   @msg     : pointer to msg to be sent over domain socket
+ *   @sendfds : file descriptors to be sent
+ *   @numfds  : num of file descriptors to be sent
+ *
+ * RETURN     : the total bytes of sent msg
+ *==========================================================================*/
+int mm_camera_socket_bundle_sendmsg(
+  int fd,
+  void *msg,
+  size_t buf_size,
+  int sendfds[CAM_MAX_NUM_BUFS_PER_STREAM],
+  int numfds)
+{
+    struct msghdr msgh;
+    struct iovec iov[1];
+    struct cmsghdr * cmsghp = NULL;
+    char control[CMSG_SPACE(sizeof(int) * numfds)];
+    int *fds_ptr = NULL;
+
+    if (msg == NULL) {
+      CDBG("%s: msg is NULL", __func__);
+      return -1;
+    }
+    memset(&msgh, 0, sizeof(msgh));
+    msgh.msg_name = NULL;
+    msgh.msg_namelen = 0;
+
+    iov[0].iov_base = msg;
+    iov[0].iov_len = buf_size;
+    msgh.msg_iov = iov;
+    msgh.msg_iovlen = 1;
+    CDBG("%s: iov_len=%llu", __func__,
+            (unsigned long long int)iov[0].iov_len);
+
+    msgh.msg_control = NULL;
+    msgh.msg_controllen = 0;
+
+    /* if numfds is valid, we need to pass it through control msg */
+    if (numfds > 0) {
+      msgh.msg_control = control;
+      msgh.msg_controllen = sizeof(control);
+      cmsghp = CMSG_FIRSTHDR(&msgh);
+      if (cmsghp != NULL) {
+        cmsghp->cmsg_level = SOL_SOCKET;
+        cmsghp->cmsg_type = SCM_RIGHTS;
+        cmsghp->cmsg_len = CMSG_LEN(sizeof(int) * numfds);
+
+        fds_ptr = (int*) CMSG_DATA(cmsghp);
+        memcpy(fds_ptr, sendfds, sizeof(int) * numfds);
+      } else {
+        CDBG_ERROR("%s: ctrl msg NULL", __func__);
         return -1;
       }
     }
