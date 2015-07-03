@@ -70,7 +70,7 @@
 #include <gralloc_priv.h>
 #include <math.h>
 
-#include "qcamera_test.h"
+//#include "qcamera_test.h"
 #include "cam_types.h"
 
 #define ERROR(format, ...) printf( \
