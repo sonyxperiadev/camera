@@ -1195,69 +1195,14 @@ int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cf
     reproc_cfg.stream_format = streamFormat;
     reproc_cfg.reprocess_type = getReprocessType();
 
-    //offset calculation
-    if (NULL != pInputBuffer) {
-        switch (pInputBuffer->stream->format) {
-            case HAL_PIXEL_FORMAT_YCbCr_420_888:
-                reproc_cfg.stream_type = CAM_STREAM_TYPE_CALLBACK;
-                reproc_cfg.stream_format =
-                        getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK);
-                rc = mm_stream_calc_offset_preview(
-                        getStreamByIndex(0)->getStreamInfo(),
-                        &reproc_cfg.input_stream_dim,
-                        reproc_cfg.padding,
-                        &reproc_cfg.input_stream_plane_info);
-                break;
-            case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-                if (pInputBuffer->stream->usage & GRALLOC_USAGE_HW_VIDEO_ENCODER) {
-                    reproc_cfg.stream_type = CAM_STREAM_TYPE_VIDEO;
-                    reproc_cfg.stream_format =
-                           getStreamDefaultFormat(CAM_STREAM_TYPE_VIDEO);
-                    rc = mm_stream_calc_offset_video(reproc_cfg.stream_format,
-                            &reproc_cfg.input_stream_dim,
-                            &reproc_cfg.input_stream_plane_info);
-                } else if(pInputBuffer->stream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL){
-                    reproc_cfg.stream_type = CAM_STREAM_TYPE_SNAPSHOT;
-                    reproc_cfg.stream_format =
-                            getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
-                    rc = mm_stream_calc_offset_snapshot(streamFormat,
-                            &reproc_cfg.input_stream_dim, reproc_cfg.padding,
-                            &reproc_cfg.input_stream_plane_info);
-                } else {
-                    reproc_cfg.stream_type = CAM_STREAM_TYPE_PREVIEW;
-                    reproc_cfg.stream_format =
-                            getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW);
-                    rc = mm_stream_calc_offset_preview(
-                            getStreamByIndex(0)->getStreamInfo(),
-                            &reproc_cfg.input_stream_dim,
-                            reproc_cfg.padding,
-                            &reproc_cfg.input_stream_plane_info);
-                }
-                break;
-            case HAL_PIXEL_FORMAT_RAW_OPAQUE:
-            case HAL_PIXEL_FORMAT_RAW16:
-            case HAL_PIXEL_FORMAT_RAW10:
-                reproc_cfg.stream_type = CAM_STREAM_TYPE_RAW;
-                reproc_cfg.stream_format =
-                    getStreamDefaultFormat(CAM_STREAM_TYPE_RAW);
-                ;
-                rc = mm_stream_calc_offset_raw(streamFormat, &reproc_cfg.input_stream_dim,
-                       reproc_cfg.padding, &reproc_cfg.input_stream_plane_info);
-                break;
-            default:
-                reproc_cfg.stream_type = CAM_STREAM_TYPE_SNAPSHOT;
-                reproc_cfg.stream_format =
-                    getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
-                rc = mm_stream_calc_offset_snapshot(streamFormat, &reproc_cfg.input_stream_dim,
-                        reproc_cfg.padding, &reproc_cfg.input_stream_plane_info);
-                break;
-        }
-        if (rc != 0) {
-            ALOGE("%s: Stream %d plane info calculation failed!", __func__, mStreamType);
-        }
-        CDBG("%s: reproc_cfg.stream_type = %d, reproc_cfg.stream_format = %d", __func__,
+    //any input buffer will be of the ZSL format so use the snapshot offset calculations
+    reproc_cfg.stream_type = CAM_STREAM_TYPE_SNAPSHOT;
+    reproc_cfg.stream_format = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
+    rc = mm_stream_calc_offset_snapshot(streamFormat,
+                 &reproc_cfg.input_stream_dim, reproc_cfg.padding,
+                 &reproc_cfg.input_stream_plane_info);
+    CDBG("%s: reproc_cfg.stream_type = %d, reproc_cfg.stream_format = %d", __func__,
               reproc_cfg.stream_type, reproc_cfg.stream_format);
-    }
     return rc;
 }
 
