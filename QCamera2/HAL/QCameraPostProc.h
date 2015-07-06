@@ -136,6 +136,7 @@ public:
     inline void setJpegMemOpt(bool val) {mJpegMemOpt = val;}
     int32_t setJpegHandle(mm_jpeg_ops_t *pJpegHandle,
             mm_jpeg_mpo_ops_t* pJpegMpoHandle, uint32_t clientHandle);
+    int32_t createJpegSession(QCameraChannel *pSrcChannel);
 private:
     int32_t sendDataNotify(int32_t msg_type,
             camera_memory_t *data,
