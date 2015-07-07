@@ -790,6 +790,13 @@ int QCamera3HardwareInterface::validateStreamDimensions(
             }
             break;
         case HAL_PIXEL_FORMAT_BLOB:
+            if (((int32_t)rotatedWidth ==
+                    gCamCapability[mCameraId]->active_array_size.width) &&
+                    ((int32_t)rotatedHeight ==
+                    gCamCapability[mCameraId]->active_array_size.height)) {
+                sizeFound = true;
+                break;
+            }
             count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
             /* Generate JPEG sizes table */
             makeTable(gCamCapability[mCameraId]->picture_sizes_tbl,
@@ -813,37 +820,23 @@ int QCamera3HardwareInterface::validateStreamDimensions(
                 }
             }
             break;
-
-
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
         case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
         default:
-            /* ZSL stream will be full active array size validate that*/
-            if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
-                || newStream->stream_type == CAMERA3_STREAM_INPUT
-                || newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL) {
-                if (((int32_t)rotatedWidth ==
+            if (((int32_t)rotatedWidth ==
                             gCamCapability[mCameraId]->active_array_size.width) &&
-                        ((int32_t)rotatedHeight ==
-                                gCamCapability[mCameraId]->active_array_size.height)) {
-                    sizeFound = true;
-                }
-                /* We could potentially break here to enforce ZSL stream
-                 * set from frameworks always has full active array size
-                 * but it is not clear from spec if framework will always
-                 * follow that, also we have logic to override to full array
-                 * size, so keeping this logic lenient at the moment.
-                 */
+                            ((int32_t)rotatedHeight ==
+                            gCamCapability[mCameraId]->active_array_size.height)) {
+                sizeFound = true;
+                break;
             }
-
-            /* Non ZSL stream still need to conform to advertised sizes*/
             count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt,
                     MAX_SIZES_CNT);
             for (size_t i = 0; i < count; i++) {
                 if (((int32_t)rotatedWidth ==
                             gCamCapability[mCameraId]->picture_sizes_tbl[i].width) &&
-                        ((int32_t)rotatedHeight ==
-                                gCamCapability[mCameraId]->picture_sizes_tbl[i].height)) {
+                            ((int32_t)rotatedHeight ==
+                            gCamCapability[mCameraId]->picture_sizes_tbl[i].height)) {
                     sizeFound = true;
                 break;
                 }
@@ -5524,6 +5517,28 @@ cam_dimension_t QCamera3HardwareInterface::calcMaxJpegDim()
     return max_jpeg_dim;
 }
 
+/*===========================================================================
+ * FUNCTION   : addStreamConfig
+ *
+ * DESCRIPTION: adds the stream configuration to the array
+ *
+ * PARAMETERS :
+ * @available_stream_configs : pointer to stream configuration array
+ * @scalar_format            : scalar format
+ * @dim                      : configuration dimension
+ * @config_type              : input or output configuration type
+ *
+ * RETURN     : NONE
+ *==========================================================================*/
+void QCamera3HardwareInterface::addStreamConfig(Vector<int32_t> &available_stream_configs,
+        int32_t scalar_format, const cam_dimension_t &dim, int32_t config_type)
+{
+    available_stream_configs.add(scalar_format);
+    available_stream_configs.add(dim.width);
+    available_stream_configs.add(dim.height);
+    available_stream_configs.add(config_type);
+}
+
 
 /*===========================================================================
  * FUNCTION   : initStaticMetadata
@@ -5741,50 +5756,49 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             gCamCapability[cameraId]->max_downscale_factor);
     /*android.scaler.availableStreamConfigurations*/
     size_t max_stream_configs_size = count * scalar_formats_count * 4;
-    int32_t available_stream_configs[max_stream_configs_size];
+    Vector<int32_t> available_stream_configs;
+    cam_dimension_t active_array_dim;
+    active_array_dim.width = gCamCapability[cameraId]->active_array_size.width;
+    active_array_dim.height = gCamCapability[cameraId]->active_array_size.height;
     /* Add input/output stream configurations for each scalar formats*/
-    size_t idx = 0;
     for (size_t j = 0; j < scalar_formats_count; j++) {
         switch (scalar_formats[j]) {
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW16:
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW_OPAQUE:
         case HAL_PIXEL_FORMAT_RAW10:
             for (size_t i = 0; i < gCamCapability[cameraId]->supported_raw_dim_cnt; i++) {
-                available_stream_configs[idx] = scalar_formats[j];
-                available_stream_configs[idx+1] =
-                    gCamCapability[cameraId]->raw_dim[i].width;
-                available_stream_configs[idx+2] =
-                    gCamCapability[cameraId]->raw_dim[i].height;
-                available_stream_configs[idx+3] =
-                    ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
-                idx+=4;
+                addStreamConfig(available_stream_configs, scalar_formats[j],
+                        gCamCapability[cameraId]->raw_dim[i],
+                        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
             }
             break;
         case HAL_PIXEL_FORMAT_BLOB:
+            //add the active array size
+            addStreamConfig(available_stream_configs, scalar_formats[j],
+                  active_array_dim,
+                  ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
+            cam_dimension_t jpeg_size;
             for (size_t i = 0; i < jpeg_sizes_cnt/2; i++) {
-                available_stream_configs[idx] = scalar_formats[j];
-                available_stream_configs[idx+1] = available_jpeg_sizes[i*2];
-                available_stream_configs[idx+2] = available_jpeg_sizes[i*2+1];
-                available_stream_configs[idx+3] = ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
-                idx+=4;
+                jpeg_size.width  = available_jpeg_sizes[i*2];
+                jpeg_size.height = available_jpeg_sizes[i*2+1];
+                addStreamConfig(available_stream_configs, scalar_formats[j],
+                        jpeg_size,
+                        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
             }
             break;
-
-        case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
+        case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
         default:
             cam_dimension_t largest_picture_size;
             memset(&largest_picture_size, 0, sizeof(cam_dimension_t));
+            //add the active array size
+            addStreamConfig(available_stream_configs, scalar_formats[j],
+                    active_array_dim,
+                    ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
             for (size_t i = 0; i < gCamCapability[cameraId]->picture_sizes_tbl_cnt; i++) {
-                available_stream_configs[idx] = scalar_formats[j];
-                available_stream_configs[idx+1] =
-                    gCamCapability[cameraId]->picture_sizes_tbl[i].width;
-                available_stream_configs[idx+2] =
-                    gCamCapability[cameraId]->picture_sizes_tbl[i].height;
-                available_stream_configs[idx+3] =
-                    ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
-                idx+=4;
-
+                addStreamConfig(available_stream_configs, scalar_formats[j],
+                        gCamCapability[cameraId]->picture_sizes_tbl[i],
+                        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
                 /* Book keep largest */
                 if (gCamCapability[cameraId]->picture_sizes_tbl[i].width
                         >= largest_picture_size.width &&
@@ -5792,22 +5806,23 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                         >= largest_picture_size.height)
                     largest_picture_size = gCamCapability[cameraId]->picture_sizes_tbl[i];
             }
-
             /*For below 2 formats we also support i/p streams for reprocessing advertise those*/
             if (scalar_formats[j] == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED ||
                     scalar_formats[j] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-                available_stream_configs[idx] = scalar_formats[j];
-                available_stream_configs[idx+1] = largest_picture_size.width;
-                available_stream_configs[idx+2] = largest_picture_size.height;
-                available_stream_configs[idx+3] = ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT;
-                idx+=4;
+                //add the active array size
+                 addStreamConfig(available_stream_configs, scalar_formats[j],
+                         active_array_dim,
+                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
+                 addStreamConfig(available_stream_configs, scalar_formats[j],
+                         largest_picture_size,
+                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
             }
             break;
         }
     }
 
     staticInfo.update(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS,
-                      available_stream_configs, idx);
+                      available_stream_configs.array(), available_stream_configs.size());
     static const uint8_t hotpixelMode = ANDROID_HOT_PIXEL_MODE_FAST;
     staticInfo.update(ANDROID_HOT_PIXEL_MODE, &hotpixelMode, 1);
 
@@ -5816,7 +5831,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
 
     /* android.scaler.availableMinFrameDurations */
     int64_t available_min_durations[max_stream_configs_size];
-    idx = 0;
+    size_t idx = 0;
     for (size_t j = 0; j < scalar_formats_count; j++) {
         switch (scalar_formats[j]) {
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW16:

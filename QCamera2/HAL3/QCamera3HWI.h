@@ -211,6 +211,9 @@ private:
     int closeCamera();
     static size_t calcMaxJpegSize(uint32_t camera_id);
     cam_dimension_t getMaxRawSize(uint32_t camera_id);
+    static void addStreamConfig(Vector<int32_t> &available_stream_configs,
+            int32_t scalar_format, const cam_dimension_t &dim,
+            int32_t config_type);
 
     int validateCaptureRequest(camera3_capture_request_t *request);
     int validateStreamDimensions(camera3_stream_configuration_t *streamList);
