@@ -248,7 +248,6 @@ private:
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
-    void clearInputBuffer(camera3_stream_buffer_t *input_buffer);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -332,6 +331,8 @@ private:
     } PendingReprocessResult;
 
     typedef KeyedVector<uint32_t, Vector<PendingBufferInfo> > FlushMap;
+    typedef List<QCamera3HardwareInterface::PendingRequestInfo>::iterator
+            pendingRequestIterator;
 
     List<PendingReprocessResult> mPendingReprocessResultList;
     List<PendingRequestInfo> mPendingRequestsList;
@@ -404,6 +405,8 @@ private:
             cam_hfr_mode_t> HFR_MODE_MAP[];
 
     static const QCameraPropMap CDS_MAP[];
+
+    pendingRequestIterator erasePendingRequest(pendingRequestIterator i);
 };
 
 }; // namespace qcamera
