@@ -837,7 +837,9 @@ int32_t QCamera2HardwareInterface::sendPreviewCallback(QCameraStream *stream,
      * We need to put a check if some other formats are supported in future. */
     if ((previewFmt == CAM_FORMAT_YUV_420_NV21) ||
         (previewFmt == CAM_FORMAT_YUV_420_NV12) ||
-        (previewFmt == CAM_FORMAT_YUV_420_YV12)) {
+        (previewFmt == CAM_FORMAT_YUV_420_YV12) ||
+        (previewFmt == CAM_FORMAT_YUV_420_NV12_VENUS) ||
+        (previewFmt == CAM_FORMAT_YUV_420_NV21_VENUS)) {
         if(previewFmt == CAM_FORMAT_YUV_420_YV12) {
             yStride = streamInfo->buf_planes.plane_info.mp[0].stride;
             yScanline = streamInfo->buf_planes.plane_info.mp[0].scanline;

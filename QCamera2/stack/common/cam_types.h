@@ -297,6 +297,8 @@ typedef enum {
     /* UBWC format */
     CAM_FORMAT_YUV_420_NV12_UBWC,
 
+    CAM_FORMAT_YUV_420_NV21_VENUS,
+
     CAM_FORMAT_MAX
 } cam_format_t;
 
