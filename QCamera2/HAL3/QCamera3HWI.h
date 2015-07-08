@@ -248,6 +248,10 @@ private:
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
+    int32_t dynamicUpdateMetaStreamInfo();
+    int32_t startAllChannels();
+    int32_t stopAllChannels();
+    int32_t notifyErrorForPendingRequests();
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -370,11 +374,11 @@ private:
     uint8_t mToBeQueuedVidBufs;
     // Fixed video fps
     float mHFRVideoFps;
-    cam_stream_ID_t mBatchStreamID;
     uint8_t mOpMode;
     uint32_t mPrevUrgentFrameNumber;
     uint32_t mPrevFrameNumber;
     camera3_stream_t mDummyBatchStream;
+    bool mNeedSensorRestart;
 
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;

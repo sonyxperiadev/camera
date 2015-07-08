@@ -350,7 +350,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mHFRVideoFps(DEFAULT_VIDEO_FPS),
       mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
       mPrevUrgentFrameNumber(0),
-      mPrevFrameNumber(0)
+      mPrevFrameNumber(0),
+      mNeedSensorRestart(false)
 {
     getLogLevel();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
@@ -2912,6 +2913,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         /* Set fps and hfr mode while sending meta stream info so that sensor
          * can configure appropriate streaming mode */
+        mHFRVideoFps = DEFAULT_VIDEO_FPS;
         if (meta.exists(ANDROID_CONTROL_AE_TARGET_FPS_RANGE)) {
             rc = setHalFpsRange(meta, mParameters);
             if (rc != NO_ERROR) {
@@ -3114,7 +3116,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
         mWokenUpByDaemon = false;
         mPendingRequest = 0;
         mFirstConfiguration = false;
-        mBatchStreamID.num_streams = 0;
     }
 
     uint32_t frameNumber = request->frame_number;
@@ -3213,6 +3214,19 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 CAM_INTF_META_FRAME_NUMBER, request->frame_number)) {
             ALOGE("%s: Failed to set the frame number in the parameters", __func__);
             return BAD_VALUE;
+        }
+        if (mNeedSensorRestart) {
+            /* Unlock the mutex as restartSensor waits on the channels to be
+             * stopped, which in turn calls stream callback functions -
+             * handleBufferWithLock and handleMetadataWithLock */
+            pthread_mutex_unlock(&mMutex);
+            rc = dynamicUpdateMetaStreamInfo();
+            if (rc != NO_ERROR) {
+                ALOGE("%s: Restarting the sensor failed", __func__);
+                return BAD_VALUE;
+            }
+            mNeedSensorRestart = false;
+            pthread_mutex_lock(&mMutex);
         }
     } else {
 
@@ -3501,38 +3515,17 @@ void QCamera3HardwareInterface::dump(int fd)
 int QCamera3HardwareInterface::flush()
 {
     KPI_ATRACE_CALL();
-    unsigned int frameNum = 0;
-    camera3_capture_result_t result;
-    camera3_stream_buffer_t *pStream_Buf = NULL;
-    FlushMap flushMap;
+    int32_t rc = NO_ERROR;
 
     CDBG("%s: Unblocking Process Capture Request", __func__);
     pthread_mutex_lock(&mMutex);
     mFlush = true;
     pthread_mutex_unlock(&mMutex);
 
-    memset(&result, 0, sizeof(camera3_capture_result_t));
-
-    // Stop the Streams/Channels
-    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
-        it != mStreamInfo.end(); it++) {
-        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-        channel->stop();
-        (*it)->status = INVALID;
-    }
-
-    if (mSupportChannel) {
-        mSupportChannel->stop();
-    }
-    if (mAnalysisChannel) {
-        mAnalysisChannel->stop();
-    }
-    if (mRawDumpChannel) {
-        mRawDumpChannel->stop();
-    }
-    if (mMetadataChannel) {
-        /* If content of mStreamInfo is not 0, there is metadata stream */
-        mMetadataChannel->stop();
+    rc = stopAllChannels();
+    if (rc < 0) {
+        ALOGE("%s: stopAllChannels failed", __func__);
+        return rc;
     }
 
     // Mutex Lock
@@ -3542,197 +3535,21 @@ int QCamera3HardwareInterface::flush()
     mPendingRequest = 0;
     pthread_cond_signal(&mRequestCond);
 
-    pendingRequestIterator i = mPendingRequestsList.begin();
-    frameNum = i->frame_number;
-    CDBG("%s: Oldest frame num on  mPendingRequestsList = %d",
-      __func__, frameNum);
-
-    // Go through the pending buffers and group them depending
-    // on frame number
-    for (List<PendingBufferInfo>::iterator k =
-            mPendingBuffersMap.mPendingBufferList.begin();
-            k != mPendingBuffersMap.mPendingBufferList.end();) {
-
-        if (k->frame_number < frameNum) {
-            ssize_t idx = flushMap.indexOfKey(k->frame_number);
-            if (idx == NAME_NOT_FOUND) {
-                Vector<PendingBufferInfo> pending;
-                pending.add(*k);
-                flushMap.add(k->frame_number, pending);
-            } else {
-                Vector<PendingBufferInfo> &pending =
-                        flushMap.editValueFor(k->frame_number);
-                pending.add(*k);
-            }
-
-            mPendingBuffersMap.num_buffers--;
-            k = mPendingBuffersMap.mPendingBufferList.erase(k);
-        } else {
-            k++;
-        }
+    rc = notifyErrorForPendingRequests();
+    if (rc < 0) {
+        ALOGE("%s: notifyErrorForPendingRequests failed", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return rc;
     }
-
-    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
-        uint32_t frame_number = flushMap.keyAt(iFlush);
-        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
-
-        // Send Error notify to frameworks for each buffer for which
-        // metadata buffer is already sent
-        CDBG("%s: Sending ERROR BUFFER for frame %d number of buffer %d",
-          __func__, frame_number, pending.size());
-
-        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
-        if (NULL == pStream_Buf) {
-            ALOGE("%s: No memory for pending buffers array", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return NO_MEMORY;
-        }
-        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
-
-        for (size_t j = 0; j < pending.size(); j++) {
-            const PendingBufferInfo &info = pending.itemAt(j);
-            camera3_notify_msg_t notify_msg;
-            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-            notify_msg.type = CAMERA3_MSG_ERROR;
-            notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER;
-            notify_msg.message.error.error_stream = info.stream;
-            notify_msg.message.error.frame_number = frame_number;
-            pStream_Buf[j].acquire_fence = -1;
-            pStream_Buf[j].release_fence = -1;
-            pStream_Buf[j].buffer = info.buffer;
-            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
-            pStream_Buf[j].stream = info.stream;
-            mCallbackOps->notify(mCallbackOps, &notify_msg);
-            CDBG("%s: notify frame_number = %d stream %p", __func__,
-                    frame_number, info.stream);
-        }
-
-        result.result = NULL;
-        result.frame_number = frame_number;
-        result.num_output_buffers = (uint32_t)pending.size();
-        result.output_buffers = pStream_Buf;
-        mCallbackOps->process_capture_result(mCallbackOps, &result);
-
-        delete [] pStream_Buf;
-    }
-
-    CDBG("%s:Sending ERROR REQUEST for all pending requests", __func__);
-
-    flushMap.clear();
-    for (List<PendingBufferInfo>::iterator k =
-            mPendingBuffersMap.mPendingBufferList.begin();
-            k != mPendingBuffersMap.mPendingBufferList.end();) {
-        ssize_t idx = flushMap.indexOfKey(k->frame_number);
-        if (idx == NAME_NOT_FOUND) {
-            Vector<PendingBufferInfo> pending;
-            pending.add(*k);
-            flushMap.add(k->frame_number, pending);
-        } else {
-            Vector<PendingBufferInfo> &pending =
-                    flushMap.editValueFor(k->frame_number);
-            pending.add(*k);
-        }
-
-        mPendingBuffersMap.num_buffers--;
-        k = mPendingBuffersMap.mPendingBufferList.erase(k);
-    }
-
-    // Go through the pending requests info and send error request to framework
-    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
-        uint32_t frame_number = flushMap.keyAt(iFlush);
-        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
-        CDBG("%s:Sending ERROR REQUEST for frame %d",
-              __func__, frame_number);
-
-        // Send shutter notify to frameworks
-        camera3_notify_msg_t notify_msg;
-        memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-        notify_msg.type = CAMERA3_MSG_ERROR;
-        notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_REQUEST;
-        notify_msg.message.error.error_stream = NULL;
-        notify_msg.message.error.frame_number = frame_number;
-        mCallbackOps->notify(mCallbackOps, &notify_msg);
-
-        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
-        if (NULL == pStream_Buf) {
-            ALOGE("%s: No memory for pending buffers array", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return NO_MEMORY;
-        }
-        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
-
-        for (size_t j = 0; j < pending.size(); j++) {
-            const PendingBufferInfo &info = pending.itemAt(j);
-            pStream_Buf[j].acquire_fence = -1;
-            pStream_Buf[j].release_fence = -1;
-            pStream_Buf[j].buffer = info.buffer;
-            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
-            pStream_Buf[j].stream = info.stream;
-        }
-
-        result.num_output_buffers = (uint32_t)pending.size();
-        result.output_buffers = pStream_Buf;
-        result.result = NULL;
-        result.frame_number = frame_number;
-        mCallbackOps->process_capture_result(mCallbackOps, &result);
-        delete [] pStream_Buf;
-    }
-
-    /* Reset pending buffer list and requests list */
-    for (pendingRequestIterator i = mPendingRequestsList.begin();
-            i != mPendingRequestsList.end(); i++) {
-        i = erasePendingRequest(i);
-    }
-    /* Reset pending frame Drop list and requests list */
-    mPendingFrameDropList.clear();
-
-    flushMap.clear();
-    mPendingBuffersMap.num_buffers = 0;
-    mPendingBuffersMap.mPendingBufferList.clear();
-    mPendingReprocessResultList.clear();
-    CDBG("%s: Cleared all the pending buffers ", __func__);
 
     mFlush = false;
 
     // Start the Streams/Channels
-    int rc = NO_ERROR;
-    if (mMetadataChannel) {
-        /* If content of mStreamInfo is not 0, there is metadata stream */
-        rc = mMetadataChannel->start();
-        if (rc < 0) {
-            ALOGE("%s: META channel start failed", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
-    }
-    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
-        it != mStreamInfo.end(); it++) {
-        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-        rc = channel->start();
-        if (rc < 0) {
-            ALOGE("%s: channel start failed", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
-    }
-    if (mAnalysisChannel) {
-        mAnalysisChannel->start();
-    }
-    if (mSupportChannel) {
-        rc = mSupportChannel->start();
-        if (rc < 0) {
-            ALOGE("%s: Support channel start failed", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
-    }
-    if (mRawDumpChannel) {
-        rc = mRawDumpChannel->start();
-        if (rc < 0) {
-            ALOGE("%s: RAW dump channel start failed", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
+    rc = startAllChannels();
+    if (rc < 0) {
+        ALOGE("%s: startAllChannels failed", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return rc;
     }
 
     pthread_mutex_unlock(&mMutex);
@@ -7604,6 +7421,12 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
             }
 
             if (fps_range.max_fps >= MIN_FPS_FOR_BATCH_MODE) {
+                /* If batchmode is currently in progress and the fps changes,
+                 * set the flag to restart the sensor */
+                if((mHFRVideoFps >= MIN_FPS_FOR_BATCH_MODE) &&
+                        (mHFRVideoFps != fps_range.max_fps)) {
+                    mNeedSensorRestart = true;
+                }
                 mHFRVideoFps = fps_range.max_fps;
                 mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
                 if (mBatchSize > MAX_HFR_BATCH_SIZE) {
@@ -9027,4 +8850,331 @@ void QCamera3HardwareInterface::getFlashInfo(const int cameraId,
                 QCAMERA_MAX_FILEPATH_LENGTH);
     }
 }
+
+/*===========================================================================
+ * FUNCTION   : dynamicUpdateMetaStreamInfo
+ *
+ * DESCRIPTION: This function:
+ *             (1) stops all the channels
+ *             (2) returns error on pending requests and buffers
+ *             (3) sends metastream_info in setparams
+ *             (4) starts all channels
+ *             This is useful when sensor has to be restarted to apply any
+ *             settings such as frame rate from a different sensor mode
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : NO_ERROR on success
+ *              Error codes on failure
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::dynamicUpdateMetaStreamInfo()
+{
+    ATRACE_CALL();
+    int rc = NO_ERROR;
+
+    CDBG("%s: E", __func__);
+
+    rc = stopAllChannels();
+    if (rc < 0) {
+        ALOGE("%s: stopAllChannels failed", __func__);
+        return rc;
+    }
+
+    rc = notifyErrorForPendingRequests();
+    if (rc < 0) {
+        ALOGE("%s: notifyErrorForPendingRequests failed", __func__);
+        return rc;
+    }
+
+    /* Send meta stream info once again so that ISP can start */
+    ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+            CAM_INTF_META_STREAM_INFO, mStreamConfigInfo);
+    CDBG("%s: set_parms META_STREAM_INFO with new settings ", __func__ );
+    rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
+            mParameters);
+    if (rc < 0) {
+        ALOGE("%s: set Metastreaminfo failed. Sensor mode does not change",
+                __func__);
+    }
+
+    rc = startAllChannels();
+    if (rc < 0) {
+        ALOGE("%s: startAllChannels failed", __func__);
+        return rc;
+    }
+
+    CDBG("%s:%d X", __func__, __LINE__);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : stopAllChannels
+ *
+ * DESCRIPTION: This function stops (equivalent to stream-off) all channels
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : NO_ERROR on success
+ *              Error codes on failure
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::stopAllChannels()
+{
+    int32_t rc = NO_ERROR;
+
+    // Stop the Streams/Channels
+    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+        it != mStreamInfo.end(); it++) {
+        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
+        channel->stop();
+        (*it)->status = INVALID;
+    }
+
+    if (mSupportChannel) {
+        mSupportChannel->stop();
+    }
+    if (mAnalysisChannel) {
+        mAnalysisChannel->stop();
+    }
+    if (mRawDumpChannel) {
+        mRawDumpChannel->stop();
+    }
+    if (mMetadataChannel) {
+        /* If content of mStreamInfo is not 0, there is metadata stream */
+        mMetadataChannel->stop();
+    }
+
+    CDBG("%s:%d All channels stopped", __func__, __LINE__);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : startAllChannels
+ *
+ * DESCRIPTION: This function starts (equivalent to stream-on) all channels
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : NO_ERROR on success
+ *              Error codes on failure
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::startAllChannels()
+{
+    int32_t rc = NO_ERROR;
+
+    CDBG("%s: Start all channels ", __func__);
+    // Start the Streams/Channels
+    if (mMetadataChannel) {
+        /* If content of mStreamInfo is not 0, there is metadata stream */
+        rc = mMetadataChannel->start();
+        if (rc < 0) {
+            ALOGE("%s: META channel start failed", __func__);
+            return rc;
+        }
+    }
+    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+        it != mStreamInfo.end(); it++) {
+        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
+        rc = channel->start();
+        if (rc < 0) {
+            ALOGE("%s: channel start failed", __func__);
+            return rc;
+        }
+    }
+    if (mAnalysisChannel) {
+        mAnalysisChannel->start();
+    }
+    if (mSupportChannel) {
+        rc = mSupportChannel->start();
+        if (rc < 0) {
+            ALOGE("%s: Support channel start failed", __func__);
+            return rc;
+        }
+    }
+    if (mRawDumpChannel) {
+        rc = mRawDumpChannel->start();
+        if (rc < 0) {
+            ALOGE("%s: RAW dump channel start failed", __func__);
+            return rc;
+        }
+    }
+
+    CDBG("%s:%d All channels started", __func__, __LINE__);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : notifyErrorForPendingRequests
+ *
+ * DESCRIPTION: This function sends error for all the pending requests/buffers
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : Error codes
+ *              NO_ERROR on success
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::notifyErrorForPendingRequests()
+{
+    int32_t rc = NO_ERROR;
+    unsigned int frameNum = 0;
+    camera3_capture_result_t result;
+    camera3_stream_buffer_t *pStream_Buf = NULL;
+    FlushMap flushMap;
+
+    memset(&result, 0, sizeof(camera3_capture_result_t));
+
+    pendingRequestIterator i = mPendingRequestsList.begin();
+    frameNum = i->frame_number;
+    CDBG("%s: Oldest frame num on  mPendingRequestsList = %d",
+      __func__, frameNum);
+
+    // Go through the pending buffers and group them depending
+    // on frame number
+    for (List<PendingBufferInfo>::iterator k =
+            mPendingBuffersMap.mPendingBufferList.begin();
+            k != mPendingBuffersMap.mPendingBufferList.end();) {
+
+        if (k->frame_number < frameNum) {
+            ssize_t idx = flushMap.indexOfKey(k->frame_number);
+            if (idx == NAME_NOT_FOUND) {
+                Vector<PendingBufferInfo> pending;
+                pending.add(*k);
+                flushMap.add(k->frame_number, pending);
+            } else {
+                Vector<PendingBufferInfo> &pending =
+                        flushMap.editValueFor(k->frame_number);
+                pending.add(*k);
+            }
+
+            mPendingBuffersMap.num_buffers--;
+            k = mPendingBuffersMap.mPendingBufferList.erase(k);
+        } else {
+            k++;
+        }
+    }
+
+    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
+        uint32_t frame_number = flushMap.keyAt(iFlush);
+        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
+
+        // Send Error notify to frameworks for each buffer for which
+        // metadata buffer is already sent
+        CDBG("%s: Sending ERROR BUFFER for frame %d number of buffer %d",
+          __func__, frame_number, pending.size());
+
+        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
+        if (NULL == pStream_Buf) {
+            ALOGE("%s: No memory for pending buffers array", __func__);
+            return NO_MEMORY;
+        }
+        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
+
+        for (size_t j = 0; j < pending.size(); j++) {
+            const PendingBufferInfo &info = pending.itemAt(j);
+            camera3_notify_msg_t notify_msg;
+            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+            notify_msg.type = CAMERA3_MSG_ERROR;
+            notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER;
+            notify_msg.message.error.error_stream = info.stream;
+            notify_msg.message.error.frame_number = frame_number;
+            pStream_Buf[j].acquire_fence = -1;
+            pStream_Buf[j].release_fence = -1;
+            pStream_Buf[j].buffer = info.buffer;
+            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
+            pStream_Buf[j].stream = info.stream;
+            mCallbackOps->notify(mCallbackOps, &notify_msg);
+            CDBG("%s: notify frame_number = %d stream %p", __func__,
+                    frame_number, info.stream);
+        }
+
+        result.result = NULL;
+        result.frame_number = frame_number;
+        result.num_output_buffers = (uint32_t)pending.size();
+        result.output_buffers = pStream_Buf;
+        mCallbackOps->process_capture_result(mCallbackOps, &result);
+
+        delete [] pStream_Buf;
+    }
+
+    CDBG("%s:Sending ERROR REQUEST for all pending requests", __func__);
+
+    flushMap.clear();
+    for (List<PendingBufferInfo>::iterator k =
+            mPendingBuffersMap.mPendingBufferList.begin();
+            k != mPendingBuffersMap.mPendingBufferList.end();) {
+        ssize_t idx = flushMap.indexOfKey(k->frame_number);
+        if (idx == NAME_NOT_FOUND) {
+            Vector<PendingBufferInfo> pending;
+            pending.add(*k);
+            flushMap.add(k->frame_number, pending);
+        } else {
+            Vector<PendingBufferInfo> &pending =
+                    flushMap.editValueFor(k->frame_number);
+            pending.add(*k);
+        }
+
+        mPendingBuffersMap.num_buffers--;
+        k = mPendingBuffersMap.mPendingBufferList.erase(k);
+    }
+
+    // Go through the pending requests info and send error request to framework
+    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
+        uint32_t frame_number = flushMap.keyAt(iFlush);
+        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
+        CDBG("%s:Sending ERROR REQUEST for frame %d",
+              __func__, frame_number);
+
+        // Send shutter notify to frameworks
+        camera3_notify_msg_t notify_msg;
+        memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+        notify_msg.type = CAMERA3_MSG_ERROR;
+        notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_REQUEST;
+        notify_msg.message.error.error_stream = NULL;
+        notify_msg.message.error.frame_number = frame_number;
+        mCallbackOps->notify(mCallbackOps, &notify_msg);
+
+        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
+        if (NULL == pStream_Buf) {
+            ALOGE("%s: No memory for pending buffers array", __func__);
+            return NO_MEMORY;
+        }
+        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
+
+        for (size_t j = 0; j < pending.size(); j++) {
+            const PendingBufferInfo &info = pending.itemAt(j);
+            pStream_Buf[j].acquire_fence = -1;
+            pStream_Buf[j].release_fence = -1;
+            pStream_Buf[j].buffer = info.buffer;
+            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
+            pStream_Buf[j].stream = info.stream;
+        }
+
+        result.num_output_buffers = (uint32_t)pending.size();
+        result.output_buffers = pStream_Buf;
+        result.result = NULL;
+        result.frame_number = frame_number;
+        mCallbackOps->process_capture_result(mCallbackOps, &result);
+        delete [] pStream_Buf;
+    }
+
+    /* Reset pending buffer list and requests list */
+    for (pendingRequestIterator i = mPendingRequestsList.begin();
+            i != mPendingRequestsList.end();) {
+        i = erasePendingRequest(i);
+    }
+    /* Reset pending frame Drop list and requests list */
+    mPendingFrameDropList.clear();
+
+    flushMap.clear();
+    mPendingBuffersMap.num_buffers = 0;
+    mPendingBuffersMap.mPendingBufferList.clear();
+    mPendingReprocessResultList.clear();
+    CDBG("%s: Cleared all the pending buffers ", __func__);
+
+    return rc;
+}
+
 }; //end namespace qcamera
