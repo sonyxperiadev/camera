@@ -158,6 +158,7 @@ private:
     int32_t handleBatchBuffer(mm_camera_super_buf_t *superBuf);
 
     static const char* mStreamNames[CAM_STREAM_TYPE_MAX];
+    void flushFreeBatchBufQ();
 };
 
 }; // namespace qcamera

@@ -607,7 +607,7 @@ void *QCamera3Stream::dataProcRoutine(void *data)
             CDBG_HIGH("%s: Exit", __func__);
             /* flush data buf queue */
             pme->mDataQ.flush();
-            pme->mFreeBatchBufQ.flush();
+            pme->flushFreeBatchBufQ();
             running = 0;
             break;
         default:
@@ -1449,6 +1449,26 @@ int32_t QCamera3Stream::handleBatchBuffer(mm_camera_super_buf_t *superBuf)
 
     free(superBuf);
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : flushFreeBatchBufQ
+ *
+ * DESCRIPTION: dequeue all the entries of mFreeBatchBufQ and call flush.
+ *              QCameraQueue::flush calls 'free(node->data)' which should be
+ *              avoided for mFreeBatchBufQ as the entries are not allocated
+ *              during each enqueue
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCamera3Stream::flushFreeBatchBufQ()
+{
+    while (!mFreeBatchBufQ.isEmpty()) {
+        mFreeBatchBufQ.dequeue();
+    }
+    mFreeBatchBufQ.flush();
 }
 
 }; // namespace qcamera
