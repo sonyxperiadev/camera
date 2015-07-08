@@ -4893,7 +4893,7 @@ int32_t QCameraParameters::initDefaultParameters()
     CameraParameters::setPreviewFormat(PIXEL_FORMAT_YUV420SP);
 
     // Set default Video Format
-    set(KEY_VIDEO_FRAME_FORMAT, "YVU420SemiPlanar");
+    set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_ANDROID_OPAQUE);
 
     // Set supported picture formats
     String8 pictureTypeValues(PIXEL_FORMAT_JPEG);
@@ -9123,20 +9123,23 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
     format = CAM_FORMAT_MAX;
     switch (streamType) {
     case CAM_STREAM_TYPE_PREVIEW:
+        if (!isUBWCEnabled()) {
 #if VENUS_PRESENT
-        cam_dimension_t preview;
-        cam_dimension_t video;
-        getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
-        getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
-        if (getRecordingHintValue() == true &&
-                video.width == preview.width &&
-                video.height == preview.height &&
-                mPreviewFormat == CAM_FORMAT_YUV_420_NV21) {
-            format = CAM_FORMAT_YUV_420_NV21_VENUS;
-        }
-        else
+            cam_dimension_t preview;
+            cam_dimension_t video;
+            getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
+            getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
+            if (getRecordingHintValue() == true &&
+                    video.width == preview.width &&
+                    video.height == preview.height &&
+                    mPreviewFormat == CAM_FORMAT_YUV_420_NV12) {
+                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+            } else
 #endif
             format = mPreviewFormat;
+        } else {
+            format = mPreviewFormat;
+        }
         break;
     case CAM_STREAM_TYPE_POSTVIEW:
     case CAM_STREAM_TYPE_CALLBACK:
@@ -9178,13 +9181,13 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             if (pFormat == 1) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
-                format = CAM_FORMAT_YUV_420_NV21_VENUS;
+                format = CAM_FORMAT_YUV_420_NV12_VENUS;
             }
         } else {
 #if VENUS_PRESENT
-            format = CAM_FORMAT_YUV_420_NV21_VENUS;
+            format = CAM_FORMAT_YUV_420_NV12_VENUS;
 #else
-            format = CAM_FORMAT_YUV_420_NV21;
+            format = CAM_FORMAT_YUV_420_NV12;
 #endif
         }
         break;
