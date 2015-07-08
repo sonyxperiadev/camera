@@ -4199,12 +4199,18 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
 
     IF_META_AVAILABLE(cam_black_level_metadata_t, blackLevelInd, CAM_INTF_META_BLACK_LEVEL_IND, metadata) {
-        cam_black_level_metadata_t *fwk_blackLevelInd = (cam_black_level_metadata_t*)blackLevelInd;
-        ALOGE("blackLevelLock = %d %d %d %d",
-          fwk_blackLevelInd->cam_black_level[0],
-          fwk_blackLevelInd->cam_black_level[1],
-          fwk_blackLevelInd->cam_black_level[2],
-          fwk_blackLevelInd->cam_black_level[3]);
+        int32_t fwk_blackLevelInd[4];
+        fwk_blackLevelInd[0] = blackLevelInd->cam_black_level[0];
+        fwk_blackLevelInd[1] = blackLevelInd->cam_black_level[1];
+        fwk_blackLevelInd[2] = blackLevelInd->cam_black_level[2];
+        fwk_blackLevelInd[3] = blackLevelInd->cam_black_level[3];
+
+        ALOGE("%s: dynamicblackLevel = %d %d %d %d", __func__,
+          blackLevelInd->cam_black_level[0],
+          blackLevelInd->cam_black_level[1],
+          blackLevelInd->cam_black_level[2],
+          blackLevelInd->cam_black_level[3]);
+        camMetadata.update(QCAMERA3_SENSOR_DYNAMIC_BLACK_LEVEL_PATTERN, fwk_blackLevelInd, 4);
     }
 
     IF_META_AVAILABLE(cam_crop_region_t, hScalerCropRegion,

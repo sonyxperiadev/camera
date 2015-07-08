@@ -50,7 +50,8 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_CROP_END,
         QCAMERA3_TUNING_META_DATA_END,
         QCAMERA3_TEMPORAL_DENOISE_END,
-        QCAMERA3_AV_TIMER_END
+        QCAMERA3_AV_TIMER_END,
+        QCAMERA3_SENSOR_META_DATA_END
 } ;
 
 typedef struct vendor_tag_info {
@@ -66,7 +67,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.crop",
     "org.codeaurora.qcamera3.tuning_meta_data",
     "org.codeaurora.qcamera3.temporal_denoise",
-    "org.codeaurora.qcamera3.av_timer"
+    "org.codeaurora.qcamera3.av_timer",
+    "org.codeaurora.qcamera3.sensor_meta_data"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -106,6 +108,11 @@ vendor_tag_info qcamera3_av_timer[QCAMERA3_AV_TIMER_END -
    {"use_av_timer", TYPE_BYTE }
 };
 
+vendor_tag_info qcamera3_sensor_meta_data[QCAMERA3_SENSOR_META_DATA_END -
+                                  QCAMERA3_SENSOR_META_DATA_START] = {
+   {"dynamic_black_level_pattern", TYPE_INT32 }
+};
+
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
     qcamera3_privatedata,
@@ -114,7 +121,8 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_crop,
     qcamera3_tuning_meta_data,
     qcamera3_temporal_denoise,
-    qcamera3_av_timer
+    qcamera3_av_timer,
+    qcamera3_sensor_meta_data,
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -141,7 +149,10 @@ uint32_t qcamera3_all_tags[] = {
     (uint32_t)QCAMERA3_TEMPORAL_DENOISE_ENABLE,
     (uint32_t)QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE,
     //QCAMERA3_AVTIMER
-    (uint32_t)QCAMERA3_USE_AV_TIMER
+    (uint32_t)QCAMERA3_USE_AV_TIMER,
+
+    //QCAMERA3_SENSOR_META_DATA
+    (uint32_t)QCAMERA3_SENSOR_DYNAMIC_BLACK_LEVEL_PATTERN
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
