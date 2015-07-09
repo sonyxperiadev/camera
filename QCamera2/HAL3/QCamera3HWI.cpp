@@ -5926,7 +5926,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     //Advertise HFR capability only if the property is set
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.hal3hfr.enable", prop, "0");
+    property_get("persist.camera.hal3hfr.enable", prop, "1");
     uint8_t hfrEnable = (uint8_t)atoi(prop);
 
     if(hfrEnable && available_hfr_configs.array()) {
