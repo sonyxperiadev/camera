@@ -902,10 +902,12 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
     for (uint32_t i = 0; i < pSrcChannel->getNumOfStreams(); i++) {
         pStream = pSrcChannel->getStreamByIndex(i);
         if (pStream != NULL) {
-            if (param.getofflineRAW() && !pStream->isTypeOf(CAM_STREAM_TYPE_RAW)) {
-                //Skip all the stream other than RAW incase of offline of RAW
+            if (param.getofflineRAW() && !((pStream->isTypeOf(CAM_STREAM_TYPE_RAW))
+                    || (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW)))) {
+                //Skip all the stream other than RAW and POSTVIEW incase of offline of RAW
                 continue;
             }
+
             if (pStream->isTypeOf(CAM_STREAM_TYPE_RAW) && !param.getofflineRAW()) {
                 // Skip raw for reprocess now because PP module cannot handle
                 // meta data&raw. May need furthur discussion if Imaginglib need meta data
@@ -921,14 +923,14 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             if (pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
                     pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
                     pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
-                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-                    (param.getofflineRAW() && pStream->isTypeOf(CAM_STREAM_TYPE_RAW))) {
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
                 uint32_t feature_mask = featureConfig.feature_mask;
 
                 // skip thumbnail reprocessing if not needed
                 if (!param.needThumbnailReprocess(&feature_mask)) {
                     continue;
                 }
+
                 //Don't do WNR for thumbnail
                 feature_mask &= ~CAM_QCOM_FEATURE_DENOISE2D;
                 if (!feature_mask) {
