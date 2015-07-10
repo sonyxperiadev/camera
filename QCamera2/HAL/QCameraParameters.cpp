@@ -43,6 +43,8 @@
 #define ASPECT_TOLERANCE 0.001
 #define CAMERA_DEFAULT_LONGSHOT_STAGES 4
 #define CAMERA_MIN_LONGSHOT_STAGES 2
+#define FOCUS_PERCISION 0.0000001
+
 
 namespace qcamera {
 // Parameter keys to communicate between camera application and driver.
@@ -10196,12 +10198,24 @@ int32_t QCameraParameters::updateFocusDistances(cam_focus_distances_info_t *focu
     if(mFocusMode == CAM_FOCUS_MODE_INFINITY) {
         str.append("Infinity,Infinity,Infinity");
     } else {
-        snprintf(buffer, sizeof(buffer), "%f", focusDistances->focus_distance[0]);
-        str.append(buffer);
-        snprintf(buffer, sizeof(buffer), ",%f", focusDistances->focus_distance[1]);
-        str.append(buffer);
-        snprintf(buffer, sizeof(buffer), ",%f", focusDistances->focus_distance[2]);
-        str.append(buffer);
+        if (focusDistances->focus_distance[0] < FOCUS_PERCISION) {
+            str.append("Infinity");
+        } else {
+            snprintf(buffer, sizeof(buffer), "%f", 1.0/focusDistances->focus_distance[0]);
+            str.append(buffer);
+        }
+        if (focusDistances->focus_distance[1] < FOCUS_PERCISION) {
+            str.append(",Infinity");
+        } else {
+            snprintf(buffer, sizeof(buffer), ",%f", 1.0/focusDistances->focus_distance[1]);
+            str.append(buffer);
+        }
+        if (focusDistances->focus_distance[2] < FOCUS_PERCISION) {
+            str.append(",Infinity");
+        } else {
+            snprintf(buffer, sizeof(buffer), ",%f", 1.0/focusDistances->focus_distance[2]);
+            str.append(buffer);
+        }
     }
     CDBG_HIGH("%s: setting KEY_FOCUS_DISTANCES as %s", __FUNCTION__, str.string());
     set(QCameraParameters::KEY_FOCUS_DISTANCES, str.string());
