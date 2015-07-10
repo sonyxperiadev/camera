@@ -49,16 +49,13 @@ public:
             int32_t& crop_width, int32_t& crop_height);
     void toSensor(int32_t& crop_left, int32_t& crop_top,
             int32_t& crop_width, int32_t& crop_height);
+    void toActiveArray(uint32_t& x, uint32_t& y);
+    void toSensor(uint32_t& x, uint32_t& y);
 
 private:
     /* sensor output size */
     int32_t mSensorW, mSensorH;
     int32_t mActiveArrayW, mActiveArrayH;
-
-    /* sensor crop  */
-    int32_t mSensorCropW, mSensorCropH;
-    /* scaling factor from active_array to sensor output */
-    float mSensorScale;
 
     void boundToSize(int32_t& left, int32_t& top, int32_t& width,
             int32_t& height, int32_t bound_w, int32_t bound_h);
