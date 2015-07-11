@@ -490,15 +490,16 @@ typedef struct {
    entire related cam system*/
 typedef struct {
     /* Version information */
-    float      calibration_format_version;
+    uint32_t    calibration_format_version;
     /* Main Camera Sensor specific calibration */
     cam_related_sensor_calibration_data_t  main_cam_specific_calibration;
     /* Aux Camera Sensor specific calibration */
     cam_related_sensor_calibration_data_t  aux_cam_specific_calibration;
     /* Relative viewpoint matching matrix w.r.t Main */
-    float      relative_rotation_matrix[9];
+    float      relative_rotation_matrix[RELCAM_CALIB_ROT_MATRIX_MAX];
     /* Relative geometric surface description parameters */
-    float      relative_geometric_surface_parameters[32];
+    float      relative_geometric_surface_parameters[
+            RELCAM_CALIB_SURFACE_PARMS_MAX];
     /* Relative offset of sensor center from optical axis along horizontal dimension */
     float      relative_principle_point_x_offset;
     /* Relative offset of sensor center from optical axis along vertical dimension */
@@ -508,7 +509,7 @@ typedef struct {
     /* Camera separation in mm */
     float      relative_baseline_distance;
     /* Reserved for future use */
-    float      extra_padding[64];
+    float      reserved[RELCAM_CALIB_RESERVED_MAX];
 }cam_related_system_calibration_data_t;
 
 #define IMG_NAME_SIZE 32
