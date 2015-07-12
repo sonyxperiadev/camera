@@ -11730,6 +11730,19 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         return rc;
     }
 
+    stream_config_info.hfr_mode       = static_cast<cam_hfr_mode_t>(mHfrMode);
+    stream_config_info.preview_format = mPreviewFormat;
+    stream_config_info.buf_alignment  = m_pCapability->buf_alignment;
+    stream_config_info.min_stride     = m_pCapability->min_stride;
+    stream_config_info.min_scanline   = m_pCapability->min_scanline;
+    stream_config_info.batch_size = getBufBatchCount();
+    CDBG_HIGH("%s:%d: buf_alignment=%d stride X scan=%dx%d batch size = %d\n", __func__, __LINE__,
+            m_pCapability->buf_alignment,
+            m_pCapability->min_stride,
+            m_pCapability->min_scanline,
+            stream_config_info.batch_size);
+
+
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
 
