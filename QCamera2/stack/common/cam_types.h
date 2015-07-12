@@ -1362,6 +1362,12 @@ typedef struct {
     uint32_t postprocess_mask[MAX_NUM_STREAMS];
     cam_buffer_info_t buffer_info;
     cam_is_type_t is_type;
+    cam_hfr_mode_t hfr_mode;
+    cam_format_t preview_format;
+    uint32_t buf_alignment;
+    uint32_t min_stride;
+    uint32_t min_scanline;
+    uint8_t batch_size;
 } cam_stream_size_info_t;
 
 
