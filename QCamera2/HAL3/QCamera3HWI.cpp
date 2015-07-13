@@ -324,6 +324,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mSupportChannel(NULL),
       mAnalysisChannel(NULL),
       mRawDumpChannel(NULL),
+      mDummyBatchChannel(NULL),
       mFirstRequest(false),
       mFirstConfiguration(true),
       mFlush(false),
@@ -347,7 +348,9 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mBatchSize(0),
       mToBeQueuedVidBufs(0),
       mHFRVideoFps(DEFAULT_VIDEO_FPS),
-      mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE)
+      mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
+      mPrevUrgentFrameNumber(0),
+      mPrevFrameNumber(0)
 {
     getLogLevel();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
@@ -445,6 +448,10 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     if (mRawDumpChannel) {
         delete mRawDumpChannel;
         mRawDumpChannel = NULL;
+    }
+    if (mDummyBatchChannel) {
+        delete mDummyBatchChannel;
+        mDummyBatchChannel = NULL;
     }
     mPictureChannel = NULL;
 
@@ -1403,6 +1410,11 @@ int QCamera3HardwareInterface::configureStreams(
         mAnalysisChannel = NULL;
     }
 
+    if (mDummyBatchChannel) {
+        delete mDummyBatchChannel;
+        mDummyBatchChannel = NULL;
+    }
+
     //Create metadata channel and initialize it
     mMetadataChannel = new QCamera3MetadataChannel(mCameraHandle->camera_handle,
                     mCameraHandle->ops, captureResultCb,
@@ -1588,6 +1600,12 @@ int QCamera3HardwareInterface::configureStreams(
                         numBuffers = MAX_INFLIGHT_REQUESTS * MAX_HFR_BATCH_SIZE;
                         ALOGI("%s: num video buffers in HFR mode: %d",
                                 __func__, numBuffers);
+                    }
+                    /* Copy stream contents in HFR preview only case to create
+                     * dummy batch channel */
+                    if (!m_bIsVideo && (streamList->operation_mode ==
+                            CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)) {
+                        mDummyBatchStream = *newStream;
                     }
                     channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
@@ -1785,6 +1803,36 @@ int QCamera3HardwareInterface::configureStreams(
                 CAM_QCOM_FEATURE_NONE;
         mStreamConfigInfo.num_streams++;
     }
+    /* In HFR mode, if video stream is not added, create a dummy channel so that
+     * ISP can create a batch mode even for preview only case. This channel is
+     * never 'start'ed (no stream-on), it is only 'initialized'  */
+    if ((mOpMode == CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) &&
+            !m_bIsVideo) {
+        mDummyBatchChannel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
+                mCameraHandle->ops, captureResultCb,
+                &gCamCapability[mCameraId]->padding_info,
+                this,
+                &mDummyBatchStream,
+                CAM_STREAM_TYPE_VIDEO,
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
+                mMetadataChannel);
+        if (NULL == mDummyBatchChannel) {
+            ALOGE("%s: creation of mDummyBatchChannel failed."
+                    "Preview will use non-hfr sensor mode ", __func__);
+        }
+    }
+    if (mDummyBatchChannel) {
+        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
+                mDummyBatchStream.width;
+        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
+                mDummyBatchStream.height;
+        mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
+                CAM_STREAM_TYPE_VIDEO;
+        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        mStreamConfigInfo.num_streams++;
+    }
+
     mStreamConfigInfo.buffer_info.min_buffers = MIN_INFLIGHT_REQUESTS;
     mStreamConfigInfo.buffer_info.max_buffers = MAX_INFLIGHT_REQUESTS;
 
@@ -2090,13 +2138,20 @@ void QCamera3HardwareInterface::handleBatchMetadata(
         ALOGE("%s: metadata_buf is NULL", __func__);
         return;
     }
+    /* In batch mode, the metdata will contain the frame number and timestamp of
+     * the last frame in the batch. Eg: a batch containing buffers from request
+     * 5,6,7 and 8 will have frame number and timestamp corresponding to 8.
+     * multiple process_capture_requests => 1 set_param => 1 handleBatchMetata =>
+     * multiple process_capture_results */
     metadata_buffer_t *metadata =
             (metadata_buffer_t *)metadata_buf->bufs[0]->buffer;
-    int32_t frame_number_valid, urgent_frame_number_valid;
+    int32_t frame_number_valid = 0, urgent_frame_number_valid = 0;
     uint32_t last_frame_number, last_urgent_frame_number;
     uint32_t frame_number, urgent_frame_number = 0;
     int64_t last_frame_capture_time = 0, first_frame_capture_time, capture_time;
     bool invalid_metadata = false;
+    size_t urgentFrameNumDiff = 0, frameNumDiff = 0;
+    size_t loopCount = 1;
 
     int32_t *p_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
@@ -2126,37 +2181,80 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     if (!last_frame_capture_time) {
         goto done_batch_metadata;
     }
+    /* In batchmode, when no video buffers are requested, set_parms are sent
+     * for every capture_request. The difference between consecutive urgent
+     * frame numbers and frame numbers should be used to interpolate the
+     * corresponding frame numbers and time stamps */
+    if (urgent_frame_number_valid) {
+        /* Frame numbers start with 0, handle it in the else condition */
+        if (last_urgent_frame_number &&
+                (last_urgent_frame_number >= mPrevUrgentFrameNumber)) {
+            urgentFrameNumDiff = last_urgent_frame_number - mPrevUrgentFrameNumber;
+        } else {
+            urgentFrameNumDiff = 1;
+        }
+        mPrevUrgentFrameNumber = last_urgent_frame_number;
+    }
+    if (frame_number_valid) {
+        /* Frame numbers start with 0, handle it in the else condition */
+        if(last_frame_number && (last_frame_number >= mPrevFrameNumber)) {
+            frameNumDiff = last_frame_number - mPrevFrameNumber;
+        } else {
+            frameNumDiff = 1;
+        }
+        mPrevFrameNumber = last_frame_number;
+    }
+    if (urgent_frame_number_valid || frame_number_valid) {
+        loopCount = MAX(urgentFrameNumDiff, frameNumDiff);
+    }
 
-    for (size_t i = 0; i < mBatchSize; i++) {
+    CDBG("%s: urgent_frm: valid: %d frm_num: %d previous frm_num: %d",
+            __func__, urgent_frame_number_valid, last_urgent_frame_number,
+            mPrevUrgentFrameNumber);
+    CDBG("%s:        frm: valid: %d frm_num: %d previous frm_num:: %d",
+            __func__, frame_number_valid, last_frame_number, mPrevFrameNumber);
+
+    //TODO: Need to ensure, metadata is not posted with the same frame numbers
+    //when urgentFrameNumDiff != frameNumDiff
+    for (size_t i = 0; i < loopCount; i++) {
         /* handleMetadataWithLock is called even for invalid_metadata for
          * pipeline depth calculation */
         if (!invalid_metadata) {
             /* Infer frame number. Batch metadata contains frame number of the
              * last frame */
             if (urgent_frame_number_valid) {
-                urgent_frame_number =
-                        last_urgent_frame_number + 1 - mBatchSize + i;
-                CDBG("%s: last urgent frame_number in batch: %d, "
-                        "inferred urgent frame_number: %d",
-                        __func__, last_urgent_frame_number, urgent_frame_number);
-                ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
-                        CAM_INTF_META_URGENT_FRAME_NUMBER, urgent_frame_number);
+                if (i < urgentFrameNumDiff) {
+                    urgent_frame_number =
+                            last_urgent_frame_number + 1 - urgentFrameNumDiff + i;
+                    CDBG("%s: inferred urgent frame_number: %d",
+                            __func__, urgent_frame_number);
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                            CAM_INTF_META_URGENT_FRAME_NUMBER, urgent_frame_number);
+                } else {
+                    /* This is to handle when urgentFrameNumDiff < frameNumDiff */
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                            CAM_INTF_META_URGENT_FRAME_NUMBER_VALID, 0);
+                }
             }
 
             /* Infer frame number. Batch metadata contains frame number of the
              * last frame */
             if (frame_number_valid) {
-                frame_number = last_frame_number + 1 - mBatchSize + i;
-                CDBG("%s: last frame_number in batch: %d, "
-                        "inferred frame_number: %d",
-                        __func__, last_frame_number, frame_number);
-                ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
-                        CAM_INTF_META_FRAME_NUMBER, frame_number);
+                if (i < frameNumDiff) {
+                    frame_number = last_frame_number + 1 - frameNumDiff + i;
+                    CDBG("%s: inferred frame_number: %d", __func__, frame_number);
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                            CAM_INTF_META_FRAME_NUMBER, frame_number);
+                } else {
+                    /* This is to handle when urgentFrameNumDiff > frameNumDiff */
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                             CAM_INTF_META_FRAME_NUMBER_VALID, 0);
+                }
             }
 
             //Infer timestamp
             first_frame_capture_time = last_frame_capture_time -
-                    (((mBatchSize - 1) * NSEC_PER_SEC) / mHFRVideoFps);
+                    (((loopCount - 1) * NSEC_PER_SEC) / mHFRVideoFps);
             capture_time =
                     first_frame_capture_time + (i * NSEC_PER_SEC / mHFRVideoFps);
             ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
@@ -2925,6 +3023,20 @@ int QCamera3HardwareInterface::processCaptureRequest(
             rc = mAnalysisChannel->initialize(is_type);
             if (rc < 0) {
                 ALOGE("%s: Analysis channel initialization failed", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
+        }
+        if (mDummyBatchChannel) {
+            rc = mDummyBatchChannel->setBatchSize(mBatchSize);
+            if (rc < 0) {
+                ALOGE("%s: mDummyBatchChannel setBatchSize failed", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
+            rc = mDummyBatchChannel->initialize(is_type);
+            if (rc < 0) {
+                ALOGE("%s: mDummyBatchChannel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
                 return rc;
             }
@@ -7452,9 +7564,9 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
      * vid_buf_requested | aeTgtFpsRng | snsrFpsMode | sensorFpsRange |
      *                   |             |             | vid_min/max_fps|
      * ---------------------------------------------------------------|
-     *        NO         |  [ 30, 240] |     30      |  [ 30,  30]    |
+     *        NO         |  [ 30, 240] |     240     |  [240, 240]    |
      *                   |-------------|-------------|----------------|
-     *                   |  [240, 240] |     30      |  [ 30,  30]    |
+     *                   |  [240, 240] |     240     |  [240, 240]    |
      * ---------------------------------------------------------------|
      *     Video stream is present in configure_streams               |
      * ---------------------------------------------------------------|
@@ -7470,9 +7582,19 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
      *                   |-------------|-------------|----------------|
      *                   |  [240, 240] |     240     |  [240, 240]    |
      * ---------------------------------------------------------------|
+     * When Video stream is absent in configure_streams,
+     * preview fps = sensor_fps / batchsize
+     * Eg: for 240fps at batchSize 4, preview = 60fps
+     *     for 120fps at batchSize 4, preview = 30fps
+     *
+     * When video stream is present in configure_streams, preview fps is as per
+     * the ratio of preview buffers to video buffers requested in process
+     * capture request
      */
     mBatchSize = 0;
     if (CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE == mOpMode) {
+        fps_range.min_fps = fps_range.video_max_fps;
+        fps_range.video_min_fps = fps_range.video_max_fps;
         int val = lookupHalName(HFR_MODE_MAP, METADATA_MAP_SIZE(HFR_MODE_MAP),
                 fps_range.max_fps);
         if (NAME_NOT_FOUND != val) {
@@ -7490,16 +7612,6 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
              }
             CDBG("%s: hfrMode: %d batchSize: %d", __func__, hfrMode, mBatchSize);
 
-            if (!m_bIsVideo) {
-                if (fps_range.min_fps > PREVIEW_FPS_FOR_HFR) {
-                    fps_range.min_fps = PREVIEW_FPS_FOR_HFR;
-                }
-                fps_range.max_fps = fps_range.min_fps;
-                fps_range.video_max_fps = fps_range.min_fps;
-            } else {
-                fps_range.min_fps = fps_range.video_max_fps;
-            }
-            fps_range.video_min_fps = fps_range.video_max_fps;
          }
     }
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
