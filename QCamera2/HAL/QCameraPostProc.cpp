@@ -1617,6 +1617,7 @@ mm_jpeg_color_format QCameraPostProcessor::getColorfmtFromImgFmt(cam_format_t im
 {
     switch (img_fmt) {
     case CAM_FORMAT_YUV_420_NV21:
+    case CAM_FORMAT_YUV_420_NV21_VENUS:
         return MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2;
     case CAM_FORMAT_YUV_420_NV21_ADRENO:
         return MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2;
@@ -1651,6 +1652,7 @@ mm_jpeg_format_t QCameraPostProcessor::getJpegImgTypeFromImgFmt(cam_format_t img
     case CAM_FORMAT_YUV_420_NV21_ADRENO:
     case CAM_FORMAT_YUV_420_NV12:
     case CAM_FORMAT_YUV_420_NV12_VENUS:
+    case CAM_FORMAT_YUV_420_NV21_VENUS:
     case CAM_FORMAT_YUV_420_YV12:
     case CAM_FORMAT_YUV_422_NV61:
     case CAM_FORMAT_YUV_422_NV16:
@@ -2685,7 +2687,11 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                     if (NULL != jpeg_job) {
                         // To avoid any race conditions,
                         // sync any stream specific parameters here.
-                        pme->syncStreamParams(jpeg_job->src_frame, NULL);
+                        if (pme->m_parent->mParameters.isAdvCamFeaturesEnabled()) {
+                            // Sync stream params, only if advanced features configured
+                            // Reduces the latency for normal snapshot.
+                            pme->syncStreamParams(jpeg_job->src_frame, NULL);
+                        }
 
                         // add into ongoing jpeg job Q
                         if (pme->m_ongoingJpegQ.enqueue((void *)jpeg_job)) {
@@ -2829,7 +2835,11 @@ int32_t QCameraPostProcessor::doReprocess()
     qcamera_pp_data_t *pp_job =
             (qcamera_pp_data_t *)malloc(sizeof(qcamera_pp_data_t));
     if (pp_job != NULL) {
-        syncStreamParams(src_frame, src_reproc_frame);
+        if (m_parent->mParameters.isAdvCamFeaturesEnabled()) {
+            // No need to sync stream params, if none of the advanced features configured
+            // Reduces the latency for normal snapshot.
+            syncStreamParams(src_frame, src_reproc_frame);
+        }
         memset(pp_job, 0, sizeof(qcamera_pp_data_t));
         if (mPPChannels[mCurReprocCount] != NULL) {
             // add into ongoing PP job Q

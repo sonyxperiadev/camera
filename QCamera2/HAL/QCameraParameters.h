@@ -607,7 +607,7 @@ public:
     int32_t initDefaultParameters();
     int32_t updateParameters(QCameraParameters&, bool &needRestart);
     int32_t commitParameters();
-    int getPreviewHalPixelFormat() const;
+    int getPreviewHalPixelFormat();
     int32_t getStreamRotation(cam_stream_type_t streamType,
                                cam_pp_feature_config_t &featureConfig,
                                cam_dimension_t &dim);
@@ -755,7 +755,7 @@ public:
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
     bool isAdvCamFeaturesEnabled() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || m_bOptiZoomOn || isHDREnabled() ||
-            isHDREnabled() || isStillMoreEnabled();}
+            isAEBracketEnabled() || isStillMoreEnabled() || isUbiRefocus();}
     int32_t setAecLock(const char *aecStr);
     int32_t updateDebugLevel();
     bool is4k2kVideoResolution();

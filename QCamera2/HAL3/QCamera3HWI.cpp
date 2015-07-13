@@ -3610,8 +3610,25 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         for (size_t i = 0; i < numFaces; i++) {
             faceIds[i] = faceDetectionInfo->faces[i].face_id;
             faceScores[i] = (uint8_t)faceDetectionInfo->faces[i].score;
+            // Adjust crop region from sensor output coordinate system to active
+            // array coordinate system.
+            cam_rect_t& rect = faceDetectionInfo->faces[i].face_boundary;
+            mCropRegionMapper.toActiveArray(rect.left, rect.top,
+                    rect.width, rect.height);
+
             convertToRegions(faceDetectionInfo->faces[i].face_boundary,
                 faceRectangles+j, -1);
+
+            // Map the co-ordinate sensor output coordinate system to active
+            // array coordinate system.
+            cam_face_detection_info_t& face = faceDetectionInfo->faces[i];
+            mCropRegionMapper.toActiveArray(face.left_eye_center.x,
+                    face.left_eye_center.y);
+            mCropRegionMapper.toActiveArray(face.right_eye_center.x,
+                    face.right_eye_center.y);
+            mCropRegionMapper.toActiveArray(face.mouth_center.x,
+                    face.mouth_center.y);
+
             convertLandmarks(faceDetectionInfo->faces[i], faceLandmarks+k);
             j+= 4;
             k+= 6;
@@ -4034,6 +4051,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     IF_META_AVAILABLE(cam_area_t, hAeRegions, CAM_INTF_META_AEC_ROI, metadata) {
         int32_t aeRegions[REGIONS_TUPLE_COUNT];
+        // Adjust crop region from sensor output coordinate system to active
+        // array coordinate system.
+        mCropRegionMapper.toActiveArray(hAeRegions->rect.left, hAeRegions->rect.top,
+                hAeRegions->rect.width, hAeRegions->rect.height);
+
         convertToRegions(hAeRegions->rect, aeRegions, hAeRegions->weight);
         camMetadata.update(ANDROID_CONTROL_AE_REGIONS, aeRegions,
                 REGIONS_TUPLE_COUNT);
@@ -4046,6 +4068,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     IF_META_AVAILABLE(cam_area_t, hAfRegions, CAM_INTF_META_AF_ROI, metadata) {
         /*af regions*/
         int32_t afRegions[REGIONS_TUPLE_COUNT];
+        // Adjust crop region from sensor output coordinate system to active
+        // array coordinate system.
+        mCropRegionMapper.toActiveArray(hAfRegions->rect.left, hAfRegions->rect.top,
+                hAfRegions->rect.width, hAfRegions->rect.height);
+
         convertToRegions(hAfRegions->rect, afRegions, hAfRegions->weight);
         camMetadata.update(ANDROID_CONTROL_AF_REGIONS, afRegions,
                 REGIONS_TUPLE_COUNT);
@@ -7307,6 +7334,11 @@ int QCamera3HardwareInterface::translateToHalMetadata
         cam_area_t roi;
         bool reset = true;
         convertFromRegions(roi, request->settings, ANDROID_CONTROL_AE_REGIONS);
+
+        // Map coordinate system from active array to sensor output.
+        mCropRegionMapper.toSensor(roi.rect.left, roi.rect.top, roi.rect.width,
+                roi.rect.height);
+
         if (scalerCropSet) {
             reset = resetIfNeededROI(&roi, &scalerCropRegion);
         }
@@ -7319,6 +7351,11 @@ int QCamera3HardwareInterface::translateToHalMetadata
         cam_area_t roi;
         bool reset = true;
         convertFromRegions(roi, request->settings, ANDROID_CONTROL_AF_REGIONS);
+
+        // Map coordinate system from active array to sensor output.
+        mCropRegionMapper.toSensor(roi.rect.left, roi.rect.top, roi.rect.width,
+                roi.rect.height);
+
         if (scalerCropSet) {
             reset = resetIfNeededROI(&roi, &scalerCropRegion);
         }
