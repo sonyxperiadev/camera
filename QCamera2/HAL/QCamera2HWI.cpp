@@ -2603,6 +2603,15 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
         QCameraVideoMemory *video_mem = new QCameraVideoMemory(
                 mGetMemory, FALSE, CAM_STREAM_BUF_TYPE_USERPTR);
         video_mem->allocateMeta(streamInfo->num_bufs);
+        int usage = 0;
+        if(mParameters.isUBWCEnabled()) {
+            cam_format_t fmt;
+            mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
+            if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
+                usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
+                video_mem->setVideoInfo(usage);
+            }
+        }
         mem = static_cast<QCameraMemory *>(video_mem);
     }
     break;
