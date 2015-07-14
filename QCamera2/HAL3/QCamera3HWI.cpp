@@ -6023,8 +6023,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             break;
         }
 
-        //TODO: Enable 120 fps once the iommu issues in CPP/ISP are fixed
-        if (fps > 120) {
+        /* Advertise only MIN_FPS_FOR_BATCH_MODE or above as HIGH_SPEED_CONFIGS */
+        if (fps >= MIN_FPS_FOR_BATCH_MODE) {
             /* For each HFR frame rate, need to advertise one variable fps range
              * and one fixed fps range. Eg: for 120 FPS, advertise [30, 120] and
              * [120, 120]. While camcorder preview alone is running [30, 120] is
