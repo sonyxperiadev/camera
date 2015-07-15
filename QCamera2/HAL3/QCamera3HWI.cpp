@@ -73,6 +73,9 @@ namespace qcamera {
 #define VIDEO_4K_WIDTH  3840
 #define VIDEO_4K_HEIGHT 2160
 
+#define MAX_EIS_WIDTH 1920
+#define MAX_EIS_HEIGHT 1080
+
 #define MAX_RAW_STREAMS        1
 #define MAX_STALLING_STREAMS   1
 #define MAX_PROCESSED_STREAMS  3
@@ -1187,12 +1190,8 @@ int QCamera3HardwareInterface::configureStreams(
     }
 
     if (eisSupported) {
-        maxEisWidth = (uint32_t)
-            ((gCamCapability[mCameraId]->active_array_size.width * 1.0) /
-            (1+ gCamCapability[mCameraId]->supported_is_type_margins[margin_index]));
-         maxEisHeight = (uint32_t)
-            ((gCamCapability[mCameraId]->active_array_size.height * 1.0) /
-            (1+ gCamCapability[mCameraId]->supported_is_type_margins[margin_index]));
+        maxEisWidth = MAX_EIS_WIDTH;
+        maxEisHeight = MAX_EIS_HEIGHT;
     }
 
     /* EIS setprop control */
@@ -1277,6 +1276,11 @@ int QCamera3HardwareInterface::configureStreams(
             }
 
         }
+    }
+
+    if (gCamCapability[mCameraId]->position == CAM_POSITION_FRONT ||
+        !m_bIsVideo) {
+        m_bEisEnable = false;
     }
 
     /* Check if num_streams is sane */
@@ -2878,9 +2882,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         }
 
         //If EIS is enabled, turn it on for video
-        bool setEis = m_bEisEnable && m_bEisSupportedSize &&
-            ((mCaptureIntent ==  CAMERA3_TEMPLATE_VIDEO_RECORD) ||
-             (mCaptureIntent == CAMERA3_TEMPLATE_VIDEO_SNAPSHOT));
+        bool setEis = m_bEisEnable && m_bEisSupportedSize;
         int32_t vsMode;
         vsMode = (setEis)? DIS_ENABLE: DIS_DISABLE;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_DIS_ENABLE, vsMode)) {
@@ -2889,15 +2891,12 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         //IS type will be 0 unless EIS is supported. If EIS is supported
         //it could either be 1 or 4 depending on the stream and video size
-        if (setEis){
+        if (setEis) {
             if (!m_bEisSupportedSize) {
                 is_type = IS_TYPE_DIS;
             } else {
                 is_type = IS_TYPE_EIS_2_0;
             }
-        }
-
-        if (mCaptureIntent == CAMERA3_TEMPLATE_VIDEO_RECORD) {
             mStreamConfigInfo.is_type = is_type;
         } else {
             mStreamConfigInfo.is_type = IS_TYPE_NONE;
@@ -2976,11 +2975,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
             const camera3_stream_buffer_t& output = request->output_buffers[i];
             QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
             /*for livesnapshot stream is_type will be DIS*/
-            if (setEis && output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
-                rc = channel->registerBuffer(output.buffer, IS_TYPE_DIS);
-            } else {
+            if ((((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) ||
+               ((1U << CAM_STREAM_TYPE_PREVIEW) == channel->getStreamTypeMask())) &&
+               setEis)
                 rc = channel->registerBuffer(output.buffer, is_type);
-            }
+            else
+                rc = channel->registerBuffer(output.buffer, IS_TYPE_NONE);
+
             if (rc < 0) {
                 ALOGE("%s: registerBuffer failed",
                         __func__);
@@ -2993,10 +2994,12 @@ int QCamera3HardwareInterface::processCaptureRequest(
         for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
             it != mStreamInfo.end(); it++) {
             QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-            if (setEis && (*it)->stream->format == HAL_PIXEL_FORMAT_BLOB) {
-                rc = channel->initialize(IS_TYPE_DIS);
-            } else {
+            if ((((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) ||
+               ((1U << CAM_STREAM_TYPE_PREVIEW) == channel->getStreamTypeMask())) &&
+               setEis)
                 rc = channel->initialize(is_type);
+            else {
+                rc = channel->initialize(IS_TYPE_NONE);
             }
             if (NO_ERROR != rc) {
                 ALOGE("%s : Channel initialization failed %d", __func__, rc);
@@ -3006,7 +3009,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         }
 
         if (mRawDumpChannel) {
-            rc = mRawDumpChannel->initialize(is_type);
+            rc = mRawDumpChannel->initialize(IS_TYPE_NONE);
             if (rc != NO_ERROR) {
                 ALOGE("%s: Error: Raw Dump Channel init failed", __func__);
                 pthread_mutex_unlock(&mMutex);
@@ -3014,7 +3017,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
         if (mSupportChannel) {
-            rc = mSupportChannel->initialize(is_type);
+            rc = mSupportChannel->initialize(IS_TYPE_NONE);
             if (rc < 0) {
                 ALOGE("%s: Support channel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
@@ -3022,7 +3025,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
         if (mAnalysisChannel) {
-            rc = mAnalysisChannel->initialize(is_type);
+            rc = mAnalysisChannel->initialize(IS_TYPE_NONE);
             if (rc < 0) {
                 ALOGE("%s: Analysis channel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
