@@ -432,6 +432,10 @@ const char QCameraParameters::KEY_TS_MAKEUP[] = "tsmakeup";
 const char QCameraParameters::KEY_TS_MAKEUP_WHITEN[] = "tsmakeup_whiten";
 const char QCameraParameters::KEY_TS_MAKEUP_CLEAN[] = "tsmakeup_clean";
 #endif
+
+//KEY to share HFR batch size with video encoder.
+const char QCameraParameters::KEY_QC_VIDEO_BATCH_SIZE[] = "video-batch-size";
+
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
 
@@ -2161,6 +2165,19 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
         m_hfrFpsRange.video_max_fps = 0;
         m_bHfrMode = false;
         CDBG_HIGH("HFR mode is OFF");
+    }
+    m_hfrFpsRange.min_fps = (float)parm_minfps;
+    m_hfrFpsRange.max_fps = (float)parm_maxfps;
+
+    if (m_bHfrMode && (mHfrMode > CAM_HFR_MODE_120FPS)
+            && (parm_maxfps != 0)) {
+        //Configure buffer batch count to use batch mode for higher fps
+        setBufBatchCount((int8_t)(m_hfrFpsRange.video_max_fps / parm_maxfps));
+        set(KEY_QC_VIDEO_BATCH_SIZE, getBufBatchCount());
+    } else {
+        //Reset batch count and update KEY for encoder
+        setBufBatchCount(0);
+        set(KEY_QC_VIDEO_BATCH_SIZE, getBufBatchCount());
     }
     return updateNeeded;
 }
@@ -5540,6 +5557,8 @@ int32_t QCameraParameters::initDefaultParameters()
 
     //Check for EZTune
     setEztune();
+    //Default set for video batch size
+    set(KEY_QC_VIDEO_BATCH_SIZE, 0);
 
     return rc;
 }
@@ -5884,9 +5903,6 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
                   fps_range.video_min_fps, fps_range.video_max_fps);
         }
     }
-
-    /* Setting Buffer batch count to use batch mode for higher fps*/
-    setBufBatchCount((int8_t)(fps_range.video_max_fps / fps_range.max_fps));
 
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
         return BAD_VALUE;
