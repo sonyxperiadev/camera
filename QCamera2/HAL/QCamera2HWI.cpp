@@ -5851,15 +5851,6 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         return rc;
     }
 
-    if (mParameters.getRecordingHintValue() != true && !mParameters.isSecureMode()) {
-        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_ANALYSIS,
-                NULL, this);
-        if (rc != NO_ERROR) {
-            ALOGE("%s: add Analysis stream failed, ret = %d", __func__, rc);
-            return rc;
-        }
-    }
-
     if (isRdiMode()) {
         CDBG_HIGH("RDI_DEBUG %s[%d]: Add stream to channel", __func__, __LINE__);
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
@@ -5871,6 +5862,15 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         } else {
             rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                     preview_stream_cb_routine, this);
+        }
+    }
+
+    if (mParameters.getRecordingHintValue() != true && !mParameters.isSecureMode()) {
+        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_ANALYSIS,
+                NULL, this);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: add Analysis stream failed, ret = %d", __func__, rc);
+            return rc;
         }
     }
 
