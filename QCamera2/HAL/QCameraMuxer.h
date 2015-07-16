@@ -35,8 +35,6 @@
 
 namespace qcamera {
 
-#define MAX_NUM_CAMERA_PER_BUNDLE 4
-
 /* Struct@ qcamera_physical_descriptor_t
  *
  *  Description@ This structure specifies various attributes
@@ -248,6 +246,8 @@ private:
     bool m_bDumpImages;
     // flag to indicate whether MPO is enabled or not
     bool m_bMpoEnabled;
+    // Signifies if frame sync is enabled
+    bool m_bFrameSyncEnabled;
 
     /* Private Member Methods */
     int setupLogicalCameras();

@@ -556,8 +556,6 @@ private:
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
-    cam_sync_type_t  mCameraType;
-    cam_sync_mode_t  mCameraMode;
     mm_camera_vtbl_t *mCameraHandle;
     bool mCameraOpened;
 

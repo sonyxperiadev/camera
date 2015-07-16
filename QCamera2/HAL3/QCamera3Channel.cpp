@@ -3662,7 +3662,11 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
         m_pSrcChannel = src_config.src_channel;
         m_pMetaChannel = pMetaChannel;
     }
-    if(m_camOps->request_super_buf(m_camHandle,m_handle,1,0) < 0) {
+    mm_camera_req_buf_t buf;
+    memset(&buf, 0x0, sizeof(buf));
+    buf.type = MM_CAMERA_REQ_SUPER_BUF;
+    buf.num_buf_requested = 1;
+    if(m_camOps->request_super_buf(m_camHandle,m_handle, &buf) < 0) {
         ALOGE("%s: Request for super buffer failed",__func__);
     }
     return rc;
