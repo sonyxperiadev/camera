@@ -321,6 +321,8 @@ private:
     } PendingReprocessResult;
 
     typedef KeyedVector<uint32_t, Vector<PendingBufferInfo> > FlushMap;
+    typedef List<QCamera3HardwareInterface::PendingRequestInfo>::iterator
+            pendingRequestIterator;
 
     List<PendingReprocessResult> mPendingReprocessResultList;
     List<PendingRequestInfo> mPendingRequestsList;
@@ -380,6 +382,8 @@ private:
             cam_illuminat_t> REFERENCE_ILLUMINANT_MAP[];
 
     static const QCameraPropMap CDS_MAP[];
+
+    pendingRequestIterator erasePendingRequest(pendingRequestIterator i);
 };
 
 }; // namespace qcamera
