@@ -649,6 +649,7 @@ private:
         CMD_DEFF_ALLOCATE_BUFF,
         CMD_DEFF_PPROC_START,
         CMD_DEF_METADATA_ALLOC,
+        CMD_DEFF_CREATE_JPEG_SESSION,
         CMD_DEFF_MAX
     };
 
@@ -699,6 +700,7 @@ private:
     int32_t mPostviewJob;
     int32_t mMetadataJob;
     int32_t mReprocJob;
+    int32_t mJpegJob;
     int32_t mRawdataJob;
     int32_t mMetadataAllocJob;
     uint32_t mOutputCount;

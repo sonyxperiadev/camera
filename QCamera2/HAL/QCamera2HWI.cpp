@@ -1222,6 +1222,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mPostviewJob(-1),
       mMetadataJob(-1),
       mReprocJob(-1),
+      mJpegJob(-1),
       mRawdataJob(-1),
       mMetadataAllocJob(-1),
       mOutputCount(0),
@@ -1698,6 +1699,8 @@ int QCamera2HardwareInterface::closeCamera()
 
     // stop and deinit postprocessor
     waitDefferedWork(mReprocJob);
+    // Close the JPEG session
+    waitDefferedWork(mJpegJob);
     m_postprocessor.stop();
     deinitJpegHandle();
     m_postprocessor.deinit();
@@ -3640,11 +3643,12 @@ int QCamera2HardwareInterface::takePicture()
             // start postprocessor
             DefferWorkArgs args;
             memset(&args, 0, sizeof(DefferWorkArgs));
-
             args.pprocArgs = pZSLChannel;
             mReprocJob = queueDefferedWork(CMD_DEFF_PPROC_START,
                     args);
-
+            // Create JPEG session
+            mJpegJob = queueDefferedWork(CMD_DEFF_CREATE_JPEG_SESSION,
+                    args);
             if (mParameters.isUbiFocusEnabled() ||
                     mParameters.isUbiRefocus() ||
                     mParameters.isOptiZoomEnabled() ||
@@ -3667,6 +3671,7 @@ int QCamera2HardwareInterface::takePicture()
             if (rc != NO_ERROR) {
                 ALOGE("%s: cannot take ZSL picture, stop pproc", __func__);
                 waitDefferedWork(mReprocJob);
+                waitDefferedWork(mJpegJob);
                 m_postprocessor.stop();
                 return rc;
             }
@@ -3762,11 +3767,16 @@ int QCamera2HardwareInterface::takePicture()
                 mReprocJob = queueDefferedWork(CMD_DEFF_PPROC_START,
                         args);
 
+                // Create JPEG session
+                mJpegJob = queueDefferedWork(CMD_DEFF_CREATE_JPEG_SESSION,
+                        args);
+
                 // start catpure channel
                 rc =  m_channels[QCAMERA_CH_TYPE_CAPTURE]->start();
                 if (rc != NO_ERROR) {
                     ALOGE("%s: cannot start capture channel", __func__);
                     waitDefferedWork(mReprocJob);
+                    waitDefferedWork(mJpegJob);
                     delChannel(QCAMERA_CH_TYPE_CAPTURE);
                     return rc;
                 }
@@ -3788,6 +3798,7 @@ int QCamera2HardwareInterface::takePicture()
                     rc = longShot();
                     if (NO_ERROR != rc) {
                         waitDefferedWork(mReprocJob);
+                        waitDefferedWork(mJpegJob);
                         delChannel(QCAMERA_CH_TYPE_CAPTURE);
                         return rc;
                     }
@@ -3976,6 +3987,7 @@ int QCamera2HardwareInterface::stopCaptureChannel(bool destroy)
         rc = stopChannel(QCAMERA_CH_TYPE_CAPTURE);
         if (destroy && (NO_ERROR == rc)) {
             // Destroy camera channel but dont release context
+            waitDefferedWork(mJpegJob);
             rc = delChannel(QCAMERA_CH_TYPE_CAPTURE, false);
         }
     }
@@ -3997,6 +4009,7 @@ int QCamera2HardwareInterface::stopCaptureChannel(bool destroy)
 int QCamera2HardwareInterface::cancelPicture()
 {
     waitDefferedWork(mReprocJob);
+    waitDefferedWork(mJpegJob);
 
     //stop post processor
     m_postprocessor.stop();
@@ -8367,7 +8380,23 @@ void *QCamera2HardwareInterface::defferedWorkRoutine(void *obj)
                                 pme->mMetadataMem = NULL;
                             }
                         }
+                        {
+                            Mutex::Autolock l(pme->mDeffLock);
+                            pme->mDeffOngoingJobs[dw->id] = false;
+                            delete dw;
+                            pme->mDeffCond.broadcast();
+                        }
+                     }
+                     break;
+                case CMD_DEFF_CREATE_JPEG_SESSION:
+                    {
+                        QCameraChannel * pChannel = dw->args.pprocArgs;
+                        assert(pChannel);
 
+                        if (pme->m_postprocessor.createJpegSession(pChannel) != NO_ERROR) {
+                            ALOGE("%s: cannot create JPEG session", __func__);
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR, CAMERA_ERROR_UNKNOWN, 0);
+                        }
                         {
                             Mutex::Autolock l(pme->mDeffLock);
                             pme->mDeffOngoingJobs[dw->id] = false;
