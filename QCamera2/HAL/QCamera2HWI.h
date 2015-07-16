@@ -648,6 +648,7 @@ private:
     enum DefferedWorkCmd {
         CMD_DEFF_ALLOCATE_BUFF,
         CMD_DEFF_PPROC_START,
+        CMD_DEF_METADATA_ALLOC,
         CMD_DEFF_MAX
     };
 
@@ -656,9 +657,15 @@ private:
         cam_stream_type_t type;
     } DefferAllocBuffArgs;
 
+    typedef struct {
+        uint8_t bufferCnt;
+        size_t size;
+    } DeferMetadataAllocArgs;
+
     typedef union {
         DefferAllocBuffArgs allocArgs;
         QCameraChannel *pprocArgs;
+        DeferMetadataAllocArgs metadataAllocArgs;
     } DefferWorkArgs;
 
     bool mDeffOngoingJobs[MAX_ONGOING_JOBS];
@@ -693,6 +700,7 @@ private:
     int32_t mMetadataJob;
     int32_t mReprocJob;
     int32_t mRawdataJob;
+    int32_t mMetadataAllocJob;
     uint32_t mOutputCount;
     uint32_t mInputCount;
     bool mAdvancedCaptureConfigured;
@@ -713,6 +721,7 @@ private:
     bool TsMakeupProcess_Snapshot(mm_camera_buf_def_t *pFrame,QCameraStream * pStream);
     bool TsMakeupProcess(mm_camera_buf_def_t *frame,QCameraStream * stream,TSRect& faceRect);
 #endif
+    QCameraMemory *mMetadataMem;
 };
 
 }; // namespace qcamera
