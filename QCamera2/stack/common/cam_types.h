@@ -389,6 +389,11 @@ typedef struct {
 } cam_buf_map_type;
 
 typedef struct {
+    uint32_t length;
+    cam_buf_map_type buf_maps[CAM_MAX_NUM_BUFS_PER_STREAM];
+} cam_buf_map_type_list;
+
+typedef struct {
     cam_mapping_buf_type type;
     uint32_t stream_id;   /* stream id: valid if STREAM_BUF */
     uint32_t frame_idx;   /* frame index: valid if STREAM_BUF or HIST_BUF */
@@ -398,9 +403,16 @@ typedef struct {
     uint32_t cookie;      /* could be job_id(uint32_t) to identify unmapping job */
 } cam_buf_unmap_type;
 
+typedef struct {
+    uint32_t length;
+    cam_buf_unmap_type buf_unmaps[CAM_MAX_NUM_BUFS_PER_STREAM];
+} cam_buf_unmap_type_list;
+
 typedef enum {
     CAM_MAPPING_TYPE_FD_MAPPING,
     CAM_MAPPING_TYPE_FD_UNMAPPING,
+    CAM_MAPPING_TYPE_FD_BUNDLED_MAPPING,
+    CAM_MAPPING_TYPE_FD_BUNDLED_UNMAPPING,
     CAM_MAPPING_TYPE_MAX
 } cam_mapping_type;
 
@@ -409,6 +421,8 @@ typedef struct {
     union {
         cam_buf_map_type buf_map;
         cam_buf_unmap_type buf_unmap;
+        cam_buf_map_type_list buf_map_list;
+        cam_buf_unmap_type_list buf_unmap_list;
     } payload;
 } cam_sock_packet_t;
 
