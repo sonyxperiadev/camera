@@ -821,13 +821,6 @@ int QCamera3HardwareInterface::validateStreamDimensions(
             }
             break;
         case HAL_PIXEL_FORMAT_BLOB:
-            if (((int32_t)rotatedWidth ==
-                    gCamCapability[mCameraId]->active_array_size.width) &&
-                    ((int32_t)rotatedHeight ==
-                    gCamCapability[mCameraId]->active_array_size.height)) {
-                sizeFound = true;
-                break;
-            }
             count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
             /* Generate JPEG sizes table */
             makeTable(gCamCapability[mCameraId]->picture_sizes_tbl,
@@ -854,12 +847,22 @@ int QCamera3HardwareInterface::validateStreamDimensions(
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
         case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
         default:
-            if (((int32_t)rotatedWidth ==
-                            gCamCapability[mCameraId]->active_array_size.width) &&
-                            ((int32_t)rotatedHeight ==
-                            gCamCapability[mCameraId]->active_array_size.height)) {
-                sizeFound = true;
-                break;
+            if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
+                    || newStream->stream_type == CAMERA3_STREAM_INPUT
+                    || newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL) {
+                if (((int32_t)rotatedWidth ==
+                                gCamCapability[mCameraId]->active_array_size.width) &&
+                                ((int32_t)rotatedHeight ==
+                                gCamCapability[mCameraId]->active_array_size.height)) {
+                    sizeFound = true;
+                    break;
+                }
+                /* We could potentially break here to enforce ZSL stream
+                 * set from frameworks always is full active array size
+                 * but it is not clear from the spc if framework will always
+                 * follow that, also we have logic to override to full array
+                 * size, so keeping the logic lenient at the moment
+                 */
             }
             count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt,
                     MAX_SIZES_CNT);
@@ -869,7 +872,7 @@ int QCamera3HardwareInterface::validateStreamDimensions(
                             ((int32_t)rotatedHeight ==
                             gCamCapability[mCameraId]->picture_sizes_tbl[i].height)) {
                     sizeFound = true;
-                break;
+                    break;
                 }
             }
             break;
@@ -5717,10 +5720,6 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             }
             break;
         case HAL_PIXEL_FORMAT_BLOB:
-            //add the active array size
-            addStreamConfig(available_stream_configs, scalar_formats[j],
-                  active_array_dim,
-                  ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
             cam_dimension_t jpeg_size;
             for (size_t i = 0; i < jpeg_sizes_cnt/2; i++) {
                 jpeg_size.width  = available_jpeg_sizes[i*2];
@@ -5735,10 +5734,6 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         default:
             cam_dimension_t largest_picture_size;
             memset(&largest_picture_size, 0, sizeof(cam_dimension_t));
-            //add the active array size
-            addStreamConfig(available_stream_configs, scalar_formats[j],
-                    active_array_dim,
-                    ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
             for (size_t i = 0; i < gCamCapability[cameraId]->picture_sizes_tbl_cnt; i++) {
                 addStreamConfig(available_stream_configs, scalar_formats[j],
                         gCamCapability[cameraId]->picture_sizes_tbl[i],
@@ -5753,10 +5748,6 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             /*For below 2 formats we also support i/p streams for reprocessing advertise those*/
             if (scalar_formats[j] == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED ||
                     scalar_formats[j] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-                //add the active array size
-                 addStreamConfig(available_stream_configs, scalar_formats[j],
-                         active_array_dim,
-                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
                  addStreamConfig(available_stream_configs, scalar_formats[j],
                          largest_picture_size,
                          ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
