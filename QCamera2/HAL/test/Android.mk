@@ -52,10 +52,6 @@ ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) >= 20 ))" )))
 
 LOCAL_CFLAGS += -DUSE_SDK_20_OR_HIGHER
 
-ifeq ($(TARGET_USES_AOSP),true)
-LOCAL_CFLAGS += -DVANILLA_HAL
-endif
-
 endif
 
 #include $(BUILD_EXECUTABLE)
