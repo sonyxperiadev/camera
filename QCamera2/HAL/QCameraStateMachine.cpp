@@ -1336,6 +1336,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             rc = m_parent->sendCommand(cmd_payload->cmd,
                                        cmd_payload->arg1,
                                        cmd_payload->arg2);
+#ifndef VANILLA_HAL
             if (CAMERA_CMD_LONGSHOT_ON == cmd_payload->cmd) {
                 if (QCAMERA_SM_EVT_RESTART_PERVIEW == cmd_payload->arg1) {
                     m_parent->stopPreview();
@@ -1351,6 +1352,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                     }
                 }
             }
+#endif
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;

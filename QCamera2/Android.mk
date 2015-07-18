@@ -34,7 +34,12 @@ LOCAL_SRC_FILES += \
         HAL/QCameraThermalAdapter.cpp
 
 LOCAL_CFLAGS := -Wall -Wextra -Werror
+
 LOCAL_CFLAGS += -DHAS_MULTIMEDIA_HINTS
+
+ifeq ($(TARGET_USES_AOSP),true)
+LOCAL_CFLAGS += -DVANILLA_HAL
+endif
 
 #HAL 1.0 Flags
 LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3
@@ -54,7 +59,9 @@ LOCAL_C_INCLUDES += \
         frameworks/native/include/media/hardware \
         hardware/qcom/camera/QCamera2/HAL
 
+ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+endif
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_CFLAGS += -DTARGET_TS_MAKEUP
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/HAL/tsMakeuplib/include
