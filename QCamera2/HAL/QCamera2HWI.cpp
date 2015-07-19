@@ -2273,7 +2273,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
         break;
     case CAM_STREAM_TYPE_METADATA:
         {
-            waitDefferedWork(mMetadataAllocJob);
             if (mMetadataMem == NULL) {
                 mem = new QCameraMetadataStreamMemory(QCAMERA_ION_USE_CACHE);
             } else {
