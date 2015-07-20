@@ -12266,7 +12266,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         if (m_nMinRequiredPpMask & CAM_QCOM_FEATURE_EFFECT) {
             feature_mask |= CAM_QCOM_FEATURE_EFFECT;
         }
-        if (isWNREnabled() && (getRecordingHintValue() == false)) {
+        if (isWNREnabled()) {
             feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
         }
 
