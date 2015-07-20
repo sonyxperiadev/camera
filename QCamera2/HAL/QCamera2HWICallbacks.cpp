@@ -1119,9 +1119,10 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
     if (NULL != previewMemObj && NULL != preview_mem) {
         pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
 
-        if (pme->needProcessPreviewFrame() &&
-            pme->mDataCb != NULL &&
-            pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0 ) {
+        if ((pme->needProcessPreviewFrame()) &&
+                (pme->mDataCb != NULL) &&
+                (pme->msgTypeEnabledWithLock(
+                CAMERA_MSG_PREVIEW_FRAME) > 0)) {
             qcamera_callback_argm_t cbArg;
             memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
             cbArg.cb_type = QCAMERA_DATA_CALLBACK;
@@ -1345,6 +1346,11 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                                                         void *userdata)
 {
     ATRACE_CALL();
+    QCameraMemory *videoMemObj = NULL;
+    camera_memory_t *video_mem = NULL;
+    nsecs_t timeStamp = 0;
+    bool triggerTCB = FALSE;
+
     CDBG_HIGH("[KPI Perf] %s : BEGIN", __func__);
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
@@ -1372,36 +1378,88 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
           frame->ts.tv_nsec);
 
     if (frame->buf_type == CAM_STREAM_BUF_TYPE_MPLANE) {
-        nsecs_t timeStamp;
-        timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
-        CDBG("Send Video frame to services/encoder TimeStamp : %lld",
-            timeStamp);
-        QCameraMemory *videoMemObj = (QCameraMemory *)frame->mem_info;
-        camera_memory_t *video_mem = NULL;
-        if (NULL != videoMemObj) {
-            video_mem = videoMemObj->getMemory(frame->buf_idx,
-                    (pme->mStoreMetaDataInFrame > 0)? true : false);
-        }
-        if (NULL != videoMemObj && NULL != video_mem) {
+        if (pme->mParameters.getVideoBatchSize() == 0) {
+            timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL
+                    + frame->ts.tv_nsec;
+            CDBG("Video frame to encoder TimeStamp : %lld batch = 0",
+                    timeStamp);
             pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_VIDEO);
-            if ((pme->mDataCbTimestamp != NULL) &&
-                pme->msgTypeEnabledWithLock(CAMERA_MSG_VIDEO_FRAME) > 0) {
-                qcamera_callback_argm_t cbArg;
-                memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
-                cbArg.cb_type = QCAMERA_DATA_TIMESTAMP_CALLBACK;
-                cbArg.msg_type = CAMERA_MSG_VIDEO_FRAME;
-                cbArg.data = video_mem;
-                cbArg.timestamp = timeStamp;
-                int32_t rc = pme->m_cbNotifier.notifyCallback(cbArg);
-                if (rc != NO_ERROR) {
-                    ALOGE("%s: fail sending data notify", __func__);
-                    stream->bufDone(frame->buf_idx);
+            videoMemObj = (QCameraMemory *)frame->mem_info;
+            video_mem = NULL;
+            if (NULL != videoMemObj) {
+                video_mem = videoMemObj->getMemory(frame->buf_idx,
+                        (pme->mStoreMetaDataInFrame > 0)? true : false);
+                triggerTCB = TRUE;
+            }
+        } else {
+            //Handle video batch callback
+            native_handle_t *nh = NULL;
+            pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_VIDEO);
+            QCameraVideoMemory *videoMemObj = (QCameraVideoMemory *)frame->mem_info;
+            if ((stream->mCurMetaMemory == NULL)
+                    || (stream->mCurBufIndex == -1)) {
+                //get Free metadata available
+                for (int i = 0; i < CAMERA_MIN_VIDEO_BATCH_BUFFERS; i++) {
+                    if (stream->mStreamMetaMemory[i].consumerOwned == 0) {
+                        stream->mCurMetaMemory = videoMemObj->getMemory(i,true);
+                        stream->mCurBufIndex = 0;
+                        stream->mCurMetaIndex = i;
+                        stream->mStreamMetaMemory[i].numBuffers = 0;
+                        break;
+                    }
                 }
+            }
+            video_mem = stream->mCurMetaMemory;
+            if (video_mem == NULL) {
+                ALOGE("%s: No Free metadata. Drop this frame", __func__);
+                stream->mCurBufIndex = -1;
+                stream->bufDone(frame->buf_idx);
+                free(super_frame);
+                return;
+            }
+
+            struct encoder_media_buffer_type * packet =
+                    (struct encoder_media_buffer_type *)video_mem->data;
+            nh = const_cast<native_handle_t *>(packet->meta_handle);
+            int index = stream->mCurBufIndex;
+            int fd_cnt = pme->mParameters.getVideoBatchSize();
+            nsecs_t frame_ts = nsecs_t(frame->ts.tv_sec) * 1000000000LL
+                    + frame->ts.tv_nsec;
+            if (index == 0) {
+                stream->mFirstTimeStamp = frame_ts;
+            }
+
+            stream->mStreamMetaMemory[stream->mCurMetaIndex].buf_index[index]
+                    = (uint8_t)frame->buf_idx;
+            stream->mStreamMetaMemory[stream->mCurMetaIndex].numBuffers++;
+            stream->mStreamMetaMemory[stream->mCurMetaIndex].consumerOwned
+                    = TRUE;
+            /*
+            * data[0] => FD
+            * data[mNumFDs + 1] => OFFSET
+            * data[mNumFDs + 2] => SIZE
+            * data[mNumFDs + 3] => Usage Flag (Color format/Compression)
+            * data[mNumFDs + 4] => TIMESTAMP
+            */
+            nh->data[index] = videoMemObj->getFd(frame->buf_idx);
+            nh->data[index + fd_cnt] = 0;
+            nh->data[index + (fd_cnt * 2)] = (int)videoMemObj->getSize(frame->buf_idx);
+            nh->data[index + (fd_cnt * 3)] = videoMemObj->getUsage();
+            nh->data[index + (fd_cnt * 4)] = (int)(frame_ts - stream->mFirstTimeStamp);
+            stream->mCurBufIndex++;
+            if (stream->mCurBufIndex == fd_cnt) {
+                timeStamp = stream->mFirstTimeStamp;
+                CDBG("Video frame to encoder TimeStamp : %lld batch = %d",
+                    timeStamp, fd_cnt);
+                stream->mCurBufIndex = -1;
+                stream->mCurMetaIndex = -1;
+                stream->mCurMetaMemory = NULL;
+                triggerTCB = TRUE;
             }
         }
     } else {
-        QCameraMemory *videoMemObj = (QCameraMemory *)frame->mem_info;
-        camera_memory_t *video_mem = NULL;
+        videoMemObj = (QCameraMemory *)frame->mem_info;
+        video_mem = NULL;
         native_handle_t *nh = NULL;
         int fd_cnt = frame->user_buf.bufs_used;
         if (NULL != videoMemObj) {
@@ -1409,9 +1467,6 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
             if (video_mem != NULL) {
                 struct encoder_media_buffer_type * packet =
                         (struct encoder_media_buffer_type *)video_mem->data;
-                // fd cnt => Number of buffer FD's and buffer for offset, size, format and timestamp
-                packet->meta_handle = native_handle_create(fd_cnt, (4 * fd_cnt));
-                packet->buffer_type = kMetadataBufferTypeCameraSource;
                 nh = const_cast<native_handle_t *>(packet->meta_handle);
             } else {
                 ALOGE("%s video_mem NULL", __func__);
@@ -1421,8 +1476,6 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
         }
 
         if (nh != NULL) {
-            nsecs_t timeStamp;
-
             timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL
                     + frame->ts.tv_nsec;
             CDBG("Batch buffer TimeStamp : %lld FD = %d index = %d fd_cnt = %d",
@@ -1439,10 +1492,10 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                             + plane_frame->ts.tv_nsec;
                     /*
                        data[0] => FD
-                       data[1] => OFFSET
-                       data[2] => SIZE
-                       data[3] => Usage Flag (Color format/Compression)
-                       data[4] => TIMESTAMP
+                       data[mNumFDs + 1] => OFFSET
+                       data[mNumFDs + 2] => SIZE
+                       data[mNumFDs + 3] => Usage Flag (Color format/Compression)
+                       data[mNumFDs + 4] => TIMESTAMP
                     */
                     nh->data[i] = frameobj->getFd(plane_frame->buf_idx);
                     nh->data[fd_cnt + i] = 0;
@@ -1454,26 +1507,30 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                     pme->dumpFrameToFile(stream, plane_frame, QCAMERA_DUMP_FRM_VIDEO);
                 }
             }
-
-            if ((pme->mDataCbTimestamp != NULL) &&
-                        pme->msgTypeEnabledWithLock(CAMERA_MSG_VIDEO_FRAME) > 0) {
-                qcamera_callback_argm_t cbArg;
-                memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
-                cbArg.cb_type = QCAMERA_DATA_TIMESTAMP_CALLBACK;
-                cbArg.msg_type = CAMERA_MSG_VIDEO_FRAME;
-                cbArg.data = video_mem;
-                cbArg.timestamp = timeStamp;
-                int32_t rc = pme->m_cbNotifier.notifyCallback(cbArg);
-                if (rc != NO_ERROR) {
-                    ALOGE("%s: fail sending data notify", __func__);
-                    stream->bufDone(frame->buf_idx);
-                }
-            }
+            triggerTCB = TRUE;
         } else {
             ALOGE("%s: No Video Meta Available. Return Buffer", __func__);
             stream->bufDone(super_frame->bufs[0]->buf_idx);
         }
     }
+
+    if ((NULL != video_mem) && (triggerTCB == TRUE)) {
+        if ((pme->mDataCbTimestamp != NULL) &&
+            pme->msgTypeEnabledWithLock(CAMERA_MSG_VIDEO_FRAME) > 0) {
+            qcamera_callback_argm_t cbArg;
+            memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
+            cbArg.cb_type = QCAMERA_DATA_TIMESTAMP_CALLBACK;
+            cbArg.msg_type = CAMERA_MSG_VIDEO_FRAME;
+            cbArg.data = video_mem;
+            cbArg.timestamp = timeStamp;
+            int32_t rc = pme->m_cbNotifier.notifyCallback(cbArg);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: fail sending data notify", __func__);
+                stream->bufDone(frame->buf_idx);
+            }
+        }
+    }
+
     free(super_frame);
     CDBG_HIGH("[KPI Perf] %s : END", __func__);
 }
