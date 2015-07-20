@@ -568,15 +568,23 @@ bool QCamera3Channel::isUBWCEnabled()
 {
 #ifdef UBWC_PRESENT
     char value[PROPERTY_VALUE_MAX];
-    int disable = false;
-    bool ubwc_enabled = TRUE;
-
+    int prop_value = 0;
+    memset(value, 0, sizeof(value));
     property_get("debug.gralloc.gfx_ubwc_disable", value, "0");
-    disable = atoi(value);
-    if (disable) {
-        ubwc_enabled = FALSE;
+    prop_value = atoi(value);
+    if (prop_value) {
+        return FALSE;
     }
-    return ubwc_enabled;
+
+    //Disable UBWC if Eztune is enabled
+    //EzTune process CPP output frame and cannot understand UBWC.
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.eztune.enable", value, "0");
+    prop_value = atoi(value);
+    if (prop_value) {
+        return FALSE;
+    }
+    return TRUE;
 #else
     return FALSE;
 #endif
