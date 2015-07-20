@@ -54,7 +54,7 @@
 #define CAMERA_MIN_VIDEO_BUFFERS         9
 #define CAMERA_MIN_CALLBACK_BUFFERS      5
 #define CAMERA_LONGSHOT_STAGES           4
-#define CAMERA_MIN_VIDEO_BATCH_BUFFERS   6
+#define CAMERA_MIN_CAMERA_BATCH_BUFFERS  6
 #define CAMERA_ISP_PING_PONG_BUFFERS     2
 
 #define HDR_CONFIDENCE_THRESHOLD 0.4
@@ -2047,8 +2047,17 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
     case CAM_STREAM_TYPE_VIDEO:
         {
             if (mParameters.getBufBatchCount()) {
-                bufferCnt = CAMERA_MIN_VIDEO_BATCH_BUFFERS;
+                //Video Buffer in case of HFR or camera batching..
+                bufferCnt = CAMERA_MIN_CAMERA_BATCH_BUFFERS;
+            } else if (mParameters.getVideoBatchSize()) {
+                //Video Buffer count only for HAL to HAL batching.
+                bufferCnt = (CAMERA_MIN_VIDEO_BATCH_BUFFERS
+                        * mParameters.getVideoBatchSize());
+                if (bufferCnt < CAMERA_MIN_VIDEO_BUFFERS) {
+                    bufferCnt = CAMERA_MIN_VIDEO_BUFFERS;
+                }
             } else {
+                // No batching enabled.
                 bufferCnt = CAMERA_MIN_VIDEO_BUFFERS;
             }
 
@@ -2264,8 +2273,35 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
             }
             CDBG_HIGH("%s: %s video buf allocated ", __func__,
                     (bCachedMem == 0) ? "Uncached" : "Cached" );
-            QCameraVideoMemory *videoMemory =
-                    new QCameraVideoMemory(mGetMemory, bCachedMem);
+
+            QCameraVideoMemory *videoMemory = NULL;
+            if (mParameters.getVideoBatchSize()) {
+                videoMemory = new QCameraVideoMemory(
+                        mGetMemory, FALSE, QCAMERA_MEM_TYPE_BATCH);
+                if (videoMemory == NULL) {
+                    ALOGE("%s: Out of memory for video batching obj", __func__);
+                    return NULL;
+                }
+                /*
+                *   numFDs = BATCH size
+                *  numInts = 4  // OFFSET, SIZE, USAGE, TIMESTAMP
+                */
+                rc = videoMemory->allocateMeta(
+                        CAMERA_MIN_VIDEO_BATCH_BUFFERS,
+                        mParameters.getVideoBatchSize(),
+                        VIDEO_BATCH_METADATA_NUM_INTS);
+                if (rc < 0) {
+                    delete videoMemory;
+                    return NULL;
+                }
+            } else {
+                videoMemory =
+                        new QCameraVideoMemory(mGetMemory, bCachedMem);
+                if (videoMemory == NULL) {
+                    ALOGE("%s: Out of memory for video obj", __func__);
+                    return NULL;
+                }
+            }
 
             int usage = 0;
             if(mParameters.isUBWCEnabled()) {
@@ -2588,8 +2624,22 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
     switch (streamInfo->stream_type) {
     case CAM_STREAM_TYPE_VIDEO: {
         QCameraVideoMemory *video_mem = new QCameraVideoMemory(
-                mGetMemory, FALSE, CAM_STREAM_BUF_TYPE_USERPTR);
-        video_mem->allocateMeta(streamInfo->num_bufs);
+                mGetMemory, FALSE, QCAMERA_MEM_TYPE_BATCH);
+        if (video_mem == NULL) {
+            ALOGE("%s: Out of memory for video obj", __func__);
+            return NULL;
+        }
+        /*
+        *   numFDs = BATCH size
+        *  numInts = 4  // OFFSET, SIZE, USAGE, TIMESTAMP
+        */
+        rc = video_mem->allocateMeta(streamInfo->num_bufs,
+                mParameters.getBufBatchCount(), VIDEO_BATCH_METADATA_NUM_INTS);
+        if (rc < 0) {
+            ALOGE("%s: allocateMeta failed", __func__);
+            delete video_mem;
+            return NULL;
+        }
         int usage = 0;
         if(mParameters.isUBWCEnabled()) {
             cam_format_t fmt;

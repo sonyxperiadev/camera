@@ -884,6 +884,7 @@ QCameraParameters::QCameraParameters()
     mBufBatchCnt = 0;
     mRotation = 0;
     mJpegRotation = 0;
+    mVideoBatchSize = 0;
 }
 
 /*===========================================================================
@@ -976,6 +977,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mCurPPCount = 0;
     mRotation = 0;
     mJpegRotation = 0;
+    mBufBatchCnt = 0;
+    mVideoBatchSize = 0;
 }
 
 /*===========================================================================
@@ -2196,11 +2199,9 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
             && (parm_maxfps != 0)) {
         //Configure buffer batch count to use batch mode for higher fps
         setBufBatchCount((int8_t)(m_hfrFpsRange.video_max_fps / parm_maxfps));
-        set(KEY_QC_VIDEO_BATCH_SIZE, getBufBatchCount());
     } else {
         //Reset batch count and update KEY for encoder
         setBufBatchCount(0);
-        set(KEY_QC_VIDEO_BATCH_SIZE, getBufBatchCount());
     }
     return updateNeeded;
 }
@@ -4692,6 +4693,9 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
 
     if ((rc = updateFlash(false)))                      final_rc = rc;
     if ((rc = setLongshotParam(params)))                final_rc = rc;
+
+    setVideoBatchSize();
+
 #ifdef TARGET_TS_MAKEUP
     if (params.get(KEY_TS_MAKEUP) != NULL) {
         set(KEY_TS_MAKEUP,params.get(KEY_TS_MAKEUP));
@@ -12585,6 +12589,7 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
 
     if (!(count != 0 || buf_cnt > CAMERA_MIN_BATCH_COUNT)) {
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        set(KEY_QC_VIDEO_BATCH_SIZE, mBufBatchCnt);
         return;
     }
 
@@ -12596,14 +12601,56 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
     if (count > 0) {
         mBufBatchCnt = count;
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        set(KEY_QC_VIDEO_BATCH_SIZE, mBufBatchCnt);
         return;
     }
 
     if (buf_cnt > CAMERA_MIN_BATCH_COUNT) {
         mBufBatchCnt = buf_cnt;
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        set(KEY_QC_VIDEO_BATCH_SIZE, mBufBatchCnt);
         return;
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : setVideoBatch()
+ *
+ * DESCRIPTION: Function to batching for video.
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     :  None
+ *==========================================================================*/
+void QCameraParameters::setVideoBatchSize()
+{
+    char value[PROPERTY_VALUE_MAX];
+    int8_t minBatchcnt = 2; //Batching enabled only if batch size if greater that 2;
+    int32_t width = 0, height = 0;
+    mVideoBatchSize = 0;
+
+    if (getBufBatchCount()) {
+        //We don't need HAL to HAL batching if camera batching enabled.
+        return;
+    }
+    getVideoSize(&width, &height);
+
+    if ((width <= 1920) && (height <= 1080)) {
+        //We enable batching only for 1080p or below.
+        //Batch size is 6 is optimized and gives better power saving.
+        property_get("persist.camera.video.batchsize", value, "6");
+    } else {
+        property_get("persist.camera.video.batchsize", value, "0");
+    }
+    mVideoBatchSize = atoi(value);
+    if (mVideoBatchSize > CAMERA_MAX_CONSUMER_BATCH_BUFFER_SIZE) {
+        mVideoBatchSize = CAMERA_MAX_CONSUMER_BATCH_BUFFER_SIZE;
+    } else if (mVideoBatchSize <= minBatchcnt) {
+        //Batching enabled only if batch size if greater that 2;
+        mVideoBatchSize = 0;
+    }
+    CDBG ("%s: mVideoBatchSize = %d", __func__, mVideoBatchSize);
+    set(KEY_QC_VIDEO_BATCH_SIZE, mVideoBatchSize);
 }
 
 /*===========================================================================
