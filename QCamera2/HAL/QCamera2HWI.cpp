@@ -7201,10 +7201,9 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
             faces[i].face_recognised = fd_data->faces[i].face_recognised;
             faces[i].gaze_angle = fd_data->faces[i].gaze_angle;
 
-            // upscale by 2 to recover from demaen downscaling
-            faces[i].updown_dir = fd_data->faces[i].updown_dir * 2;
-            faces[i].leftright_dir = fd_data->faces[i].leftright_dir * 2;
-            faces[i].roll_dir = fd_data->faces[i].roll_dir * 2;
+            faces[i].updown_dir = fd_data->faces[i].updown_dir;
+            faces[i].leftright_dir = fd_data->faces[i].leftright_dir;
+            faces[i].roll_dir = fd_data->faces[i].roll_dir;
 
             faces[i].leye_blink = fd_data->faces[i].left_blink;
             faces[i].reye_blink = fd_data->faces[i].right_blink;
