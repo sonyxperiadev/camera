@@ -31,6 +31,7 @@
 
 #include <utils/Errors.h>
 #include <QComOMXMetadata.h>
+#include "QCameraBufferMaps.h"
 #include "QCamera2HWI.h"
 #include "QCameraStream.h"
 
@@ -501,7 +502,7 @@ int32_t QCameraStream::unMapBuf(QCameraMemory *Buf,
 }
 
 /*===========================================================================
- * FUNCTION   : mapBuf
+ * FUNCTION   : mapBufs
  *
  * DESCRIPTION: maps buffers
  *
@@ -514,56 +515,46 @@ int32_t QCameraStream::unMapBuf(QCameraMemory *Buf,
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraStream::mapBuf(QCameraMemory *Buf,
+int32_t QCameraStream::mapBufs(QCameraMemory *Buf,
         cam_mapping_buf_type bufType, mm_camera_map_unmap_ops_tbl_t *ops_tbl)
 {
     int32_t rc = NO_ERROR;
-    uint8_t cnt;
     ssize_t bufSize = BAD_INDEX;
-    int32_t i = 0;
+    uint32_t i = 0;
 
-    cnt = Buf->getCnt();
-    for (i = 0; i < cnt; i++) {
-        bufSize = Buf->getSize((uint32_t)i);
-        if (BAD_INDEX != bufSize) {
-            if (ops_tbl == NULL) {
-                rc = mCamOps->map_stream_buf(mCamHandle, mChannelHandle, mHandle,
-                        (uint8_t)bufType, (uint32_t)i, -1,
-                        Buf->getFd((uint32_t)i), (uint32_t)bufSize);
-            } else {
-                rc = ops_tbl->map_ops((uint32_t)i, -1, Buf->getFd((uint32_t)i),
-                        (uint32_t)bufSize, bufType, ops_tbl->userdata);
-            }
-            if (rc < 0) {
-                ALOGE("Failed to map buffer");
-                goto err1;
-            }
-        } else {
+    QCameraBufferMaps bufferMaps;
+    for (i = 0; i < Buf->getCnt(); i++) {
+        ssize_t bufSize = Buf->getSize(i);
+        if (BAD_INDEX == bufSize) {
             ALOGE("Failed to retrieve buffer size (bad index)");
-            rc = BAD_INDEX;
-            goto err1;
+            return BAD_INDEX;
+        }
+
+        rc = bufferMaps.enqueue(bufType, mHandle, i /*buf index*/, -1 /*plane index*/,
+                0 /*cookie*/, Buf->getFd(i), bufSize);
+
+        if (rc < 0) {
+            ALOGE("%s: Failed to map buffers", __func__);
+            return BAD_INDEX;
         }
     }
 
-    return rc;
-err1:
-    i -= 1;
-    for (; i >= 0; i--) {
-        bufSize = Buf->getSize((uint32_t)i);
-        if (BAD_INDEX != bufSize) {
-            if (ops_tbl == NULL) {
-                rc = mCamOps->unmap_stream_buf(mCamHandle, mChannelHandle, mHandle,
-                        (uint8_t)bufType, (uint32_t)i, -1);
-            } else {
-                rc = ops_tbl->unmap_ops((uint32_t)i, -1, bufType, ops_tbl->userdata);
-            }
-            if (rc < 0) {
-                ALOGE("Failed to unmap buffer");
-            }
-        } else {
-            ALOGE("Failed to retrieve buffer size (bad index)");
-            rc = BAD_INDEX;
-        }
+    cam_buf_map_type_list bufMapList;
+    rc = bufferMaps.getCamBufMapList(bufMapList);
+    if (rc < 0) {
+        ALOGE("%s: Failed to map buffers", __func__);
+        return BAD_INDEX;
+    }
+
+    if (ops_tbl == NULL) {
+        rc = mCamOps->map_stream_bufs(mCamHandle, mChannelHandle, &bufMapList);
+    } else {
+        rc = ops_tbl->bundled_map_ops(&bufMapList, ops_tbl->userdata);
+    }
+
+    if (rc < 0) {
+        ALOGE("Failed to map buffer");
+        rc = BAD_INDEX;
     }
     return rc;
 }
@@ -610,7 +601,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     mStreamInfo = reinterpret_cast<cam_stream_info_t *>(mStreamInfoBuf->getPtr(0));
     mNumBufs = minNumBuffers;
 
-    rc = mapBuf(mStreamInfoBuf, CAM_MAPPING_BUF_TYPE_STREAM_INFO, NULL);
+    rc = mapBufs(mStreamInfoBuf, CAM_MAPPING_BUF_TYPE_STREAM_INFO, NULL);
     if (rc < 0) {
         ALOGE("Failed to map stream info buffer");
         releaseStreamInfoBuf();
@@ -620,7 +611,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
 
     mMiscBuf = miscBuf;
     if (miscBuf) {
-        rc = mapBuf(mMiscBuf, CAM_MAPPING_BUF_TYPE_MISC_BUF, NULL);
+        rc = mapBufs(mMiscBuf, CAM_MAPPING_BUF_TYPE_MISC_BUF, NULL);
         if (rc < 0) {
             ALOGE("Failed to map miscellaneous buffer");
             releaseMiscBuf();
@@ -1142,25 +1133,35 @@ int32_t QCameraStream::getBufs(cam_frame_len_offset_t *offset,
 
     mNumBufs = (uint8_t)(numBufAlloc + mNumBufsNeedAlloc);
 
+    QCameraBufferMaps bufferMaps;
     for (uint32_t i = 0; i < numBufAlloc; i++) {
         ssize_t bufSize = mStreamBufs->getSize(i);
-        if (BAD_INDEX != bufSize) {
-            rc = ops_tbl->map_ops(i, -1, mStreamBufs->getFd(i),
-                    (uint32_t)bufSize, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
-            if (rc < 0) {
-                ALOGE("%s: map_stream_buf failed: %d", __func__, rc);
-                for (uint32_t j = 0; j < i; j++) {
-                    ops_tbl->unmap_ops(j, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
-                }
-                mStreamBufs->deallocate();
-                delete mStreamBufs;
-                mStreamBufs = NULL;
-                return INVALID_OPERATION;
-            }
-        } else {
+        if (BAD_INDEX == bufSize) {
             ALOGE("Failed to retrieve buffer size (bad index)");
             return INVALID_OPERATION;
         }
+
+        rc = bufferMaps.enqueue(CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                0 /*stream id*/, i /*buf index*/, -1 /*plane index*/,
+                0 /*cookie*/, mStreamBufs->getFd(i), bufSize);
+
+        if (rc < 0) {
+            ALOGE("%s: Failed to map buffers", __func__);
+            return BAD_INDEX;
+        }
+    }
+
+    cam_buf_map_type_list bufMapList;
+    rc = bufferMaps.getCamBufMapList(bufMapList);
+    if (rc == NO_ERROR) {
+        rc = ops_tbl->bundled_map_ops(&bufMapList, ops_tbl->userdata);
+    }
+    if (rc < 0) {
+        ALOGE("%s: map_stream_buf failed: %d", __func__, rc);
+        mStreamBufs->deallocate();
+        delete mStreamBufs;
+        mStreamBufs = NULL;
+        return INVALID_OPERATION;
     }
 
     //regFlags array is allocated by us, but consumed and freed by mm-camera-interface
@@ -1271,26 +1272,40 @@ int32_t QCameraStream::allocateBuffers()
         return NO_MEMORY;
     }
 
+    QCameraBufferMaps bufferMaps;
     for (uint32_t i = 0; i < mNumBufs; i++) {
         ssize_t bufSize = mStreamBufs->getSize(i);
         if (BAD_INDEX != bufSize) {
-            rc = mapBuf(CAM_MAPPING_BUF_TYPE_STREAM_BUF, i, -1,
-                    mStreamBufs->getFd(i), (size_t)bufSize, NULL);
-            ALOGE_IF((rc < 0), "%s: map_stream_buf failed: %d", __func__, rc);
+            rc = bufferMaps.enqueue(CAM_MAPPING_BUF_TYPE_STREAM_BUF, mHandle,
+                    i /*buf index*/, -1 /*plane index*/, 0 /*cookie*/,
+                    mStreamBufs->getFd(i), bufSize);
+
+            if (rc < 0) {
+                ALOGE("%s: Failed to map buffers", __func__);
+                rc = BAD_INDEX;
+                break;
+            }
         } else {
             ALOGE("%s: Bad index %u", __func__, i);
             rc = BAD_INDEX;
+            break;
         }
-        if (rc < 0) {
-            ALOGE("%s: Cleanup after error: %d", __func__, rc);
-            for (uint32_t j = 0; j < i; j++) {
-                unmapBuf(CAM_MAPPING_BUF_TYPE_STREAM_BUF, j, -1, NULL);
-            }
-            mStreamBufs->deallocate();
-            delete mStreamBufs;
-            mStreamBufs = NULL;
-            return INVALID_OPERATION;
-        }
+    }
+
+    cam_buf_map_type_list bufMapList;
+    if (rc == NO_ERROR) {
+        rc = bufferMaps.getCamBufMapList(bufMapList);
+    }
+    if (rc == NO_ERROR) {
+        rc = mapBufs(bufMapList, NULL);
+    }
+
+    if (rc < 0) {
+        ALOGE("%s: Cleanup after error: %d", __func__, rc);
+        mStreamBufs->deallocate();
+        delete mStreamBufs;
+        mStreamBufs = NULL;
+        return INVALID_OPERATION;
     }
 
     //regFlags array is allocated by us,
@@ -1370,6 +1385,8 @@ int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
 {
     int rc = NO_ERROR;
     uint8_t *regFlags;
+    QCameraBufferMaps bufferMaps;
+    QCameraBufferMaps planeBufferMaps;
 
     mFrameLenOffset = *offset;
 
@@ -1382,20 +1399,31 @@ int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
         return NO_MEMORY;
     }
 
-    //map batch buffers
     for (uint32_t i = 0; i < mStreamBatchBufs->getCnt(); i++) {
-        rc = mapBuf(CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF, i, -1,
-                    mStreamBatchBufs->getFd(i), (size_t)mNumBufs, ops_tbl);
+        rc = bufferMaps.enqueue(CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF,
+                0 /*stream id*/, i /*buf index*/, -1 /*plane index*/,
+                0 /*cookie*/, mStreamBatchBufs->getFd(i), mNumBufs);
+
         if (rc < 0) {
-            ALOGE("Failed to map stream batch buffer");
-            for (uint32_t j = 0; j < i; j++) {
-                unmapBuf(CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF, j, -1, ops_tbl);
-            }
-            mStreamBatchBufs->deallocate();
-            delete mStreamBatchBufs;
-            mStreamBatchBufs = NULL;
-            return NO_MEMORY;
+            ALOGE("%s: Failed to map buffers", __func__);
+            rc = BAD_INDEX;
+            break;
         }
+    }
+
+    cam_buf_map_type_list bufMapList;
+    if (rc == NO_ERROR) {
+        rc = bufferMaps.getCamBufMapList(bufMapList);
+    }
+    if (rc == NO_ERROR) {
+        rc = mapBufs(bufMapList, ops_tbl);
+    }
+    if (rc < 0) {
+        ALOGE("Failed to map stream batch buffers");
+        mStreamBatchBufs->deallocate();
+        delete mStreamBatchBufs;
+        mStreamBatchBufs = NULL;
+        return NO_MEMORY;
     }
 
     /*calculate stream Buffer count*/
@@ -1416,13 +1444,12 @@ int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
     for (uint32_t i = 0; i < mNumPlaneBufs; i++) {
         ssize_t bufSize = mStreamBufs->getSize(i);
         if (BAD_INDEX != bufSize) {
-            rc = mapBuf(CAM_MAPPING_BUF_TYPE_STREAM_BUF, i, -1,
-                    mStreamBufs->getFd(i), (size_t)bufSize, ops_tbl);
+            rc = planeBufferMaps.enqueue(CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                    0 /*stream id*/, i /*buf index*/, -1 /*plane index*/,
+                    0 /*cookie*/, mStreamBufs->getFd(i), bufSize);
+
             if (rc < 0) {
-                ALOGE("%s: map_stream_buf failed: %d", __func__, rc);
-                for (uint32_t j = 0; j < i; j++) {
-                    unmapBuf(CAM_MAPPING_BUF_TYPE_STREAM_BUF, j, -1, ops_tbl);
-                }
+                ALOGE("%s: Failed to map buffers", __func__);
                 mStreamBufs->deallocate();
                 delete mStreamBufs;
                 mStreamBufs = NULL;
@@ -1437,6 +1464,21 @@ int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
             rc = INVALID_OPERATION;
             goto err1;
         }
+    }
+
+    cam_buf_map_type_list planeBufMapList;
+    rc = planeBufferMaps.getCamBufMapList(planeBufMapList);
+    if (rc == NO_ERROR) {
+        rc = mapBufs(planeBufMapList, ops_tbl);
+    }
+
+    if (rc < 0) {
+        ALOGE("%s: map_stream_buf failed: %d", __func__, rc);
+        mStreamBufs->deallocate();
+        delete mStreamBufs;
+        mStreamBufs = NULL;
+        rc = INVALID_OPERATION;
+        goto err1;
     }
 
     CDBG ("%s: BATCH Buf Count = %d, Plane Buf Cnt = %d", __func__,
@@ -1513,9 +1555,6 @@ int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
     return NO_ERROR;
 
 err1:
-    for (uint8_t i = 0; i < mStreamBatchBufs->getCnt(); i++) {
-        unmapBuf(CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF, i, -1, ops_tbl);
-    }
     mStreamBatchBufs->deallocate();
     delete mStreamBatchBufs;
     mStreamBatchBufs = NULL;
@@ -1637,26 +1676,45 @@ void *QCameraStream::BufAllocRoutine(void *data)
         rc = pme->mAllocator.allocateMoreStreamBuf(pme->mStreamBufs,
                                                    pme->mFrameLenOffset.frame_len,
                                                    pme->mNumBufsNeedAlloc);
-        if (rc == NO_ERROR){
-            for (uint32_t i = numBufAlloc; i < pme->mNumBufs; i++) {
-                ssize_t bufSize = pme->mStreamBufs->getSize(i);
-                if (BAD_INDEX != bufSize) {
-                    rc = pme->m_MemOpsTbl.map_ops(i, -1, pme->mStreamBufs->getFd(i),
-                            (uint32_t)bufSize, CAM_MAPPING_BUF_TYPE_STREAM_BUF,
-                            pme->m_MemOpsTbl.userdata);
-                    if (rc == 0) {
-                        pme->mStreamBufs->getBufDef(pme->mFrameLenOffset, pme->mBufDefs[i], i);
-                        pme->mCamOps->qbuf(pme->mCamHandle, pme->mChannelHandle,
-                                &pme->mBufDefs[i]);
-                    } else {
-                        ALOGE("%s: map_stream_buf %d failed: %d", __func__, rc, i);
-                    }
-                } else {
-                    ALOGE("Failed to retrieve buffer size (bad index)");
-                }
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to allocate buffers, __func__");
+            pme->mNumBufsNeedAlloc = 0;
+            return NULL;
+        }
+
+        pme->mNumBufsNeedAlloc = 0;
+        QCameraBufferMaps bufferMaps;
+        for (uint32_t i = numBufAlloc; i < pme->mNumBufs; i++) {
+            ssize_t bufSize = pme->mStreamBufs->getSize(i);
+            if (BAD_INDEX == bufSize) {
+                ALOGE("%s: Failed to retrieve buffer size (bad index)", __func__);
+                return NULL;
             }
 
-            pme->mNumBufsNeedAlloc = 0;
+            rc = bufferMaps.enqueue(CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                    pme->mHandle, i /*buf index*/, -1 /*plane index*/,
+                    0 /*cookie*/, pme->mStreamBufs->getFd(i), bufSize);
+
+            if (rc < 0) {
+                ALOGE("%s: Failed to map buffers", __func__);
+                return NULL;
+            }
+        }
+
+        cam_buf_map_type_list bufMapList;
+        rc = bufferMaps.getCamBufMapList(bufMapList);
+        if (rc == NO_ERROR) {
+            rc = pme->m_MemOpsTbl.bundled_map_ops(&bufMapList, pme->m_MemOpsTbl.userdata);
+        }
+        if (rc != 0) {
+            ALOGE("%s: Failed to map buffers with return code %d", __func__, rc);
+            return NULL;
+        }
+
+        for (uint32_t i = numBufAlloc; i < pme->mNumBufs; i++) {
+            pme->mStreamBufs->getBufDef(pme->mFrameLenOffset, pme->mBufDefs[i], i);
+            pme->mCamOps->qbuf(pme->mCamHandle, pme->mChannelHandle,
+                    &pme->mBufDefs[i]);
         }
     }
     CDBG_HIGH("%s: X", __func__);
@@ -2038,13 +2096,40 @@ int32_t QCameraStream::acquireStreamBufs()
 int32_t QCameraStream::mapBuf(uint8_t buf_type, uint32_t buf_idx,
         int32_t plane_idx, int fd, size_t size, mm_camera_map_unmap_ops_tbl_t *ops_tbl)
 {
+    cam_buf_map_type_list bufMapList;
+    int32_t rc = QCameraBufferMaps::makeSingletonBufMapList(
+           (cam_mapping_buf_type)buf_type, mHandle, buf_idx, plane_idx,
+           0 /*cookie*/, fd, size, bufMapList);
+
+    if (rc != NO_ERROR) {
+        return rc;
+    }
+
+    return mapBufs(bufMapList, ops_tbl);
+}
+
+/*===========================================================================
+ * FUNCTION   : mapBufs
+ *
+ * DESCRIPTION: map stream related buffers to backend server
+ *
+ * PARAMETERS :
+ *   @bufMapList : buffer mapping information
+ *   @ops_tbl    : ptr to buf mapping/unmapping ops
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+
+int32_t QCameraStream::mapBufs(cam_buf_map_type_list bufMapList,
+        mm_camera_map_unmap_ops_tbl_t *ops_tbl)
+{
     if (ops_tbl != NULL) {
-        return ops_tbl->map_ops(buf_idx, plane_idx, fd,
-                (uint32_t)size, (cam_mapping_buf_type)buf_type, ops_tbl->userdata);
+        return ops_tbl->bundled_map_ops(&bufMapList, ops_tbl->userdata);
     } else {
-        return mCamOps->map_stream_buf(mCamHandle, mChannelHandle,
-                mHandle, buf_type, buf_idx, plane_idx,
-                fd, size);
+        return mCamOps->map_stream_bufs(mCamHandle, mChannelHandle,
+                &bufMapList);
     }
 
 }

@@ -45,6 +45,7 @@
 #include <QServiceUtils.h>
 
 #include "QCamera2HWI.h"
+#include "QCameraBufferMaps.h"
 #include "QCameraMem.h"
 
 #define MAP_TO_DRIVER_COORDINATE(val, base, scale, offset) \
@@ -1778,10 +1779,19 @@ int QCamera2HardwareInterface::initCapabilities(uint32_t cameraId,
 
     /* Map memory for capability buffer */
     memset(DATA_PTR(capabilityHeap,0), 0, sizeof(cam_capability_t));
-    rc = cameraHandle->ops->map_buf(cameraHandle->camera_handle,
-                                CAM_MAPPING_BUF_TYPE_CAPABILITY,
-                                capabilityHeap->getFd(0),
-                                sizeof(cam_capability_t));
+
+    cam_buf_map_type_list bufMapList;
+    rc = QCameraBufferMaps::makeSingletonBufMapList(
+            CAM_MAPPING_BUF_TYPE_CAPABILITY,
+            0 /*stream id*/, 0 /*buffer index*/, -1 /*plane index*/,
+            0 /*cookie*/, capabilityHeap->getFd(0), sizeof(cam_capability_t),
+            bufMapList);
+
+    if (rc == NO_ERROR) {
+        rc = cameraHandle->ops->map_bufs(cameraHandle->camera_handle,
+                &bufMapList);
+    }
+
     if(rc < 0) {
         ALOGE("%s: failed to map capability buffer", __func__);
         goto map_failed;

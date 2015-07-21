@@ -1571,7 +1571,7 @@ int32_t mm_camera_map_stream_buf(mm_camera_obj_t *my_obj,
                                  size_t size)
 {
     int32_t rc = -1;
-    mm_evt_paylod_map_stream_buf_t payload;
+    cam_buf_map_type payload;
     mm_channel_t * ch_obj =
         mm_camera_util_get_channel_by_handler(my_obj, ch_id);
 
@@ -1581,13 +1581,52 @@ int32_t mm_camera_map_stream_buf(mm_camera_obj_t *my_obj,
 
         memset(&payload, 0, sizeof(payload));
         payload.stream_id = stream_id;
-        payload.buf_type = buf_type;
-        payload.buf_idx = buf_idx;
+        payload.type = buf_type;
+        payload.frame_idx = buf_idx;
         payload.plane_idx = plane_idx;
         payload.fd = fd;
         payload.size = size;
         rc = mm_channel_fsm_fn(ch_obj,
                                MM_CHANNEL_EVT_MAP_STREAM_BUF,
+                               (void*)&payload,
+                               NULL);
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_map_stream_bufs
+ *
+ * DESCRIPTION: mapping stream buffers via domain socket to server
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *   @ch_id        : channel handle
+ *   @buf_map_list : list of buffers to be mapped
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_camera_map_stream_bufs(mm_camera_obj_t *my_obj,
+                                  uint32_t ch_id,
+                                  const cam_buf_map_type_list *buf_map_list)
+{
+    int32_t rc = -1;
+    cam_buf_map_type_list payload;
+    mm_channel_t * ch_obj =
+        mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+
+    if (NULL != ch_obj) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+
+        memcpy(&payload, buf_map_list, sizeof(payload));
+        rc = mm_channel_fsm_fn(ch_obj,
+                               MM_CHANNEL_EVT_MAP_STREAM_BUFS,
                                (void*)&payload,
                                NULL);
     } else {
@@ -1629,7 +1668,7 @@ int32_t mm_camera_unmap_stream_buf(mm_camera_obj_t *my_obj,
                                    int32_t plane_idx)
 {
     int32_t rc = -1;
-    mm_evt_paylod_unmap_stream_buf_t payload;
+    cam_buf_unmap_type payload;
     mm_channel_t * ch_obj =
         mm_camera_util_get_channel_by_handler(my_obj, ch_id);
 
@@ -1639,8 +1678,8 @@ int32_t mm_camera_unmap_stream_buf(mm_camera_obj_t *my_obj,
 
         memset(&payload, 0, sizeof(payload));
         payload.stream_id = stream_id;
-        payload.buf_type = buf_type;
-        payload.buf_idx = buf_idx;
+        payload.type = buf_type;
+        payload.frame_idx = buf_idx;
         payload.plane_idx = plane_idx;
         rc = mm_channel_fsm_fn(ch_obj,
                                MM_CHANNEL_EVT_UNMAP_STREAM_BUF,
@@ -1740,6 +1779,44 @@ void mm_camera_util_wait_for_event(mm_camera_obj_t *my_obj,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_util_bundled_sendmsg
+ *
+ * DESCRIPTION: utility function to send bundled msg via domain socket
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *   @msg          : message to be sent
+ *   @buf_size     : size of the message to be sent
+ *   @sendfds      : array of file descriptors to be sent
+ *   @numfds       : number of file descriptors to be sent
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_camera_util_bundled_sendmsg(mm_camera_obj_t *my_obj,
+                                       void *msg,
+                                       size_t buf_size,
+                                       int sendfds[CAM_MAX_NUM_BUFS_PER_STREAM],
+                                       int numfds)
+{
+    int32_t rc = -1;
+    uint32_t status;
+
+    /* need to lock msg_lock, since sendmsg until response back is deemed as one operation*/
+    pthread_mutex_lock(&my_obj->msg_lock);
+    if(mm_camera_socket_bundle_sendmsg(my_obj->ds_fd, msg, buf_size, sendfds, numfds) > 0) {
+        /* wait for event that mapping/unmapping is done */
+        mm_camera_util_wait_for_event(my_obj, CAM_EVENT_TYPE_MAP_UNMAP_DONE, &status);
+        if (MSM_CAMERA_STATUS_SUCCESS == status) {
+            rc = 0;
+        }
+    }
+    pthread_mutex_unlock(&my_obj->msg_lock);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_util_sendmsg
  *
  * DESCRIPTION: utility function to send msg via domain socket
@@ -1809,6 +1886,52 @@ int32_t mm_camera_map_buf(mm_camera_obj_t *my_obj,
                                 &packet,
                                 sizeof(cam_sock_packet_t),
                                 fd);
+    pthread_mutex_unlock(&my_obj->cam_lock);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_map_bufs
+ *
+ * DESCRIPTION: mapping camera buffers via domain socket to server
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *   @buf_map_list : list of buffers to be mapped
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_camera_map_bufs(mm_camera_obj_t *my_obj,
+                           const cam_buf_map_type_list* buf_map_list)
+{
+    int32_t rc = 0;
+    cam_sock_packet_t packet;
+    memset(&packet, 0, sizeof(cam_sock_packet_t));
+    packet.msg_type = CAM_MAPPING_TYPE_FD_BUNDLED_MAPPING;
+
+    memcpy(&packet.payload.buf_map_list, buf_map_list,
+           sizeof(packet.payload.buf_map_list));
+
+    int sendfds[CAM_MAX_NUM_BUFS_PER_STREAM];
+    uint32_t numbufs = packet.payload.buf_map_list.length;
+    uint32_t i;
+    for (i = 0; i < numbufs; i++) {
+        sendfds[i] = packet.payload.buf_map_list.buf_maps[i].fd;
+    }
+
+    for (i = numbufs; i < CAM_MAX_NUM_BUFS_PER_STREAM; i++) {
+        packet.payload.buf_map_list.buf_maps[i].fd = -1;
+        sendfds[i] = -1;
+    }
+
+    rc = mm_camera_util_bundled_sendmsg(my_obj,
+                                        &packet,
+                                        sizeof(cam_sock_packet_t),
+                                        sendfds,
+                                        numbufs);
+
     pthread_mutex_unlock(&my_obj->cam_lock);
     return rc;
 }
