@@ -356,6 +356,7 @@ private:
                           int32_t &faceID);
     int32_t longShot();
 
+    uint32_t deferPPInit();
     int openCamera();
     int closeCamera();
 
@@ -648,6 +649,7 @@ private:
     enum DeferredWorkCmd {
         CMD_DEF_ALLOCATE_BUFF,
         CMD_DEF_PPROC_START,
+        CMD_DEF_PPROC_INIT,
         CMD_DEF_METADATA_ALLOC,
         CMD_DEF_CREATE_JPEG_SESSION,
         CMD_DEF_MAX
@@ -663,10 +665,16 @@ private:
         size_t size;
     } DeferMetadataAllocArgs;
 
+    typedef struct {
+        jpeg_encode_callback_t jpeg_cb;
+        void *user_data;
+    } DeferPProcInitArgs;
+
     typedef union {
         DeferAllocBuffArgs allocArgs;
         QCameraChannel *pprocArgs;
         DeferMetadataAllocArgs metadataAllocArgs;
+        DeferPProcInitArgs pprocInitArgs;
     } DeferWorkArgs;
 
     uint32_t mDefOngoingJobs[MAX_ONGOING_JOBS];
@@ -705,6 +713,7 @@ private:
     uint32_t mJpegJob;
     uint32_t mRawdataJob;
     uint32_t mMetadataAllocJob;
+    uint32_t mInitPProcJob;
     uint32_t mOutputCount;
     uint32_t mInputCount;
     bool mAdvancedCaptureConfigured;
