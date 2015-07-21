@@ -1058,9 +1058,9 @@ typedef struct {
     uint8_t smile_confidence;  /* smile confidence (0, 100) */
     uint8_t face_recognised;   /* if face is recognised */
     int8_t gaze_angle;         /* -90 -45 0 45 90 for head left to rigth tilt */
-    int8_t updown_dir;         /* up down direction (-90, 90) */
-    int8_t leftright_dir;      /* left right direction (-90, 90) */
-    int8_t roll_dir;           /* roll direction (-90, 90) */
+    int32_t updown_dir;        /* up down direction (-180, 179) */
+    int32_t leftright_dir;     /* left right direction (-180, 179) */
+    int32_t roll_dir;          /* roll direction (-180, 179) */
     int8_t left_right_gaze;    /* left right gaze degree (-50, 50) */
     int8_t top_bottom_gaze;    /* up down gaze degree (-50, 50) */
     uint8_t blink_detected;    /* if blink is detected */
