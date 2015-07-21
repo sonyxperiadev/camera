@@ -1122,6 +1122,11 @@ int32_t QCameraStream::getBufs(cam_frame_len_offset_t *offset,
         }
     }
 
+    /* For some stream types, buffer allocation may have already begun
+     * preemptively. If this is the case, we need to wait for the
+     * preemptive allocation to complete before proceeding. */
+    mAllocator.waitForDeferredAlloc(mStreamInfo->stream_type);
+
     //Allocate stream buffer
     mStreamBufs = mAllocator.allocateStreamBuf(mStreamInfo->stream_type,
             mFrameLenOffset.frame_len, mFrameLenOffset.mp[0].stride,
@@ -1259,6 +1264,10 @@ int32_t QCameraStream::allocateBuffers()
                 &mNumBufs, &mRegFlags,
                 &mBufDefs, NULL);
     }
+
+    /* This allocation is running in the deferred context, so it
+     * is safe (and necessary) to assume any preemptive allocation
+     * is already complete. Therefore, no need to wait here. */
 
     //Allocate and map stream info buffer
     mStreamBufs = mAllocator.allocateStreamBuf(mStreamInfo->stream_type,
@@ -1429,6 +1438,11 @@ int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
     /*calculate stream Buffer count*/
     mNumPlaneBufs =
             (mNumBufs * mStreamInfo->user_buf_info.frame_buf_cnt);
+
+    /* For some stream types, buffer allocation may have already begun
+     * preemptively. If this is the case, we need to wait for the
+     * preemptive allocation to complete before proceeding. */
+    mAllocator.waitForDeferredAlloc(mStreamInfo->stream_type);
 
     //Allocate stream buffer
     mStreamBufs = mAllocator.allocateStreamBuf(mStreamInfo->stream_type,

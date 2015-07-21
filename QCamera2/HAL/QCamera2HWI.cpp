@@ -2255,7 +2255,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
         break;
     case CAM_STREAM_TYPE_METADATA:
         {
-            waitDefferedWork(mMetadataAllocJob);
             if (mMetadataMem == NULL) {
                 mem = new QCameraMetadataStreamMemory(QCAMERA_ION_USE_CACHE);
             } else {
@@ -2653,6 +2652,25 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
         }
     }
     return mem;
+}
+
+
+/*===========================================================================
+ * FUNCTION   : waitForDeferredAlloc
+ *
+ * DESCRIPTION: Wait for deferred allocation, if applicable
+ *              (applicable only for metadata buffers so far)
+ *
+ * PARAMETERS :
+ *   @stream_type  : type of stream to (possibly) wait for
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCamera2HardwareInterface::waitForDeferredAlloc(cam_stream_type_t stream_type)
+{
+    if (stream_type == CAM_STREAM_TYPE_METADATA) {
+        waitDefferedWork(mMetadataAllocJob);
+    }
 }
 
 
