@@ -12341,12 +12341,17 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         feature_mask |= CAM_QCOM_FEATURE_EZTUNE;
     }
 
-    if (isCDSEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
+    if ((getCDSMode() != CAM_CDS_MODE_OFF) &&
+            ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
             (CAM_STREAM_TYPE_VIDEO == stream_type) ||
             (CAM_STREAM_TYPE_CALLBACK == stream_type) ||
             ((CAM_STREAM_TYPE_SNAPSHOT == stream_type) &&
             getRecordingHintValue() && is4k2kVideoResolution()))) {
-         feature_mask |= CAM_QCOM_FEATURE_CDS;
+         if (m_nMinRequiredPpMask & CAM_QCOM_FEATURE_DSDN) {
+             feature_mask |= CAM_QCOM_FEATURE_DSDN;
+         } else {
+             feature_mask |= CAM_QCOM_FEATURE_CDS;
+         }
     }
 
     //Rotation could also have an effect on pp feature mask
