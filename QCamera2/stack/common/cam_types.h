@@ -1350,7 +1350,7 @@ typedef struct {
     cam_buffer_info_t buffer_info;
     cam_is_type_t is_type;
     cam_hfr_mode_t hfr_mode;
-    cam_format_t preview_format;
+    cam_format_t format[MAX_NUM_STREAMS];
     uint32_t buf_alignment;
     uint32_t min_stride;
     uint32_t min_scanline;
