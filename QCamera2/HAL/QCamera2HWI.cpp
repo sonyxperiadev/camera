@@ -64,6 +64,7 @@
 // Very long wait, just to be sure we don't deadlock
 #define CAMERA_DEFERRED_THREAD_TIMEOUT 5000000000 // 5 seconds
 #define CAMERA_MIN_METADATA_BUFFERS 10 // Need at least 10 for ZSL snapshot
+#define CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS 5
 
 namespace qcamera {
 
@@ -1978,7 +1979,6 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
 
                 bufferCnt = zslQBuffers + minCircularBufNum +
                         mParameters.getNumOfExtraBuffersForImageProc() +
-                        EXTRA_ZSL_PREVIEW_STREAM_BUF +
                         mParameters.getNumOfExtraBuffersForPreview() +
                         mParameters.getNumOfExtraHDRInBufsIfNeeded();
             } else {
@@ -2213,6 +2213,8 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                     }
                 }
                 if (grallocMemory) {
+                    grallocMemory->setMappable(
+                            CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS);
                     grallocMemory->setWindowInfo(mPreviewWindow,
                             dim.width,dim.height, stride, scanline,
                             mParameters.getPreviewHalPixelFormat(),
