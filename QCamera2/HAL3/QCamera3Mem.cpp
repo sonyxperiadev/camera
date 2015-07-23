@@ -259,23 +259,6 @@ int32_t QCamera3Memory::getBufDef(const cam_frame_len_offset_t &offset,
  *
  * RETURN     : none
  *==========================================================================*/
-QCamera3HeapMemory::QCamera3HeapMemory()
-    : QCamera3Memory()
-{
-    mMaxCnt = MM_CAMERA_MAX_NUM_FRAMES;
-    for (uint32_t i = 0; i < mMaxCnt; i ++)
-        mPtr[i] = NULL;
-}
-
-/*===========================================================================
- * FUNCTION   : QCamera3HeapMemory
- *
- * DESCRIPTION: constructor of QCamera3HeapMemory for ion memory used internally in HAL
- *
- * PARAMETERS : none
- *
- * RETURN     : none
- *==========================================================================*/
 QCamera3HeapMemory::QCamera3HeapMemory(uint32_t maxCnt)
     : QCamera3Memory()
 {
@@ -528,15 +511,13 @@ void *QCamera3HeapMemory::getPtr(uint32_t index)
  * DESCRIPTION: allocate requested number of buffers of certain size
  *
  * PARAMETERS :
- *   @count   : number of buffers to be allocated
  *   @size    : lenght of the buffer to be allocated
- *   @queueAll: whether to queue all allocated buffers at the beginning
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCamera3HeapMemory::allocate(uint32_t count, size_t size, bool queueAll)
+int QCamera3HeapMemory::allocate(size_t size)
 {
     unsigned int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
     uint32_t i;
@@ -545,44 +526,93 @@ int QCamera3HeapMemory::allocate(uint32_t count, size_t size, bool queueAll)
     //Note that now we allow incremental allocation. In other words, we allow
     //multiple alloc being called as long as the sum of count does not exceed
     //mMaxCnt.
-    if (mBufferCount + count > mMaxCnt) {
-        ALOGE("Buffer count %d + %d out of bound. Max is %d",
-                mBufferCount, count, mMaxCnt);
+    if (mBufferCount > 0) {
+        ALOGE("%s: There is already buffer allocated.", __func__);
         return BAD_INDEX;
     }
 
-    for (i = 0; i < count; i ++) {
-        rc = allocOneBuffer(mMemInfo[mBufferCount+i], heap_id_mask, size);
+    for (i = 0; i < mMaxCnt; i ++) {
+        rc = allocOneBuffer(mMemInfo[i], heap_id_mask, size);
         if (rc < 0) {
             ALOGE("AllocateIonMemory failed");
             goto ALLOC_FAILED;
         }
 
         void *vaddr = mmap(NULL,
-                    mMemInfo[mBufferCount+i].size,
+                    mMemInfo[i].size,
                     PROT_READ | PROT_WRITE,
                     MAP_SHARED,
-                    mMemInfo[mBufferCount+i].fd, 0);
+                    mMemInfo[i].fd, 0);
         if (vaddr == MAP_FAILED) {
-            deallocOneBuffer(mMemInfo[mBufferCount+i]);
+            deallocOneBuffer(mMemInfo[i]);
             ALOGE("%s: mmap failed for buffer %d", __func__, i);
             goto ALLOC_FAILED;
         } else
             mPtr[i] = vaddr;
     }
     if (rc == 0)
-        mBufferCount += count;
+        mBufferCount = mMaxCnt;
 
-    mQueueAll = queueAll;
     return OK;
 
 ALLOC_FAILED:
     for (uint32_t j = 0; j < i; j++) {
-        munmap(mPtr[mBufferCount+j], mMemInfo[mBufferCount+j].size);
-        mPtr[mBufferCount+j] = NULL;
-        deallocOneBuffer(mMemInfo[mBufferCount+j]);
+        munmap(mPtr[j], mMemInfo[j].size);
+        mPtr[j] = NULL;
+        deallocOneBuffer(mMemInfo[j]);
     }
     return NO_MEMORY;
+}
+
+/*===========================================================================
+ * FUNCTION   : allocateOne
+ *
+ * DESCRIPTION: allocate one buffer
+ *
+ * PARAMETERS :
+ *   @size    : lenght of the buffer to be allocated
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera3HeapMemory::allocateOne(size_t size)
+{
+    unsigned int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
+    uint32_t i;
+    int rc = NO_ERROR;
+
+    //Note that now we allow incremental allocation. In other words, we allow
+    //multiple alloc being called as long as the sum of count does not exceed
+    //mMaxCnt.
+    if (mBufferCount + 1 > mMaxCnt) {
+        ALOGE("Buffer count %d + 1 out of bound. Max is %d",
+                mBufferCount, mMaxCnt);
+        return BAD_INDEX;
+    }
+
+    rc = allocOneBuffer(mMemInfo[mBufferCount], heap_id_mask, size);
+    if (rc < 0) {
+        ALOGE("AllocateIonMemory failed");
+        return NO_MEMORY;
+    }
+
+    void *vaddr = mmap(NULL,
+                mMemInfo[mBufferCount].size,
+                PROT_READ | PROT_WRITE,
+                MAP_SHARED,
+                mMemInfo[mBufferCount].fd, 0);
+    if (vaddr == MAP_FAILED) {
+        deallocOneBuffer(mMemInfo[mBufferCount]);
+        ALOGE("%s: mmap failed for buffer", __func__);
+        return NO_MEMORY;
+    } else
+        mPtr[mBufferCount] = vaddr;
+
+    if (rc == 0)
+        mBufferCount += 1;
+
+    return mBufferCount-1;
 }
 
 /*===========================================================================
@@ -623,25 +653,6 @@ int QCamera3HeapMemory::cacheOps(uint32_t index, unsigned int cmd)
     if (index >= mBufferCount)
         return BAD_INDEX;
     return cacheOpsInternal(index, cmd, mPtr[index]);
-}
-
-/*===========================================================================
- * FUNCTION   : getRegFlags
- *
- * DESCRIPTION: query initial reg flags
- *
- * PARAMETERS :
- *   @regFlags: initial reg flags of the allocated buffers
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int QCamera3HeapMemory::getRegFlags(uint8_t * regFlags)
-{
-    for (uint32_t i = 0; i < mBufferCount; i ++)
-        regFlags[i] = (mQueueAll ? 1 : 0);
-    return NO_ERROR;
 }
 
 /*===========================================================================
@@ -1037,27 +1048,6 @@ int QCamera3GrallocMemory::cacheOps(uint32_t index, unsigned int cmd)
     }
 
     return cacheOpsInternal(index, cmd, mPtr[index]);
-}
-
-/*===========================================================================
- * FUNCTION   : getRegFlags
- *
- * DESCRIPTION: query initial reg flags
- *
- * PARAMETERS :
- *   @regFlags: initial reg flags of the allocated buffers
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int QCamera3GrallocMemory::getRegFlags(uint8_t *regFlags)
-{
-    Mutex::Autolock lock(mLock);
-    for (uint32_t i = 0; i < mBufferCount; i ++)
-        regFlags[i] = 0;
-
-    return NO_ERROR;
 }
 
 /*===========================================================================

@@ -56,10 +56,11 @@ namespace qcamera {
  *
  * RETURN     : None
  *==========================================================================*/
-QCamera3StreamMem::QCamera3StreamMem(uint32_t maxHeapBuffer) :
+QCamera3StreamMem::QCamera3StreamMem(uint32_t maxHeapBuffer, bool queueHeapBuffers) :
         mHeapMem(maxHeapBuffer),
         mGrallocMem(maxHeapBuffer),
-        mMaxHeapBuffers(maxHeapBuffer)
+        mMaxHeapBuffers(maxHeapBuffer),
+        mQueueHeapBuffers(queueHeapBuffers)
 {
 }
 
@@ -108,7 +109,8 @@ uint32_t QCamera3StreamMem::getCnt()
 int QCamera3StreamMem::getRegFlags(uint8_t * regFlags)
 {
     // Assume that all buffers allocated can be queued.
-    mHeapMem.getRegFlags(regFlags);
+    for (uint32_t i = 0; i < mHeapMem.getCnt(); i ++)
+        regFlags[i] = (mQueueHeapBuffers ? 1 : 0);
     return NO_ERROR;
 }
 
@@ -362,16 +364,21 @@ void QCamera3StreamMem::unregisterBuffers()
  * PARAMETERS :
  *   @count   : number of buffers to be allocated
  *   @size    : lenght of the buffer to be allocated
- *   @queueAll: queue all buffers in the beginning
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCamera3StreamMem::allocate(uint32_t count, size_t size, bool queueAll)
+int QCamera3StreamMem::allocateAll(size_t size)
 {
     Mutex::Autolock lock(mLock);
-    return mHeapMem.allocate(count, size, queueAll);
+    return mHeapMem.allocate(size);
+}
+
+int QCamera3StreamMem::allocateOne(size_t size)
+{
+    Mutex::Autolock lock(mLock);
+    return mHeapMem.allocateOne(size);
 }
 
 /*===========================================================================

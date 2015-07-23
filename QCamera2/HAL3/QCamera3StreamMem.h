@@ -46,7 +46,7 @@ namespace qcamera {
 
 class QCamera3StreamMem {
 public:
-    QCamera3StreamMem(uint32_t maxHeapBuffer);
+    QCamera3StreamMem(uint32_t maxHeapBuffer, bool queueAll = true);
     virtual ~QCamera3StreamMem();
 
     uint32_t getCnt();
@@ -71,8 +71,8 @@ public:
     void unregisterBuffers(); //TODO: relace with unififed clear() function?
 
     // Heap buffer related functions
-    //TODO: Support returning buffer indices to the caller.
-    int allocate(uint32_t count, size_t size, bool queueAll);
+    int allocateAll(size_t size);
+    int allocateOne(size_t size);
     void deallocate(); //TODO: replace with unified clear() function?
 
     // Clear function: unregister for gralloc buffer, and deallocate for heap buffer
@@ -90,6 +90,7 @@ private:
     QCamera3GrallocMemory mGrallocMem;
     uint32_t mMaxHeapBuffers;
     Mutex mLock;
+    bool mQueueHeapBuffers;
 };
 
 };

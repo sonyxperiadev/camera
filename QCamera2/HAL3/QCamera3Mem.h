@@ -63,7 +63,6 @@ public:
     uint32_t getCnt();
 
     virtual int cacheOps(uint32_t index, unsigned int cmd) = 0;
-    virtual int getRegFlags(uint8_t *regFlags) = 0;
     virtual int getMatchBufIndex(void *object) = 0;
     virtual void *getPtr(uint32_t index) = 0;
 
@@ -100,15 +99,14 @@ protected:
 // parameters, metadata, and internal YUV data for jpeg encoding.
 class QCamera3HeapMemory : public QCamera3Memory {
 public:
-    QCamera3HeapMemory();
     QCamera3HeapMemory(uint32_t maxCnt);
     virtual ~QCamera3HeapMemory();
 
-    int allocate(uint32_t count, size_t size, bool queueAll);
+    int allocate(size_t size);
+    int allocateOne(size_t size);
     void deallocate();
 
     virtual int cacheOps(uint32_t index, unsigned int cmd);
-    virtual int getRegFlags(uint8_t *regFlags);
     virtual int getMatchBufIndex(void *object);
     virtual void *getPtr(uint32_t index);
 
@@ -136,7 +134,6 @@ public:
     int32_t unregisterBuffer(size_t idx);
     void unregisterBuffers();
     virtual int cacheOps(uint32_t index, unsigned int cmd);
-    virtual int getRegFlags(uint8_t *regFlags);
     virtual int getMatchBufIndex(void *object);
     virtual void *getPtr(uint32_t index);
 

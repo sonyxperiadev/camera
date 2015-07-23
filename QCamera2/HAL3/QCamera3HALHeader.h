@@ -41,6 +41,9 @@ namespace qcamera {
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+#define IS_USAGE_ZSL(usage)  (((usage) & (GRALLOC_USAGE_HW_CAMERA_ZSL)) \
+        == (GRALLOC_USAGE_HW_CAMERA_ZSL))
+
 class QCamera3Channel;
 class QCamera3ProcessingChannel;
 

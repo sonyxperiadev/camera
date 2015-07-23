@@ -343,13 +343,13 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     }
 
     // allocate and map stream info memory
-    mStreamInfoBuf = new QCamera3HeapMemory();
+    mStreamInfoBuf = new QCamera3HeapMemory(1);
     if (mStreamInfoBuf == NULL) {
         ALOGE("%s: no memory for stream info buf obj", __func__);
         rc = -ENOMEM;
         goto err1;
     }
-    rc = mStreamInfoBuf->allocate(1, sizeof(cam_stream_info_t), false);
+    rc = mStreamInfoBuf->allocate(sizeof(cam_stream_info_t));
     if (rc < 0) {
         ALOGE("%s: no memory for stream info", __func__);
         rc = -ENOMEM;
@@ -1136,7 +1136,7 @@ int32_t QCamera3Stream::getBatchBufs(
     mMemOps = ops_tbl;
 
     //Allocate batch containers
-    mStreamBatchBufs = new QCamera3HeapMemory();
+    mStreamBatchBufs = new QCamera3HeapMemory(1);
     if (!mStreamBatchBufs) {
         ALOGE("%s: unable to create batch container memory", __func__);
         return NO_MEMORY;
@@ -1146,9 +1146,8 @@ int32_t QCamera3Stream::getBatchBufs(
     // QCamera3Stream manages that single buffer as multiple batch buffers
     CDBG("%s: Allocating batch container memory. numBatch: %d size: %d",
             __func__, mNumBatchBufs, mStreamInfo->user_buf_info.size);
-    rc = mStreamBatchBufs->allocate(1,
-            mNumBatchBufs * mStreamInfo->user_buf_info.size,
-            false /* queueAll */);
+    rc = mStreamBatchBufs->allocate(
+            mNumBatchBufs * mStreamInfo->user_buf_info.size);
     if (rc < 0) {
         ALOGE("%s: unable to allocate batch container memory", __func__);
         rc = NO_MEMORY;

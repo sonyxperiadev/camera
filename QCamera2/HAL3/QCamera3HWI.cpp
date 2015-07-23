@@ -866,7 +866,7 @@ int QCamera3HardwareInterface::validateStreamDimensions(
         default:
             if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
                     || newStream->stream_type == CAMERA3_STREAM_INPUT
-                    || newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL) {
+                    || IS_USAGE_ZSL(newStream->usage)) {
                 if (((int32_t)rotatedWidth ==
                                 gCamCapability[mCameraId]->active_array_size.width) &&
                                 ((int32_t)rotatedHeight ==
@@ -1289,7 +1289,7 @@ int QCamera3HardwareInterface::configureStreams(
                 if (isOnEncoder(maxViewfinderSize, newStream->width,
                         newStream->height)) {
                     if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ||
-                            newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL) {
+                            IS_USAGE_ZSL(newStream->usage)) {
                         commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
                     } else {
                         commonFeatureMask |= fullFeatureMask;
@@ -1420,7 +1420,7 @@ int QCamera3HardwareInterface::configureStreams(
             mStreamInfo.push_back(stream_info);
         }
         /* Covers Opaque ZSL and API1 F/W ZSL */
-        if (newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL
+        if (IS_USAGE_ZSL(newStream->usage)
                 || newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ) {
             if (zslStream != NULL) {
                 ALOGE("%s: Multiple input/reprocess streams requested!", __func__);
@@ -1532,7 +1532,7 @@ int QCamera3HardwareInterface::configureStreams(
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width = (int32_t)newStream->width;
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height = (int32_t)newStream->height;
         if ((newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
-                || newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL) &&
+                || IS_USAGE_ZSL(newStream->usage)) &&
             newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
             mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = CAM_QCOM_FEATURE_NONE;
@@ -1662,7 +1662,7 @@ int QCamera3HardwareInterface::configureStreams(
                          (GRALLOC_USAGE_SW_READ_RARELY |
                          GRALLOC_USAGE_SW_WRITE_RARELY |
                          GRALLOC_USAGE_HW_CAMERA_WRITE);
-                else if (newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL)
+                else if (IS_USAGE_ZSL(newStream->usage))
                     CDBG("%s: ZSL usage flag skipping", __func__);
                 else if (newStream == zslStream
                         || newStream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
@@ -3514,9 +3514,10 @@ int QCamera3HardwareInterface::processCaptureRequest(
     //If 2 streams have need_metadata set to true, fail the request, unless
     //we copy/reference count the metadata buffer
     if (streams_need_metadata > 1) {
-        //TODO: Return error from here
         ALOGE("s: not supporting request in which two streams requires"
                 " 2 HAL metadata for reprocessing", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return -EINVAL;
     }
 
     if(request->input_buffer == NULL) {
@@ -5435,13 +5436,13 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
         goto open_failed;
     }
 
-    capabilityHeap = new QCamera3HeapMemory();
+    capabilityHeap = new QCamera3HeapMemory(1);
     if (capabilityHeap == NULL) {
         ALOGE("%s: creation of capabilityHeap failed", __func__);
         goto heap_creation_failed;
     }
     /* Allocate memory for capability buffer */
-    rc = capabilityHeap->allocate(1, sizeof(cam_capability_t), false);
+    rc = capabilityHeap->allocate(sizeof(cam_capability_t));
     if(rc != OK) {
         ALOGE("%s: No memory for cappability", __func__);
         goto allocate_failed;
@@ -5503,8 +5504,8 @@ int QCamera3HardwareInterface::initParameters()
     int rc = 0;
 
     //Allocate Set Param Buffer
-    mParamHeap = new QCamera3HeapMemory();
-    rc = mParamHeap->allocate(1, sizeof(metadata_buffer_t), false);
+    mParamHeap = new QCamera3HeapMemory(1);
+    rc = mParamHeap->allocate(sizeof(metadata_buffer_t));
     if(rc != OK) {
         rc = NO_MEMORY;
         ALOGE("Failed to allocate SETPARM Heap memory");

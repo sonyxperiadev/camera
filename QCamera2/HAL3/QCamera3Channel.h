@@ -406,6 +406,8 @@ private:
 
     // Whether offline postprocessing is required for this channel
     bool mBypass;
+    uint32_t mFrameLen;
+
     // Current edge, noise, and crop region setting
     cam_edge_application_t mEdgeMode;
     uint32_t mNoiseRedMode;
