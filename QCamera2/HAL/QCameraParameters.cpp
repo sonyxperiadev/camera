@@ -4073,6 +4073,8 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
     const char *prev_str = get(KEY_QC_TNR_MODE);
     const char *video_str = params.get(KEY_QC_VIDEO_TNR_MODE);
     const char *video_prev_str = get(KEY_QC_VIDEO_TNR_MODE);
+    char video_value[PROPERTY_VALUE_MAX];
+    char preview_value[PROPERTY_VALUE_MAX];
 
     if (m_bRecordingHint_new == true) {
         if (video_str) {
@@ -4088,54 +4090,6 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
             } else {
                 return NO_ERROR;
             }
-        } else {
-            char video_value[PROPERTY_VALUE_MAX];
-            memset(video_value, 0, sizeof(video_value));
-            property_get("persist.camera.tnr.video", video_value, VALUE_OFF);
-            if (!strcmp(video_value, VALUE_ON)) {
-                m_bTNRVideoOn = true;
-            } else {
-                m_bTNRVideoOn = false;
-            }
-            updateParamEntry(KEY_QC_VIDEO_TNR_MODE, video_value);
-
-            char preview_value[PROPERTY_VALUE_MAX];
-            memset(preview_value, 0, sizeof(preview_value));
-            property_get("persist.camera.tnr.preview", preview_value, video_value);
-            if (!strcmp(preview_value, VALUE_ON)) {
-                m_bTNRPreviewOn = true;
-            } else {
-                m_bTNRPreviewOn = false;
-            }
-            updateParamEntry(KEY_QC_TNR_MODE, preview_value);
-        }
-
-        cam_denoise_param_t temp;
-        memset(&temp, 0, sizeof(temp));
-        if (m_bTNRVideoOn || m_bTNRPreviewOn) {
-            temp.denoise_enable = 1;
-            temp.process_plates = getDenoiseProcessPlate(CAM_INTF_PARM_TEMPORAL_DENOISE);
-
-            int32_t cds_mode = lookupAttr(CDS_MODES_MAP, PARAM_MAP_SIZE(CDS_MODES_MAP),
-                    CDS_MODE_OFF);
-
-            if (cds_mode != NAME_NOT_FOUND) {
-                updateParamEntry(KEY_QC_VIDEO_CDS_MODE, CDS_MODE_OFF);
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CDS_MODE, cds_mode)) {
-                    ALOGE("%s:Failed CDS MODE to update table", __func__);
-                    return BAD_VALUE;
-                }
-                CDBG("%s: CDS in video mode is set to = %s when TNR is enabled",
-                        __func__, CDS_MODE_OFF);
-                mCds_mode = cds_mode;
-            } else {
-                ALOGE("%s: Invalid argument for video CDS MODE %d", __func__, cds_mode);
-            }
-        }
-        CDBG("%s: TNR enable in video mode = %d, plates = %d", __func__,
-                temp.denoise_enable, temp.process_plates);
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_TEMPORAL_DENOISE, temp)) {
-            return BAD_VALUE;
         }
     } else {
         if (str) {
@@ -4149,44 +4103,60 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
             } else {
                 return NO_ERROR;
             }
+        }
+    }
+
+    //Read setprops only if UI is not present or disabled.
+    if ((video_str == NULL) || (strcmp(video_str, VALUE_ON))) {
+        memset(video_value, 0, sizeof(video_value));
+        property_get("persist.camera.tnr.video", video_value, VALUE_OFF);
+        if (!strcmp(video_value, VALUE_ON)) {
+            m_bTNRVideoOn = true;
+            m_bTNRPreviewOn = true;
         } else {
-            char value[PROPERTY_VALUE_MAX];
-            memset(value, 0, sizeof(value));
-            property_get("persist.camera.tnr.preview", value, VALUE_OFF);
-            if (!strcmp(value, VALUE_ON)) {
-                m_bTNRPreviewOn = true;
-            } else {
-                m_bTNRPreviewOn = false;
-            }
-            updateParamEntry(KEY_QC_TNR_MODE, value);
+            m_bTNRVideoOn = false;
+            m_bTNRPreviewOn = false;
         }
-        cam_denoise_param_t temp;
-        memset(&temp, 0, sizeof(temp));
-        if (m_bTNRPreviewOn) {
-            temp.denoise_enable = 1;
-            temp.process_plates = getDenoiseProcessPlate(CAM_INTF_PARM_TEMPORAL_DENOISE);
+        updateParamEntry(KEY_QC_VIDEO_TNR_MODE, video_value);
+    }
 
-            int32_t cds_mode = lookupAttr(CDS_MODES_MAP, PARAM_MAP_SIZE(CDS_MODES_MAP),
-                    CDS_MODE_OFF);
+    if ((str == NULL) || (strcmp(str, VALUE_ON))) {
+        memset(preview_value, 0, sizeof(preview_value));
+        property_get("persist.camera.tnr.preview", preview_value, video_value);
+        if (!strcmp(preview_value, VALUE_ON)) {
+            m_bTNRPreviewOn = true;
+        } else {
+            m_bTNRPreviewOn = false;
+        }
+        updateParamEntry(KEY_QC_TNR_MODE, preview_value);
+    }
 
-            if (cds_mode != NAME_NOT_FOUND) {
-                updateParamEntry(KEY_QC_CDS_MODE, CDS_MODE_OFF);
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CDS_MODE, cds_mode)) {
-                    ALOGE("%s:Failed CDS MODE to update table", __func__);
-                    return BAD_VALUE;
-                }
-                CDBG("%s: CDS in snapshot mode is set to = %s when TNR is enabled",
-                        __func__, CDS_MODE_OFF);
-                mCds_mode = cds_mode;
-            } else {
-                ALOGE("%s: Invalid argument for snapshot CDS MODE %d", __func__, cds_mode);
+    cam_denoise_param_t temp;
+    memset(&temp, 0, sizeof(temp));
+    if (m_bTNRVideoOn || m_bTNRPreviewOn) {
+        temp.denoise_enable = 1;
+        temp.process_plates = getDenoiseProcessPlate(CAM_INTF_PARM_TEMPORAL_DENOISE);
+
+        int32_t cds_mode = lookupAttr(CDS_MODES_MAP, PARAM_MAP_SIZE(CDS_MODES_MAP),
+                CDS_MODE_OFF);
+
+        if (cds_mode != NAME_NOT_FOUND) {
+            updateParamEntry(KEY_QC_VIDEO_CDS_MODE, CDS_MODE_OFF);
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CDS_MODE, cds_mode)) {
+                ALOGE("%s:Failed CDS MODE to update table", __func__);
+                return BAD_VALUE;
             }
+            CDBG("%s: CDS is set to = %s when TNR is enabled",
+                    __func__, CDS_MODE_OFF);
+            mCds_mode = cds_mode;
+        } else {
+            ALOGE("%s: Invalid argument for video CDS MODE %d", __func__, cds_mode);
         }
-        CDBG("%s: TNR enable in snapshot mode = %d, plates = %d", __func__,
-                temp.denoise_enable, temp.process_plates);
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_TEMPORAL_DENOISE, temp)) {
-            return BAD_VALUE;
-        }
+    }
+    CDBG("%s: TNR enabled = %d, plates = %d", __func__,
+            temp.denoise_enable, temp.process_plates);
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_TEMPORAL_DENOISE, temp)) {
+        return BAD_VALUE;
     }
 
     return NO_ERROR;
