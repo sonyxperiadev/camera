@@ -1228,6 +1228,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mJpegJob(0),
       mRawdataJob(0),
       mMetadataAllocJob(0),
+      mInitPProcJob(0),
       mOutputCount(0),
       mInputCount(0),
       mAdvancedCaptureConfigured(false),
@@ -1318,6 +1319,33 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
 }
 
 /*===========================================================================
+ * FUNCTION   : deferPPInit
+ *
+ * DESCRIPTION: Queue postproc init task to deferred thread
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : uint32_t job id of pproc init job
+ *              0  -- failure
+ *==========================================================================*/
+uint32_t QCamera2HardwareInterface::deferPPInit()
+{
+    // init pproc
+    DeferWorkArgs args;
+    DeferPProcInitArgs pprocInitArgs;
+
+    memset(&args, 0, sizeof(DeferWorkArgs));
+    memset(&pprocInitArgs, 0, sizeof(DeferPProcInitArgs));
+
+    pprocInitArgs.jpeg_cb = jpegEvtHandle;
+    pprocInitArgs.user_data = this;
+    args.pprocInitArgs = pprocInitArgs;
+
+    return queueDeferredWork(CMD_DEF_PPROC_INIT,
+            args);
+}
+
+/*===========================================================================
  * FUNCTION   : openCamera
  *
  * DESCRIPTION: open camera
@@ -1368,10 +1396,6 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
  *==========================================================================*/
 int QCamera2HardwareInterface::openCamera()
 {
-    uint32_t l_curr_width = 0;
-    uint32_t l_curr_height = 0;
-    m_max_pic_width = 0;
-    m_max_pic_height = 0;
     size_t i;
     int32_t rc = NO_ERROR;
 
@@ -1423,23 +1447,10 @@ int QCamera2HardwareInterface::openCamera()
             rc = UNKNOWN_ERROR;
             goto error_exit;
         }
-    }
 
-    mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
-                                              camEvtHandle,
-                                              (void *) this);
-
-    /* get max pic size for jpeg work buf calculation*/
-    for(i = 0; i < gCamCapability[mCameraId]->picture_sizes_tbl_cnt - 1; i++)
-    {
-      l_curr_width = gCamCapability[mCameraId]->picture_sizes_tbl[i].width;
-      l_curr_height = gCamCapability[mCameraId]->picture_sizes_tbl[i].height;
-
-      if ((l_curr_width * l_curr_height) >
-        (m_max_pic_width * m_max_pic_height)) {
-        m_max_pic_width = l_curr_width;
-        m_max_pic_height = l_curr_height;
-      }
+        mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
+                camEvtHandle,
+                (void *) this);
     }
 
     // Now PostProc need calibration data as initialization time for jpeg_open
@@ -1465,39 +1476,6 @@ int QCamera2HardwareInterface::openCamera()
         m_bRelCamCalibValid = true;
     }
 
-    if(!mJpegClientHandle) {
-        rc = initJpegHandle();
-        if (rc != NO_ERROR) {
-            ALOGE("%s: Error!! creating JPEG handle failed", __func__);
-            goto error_exit;
-        }
-    }
-    CDBG_HIGH("%s: mJpegClientHandle : %d", __func__, mJpegClientHandle);
-
-    rc = m_postprocessor.setJpegHandle(&mJpegHandle, &mJpegMpoHandle,
-            mJpegClientHandle);
-    if (rc != 0) {
-        ALOGE("%s: Error!! set JPEG handle failed", __func__);
-        goto error_exit;
-    }
-    rc = m_postprocessor.init(jpegEvtHandle, this);
-    if (rc != 0) {
-        ALOGE("%s: Error!! Init Postprocessor failed", __func__);
-        goto error_exit;
-    }
-    // update padding info from jpeg
-    cam_padding_info_t padding_info;
-    m_postprocessor.getJpegPaddingReq(padding_info);
-    if (gCamCapability[mCameraId]->padding_info.width_padding < padding_info.width_padding) {
-        gCamCapability[mCameraId]->padding_info.width_padding = padding_info.width_padding;
-    }
-    if (gCamCapability[mCameraId]->padding_info.height_padding < padding_info.height_padding) {
-        gCamCapability[mCameraId]->padding_info.height_padding = padding_info.height_padding;
-    }
-    if (gCamCapability[mCameraId]->padding_info.plane_padding < padding_info.plane_padding) {
-        gCamCapability[mCameraId]->padding_info.plane_padding = padding_info.plane_padding;
-    }
-
     mParameters.setMinPpMask(gCamCapability[mCameraId]->qcom_supported_feature_mask);
 
     mExifParams.debug_params =
@@ -1508,7 +1486,6 @@ int QCamera2HardwareInterface::openCamera()
         ALOGE("%s: Out of Memory. Allocation failed for 3A debug exif params", __func__);
         mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
         mCameraHandle = NULL;
-        m_postprocessor.deinit();
         return NO_MEMORY;
     }
 
@@ -1710,6 +1687,7 @@ int QCamera2HardwareInterface::closeCamera()
     m_postprocessor.stop();
     deinitJpegHandle();
     m_postprocessor.deinit();
+    mInitPProcJob = 0; // reset job id, so pproc can be reinited later
 
     m_thermalAdapter.deinit();
 
@@ -1808,8 +1786,10 @@ int QCamera2HardwareInterface::initCapabilities(uint32_t cameraId,
         ALOGE("%s: failed to query capability",__func__);
         goto query_failed;
     }
-    gCamCapability[cameraId] = (cam_capability_t *)malloc(sizeof(cam_capability_t));
-    if (!gCamCapability[cameraId]) {
+    gCamCapability[cameraId] =
+            (cam_capability_t *)malloc(sizeof(cam_capability_t));
+
+     if (!gCamCapability[cameraId]) {
         ALOGE("%s: out of memory", __func__);
         goto query_failed;
     }
@@ -2575,9 +2555,11 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
 
     if (!((needReprocess()) && (CAM_STREAM_TYPE_SNAPSHOT == stream_type ||
             CAM_STREAM_TYPE_RAW == stream_type))) {
-        if (gCamCapability[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_CROP)
+        if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                CAM_QCOM_FEATURE_CROP)
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_CROP;
-        if (gCamCapability[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_SCALE)
+        if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                CAM_QCOM_FEATURE_SCALE)
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_SCALE;
     }
 
@@ -2901,6 +2883,18 @@ int QCamera2HardwareInterface::startPreview()
     }
 
     updatePostPreviewParameters();
+
+    // if job id is non-zero, that means the postproc init job is already
+    // pending or complete
+    if (mInitPProcJob == 0) {
+        mInitPProcJob = deferPPInit();
+        if (mInitPProcJob == 0) {
+            ALOGE("%s: Unable to initialize postprocessor, mCameraHandle = %p",
+                    __func__, mCameraHandle);
+            rc = UNKNOWN_ERROR;
+        }
+    }
+
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
@@ -3162,6 +3156,7 @@ bool QCamera2HardwareInterface::processUFDumps(qcamera_jpeg_evt_payload_t *evt)
        omx_jpeg_ouput_buf_t *jpeg_out = NULL;
        size_t dataLen;
        uint8_t *dataPtr;
+       waitDeferredWork(mInitPProcJob);
        if (!m_postprocessor.getJpegMemOpt()) {
            dataLen = evt->out_data.buf_filled_len;
            dataPtr = evt->out_data.buf_vaddr;
@@ -3385,19 +3380,23 @@ int32_t QCamera2HardwareInterface::configureHDRBracketing()
     CDBG_HIGH("%s: E",__func__);
     int32_t rc = NO_ERROR;
 
+    cam_hdr_bracketing_info_t& hdrBracketingSetting =
+            gCamCapability[mCameraId]->hdr_bracketing_setting;
+
     // 'values' should be in "idx1,idx2,idx3,..." format
-    uint32_t hdrFrameCount = gCamCapability[mCameraId]->hdr_bracketing_setting.num_frames;
+    uint32_t hdrFrameCount =
+            hdrBracketingSetting.num_frames;
     CDBG_HIGH("%s : HDR values %d, %d frame count: %u",
           __func__,
-          (int8_t) gCamCapability[mCameraId]->hdr_bracketing_setting.exp_val.values[0],
-          (int8_t) gCamCapability[mCameraId]->hdr_bracketing_setting.exp_val.values[1],
+          (int8_t) hdrBracketingSetting.exp_val.values[0],
+          (int8_t) hdrBracketingSetting.exp_val.values[1],
           hdrFrameCount);
 
     // Enable AE Bracketing for HDR
     cam_exp_bracketing_t aeBracket;
     memset(&aeBracket, 0, sizeof(cam_exp_bracketing_t));
     aeBracket.mode =
-        gCamCapability[mCameraId]->hdr_bracketing_setting.exp_val.mode;
+        hdrBracketingSetting.exp_val.mode;
 
     if (aeBracket.mode == CAM_EXP_BRACKETING_ON) {
         mHDRBracketingEnabled = true;
@@ -3406,7 +3405,7 @@ int32_t QCamera2HardwareInterface::configureHDRBracketing()
     String8 tmp;
     for (uint32_t i = 0; i < hdrFrameCount; i++) {
         tmp.appendFormat("%d",
-            (int8_t) gCamCapability[mCameraId]->hdr_bracketing_setting.exp_val.values[i]);
+            (int8_t) hdrBracketingSetting.exp_val.values[i]);
         tmp.append(",");
     }
     if (mParameters.isHDR1xFrameEnabled()
@@ -3679,6 +3678,10 @@ int QCamera2HardwareInterface::takePicture()
             memset(&args, 0, sizeof(DeferWorkArgs));
 
             args.pprocArgs = pZSLChannel;
+
+            // No need to wait for mInitPProcJob here, because it was
+            // queued in startPreview, and will definitely be processed before
+            // mReprocJob can begin.
             mReprocJob = queueDeferredWork(CMD_DEF_PPROC_START,
                     args);
             if (mReprocJob == 0) {
@@ -3836,6 +3839,10 @@ int QCamera2HardwareInterface::takePicture()
                 memset(&args, 0, sizeof(DeferWorkArgs));
 
                 args.pprocArgs = m_channels[QCAMERA_CH_TYPE_CAPTURE];
+
+                // No need to wait for mInitPProcJob here, because it was
+                // queued in startPreview, and will definitely be processed before
+                // mReprocJob can begin.
                 mReprocJob = queueDeferredWork(CMD_DEF_PPROC_START,
                         args);
                 if (mReprocJob == 0) {
@@ -3906,6 +3913,7 @@ int QCamera2HardwareInterface::takePicture()
             rc = addRawChannel();
             if (rc == NO_ERROR) {
                 // start postprocessor
+                waitDeferredWork(mInitPProcJob);
                 rc = m_postprocessor.start(m_channels[QCAMERA_CH_TYPE_RAW]);
                 if (rc != NO_ERROR) {
                     ALOGE("%s: cannot start postprocessor", __func__);
@@ -4354,6 +4362,7 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *r
 
     if (true == m_bIntJpegEvtPending) {
         //Attempting to take JPEG snapshot
+        waitDeferredWork(mInitPProcJob);
         *JpegMemOpt = m_postprocessor.getJpegMemOpt();
         m_postprocessor.setJpegMemOpt(false);
 
@@ -4379,6 +4388,7 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *r
         rc = addRawChannel();
         if (rc == NO_ERROR) {
             // start postprocessor
+            waitDeferredWork(mInitPProcJob);
             rc = m_postprocessor.start(m_channels[QCAMERA_CH_TYPE_RAW]);
             if (rc != NO_ERROR) {
                 ALOGE("%s: cannot start postprocessor", __func__);
@@ -4476,6 +4486,7 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
     }
 
     // start post processor
+    waitDeferredWork(mInitPProcJob);
     rc = m_postprocessor.start(m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
     if (NO_ERROR != rc) {
         ALOGE("%s: Post-processor start failed %d", __func__, rc);
@@ -6820,12 +6831,13 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
             snapshot_feature_mask, pp_config.feature_mask);
 
     bool offlineReproc = isRegularCapture();
+    cam_padding_info_t* paddingInfo = &gCamCapability[mCameraId]->padding_info;
     rc = pChannel->addReprocStreamsFromSource(*this,
                                               pp_config,
                                               pInputChannel,
                                               minStreamBufNum,
                                               mParameters.getNumOfSnapshots(),
-                                              &gCamCapability[mCameraId]->padding_info,
+                                              paddingInfo,
                                               mParameters,
                                               mLongshotEnabled,
                                               offlineReproc);
@@ -7657,9 +7669,14 @@ int QCamera2HardwareInterface::calcThermalLevel(
             // Set lowest min FPS for now
             adjustedRange.min_fps = minFPS/1000.0f;
             adjustedRange.max_fps = minFPS/1000.0f;
-            for (size_t i = 0; i < gCamCapability[mCameraId]->fps_ranges_tbl_cnt; i++) {
-                if (gCamCapability[mCameraId]->fps_ranges_tbl[i].min_fps < adjustedRange.min_fps) {
-                    adjustedRange.min_fps = gCamCapability[mCameraId]->fps_ranges_tbl[i].min_fps;
+            cam_capability_t *capability = gCamCapability[mCameraId];
+            for (size_t i = 0;
+                     i < capability->fps_ranges_tbl_cnt;
+                     i++) {
+                if (capability->fps_ranges_tbl[i].min_fps <
+                        adjustedRange.min_fps) {
+                    adjustedRange.min_fps =
+                            capability->fps_ranges_tbl[i].min_fps;
                     adjustedRange.max_fps = adjustedRange.min_fps;
                 }
             }
@@ -7981,7 +7998,8 @@ bool QCamera2HardwareInterface::needRotationReprocess()
         return false;
     }
 
-    if ((gCamCapability[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION) > 0 &&
+    if ((gCamCapability[mCameraId]->qcom_supported_feature_mask &
+            CAM_QCOM_FEATURE_ROTATION) > 0 &&
             (mParameters.getJpegRotation() > 0)) {
         // current rotation is not zero, and pp has the capability to process rotation
         CDBG_HIGH("%s: need to do reprocess for rotation=%d",
@@ -8472,6 +8490,89 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         }
                     }
                     break;
+                case CMD_DEF_PPROC_INIT:
+                    {
+                        int32_t rc = NO_ERROR;
+                        int32_t l_curr_width = 0;
+                        int32_t l_curr_height = 0;
+                        pme->m_max_pic_width = 0;
+                        pme->m_max_pic_height = 0;
+
+                        jpeg_encode_callback_t jpegEvtHandle =
+                                dw->args.pprocInitArgs.jpeg_cb;
+                        void* user_data = dw->args.pprocInitArgs.user_data;
+                        QCameraPostProcessor *postProcessor =
+                                &(pme->m_postprocessor);
+                        uint32_t cameraId = pme->mCameraId;
+                        cam_capability_t *capability =
+                                gCamCapability[cameraId];
+                        cam_padding_info_t padding_info;
+                        cam_padding_info_t& cam_capability_padding_info =
+                                capability->padding_info;
+
+                        for(uint32_t i = 0;
+                                i < capability->picture_sizes_tbl_cnt - 1;
+                                i++) {
+                            l_curr_width =
+                                    capability->picture_sizes_tbl[i].width;
+                            l_curr_height =
+                                    capability->picture_sizes_tbl[i].height;
+
+                            if ((l_curr_width * l_curr_height) >
+                                    (int32_t)(pme->m_max_pic_width *
+                                    pme->m_max_pic_height)) {
+                                pme->m_max_pic_width = l_curr_width;
+                                pme->m_max_pic_height = l_curr_height;
+                            }
+                        }
+
+                        if(!pme->mJpegClientHandle &&
+                                (pme->getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY)) {
+                            rc = pme->initJpegHandle();
+                            if (rc != NO_ERROR) {
+                                ALOGE("%s: Error!! creating JPEG handle failed", __func__);
+                                break;
+                            }
+                        }
+                        CDBG_HIGH("%s: mJpegClientHandle : %d", __func__, pme->mJpegClientHandle);
+
+                        rc = postProcessor->setJpegHandle(&pme->mJpegHandle, &pme->mJpegMpoHandle,
+                                pme->mJpegClientHandle);
+                        if (rc != 0) {
+                            ALOGE("%s: Error!! set JPEG handle failed", __func__);
+                            break;
+                        }
+
+                        /* get max pic size for jpeg work buf calculation*/
+                        rc = postProcessor->init(jpegEvtHandle, user_data);
+
+                        if (rc != NO_ERROR) {
+                            ALOGE("%s: cannot init postprocessor", __func__);
+                            pme->mCameraHandle->ops->close_camera(
+                                    pme->mCameraHandle->camera_handle);
+                            pme->mCameraHandle = NULL;
+                            break;
+                        }
+
+                        // update padding info from jpeg
+                        postProcessor->getJpegPaddingReq(padding_info);
+                        if (cam_capability_padding_info.width_padding <
+                                padding_info.width_padding) {
+                            cam_capability_padding_info.width_padding =
+                                    padding_info.width_padding;
+                        }
+                        if (cam_capability_padding_info.height_padding <
+                                padding_info.height_padding) {
+                            cam_capability_padding_info.height_padding =
+                                    padding_info.height_padding;
+                        }
+                        if (cam_capability_padding_info.plane_padding <
+                                padding_info.plane_padding) {
+                            cam_capability_padding_info.plane_padding =
+                                    padding_info.plane_padding;
+                        }
+                    }
+                    break;
                 default:
                     ALOGE("%s[%d]:  Incorrect command : %d",
                             __func__,
@@ -8645,7 +8746,10 @@ int32_t QCamera2HardwareInterface::setJpegHandleInfo(mm_jpeg_ops_t *ops,
  *==========================================================================*/
 int32_t QCamera2HardwareInterface::getJpegHandleInfo(mm_jpeg_ops_t *ops,
         mm_jpeg_mpo_ops_t *mpo_ops, uint32_t *pJpegClientHandle) {
-    // Copy JPEG ops if present
+ 
+    waitDeferredWork(mInitPProcJob);
+
+   // Copy JPEG ops if present
     if (ops && mpo_ops && pJpegClientHandle) {
         memcpy(ops, &mJpegHandle, sizeof(mm_jpeg_ops_t));
         memcpy(mpo_ops, &mJpegMpoHandle, sizeof(mm_jpeg_mpo_ops_t));
