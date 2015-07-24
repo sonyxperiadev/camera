@@ -128,7 +128,7 @@ int QCamera2HardwareInterface::set_preview_window(struct camera_device *device,
         ALOGE("%s: NULL camera device", __func__);
         return BAD_VALUE;
     }
-    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+    CDBG("%s: E camera id %d window = %p", __func__, hw->getCameraId(), window);
 
     hw->lockAPI();
     qcamera_api_result_t apiResult;
@@ -1219,12 +1219,9 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mPFps(0),
       m_bIntJpegEvtPending(false),
       m_bIntRawEvtPending(false),
-      mSnapshotJob(0),
       mPostviewJob(0),
-      mMetadataJob(0),
       mReprocJob(0),
       mJpegJob(0),
-      mRawdataJob(0),
       mMetadataAllocJob(0),
       mInitPProcJob(0),
       mParamAllocJob(0),
@@ -1268,6 +1265,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
     memset(&mExifParams, 0, sizeof(mm_jpeg_exif_params_t));
 
     memset(m_BackendFileName, 0, QCAMERA_MAX_FILEPATH_LENGTH);
+
 #ifdef HAS_MULTIMEDIA_HINTS
     if (hw_get_module(POWER_HARDWARE_MODULE_ID, (const hw_module_t **)&m_pPowerModule)) {
         ALOGE("%s: %s module not found", __func__, POWER_HARDWARE_MODULE_ID);
@@ -1855,7 +1853,6 @@ int QCamera2HardwareInterface::prepareTorchCamera()
             !m_stateMachine.isPreviewReady() &&
             ( m_channels[QCAMERA_CH_TYPE_PREVIEW] == NULL ) ) {
         rc = addChannel(QCAMERA_CH_TYPE_PREVIEW);
-        waitDeferredWork(mMetadataJob);
     }
 
     return rc;
@@ -2088,6 +2085,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                     bufferCnt = zslQBuffers + minCircularBufNum;
                 }
             }
+            if (CAMERA_MIN_METADATA_BUFFERS > bufferCnt) {
+                bufferCnt = CAMERA_MIN_METADATA_BUFFERS;
+            }
         }
         break;
     case CAM_STREAM_TYPE_OFFLINE_PROC:
@@ -2247,7 +2247,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                     }
                 }
                 bufferCnt = mem->getCnt();
-
                 // The memory is already allocated  and initialized, so
                 // simply return here.
                 return mem;
@@ -3765,44 +3764,16 @@ int QCamera2HardwareInterface::takePicture()
 
             if (!isLongshotEnabled()) {
 
-                rc = addCaptureChannel();
-
                 // normal capture case
                 // need to stop preview channel
                 stopPreview();
 
-                if (NO_ERROR == rc) {
-                    rc = declareSnapshotStreams();
-                    if (NO_ERROR != rc) {
-                        delChannel(QCAMERA_CH_TYPE_CAPTURE);
-                        return rc;
-                    }
+                rc = declareSnapshotStreams();
+                if (NO_ERROR != rc) {
+                    return rc;
                 }
 
-                waitDeferredWork(mSnapshotJob);
-                waitDeferredWork(mMetadataJob);
-                waitDeferredWork(mRawdataJob);
-
-                {
-                    DeferWorkArgs args;
-                    DeferAllocBuffArgs allocArgs;
-
-                    memset(&args, 0, sizeof(DeferWorkArgs));
-                    memset(&allocArgs, 0, sizeof(DeferAllocBuffArgs));
-
-                    allocArgs.ch = m_channels[QCAMERA_CH_TYPE_CAPTURE];
-                    allocArgs.type = CAM_STREAM_TYPE_POSTVIEW;
-                    args.allocArgs = allocArgs;
-
-                    mPostviewJob = queueDeferredWork(CMD_DEF_ALLOCATE_BUFF,
-                            args);
-
-                    if (mPostviewJob == 0) {
-                        rc = UNKNOWN_ERROR;
-                    }
-                }
-
-                waitDeferredWork(mPostviewJob);
+                rc = addCaptureChannel();
             } else {
                 // normal capture case
                 // need to stop preview channel
@@ -3818,14 +3789,6 @@ int QCamera2HardwareInterface::takePicture()
 
             if ((rc == NO_ERROR) &&
                 (NULL != m_channels[QCAMERA_CH_TYPE_CAPTURE])) {
-
-                // configure capture channel
-                rc = m_channels[QCAMERA_CH_TYPE_CAPTURE]->config();
-                if (rc != NO_ERROR) {
-                    ALOGE("%s: cannot configure capture channel", __func__);
-                    delChannel(QCAMERA_CH_TYPE_CAPTURE);
-                    return rc;
-                }
 
                 if (!mParameters.getofflineRAW()) {
                     rc = configureOnlineRotation(
@@ -3894,7 +3857,6 @@ int QCamera2HardwareInterface::takePicture()
                 return rc;
             }
         } else {
-
             // Stop Preview before taking NZSL snapshot
             stopPreview();
 
@@ -5814,87 +5776,31 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
         bDynAllocBuf = true;
     }
 
-    if ( ( streamType == CAM_STREAM_TYPE_SNAPSHOT ||
-            streamType == CAM_STREAM_TYPE_POSTVIEW ||
-            streamType == CAM_STREAM_TYPE_METADATA ||
-            streamType == CAM_STREAM_TYPE_RAW) &&
-            !isZSLMode() &&
-            !isLongshotEnabled() &&
-            !mParameters.getRecordingHintValue() &&
-            !mParameters.isSecureMode()) {
-        rc = pChannel->addStream(*this,
-                pStreamInfo,
-                NULL,
-                minStreamBufNum,
-                &gCamCapability[mCameraId]->padding_info,
-                streamCB, userData,
-                bDynAllocBuf,
-                true);
+    cam_padding_info_t *padding_info = NULL;
 
-        // Queue buffer allocation for Snapshot and Metadata streams
-        if ( !rc ) {
-            DeferWorkArgs args;
-            DeferAllocBuffArgs allocArgs;
-
-            memset(&args, 0, sizeof(DeferWorkArgs));
-            memset(&allocArgs, 0, sizeof(DeferAllocBuffArgs));
-            allocArgs.type = streamType;
-            allocArgs.ch = pChannel;
-            args.allocArgs = allocArgs;
-
-            if (streamType == CAM_STREAM_TYPE_SNAPSHOT) {
-                mSnapshotJob = queueDeferredWork(CMD_DEF_ALLOCATE_BUFF,
-                        args);
-
-                if ( mSnapshotJob == 0) {
-                    rc = UNKNOWN_ERROR;
-                }
-            } else if (streamType == CAM_STREAM_TYPE_METADATA) {
-                mMetadataJob = queueDeferredWork(CMD_DEF_ALLOCATE_BUFF,
-                        args);
-
-                if ( mMetadataJob == 0) {
-                    rc = UNKNOWN_ERROR;
-                }
-            } else if (streamType == CAM_STREAM_TYPE_RAW) {
-                mRawdataJob = queueDeferredWork(CMD_DEF_ALLOCATE_BUFF,
-                        args);
-
-                if ( mRawdataJob == 0) {
-                    rc = UNKNOWN_ERROR;
-                }
-            }
-        }
-    } else if (streamType == CAM_STREAM_TYPE_ANALYSIS) {
-        rc = pChannel->addStream(*this,
-                pStreamInfo,
-                NULL,
-                minStreamBufNum,
-                &gCamCapability[mCameraId]->analysis_padding_info,
-                streamCB, userData,
-                bDynAllocBuf,
-                false);
+    if (streamType == CAM_STREAM_TYPE_ANALYSIS) {
+        padding_info =
+                &gCamCapability[mCameraId]->analysis_padding_info;
     } else {
-        rc = pChannel->addStream(*this,
-                pStreamInfo,
-                NULL,
-                minStreamBufNum,
-                &gCamCapability[mCameraId]->padding_info,
-                streamCB, userData,
-                bDynAllocBuf,
-                false);
+        padding_info =
+                &gCamCapability[mCameraId]->padding_info;
     }
+
+    bool deferAllocation = needDeferred(streamType);
+    CDBG("%s: deferAllocation = %d bDynAllocBuf = %d, stream type = %d",__func__,
+            deferAllocation, bDynAllocBuf, streamType);
+    rc = pChannel->addStream(*this,
+            pStreamInfo,
+            NULL,
+            minStreamBufNum,
+            padding_info,
+            streamCB, userData,
+            bDynAllocBuf,
+            deferAllocation);
 
     if (rc != NO_ERROR) {
         ALOGE("%s: add stream type (%d) failed, ret = %d",
               __func__, streamType, rc);
-        // Returning error will delete corresponding channel but at the same time some of
-        // deferred streams in same channel might be still in process of allocating buffers
-        // by CAM_defrdWrk thread.
-        waitDeferredWork(mMetadataJob);
-        waitDeferredWork(mPostviewJob);
-        waitDeferredWork(mSnapshotJob);
-        waitDeferredWork(mRawdataJob);
         return rc;
     }
 
@@ -6148,7 +6054,6 @@ int32_t QCamera2HardwareInterface::addRawChannel()
         delete pChannel;
         return rc;
     }
-    waitDeferredWork(mMetadataJob);
 
     rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
                             raw_stream_cb_routine, this);
@@ -6157,7 +6062,6 @@ int32_t QCamera2HardwareInterface::addRawChannel()
         delete pChannel;
         return rc;
     }
-    waitDeferredWork(mRawdataJob);
     m_channels[QCAMERA_CH_TYPE_RAW] = pChannel;
     return rc;
 }
@@ -7027,12 +6931,8 @@ int32_t QCamera2HardwareInterface::startChannel(qcamera_ch_type_enum_t ch_type)
 {
     int32_t rc = UNKNOWN_ERROR;
     if (m_channels[ch_type] != NULL) {
-        rc = m_channels[ch_type]->config();
-        if (NO_ERROR == rc) {
-            rc = m_channels[ch_type]->start();
-        }
+        rc = m_channels[ch_type]->start();
     }
-
     return rc;
 }
 
@@ -7153,11 +7053,6 @@ int32_t QCamera2HardwareInterface::preparePreview()
                     return rc;
                 }
             }
-        }
-
-        if (!recordingHint && !mParameters.isSecureMode()) {
-            waitDeferredWork(mMetadataJob);
-            waitDeferredWork(mRawdataJob);
         }
 
         if (NO_ERROR != rc) {
@@ -8649,6 +8544,12 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                                 sizeof(mm_jpeg_debug_exif_params_t));
                     }
                     break;
+                case CMD_DEF_GENERIC:
+                    {
+                        BackgroundTask *bgTask = dw->args.genericArgs;
+                        bgTask->bgFunction(bgTask->bgArgs);
+                    }
+                    break;
                 default:
                     ALOGE("%s[%d]:  Incorrect command : %d",
                             __func__,
@@ -8915,6 +8816,79 @@ int32_t QCamera2HardwareInterface::waitDeferredWork(uint32_t &job_id)
     }
 
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : scheduleBackgroundTask
+ *
+ * DESCRIPTION: Run a requested task in the deferred thread
+ *
+ * PARAMETERS :
+ *   @bgTask  : Task to perform in the background
+ *
+ * RETURN     : job id of deferred job
+ *            : 0 in case of error
+ *==========================================================================*/
+uint32_t QCamera2HardwareInterface::scheduleBackgroundTask(BackgroundTask* bgTask)
+{
+    DeferWorkArgs args;
+    memset(&args, 0, sizeof(DeferWorkArgs));
+    args.genericArgs = bgTask;
+
+    return queueDeferredWork(CMD_DEF_GENERIC, args);
+}
+
+/*===========================================================================
+ * FUNCTION   : waitForBackgroundTask
+ *
+ * DESCRIPTION: Wait for a background task to complete
+ *
+ * PARAMETERS :
+ *   @taskId  : Task id to wait for
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::waitForBackgroundTask(uint32_t& taskId)
+{
+    return waitDeferredWork(taskId);
+}
+
+/*===========================================================================
+ * FUNCTION   : needDeferedAllocation
+ *
+ * DESCRIPTION: Function to decide background task for streams
+ *
+ * PARAMETERS :
+ *   @stream_type  : stream type
+ *
+ * RETURN     : true - if background task is needed
+ *              false -  if background task is NOT needed
+ *==========================================================================*/
+bool QCamera2HardwareInterface::needDeferred(cam_stream_type_t stream_type)
+{
+    if ((stream_type == CAM_STREAM_TYPE_PREVIEW && mPreviewWindow == NULL)
+            || (stream_type == CAM_STREAM_TYPE_ANALYSIS)) {
+        return FALSE;
+    }
+
+    if ((stream_type == CAM_STREAM_TYPE_PREVIEW)
+            || (stream_type == CAM_STREAM_TYPE_METADATA)
+            || (stream_type == CAM_STREAM_TYPE_RAW)
+            || (stream_type == CAM_STREAM_TYPE_POSTVIEW)) {
+        return TRUE;
+    }
+
+    if ((stream_type == CAM_STREAM_TYPE_SNAPSHOT)
+            && (!mParameters.getRecordingHintValue())){
+        return TRUE;
+    }
+
+    if (stream_type == CAM_STREAM_TYPE_VIDEO) {
+        return FALSE;
+    }
+    return FALSE;
 }
 
 /*===========================================================================

@@ -496,6 +496,9 @@ private:
     int32_t updateMetadata(metadata_buffer_t *pMetaData);
 
     int32_t getPPConfig(cam_pp_feature_config_t &pp_config, int curCount);
+    virtual uint32_t scheduleBackgroundTask(BackgroundTask* bgTask);
+    virtual int32_t waitForBackgroundTask(uint32_t &taskId);
+    bool needDeferred(cam_stream_type_t stream_type);
     static void camEvtHandle(uint32_t camera_handle,
                           mm_camera_event_t *evt,
                           void *user_data);
@@ -656,6 +659,7 @@ private:
         CMD_DEF_CREATE_JPEG_SESSION,
         CMD_DEF_PARAM_ALLOC,
         CMD_DEF_PARAM_INIT,
+        CMD_DEF_GENERIC,
         CMD_DEF_MAX
     };
 
@@ -679,6 +683,7 @@ private:
         QCameraChannel *pprocArgs;
         DeferMetadataAllocArgs metadataAllocArgs;
         DeferPProcInitArgs pprocInitArgs;
+        BackgroundTask *genericArgs;
     } DeferWorkArgs;
 
     uint32_t mDefOngoingJobs[MAX_ONGOING_JOBS];
@@ -710,12 +715,9 @@ private:
     static void *deferredWorkRoutine(void *obj);
     bool checkDeferredWork(uint32_t &job_id);
 
-    uint32_t mSnapshotJob;
     uint32_t mPostviewJob;
-    uint32_t mMetadataJob;
     uint32_t mReprocJob;
     uint32_t mJpegJob;
-    uint32_t mRawdataJob;
     uint32_t mMetadataAllocJob;
     uint32_t mInitPProcJob;
     uint32_t mParamAllocJob;
