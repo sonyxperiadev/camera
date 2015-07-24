@@ -45,6 +45,7 @@ extern "C" {
 using namespace android;
 
 #define MIN_STREAMING_BUFFER_NUM 7+11
+typedef int64_t nsecs_t;
 
 namespace qcamera {
 
@@ -187,8 +188,13 @@ public:
             cam_format_t streamFormat);
 
     QCamera3PostProcessor m_postprocessor; // post processor
+    void showDebugFPS(int32_t streamType);
 
 protected:
+    uint8_t mDebugFPS;
+    int mFrameCount;
+    int mLastFrameCount;
+    nsecs_t mLastFpsTime;
     bool isWNREnabled() {return m_bWNROn;};
     void startPostProc(bool inputBufExists,
             const reprocess_config_t &reproc_cfg);
@@ -242,6 +248,8 @@ public:
     virtual int32_t request(buffer_handle_t *buffer, uint32_t frameNumber);
     virtual reprocess_type_t getReprocessType();
 
+protected:
+    QCamera3GrallocMemory mMemory;
 private:
     int32_t initialize(struct private_handle_t *priv_handle);
 

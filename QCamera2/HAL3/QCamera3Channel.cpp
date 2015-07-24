@@ -701,6 +701,9 @@ QCamera3ProcessingChannel::QCamera3ProcessingChannel(uint32_t cam_handle,
             QCamera3Channel(cam_handle, cam_ops, cb_routine,
                     paddingInfo, postprocess_mask, userData, numBuffers),
             m_postprocessor(this),
+            mFrameCount(0),
+            mLastFrameCount(0),
+            mLastFpsTime(0),
             mCamera3Stream(stream),
             mNumBufs(CAM_MAX_NUM_BUFS_PER_STREAM),
             mStreamType(stream_type),
@@ -709,6 +712,10 @@ QCamera3ProcessingChannel::QCamera3ProcessingChannel(uint32_t cam_handle,
             m_pMetaChannel(metadataChannel),
             mMetaFrame(NULL)
 {
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.debug.sf.showfps", prop, "0");
+    mDebugFPS = (uint8_t) atoi(prop);
+
     int32_t rc = m_postprocessor.init(&mMemory, mPostProcMask);
     if (rc != 0) {
         ALOGE("Init Postprocessor failed");
@@ -788,6 +795,10 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
          ALOGE("%s: Error, Invalid index for buffer",__func__);
          stream->bufDone(frameIndex);
          return;
+    }
+
+    if (mDebugFPS) {
+        showDebugFPS(stream->getMyType());
     }
 
     ////Use below data to issue framework callback
@@ -1249,6 +1260,51 @@ void QCamera3ProcessingChannel::reprocessCbRoutine(buffer_handle_t *resultBuffer
     return;
 }
 
+/*===========================================================================
+ * FUNCTION   : showDebugFPS
+ *
+ * DESCRIPTION: Function to log the fps for preview, video, callback and raw
+ *              streams
+ *
+ * PARAMETERS : Stream type
+ *
+ * RETURN  : None
+ *==========================================================================*/
+void QCamera3ProcessingChannel::showDebugFPS(int32_t streamType)
+{
+    double fps = 0;
+    mFrameCount++;
+    nsecs_t now = systemTime();
+    nsecs_t diff = now - mLastFpsTime;
+    if (diff > ms2ns(250)) {
+        fps = (((double)(mFrameCount - mLastFrameCount)) *
+                (double)(s2ns(1))) / (double)diff;
+        switch(streamType) {
+            case CAM_STREAM_TYPE_PREVIEW:
+                CDBG_HIGH("%s: PROFILE_PREVIEW_FRAMES_PER_SECOND : %.4f",
+                        __func__, fps);
+                break;
+            case CAM_STREAM_TYPE_VIDEO:
+                CDBG_HIGH("%s: PROFILE_VIDEO_FRAMES_PER_SECOND : %.4f",
+                        __func__, fps);
+                break;
+            case CAM_STREAM_TYPE_CALLBACK:
+                CDBG_HIGH("%s: PROFILE_CALLBACK_FRAMES_PER_SECOND : %.4f",
+                        __func__, fps);
+                break;
+            case CAM_STREAM_TYPE_RAW:
+                CDBG_HIGH("%s: PROFILE_RAW_FRAMES_PER_SECOND : %.4f",
+                        __func__, fps);
+                break;
+            default:
+                CDBG_HIGH("%s: logging not supported for the stream",
+                         __func__);
+                break;
+        }
+        mLastFpsTime = now;
+        mLastFrameCount = mFrameCount;
+    }
+}
 
 /* Regular Channel methods */
 /*===========================================================================
