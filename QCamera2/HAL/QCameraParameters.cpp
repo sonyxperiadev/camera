@@ -877,7 +877,7 @@ QCameraParameters::QCameraParameters()
     memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
     memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
     memset(&m_relCamSyncInfo, 0, sizeof(cam_sync_related_sensors_event_info_t));
-    mTotalPPCount = 0;
+    mTotalPPCount = 1;
     mZoomLevel = 0;
     mParmZoomLevel = 0;
     mCurPPCount = 0;
