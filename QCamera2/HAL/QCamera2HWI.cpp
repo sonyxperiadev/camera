@@ -1174,7 +1174,9 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mMsgEnabled(0),
       mStoreMetaDataInFrame(0),
       mJpegCb(NULL),
+      mCallbackCookie(NULL),
       mJpegCallbackCookie(NULL),
+      m_bMpoEnabled(TRUE),
       m_stateMachine(this),
       m_smThreadActive(true),
       m_postprocessor(this),
@@ -1572,6 +1574,45 @@ int32_t QCamera2HardwareInterface::setRelatedCamSyncInfo(
 {
     if(info) {
         return mParameters.setRelatedCamSyncInfo(info);
+    } else {
+        return BAD_TYPE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getMpoComposition
+ *
+ * DESCRIPTION:function to retrieve whether Mpo composition should be enabled
+ *                    or not
+ *
+ * PARAMETERS :none
+ *
+ * RETURN     : bool indicates whether mpo composition is enabled or not
+ *==========================================================================*/
+bool QCamera2HardwareInterface::getMpoComposition(void)
+{
+    CDBG_HIGH("%s: MpoComposition:%d ", __func__, m_bMpoEnabled);
+    return m_bMpoEnabled;
+}
+
+/*===========================================================================
+ * FUNCTION   : setMpoComposition
+ *
+ * DESCRIPTION:sets the related cam sync info for this HWI instance
+ *
+ * PARAMETERS :
+ *   @enable  : indicates whether Mpo composition enabled or not
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::setMpoComposition(bool enable)
+{
+    if (getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        m_bMpoEnabled = enable;
+        CDBG_HIGH("%s: MpoComposition:%d ", __func__, m_bMpoEnabled);
+        return NO_ERROR;
     } else {
         return BAD_TYPE;
     }
