@@ -2062,7 +2062,8 @@ typedef struct {
 #define CAM_QCOM_FEATURE_CDS            (1U<<24)
 #define CAM_QCOM_FEATURE_EZTUNE         (1U<<25)
 #define CAM_QCOM_FEATURE_DSDN           (1U<<26) //Special CDS in CPP block
-#define CAM_QCOM_FEATURE_MAX            (1U<<27)
+#define CAM_QCOM_FEATURE_SW2D           (1U<<27)
+#define CAM_QCOM_FEATURE_MAX            (1U<<28)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
