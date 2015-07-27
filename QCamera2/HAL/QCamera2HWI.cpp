@@ -1674,6 +1674,9 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
          }
          dlclose(lib_surface_utils);
     }
+
+    pthread_mutex_init(&mGrallocLock, NULL);
+    mEnqueuedBuffers = 0;
 }
 
 /*===========================================================================
@@ -1708,6 +1711,7 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     pthread_mutex_destroy(&m_parm_lock);
     pthread_mutex_destroy(&m_int_lock);
     pthread_cond_destroy(&m_int_cond);
+    pthread_mutex_destroy(&mGrallocLock);
     CDBG_HIGH("%s: X", __func__);
 }
 
@@ -2598,6 +2602,14 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                             dim.width,dim.height, stride, scanline,
                             mParameters.getPreviewHalPixelFormat(),
                             maxFPS, usage);
+                    pthread_mutex_lock(&mGrallocLock);
+                    if (bufferCnt > CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS) {
+                        mEnqueuedBuffers = (bufferCnt -
+                                CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS);
+                    } else {
+                        mEnqueuedBuffers = 0;
+                    }
+                    pthread_mutex_unlock(&mGrallocLock);
                 }
                 mem = grallocMemory;
             }
@@ -6423,6 +6435,8 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         } else {
             rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                     preview_stream_cb_routine, this);
+            pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
+                    synchronous_stream_cb_routine);
         }
     }
 
@@ -6700,6 +6714,8 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     } else {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                 preview_stream_cb_routine, this);
+        pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
+                synchronous_stream_cb_routine);
     }
     if (rc != NO_ERROR) {
         ALOGE("%s: add preview stream failed, ret = %d", __func__, rc);
@@ -6820,6 +6836,8 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
             ALOGE("%s: add preview stream failed, ret = %d", __func__, rc);
             return rc;
         }
+        pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
+                synchronous_stream_cb_routine);
     }
 
     if (!mParameters.getofflineRAW()) {

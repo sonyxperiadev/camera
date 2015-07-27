@@ -535,6 +535,8 @@ private:
     static void preview_stream_cb_routine(mm_camera_super_buf_t *frame,
                                           QCameraStream *stream,
                                           void *userdata);
+    static void synchronous_stream_cb_routine(mm_camera_super_buf_t *frame,
+            QCameraStream *stream, void *userdata);
     static void postview_stream_cb_routine(mm_camera_super_buf_t *frame,
                                            QCameraStream *stream,
                                            void *userdata);
@@ -746,6 +748,7 @@ private:
     mm_jpeg_mpo_ops_t     mJpegMpoHandle;
     uint32_t              mJpegClientHandle;
     bool                  mJpegHandleOwner;
+
    //ts add for makeup
 #ifdef TARGET_TS_MAKEUP
     TSRect mFaceRect;
@@ -763,6 +766,10 @@ private:
     QCameraMemory *mMetadataMem;
 
     static uint32_t sNextJobId;
+
+    //Gralloc memory details
+    pthread_mutex_t mGrallocLock;
+    uint8_t mEnqueuedBuffers;
 };
 
 }; // namespace qcamera

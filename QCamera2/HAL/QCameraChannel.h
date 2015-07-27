@@ -69,6 +69,8 @@ public:
     QCameraStream *getStreamByServerID(uint32_t serverID);
     int32_t UpdateStreamBasedParameters(QCameraParameters &param);
     void deleteChannel();
+    int32_t setStreamSyncCB (cam_stream_type_t stream_type,
+            stream_cb_routine stream_cb);
 
 protected:
     uint32_t m_camHandle;
