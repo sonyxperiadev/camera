@@ -1926,6 +1926,47 @@ static int32_t mm_camera_intf_process_advanced_capture(uint32_t camera_handle,
     return rc;
 }
 
+/*===========================================================================
+ * FUNCTION   : mm_camera_intf_register_stream_buf_cb
+ *
+ * DESCRIPTION: Register special callback for stream buffer
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *   @ch_id        : channel handle
+ *   @stream_id    : stream handle
+ *   @buf_cb       : callback function
+ *   @buf_type     :SYNC/ASYNC
+ *   @userdata     : userdata pointer
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              1 -- failure
+ *==========================================================================*/
+static int32_t mm_camera_intf_register_stream_buf_cb(uint32_t camera_handle,
+        uint32_t ch_id, uint32_t stream_id, mm_camera_buf_notify_t buf_cb,
+        mm_camera_stream_cb_type cb_type, void *userdata)
+{
+    int32_t rc = 0;
+    mm_camera_obj_t * my_obj = NULL;
+
+    CDBG("%s : E handle = %u ch_id = %u",
+         __func__, camera_handle, ch_id);
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_reg_stream_buf_cb(my_obj, ch_id, stream_id,
+                buf_cb, cb_type, userdata);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+    return (int32_t)rc;
+}
+
 struct camera_info *get_cam_info(uint32_t camera_id, cam_sync_type_t *pCamType)
 {
     *pCamType = g_cam_ctrl.cam_type[camera_id];
@@ -1976,7 +2017,8 @@ static mm_camera_ops_t mm_camera_ops = {
     .process_advanced_capture = mm_camera_intf_process_advanced_capture,
     .get_session_id = mm_camera_intf_get_session_id,
     .sync_related_sensors = mm_camera_intf_sync_related_sensors,
-    .flush = mm_camera_intf_flush
+    .flush = mm_camera_intf_flush,
+    .register_stream_buf_cb = mm_camera_intf_register_stream_buf_cb
 };
 
 /*===========================================================================

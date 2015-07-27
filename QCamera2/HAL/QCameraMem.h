@@ -34,6 +34,7 @@
 #include <utils/Mutex.h>
 #include <utils/List.h>
 #include <qdMetaData.h>
+#include <utils/Timers.h>
 
 extern "C" {
 #include <sys/types.h>
@@ -253,6 +254,8 @@ public:
     // Returns the buffer index of the dequeued buffer.
     int displayBuffer(uint32_t index);
     void setMaxFPS(int maxFPS);
+    int32_t enqueueBuffer(uint32_t index, nsecs_t timeStamp = 0);
+    int32_t dequeueBuffer();
 
 private:
     buffer_handle_t *mBufferHandle[MM_CAMERA_MAX_NUM_FRAMES];
@@ -265,6 +268,8 @@ private:
     int mMinUndequeuedBuffers;
     enum ColorSpace_t mColorSpace;
     uint8_t mMappableBuffers;
+    pthread_mutex_t mLock;
+    uint8_t mEnqueuedBuffers;
 };
 
 }; // namespace qcamera

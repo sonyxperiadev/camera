@@ -276,6 +276,7 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mDumpFrame(0),
         mDumpMetaFrame(0),
         mDumpSkipCnt(0),
+        mStreamTimestamp(0),
         mCamHandle(camHandle),
         mChannelHandle(chId),
         mHandle(0),
@@ -286,6 +287,7 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mNumBufsNeedAlloc(0),
         mRegFlags(NULL),
         mDataCB(NULL),
+        mSYNCDataCB(NULL),
         mUserData(NULL),
         mDataQ(releaseFrameData, this),
         mStreamInfoBuf(NULL),
@@ -879,6 +881,36 @@ int32_t QCameraStream::processDataNotify(mm_camera_super_buf_t *frame)
         return NO_ERROR;
     }
 }
+
+/*===========================================================================
+ * FUNCTION   : dataNotifySYNCCB
+ *
+ * DESCRIPTION: This function registered with interface for
+ *                        SYNC callback if SYNC callback registered.
+ *
+ * PARAMETERS :
+ *   @recvd_frame   : stream frame received
+ *   @userdata      : user data ptr
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraStream::dataNotifySYNCCB(mm_camera_super_buf_t *recvd_frame,
+        void *userdata)
+{
+    CDBG("%s:\n", __func__);
+    QCameraStream* stream = (QCameraStream *)userdata;
+    if (stream == NULL ||
+        recvd_frame == NULL ||
+        recvd_frame->bufs[0] == NULL ||
+        recvd_frame->bufs[0]->stream_id != stream->getMyHandle()) {
+        ALOGE("%s: Not a valid stream to handle buf", __func__);
+        return;
+    }
+    if (stream->mSYNCDataCB != NULL)
+        stream->mSYNCDataCB(recvd_frame, stream, stream->mUserData);
+    return;
+}
+
 
 /*===========================================================================
  * FUNCTION   : dataNotifyCB
@@ -2321,6 +2353,7 @@ int32_t QCameraStream::configStream()
     mm_camera_stream_config_t stream_config;
     stream_config.stream_info = mStreamInfo;
     stream_config.mem_vtbl = mMemVtbl;
+    stream_config.stream_cb_sync = NULL;
     stream_config.stream_cb = dataNotifyCB;
     stream_config.padding_info = mPaddingInfo;
     stream_config.userdata = this;
@@ -2338,6 +2371,30 @@ int32_t QCameraStream::configStream()
     }
 
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setSyncDataCB
+ *
+ * DESCRIPTION: register callback with mm-interface for this stream
+ *
+ * PARAMETERS :
+       @stream_cb   : Callback function
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              non-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::setSyncDataCB(stream_cb_routine data_cb)
+{
+    if (mCamOps != NULL) {
+        mSYNCDataCB = data_cb;
+        return mCamOps->register_stream_buf_cb(mCamHandle,
+                mChannelHandle, mHandle, dataNotifySYNCCB, MM_CAMERA_STREAM_CB_TYPE_SYNC,
+                this);
+    }
+    ALOGE("%s: Interface handle is NULL", __func__);
+    return UNKNOWN_ERROR;
 }
 
 }; // namespace qcamera
