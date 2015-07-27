@@ -2166,3 +2166,54 @@ int32_t mm_camera_sync_related_sensors(mm_camera_obj_t *my_obj,
     pthread_mutex_unlock(&my_obj->cam_lock);
     return rc;
 }
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_reg_stream_buf_cb
+ *
+ * DESCRIPTION: Register callback for stream buffer
+ *
+ * PARAMETERS :
+ *   @my_obj    : camera object
+ *   @ch_id     : channel handle
+ *   @stream_id : stream that will be linked
+ *   @buf_cb    : special callback needs to be registered for stream buffer
+ *   @cb_type   : Callback type SYNC/ASYNC
+ *   @userdata  : user data pointer
+ *
+ * RETURN    : int32_t type of status
+ *             0  -- success
+ *             1 --  failure
+ *==========================================================================*/
+int32_t mm_camera_reg_stream_buf_cb(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id, mm_camera_buf_notify_t stream_cb,
+        mm_camera_stream_cb_type cb_type, void *userdata)
+{
+    int rc = 0;
+    mm_stream_t *stream = NULL;
+    mm_stream_data_cb_t buf_cb;
+    mm_channel_t * ch_obj =
+            mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+
+    if (NULL != ch_obj) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+
+        memset(&buf_cb, 0, sizeof(mm_stream_data_cb_t));
+        buf_cb.cb = stream_cb;
+        buf_cb.cb_count = -1;
+        buf_cb.cb_type = cb_type;
+        buf_cb.user_data = userdata;
+
+        mm_evt_paylod_reg_stream_buf_cb payload;
+        memset(&payload, 0, sizeof(mm_evt_paylod_reg_stream_buf_cb));
+        payload.buf_cb = buf_cb;
+        payload.stream_id = stream_id;
+        mm_channel_fsm_fn(ch_obj,
+                MM_CHANNEL_EVT_REG_STREAM_BUF_CB,
+                (void*)&payload, NULL);
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+    }
+    return rc;
+}
+
