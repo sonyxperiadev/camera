@@ -908,8 +908,9 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_FLIP,                         int32_t,                     1);
     INCLUDE(CAM_INTF_META_USE_AV_TIMER,                 uint8_t,                     1);
     INCLUDE(CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,    float,                       1);
-    INCLUDE(CAM_INTF_META_BLACK_LEVEL_IND,              cam_black_level_metadata_t,  1);
     INCLUDE(CAM_INTF_META_LDAF_EXIF,                    uint32_t,                    2);
+    INCLUDE(CAM_INTF_META_BLACK_LEVEL_SOURCE_PATTERN,   cam_black_level_metadata_t,  1);
+    INCLUDE(CAM_INTF_META_BLACK_LEVEL_APPLIED_PATTERN,  cam_black_level_metadata_t,  1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

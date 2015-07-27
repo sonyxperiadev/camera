@@ -4308,18 +4308,30 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR, effectiveExposureFactor, 1);
     }
 
-    IF_META_AVAILABLE(cam_black_level_metadata_t, blackLevelInd, CAM_INTF_META_BLACK_LEVEL_IND, metadata) {
-        int32_t fwk_blackLevelInd[4];
-        fwk_blackLevelInd[0] = blackLevelInd->cam_black_level[0];
-        fwk_blackLevelInd[1] = blackLevelInd->cam_black_level[1];
-        fwk_blackLevelInd[2] = blackLevelInd->cam_black_level[2];
-        fwk_blackLevelInd[3] = blackLevelInd->cam_black_level[3];
+    IF_META_AVAILABLE(cam_black_level_metadata_t, blackLevelSourcePattern,
+        CAM_INTF_META_BLACK_LEVEL_SOURCE_PATTERN, metadata) {
 
-        CDBG("%s: dynamicblackLevel = %d %d %d %d", __func__,
-            blackLevelInd->cam_black_level[0],
-            blackLevelInd->cam_black_level[1],
-            blackLevelInd->cam_black_level[2],
-            blackLevelInd->cam_black_level[3]);
+        CDBG("%s: dynamicblackLevel = %f %f %f %f", __func__,
+          blackLevelSourcePattern->cam_black_level[0],
+          blackLevelSourcePattern->cam_black_level[1],
+          blackLevelSourcePattern->cam_black_level[2],
+          blackLevelSourcePattern->cam_black_level[3]);
+    }
+
+    IF_META_AVAILABLE(cam_black_level_metadata_t, blackLevelAppliedPattern,
+        CAM_INTF_META_BLACK_LEVEL_APPLIED_PATTERN, metadata) {
+        float fwk_blackLevelInd[4];
+
+        fwk_blackLevelInd[0] = blackLevelAppliedPattern->cam_black_level[0];
+        fwk_blackLevelInd[1] = blackLevelAppliedPattern->cam_black_level[1];
+        fwk_blackLevelInd[2] = blackLevelAppliedPattern->cam_black_level[2];
+        fwk_blackLevelInd[3] = blackLevelAppliedPattern->cam_black_level[3];
+
+        CDBG("%s: applied dynamicblackLevel = %f %f %f %f", __func__,
+          blackLevelAppliedPattern->cam_black_level[0],
+          blackLevelAppliedPattern->cam_black_level[1],
+          blackLevelAppliedPattern->cam_black_level[2],
+          blackLevelAppliedPattern->cam_black_level[3]);
         camMetadata.update(QCAMERA3_SENSOR_DYNAMIC_BLACK_LEVEL_PATTERN, fwk_blackLevelInd, 4);
     }
 

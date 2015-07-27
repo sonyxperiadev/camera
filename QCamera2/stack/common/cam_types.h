@@ -1870,8 +1870,9 @@ typedef enum {
     /* Special event to request stream frames*/
     CAM_INTF_PARM_REQUEST_FRAMES,
     /*Black level parameters*/
-    CAM_INTF_META_BLACK_LEVEL_IND,
     CAM_INTF_META_LDAF_EXIF,
+    CAM_INTF_META_BLACK_LEVEL_SOURCE_PATTERN,
+    CAM_INTF_META_BLACK_LEVEL_APPLIED_PATTERN,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -1888,7 +1889,7 @@ typedef struct {
 } cam_ez_force_params_t;
 
 typedef struct {
-    uint32_t cam_black_level[4];
+    float cam_black_level[4];
 } cam_black_level_metadata_t;
 
 typedef enum {
