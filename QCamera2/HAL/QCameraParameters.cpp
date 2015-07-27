@@ -432,6 +432,10 @@ const char QCameraParameters::KEY_TS_MAKEUP[] = "tsmakeup";
 const char QCameraParameters::KEY_TS_MAKEUP_WHITEN[] = "tsmakeup_whiten";
 const char QCameraParameters::KEY_TS_MAKEUP_CLEAN[] = "tsmakeup_clean";
 #endif
+
+//KEY to share HFR batch size with video encoder.
+const char QCameraParameters::KEY_QC_VIDEO_BATCH_SIZE[] = "video-batch-size";
+
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
 
@@ -1714,26 +1718,24 @@ int32_t QCameraParameters::setPreviewFormat(const QCameraParameters& params)
     int32_t previewFormat = lookupAttr(PREVIEW_FORMATS_MAP,
             PARAM_MAP_SIZE(PREVIEW_FORMATS_MAP), str);
     if (previewFormat != NAME_NOT_FOUND) {
-#if UBWC_PRESENT
-        char prop[PROPERTY_VALUE_MAX];
-        int pFormat;
-        memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.preview.ubwc", prop, "1");
+        if (isUBWCEnabled()) {
+            char prop[PROPERTY_VALUE_MAX];
+            int pFormat;
+            memset(prop, 0, sizeof(prop));
+            property_get("persist.camera.preview.ubwc", prop, "1");
 
-        pFormat = atoi(prop);
-        if (pFormat == 1) {
-            mPreviewFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
-            mAppPreviewFormat = (cam_format_t)previewFormat;
+            pFormat = atoi(prop);
+            if (pFormat == 1) {
+                mPreviewFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
+                mAppPreviewFormat = (cam_format_t)previewFormat;
+            } else {
+                mPreviewFormat = (cam_format_t)previewFormat;
+                mAppPreviewFormat = (cam_format_t)previewFormat;
+            }
         } else {
             mPreviewFormat = (cam_format_t)previewFormat;
             mAppPreviewFormat = (cam_format_t)previewFormat;
         }
-#else
-        {
-            mPreviewFormat = (cam_format_t)previewFormat;
-            mAppPreviewFormat = (cam_format_t)previewFormat;
-        }
-#endif
         CameraParameters::setPreviewFormat(str);
         CDBG_HIGH("%s: format %d\n", __func__, mPreviewFormat);
         return NO_ERROR;
@@ -2161,6 +2163,19 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
         m_hfrFpsRange.video_max_fps = 0;
         m_bHfrMode = false;
         CDBG_HIGH("HFR mode is OFF");
+    }
+    m_hfrFpsRange.min_fps = (float)parm_minfps;
+    m_hfrFpsRange.max_fps = (float)parm_maxfps;
+
+    if (m_bHfrMode && (mHfrMode > CAM_HFR_MODE_120FPS)
+            && (parm_maxfps != 0)) {
+        //Configure buffer batch count to use batch mode for higher fps
+        setBufBatchCount((int8_t)(m_hfrFpsRange.video_max_fps / parm_maxfps));
+        set(KEY_QC_VIDEO_BATCH_SIZE, getBufBatchCount());
+    } else {
+        //Reset batch count and update KEY for encoder
+        setBufBatchCount(0);
+        set(KEY_QC_VIDEO_BATCH_SIZE, getBufBatchCount());
     }
     return updateNeeded;
 }
@@ -5541,6 +5556,8 @@ int32_t QCameraParameters::initDefaultParameters()
 
     //Check for EZTune
     setEztune();
+    //Default set for video batch size
+    set(KEY_QC_VIDEO_BATCH_SIZE, 0);
 
     return rc;
 }
@@ -5885,9 +5902,6 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
                   fps_range.video_min_fps, fps_range.video_max_fps);
         }
     }
-
-    /* Setting Buffer batch count to use batch mode for higher fps*/
-    setBufBatchCount((int8_t)(fps_range.video_max_fps / fps_range.max_fps));
 
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
         return BAD_VALUE;
@@ -9132,8 +9146,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
-#if UBWC_PRESENT
-        {
+        if (isUBWCEnabled()) {
             char prop[PROPERTY_VALUE_MAX];
             int pFormat;
             memset(prop, 0, sizeof(prop));
@@ -9144,12 +9157,13 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             } else {
                 format = CAM_FORMAT_YUV_420_NV21_VENUS;
             }
-        }
-#elif VENUS_PRESENT
-        format = CAM_FORMAT_YUV_420_NV21_VENUS;
+        } else {
+#if VENUS_PRESENT
+            format = CAM_FORMAT_YUV_420_NV21_VENUS;
 #else
-        format = CAM_FORMAT_YUV_420_NV21;
+            format = CAM_FORMAT_YUV_420_NV21;
 #endif
+        }
         break;
     case CAM_STREAM_TYPE_RAW:
         if (isRdiMode()) {
@@ -9369,11 +9383,9 @@ int QCameraParameters::getPreviewHalPixelFormat()
     case CAM_FORMAT_YUV_420_NV21_VENUS:
         halPixelFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP_VENUS;
         break;
-#ifdef UBWC_PRESENT
     case CAM_FORMAT_YUV_420_NV12_UBWC:
         halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS_UBWC;
         break;
-#endif
     case CAM_FORMAT_YUV_422_NV16:
     case CAM_FORMAT_YUV_422_NV61:
     default:
@@ -10907,7 +10919,7 @@ int32_t QCameraParameters::getRelatedCamCalibration(
     READ_PARAM_ENTRY(m_pParamBuf,
             CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION, *calib);
 
-    CDBG("%s: CALIB version %f ",__func__, calib->calibration_format_version);
+    CDBG("%s: CALIB version %d ",__func__, calib->calibration_format_version);
     CDBG("%s: CALIB normalized_focal_length %f ", __func__,
             calib->main_cam_specific_calibration.normalized_focal_length);
     CDBG("%s: CALIB native_sensor_resolution_width %d ", __func__,
@@ -12251,7 +12263,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         if (m_nMinRequiredPpMask & CAM_QCOM_FEATURE_EFFECT) {
             feature_mask |= CAM_QCOM_FEATURE_EFFECT;
         }
-        if (isWNREnabled() && (getRecordingHintValue() == false)) {
+        if (isWNREnabled()) {
             feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
         }
 
@@ -12389,7 +12401,21 @@ void QCameraParameters::setReprocCount()
 bool QCameraParameters::isUBWCEnabled()
 {
 #ifdef UBWC_PRESENT
-    return TRUE;
+    char value[PROPERTY_VALUE_MAX];
+    int disable = false;
+    bool ubwc_enabled = TRUE;
+
+    property_get("debug.gralloc.gfx_ubwc_disable", value, "0");
+    disable = atoi(value);
+    if (disable) {
+        ubwc_enabled = FALSE;
+    }
+
+    //Disable UBWC if it is YUV sensor
+    if (m_pCapability->sensor_type.sens_type == CAM_SENSOR_YUV) {
+        ubwc_enabled = FALSE;
+    }
+    return ubwc_enabled;
 #else
     return FALSE;
 #endif

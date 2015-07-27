@@ -1463,16 +1463,15 @@ int QCamera3HardwareInterface::configureStreams(
                 }
             }
 
-#if UBWC_PRESENT
-            {
-                QCamera3Channel *channel = (QCamera3Channel*) newStream->priv;
+            QCamera3Channel *channel = (QCamera3Channel*) newStream->priv;
+            if (channel != NULL && channel->isUBWCEnabled()) {
                 cam_format_t fmt =
                         channel->getStreamDefaultFormat(mStreamConfigInfo.type[i]);
                 if(fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
                     newStream->usage |= GRALLOC_USAGE_PRIVATE_ALLOC_UBWC;
                 }
             }
-#endif
+
             for (List<stream_info_t*>::iterator it=mStreamInfo.begin();
                     it != mStreamInfo.end(); it++) {
                 if ((*it)->stream == newStream) {
@@ -2001,7 +2000,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             notify_msg.type = CAMERA3_MSG_SHUTTER;
             notify_msg.message.shutter.frame_number = i->frame_number;
             notify_msg.message.shutter.timestamp = (uint64_t)capture_time -
-                    (urgent_frame_number - i->frame_number) * NSEC_PER_33MSEC;
+                    (frame_number - i->frame_number) * NSEC_PER_33MSEC;
             mCallbackOps->notify(mCallbackOps, &notify_msg);
             i->timestamp = (nsecs_t)notify_msg.message.shutter.timestamp;
             CDBG("%s: Support notification !!!! notify frame_number = %u, capture_time = %llu",

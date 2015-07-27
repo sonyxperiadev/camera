@@ -561,6 +561,7 @@ private:
     bool mCameraOpened;
 
     cam_related_system_calibration_data_t mRelCamCalibData;
+    bool m_bRelCamCalibValid;
 
     preview_stream_ops_t *mPreviewWindow;
     QCameraParameters mParameters;
@@ -645,6 +646,7 @@ private:
     enum DefferedWorkCmd {
         CMD_DEFF_ALLOCATE_BUFF,
         CMD_DEFF_PPROC_START,
+        CMD_DEFF_CREATE_JPEG_SESSION,
         CMD_DEFF_MAX
     };
 
@@ -689,6 +691,7 @@ private:
     int32_t mPostviewJob;
     int32_t mMetadataJob;
     int32_t mReprocJob;
+    int32_t mJpegJob;
     int32_t mRawdataJob;
     uint32_t mOutputCount;
     uint32_t mInputCount;

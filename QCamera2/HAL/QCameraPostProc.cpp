@@ -221,6 +221,7 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
     int32_t rc = NO_ERROR;
     QCameraChannel *pInputChannel = pSrcChannel;
 
+    CDBG_HIGH("%s: E ", __func__);
     if (m_bInited == FALSE) {
         ALOGE("%s: postproc not initialized yet", __func__);
         return UNKNOWN_ERROR;
@@ -283,8 +284,83 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
     m_InputMetadata.clear();
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, TRUE, FALSE);
     m_parent->m_cbNotifier.startSnapshots();
+    CDBG_HIGH("%s: X ", __func__);
+    return rc;
+}
 
-    // Create Jpeg session
+/*===========================================================================
+ * FUNCTION   : stop
+ *
+ * DESCRIPTION: stop postprocessor. Data process and notify thread will be stopped.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *
+ * NOTE       : reprocess channel will be stopped and deleted if there is any
+ *==========================================================================*/
+int32_t QCameraPostProcessor::stop()
+{
+    if (m_bInited == TRUE) {
+        m_parent->m_cbNotifier.stopSnapshots();
+
+        if (m_DataMem != NULL) {
+            m_DataMem->release(m_DataMem);
+            m_DataMem = NULL;
+        }
+
+        // dataProc Thread need to process "stop" as sync call because abort jpeg job should be a sync call
+        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
+    }
+    // stop reproc channel if exists
+    for (int8_t i = 0; i < mTotalNumReproc; i++) {
+        QCameraReprocessChannel *pChannel = mPPChannels[i];
+        if (pChannel != NULL) {
+            pChannel->stop();
+            delete pChannel;
+            pChannel = NULL;
+            m_parent->mParameters.setCurPPCount((int8_t)
+                    (m_parent->mParameters.getCurPPCount() - 1));
+        }
+    }
+    mTotalNumReproc = 0;
+    m_parent->mParameters.setCurPPCount(0);
+    m_PPindex = 0;
+    m_InputMetadata.clear();
+
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : createJpegSession
+ *
+ * DESCRIPTION: start JPEG session in parallel to reproces to reduce the KPI
+ *
+ * PARAMETERS :
+ *   @pSrcChannel : source channel obj ptr that possibly needs reprocess
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraPostProcessor::createJpegSession(QCameraChannel *pSrcChannel)
+{
+    int32_t rc = NO_ERROR;
+    QCameraChannel *pInputChannel = pSrcChannel;
+
+    CDBG_HIGH("%s: E ", __func__);
+    if (m_bInited == FALSE) {
+        ALOGE("%s: postproc not initialized yet", __func__);
+        return UNKNOWN_ERROR;
+    }
+
+    if (pInputChannel == NULL) {
+        ALOGE("%s : Input Channel for pproc is NULL.", __func__);
+        return UNKNOWN_ERROR;
+    }
+
     if ( !m_parent->mParameters.getRecordingHintValue() &&
             !m_parent->isLongshotEnabled() && (mTotalNumReproc > 0)) {
 
@@ -360,53 +436,8 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
             mNewJpegSessionNeeded = false;
         }
     }
-
+    CDBG_HIGH("%s: X ", __func__);
     return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : stop
- *
- * DESCRIPTION: stop postprocessor. Data process and notify thread will be stopped.
- *
- * PARAMETERS : None
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *
- * NOTE       : reprocess channel will be stopped and deleted if there is any
- *==========================================================================*/
-int32_t QCameraPostProcessor::stop()
-{
-    if (m_bInited == TRUE) {
-        m_parent->m_cbNotifier.stopSnapshots();
-
-        if (m_DataMem != NULL) {
-            m_DataMem->release(m_DataMem);
-            m_DataMem = NULL;
-        }
-
-        // dataProc Thread need to process "stop" as sync call because abort jpeg job should be a sync call
-        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
-    }
-    // stop reproc channel if exists
-    for (int8_t i = 0; i < mTotalNumReproc; i++) {
-        QCameraReprocessChannel *pChannel = mPPChannels[i];
-        if (pChannel != NULL) {
-            pChannel->stop();
-            delete pChannel;
-            pChannel = NULL;
-            m_parent->mParameters.setCurPPCount((int8_t)
-                    (m_parent->mParameters.getCurPPCount() - 1));
-        }
-    }
-    mTotalNumReproc = 0;
-    m_parent->mParameters.setCurPPCount(0);
-    m_PPindex = 0;
-    m_InputMetadata.clear();
-
-    return NO_ERROR;
 }
 
 /*===========================================================================
