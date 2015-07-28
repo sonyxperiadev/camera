@@ -1231,6 +1231,9 @@ uint32_t mm_channel_add_stream(mm_channel_t *my_obj)
     pthread_mutex_init(&stream_obj->buf_lock, NULL);
     pthread_mutex_init(&stream_obj->cb_lock, NULL);
     pthread_mutex_init(&stream_obj->cmd_lock, NULL);
+    pthread_cond_init(&stream_obj->buf_cond, NULL);
+    memset(stream_obj->buf_status, 0,
+            sizeof(stream_obj->buf_status));
     stream_obj->state = MM_STREAM_STATE_INITED;
 
     /* acquire stream */
@@ -1239,6 +1242,7 @@ uint32_t mm_channel_add_stream(mm_channel_t *my_obj)
         s_hdl = stream_obj->my_hdl;
     } else {
         /* error during acquire, de-init */
+        pthread_cond_destroy(&stream_obj->buf_cond);
         pthread_mutex_destroy(&stream_obj->buf_lock);
         pthread_mutex_destroy(&stream_obj->cb_lock);
         pthread_mutex_destroy(&stream_obj->cmd_lock);
