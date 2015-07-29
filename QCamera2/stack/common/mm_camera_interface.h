@@ -281,13 +281,15 @@ typedef struct {
 *    @padding_info: padding info obtained from querycapability
 *    @mem_tbl : memory operation table for
 *              allocating/deallocating stream buffers
-*    @stream_cb : callback handling stream frame notify
+*    @stream_cb_sync : SYNC callback handling stream frame notify
+*    @stream_cb : ASYNC callback handling stream frame notify
 *    @userdata : user data pointer
 **/
 typedef struct {
     cam_stream_info_t *stream_info;
     cam_padding_info_t padding_info;
     mm_camera_stream_mem_vtbl_t mem_vtbl;
+    mm_camera_buf_notify_t stream_cb_sync;
     mm_camera_buf_notify_t stream_cb;
     void *userdata;
 } mm_camera_stream_config_t;
@@ -342,6 +344,18 @@ typedef enum {
    MM_CAMERA_ZOOM_1X,
    MM_CAMERA_FRAME_CAPTURE,
 } mm_camera_advanced_capture_t;
+
+/** mm_camera_stream_cb_type: enum for stream buffer callback type.
+*    @MM_CAMERA_STREAM_CB_TYPE_ASYNC :
+*       callback is async type. buffer process done in client thread context
+*    @MM_CAMERA_STREAM_CB_TYPE_SYNC :
+*       callback is sync type. buffer process done interface thread context
+**/
+typedef enum {
+    MM_CAMERA_STREAM_CB_TYPE_ASYNC,
+    MM_CAMERA_STREAM_CB_TYPE_SYNC,
+} mm_camera_stream_cb_type;
+
 
 /** mm_camera_channel_attr_t: structure for defining channel
 *                             attributes
@@ -830,6 +844,20 @@ typedef struct {
      *               -1 -- failure
      **/
     int32_t (*flush) (uint32_t camera_handle);
+
+   /** register_stream_buf_cb: fucntion definition for registering special stream callbacks
+     *    @camera_handle : camer handler
+     *    @ch_id : channel handler
+     *    @stream_id : stream handler
+     *    @buf_cb : callback function pointer
+     *    @cb_type : Callback type SYNC/ASYNC
+     *    @userdata : user data pointer
+     *    Return value: 0 -- success
+     *                -       1 -- failure
+     **/
+    int32_t (*register_stream_buf_cb) (uint32_t camera_handle,
+            uint32_t ch_id, uint32_t stream_id, mm_camera_buf_notify_t buf_cb,
+            mm_camera_stream_cb_type cb_type, void *userdata);
 } mm_camera_ops_t;
 
 /** mm_camera_vtbl_t: virtual table for camera operations

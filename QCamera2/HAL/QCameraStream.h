@@ -73,6 +73,8 @@ public:
     virtual int32_t releaseBuffs();
 
     static void dataNotifyCB(mm_camera_super_buf_t *recvd_frame, void *userdata);
+    static void dataNotifySYNCCB(mm_camera_super_buf_t *recvd_frame,
+            void *userdata);
     static void *dataProcRoutine(void *data);
     static void *BufAllocRoutine(void *data);
     uint32_t getMyHandle() const {return mHandle;}
@@ -121,6 +123,10 @@ public:
     void cond_wait();
     void cond_signal(bool forceExit = false);
 
+    int32_t setSyncDataCB(stream_cb_routine data_cb);
+    //Stream time stamp. We need this for preview stream to update display
+    nsecs_t mStreamTimestamp;
+
 private:
     uint32_t mCamHandle;
     uint32_t mChannelHandle;
@@ -133,6 +139,7 @@ private:
     uint8_t mNumBufsNeedAlloc;
     uint8_t *mRegFlags;
     stream_cb_routine mDataCB;
+    stream_cb_routine mSYNCDataCB;
     void *mUserData;
 
     QCameraQueue     mDataQ;
@@ -216,7 +223,6 @@ private:
     bool wait_for_cond;
     pthread_mutex_t m_lock;
     pthread_cond_t m_cond;
-
 };
 
 }; // namespace qcamera
