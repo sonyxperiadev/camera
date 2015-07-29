@@ -5883,8 +5883,6 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     if (rc != NO_ERROR) {
         ALOGE("%s: add stream type (%d) failed, ret = %d",
               __func__, streamType, rc);
-        pStreamInfo->deallocate();
-        delete pStreamInfo;
         // Returning error will delete corresponding channel but at the same time some of
         // deferred streams in same channel might be still in process of allocating buffers
         // by CAM_defrdWrk thread.
@@ -6924,8 +6922,6 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addOfflineReprocChannel(
 
     if (rc != NO_ERROR) {
         ALOGE("%s: add reprocess stream failed, ret = %d", __func__, rc);
-        pStreamInfo->deallocate();
-        delete pStreamInfo;
         delete pChannel;
         return NULL;
     }
