@@ -49,6 +49,7 @@ class QCamera3PicChannel;
 class QCamera3ReprocessChannel;
 class QCamera3Stream;
 class QCamera3Memory;
+class QCamera3StreamMem;
 
 typedef struct {
     camera3_stream_buffer_t src_frame;// source frame
@@ -81,6 +82,12 @@ typedef struct {
     mm_camera_super_buf_t *src_metadata;
 } qcamera_hal3_pp_data_t;
 
+typedef struct {
+    mm_camera_super_buf_t *input;
+    buffer_handle_t *output;
+    uint32_t frameNumber;
+} qcamera_hal3_pp_buffer_t;
+
 #define MAX_HAL3_EXIF_TABLE_ENTRIES 22
 class QCamera3Exif
 {
@@ -106,7 +113,7 @@ public:
     QCamera3PostProcessor(QCamera3ProcessingChannel *ch_ctrl);
     virtual ~QCamera3PostProcessor();
 
-    int32_t init(QCamera3Memory *mMemory,
+    int32_t init(QCamera3StreamMem *mMemory,
             uint32_t postprocess_mask);
     int32_t initJpeg(jpeg_encode_callback_t jpeg_cb,
             cam_dimension_t *m_max_pic_dim,
@@ -116,14 +123,17 @@ public:
     int32_t stop();
     int32_t flush();
     int32_t processData(qcamera_fwk_input_pp_data_t *frame);
-    int32_t processData(mm_camera_super_buf_t *frame);
-    int32_t processRawData(mm_camera_super_buf_t *frame);
+    int32_t processData(mm_camera_super_buf_t *input,
+            buffer_handle_t *output, uint32_t frameNumber);
+    int32_t processData(mm_camera_super_buf_t *input);
     int32_t processPPData(mm_camera_super_buf_t *frame);
     int32_t processPPMetadata(mm_camera_super_buf_t *reproc_meta);
     int32_t processJpegSettingData(jpeg_settings_t *jpeg_settings);
+    qcamera_hal3_pp_data_t *dequeuePPJob(uint32_t frameNumber);
     qcamera_hal3_jpeg_data_t *findJpegJobByJobId(uint32_t jobId);
     void releaseJpegJobData(qcamera_hal3_jpeg_data_t *job);
     int32_t releaseOfflineBuffers(bool all);
+    void releasePPJobData(qcamera_hal3_pp_data_t *job);
 
 private:
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
@@ -162,7 +172,7 @@ private:
     uint32_t                   mPostProcMask;
 
     uint32_t                   m_bThumbnailNeeded;
-    QCamera3Memory             *mOutputMem;
+    QCamera3StreamMem          *mOutputMem;
     QCamera3ReprocessChannel *  m_pReprocChannel;
 
     QCameraQueue m_inputPPQ;            // input queue for postproc

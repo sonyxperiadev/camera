@@ -20,7 +20,8 @@ LOCAL_SRC_FILES += \
         HAL3/QCamera3Channel.cpp \
         HAL3/QCamera3VendorTags.cpp \
         HAL3/QCamera3PostProc.cpp \
-        HAL3/QCamera3CropRegionMapper.cpp
+        HAL3/QCamera3CropRegionMapper.cpp \
+        HAL3/QCamera3StreamMem.cpp
 
 #HAL 1.0 source
 LOCAL_SRC_FILES += \

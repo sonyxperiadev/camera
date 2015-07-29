@@ -33,6 +33,7 @@
 #include <hardware/camera3.h>
 #include "QCamera3Stream.h"
 #include "QCamera3Mem.h"
+#include "QCamera3StreamMem.h"
 #include "QCamera3PostProc.h"
 #include "QCamera3HALHeader.h"
 #include "utils/Vector.h"
@@ -85,7 +86,7 @@ public:
                             QCamera3Stream *stream) = 0;
 
     virtual int32_t registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType) = 0;
-    virtual QCamera3Memory *getStreamBufs(uint32_t len) = 0;
+    virtual QCamera3StreamMem *getStreamBufs(uint32_t len) = 0;
     virtual void putStreamBufs() = 0;
     virtual int32_t flush();
 
@@ -171,13 +172,15 @@ public:
             metadata_buffer_t* metadata);
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
-    virtual QCamera3Memory *getStreamBufs(uint32_t len);
+    virtual QCamera3StreamMem *getStreamBufs(uint32_t len);
     virtual void putStreamBufs();
     virtual int32_t registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType);
 
+    virtual int32_t stop();
+
     virtual reprocess_type_t getReprocessType() = 0;
 
-    void reprocessCbRoutine(buffer_handle_t *resultBuffer,
+    virtual void reprocessCbRoutine(buffer_handle_t *resultBuffer,
             uint32_t resultFrameNumber);
 
     int32_t queueReprocMetadata(mm_camera_super_buf_t *metadata);
@@ -188,13 +191,15 @@ public:
     int32_t setReprocConfig(reprocess_config_t &reproc_cfg,
             camera3_stream_buffer_t *pInputBuffer,
             metadata_buffer_t *metadata,
-            cam_format_t streamFormat);
+            cam_format_t streamFormat, cam_dimension_t dim);
     int32_t setFwkInputPPData(qcamera_fwk_input_pp_data_t *src_frame,
             camera3_stream_buffer_t *pInputBuffer,
             reprocess_config_t *reproc_cfg,
             metadata_buffer_t *metadata,
             buffer_handle_t *output_buffer,
             uint32_t frameNumber);
+    int32_t checkStreamCbErrors(mm_camera_super_buf_t *super_frame,
+            QCamera3Stream *stream);
 
     QCamera3PostProcessor m_postprocessor; // post processor
     void showDebugFPS(int32_t streamType);
@@ -208,7 +213,7 @@ protected:
     void startPostProc(bool inputBufExists,
             const reprocess_config_t &reproc_cfg);
 
-    QCamera3GrallocMemory mMemory; //output buffer allocated by fwk
+    QCamera3StreamMem mMemory; //output buffer allocated by fwk
     camera3_stream_t *mCamera3Stream;
     uint32_t mNumBufs;
     cam_stream_type_t mStreamType;
@@ -221,11 +226,10 @@ protected:
 
     QCamera3Channel *m_pMetaChannel;
     mm_camera_super_buf_t *mMetaFrame;
-    QCamera3GrallocMemory mOfflineMemory; //reprocessing input buffer
-    QCamera3HeapMemory mOfflineMetaMemory; //reprocessing metadata buffer
+    QCamera3StreamMem mOfflineMemory; //reprocessing input buffer
+    QCamera3StreamMem mOfflineMetaMemory; //reprocessing metadata buffer
 
 private:
-    int32_t stop();
 
     bool m_bWNROn;
 };
@@ -285,13 +289,13 @@ public:
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream);
 
-    virtual QCamera3Memory *getStreamBufs(uint32_t le);
+    virtual QCamera3StreamMem *getStreamBufs(uint32_t le);
     virtual void putStreamBufs();
     virtual int32_t registerBuffer(buffer_handle_t * /*buffer*/, cam_is_type_t /*isType*/)
             { return NO_ERROR; };
 
 private:
-    QCamera3HeapMemory *mMemory;
+    QCamera3StreamMem *mMemory;
 };
 
 /* QCamera3RawChannel is for opaqueu/cross-platform raw stream containing
@@ -345,7 +349,7 @@ public:
     virtual int32_t initialize(cam_is_type_t isType);
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream);
-    virtual QCamera3Memory *getStreamBufs(uint32_t le);
+    virtual QCamera3StreamMem *getStreamBufs(uint32_t le);
     virtual void putStreamBufs();
     virtual int32_t registerBuffer(buffer_handle_t * /*buffer*/, cam_is_type_t /*isType*/)
             { return NO_ERROR; };
@@ -357,7 +361,7 @@ public:
 
 private:
     bool mRawDump;
-    QCamera3HeapMemory *mMemory;
+    QCamera3StreamMem *mMemory;
 };
 
 /* QCamera3YUVChannel is used to handle flexible YUV streams that are directly
@@ -367,19 +371,54 @@ class QCamera3YUVChannel : public QCamera3ProcessingChannel
 {
 public:
     QCamera3YUVChannel(uint32_t cam_handle,
-        mm_camera_ops_t *cam_ops,
-        channel_cb_routine cb_routine,
-        cam_padding_info_t *paddingInfo,
-        void *userData,
-        camera3_stream_t *stream,
-        cam_stream_type_t stream_type,
-        uint32_t postprocess_mask,
-        QCamera3Channel *metadataChannel);
-     ~QCamera3YUVChannel();
+            mm_camera_ops_t *cam_ops,
+            channel_cb_routine cb_routine,
+            cam_padding_info_t *paddingInfo,
+            void *userData,
+            camera3_stream_t *stream,
+            cam_stream_type_t stream_type,
+            uint32_t postprocess_mask,
+            QCamera3Channel *metadataChannel);
+    ~QCamera3YUVChannel();
     virtual int32_t initialize(cam_is_type_t isType);
+    virtual int32_t request(buffer_handle_t *buffer,
+            uint32_t frameNumber,
+            camera3_stream_buffer_t* pInputBuffer,
+            metadata_buffer_t* metadata, bool &needMetadata);
     virtual reprocess_type_t getReprocessType();
     virtual int32_t start();
+    virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
+            QCamera3Stream *stream);
+    virtual void reprocessCbRoutine(buffer_handle_t *resultBuffer,
+        uint32_t resultFrameNumber);
 
+private:
+    typedef struct {
+        uint32_t frameNumber;
+        bool offlinePpFlag;
+        buffer_handle_t *output;
+        mm_camera_super_buf_t *callback_buffer;
+    } PpInfo;
+
+    // Whether offline postprocessing is required for this channel
+    bool mBypass;
+    // Current edge, noise, and crop region setting
+    cam_edge_application_t mEdgeMode;
+    uint32_t mNoiseRedMode;
+    cam_crop_region_t mCropRegion;
+
+    // Mutex to protect mOfflinePpFlagMap and mFreeHeapBufferList
+    Mutex mOfflinePpLock;
+    // Map between free number and whether the request needs to be
+    // postprocessed.
+    List<PpInfo> mOfflinePpInfoList;
+    // Heap buffer index list
+    List<uint32_t> mFreeHeapBufferList;
+
+private:
+    bool needsFramePostprocessing(metadata_buffer_t* meta);
+    int32_t handleOfflinePpCallback(uint32_t resultFrameNumber,
+            Vector<mm_camera_super_buf_t *>& pendingCbs);
 };
 
 /* QCamera3PicChannel is for JPEG stream, which contains a YUV stream generated
@@ -408,7 +447,7 @@ public:
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
 
-    virtual QCamera3Memory *getStreamBufs(uint32_t le);
+    virtual QCamera3StreamMem *getStreamBufs(uint32_t le);
     virtual void putStreamBufs();
     virtual reprocess_type_t getReprocessType();
 
@@ -433,7 +472,7 @@ private:
     uint32_t mNumSnapshotBufs;
     uint32_t mYuvWidth, mYuvHeight;
     int32_t mCurrentBufIndex;
-    QCamera3HeapMemory *mYuvMemory;
+    QCamera3StreamMem *mYuvMemory;
     // Keep a list of free buffers
     Mutex mFreeBuffersLock;
     List<uint32_t> mFreeBufferList;
@@ -455,12 +494,12 @@ public:
     int32_t doReprocessOffline(qcamera_fwk_input_pp_data_t *frame);
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val,
                         mm_camera_super_buf_t *meta_buf);
-    int32_t extractFrameCropAndRotation(mm_camera_super_buf_t *frame,
+    int32_t extractFrameCropAndRotation(qcamera_hal3_pp_buffer_t *pp_buffer,
             mm_camera_buf_def_t *meta_buffer,
             jpeg_settings_t *jpeg_settings,
             qcamera_fwk_input_pp_data_t &fwk_frame);
     int32_t extractCrop(qcamera_fwk_input_pp_data_t *frame);
-    virtual QCamera3Memory *getStreamBufs(uint32_t len);
+    virtual QCamera3StreamMem *getStreamBufs(uint32_t len);
     virtual void putStreamBufs();
     virtual int32_t initialize(cam_is_type_t isType);
     int32_t unmapOfflineBuffers(bool all);
@@ -495,8 +534,8 @@ private:
     uint32_t mSrcStreamHandles[MAX_STREAM_NUM_IN_BUNDLE];
     QCamera3ProcessingChannel *m_pSrcChannel; // ptr to source channel for reprocess
     QCamera3Channel *m_pMetaChannel;
-    QCamera3HeapMemory *mMemory;
-    QCamera3GrallocMemory mGrallocMemory;
+    QCamera3StreamMem *mMemory;
+    QCamera3StreamMem mGrallocMemory;
 };
 
 
@@ -522,14 +561,14 @@ public:
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream);
 
-    virtual QCamera3Memory *getStreamBufs(uint32_t le);
+    virtual QCamera3StreamMem *getStreamBufs(uint32_t le);
     virtual void putStreamBufs();
     virtual int32_t registerBuffer(buffer_handle_t * /*buffer*/, cam_is_type_t /*isType*/)
             { return NO_ERROR; };
 
     static cam_dimension_t kDim;
 private:
-    QCamera3HeapMemory *mMemory;
+    QCamera3StreamMem *mMemory;
     cam_dimension_t mDim;
     cam_stream_type_t mStreamType;
     cam_format_t mStreamFormat;

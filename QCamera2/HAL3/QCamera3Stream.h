@@ -34,6 +34,7 @@
 #include "utils/Mutex.h"
 #include "QCameraCmdThread.h"
 #include "QCamera3Mem.h"
+#include "QCamera3StreamMem.h"
 
 extern "C" {
 #include <mm_camera_interface.h>
@@ -82,7 +83,7 @@ public:
     int32_t getFrameOffset(cam_frame_len_offset_t &offset);
     int32_t getFrameDimension(cam_dimension_t &dim);
     int32_t getFormat(cam_format_t &fmt);
-    QCamera3Memory *getStreamBufs() {return mStreamBufs;};
+    QCamera3StreamMem *getStreamBufs() {return mStreamBufs;};
     uint32_t getMyServerID();
 
     int32_t mapBuf(uint8_t buf_type, uint32_t buf_idx,
@@ -109,7 +110,7 @@ private:
     QCameraCmdThread mProcTh; // thread for dataCB
 
     QCamera3HeapMemory *mStreamInfoBuf;
-    QCamera3Memory *mStreamBufs;
+    QCamera3StreamMem *mStreamBufs;
     mm_camera_buf_def_t *mBufDefs;
     cam_frame_len_offset_t mFrameLenOffset;
     cam_padding_info_t mPaddingInfo;

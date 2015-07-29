@@ -66,6 +66,7 @@ QCamera3Memory::QCamera3Memory()
         mMemInfo[i].main_ion_fd = -1;
         mMemInfo[i].handle = 0;
         mMemInfo[i].size = 0;
+        mCurrentFrameNumbers[i] = -1;
     }
 }
 
@@ -261,7 +262,25 @@ int32_t QCamera3Memory::getBufDef(const cam_frame_len_offset_t &offset,
 QCamera3HeapMemory::QCamera3HeapMemory()
     : QCamera3Memory()
 {
-    for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++)
+    mMaxCnt = MM_CAMERA_MAX_NUM_FRAMES;
+    for (uint32_t i = 0; i < mMaxCnt; i ++)
+        mPtr[i] = NULL;
+}
+
+/*===========================================================================
+ * FUNCTION   : QCamera3HeapMemory
+ *
+ * DESCRIPTION: constructor of QCamera3HeapMemory for ion memory used internally in HAL
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+QCamera3HeapMemory::QCamera3HeapMemory(uint32_t maxCnt)
+    : QCamera3Memory()
+{
+    mMaxCnt = MIN(maxCnt, MM_CAMERA_MAX_NUM_FRAMES);
+    for (uint32_t i = 0; i < mMaxCnt; i ++)
         mPtr[i] = NULL;
 }
 
@@ -276,59 +295,6 @@ QCamera3HeapMemory::QCamera3HeapMemory()
  *==========================================================================*/
 QCamera3HeapMemory::~QCamera3HeapMemory()
 {
-}
-
-/*===========================================================================
- * FUNCTION   : alloc
- *
- * DESCRIPTION: allocate requested number of buffers of certain size
- *
- * PARAMETERS :
- *   @count   : number of buffers to be allocated
- *   @size    : lenght of the buffer to be allocated
- *   @heap_id : heap id to indicate where the buffers will be allocated from
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int QCamera3HeapMemory::alloc(uint32_t count, size_t size, unsigned int heap_id)
-{
-    int rc = OK;
-    if (count > MM_CAMERA_MAX_NUM_FRAMES) {
-        ALOGE("Buffer count %d out of bound. Max is %d", count, MM_CAMERA_MAX_NUM_FRAMES);
-        return BAD_INDEX;
-    }
-    if (mBufferCount) {
-        ALOGE("Allocating a already allocated heap memory");
-        return INVALID_OPERATION;
-    }
-
-    for (uint32_t i = 0; i < count; i ++) {
-        rc = allocOneBuffer(mMemInfo[i], heap_id, size);
-        if (rc < 0) {
-            ALOGE("AllocateIonMemory failed");
-            for (int32_t j = (int32_t)(i - 1); j >= 0; j--)
-                deallocOneBuffer(mMemInfo[j]);
-            break;
-        }
-    }
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : dealloc
- *
- * DESCRIPTION: deallocate buffers
- *
- * PARAMETERS : none
- *
- * RETURN     : none
- *==========================================================================*/
-void QCamera3HeapMemory::dealloc()
-{
-    for (uint32_t i = 0U; i < mBufferCount; i++)
-        deallocOneBuffer(mMemInfo[i]);
 }
 
 /*===========================================================================
@@ -448,6 +414,100 @@ void *QCamera3HeapMemory::getPtrLocked(uint32_t index)
 }
 
 /*===========================================================================
+ * FUNCTION   : markFrameNumber
+ *
+ * DESCRIPTION: We use this function from the request call path to mark the
+ *              buffers with the frame number they are intended for this info
+ *              is used later when giving out callback & it is duty of PP to
+ *              ensure that data for that particular frameNumber/Request is
+ *              written to this buffer.
+ * PARAMETERS :
+ *   @index   : index of the buffer
+ *   @frame#  : Frame number from the framework
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3HeapMemory::markFrameNumber(uint32_t index, uint32_t frameNumber)
+{
+    Mutex::Autolock lock(mLock);
+
+    if (index >= mBufferCount) {
+        ALOGE("%s: Index %d out of bounds, current buffer count is %d",
+                __func__, index, mBufferCount);
+        return BAD_INDEX;
+    }
+
+    if (0 == mMemInfo[index].handle) {
+        ALOGE("%s: Buffer at %d not allocated", __func__, index);
+        return BAD_INDEX;
+    }
+
+    mCurrentFrameNumbers[index] = (int32_t)frameNumber;
+
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : getFrameNumber
+ *
+ * DESCRIPTION: We use this to fetch the frameNumber for the request with which
+ *              this buffer was given to HAL
+ *
+ *
+ * PARAMETERS :
+ *   @index   : index of the buffer
+ *
+ * RETURN     : int32_t frameNumber
+ *              positive/zero  -- success
+ *              negative failure
+ *==========================================================================*/
+int32_t QCamera3HeapMemory::getFrameNumber(uint32_t index)
+{
+    Mutex::Autolock lock(mLock);
+
+    if (index >= mBufferCount) {
+        ALOGE("%s: Index %d out of bounds, current buffer count is %d",
+                __func__, index, mBufferCount);
+        return -1;
+    }
+
+    if (0 == mMemInfo[index].handle) {
+        ALOGE("%s: Buffer at %d not registered", __func__, index);
+        return -1;
+    }
+
+    return mCurrentFrameNumbers[index];
+}
+
+/*===========================================================================
+ * FUNCTION   : getBufferIndex
+ *
+ * DESCRIPTION: We use this to fetch the buffer index for the request with
+ *              a particular frame number
+ *
+ *
+ * PARAMETERS :
+ *   @frameNumber  : frame number of the buffer
+ *
+ * RETURN     : int32_t buffer index
+ *              negative failure
+ *==========================================================================*/
+int32_t QCamera3HeapMemory::getBufferIndex(uint32_t frameNumber)
+{
+    Mutex::Autolock lock(mLock);
+
+    for (uint32_t index = 0;
+            index < mBufferCount; index++) {
+        if (mMemInfo[index].handle &&
+                mCurrentFrameNumbers[index] == (int32_t)frameNumber)
+            return (int32_t)index;
+    }
+    return -1;
+}
+
+/*===========================================================================
  * FUNCTION   : getPtr
  *
  * DESCRIPTION: Return buffer pointer
@@ -479,30 +539,50 @@ void *QCamera3HeapMemory::getPtr(uint32_t index)
 int QCamera3HeapMemory::allocate(uint32_t count, size_t size, bool queueAll)
 {
     unsigned int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
-    int rc = alloc(count, size, heap_id_mask);
-    if (rc < 0)
-        return rc;
+    uint32_t i;
+    int rc = NO_ERROR;
 
-    for (uint32_t i = 0; i < count; i ++) {
+    //Note that now we allow incremental allocation. In other words, we allow
+    //multiple alloc being called as long as the sum of count does not exceed
+    //mMaxCnt.
+    if (mBufferCount + count > mMaxCnt) {
+        ALOGE("Buffer count %d + %d out of bound. Max is %d",
+                mBufferCount, count, mMaxCnt);
+        return BAD_INDEX;
+    }
+
+    for (i = 0; i < count; i ++) {
+        rc = allocOneBuffer(mMemInfo[mBufferCount+i], heap_id_mask, size);
+        if (rc < 0) {
+            ALOGE("AllocateIonMemory failed");
+            goto ALLOC_FAILED;
+        }
+
         void *vaddr = mmap(NULL,
-                    mMemInfo[i].size,
+                    mMemInfo[mBufferCount+i].size,
                     PROT_READ | PROT_WRITE,
                     MAP_SHARED,
-                    mMemInfo[i].fd, 0);
+                    mMemInfo[mBufferCount+i].fd, 0);
         if (vaddr == MAP_FAILED) {
-            for (int32_t j = (int32_t)(i - 1); j >= 0; j --) {
-                munmap(mPtr[j], mMemInfo[j].size);
-                rc = NO_MEMORY;
-                break;
-            }
+            deallocOneBuffer(mMemInfo[mBufferCount+i]);
+            ALOGE("%s: mmap failed for buffer %d", __func__, i);
+            goto ALLOC_FAILED;
         } else
             mPtr[i] = vaddr;
     }
     if (rc == 0)
-        mBufferCount = count;
+        mBufferCount += count;
 
     mQueueAll = queueAll;
     return OK;
+
+ALLOC_FAILED:
+    for (uint32_t j = 0; j < i; j++) {
+        munmap(mPtr[mBufferCount+j], mMemInfo[mBufferCount+j].size);
+        mPtr[mBufferCount+j] = NULL;
+        deallocOneBuffer(mMemInfo[mBufferCount+j]);
+    }
+    return NO_MEMORY;
 }
 
 /*===========================================================================
@@ -519,8 +599,9 @@ void QCamera3HeapMemory::deallocate()
     for (uint32_t i = 0; i < mBufferCount; i++) {
         munmap(mPtr[i], mMemInfo[i].size);
         mPtr[i] = NULL;
+        deallocOneBuffer(mMemInfo[i]);
+        mCurrentFrameNumbers[i] = -1;
     }
-    dealloc();
     mBufferCount = 0;
 }
 
@@ -604,17 +685,16 @@ int QCamera3HeapMemory::getMatchBufIndex(void * /*object*/)
  *              preview stream buffers are allocated from gralloc native_windoe
  *
  * PARAMETERS :
- *   @getMemory : camera memory request ops table
+ *   @startIdx : start index of array after which we can register buffers in.
  *
  * RETURN     : none
  *==========================================================================*/
-QCamera3GrallocMemory::QCamera3GrallocMemory()
-        : QCamera3Memory()
+QCamera3GrallocMemory::QCamera3GrallocMemory(uint32_t startIdx)
+        : QCamera3Memory(), mStartIdx(startIdx)
 {
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++) {
         mBufferHandle[i] = NULL;
         mPrivateHandle[i] = NULL;
-        mCurrentFrameNumbers[i] = -1;
     }
 }
 
@@ -654,7 +734,7 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
             (type == CAM_STREAM_TYPE_VIDEO) ? ITU_R_709 : ITU_R_601_FR;
     int32_t idx = -1;
 
-    CDBG(" %s : E ", __FUNCTION__);
+    CDBG("%s: E", __func__);
 
     memset(&ion_info_fd, 0, sizeof(ion_info_fd));
 
@@ -664,9 +744,9 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     }
 
     Mutex::Autolock lock(mLock);
-    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - 1)) {
+    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - 1 - mStartIdx)) {
         ALOGE("%s: Number of buffers %d greater than what's supported %d",
-                __func__, mBufferCount, MM_CAMERA_MAX_NUM_FRAMES);
+                __func__, mBufferCount, MM_CAMERA_MAX_NUM_FRAMES - mStartIdx);
         return BAD_INDEX;
     }
 
@@ -696,8 +776,8 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
             goto end;
         }
     }
-    ALOGV("%s: idx = %d, fd = %d, size = %d, offset = %d",
-            __func__, mBufferCount, mPrivateHandle[mBufferCount]->fd,
+    CDBG("%s: idx = %d, fd = %d, size = %d, offset = %d",
+            __func__, idx, mPrivateHandle[idx]->fd,
             mPrivateHandle[idx]->size,
             mPrivateHandle[idx]->offset);
     mMemInfo[idx].fd = mPrivateHandle[idx]->fd;
@@ -752,6 +832,7 @@ int32_t QCamera3GrallocMemory::unregisterBufferLocked(size_t idx)
     mMemInfo[idx].main_ion_fd = -1;
     mBufferHandle[idx] = NULL;
     mPrivateHandle[idx] = NULL;
+    mCurrentFrameNumbers[idx] = -1;
     mBufferCount--;
 
     return NO_ERROR;
@@ -780,6 +861,11 @@ int32_t QCamera3GrallocMemory::unregisterBuffer(size_t idx)
         ALOGE("%s: Buffer index %d greater than what is supported %d",
                 __func__, idx, MM_CAMERA_MAX_NUM_FRAMES);
         return BAD_VALUE;
+    }
+    if (idx < mStartIdx) {
+        ALOGE("%s: buffer index %d less than starting index %d",
+                __func__, idx, mStartIdx);
+        return BAD_INDEX;
     }
 
     if (0 == mMemInfo[idx].handle) {
@@ -811,7 +897,7 @@ void QCamera3GrallocMemory::unregisterBuffers()
 
     CDBG("%s: E ", __FUNCTION__);
 
-    for (uint32_t cnt = 0; cnt < MM_CAMERA_MAX_NUM_FRAMES; cnt++) {
+    for (uint32_t cnt = mStartIdx; cnt < MM_CAMERA_MAX_NUM_FRAMES; cnt++) {
         if (0 == mMemInfo[cnt].handle) {
             continue;
         }
@@ -849,6 +935,11 @@ int32_t QCamera3GrallocMemory::markFrameNumber(uint32_t index, uint32_t frameNum
         ALOGE("%s: Index out of bounds", __func__);
         return BAD_INDEX;
     }
+    if (index < mStartIdx) {
+        ALOGE("%s: buffer index %d less than starting index %d",
+                __func__, index, mStartIdx);
+        return BAD_INDEX;
+    }
 
     if (0 == mMemInfo[index].handle) {
         ALOGE("%s: Buffer at %d not registered", __func__, index);
@@ -882,6 +973,11 @@ int32_t QCamera3GrallocMemory::getFrameNumber(uint32_t index)
         ALOGE("%s: Index out of bounds", __func__);
         return -1;
     }
+    if (index < mStartIdx) {
+        ALOGE("%s: buffer index %d less than starting index %d",
+                __func__, index, mStartIdx);
+        return BAD_INDEX;
+    }
 
     if (0 == mMemInfo[index].handle) {
         ALOGE("%s: Buffer at %d not registered", __func__, index);
@@ -889,6 +985,30 @@ int32_t QCamera3GrallocMemory::getFrameNumber(uint32_t index)
     }
 
     return mCurrentFrameNumbers[index];
+}
+
+/*===========================================================================
+ * FUNCTION   : getBufferIndex
+ *
+ * DESCRIPTION: We use this to fetch the buffer index for the request with
+ *              a particular frame number
+ *
+ *
+ * PARAMETERS :
+ *   @frameNumber  : frame number of the buffer
+ *
+ * RETURN     : int32_t buffer index
+ *              negative failure
+ *==========================================================================*/
+int32_t QCamera3GrallocMemory::getBufferIndex(uint32_t frameNumber)
+{
+    for (uint32_t index = mStartIdx;
+            index < MM_CAMERA_MAX_NUM_FRAMES; index++) {
+        if (mMemInfo[index].handle &&
+                mCurrentFrameNumbers[index] == (int32_t)frameNumber)
+            return (int32_t)index;
+    }
+    return -1;
 }
 
 /*===========================================================================
@@ -906,6 +1026,16 @@ int32_t QCamera3GrallocMemory::getFrameNumber(uint32_t index)
  *==========================================================================*/
 int QCamera3GrallocMemory::cacheOps(uint32_t index, unsigned int cmd)
 {
+    if (index >= MM_CAMERA_MAX_NUM_FRAMES) {
+        ALOGE("%s: Index out of bounds", __func__);
+        return -1;
+    }
+    if (index < mStartIdx) {
+        ALOGE("%s: buffer index %d less than starting index %d",
+                __func__, index, mStartIdx);
+        return BAD_INDEX;
+    }
+
     return cacheOpsInternal(index, cmd, mPtr[index]);
 }
 
@@ -950,7 +1080,7 @@ int QCamera3GrallocMemory::getMatchBufIndex(void *object)
     if (!key) {
         return BAD_VALUE;
     }
-    for (uint32_t i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
+    for (uint32_t i = mStartIdx; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
         if (mBufferHandle[i] == key) {
             index = (int)i;
             break;
@@ -981,7 +1111,7 @@ int QCamera3GrallocMemory::getFreeIndexLocked()
         return index;
     }
 
-    for (size_t i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
+    for (size_t i = mStartIdx; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
         if (0 == mMemInfo[i].handle) {
             index = i;
             break;
@@ -1009,6 +1139,12 @@ void *QCamera3GrallocMemory::getPtrLocked(uint32_t index)
                 __func__, index, MM_CAMERA_MAX_NUM_FRAMES);
         return NULL;
     }
+    if (index < mStartIdx) {
+        ALOGE("%s: buffer index %d less than starting index %d",
+                __func__, index, mStartIdx);
+        return NULL;
+    }
+
 
     if (0 == mMemInfo[index].handle) {
         ALOGE("%s: Buffer at %d not registered", __func__, index);
@@ -1054,6 +1190,11 @@ void *QCamera3GrallocMemory::getBufferHandle(uint32_t index)
                 __func__, index, MM_CAMERA_MAX_NUM_FRAMES);
         return NULL;
     }
+    if (index < mStartIdx) {
+        ALOGE("%s: buffer index %d less than starting index %d",
+                __func__, index, mStartIdx);
+        return NULL;
+    }
 
     if (0 == mMemInfo[index].handle) {
         ALOGE("%s: Buffer at %d not registered", __func__, index);
@@ -1062,5 +1203,4 @@ void *QCamera3GrallocMemory::getBufferHandle(uint32_t index)
 
     return mBufferHandle[index];
 }
-
 }; //namespace qcamera

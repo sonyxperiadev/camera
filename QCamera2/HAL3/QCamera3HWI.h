@@ -101,7 +101,7 @@ typedef struct {
     camera3_stream_buffer_set_t buffer_set;
     stream_status_t status;
     int registered;
-    QCamera3Channel *channel;
+    QCamera3ProcessingChannel *channel;
 } stream_info_t;
 
 class QCamera3HardwareInterface {
@@ -250,6 +250,8 @@ private:
             metadata_buffer_t *hal_metadata);
     int32_t extractSceneMode(const CameraMetadata &frame_settings, uint8_t metaMode,
             metadata_buffer_t *hal_metadata);
+    int32_t numOfSizesOnEncoder(const camera3_stream_configuration_t *streamList,
+            const cam_dimension_t &maxViewfinderSize);
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
@@ -257,6 +259,9 @@ private:
     int32_t startAllChannels();
     int32_t stopAllChannels();
     int32_t notifyErrorForPendingRequests();
+
+    bool isOnEncoder(const cam_dimension_t max_viewfinder_size,
+            uint32_t width, uint32_t height);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -298,6 +303,9 @@ private:
     typedef struct {
         camera3_stream_t *stream;
         camera3_stream_buffer_t *buffer;
+        // metadata needs to be consumed by the corresponding stream
+        // in order to generate the buffer.
+        bool need_metadata;
     } RequestedBufferInfo;
     typedef struct {
         uint32_t frame_number;
@@ -326,6 +334,7 @@ private:
         camera3_stream_t *stream;
         // Buffer handle
         buffer_handle_t *buffer;
+
     } PendingBufferInfo;
 
     typedef struct {
@@ -344,6 +353,8 @@ private:
     typedef KeyedVector<uint32_t, Vector<PendingBufferInfo> > FlushMap;
     typedef List<QCamera3HardwareInterface::PendingRequestInfo>::iterator
             pendingRequestIterator;
+    typedef List<QCamera3HardwareInterface::RequestedBufferInfo>::iterator
+            pendingBufferIterator;
 
     List<PendingReprocessResult> mPendingReprocessResultList;
     List<PendingRequestInfo> mPendingRequestsList;
