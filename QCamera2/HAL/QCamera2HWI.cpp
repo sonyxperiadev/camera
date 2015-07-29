@@ -359,6 +359,7 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
     }
     ALOGI("[KPI Perf] %s: E PROFILE_START_PREVIEW camera id %d",
             __func__, hw->getCameraId());
+    hw->m_perfLock.lock_acq();
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     qcamera_sm_evt_enum_t evt = QCAMERA_SM_EVT_START_PREVIEW;
@@ -373,6 +374,7 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
     hw->unlockAPI();
     hw->m_bPreviewStarted = true;
     ALOGI("[KPI Perf] %s: X", __func__);
+    hw->m_perfLock.lock_rel();
     return ret;
 }
 
@@ -397,6 +399,7 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
     }
     ALOGI("[KPI Perf] %s: E PROFILE_STOP_PREVIEW camera id %d",
             __func__, hw->getCameraId());
+    hw->m_perfLock.lock_acq();
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_STOP_PREVIEW, NULL);
@@ -404,6 +407,7 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
         hw->waitAPIResult(QCAMERA_SM_EVT_STOP_PREVIEW, &apiResult);
     }
     hw->unlockAPI();
+    hw->m_perfLock.lock_rel();
     ALOGI("[KPI Perf] %s: X", __func__);
 }
 
@@ -717,6 +721,9 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
     }
     ALOGI("[KPI Perf] %s: E PROFILE_TAKE_PICTURE camera id %d",
             __func__, hw->getCameraId());
+    if (!hw->mLongshotEnabled) {
+        hw->m_perfLock.lock_acq();
+    }
     qcamera_api_result_t apiResult;
 
    /** Added support for Retro-active Frames:
@@ -1281,6 +1288,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
 
     mDeferredWorkThread.launch(deferredWorkRoutine, this);
     mDeferredWorkThread.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
+    m_perfLock.lock_init();
 
     pthread_mutex_init(&mGrallocLock, NULL);
     mEnqueuedBuffers = 0;
@@ -1307,11 +1315,14 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
         mMetadataMem = NULL;
     }
 
+    m_perfLock.lock_acq();
     lockAPI();
     m_smThreadActive = false;
     unlockAPI();
     m_stateMachine.releaseThread();
     closeCamera();
+    m_perfLock.lock_rel();
+    m_perfLock.lock_deinit();
     pthread_mutex_destroy(&m_lock);
     pthread_cond_destroy(&m_cond);
     pthread_mutex_destroy(&m_evtLock);
@@ -1372,6 +1383,7 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
     }
     ALOGI("[KPI Perf] %s: E PROFILE_OPEN_CAMERA camera id %d",
         __func__,mCameraId);
+    m_perfLock.lock_acq();
     rc = openCamera();
     if (rc == NO_ERROR){
         *hw_device = &mCameraDevice.common;
@@ -1385,6 +1397,7 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
     ALOGI("[KPI Perf] %s: X PROFILE_OPEN_CAMERA camera id %d, rc: %d",
         __func__,mCameraId, rc);
 
+    m_perfLock.lock_rel();
     return rc;
 }
 
@@ -4212,6 +4225,10 @@ int QCamera2HardwareInterface::cancelPicture()
 
     mParameters.setDisplayFrame(TRUE);
 
+    if (!mLongshotEnabled) {
+        m_perfLock.lock_rel();
+    }
+
     if (mParameters.isZSLMode()) {
         QCameraPicChannel *pZSLChannel =
             (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
@@ -4715,6 +4732,9 @@ int QCamera2HardwareInterface::cancelLiveSnapshot()
     int rc = NO_ERROR;
 
     unconfigureAdvancedCapture();
+    if (!mLongshotEnabled) {
+        m_perfLock.lock_rel();
+    }
 
     if (mLiveSnapshotThread != 0) {
         pthread_join(mLiveSnapshotThread,NULL);
@@ -4850,6 +4870,7 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
     switch (command) {
 #ifndef VANILLA_HAL
     case CAMERA_CMD_LONGSHOT_ON:
+        m_perfLock.lock_acq();
         arg1 = 0;
         // Longshot can only be enabled when image capture
         // is not active.
@@ -4896,6 +4917,7 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
         }
         break;
     case CAMERA_CMD_LONGSHOT_OFF:
+        m_perfLock.lock_rel();
         if ( mLongshotEnabled && m_stateMachine.isCaptureRunning() ) {
             cancelPicture();
             processEvt(QCAMERA_SM_EVT_SNAPSHOT_DONE, NULL);

@@ -47,6 +47,7 @@
 #include "QCameraPostProc.h"
 #include "QCameraThermalAdapter.h"
 #include "QCameraMem.h"
+#include "QCameraPerf.h"
 
 #ifdef TARGET_TS_MAKEUP
 #include "ts_makeup_engine.h"
@@ -588,6 +589,7 @@ private:
     QCameraPostProcessor m_postprocessor; // post processor
     QCameraThermalAdapter &m_thermalAdapter;
     QCameraCbNotifier m_cbNotifier;
+    QCameraPerfLock m_perfLock;
     pthread_mutex_t m_lock;
     pthread_cond_t m_cond;
     api_result_list *m_apiResultList;

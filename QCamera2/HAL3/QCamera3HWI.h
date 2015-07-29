@@ -39,7 +39,7 @@
 #include "QCamera3HALHeader.h"
 #include "QCamera3Channel.h"
 #include "QCamera3CropRegionMapper.h"
-
+#include "QCameraPerf.h"
 #include <hardware/power.h>
 
 extern "C" {
@@ -160,6 +160,7 @@ public:
 
     int initialize(const camera3_callback_ops_t *callback_ops);
     int configureStreams(camera3_stream_configuration_t *stream_list);
+    int configureStreamsPerfLocked(camera3_stream_configuration_t *stream_list);
     int processCaptureRequest(camera3_capture_request_t *request);
     void dump(int fd);
     int flush();
@@ -282,6 +283,7 @@ private:
     QCamera3SupportChannel *mAnalysisChannel;
     QCamera3RawDumpChannel *mRawDumpChannel;
     QCamera3RegularChannel *mDummyBatchChannel;
+    QCameraPerfLock m_perfLock;
 
     void saveExifParams(metadata_buffer_t *metadata);
     mm_jpeg_exif_params_t mExifParams;

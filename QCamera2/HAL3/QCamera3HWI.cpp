@@ -358,6 +358,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mLdafCalibExist(false)
 {
     getLogLevel();
+    m_perfLock.lock_init();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
     mCameraDevice.common.version = CAMERA_DEVICE_API_VERSION_3_3;
     mCameraDevice.common.close = close_camera_device;
@@ -421,9 +422,14 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 QCamera3HardwareInterface::~QCamera3HardwareInterface()
 {
     CDBG("%s: E", __func__);
+
+    /* Turn off video hint prior to acquiring perfLock in case they
+     * conflict with each other */
+    updatePowerHint(m_bIsVideo, false);
+
+    m_perfLock.lock_acq();
+
     /* We need to stop all streams before deleting any stream */
-
-
     if (mRawDumpChannel) {
         mRawDumpChannel->stop();
     }
@@ -443,9 +449,6 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     if (mAnalysisChannel) {
         mAnalysisChannel->stop();
     }
-
-    /* Turn off video hint */
-    updatePowerHint(m_bIsVideo, false);
 
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
@@ -508,6 +511,9 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         if (mDefaultMetadata[i])
             free_camera_metadata(mDefaultMetadata[i]);
+
+    m_perfLock.lock_rel();
+    m_perfLock.lock_deinit();
 
     pthread_cond_destroy(&mRequestCond);
 
@@ -615,13 +621,14 @@ int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
         *hw_device = NULL;
         return PERMISSION_DENIED;
     }
-
+    m_perfLock.lock_acq();
     rc = openCamera();
     if (rc == 0) {
         *hw_device = &mCameraDevice.common;
     } else
         *hw_device = NULL;
 
+    m_perfLock.lock_rel();
     return rc;
 }
 
@@ -1089,6 +1096,36 @@ int QCamera3HardwareInterface::configureStreams(
     ATRACE_CALL();
     int rc = 0;
     bool bWasVideo = m_bIsVideo;
+
+    // Acquire perfLock before configure streams
+    m_perfLock.lock_acq();
+    rc = configureStreamsPerfLocked(streamList);
+    m_perfLock.lock_rel();
+
+    /* Update power hint after releasing perfLock in case they
+     * conflict with each other. */
+    updatePowerHint(bWasVideo, m_bIsVideo);
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : configureStreamsPerfLocked
+ *
+ * DESCRIPTION: configureStreams while perfLock is held.
+ *
+ * PARAMETERS :
+ *   @stream_list : streams to be configured
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera3HardwareInterface::configureStreamsPerfLocked(
+        camera3_stream_configuration_t *streamList)
+{
+    ATRACE_CALL();
+    int rc = 0;
 
     // Sanity check stream_list
     if (streamList == NULL) {
@@ -1944,9 +1981,9 @@ int QCamera3HardwareInterface::configureStreams(
     deriveMinFrameDuration();
 
     /* Turn on video hint only if video stream is configured */
-    updatePowerHint(bWasVideo, m_bIsVideo);
 
     pthread_mutex_unlock(&mMutex);
+
     return rc;
 }
 
@@ -3001,7 +3038,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 return rc;
             }
         }
-
+        m_perfLock.lock_acq();
         /* get eis information for stream configuration */
         cam_is_type_t is_type;
         char is_type_value[PROPERTY_VALUE_MAX];
@@ -3092,7 +3129,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         if (rc != NO_ERROR) {
             ALOGE("%s: Failed to get sensor output size", __func__);
             pthread_mutex_unlock(&mMutex);
-            return rc;
+            goto error_exit;
         }
 
         mCropRegionMapper.update(gCamCapability[mCameraId]->active_array_size.width,
@@ -3113,7 +3150,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 if (NO_ERROR != rc) {
                     ALOGE("%s : Channel init failed %d", __func__, rc);
                     pthread_mutex_unlock(&mMutex);
-                    return rc;
+                    goto error_exit;
                 }
             }
         }
@@ -3133,7 +3170,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 ALOGE("%s: registerBuffer failed",
                         __func__);
                 pthread_mutex_unlock(&mMutex);
-                return -ENODEV;
+                rc = -ENODEV;
+                goto error_exit;
             }
         }
 
@@ -3151,7 +3189,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (NO_ERROR != rc) {
                 ALOGE("%s : Channel initialization failed %d", __func__, rc);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
 
@@ -3160,7 +3198,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (rc != NO_ERROR) {
                 ALOGE("%s: Error: Raw Dump Channel init failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
         if (mSupportChannel) {
@@ -3168,7 +3206,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (rc < 0) {
                 ALOGE("%s: Support channel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
         if (mAnalysisChannel) {
@@ -3176,7 +3214,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (rc < 0) {
                 ALOGE("%s: Analysis channel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
         if (mDummyBatchChannel) {
@@ -3184,13 +3222,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (rc < 0) {
                 ALOGE("%s: mDummyBatchChannel setBatchSize failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
             rc = mDummyBatchChannel->initialize(is_type);
             if (rc < 0) {
                 ALOGE("%s: mDummyBatchChannel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
 
@@ -3200,7 +3238,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         if (rc < 0) {
             ALOGE("%s: META channel start failed", __func__);
             pthread_mutex_unlock(&mMutex);
-            return rc;
+            goto error_exit;
         }
 
         if (mAnalysisChannel) {
@@ -3209,7 +3247,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 ALOGE("%s: Analysis channel start failed", __func__);
                 mMetadataChannel->stop();
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
 
@@ -3224,7 +3262,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     mAnalysisChannel->stop();
                 }
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
         for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
@@ -3236,7 +3274,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (rc < 0) {
                 ALOGE("%s: channel start failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
 
@@ -3260,9 +3298,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 }
                 mMetadataChannel->stop();
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
+        goto no_error;
+error_exit:
+        m_perfLock.lock_rel();
+        return rc;
+no_error:
+        m_perfLock.lock_rel();
         mWokenUpByDaemon = false;
         mPendingLiveRequest = 0;
         mFirstConfiguration = false;
