@@ -6584,7 +6584,7 @@ int32_t  QCameraParameters::setExposureTime(const char *expTimeStr)
     if (expTimeStr != NULL) {
         double expTimeMs = atof(expTimeStr);
         //input is in milli seconds. Convert to nano sec for backend
-        int64_t expTimeNs = ((int64_t)expTimeMs)*1000000L;
+        int64_t expTimeNs = (int64_t)(expTimeMs*1000000L);
 
         // expTime == 0 means not to use manual exposure time.
         if ((0 <= expTimeNs) &&
