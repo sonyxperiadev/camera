@@ -46,11 +46,8 @@ namespace qcamera {
 
 class QCameraMemoryPool;
 
-//OFFSET, SIZE, USAGE
-#define VIDEO_METADATA_NUM_INTS          3
-
-//OFFSET, SIZE, USAGE, TIMESTAMP
-#define VIDEO_BATCH_METADATA_NUM_INTS    4
+//OFFSET, SIZE, USAGE, TIMESTAMP, FORMAT
+#define VIDEO_METADATA_NUM_INTS          5
 
 enum QCameraMemType {
     QCAMERA_MEM_TYPE_DEFAULT      = 0,
@@ -226,12 +223,14 @@ public:
     virtual int getMatchBufIndex(const void *opaque, bool metadata) const;
     int allocateMeta(uint8_t buf_cnt, int numFDs, int numInts);
     void deallocateMeta();
-    void setVideoInfo(int usage);
+    void setVideoInfo(int usage, cam_format_t format);
     int getUsage(){return mUsage;};
+    int getFormat(){return mFormat;};
+    int convCamtoOMXFormat(cam_format_t format);
 private:
     camera_memory_t *mMetadata[MM_CAMERA_MAX_NUM_FRAMES];
     uint8_t mMetaBufCount;
-    int mUsage;
+    int mUsage, mFormat;
 };
 
 
