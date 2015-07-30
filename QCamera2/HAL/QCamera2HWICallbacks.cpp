@@ -1440,12 +1440,14 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
             * data[mNumFDs + 2] => SIZE
             * data[mNumFDs + 3] => Usage Flag (Color format/Compression)
             * data[mNumFDs + 4] => TIMESTAMP
+            * data[mNumFDs + 5] => FORMAT
             */
             nh->data[index] = videoMemObj->getFd(frame->buf_idx);
             nh->data[index + fd_cnt] = 0;
             nh->data[index + (fd_cnt * 2)] = (int)videoMemObj->getSize(frame->buf_idx);
             nh->data[index + (fd_cnt * 3)] = videoMemObj->getUsage();
             nh->data[index + (fd_cnt * 4)] = (int)(frame_ts - stream->mFirstTimeStamp);
+            nh->data[index + (fd_cnt * 5)] = videoMemObj->getFormat();
             stream->mCurBufIndex++;
             if (stream->mCurBufIndex == fd_cnt) {
                 timeStamp = stream->mFirstTimeStamp;
@@ -1496,12 +1498,14 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                        data[mNumFDs + 2] => SIZE
                        data[mNumFDs + 3] => Usage Flag (Color format/Compression)
                        data[mNumFDs + 4] => TIMESTAMP
+                       data[mNumFDs + 5] => FORMAT
                     */
                     nh->data[i] = frameobj->getFd(plane_frame->buf_idx);
                     nh->data[fd_cnt + i] = 0;
                     nh->data[(2 * fd_cnt) + i] = (int)frameobj->getSize(plane_frame->buf_idx);
                     nh->data[(3 * fd_cnt) + i] = usage;
                     nh->data[(4 * fd_cnt) + i] = (int)(frame_ts - timeStamp);
+                    nh->data[(5 * fd_cnt) + i] = frameobj->getFormat();
                     CDBG("Send Video frames to services/encoder delta : %lld FD = %d index = %d",
                             (frame_ts - timeStamp), plane_frame->fd, plane_frame->buf_idx);
                     pme->dumpFrameToFile(stream, plane_frame, QCAMERA_DUMP_FRM_VIDEO);
