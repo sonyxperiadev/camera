@@ -55,6 +55,11 @@ extern "C" {
 #endif //#ifdef CDBG_HIGH
 #define CDBG_HIGH(fmt, args...) ALOGD_IF(gCamHal3LogLevel >= 1, fmt, ##args)
 
+#ifdef CDBG_FATAL_IF
+#undef CDBG_FATAL_IF
+#endif //#ifdef CDBG_FATAL_IF
+#define CDBG_FATAL_IF(cond, ...) LOG_ALWAYS_FATAL_IF(cond, ## __VA_ARGS__)
+
 using namespace android;
 
 namespace qcamera {
@@ -72,6 +77,16 @@ typedef int64_t nsecs_t;
 #define NSEC_PER_SEC 1000000000LLU
 #define NSEC_PER_USEC 1000LLU
 #define NSEC_PER_33MSEC 33000000LLU
+
+typedef enum {
+    SET_ENABLE,
+    SET_CONTROLENABLE,
+    SET_RELOAD_CHROMATIX,
+    SET_STATUS,
+} optype_t;
+
+#define MODULE_ALL 0
+
 
 extern volatile uint32_t gCamHal3LogLevel;
 
@@ -156,7 +171,6 @@ public:
             metadata_buffer_t *parm, uint32_t snapshotStreamId);
     camera_metadata_t* translateCbUrgentMetadataToResultMetadata (
                              metadata_buffer_t *metadata);
-
     camera_metadata_t* translateFromHalMetadata(metadata_buffer_t *metadata,
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
@@ -176,6 +190,8 @@ public:
     bool needOnlineRotation();
     uint32_t getJpegQuality();
     QCamera3Exif *getExifData();
+    mm_jpeg_exif_params_t get3AExifParams();
+    uint8_t getMobicatMask();
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
@@ -186,6 +202,7 @@ public:
         const char *const desc;
         cam_cds_mode_type_t val;
     } QCameraPropMap;
+
 
 private:
 
@@ -212,8 +229,13 @@ private:
             const camera3_capture_request_t *request);
 
     bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList);
+    int32_t setMobicat();
 
     int32_t getSensorOutputSize(cam_dimension_t &sensor_dim);
+    int32_t setHalFpsRange(const CameraMetadata &settings,
+            metadata_buffer_t *hal_metadata);
+    int32_t extractSceneMode(const CameraMetadata &frame_settings, uint8_t metaMode,
+            metadata_buffer_t *hal_metadata);
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
 
@@ -233,6 +255,9 @@ private:
     QCamera3SupportChannel *mAnalysisChannel;
     QCamera3RawDumpChannel *mRawDumpChannel;
 
+    void saveExifParams(metadata_buffer_t *metadata);
+    mm_jpeg_exif_params_t mExifParams;
+
      //First request yet to be processed after configureStreams
     bool mFirstRequest;
     bool mFirstConfiguration;
@@ -245,6 +270,8 @@ private:
     bool m_bIs4KVideo;
     bool m_bEisSupportedSize;
     bool m_bEisEnable;
+    uint8_t m_MobicatMask;
+    int8_t  m_overrideAppFaceDetection;
 
     /* Data structure to store pending request */
     typedef struct {
@@ -294,6 +321,8 @@ private:
     } PendingReprocessResult;
 
     typedef KeyedVector<uint32_t, Vector<PendingBufferInfo> > FlushMap;
+    typedef List<QCamera3HardwareInterface::PendingRequestInfo>::iterator
+            pendingRequestIterator;
 
     List<PendingReprocessResult> mPendingReprocessResultList;
     List<PendingRequestInfo> mPendingRequestsList;
@@ -353,6 +382,8 @@ private:
             cam_illuminat_t> REFERENCE_ILLUMINANT_MAP[];
 
     static const QCameraPropMap CDS_MAP[];
+
+    pendingRequestIterator erasePendingRequest(pendingRequestIterator i);
 };
 
 }; // namespace qcamera

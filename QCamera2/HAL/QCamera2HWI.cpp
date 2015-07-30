@@ -1249,15 +1249,16 @@ int QCamera2HardwareInterface::openCamera()
     m_max_pic_width = 0;
     m_max_pic_height = 0;
     size_t i;
+    int32_t rc = 0;
 
     if (mCameraHandle) {
         ALOGE("Failure: Camera already opened");
         return ALREADY_EXISTS;
     }
-    mCameraHandle = camera_open((uint8_t)mCameraId);
-    if (!mCameraHandle) {
-        ALOGE("camera_open failed.");
-        return UNKNOWN_ERROR;
+    rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
+    if (rc) {
+        ALOGE("camera_open failed. rc = %d, mCameraHandle = %p", rc, mCameraHandle);
+        return rc;
     }
     if (NULL == gCamCaps[mCameraId])
         initCapabilities(mCameraId,mCameraHandle);
@@ -1279,7 +1280,7 @@ int QCamera2HardwareInterface::openCamera()
       }
     }
 
-    int32_t rc = m_postprocessor.init(jpegEvtHandle, this);
+    rc = m_postprocessor.init(jpegEvtHandle, this);
     if (rc != 0) {
         ALOGE("Init Postprocessor failed");
         mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
@@ -1473,6 +1474,22 @@ int QCamera2HardwareInterface::getCapabilities(uint32_t cameraId,
     memcpy(info, p_info, sizeof (struct camera_info));
     pthread_mutex_unlock(&g_camlock);
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : getCamHalCapabilities
+ *
+ * DESCRIPTION: get the HAL capabilities structure
+ *
+ * PARAMETERS :
+ *   @cameraId  : camera Id
+ *
+ * RETURN     : capability structure of respective camera
+ *
+ *==========================================================================*/
+cam_capability_t* QCamera2HardwareInterface::getCamHalCapabilities()
+{
+    return gCamCaps[mCameraId];
 }
 
 /*===========================================================================

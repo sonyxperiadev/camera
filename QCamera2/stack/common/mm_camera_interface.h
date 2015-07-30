@@ -367,6 +367,16 @@ typedef struct {
      **/
     int32_t (*close_camera) (uint32_t camera_handle);
 
+
+    /** error_close_camera: function definition for closing
+     *                      the camera backend on an unrecoverable
+     *                      error
+     *    @camera_handle : camera handler
+     *  Return value: 0 -- success
+     *                -1 -- failure
+     **/
+    int32_t (*error_close_camera) (uint32_t camera_handle);
+
     /** map_buf: fucntion definition for mapping a camera buffer
      *           via domain socket
      *    @camera_handle : camer handler
@@ -760,7 +770,7 @@ typedef struct {
 uint8_t get_num_of_cameras();
 
 /* return reference pointer of camera vtbl */
-mm_camera_vtbl_t * camera_open(uint8_t camera_idx);
+int32_t camera_open(uint8_t camera_idx, mm_camera_vtbl_t **camera_obj);
 
 /* helper functions */
 int32_t mm_stream_calc_offset_preview(cam_format_t fmt,

@@ -37,11 +37,11 @@
 
 #define CAM_MAX_NUM_BUFS_PER_STREAM 64
 #define MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES 8096
-#define AWB_DEBUG_DATA_SIZE               (7029)
-#define AEC_DEBUG_DATA_SIZE               (1720)
-#define AF_DEBUG_DATA_SIZE                (652)
+#define AWB_DEBUG_DATA_SIZE               (69189)
+#define AEC_DEBUG_DATA_SIZE               (3921)
+#define AF_DEBUG_DATA_SIZE                (8487)
 #define ASD_DEBUG_DATA_SIZE               (100)
-#define STATS_BUFFER_DEBUG_DATA_SIZE      (74756)
+#define STATS_BUFFER_DEBUG_DATA_SIZE      (74773)
 
 #define CEILING64(X) (((X) + 0x0003F) & 0xFFFFFFC0)
 #define CEILING32(X) (((X) + 0x0001F) & 0xFFFFFFE0)
@@ -1219,6 +1219,7 @@ typedef struct {
 } cam_3a_params_t;
 
 typedef struct {
+    uint64_t sw_version_number;
     int32_t aec_debug_data_size;
     char aec_private_debug_data[AEC_DEBUG_DATA_SIZE];
 } cam_ae_exif_debug_t;
@@ -1235,6 +1236,10 @@ typedef struct {
 
 typedef struct {
     int32_t af_debug_data_size;
+    int32_t haf_debug_data_size;
+    int32_t tof_debug_data_size;
+    int32_t dciaf_debug_data_size;
+    int32_t pdaf_debug_data_size;
     char af_private_debug_data[AF_DEBUG_DATA_SIZE];
 } cam_af_exif_debug_t;
 
@@ -1246,8 +1251,17 @@ typedef struct {
 typedef struct {
     int32_t bg_stats_buffer_size;
     int32_t bhist_stats_buffer_size;
+    int32_t bg_config_buffer_size;
     char stats_buffer_private_debug_data[STATS_BUFFER_DEBUG_DATA_SIZE];
 } cam_stats_buffer_exif_debug_t;
+
+/* 3A version*/
+typedef struct {
+    uint16_t major_version;
+    uint16_t minor_version;
+    uint16_t patch_version;
+    uint16_t new_feature_des;
+} cam_q3a_version_t;
 
 typedef struct {
     uint32_t tuning_data_version;
