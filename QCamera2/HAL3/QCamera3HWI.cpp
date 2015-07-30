@@ -1043,14 +1043,22 @@ int QCamera3HardwareInterface::configureStreams(
     bool bJpegExceeds4K = false;
     bool bUseCommonFeatureMask = false;
     uint32_t commonFeatureMask = 0;
+
     //@todo Remove fullFeatureMask and possibly m_bTnrEnabled once CPP checks
     //      both feature mask and param for TNR enable.
     uint32_t fullFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+    if (gCamCapability[mCameraId]->qcom_supported_feature_mask
+            & CAM_QCOM_FEATURE_DSDN) {
+        //Use CPP CDS incase h/w supports it.
+        fullFeatureMask &= ~CAM_QCOM_FEATURE_CDS;
+        fullFeatureMask |= CAM_QCOM_FEATURE_DSDN;
+    }
     if (m_bTnrEnabled != 0)
     {
         fullFeatureMask |= CAM_QCOM_FEATURE_CPP_TNR;
         // TNR and CDS cannot be enabled at the same time. Unmask CDS feature.
         fullFeatureMask &= ~CAM_QCOM_FEATURE_CDS;
+        fullFeatureMask &= ~CAM_QCOM_FEATURE_DSDN;
     }
     maxViewfinderSize = gCamCapability[mCameraId]->max_viewfinder_size;
 
@@ -5299,11 +5307,13 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     CameraMetadata staticInfo;
     size_t count = 0;
     bool limitedDevice = false;
-
+    int64_t m_MinDurationBoundNs = 50000000; // 50 ms, 20 fps
     /* If sensor is YUV sensor (no raw support) or if per-frame control is not
-     * guaranteed, its advertised as limited device */
+     * guaranteed or if min fps of max resolution is less than 20 fps, its
+     * advertised as limited device*/
     limitedDevice = gCamCapability[cameraId]->no_per_frame_control_support ||
-            (CAM_SENSOR_YUV == gCamCapability[cameraId]->sensor_type.sens_type);
+            (CAM_SENSOR_YUV == gCamCapability[cameraId]->sensor_type.sens_type) ||
+            (gCamCapability[cameraId]->picture_min_duration[0] > m_MinDurationBoundNs);
 
     uint8_t supportedHwLvl = limitedDevice ?
             ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED :
@@ -5885,8 +5895,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_POST_PROCESSING);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_READ_SENSOR_SETTINGS);
-    available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BURST_CAPTURE);
-
+    /* Adding this check for advertising burst capabilities only where min fps for max
+     * resolution is >= 20 to fix CTS issue */
+    if (gCamCapability[cameraId]->picture_min_duration[0] <= m_MinDurationBoundNs) {
+        available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BURST_CAPTURE);
+    }
     if (CAM_SENSOR_YUV != gCamCapability[cameraId]->sensor_type.sens_type) {
         available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_RAW);
     }
@@ -5903,8 +5916,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_SCALER_AVAILABLE_INPUT_OUTPUT_FORMATS_MAP,
                       io_format_map, 0);
 
-    int32_t max_latency = (limitedDevice) ?
-            ANDROID_SYNC_MAX_LATENCY_UNKNOWN : ANDROID_SYNC_MAX_LATENCY_PER_FRAME_CONTROL;
+    int32_t max_latency = ANDROID_SYNC_MAX_LATENCY_PER_FRAME_CONTROL;
     staticInfo.update(ANDROID_SYNC_MAX_LATENCY,
                       &max_latency,
                       1);
@@ -6046,9 +6058,9 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     if (gCamCapability[cameraId]->supported_focus_modes_cnt > 1) {
         available_result_keys.add(ANDROID_CONTROL_AF_REGIONS);
     }
-    if (!limitedDevice) {
-       available_result_keys.add(ANDROID_SENSOR_NOISE_PROFILE);
-       available_result_keys.add(ANDROID_SENSOR_GREEN_SPLIT);
+    if (CAM_SENSOR_RAW == gCamCapability[cameraId]->sensor_type.sens_type) {
+        available_result_keys.add(ANDROID_SENSOR_NOISE_PROFILE);
+        available_result_keys.add(ANDROID_SENSOR_GREEN_SPLIT);
     }
     staticInfo.update(ANDROID_REQUEST_AVAILABLE_RESULT_KEYS,
             available_result_keys.array(), available_result_keys.size());
@@ -8301,6 +8313,12 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
     memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
 
     pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+    if (gCamCapability[mCameraId]->qcom_supported_feature_mask
+            & CAM_QCOM_FEATURE_DSDN) {
+        //Use CPP CDS incase h/w supports it.
+        pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CDS;
+        pp_config.feature_mask |= CAM_QCOM_FEATURE_DSDN;
+    }
 
     rc = pChannel->addReprocStreamsFromSource(pp_config,
             config,

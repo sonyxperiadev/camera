@@ -1163,6 +1163,25 @@ static int32_t mm_camera_intf_map_buf(uint32_t camera_handle,
     return rc;
 }
 
+static int32_t mm_camera_intf_map_bufs(uint32_t camera_handle,
+                                       const cam_buf_map_type_list *buf_map_list)
+{
+    int32_t rc = -1;
+    mm_camera_obj_t * my_obj = NULL;
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_map_bufs(my_obj, buf_map_list);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+    return rc;
+}
+
 /*===========================================================================
  * FUNCTION   : mm_camera_intf_unmap_buf
  *
@@ -1337,6 +1356,45 @@ static int32_t mm_camera_intf_map_stream_buf(uint32_t camera_handle,
         rc = mm_camera_map_stream_buf(my_obj, ch_id, stream_id,
                                       buf_type, buf_idx, plane_idx,
                                       fd, size);
+    }else{
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+
+    CDBG("%s :X rc = %d", __func__, rc);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_intf_map_stream_bufs
+ *
+ * DESCRIPTION: mapping stream buffers via domain socket to server
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *   @ch_id        : channel handle
+ *   @buf_map_list : list of buffers to be mapped
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+static int32_t mm_camera_intf_map_stream_bufs(uint32_t camera_handle,
+                                              uint32_t ch_id,
+                                              const cam_buf_map_type_list *buf_map_list)
+{
+    int32_t rc = -1;
+    mm_camera_obj_t * my_obj = NULL;
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    CDBG("%s :E camera_handle = %d, ch_id = %d",
+         __func__, camera_handle, ch_id);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_map_stream_bufs(my_obj, ch_id, buf_map_list);
     }else{
         pthread_mutex_unlock(&g_intf_lock);
     }
@@ -1893,6 +1951,7 @@ static mm_camera_ops_t mm_camera_ops = {
     .start_zsl_snapshot = mm_camera_intf_start_zsl_snapshot,
     .stop_zsl_snapshot = mm_camera_intf_stop_zsl_snapshot,
     .map_buf = mm_camera_intf_map_buf,
+    .map_bufs = mm_camera_intf_map_bufs,
     .unmap_buf = mm_camera_intf_unmap_buf,
     .add_channel = mm_camera_intf_add_channel,
     .delete_channel = mm_camera_intf_del_channel,
@@ -1904,6 +1963,7 @@ static mm_camera_ops_t mm_camera_ops = {
     .qbuf = mm_camera_intf_qbuf,
     .get_queued_buf_count = mm_camera_intf_get_queued_buf_count,
     .map_stream_buf = mm_camera_intf_map_stream_buf,
+    .map_stream_bufs = mm_camera_intf_map_stream_bufs,
     .unmap_stream_buf = mm_camera_intf_unmap_stream_buf,
     .set_stream_parms = mm_camera_intf_set_stream_parms,
     .get_stream_parms = mm_camera_intf_get_stream_parms,

@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <gralloc_priv.h>
 #include <sys/sysinfo.h>
+#include "QCameraBufferMaps.h"
 #include "QCamera2HWI.h"
 #include "QCameraParameters.h"
 
@@ -5596,6 +5597,39 @@ int32_t QCameraParameters::initDefaultParameters()
 }
 
 /*===========================================================================
+ * FUNCTION   : allocate
+ *
+ * DESCRIPTION: Allocate buffer memory for parameter obj (if necessary)
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::allocate()
+{
+    int32_t rc = NO_ERROR;
+
+    if (m_pParamHeap != NULL) {
+        return rc;
+    }
+
+    //Allocate Set Param Buffer
+    m_pParamHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
+    if (m_pParamHeap == NULL) {
+        return NO_MEMORY;
+    }
+
+    rc = m_pParamHeap->allocate(1, sizeof(parm_buffer_t), NON_SECURE);
+    if(rc != OK) {
+        rc = NO_MEMORY;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : init
  *
  * DESCRIPTION: initialize parameter obj
@@ -5620,20 +5654,24 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     m_AdjustFPS = adjustFPS;
     m_pTorch = torch;
 
-    //Allocate Set Param Buffer
-    m_pParamHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
-    rc = m_pParamHeap->allocate(1, sizeof(parm_buffer_t), NON_SECURE);
-    if(rc != OK) {
-        rc = NO_MEMORY;
-        ALOGE("Failed to allocate SETPARM Heap memory");
-        goto TRANS_INIT_ERROR1;
+    if (m_pParamHeap == NULL) {
+        ALOGE("%s: Parameter buffers have not been allocated", __func__);
+        rc = UNKNOWN_ERROR;
+        goto TRANS_INIT_DONE;
     }
 
     //Map memory for parameters buffer
-    rc = m_pCamOpsTbl->ops->map_buf(m_pCamOpsTbl->camera_handle,
-                             CAM_MAPPING_BUF_TYPE_PARM_BUF,
-                             m_pParamHeap->getFd(0),
-                             sizeof(parm_buffer_t));
+    cam_buf_map_type_list bufMapList;
+    rc = QCameraBufferMaps::makeSingletonBufMapList(
+            CAM_MAPPING_BUF_TYPE_PARM_BUF, 0 /*stream id*/,
+            0 /*buffer index*/, -1 /*plane index*/, 0 /*cookie*/,
+            m_pParamHeap->getFd(0), sizeof(parm_buffer_t), bufMapList);
+
+    if (rc == NO_ERROR) {
+        rc = m_pCamOpsTbl->ops->map_bufs(m_pCamOpsTbl->camera_handle,
+                &bufMapList);
+    }
+
     if(rc < 0) {
         ALOGE("%s:failed to map SETPARM buffer",__func__);
         rc = FAILED_TRANSACTION;
@@ -12333,12 +12371,17 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         feature_mask |= CAM_QCOM_FEATURE_EZTUNE;
     }
 
-    if (isCDSEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
+    if ((getCDSMode() != CAM_CDS_MODE_OFF) &&
+            ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
             (CAM_STREAM_TYPE_VIDEO == stream_type) ||
             (CAM_STREAM_TYPE_CALLBACK == stream_type) ||
             ((CAM_STREAM_TYPE_SNAPSHOT == stream_type) &&
             getRecordingHintValue() && is4k2kVideoResolution()))) {
-         feature_mask |= CAM_QCOM_FEATURE_CDS;
+         if (m_nMinRequiredPpMask & CAM_QCOM_FEATURE_DSDN) {
+             feature_mask |= CAM_QCOM_FEATURE_DSDN;
+         } else {
+             feature_mask |= CAM_QCOM_FEATURE_CDS;
+         }
     }
 
     //Rotation could also have an effect on pp feature mask

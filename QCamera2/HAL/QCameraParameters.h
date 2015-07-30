@@ -600,6 +600,7 @@ public:
     void setTouchIndexAf(int x, int y);
     void getTouchIndexAf(int *x, int *y);
 
+    int32_t allocate();
     int32_t init(cam_capability_t *,
                  mm_camera_vtbl_t *,
                  QCameraAdjustFPS *,
@@ -630,7 +631,7 @@ public:
     bool isWNREnabled() {return m_bWNROn;};
     bool isTNRPreviewEnabled() {return m_bTNRPreviewOn;};
     bool isTNRVideoEnabled() {return m_bTNRVideoOn;};
-    bool isCDSEnabled() {return (mCds_mode != CAM_CDS_MODE_OFF);};
+    int32_t getCDSMode() {return mCds_mode;};
     bool isHfrMode() {return m_bHfrMode;};
     void getHfrFps(cam_fps_range_t &pFpsRange) { pFpsRange = m_hfrFpsRange;};
     uint8_t getNumOfSnapshots();

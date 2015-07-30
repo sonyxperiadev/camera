@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,48 +27,53 @@
  *
  */
 
-#ifndef __MM_CAMERA_SOCKET_H__
-#define __MM_CAMERA_SOCKET_H__
-
-#include <inttypes.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <sys/un.h>
+#ifndef __QCAMERA_BUFFERMAPS_H__
+#define __QCAMERA_BUFFERMAPS_H__
 
 #include "cam_types.h"
 
-typedef enum {
-    MM_CAMERA_SOCK_TYPE_UDP,
-    MM_CAMERA_SOCK_TYPE_TCP,
-} mm_camera_sock_type_t;
+namespace qcamera {
 
-typedef union {
-    struct sockaddr addr;
-    struct sockaddr_un addr_un;
-} mm_camera_sock_addr_t;
+class QCameraBufferMaps {
+public:
+    QCameraBufferMaps();
+    QCameraBufferMaps(const QCameraBufferMaps& pBufferMaps);
+    QCameraBufferMaps(const cam_buf_map_type_list& pBufMapList);
+    QCameraBufferMaps(cam_mapping_buf_type pType,
+            uint32_t pStreamId,
+            uint32_t pFrameIndex,
+            int32_t pPlaneIndex,
+            uint32_t pCookie,
+            int32_t pFd,
+            size_t pSize);
 
-int mm_camera_socket_create(int cam_id, mm_camera_sock_type_t sock_type);
+    ~QCameraBufferMaps();
 
-int mm_camera_socket_sendmsg(
-  int fd,
-  void *msg,
-  size_t buf_size,
-  int sendfd);
+    QCameraBufferMaps& operator=(const QCameraBufferMaps& pBufferMaps);
 
-int mm_camera_socket_bundle_sendmsg(
-  int fd,
-  void *msg,
-  size_t buf_size,
-  int sendfds[CAM_MAX_NUM_BUFS_PER_STREAM],
-  int num_fds);
+    uint32_t enqueue(cam_mapping_buf_type pType,
+            uint32_t pStreamId,
+            uint32_t pFrameIndex,
+            int32_t pPlaneIndex,
+            uint32_t pCookie,
+            int32_t pFd,
+            size_t pSize);
 
-int mm_camera_socket_recvmsg(
-  int fd,
-  void *msg,
-  uint32_t buf_size,
-  int *rcvdfd);
+    uint32_t getCamBufMapList(cam_buf_map_type_list& pBufMapList) const;
 
-void mm_camera_socket_close(int fd);
+    static uint32_t makeSingletonBufMapList(cam_mapping_buf_type pType,
+            uint32_t pStreamId,
+            uint32_t pFrameIndex,
+            int32_t pPlaneIndex,
+            uint32_t pCookie,
+            int32_t pFd,
+            size_t pSize,
+            cam_buf_map_type_list& pBufMapList);
 
-#endif /*__MM_CAMERA_SOCKET_H__*/
+private:
+    cam_buf_map_type_list mBufMapList;
+};
+
+}; // namespace qcamera
+#endif /* __QCAMERA_BUFFERMAPS_H__ */
 
