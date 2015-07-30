@@ -4214,11 +4214,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         fwk_blackLevelInd[2] = blackLevelInd->cam_black_level[2];
         fwk_blackLevelInd[3] = blackLevelInd->cam_black_level[3];
 
-        ALOGE("%s: dynamicblackLevel = %d %d %d %d", __func__,
-          blackLevelInd->cam_black_level[0],
-          blackLevelInd->cam_black_level[1],
-          blackLevelInd->cam_black_level[2],
-          blackLevelInd->cam_black_level[3]);
+        CDBG("%s: dynamicblackLevel = %d %d %d %d", __func__,
+            blackLevelInd->cam_black_level[0],
+            blackLevelInd->cam_black_level[1],
+            blackLevelInd->cam_black_level[2],
+            blackLevelInd->cam_black_level[3]);
         camMetadata.update(QCAMERA3_SENSOR_DYNAMIC_BLACK_LEVEL_PATTERN, fwk_blackLevelInd, 4);
     }
 
