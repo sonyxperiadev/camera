@@ -179,6 +179,7 @@ public:
     bool needReprocess(uint32_t postprocess_mask);
     bool needJpegRotation();
     cam_denoise_process_type_t getWaveletDenoiseProcessPlate();
+    cam_denoise_process_type_t getTemporalDenoiseProcessPlate();
 
     void captureResultCb(mm_camera_super_buf_t *metadata,
                 camera3_stream_buffer_t *buffer, uint32_t frame_number);
@@ -238,6 +239,7 @@ private:
     int32_t setBatchMetaStreamID(cam_stream_ID_t &streamID);
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
+    void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -272,6 +274,7 @@ private:
     bool m_bEisSupportedSize;
     bool m_bEisEnable;
     uint8_t m_MobicatMask;
+    uint8_t m_bTnrEnabled;
 
     /* Data structure to store pending request */
     typedef struct {

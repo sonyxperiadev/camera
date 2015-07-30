@@ -113,6 +113,14 @@
 #define LIKELY(x)       __builtin_expect((x), true)
 #define UNLIKELY(x)     __builtin_expect((x), false)
 
+#define RELCAM_CALIB_ROT_MATRIX_MAX 9
+#define RELCAM_CALIB_SURFACE_PARMS_MAX 32
+#define RELCAM_CALIB_RESERVED_MAX 64
+
+#define MAX_NUM_CAMERA_PER_BUNDLE    2 /* Max number of cameras per bundle */
+#define EXTRA_FRAME_SYNC_BUFFERS     4 /* Extra frame sync buffers in dc mode*/
+#define MM_CAMERA_FRAME_SYNC_NODES   EXTRA_FRAME_SYNC_BUFFERS
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3
@@ -385,6 +393,11 @@ typedef struct {
 } cam_buf_map_type;
 
 typedef struct {
+    uint32_t length;
+    cam_buf_map_type buf_maps[CAM_MAX_NUM_BUFS_PER_STREAM];
+} cam_buf_map_type_list;
+
+typedef struct {
     cam_mapping_buf_type type;
     uint32_t stream_id;   /* stream id: valid if STREAM_BUF */
     uint32_t frame_idx;   /* frame index: valid if STREAM_BUF or HIST_BUF */
@@ -394,9 +407,16 @@ typedef struct {
     uint32_t cookie;      /* could be job_id(uint32_t) to identify unmapping job */
 } cam_buf_unmap_type;
 
+typedef struct {
+    uint32_t length;
+    cam_buf_unmap_type buf_unmaps[CAM_MAX_NUM_BUFS_PER_STREAM];
+} cam_buf_unmap_type_list;
+
 typedef enum {
     CAM_MAPPING_TYPE_FD_MAPPING,
     CAM_MAPPING_TYPE_FD_UNMAPPING,
+    CAM_MAPPING_TYPE_FD_BUNDLED_MAPPING,
+    CAM_MAPPING_TYPE_FD_BUNDLED_UNMAPPING,
     CAM_MAPPING_TYPE_MAX
 } cam_mapping_type;
 
@@ -405,6 +425,8 @@ typedef struct {
     union {
         cam_buf_map_type buf_map;
         cam_buf_unmap_type buf_unmap;
+        cam_buf_map_type_list buf_map_list;
+        cam_buf_unmap_type_list buf_unmap_list;
     } payload;
 } cam_sock_packet_t;
 
@@ -860,20 +882,6 @@ typedef struct {
 } cam_capture_frame_config_t;
 
 typedef struct {
-    uint8_t chromatixData[CHROMATIX_SIZE];
-    uint8_t snapchromatixData[CHROMATIX_SIZE];
-    uint8_t common_chromatixData[COMMONCHROMATIX_SIZE];
-    uint8_t cpp_chromatixData[CPPCHROMATIX_SIZE];
-    uint8_t cpp_chromatixSnapData[CPPCHROMATIX_SIZE];
-    uint8_t postproc_chromatixData[SWPOSTPROCCHROMATIX_SIZE];
-    uint8_t a3_chromatixData[A3CHROMATIX_SIZE];
-} tune_chromatix_t;
-
-typedef struct {
-    uint8_t af_tuneData[AFTUNE_SIZE];
-} tune_autofocus_t;
-
-typedef struct {
     uint8_t stepsize;
     uint8_t direction;
     int32_t num_steps;
@@ -1169,8 +1177,6 @@ typedef struct {
 
 typedef struct {
     uint32_t stream_id;
-    uint32_t frame_id;
-    struct timeval timestamp;
     cam_rect_t crop;
     cam_rect_t roi_map;
 } cam_stream_crop_info_t;
@@ -1321,6 +1327,7 @@ typedef struct {
     cam_dimension_t dim;
     size_t size;
     char path[QCAMERA_MAX_FILEPATH_LENGTH];
+    cam_format_t picture_format;
 } cam_int_evt_params_t;
 
 typedef struct {
@@ -1359,6 +1366,12 @@ typedef struct {
     uint32_t postprocess_mask[MAX_NUM_STREAMS];
     cam_buffer_info_t buffer_info;
     cam_is_type_t is_type;
+    cam_hfr_mode_t hfr_mode;
+    cam_format_t preview_format;
+    uint32_t buf_alignment;
+    uint32_t min_stride;
+    uint32_t min_scanline;
+    uint8_t batch_size;
 } cam_stream_size_info_t;
 
 
@@ -1395,9 +1408,9 @@ typedef struct {
 typedef struct
 {
   uint32_t id;            /* Frame ID */
-  long long timestamp;    /* Time stamp */
-  int32_t distance_in_mm; /* Distance of object in ROI's in milimeters */
-  int32_t confidence;     /* Confidence on distance from 0(No confidence)to 1024(max) */
+  uint64_t timestamp;    /* Time stamp */
+  uint32_t distance_in_mm; /* Distance of object in ROI's in milimeters */
+  uint32_t confidence;     /* Confidence on distance from 0(No confidence)to 1024(max) */
   uint32_t status;        /* Status of DCRF library execution call */
   cam_rect_t focused_roi; /* ROI's for which distance is estimated */
   uint32_t focused_x;     /* Focus location X inside ROI with distance estimation */

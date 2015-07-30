@@ -51,10 +51,7 @@ QCamera3CropRegionMapper::QCamera3CropRegionMapper()
         : mSensorW(0),
           mSensorH(0),
           mActiveArrayW(0),
-          mActiveArrayH(0),
-          mSensorCropW(0),
-          mSensorCropH(0),
-          mSensorScale(1.0)
+          mActiveArrayH(0)
 {
 }
 
@@ -106,28 +103,8 @@ void QCamera3CropRegionMapper::update(uint32_t active_array_w,
     mActiveArrayW = active_array_w;
     mActiveArrayH = active_array_h;
 
-    // Derive mapping from active array to sensor output size
-    // Assume the sensor first crops top/bottom, or left/right, (not both),
-    // before doing downscaling.
-    // sensor_w = (active_array_w - 2 * crop_w) / scale;
-    // sensor_h = (active_array_h - 2 * crop_y) / scale;
-    float scale_w = 1.0 * active_array_w / sensor_w;
-    float scale_h = 1.0 * active_array_h / sensor_h;
-    float scale = MIN(scale_w, scale_h);
-    uint32_t crop_w = 0, crop_h = 0;
-    if (scale_w > scale_h) {
-        crop_w = (active_array_w - sensor_w * active_array_h / sensor_h)/2;
-    } else {
-        crop_h = (active_array_h - sensor_h * active_array_w / sensor_w)/2;
-    }
-    mSensorCropW = crop_w;
-    mSensorCropH = crop_h;
-    mSensorScale = scale;
-
     ALOGI("%s: active_array: %d x %d, sensor size %d x %d", __func__,
             mActiveArrayW, mActiveArrayH, mSensorW, mSensorH);
-    ALOGI("%s: mSensorCrop is [%d, %d], and scale is %f", __func__,
-            mSensorCropW, mSensorCropH, mSensorScale);
 }
 
 /*===========================================================================
@@ -152,15 +129,10 @@ void QCamera3CropRegionMapper::toActiveArray(int32_t& crop_left, int32_t& crop_t
         return;
     }
 
-    // For each crop region in sensor space, it's mapping to active array space is:
-    // left = left' * scale + crop_w;
-    // top  = top' + scale * crop_h;
-    // width = width' * scale;
-    // height = height' * scale;
-    crop_left = mSensorCropW + crop_left * mSensorScale;
-    crop_top = mSensorCropH + crop_top * mSensorScale;
-    crop_width = crop_width * mSensorScale;
-    crop_height = crop_height * mSensorScale;
+    crop_left = crop_left * mActiveArrayW / mSensorW;
+    crop_top = crop_top * mActiveArrayH / mSensorH;
+    crop_width = crop_width * mActiveArrayW / mSensorW;
+    crop_height = crop_height * mActiveArrayH / mSensorH;
 
     boundToSize(crop_left, crop_top, crop_width, crop_height,
             mActiveArrayW, mActiveArrayH);
@@ -189,15 +161,10 @@ void QCamera3CropRegionMapper::toSensor(int32_t& crop_left, int32_t& crop_top,
         return;
     }
 
-    // For each crop region in active array space, it's mapping to sensor space is:
-    // left' = (left - crop_w) / scale;
-    // top'  = (top - crop_h) / scale;
-    // width' = width / scale;
-    // height' = height / scale;
-    crop_left = (crop_left - mSensorCropW) / mSensorScale;
-    crop_top = (crop_top - mSensorCropH) / mSensorScale;
-    crop_width = crop_width / mSensorScale;
-    crop_height = crop_height / mSensorScale;
+    crop_left = crop_left * mSensorW / mActiveArrayW;
+    crop_top = crop_top * mSensorH / mActiveArrayH;
+    crop_width = crop_width * mSensorW / mActiveArrayW;
+    crop_height = crop_height * mSensorH / mActiveArrayH;
 
     CDBG("%s: before bounding left %d, top %d, width %d, height %d",
         __func__, crop_left, crop_top, crop_width, crop_height);
@@ -238,6 +205,64 @@ void QCamera3CropRegionMapper::boundToSize(int32_t& left, int32_t& top,
     if ((top + height) > bound_h) {
         height = bound_h - top;
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : toActiveArray
+ *
+ * DESCRIPTION: Map co-ordinate from sensor output space to active array space
+ *
+ * PARAMETERS :
+ *   @x   : x coordinate
+ *   @y   : y coordinate
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera3CropRegionMapper::toActiveArray(uint32_t& x, uint32_t& y)
+{
+    if (mSensorW == 0 || mSensorH == 0 ||
+            mActiveArrayW == 0 || mActiveArrayH == 0) {
+        ALOGE("%s: sensor/active array sizes are not initialized!", __func__);
+        return;
+    }
+    if ((x > static_cast<uint32_t>(mSensorW)) ||
+            (y > static_cast<uint32_t>(mSensorH))) {
+        ALOGE("%s: invalid co-ordinate (%d, %d) in (0, 0, %d, %d) space",
+                __func__, x, y, mSensorW, mSensorH);
+        return;
+    }
+    x = x * mActiveArrayW / mSensorW;
+    y = y * mActiveArrayH / mSensorH;
+}
+
+/*===========================================================================
+ * FUNCTION   : toSensor
+ *
+ * DESCRIPTION: Map co-ordinate from active array space to sensor output space
+ *
+ * PARAMETERS :
+ *   @x   : x coordinate
+ *   @y   : y coordinate
+ *
+ * RETURN     : none
+ *==========================================================================*/
+
+void QCamera3CropRegionMapper::toSensor(uint32_t& x, uint32_t& y)
+{
+    if (mSensorW == 0 || mSensorH == 0 ||
+            mActiveArrayW == 0 || mActiveArrayH == 0) {
+        ALOGE("%s: sensor/active array sizes are not initialized!", __func__);
+        return;
+    }
+
+    if ((x > static_cast<uint32_t>(mActiveArrayW)) ||
+            (y > static_cast<uint32_t>(mActiveArrayH))) {
+        ALOGE("%s: invalid co-ordinate (%d, %d) in (0, 0, %d, %d) space",
+                __func__, x, y, mSensorW, mSensorH);
+        return;
+    }
+    x = x * mSensorW / mActiveArrayW;
+    y = y * mSensorH / mActiveArrayH;
 }
 
 }; //end namespace android

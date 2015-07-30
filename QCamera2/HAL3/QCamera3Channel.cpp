@@ -568,15 +568,23 @@ bool QCamera3Channel::isUBWCEnabled()
 {
 #ifdef UBWC_PRESENT
     char value[PROPERTY_VALUE_MAX];
-    int disable = false;
-    bool ubwc_enabled = TRUE;
-
+    int prop_value = 0;
+    memset(value, 0, sizeof(value));
     property_get("debug.gralloc.gfx_ubwc_disable", value, "0");
-    disable = atoi(value);
-    if (disable) {
-        ubwc_enabled = FALSE;
+    prop_value = atoi(value);
+    if (prop_value) {
+        return FALSE;
     }
-    return ubwc_enabled;
+
+    //Disable UBWC if Eztune is enabled
+    //EzTune process CPP output frame and cannot understand UBWC.
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.eztune.enable", value, "0");
+    prop_value = atoi(value);
+    if (prop_value) {
+        return FALSE;
+    }
+    return TRUE;
 #else
     return FALSE;
 #endif
@@ -3662,7 +3670,11 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
         m_pSrcChannel = src_config.src_channel;
         m_pMetaChannel = pMetaChannel;
     }
-    if(m_camOps->request_super_buf(m_camHandle,m_handle,1,0) < 0) {
+    mm_camera_req_buf_t buf;
+    memset(&buf, 0x0, sizeof(buf));
+    buf.type = MM_CAMERA_REQ_SUPER_BUF;
+    buf.num_buf_requested = 1;
+    if(m_camOps->request_super_buf(m_camHandle,m_handle, &buf) < 0) {
         ALOGE("%s: Request for super buffer failed",__func__);
     }
     return rc;

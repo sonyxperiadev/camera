@@ -3951,9 +3951,11 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
 
     // Aux Camera Mode, set no display mode
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
-        m_bNoDisplayMode = true;
-        set(KEY_QC_NO_DISPLAY_MODE, 1);
-        m_bNeedRestart = true;
+        if (!m_bNoDisplayMode) {
+            set(KEY_QC_NO_DISPLAY_MODE, 1);
+            m_bNoDisplayMode = true;
+            m_bNeedRestart = true;
+        }
         return NO_ERROR;
     }
 
@@ -4388,7 +4390,11 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
     } else {
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.backlookcnt", prop, "2");
-        set(KEY_QC_ZSL_BURST_LOOKBACK, prop);
+        uint32_t look_back_cnt = atoi(prop);
+        if (m_relCamSyncInfo.is_frame_sync_enabled) {
+            look_back_cnt += EXTRA_FRAME_SYNC_BUFFERS;
+        }
+        set(KEY_QC_ZSL_BURST_LOOKBACK, look_back_cnt);
         CDBG_HIGH("%s: [ZSL Retro] look back count: %s", __func__, prop);
     }
 
@@ -4398,7 +4404,11 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
     } else {
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.queuedepth", prop, "2");
-        set(KEY_QC_ZSL_QUEUE_DEPTH, prop);
+        uint32_t queue_depth = atoi(prop);
+        if (m_relCamSyncInfo.is_frame_sync_enabled) {
+            queue_depth += EXTRA_FRAME_SYNC_BUFFERS;
+        }
+        set(KEY_QC_ZSL_QUEUE_DEPTH, queue_depth);
         CDBG_HIGH("%s: [ZSL Retro] queue depth: %s", __func__, prop);
     }
 
@@ -4893,7 +4903,7 @@ int32_t QCameraParameters::initDefaultParameters()
     CameraParameters::setPreviewFormat(PIXEL_FORMAT_YUV420SP);
 
     // Set default Video Format
-    set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_YUV420SP);
+    set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_ANDROID_OPAQUE);
 
     // Set supported picture formats
     String8 pictureTypeValues(PIXEL_FORMAT_JPEG);
@@ -9123,20 +9133,23 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
     format = CAM_FORMAT_MAX;
     switch (streamType) {
     case CAM_STREAM_TYPE_PREVIEW:
+        if (!isUBWCEnabled()) {
 #if VENUS_PRESENT
-        cam_dimension_t preview;
-        cam_dimension_t video;
-        getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
-        getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
-        if (getRecordingHintValue() == true &&
-                video.width == preview.width &&
-                video.height == preview.height &&
-                mPreviewFormat == CAM_FORMAT_YUV_420_NV21) {
-            format = CAM_FORMAT_YUV_420_NV21_VENUS;
-        }
-        else
+            cam_dimension_t preview;
+            cam_dimension_t video;
+            getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
+            getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
+            if (getRecordingHintValue() == true &&
+                    video.width == preview.width &&
+                    video.height == preview.height &&
+                    mPreviewFormat == CAM_FORMAT_YUV_420_NV12) {
+                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+            } else
 #endif
             format = mPreviewFormat;
+        } else {
+            format = mPreviewFormat;
+        }
         break;
     case CAM_STREAM_TYPE_POSTVIEW:
     case CAM_STREAM_TYPE_CALLBACK:
@@ -9178,13 +9191,13 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             if (pFormat == 1) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
-                format = CAM_FORMAT_YUV_420_NV21_VENUS;
+                format = CAM_FORMAT_YUV_420_NV12_VENUS;
             }
         } else {
 #if VENUS_PRESENT
-            format = CAM_FORMAT_YUV_420_NV21_VENUS;
+            format = CAM_FORMAT_YUV_420_NV12_VENUS;
 #else
-            format = CAM_FORMAT_YUV_420_NV21;
+            format = CAM_FORMAT_YUV_420_NV12;
 #endif
         }
         break;
@@ -10942,7 +10955,7 @@ int32_t QCameraParameters::getRelatedCamCalibration(
     READ_PARAM_ENTRY(m_pParamBuf,
             CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION, *calib);
 
-    CDBG("%s: CALIB version %f ",__func__, calib->calibration_format_version);
+    CDBG("%s: CALIB version %d ",__func__, calib->calibration_format_version);
     CDBG("%s: CALIB normalized_focal_length %f ", __func__,
             calib->main_cam_specific_calibration.normalized_focal_length);
     CDBG("%s: CALIB native_sensor_resolution_width %d ", __func__,
@@ -11727,6 +11740,19 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         return rc;
     }
 
+    stream_config_info.hfr_mode       = static_cast<cam_hfr_mode_t>(mHfrMode);
+    stream_config_info.preview_format = mPreviewFormat;
+    stream_config_info.buf_alignment  = m_pCapability->buf_alignment;
+    stream_config_info.min_stride     = m_pCapability->min_stride;
+    stream_config_info.min_scanline   = m_pCapability->min_scanline;
+    stream_config_info.batch_size = getBufBatchCount();
+    CDBG_HIGH("%s:%d: buf_alignment=%d stride X scan=%dx%d batch size = %d\n", __func__, __LINE__,
+            m_pCapability->buf_alignment,
+            m_pCapability->min_stride,
+            m_pCapability->min_scanline,
+            stream_config_info.batch_size);
+
+
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
 
@@ -12286,7 +12312,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         if (m_nMinRequiredPpMask & CAM_QCOM_FEATURE_EFFECT) {
             feature_mask |= CAM_QCOM_FEATURE_EFFECT;
         }
-        if (isWNREnabled() && (getRecordingHintValue() == false)) {
+        if (isWNREnabled()) {
             feature_mask |= CAM_QCOM_FEATURE_DENOISE2D;
         }
 
@@ -12297,8 +12323,8 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         }
     }
 
-    if (isTNRVideoEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
-            (CAM_STREAM_TYPE_VIDEO == stream_type))) {
+    if ((isTNRVideoEnabled() && (CAM_STREAM_TYPE_VIDEO == stream_type))
+            || (isTNRPreviewEnabled() && (CAM_STREAM_TYPE_PREVIEW == stream_type))) {
         feature_mask |= CAM_QCOM_FEATURE_CPP_TNR;
     }
     if (isEztuneEnabled() &&
@@ -12440,20 +12466,28 @@ bool QCameraParameters::isUBWCEnabled()
 {
 #ifdef UBWC_PRESENT
     char value[PROPERTY_VALUE_MAX];
-    int disable = false;
-    bool ubwc_enabled = TRUE;
-
+    int prop_value = 0;
+    memset(value, 0, sizeof(value));
     property_get("debug.gralloc.gfx_ubwc_disable", value, "0");
-    disable = atoi(value);
-    if (disable) {
-        ubwc_enabled = FALSE;
+    prop_value = atoi(value);
+    if (prop_value) {
+        return FALSE;
     }
 
-    //Disable UBWC if it is YUV sensor
+    //Disable UBWC if it is YUV sensor.
     if (m_pCapability->sensor_type.sens_type == CAM_SENSOR_YUV) {
-        ubwc_enabled = FALSE;
+        return FALSE;
     }
-    return ubwc_enabled;
+
+    //Disable UBWC if Eztune is enabled
+    // Eztune works on CPP output and cannot understand UBWC buffer.
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.eztune.enable", value, "0");
+    prop_value = atoi(value);
+    if (prop_value) {
+        return FALSE;
+    }
+    return TRUE;
 #else
     return FALSE;
 #endif

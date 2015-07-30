@@ -48,6 +48,7 @@ public:
     virtual QCameraHeapMemory *allocateStreamInfoBuf(cam_stream_type_t stream_type) = 0;
     virtual QCameraHeapMemory *allocateMiscBuf(cam_stream_info_t *streamInfo) = 0;
     virtual QCameraMemory *allocateStreamUserBuf(cam_stream_info_t *streamInfo) = 0;
+    virtual void waitForDeferredAlloc(cam_stream_type_t stream_type) = 0;
     virtual ~QCameraAllocator() {}
 };
 

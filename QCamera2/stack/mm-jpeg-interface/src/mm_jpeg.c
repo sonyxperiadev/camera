@@ -1469,8 +1469,10 @@ static OMX_ERRORTYPE mm_jpeg_configure_job_params(
   work_buffer.fd = p_session->work_buffer.p_pmem_fd;
   work_buffer.vaddr = p_session->work_buffer.addr;
   work_buffer.length = (uint32_t)p_session->work_buffer.size;
-  CDBG_ERROR("%s:%d] Work buffer %d %p WorkBufSize: %d", __func__, __LINE__,
+  CDBG_ERROR("%s:%d] Work buffer info %d %p WorkBufSize: %d invalidate", __func__, __LINE__,
     work_buffer.fd, work_buffer.vaddr, work_buffer.length);
+
+  buffer_invalidate(&p_session->work_buffer);
 
   ret = OMX_SetConfig(p_session->omx_handle, work_buffer_index,
     &work_buffer);
@@ -1805,8 +1807,11 @@ static void *mm_jpeg_jobmgr_thread(void *data)
 
     /* check ongoing q size */
     num_ongoing_jobs = mm_jpeg_queue_get_size(&my_obj->ongoing_job_q);
-    if (num_ongoing_jobs >= NUM_MAX_JPEG_CNCURRENT_JOBS) {
-      CDBG("%s:%d] ongoing job already reach max %d", __func__,
+
+    CDBG("%s:%d] ongoing job  %d %d", __func__,
+      __LINE__, num_ongoing_jobs, MM_JPEG_CONCURRENT_SESSIONS_COUNT);
+    if (num_ongoing_jobs >= MM_JPEG_CONCURRENT_SESSIONS_COUNT) {
+      CDBG_ERROR("%s:%d] ongoing job already reach max %d", __func__,
         __LINE__, num_ongoing_jobs);
       continue;
     }
@@ -2911,6 +2916,15 @@ OMX_ERRORTYPE mm_jpeg_fbd(OMX_HANDLETYPE hComponent,
     pthread_mutex_unlock(&p_session->lock);
     return ret;
   }
+#ifdef MM_JPEG_DUMP_OUT_BS
+  char filename[256];
+  static int bsc;
+  snprintf(filename, sizeof(filename),
+      QCAMERA_DUMP_FRM_LOCATION"jpeg/mm_jpeg_bs%d.jpg", bsc++);
+  DUMP_TO_FILE(filename,
+    pBuffer->pBuffer,
+    (size_t)(uint32_t)pBuffer->nFilledLen);
+#endif
 
   p_session->fbd_count++;
   if (NULL != p_session->params.jpeg_cb) {

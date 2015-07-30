@@ -864,6 +864,7 @@ uint32_t mm_camera_add_channel(mm_camera_obj_t *my_obj,
         ch_obj->state = MM_CHANNEL_STATE_STOPPED;
         ch_obj->cam_obj = my_obj;
         pthread_mutex_init(&ch_obj->ch_lock, NULL);
+        ch_obj->sessionid = my_obj->sessionid;
         mm_channel_init(ch_obj, attr, channel_cb, userdata);
     }
 
@@ -1193,8 +1194,7 @@ int32_t mm_camera_config_stream(mm_camera_obj_t *my_obj,
  *              0  -- success
  *              -1 -- failure
  *==========================================================================*/
-int32_t mm_camera_start_channel(mm_camera_obj_t *my_obj,
-                                uint32_t ch_id)
+int32_t mm_camera_start_channel(mm_camera_obj_t *my_obj, uint32_t ch_id)
 {
     int32_t rc = -1;
     mm_channel_t * ch_obj =
@@ -1265,22 +1265,18 @@ int32_t mm_camera_stop_channel(mm_camera_obj_t *my_obj,
  *              -1 -- failure
  *==========================================================================*/
 int32_t mm_camera_request_super_buf(mm_camera_obj_t *my_obj,
-                                    uint32_t ch_id,
-                                    uint32_t num_buf_requested,
-                                    uint32_t num_retro_buf_requested)
+        uint32_t ch_id, mm_camera_req_buf_t *buf)
 {
     int32_t rc = -1;
     mm_channel_t * ch_obj =
         mm_camera_util_get_channel_by_handler(my_obj, ch_id);
 
-    if (NULL != ch_obj) {
+    if ((NULL != ch_obj) && (buf != NULL)) {
         pthread_mutex_lock(&ch_obj->ch_lock);
         pthread_mutex_unlock(&my_obj->cam_lock);
 
-        rc = mm_channel_fsm_fn(ch_obj,
-                               MM_CHANNEL_EVT_REQUEST_SUPER_BUF,
-                               (void *)&num_buf_requested,
-                               (void *)&num_retro_buf_requested);
+        rc = mm_channel_fsm_fn(ch_obj, MM_CHANNEL_EVT_REQUEST_SUPER_BUF,
+                (void *)buf, NULL);
     } else {
         pthread_mutex_unlock(&my_obj->cam_lock);
     }
@@ -2012,6 +2008,7 @@ int32_t mm_camera_get_session_id(mm_camera_obj_t *my_obj,
                 __func__, my_obj->ctrl_fd, MSM_CAMERA_PRIV_G_SESSION_ID,
                 value, rc);
         *sessionid = value;
+        my_obj->sessionid = value;
     }
 
     pthread_mutex_unlock(&my_obj->cam_lock);

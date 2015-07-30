@@ -153,6 +153,29 @@ typedef struct {
     mm_camera_buf_def_t* bufs[MAX_STREAM_NUM_IN_BUNDLE];
 } mm_camera_super_buf_t;
 
+/** mm_camera_req_buf_type_t
+* Request type for super buf from channel
+**/
+typedef enum {
+    MM_CAMERA_REQ_SUPER_BUF,
+    MM_CAMERA_REQ_FRAME_SYNC_BUF
+} mm_camera_req_buf_type_t;
+
+/** mm_camera_req_buf_t: Attributes for super buf request
+*
+*    @type : type of super buf requested
+*    @num_buf_requested : num of super bufs requested
+*    @num_retro_buf_requested : number of retro bufs requested
+*    @primary_only : specifies if only primary camera frame for a dual
+*     camera is requested
+**/
+typedef struct {
+    mm_camera_req_buf_type_t type;
+    uint32_t num_buf_requested;
+    uint32_t num_retro_buf_requested;
+    uint8_t primary_only;
+} mm_camera_req_buf_t;
+
 /** mm_camera_event_t: structure for event
 *    @server_event_type : event type from serer
 *    @status : status of an event, value could be
@@ -327,6 +350,7 @@ typedef enum {
 *                     delivery. Only valid for burst mode
 *    @max_unmatched_frames : max number of unmatched frames in
 *                     queue
+*    @enable_frame_sync: Enables frame sync for dual camera
 *    @priority : save matched priority frames only
 **/
 typedef struct {
@@ -335,6 +359,7 @@ typedef struct {
     uint8_t look_back;
     uint8_t post_frame_skip;
     uint8_t max_unmatched_frames;
+    uint8_t enable_frame_sync;
     mm_camera_super_buf_priority_t priority;
 } mm_camera_channel_attr_t;
 
@@ -693,15 +718,13 @@ typedef struct {
      *                     from superbuf queue in burst mode
      *    @camera_handle : camer handler
      *    @ch_id : channel handler
-     *    @num_buf_requested : number of super buffers requested
-     *    @num_retro_buf_requested : number of retro buffers requested
+     *    @buf : provides info related to the super buf request
      *  Return value: 0 -- success
      *                -1 -- failure
      **/
     int32_t (*request_super_buf) (uint32_t camera_handle,
                                   uint32_t ch_id,
-                                  uint32_t num_buf_requested,
-                                  uint32_t num_retro_buf_requested);
+                                  mm_camera_req_buf_t *buf);
 
     /** cancel_super_buf_request: fucntion definition for canceling
      *                     frames dispatched from superbuf queue in

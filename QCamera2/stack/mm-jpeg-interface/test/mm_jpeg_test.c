@@ -34,6 +34,7 @@
 #include <stdbool.h>
 
 #define MAX_NUM_BUFS (12)
+#define MAX_NUM_CLIENT (8)
 
 /** DUMP_TO_FILE:
  *  @filename: file name
@@ -75,6 +76,7 @@ typedef struct {
   int thumb_quality;
   char *qtable_luma_file;
   char *qtable_chroma_file;
+  int client_cnt;
 } jpeg_test_input_t;
 
 /* Static constants */
@@ -109,6 +111,7 @@ typedef struct {
   char *out_filename[MAX_NUM_BUFS];
   pthread_mutex_t lock;
   pthread_cond_t cond;
+  pthread_t thread_id;
   buffer_t input[MAX_NUM_BUFS];
   buffer_t output[MAX_NUM_BUFS];
   int use_ion;
@@ -121,6 +124,9 @@ typedef struct {
   uint32_t num_bufs;
   uint32_t min_out_bufs;
   size_t buf_filled_len[MAX_NUM_BUFS];
+  mm_dimension pic_size;
+  int ret;
+  int clinet_id;
 } mm_jpeg_intf_test_t;
 
 
@@ -140,7 +146,7 @@ static const mm_jpeg_intf_test_colfmt_t color_formats[] =
 static jpeg_test_input_t jpeg_input[] = {
   { QCAMERA_DUMP_FRM_LOCATION"test_1.yuv", 4000, 3008, QCAMERA_DUMP_FRM_LOCATION"test_1.jpg", 0, 0,
     { MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2, {3, 2}, "YCRCBLP_H2V2" },
-      0, 320, 240, 80, 80, NULL, NULL}
+      0, 320, 240, 80, 80, NULL, NULL, 1}
 };
 
 static void mm_jpeg_encode_callback(jpeg_job_status_t status,
@@ -171,7 +177,6 @@ static void mm_jpeg_encode_callback(jpeg_job_status_t status,
       CDBG_ERROR("%s:%d] Saving file%s addr %p len %zu",
           __func__, __LINE__, p_obj->out_filename[i],
           p_output->buf_vaddr, p_output->buf_filled_len);
-
       DUMP_TO_FILE(p_obj->out_filename[i], p_output->buf_vaddr,
         p_output->buf_filled_len);
     }
@@ -285,7 +290,8 @@ int mm_jpeg_test_read_qtable(const char *filename, bool chroma_flag)
   return 0;
 }
 
-static int encode_init(jpeg_test_input_t *p_input, mm_jpeg_intf_test_t *p_obj)
+static int encode_init(jpeg_test_input_t *p_input, mm_jpeg_intf_test_t *p_obj,
+  int client_id)
 {
   int rc = -1;
   size_t size = (size_t)(p_input->width * p_input->height);
@@ -448,86 +454,86 @@ static int encode_init(jpeg_test_input_t *p_input, mm_jpeg_intf_test_t *p_obj)
     p_job_params->qtable[1].nQuantizationMatrix[i] = DEFAULT_QTABLE_1[i];
   }
 
+  p_obj->pic_size.w = (uint32_t)p_input->width;
+  p_obj->pic_size.h = (uint32_t)p_input->height;
+
+  p_obj->clinet_id = client_id;
+
   return 0;
 }
 
-static int encode_test(jpeg_test_input_t *p_input)
+static void *encode_test(void *data)
 {
   int rc = 0;
-  mm_jpeg_intf_test_t jpeg_obj;
+  mm_jpeg_intf_test_t *jpeg_obj = (mm_jpeg_intf_test_t *)data;
+  char file_name[64];
+
   uint32_t i = 0;
-
-  memset(&jpeg_obj, 0x0, sizeof(jpeg_obj));
-  rc = encode_init(p_input, &jpeg_obj);
-  if (rc) {
+  jpeg_obj->handle = jpeg_open(&jpeg_obj->ops, NULL, jpeg_obj->pic_size, NULL);
+  if (jpeg_obj->handle == 0) {
     CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
-    return -1;
-  }
-
-  mm_dimension pic_size;
-  memset(&pic_size, 0, sizeof(mm_dimension));
-  pic_size.w = (uint32_t)p_input->width;
-  pic_size.h = (uint32_t)p_input->height;
-
-  jpeg_obj.handle = jpeg_open(&jpeg_obj.ops, NULL, pic_size, NULL);
-  if (jpeg_obj.handle == 0) {
-    CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+    jpeg_obj->ret = -1;
     goto end;
   }
 
-  rc = jpeg_obj.ops.create_session(jpeg_obj.handle, &jpeg_obj.params,
-    &jpeg_obj.job.encode_job.session_id);
-  if (jpeg_obj.job.encode_job.session_id == 0) {
+  rc = jpeg_obj->ops.create_session(jpeg_obj->handle, &jpeg_obj->params,
+    &jpeg_obj->job.encode_job.session_id);
+  if (jpeg_obj->job.encode_job.session_id == 0) {
     CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+    jpeg_obj->ret = -1;
     goto end;
   }
 
-  for (i = 0; i < jpeg_obj.num_bufs; i++) {
-    jpeg_obj.job.job_type = JPEG_JOB_TYPE_ENCODE;
-    jpeg_obj.job.encode_job.src_index = (int32_t) i;
-    jpeg_obj.job.encode_job.dst_index = (int32_t) i;
-    jpeg_obj.job.encode_job.thumb_index = (uint32_t) i;
+  for (i = 0; i < jpeg_obj->num_bufs; i++) {
+    jpeg_obj->job.job_type = JPEG_JOB_TYPE_ENCODE;
+    jpeg_obj->job.encode_job.src_index = (int32_t) i;
+    jpeg_obj->job.encode_job.dst_index = (int32_t) i;
+    jpeg_obj->job.encode_job.thumb_index = (uint32_t) i;
 
-    if (jpeg_obj.params.burst_mode && jpeg_obj.min_out_bufs) {
-      jpeg_obj.job.encode_job.dst_index = -1;
+    if (jpeg_obj->params.burst_mode && jpeg_obj->min_out_bufs) {
+      jpeg_obj->job.encode_job.dst_index = -1;
     }
 
-    rc = jpeg_obj.ops.start_job(&jpeg_obj.job, &jpeg_obj.job_id[i]);
-
+    rc = jpeg_obj->ops.start_job(&jpeg_obj->job, &jpeg_obj->job_id[i]);
     if (rc) {
       CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+      jpeg_obj->ret = rc;
       goto end;
     }
   }
-  jpeg_obj.job_id[i] = 0;
+  jpeg_obj->job_id[i] = 0;
 
   /*
   usleep(5);
-  jpeg_obj.ops.abort_job(jpeg_obj.job_id[0]);
+  jpeg_obj->ops.abort_job(jpeg_obj->job_id[0]);
   */
-  pthread_mutex_lock(&jpeg_obj.lock);
-  pthread_cond_wait(&jpeg_obj.cond, &jpeg_obj.lock);
-  pthread_mutex_unlock(&jpeg_obj.lock);
+  pthread_mutex_lock(&jpeg_obj->lock);
+  pthread_cond_wait(&jpeg_obj->cond, &jpeg_obj->lock);
+  pthread_mutex_unlock(&jpeg_obj->lock);
 
-
-  jpeg_obj.ops.destroy_session(jpeg_obj.job.encode_job.session_id);
-  jpeg_obj.ops.close(jpeg_obj.handle);
+  jpeg_obj->ops.destroy_session(jpeg_obj->job.encode_job.session_id);
+  jpeg_obj->ops.close(jpeg_obj->handle);
 
 end:
-  for (i = 0; i < jpeg_obj.num_bufs; i++) {
-    if (!jpeg_obj.min_out_bufs) {
+  for (i = 0; i < jpeg_obj->num_bufs; i++) {
+    if (!jpeg_obj->min_out_bufs) {
       // Save output files
       CDBG_ERROR("%s:%d] Saving file%s addr %p len %zu",
-          __func__, __LINE__,jpeg_obj.out_filename[i],
-          jpeg_obj.output[i].addr, jpeg_obj.buf_filled_len[i]);
+          __func__, __LINE__,jpeg_obj->out_filename[i],
+          jpeg_obj->output[i].addr, jpeg_obj->buf_filled_len[i]);
 
-      DUMP_TO_FILE(jpeg_obj.out_filename[i], jpeg_obj.output[i].addr,
-        jpeg_obj.buf_filled_len[i]);
+      snprintf(file_name, sizeof(file_name), "%s_%d.jpg",
+        jpeg_obj->out_filename[i], jpeg_obj->clinet_id);
+      fprintf(stderr, "Output file for client %d = %s\n",
+        jpeg_obj->clinet_id, file_name);
+
+      DUMP_TO_FILE(file_name, jpeg_obj->output[i].addr,
+        jpeg_obj->buf_filled_len[i]);
     }
-    mm_jpeg_test_free(&jpeg_obj.input[i]);
-    mm_jpeg_test_free(&jpeg_obj.output[i]);
+    mm_jpeg_test_free(&jpeg_obj->input[i]);
+    mm_jpeg_test_free(&jpeg_obj->output[i]);
   }
-  return 0;
+  return NULL;
 }
 
 #define MAX_FILE_CNT (20)
@@ -542,7 +548,7 @@ static int mm_jpeg_test_get_input(int argc, char *argv[],
   char *in_files[MAX_FILE_CNT];
   char *out_files[MAX_FILE_CNT];
 
-  while ((c = getopt(argc, argv, "-I:O:W:H:F:BTx:y:Q:J:K:q:")) != -1) {
+  while ((c = getopt(argc, argv, "-I:O:W:H:F:BTx:y:Q:J:K:C:q:")) != -1) {
     switch (c) {
     case 'B':
       fprintf(stderr, "%-25s\n", "Using burst mode");
@@ -614,11 +620,20 @@ static int mm_jpeg_test_get_input(int argc, char *argv[],
       fprintf(stderr, "%-25s%s\n", "Qtable chroma path",
         p_test->qtable_chroma_file);
       break;
+    case 'C':
+      p_test->client_cnt = atoi(optarg);
+      fprintf(stderr, "%-25s%d\n", "Number of clients ",
+        p_test->client_cnt);
     default:;
     }
   }
   fprintf(stderr, "Infiles: %zu Outfiles: %zu\n", in_file_cnt, out_file_cnt);
 
+  if (p_test->client_cnt > MAX_NUM_CLIENT) {
+    fprintf(stderr, "Clients requested exceeds max limit %d\n",
+      MAX_NUM_CLIENT);
+    return 1;
+  }
   if (in_file_cnt > out_file_cnt) {
     fprintf(stderr, "%-25s\n", "Insufficient number of output files!");
     return 1;
@@ -640,7 +655,6 @@ static int mm_jpeg_test_get_input(int argc, char *argv[],
     p_test->out_filename = out_files[i];
     fprintf(stderr, "Inf: %s Outf: %s\n", in_files[i], out_files[i]);
   }
-
 
   return 0;
 }
@@ -673,6 +687,7 @@ static void mm_jpeg_test_print_usage()
     " matrix\n");
   fprintf(stderr, "  -K \t\tChroma QTable filename. Comma separated"
     " 8x8 matrix\n");
+  fprintf(stderr, "  -C \t\tNumber of clients to run in parllel\n");
   fprintf(stderr, "\n");
 }
 
@@ -692,7 +707,11 @@ static void mm_jpeg_test_print_usage()
 int main(int argc, char* argv[])
 {
   jpeg_test_input_t *p_test_input;
+  mm_jpeg_intf_test_t client[MAX_NUM_CLIENT];
   int ret = 0;
+  int i = 0;
+  int thread_cnt = 0;
+
   if (argc > 1) {
     p_test_input = calloc(2, sizeof(*p_test_input));
     if (!p_test_input) {
@@ -709,13 +728,35 @@ int main(int argc, char* argv[])
     mm_jpeg_test_print_usage();
     return 1;
   }
-  ret = encode_test(p_test_input);
+
+  for (i = 0; i < p_test_input->client_cnt; i++) {
+    memset(&client[i], 0x0, sizeof(mm_jpeg_intf_test_t));
+    ret = encode_init(p_test_input, &client[i], i);
+    if (ret) {
+      CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+      return -1;
+    }
+
+    ret = pthread_create(&client[i].thread_id, NULL, encode_test,
+      &client[i]);
+    if (ret != 0) {
+       fprintf(stderr, "Error in thread creation\n");
+       break;
+    }
+  }
+
+  thread_cnt = i;
+  for (i = 0; i < thread_cnt; i++) {
+    pthread_join(client[i].thread_id, NULL);
+  }
 
 exit:
-  if (!ret) {
-    fprintf(stderr, "%-25s\n", "Success!");
-  } else {
-    fprintf(stderr, "%-25s\n", "Fail!");
+  for (i = 0; i < thread_cnt; i++) {
+    if (!client[i].ret) {
+      fprintf(stderr, "%-25s %d %s\n", "Client", i, "Success!");
+    } else {
+      fprintf(stderr, "%-25s %d %s\n", "Client", i, "Fail!");
+    }
   }
 
   if (argc > 1) {

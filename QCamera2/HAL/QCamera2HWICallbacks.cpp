@@ -666,6 +666,9 @@ void QCamera2HardwareInterface::postproc_channel_cb_routine(mm_camera_super_buf_
     }
     *frame = *recvd_frame;
 
+    // Wait on JPEG create session
+    pme->waitDefferedWork(pme->mJpegJob);
+
     // send to postprocessor
     pme->m_postprocessor.processPPData(frame);
 

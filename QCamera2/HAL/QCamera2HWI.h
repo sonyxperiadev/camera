@@ -292,6 +292,7 @@ public:
     virtual QCameraHeapMemory *allocateStreamInfoBuf(cam_stream_type_t stream_type);
     virtual QCameraHeapMemory *allocateMiscBuf(cam_stream_info_t *streamInfo);
     virtual QCameraMemory *allocateStreamUserBuf(cam_stream_info_t *streamInfo);
+    virtual void waitForDeferredAlloc(cam_stream_type_t stream_type);
 
     // Implementation of QCameraThermalCallback
     virtual int thermalEvtHandle(qcamera_thermal_level_enum_t *level,
@@ -556,12 +557,11 @@ private:
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
-    cam_sync_type_t  mCameraType;
-    cam_sync_mode_t  mCameraMode;
     mm_camera_vtbl_t *mCameraHandle;
     bool mCameraOpened;
 
     cam_related_system_calibration_data_t mRelCamCalibData;
+    bool m_bRelCamCalibValid;
 
     preview_stream_ops_t *mPreviewWindow;
     QCameraParameters mParameters;
@@ -647,6 +647,8 @@ private:
     enum DefferedWorkCmd {
         CMD_DEFF_ALLOCATE_BUFF,
         CMD_DEFF_PPROC_START,
+        CMD_DEF_METADATA_ALLOC,
+        CMD_DEFF_CREATE_JPEG_SESSION,
         CMD_DEFF_MAX
     };
 
@@ -655,9 +657,15 @@ private:
         cam_stream_type_t type;
     } DefferAllocBuffArgs;
 
+    typedef struct {
+        uint8_t bufferCnt;
+        size_t size;
+    } DeferMetadataAllocArgs;
+
     typedef union {
         DefferAllocBuffArgs allocArgs;
         QCameraChannel *pprocArgs;
+        DeferMetadataAllocArgs metadataAllocArgs;
     } DefferWorkArgs;
 
     bool mDeffOngoingJobs[MAX_ONGOING_JOBS];
@@ -691,7 +699,9 @@ private:
     int32_t mPostviewJob;
     int32_t mMetadataJob;
     int32_t mReprocJob;
+    int32_t mJpegJob;
     int32_t mRawdataJob;
+    int32_t mMetadataAllocJob;
     uint32_t mOutputCount;
     uint32_t mInputCount;
     bool mAdvancedCaptureConfigured;
@@ -712,6 +722,7 @@ private:
     bool TsMakeupProcess_Snapshot(mm_camera_buf_def_t *pFrame,QCameraStream * pStream);
     bool TsMakeupProcess(mm_camera_buf_def_t *frame,QCameraStream * stream,TSRect& faceRect);
 #endif
+    QCameraMemory *mMetadataMem;
 };
 
 }; // namespace qcamera
