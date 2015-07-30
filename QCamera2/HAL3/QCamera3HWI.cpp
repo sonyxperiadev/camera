@@ -403,6 +403,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
         CDBG_FATAL_IF(m_overrideAppFaceDetection > ANDROID_STATISTICS_FACE_DETECT_MODE_FULL);
         CDBG("%s: Override face detection: %d", __func__, m_overrideAppFaceDetection);
     }
+
+    memset(&mInputStreamSize, 0, sizeof(mInputStreamSize));
 }
 
 /*===========================================================================
@@ -1188,6 +1190,8 @@ int QCamera3HardwareInterface::configureStreams(
     uint32_t maxEisHeight = 0;
     int32_t hal_version = CAM_HAL_V3;
 
+    memset(&mInputStreamSize, 0, sizeof(mInputStreamSize));
+
     size_t count = IS_TYPE_MAX;
     count = MIN(gCamCapability[mCameraId]->supported_is_types_cnt, count);
     for (size_t i = 0; i < count; i++) {
@@ -1441,6 +1445,15 @@ int QCamera3HardwareInterface::configureStreams(
         if (newStream->format == HAL_PIXEL_FORMAT_BLOB) {
             jpegStream = newStream;
         }
+    }
+
+    /* If a zsl stream is set, we know that we have configured at least one input or
+       bidirectional stream */
+    if (NULL != zslStream) {
+        mInputStreamSize.width = (int32_t)zslStream->width;
+        mInputStreamSize.height = (int32_t)zslStream->height;
+        CDBG("%s: Input stream configured! %d x %d", __func__, mInputStreamSize.width,
+                mInputStreamSize.height);
     }
 
     cleanAndSortStreamInfo();
@@ -3925,6 +3938,39 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
 }
 
 /*===========================================================================
+ * FUNCTION   : getReprocessibleOutputStream
+ *
+ * DESCRIPTION: return the output stream corresponding to the supported input
+ *              reprocess stream size, which would be the largest output stream
+ *              if an input stream exists
+ *
+ * PARAMETERS : NONE
+ *
+ * RETURN     :
+ *    stream_info_t* : pointer to largest output stream
+ *    NULL if not found
+ *==========================================================================*/
+stream_info_t* QCamera3HardwareInterface::getReprocessibleOutputStream()
+{
+   /* check if any output or bidirectional stream has the input stream dimensions
+      and return that stream */
+   if ((mInputStreamSize.width > 0) && (mInputStreamSize.height > 0)) {
+       for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+           it != mStreamInfo.end(); it++) {
+           if (((*it)->stream->width == (uint32_t)mInputStreamSize.width) &&
+                   ((*it)->stream->height == (uint32_t)mInputStreamSize.height)) {
+               CDBG("%s: Found reprocessible output stream! %p", __func__, *it);
+               return *it;
+           }
+       }
+   } else {
+       CDBG("%s: No input stream, so no reprocessible output stream", __func__);
+   }
+   CDBG("%s: Could not find reprocessible output stream", __func__);
+   return NULL;
+}
+
+/*===========================================================================
  * FUNCTION   : lookupFwkName
  *
  * DESCRIPTION: In case the enum is not same in fwk and backend
@@ -4641,88 +4687,61 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, metadata) {
         uint8_t cnt = crop_data->num_of_streams;
         if ((0 < cnt) && (cnt < MAX_NUM_STREAMS)) {
-            int rc = NO_ERROR;
-            int32_t *crop = new int32_t[cnt*4];
-            if (NULL == crop) {
-                rc = NO_MEMORY;
-            }
+            stream_info_t* reprocessible_stream = getReprocessibleOutputStream();
+            if (NULL == reprocessible_stream) {
+                CDBG("%s: No reprocessible stream found, ignore crop data", __func__);
+            } else {
+                QCamera3Channel *channel = (QCamera3Channel *)reprocessible_stream->stream->priv;
+                int rc = NO_ERROR;
+                Vector<int32_t> roi_map;
+                int32_t *crop = new int32_t[cnt*4];
+                if (NULL == crop) {
+                   rc = NO_MEMORY;
+                }
+                if (NO_ERROR == rc && NULL != channel) {
+                    int32_t streams_found = 0;
+                    uint32_t reprocessible_stream_id = channel->mStreams[0]->getMyServerID();
+                    for (size_t i = 0; i < cnt; i++) {
+                        if (crop_data->crop_info[i].stream_id == reprocessible_stream_id) {
+                            crop[0] = crop_data->crop_info[i].crop.left;
+                            crop[1] = crop_data->crop_info[i].crop.top;
+                            crop[2] = crop_data->crop_info[i].crop.width;
+                            crop[3] = crop_data->crop_info[i].crop.height;
+                            roi_map.add(crop_data->crop_info[i].roi_map.left);
+                            roi_map.add(crop_data->crop_info[i].roi_map.top);
+                            roi_map.add(crop_data->crop_info[i].roi_map.width);
+                            roi_map.add(crop_data->crop_info[i].roi_map.height);
+                            streams_found++;
+                            CDBG("%s: Adding reprocess crop data for stream %p %dx%d, %dx%d",
+                                    __func__,
+                                    reprocessible_stream->stream,
+                                    crop_data->crop_info[i].crop.left,
+                                    crop_data->crop_info[i].crop.top,
+                                    crop_data->crop_info[i].crop.width,
+                                    crop_data->crop_info[i].crop.height);
+                            CDBG("%s: Adding reprocess crop roi map for stream %p %dx%d, %dx%d",
+                                    __func__,
+                                    reprocessible_stream->stream,
+                                    crop_data->crop_info[i].roi_map.left,
+                                    crop_data->crop_info[i].roi_map.top,
+                                    crop_data->crop_info[i].roi_map.width,
+                                    crop_data->crop_info[i].roi_map.height);
+                            break;
 
-            int32_t *crop_stream_ids = new int32_t[cnt];
-            if (NULL == crop_stream_ids) {
-                rc = NO_MEMORY;
-            }
-
-            Vector<int32_t> roi_map;
-
-            if (NO_ERROR == rc) {
-                int32_t steams_found = 0;
-                for (size_t i = 0; i < cnt; i++) {
-                    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
-                        it != mStreamInfo.end(); it++) {
-                        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-                        if (NULL != channel) {
-                            if (crop_data->crop_info[i].stream_id ==
-                                    channel->mStreams[0]->getMyServerID()) {
-                                crop[steams_found*4] = crop_data->crop_info[i].crop.left;
-                                crop[steams_found*4 + 1] = crop_data->crop_info[i].crop.top;
-                                crop[steams_found*4 + 2] = crop_data->crop_info[i].crop.width;
-                                crop[steams_found*4 + 3] = crop_data->crop_info[i].crop.height;
-                                // In a more general case we may want to generate
-                                // unique id depending on width, height, stream, private
-                                // data etc.
-#ifdef __LP64__
-                                // Using XORed value of lower and upper halves as ID
-                                crop_stream_ids[steams_found] = (int32_t)
-                                        ((((int64_t)(*it)->stream) & 0x0000FFFF) ^
-                                                (((int64_t)(*it)->stream) >> 0x20 & 0x0000FFFF));
-#else
-                                // FIXME: Although using data address as ID doesn't guarantee
-                                // that all IDs will be unique, we are keeping existing nostrum
-                                // for now till found better solution.
-                                crop_stream_ids[steams_found] = (int32_t)(*it)->stream;
-#endif
-                                steams_found++;
-                                roi_map.add(crop_data->crop_info[i].roi_map.left);
-                                roi_map.add(crop_data->crop_info[i].roi_map.top);
-                                roi_map.add(crop_data->crop_info[i].roi_map.width);
-                                roi_map.add(crop_data->crop_info[i].roi_map.height);
-                                CDBG("%s: Adding reprocess crop data for stream %p %dx%d, %dx%d",
-                                        __func__,
-                                        (*it)->stream,
-                                        crop_data->crop_info[i].crop.left,
-                                        crop_data->crop_info[i].crop.top,
-                                        crop_data->crop_info[i].crop.width,
-                                        crop_data->crop_info[i].crop.height);
-                                CDBG("%s: Adding reprocess crop roi map for stream %p %dx%d, %dx%d",
-                                        __func__,
-                                        (*it)->stream,
-                                        crop_data->crop_info[i].roi_map.left,
-                                        crop_data->crop_info[i].roi_map.top,
-                                        crop_data->crop_info[i].roi_map.width,
-                                        crop_data->crop_info[i].roi_map.height);
-                                break;
-                            }
-                        }
+                       }
                     }
-                }
-
-                camMetadata.update(QCAMERA3_CROP_COUNT_REPROCESS,
-                        &steams_found, 1);
-                camMetadata.update(QCAMERA3_CROP_REPROCESS,
-                        crop, (size_t)(steams_found * 4));
-                camMetadata.update(QCAMERA3_CROP_STREAM_ID_REPROCESS,
-                        crop_stream_ids, (size_t)steams_found);
-                if (roi_map.array()) {
-                    camMetadata.update(QCAMERA3_CROP_ROI_MAP_REPROCESS,
-                            roi_map.array(), roi_map.size());
-                }
-            }
-
-            if (crop) {
-                delete [] crop;
-            }
-            if (crop_stream_ids) {
-                delete [] crop_stream_ids;
+                    camMetadata.update(QCAMERA3_CROP_COUNT_REPROCESS,
+                            &streams_found, 1);
+                    camMetadata.update(QCAMERA3_CROP_REPROCESS,
+                            crop, (size_t)(streams_found * 4));
+                    if (roi_map.array()) {
+                        camMetadata.update(QCAMERA3_CROP_ROI_MAP_REPROCESS,
+                                roi_map.array(), roi_map.size());
+                    }
+               }
+               if (crop) {
+                   delete [] crop;
+               }
             }
         } else {
             // mm-qcamera-daemon only posts crop_data for streams
@@ -7340,76 +7359,53 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
     CameraMetadata frame_settings;
     frame_settings = request->settings;
     if (frame_settings.exists(QCAMERA3_CROP_COUNT_REPROCESS) &&
-            frame_settings.exists(QCAMERA3_CROP_REPROCESS) &&
-            frame_settings.exists(QCAMERA3_CROP_STREAM_ID_REPROCESS)) {
+            frame_settings.exists(QCAMERA3_CROP_REPROCESS)) {
         int32_t *crop_count =
                 frame_settings.find(QCAMERA3_CROP_COUNT_REPROCESS).data.i32;
         int32_t *crop_data =
                 frame_settings.find(QCAMERA3_CROP_REPROCESS).data.i32;
-        int32_t *crop_stream_ids =
-                frame_settings.find(QCAMERA3_CROP_STREAM_ID_REPROCESS).data.i32;
         int32_t *roi_map =
                 frame_settings.find(QCAMERA3_CROP_ROI_MAP_REPROCESS).data.i32;
         if ((0 < *crop_count) && (*crop_count < MAX_NUM_STREAMS)) {
-            bool found = false;
-            int32_t i;
-            for (i = 0; i < *crop_count; i++) {
-#ifdef __LP64__
-                int32_t id = (int32_t)
-                        ((((int64_t)request->input_buffer->stream) & 0x0000FFFF) ^
-                                (((int64_t)request->input_buffer->stream) >> 0x20 & 0x0000FFFF));
-#else
-                int32_t id = (int32_t) request->input_buffer->stream;
-#endif
-                if (crop_stream_ids[i] == id) {
-                    found = true;
-                    break;
-                }
+            cam_crop_data_t crop_meta;
+            memset(&crop_meta, 0, sizeof(cam_crop_data_t));
+            crop_meta.num_of_streams = 1;
+            crop_meta.crop_info[0].crop.left   = crop_data[0];
+            crop_meta.crop_info[0].crop.top    = crop_data[1];
+            crop_meta.crop_info[0].crop.width  = crop_data[2];
+            crop_meta.crop_info[0].crop.height = crop_data[3];
+
+            crop_meta.crop_info[0].roi_map.left =
+                    roi_map[0];
+            crop_meta.crop_info[0].roi_map.top =
+                    roi_map[1];
+            crop_meta.crop_info[0].roi_map.width =
+                    roi_map[2];
+            crop_meta.crop_info[0].roi_map.height =
+                    roi_map[3];
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_CROP_DATA, crop_meta)) {
+                rc = BAD_VALUE;
             }
-
-            if (found) {
-                cam_crop_data_t crop_meta;
-                size_t roi_map_idx = i*4;
-                size_t crop_info_idx = i*4;
-                memset(&crop_meta, 0, sizeof(cam_crop_data_t));
-                crop_meta.num_of_streams = 1;
-                crop_meta.crop_info[0].crop.left   = crop_data[crop_info_idx++];
-                crop_meta.crop_info[0].crop.top    = crop_data[crop_info_idx++];
-                crop_meta.crop_info[0].crop.width  = crop_data[crop_info_idx++];
-                crop_meta.crop_info[0].crop.height = crop_data[crop_info_idx++];
-
-                crop_meta.crop_info[0].roi_map.left =
-                        roi_map[roi_map_idx++];
-                crop_meta.crop_info[0].roi_map.top =
-                        roi_map[roi_map_idx++];
-                crop_meta.crop_info[0].roi_map.width =
-                        roi_map[roi_map_idx++];
-                crop_meta.crop_info[0].roi_map.height =
-                        roi_map[roi_map_idx++];
-
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_CROP_DATA, crop_meta)) {
-                    rc = BAD_VALUE;
-                }
-                CDBG("%s: Found reprocess crop data for stream %p %dx%d, %dx%d",
-                        __func__,
-                        request->input_buffer->stream,
-                        crop_meta.crop_info[0].crop.left,
-                        crop_meta.crop_info[0].crop.top,
-                        crop_meta.crop_info[0].crop.width,
-                        crop_meta.crop_info[0].crop.height);
-                CDBG("%s: Found reprocess roi map data for stream %p %dx%d, %dx%d",
-                        __func__,
-                        request->input_buffer->stream,
-                        crop_meta.crop_info[0].roi_map.left,
-                        crop_meta.crop_info[0].roi_map.top,
-                        crop_meta.crop_info[0].roi_map.width,
-                        crop_meta.crop_info[0].roi_map.height);
+            CDBG("%s: Found reprocess crop data for stream %p %dx%d, %dx%d",
+                    __func__,
+                    request->input_buffer->stream,
+                    crop_meta.crop_info[0].crop.left,
+                    crop_meta.crop_info[0].crop.top,
+                    crop_meta.crop_info[0].crop.width,
+                    crop_meta.crop_info[0].crop.height);
+            CDBG("%s: Found reprocess roi map data for stream %p %dx%d, %dx%d",
+                    __func__,
+                    request->input_buffer->stream,
+                    crop_meta.crop_info[0].roi_map.left,
+                    crop_meta.crop_info[0].roi_map.top,
+                    crop_meta.crop_info[0].roi_map.width,
+                    crop_meta.crop_info[0].roi_map.height);
             } else {
-                ALOGE("%s: No matching reprocess input stream found!", __func__);
+                ALOGE("%s: Invalid reprocess crop count %d!", __func__, *crop_count);
             }
-        } else {
-            ALOGE("%s: Invalid reprocess crop count %d!", __func__, *crop_count);
-        }
+    } else {
+        ALOGE("%s: No crop data from matching output stream", __func__);
     }
 
     return rc;
