@@ -32,6 +32,8 @@
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include "QCameraBufferMaps.h"
+#include <stdlib.h>
+#include <string.h>
 
 using namespace android;
 
