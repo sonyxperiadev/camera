@@ -534,6 +534,8 @@ QCamera3HardwareInterface::pendingRequestIterator
         free(i->input_buffer);
         i->input_buffer = NULL;
     }
+    if (i->settings != NULL)
+        free_camera_metadata((camera_metadata_t*)i->settings);
     return mPendingRequestsList.erase(i);
 }
 
@@ -2421,8 +2423,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             CDBG("%s: Iterator Frame = %d urgent frame = %d",
                 __func__, i->frame_number, urgent_frame_number);
 
-            if (i->frame_number < urgent_frame_number &&
-                i->partial_result_cnt == 0) {
+            if ((!i->input_buffer) && (i->frame_number < urgent_frame_number) &&
+                (i->partial_result_cnt == 0)) {
                 ALOGE("%s: Error: HAL missed urgent metadata for frame number %d",
                     __func__, i->frame_number);
             }
@@ -2515,26 +2517,49 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
         // Send empty metadata with already filled buffers for dropped metadata
         // and send valid metadata with already filled buffers for current metadata
+        /* we could hit this case when we either
+         * 1. have a pending reprocess request or
+         * 2. miss a metadata buffer callback */
         if (i->frame_number < frame_number) {
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-
             notify_msg.type = CAMERA3_MSG_SHUTTER;
             notify_msg.message.shutter.frame_number = i->frame_number;
             notify_msg.message.shutter.timestamp = (uint64_t)capture_time -
                     (frame_number - i->frame_number) * NSEC_PER_33MSEC;
+            if (i->input_buffer) {
+                i->partial_result_cnt++; //input request will not have urgent metadata
+                CameraMetadata settings;
+                if(i->settings) {
+                    settings = i->settings;
+                    if (settings.exists(ANDROID_SENSOR_TIMESTAMP)) {
+                        nsecs_t input_capture_time =
+                                settings.find(ANDROID_SENSOR_TIMESTAMP).data.i64[0];
+                        notify_msg.message.shutter.timestamp = (uint64_t)input_capture_time;
+                    } else {
+                        ALOGE("%s: No timestamp in input settings! Using current one.",
+                                __func__);
+                    }
+                } else {
+                    ALOGE("%s: Input settings missing!", __func__);
+                }
+                result.result = i->settings;
+                result.partial_result = i->partial_result_cnt;
+                CDBG("%s: Input request metadata notify frame_number = %u, capture_time = %llu",
+                       __func__, i->frame_number, notify_msg.message.shutter.timestamp);
+            } else {
+                CameraMetadata dummyMetadata;
+                dummyMetadata.update(ANDROID_SENSOR_TIMESTAMP,
+                        &i->timestamp, 1);
+                dummyMetadata.update(ANDROID_REQUEST_ID,
+                        &(i->request_id), 1);
+                result.result = dummyMetadata.release();
+            }
             mCallbackOps->notify(mCallbackOps, &notify_msg);
             i->timestamp = (nsecs_t)notify_msg.message.shutter.timestamp;
             CDBG("%s: Support notification !!!! notify frame_number = %u, capture_time = %llu",
-                    __func__, i->frame_number, notify_msg.message.shutter.timestamp);
-
-            CameraMetadata dummyMetadata;
-            dummyMetadata.update(ANDROID_SENSOR_TIMESTAMP,
-                    &i->timestamp, 1);
-            dummyMetadata.update(ANDROID_REQUEST_ID,
-                    &(i->request_id), 1);
-            result.result = dummyMetadata.release();
+                       __func__, i->frame_number, notify_msg.message.shutter.timestamp);
         } else {
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
@@ -2650,14 +2675,14 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             }
             result.output_buffers = result_buffers;
             mCallbackOps->process_capture_result(mCallbackOps, &result);
-            CDBG("%s: meta frame_number = %u, capture_time = %lld",
-                    __func__, result.frame_number, i->timestamp);
+            CDBG("%s %d: meta frame_number = %u, capture_time = %lld",
+                    __func__, __LINE__, result.frame_number, i->timestamp);
             free_camera_metadata((camera_metadata_t *)result.result);
             delete[] result_buffers;
         } else {
             mCallbackOps->process_capture_result(mCallbackOps, &result);
-            CDBG("%s: meta frame_number = %u, capture_time = %lld",
-                        __func__, result.frame_number, i->timestamp);
+            CDBG("%s %d: meta frame_number = %u, capture_time = %lld",
+                        __func__, __LINE__, result.frame_number, i->timestamp);
             free_camera_metadata((camera_metadata_t *)result.result);
         }
         // erase the element from the list
@@ -3352,7 +3377,9 @@ int QCamera3HardwareInterface::processCaptureRequest(
        pendingRequest.input_buffer = NULL;
        pInputBuffer = NULL;
     }
-    pendingRequest.settings = request->settings;
+    CameraMetadata input_settings;
+    input_settings = request->settings;
+    pendingRequest.settings = input_settings.release();
     pendingRequest.pipeline_depth = 0;
     pendingRequest.partial_result_cnt = 0;
     extractJpegMetadata(pendingRequest.jpegMetadata, request);
