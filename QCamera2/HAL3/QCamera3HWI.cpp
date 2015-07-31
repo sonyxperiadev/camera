@@ -2925,7 +2925,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         /* get eis information for stream configuration */
         cam_is_type_t is_type;
         char is_type_value[PROPERTY_VALUE_MAX];
-        property_get("camera.is_type", is_type_value, "0");
+        property_get("persist.camera.is_type", is_type_value, "0");
         is_type = static_cast<cam_is_type_t>(atoi(is_type_value));
 
         if (meta.exists(ANDROID_CONTROL_CAPTURE_INTENT)) {
