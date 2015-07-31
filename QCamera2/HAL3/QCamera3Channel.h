@@ -210,8 +210,10 @@ protected:
     int mLastFrameCount;
     nsecs_t mLastFpsTime;
     bool isWNREnabled() {return m_bWNROn;};
-    void startPostProc(bool inputBufExists,
-            const reprocess_config_t &reproc_cfg);
+    void startPostProc(const reprocess_config_t &reproc_cfg);
+    void issueChannelCb(buffer_handle_t *resultBuffer,
+            uint32_t resultFrameNumber);
+    int32_t releaseOfflineMemory(uint32_t resultFrameNumber);
 
     QCamera3StreamMem mMemory; //output buffer allocated by fwk
     camera3_stream_t *mCamera3Stream;
@@ -226,8 +228,10 @@ protected:
 
     QCamera3Channel *m_pMetaChannel;
     mm_camera_super_buf_t *mMetaFrame;
-    QCamera3StreamMem mOfflineMemory; //reprocessing input buffer
+    QCamera3StreamMem mOfflineMemory;      //reprocessing input buffer
     QCamera3StreamMem mOfflineMetaMemory; //reprocessing metadata buffer
+    List<uint32_t> mFreeOfflineMetaBuffersList;
+    Mutex mFreeOfflineMetaBuffersLock;
 
 private:
 
