@@ -1224,7 +1224,8 @@ int QCamera3HardwareInterface::configureStreams(
     property_get("persist.camera.eis.enable", eis_prop, "0");
     eis_prop_set = (uint8_t)atoi(eis_prop);
 
-    m_bEisEnable = eis_prop_set && (!oisSupported && eisSupported);
+    m_bEisEnable = eis_prop_set && (!oisSupported && eisSupported) &&
+            (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE);
 
     /* stream configurations */
     for (size_t i = 0; i < streamList->num_streams; i++) {
