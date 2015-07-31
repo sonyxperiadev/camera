@@ -1649,7 +1649,7 @@ int32_t mm_stream_unmap_buf(mm_stream_t * my_obj,
     return mm_camera_util_sendmsg(my_obj->ch_obj->cam_obj,
                                   &packet,
                                   sizeof(cam_sock_packet_t),
-                                  0);
+                                  -1);
 }
 
 /*===========================================================================

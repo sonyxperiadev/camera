@@ -982,7 +982,7 @@ OMX_ERRORTYPE mm_jpegdec_fbd(OMX_HANDLETYPE hComponent,
     p_session->job_status = JPEG_JOB_STATUS_DONE;
     output_buf.buf_filled_len = (uint32_t)pBuffer->nFilledLen;
     output_buf.buf_vaddr = pBuffer->pBuffer;
-    output_buf.fd = 0;
+    output_buf.fd = -1;
     CDBG("%s:%d] send jpeg callback %d", __func__, __LINE__,
       p_session->job_status);
     p_session->dec_params.jpeg_cb(p_session->job_status,
