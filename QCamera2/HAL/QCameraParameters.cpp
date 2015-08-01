@@ -3220,6 +3220,9 @@ int32_t QCameraParameters::setSceneMode(const QCameraParameters& params)
     CDBG_HIGH("%s: str - %s, prev_str - %s",__func__, str, prev_str);
 
     if (str != NULL) {
+        if (m_bRecordingHint_new && (strcmp(str, SCENE_MODE_HDR) == 0)) {
+            str = SCENE_MODE_AUTO;
+        }
         if (prev_str == NULL ||
             strcmp(str, prev_str) != 0) {
 
@@ -3808,6 +3811,10 @@ int32_t QCameraParameters::setRecordingHint(const QCameraParameters& params)
                 setRecordingHintValue(value);
                 if (getFaceDetectionOption() == true) {
                     setFaceDetection(value > 0 ? false : true, false);
+                }
+                if((getSelectedScene() != CAM_SCENE_MODE_OFF) && (value != 0)) {
+                    CDBG_HIGH("%s: %d: Setting scene mode to auto", __func__, __LINE__);
+                    setSceneMode(SCENE_MODE_AUTO);
                 }
                 if (m_bDISEnabled) {
                     CDBG_HIGH("%s: %d: Setting DIS value again", __func__, __LINE__);
