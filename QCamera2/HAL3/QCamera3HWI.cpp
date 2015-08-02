@@ -1483,22 +1483,25 @@ int QCamera3HardwareInterface::configureStreams(
     }
 
     // Create analysis stream all the time, even when h/w support is not available
-    mAnalysisChannel = new QCamera3SupportChannel(
-            mCameraHandle->camera_handle,
-            mCameraHandle->ops,
-            &gCamCapability[mCameraId]->padding_info,
-            fullFeatureMask,
-            CAM_STREAM_TYPE_ANALYSIS,
-            &gCamCapability[mCameraId]->analysis_recommended_res,
-            (gCamCapability[mCameraId]->analysis_recommended_format
-            == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
-            : CAM_FORMAT_YUV_420_NV21),
-            this,
-            0); // force buffer count to 0
-    if (!mAnalysisChannel) {
-        ALOGE("%s: H/W Analysis channel cannot be created", __func__);
-        pthread_mutex_unlock(&mMutex);
-        return -ENOMEM;
+    // TODO: This is WAR. Need to enable analysis stream for HFR as well
+    if (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) {
+        mAnalysisChannel = new QCamera3SupportChannel(
+                mCameraHandle->camera_handle,
+                mCameraHandle->ops,
+                &gCamCapability[mCameraId]->padding_info,
+                fullFeatureMask,
+                CAM_STREAM_TYPE_ANALYSIS,
+                &gCamCapability[mCameraId]->analysis_recommended_res,
+                (gCamCapability[mCameraId]->analysis_recommended_format
+                == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
+                : CAM_FORMAT_YUV_420_NV21),
+                this,
+                0); // force buffer count to 0
+        if (!mAnalysisChannel) {
+            ALOGE("%s: H/W Analysis channel cannot be created", __func__);
+            pthread_mutex_unlock(&mMutex);
+            return -ENOMEM;
+        }
     }
 
     bool isRawStreamRequested = false;
