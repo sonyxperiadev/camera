@@ -1386,7 +1386,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
                         rc = hwi->bundleRelatedCameras(false, sessionId);
                         if (rc != NO_ERROR) {
                             ALOGE("%s: Error Bundling physical cameras !! ", __func__);
-                            return rc;
+                            break;
                         }
                     }
                 }
@@ -1400,7 +1400,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
                     rc = hwi->bundleRelatedCameras(false, sessionId);
                     if (rc != NO_ERROR) {
                         ALOGE("%s: Error Bundling physical cameras !! ", __func__);
-                        return rc;
+                        break;
                     }
                 }
             }
@@ -1408,6 +1408,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
         cam->bSyncOn = false;
     }
 
+    // Attempt to close all cameras regardless of unbundle results
     for (uint32_t i = 0; i < cam->numCameras; i++) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
         CHECK_CAMERA_ERROR(pCam);
@@ -1418,11 +1419,11 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
         rc = QCamera2HardwareInterface::close_camera_device(dev);
         if (rc != NO_ERROR) {
             ALOGE("%s: Error closing camera", __func__);
-            return rc;
         }
         pCam->hwi = NULL;
         pCam->dev = NULL;
     }
+
     // Reset JPEG client handle
     gMuxer->setJpegHandle(0);
     CDBG_HIGH("%s: X, rc: %d", __func__, rc);
