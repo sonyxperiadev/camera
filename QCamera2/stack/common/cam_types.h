@@ -113,6 +113,11 @@
 #define RELCAM_CALIB_ROT_MATRIX_MAX 9
 #define RELCAM_CALIB_SURFACE_PARMS_MAX 32
 #define RELCAM_CALIB_RESERVED_MAX 64
+
+#define MAX_NUM_CAMERA_PER_BUNDLE    2 /* Max number of cameras per bundle */
+#define EXTRA_FRAME_SYNC_BUFFERS     4 /* Extra frame sync buffers in dc mode*/
+#define MM_CAMERA_FRAME_SYNC_NODES   EXTRA_FRAME_SYNC_BUFFERS
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3
@@ -860,20 +865,6 @@ typedef struct {
 } cam_capture_frame_config_t;
 
 typedef struct {
-    uint8_t chromatixData[CHROMATIX_SIZE];
-    uint8_t snapchromatixData[CHROMATIX_SIZE];
-    uint8_t common_chromatixData[COMMONCHROMATIX_SIZE];
-    uint8_t cpp_chromatixData[CPPCHROMATIX_SIZE];
-    uint8_t cpp_chromatixSnapData[CPPCHROMATIX_SIZE];
-    uint8_t postproc_chromatixData[SWPOSTPROCCHROMATIX_SIZE];
-    uint8_t a3_chromatixData[A3CHROMATIX_SIZE];
-} tune_chromatix_t;
-
-typedef struct {
-    uint8_t af_tuneData[AFTUNE_SIZE];
-} tune_autofocus_t;
-
-typedef struct {
     uint8_t stepsize;
     uint8_t direction;
     int32_t num_steps;
@@ -1050,9 +1041,9 @@ typedef struct {
     uint8_t smile_confidence;  /* smile confidence (0, 100) */
     uint8_t face_recognised;   /* if face is recognised */
     int8_t gaze_angle;         /* -90 -45 0 45 90 for head left to rigth tilt */
-    int8_t updown_dir;         /* up down direction (-90, 90) */
-    int8_t leftright_dir;      /* left right direction (-90, 90) */
-    int8_t roll_dir;           /* roll direction (-90, 90) */
+    int32_t updown_dir;        /* up down direction (-180, 179) */
+    int32_t leftright_dir;     /* left right direction (-180, 179) */
+    int32_t roll_dir;          /* roll direction (-180, 179) */
     int8_t left_right_gaze;    /* left right gaze degree (-50, 50) */
     int8_t top_bottom_gaze;    /* up down gaze degree (-50, 50) */
     uint8_t blink_detected;    /* if blink is detected */

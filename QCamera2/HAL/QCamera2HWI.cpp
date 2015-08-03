@@ -1174,7 +1174,9 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mMsgEnabled(0),
       mStoreMetaDataInFrame(0),
       mJpegCb(NULL),
+      mCallbackCookie(NULL),
       mJpegCallbackCookie(NULL),
+      m_bMpoEnabled(TRUE),
       m_stateMachine(this),
       m_smThreadActive(true),
       m_postprocessor(this),
@@ -1572,6 +1574,45 @@ int32_t QCamera2HardwareInterface::setRelatedCamSyncInfo(
 {
     if(info) {
         return mParameters.setRelatedCamSyncInfo(info);
+    } else {
+        return BAD_TYPE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getMpoComposition
+ *
+ * DESCRIPTION:function to retrieve whether Mpo composition should be enabled
+ *                    or not
+ *
+ * PARAMETERS :none
+ *
+ * RETURN     : bool indicates whether mpo composition is enabled or not
+ *==========================================================================*/
+bool QCamera2HardwareInterface::getMpoComposition(void)
+{
+    CDBG_HIGH("%s: MpoComposition:%d ", __func__, m_bMpoEnabled);
+    return m_bMpoEnabled;
+}
+
+/*===========================================================================
+ * FUNCTION   : setMpoComposition
+ *
+ * DESCRIPTION:sets the related cam sync info for this HWI instance
+ *
+ * PARAMETERS :
+ *   @enable  : indicates whether Mpo composition enabled or not
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::setMpoComposition(bool enable)
+{
+    if (getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        m_bMpoEnabled = enable;
+        CDBG_HIGH("%s: MpoComposition:%d ", __func__, m_bMpoEnabled);
+        return NO_ERROR;
     } else {
         return BAD_TYPE;
     }
@@ -3561,13 +3602,41 @@ int QCamera2HardwareInterface::takePicture()
                         mCameraHandle->camera_handle,
                         pZSLChannel->getMyHandle());
             }
-            rc = pZSLChannel->takePicture(numSnapshots, numRetroSnapshots);
-            if (rc != NO_ERROR) {
-                ALOGE("%s: cannot take ZSL picture, stop pproc", __func__);
-                waitDefferedWork(mReprocJob);
-                waitDefferedWork(mJpegJob);
-                m_postprocessor.stop();
-                return rc;
+            // If frame sync is ON and it is a SECONDARY camera,
+            // we do not need to send the take picture command to interface
+            // It will be handled along with PRIMARY camera takePicture request
+            mm_camera_req_buf_t buf;
+            memset(&buf, 0x0, sizeof(buf));
+            if ((getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
+                    (getRelatedCamSyncInfo()->sync_control ==
+                    CAM_SYNC_RELATED_SENSORS_ON)) {
+                if (getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY) {
+                    buf.type = MM_CAMERA_REQ_FRAME_SYNC_BUF;
+                    buf.num_buf_requested = numSnapshots;
+                    rc = pZSLChannel->takePicture(&buf);
+                    if (rc != NO_ERROR) {
+                        ALOGE("%s: FS_DBG cannot take ZSL picture, stop pproc",
+                                __func__);
+                        waitDefferedWork(mReprocJob);
+                        waitDefferedWork(mJpegJob);
+                        m_postprocessor.stop();
+                        return rc;
+                    }
+                    ALOGI("%s: PRIMARY camera: send frame sync takePicture!!",
+                            __func__);
+                }
+            } else {
+                buf.type = MM_CAMERA_REQ_SUPER_BUF;
+                buf.num_buf_requested = numSnapshots;
+                buf.num_retro_buf_requested = numRetroSnapshots;
+                rc = pZSLChannel->takePicture(&buf);
+                if (rc != NO_ERROR) {
+                    ALOGE("%s: cannot take ZSL picture, stop pproc", __func__);
+                    waitDefferedWork(mReprocJob);
+                    waitDefferedWork(mJpegJob);
+                    m_postprocessor.stop();
+                    return rc;
+                }
             }
         } else {
             ALOGE("%s: ZSL channel is NULL", __func__);
@@ -3851,7 +3920,11 @@ int32_t QCamera2HardwareInterface::longShot()
     }
 
     if (NULL != pChannel) {
-        rc = pChannel->takePicture(numSnapshots, 0);
+        mm_camera_req_buf_t buf;
+        memset(&buf, 0x0, sizeof(buf));
+        buf.type = MM_CAMERA_REQ_SUPER_BUF;
+        buf.num_buf_requested = numSnapshots;
+        rc = pChannel->takePicture(&buf);
     } else {
         ALOGE(" %s : Capture channel not initialized!", __func__);
         rc = NO_INIT;
@@ -5684,8 +5757,6 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     if (rc != NO_ERROR) {
         ALOGE("%s: add stream type (%d) failed, ret = %d",
               __func__, streamType, rc);
-        pStreamInfo->deallocate();
-        delete pStreamInfo;
         // Returning error will delete corresponding channel but at the same time some of
         // deffered streams in same channel might be still in process of allocating buffers
         // by CAM_defrdWrk thread.
@@ -6007,6 +6078,13 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     attr.post_frame_skip = mParameters.getZSLBurstInterval();
     attr.water_mark = mParameters.getZSLQueueDepth();
     attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
+
+    //Enabled matched queue
+    if (getRelatedCamSyncInfo()->is_frame_sync_enabled) {
+        CDBG_HIGH("%s: Enabling frame sync for dual camera, camera Id: %d",
+                __func__, mCameraId);
+        attr.enable_frame_sync = 1;
+    }
     rc = pChannel->init(&attr,
                         zsl_channel_cb,
                         this);
@@ -6457,7 +6535,6 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
             }
 
             if (mParameters.getofflineRAW()) {
-                memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_RAW_PROCESSING;
             }
 
@@ -6703,8 +6780,6 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addOfflineReprocChannel(
 
     if (rc != NO_ERROR) {
         ALOGE("%s: add reprocess stream failed, ret = %d", __func__, rc);
-        pStreamInfo->deallocate();
-        delete pStreamInfo;
         delete pChannel;
         return NULL;
     }
@@ -7205,10 +7280,9 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
             faces[i].face_recognised = fd_data->faces[i].face_recognised;
             faces[i].gaze_angle = fd_data->faces[i].gaze_angle;
 
-            // upscale by 2 to recover from demaen downscaling
-            faces[i].updown_dir = fd_data->faces[i].updown_dir * 2;
-            faces[i].leftright_dir = fd_data->faces[i].leftright_dir * 2;
-            faces[i].roll_dir = fd_data->faces[i].roll_dir * 2;
+            faces[i].updown_dir = fd_data->faces[i].updown_dir;
+            faces[i].leftright_dir = fd_data->faces[i].leftright_dir;
+            faces[i].roll_dir = fd_data->faces[i].roll_dir;
 
             faces[i].leye_blink = fd_data->faces[i].left_blink;
             faces[i].reye_blink = fd_data->faces[i].right_blink;

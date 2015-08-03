@@ -139,7 +139,9 @@ QCameraMuxer::QCameraMuxer(uint32_t num_of_cameras)
       m_pRelCamMpoJpeg(NULL),
       m_pMpoCallbackCookie(NULL),
       m_pJpegCallbackCookie(NULL),
-      m_bDumpImages(FALSE)
+      m_bDumpImages(FALSE),
+      m_bMpoEnabled(TRUE),
+      m_bFrameSyncEnabled(FALSE)
 {
     setupLogicalCameras();
     memset(&mJpegOps, 0, sizeof(mJpegOps));
@@ -959,6 +961,11 @@ int QCameraMuxer::take_picture(struct camera_device * device)
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
     CHECK_CAMERA_ERROR(cam);
 
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.dual.camera.mpo", prop, "1");
+    gMuxer->m_bMpoEnabled = atoi(prop);
+    CDBG_HIGH("%s: dualCamera MPO Enabled:%d ", __func__, gMuxer->m_bMpoEnabled);
+
     // prepare snapshot for main camera
     for (uint32_t i = 0; i < cam->numCameras; i++) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
@@ -973,17 +980,24 @@ int QCameraMuxer::take_picture(struct camera_device * device)
                 ALOGE("%s: Error preparing for snapshot !! ", __func__);
                 return rc;
             }
-            break;
         }
+        // set Mpo composition for each session
+        rc = hwi->setMpoComposition(gMuxer->m_bMpoEnabled);
     }
 
     // initialize Jpeg Queues
     gMuxer->m_MainJpegQ.init();
     gMuxer->m_AuxJpegQ.init();
-    gMuxer->m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
+    gMuxer->m_ComposeMpoTh.sendCmd(
+            CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
 
-    // Call take picture on both cameras
-    for (uint32_t i = 0; i < cam->numCameras; i++) {
+    // As frame sync for dual cameras is enabled, the take picture call
+    // for secondary camera is handled only till HAL level to init corresponding
+    // pproc channel and update statemachine.
+    // This call is forwarded to mm-camera-intf only for primary camera
+    // Primary camera should receive the take picture call after all secondary
+    // camera statemachines are updated
+    for (int32_t i = cam->numCameras-1 ; i >= 0; i--) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
         CHECK_CAMERA_ERROR(pCam);
 
@@ -1341,7 +1355,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
                         rc = hwi->bundleRelatedCameras(false, sessionId);
                         if (rc != NO_ERROR) {
                             ALOGE("%s: Error Bundling physical cameras !! ", __func__);
-                            return rc;
+                            break;
                         }
                     }
                 }
@@ -1355,7 +1369,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
                     rc = hwi->bundleRelatedCameras(false, sessionId);
                     if (rc != NO_ERROR) {
                         ALOGE("%s: Error Bundling physical cameras !! ", __func__);
-                        return rc;
+                        break;
                     }
                 }
             }
@@ -1363,6 +1377,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
         cam->bSyncOn = false;
     }
 
+    // Attempt to close all cameras regardless of unbundle results
     for (uint32_t i = 0; i < cam->numCameras; i++) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
         CHECK_CAMERA_ERROR(pCam);
@@ -1373,11 +1388,11 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
         rc = QCamera2HardwareInterface::close_camera_device(dev);
         if (rc != NO_ERROR) {
             ALOGE("%s: Error closing camera", __func__);
-            return rc;
         }
         pCam->hwi = NULL;
         pCam->dev = NULL;
     }
+
     // Reset JPEG client handle
     gMuxer->setJpegHandle(0);
     CDBG_HIGH("%s: X, rc: %d", __func__, rc);
@@ -1740,6 +1755,11 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
         ALOGE("%s : Hal descriptor table is not initialized!", __func__);
         return NO_INIT;
     }
+
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.dc.frame.sync", prop, "0");
+    m_bFrameSyncEnabled = atoi(prop);
+
     // Get logical camera
     cam = &m_pLogicalCamera[camera_id];
 
@@ -1772,6 +1792,7 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
             info.sync_control = CAM_SYNC_RELATED_SENSORS_ON;
             info.mode = m_pPhyCamera[phyId].mode;
             info.type = m_pPhyCamera[phyId].type;
+            info.is_frame_sync_enabled = m_bFrameSyncEnabled;
             rc = hw->setRelatedCamSyncInfo(&info);
             if (rc != NO_ERROR) {
                 ALOGE("%s: setRelatedCamSyncInfo failed %d", __func__, rc);
@@ -2272,7 +2293,7 @@ void QCameraMuxer::jpeg_data_callback(int32_t msg_type,
 
     if(data != NULL) {
         CDBG_HIGH("%s: jpeg received: data %p size %d data ptr %p frameIdx %d",
-            __func__, data, data->size, data->data, frame_idx);
+                __func__, data, data->size, data->data, frame_idx);
         int rc = gMuxer->storeJpeg(((qcamera_physical_descriptor_t*)(user))->type,
                 msg_type, data, index, metadata, user, frame_idx, release_cb,
                 release_cookie, release_data);
@@ -2317,6 +2338,23 @@ int32_t QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
             __func__, data, data->size, data->data, frame_idx);
 
     CHECK_MUXER_ERROR();
+
+    if (!m_bMpoEnabled) {
+        if (cam_type == CAM_TYPE_MAIN) {
+            // send data callback only incase of main camera
+            // aux image is ignored and released back
+            mDataCb(msg_type,
+                    data,
+                    index,
+                    metadata,
+                    m_pMpoCallbackCookie);
+        }
+        if (release_cb) {
+            release_cb(release_data, release_cookie, NO_ERROR);
+        }
+        CDBG_HIGH("%s: X", __func__);
+        return NO_ERROR;
+    }
 
     cam_compose_jpeg_info_t* pJpegFrame =
             (cam_compose_jpeg_info_t*)malloc(sizeof(cam_compose_jpeg_info_t));

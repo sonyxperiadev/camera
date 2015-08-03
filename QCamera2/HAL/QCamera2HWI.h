@@ -276,7 +276,8 @@ public:
             void);
     int32_t setRelatedCamSyncInfo(
             cam_sync_related_sensors_event_info_t* info);
-
+    int32_t setMpoComposition(bool enable);
+    bool getMpoComposition(void);
     static int getCapabilities(uint32_t cameraId,
             struct camera_info *info, cam_sync_type_t *cam_type);
     static int initCapabilities(uint32_t cameraId, mm_camera_vtbl_t *cameraHandle);
@@ -555,8 +556,6 @@ private:
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
-    cam_sync_type_t  mCameraType;
-    cam_sync_mode_t  mCameraMode;
     mm_camera_vtbl_t *mCameraHandle;
     bool mCameraOpened;
 
@@ -575,6 +574,7 @@ private:
     jpeg_data_callback             mJpegCb;
     void                          *mCallbackCookie;
     void                          *mJpegCallbackCookie;
+    bool                           m_bMpoEnabled;
 
     QCameraStateMachine m_stateMachine;   // state machine
     bool m_smThreadActive;

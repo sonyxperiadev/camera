@@ -1355,9 +1355,21 @@ int32_t QCameraParameters::setPreviewSize(const QCameraParameters& params)
         }
     }
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
-        // Set the default preview size for secondary camera
-        width = m_pCapability->preview_sizes_tbl[0].width;
-        height = m_pCapability->preview_sizes_tbl[0].height;
+        char prop[PROPERTY_VALUE_MAX];
+        // set prop to configure aux preview size
+        property_get("persist.camera.aux.preview.size", prop, "0");
+        parse_pair(prop, &width, &height, 'x', NULL);
+        bool foundMatch = false;
+        for (size_t i = 0; i < m_pCapability->preview_sizes_tbl_cnt; ++i) {
+            if (width ==  m_pCapability->preview_sizes_tbl[i].width &&
+                    height ==  m_pCapability->preview_sizes_tbl[i].height) {
+               foundMatch = true;
+            }
+        }
+        if (!foundMatch) {
+            width = m_pCapability->preview_sizes_tbl[0].width;
+            height = m_pCapability->preview_sizes_tbl[0].height;
+        }
         // check if need to restart preview in case of preview size change
         if (width != old_width || height != old_height) {
             m_bNeedRestart = true;
@@ -1424,9 +1436,21 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
         }
     }
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
-        // Set the default preview size for secondary camera
-        width = m_pCapability->picture_sizes_tbl[0].width;
-        height = m_pCapability->picture_sizes_tbl[0].height;
+        char prop[PROPERTY_VALUE_MAX];
+        // set prop to configure aux preview size
+        property_get("persist.camera.aux.picture.size", prop, "0");
+        parse_pair(prop, &width, &height, 'x', NULL);
+        bool foundMatch = false;
+        for (size_t i = 0; i < m_pCapability->picture_sizes_tbl_cnt; ++i) {
+            if (width ==  m_pCapability->picture_sizes_tbl[i].width &&
+                    height ==  m_pCapability->picture_sizes_tbl[i].height) {
+               foundMatch = true;
+            }
+        }
+        if (!foundMatch) {
+            width = m_pCapability->picture_sizes_tbl[0].width;
+            height = m_pCapability->picture_sizes_tbl[0].height;
+        }
         // check if need to restart preview in case of preview size change
         if (width != old_width || height != old_height) {
             m_bNeedRestart = true;
@@ -3927,9 +3951,11 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
 
     // Aux Camera Mode, set no display mode
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
-        m_bNoDisplayMode = true;
-        set(KEY_QC_NO_DISPLAY_MODE, 1);
-        m_bNeedRestart = true;
+        if (!m_bNoDisplayMode) {
+            set(KEY_QC_NO_DISPLAY_MODE, 1);
+            m_bNoDisplayMode = true;
+            m_bNeedRestart = true;
+        }
         return NO_ERROR;
     }
 
@@ -4364,7 +4390,11 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
     } else {
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.backlookcnt", prop, "2");
-        set(KEY_QC_ZSL_BURST_LOOKBACK, prop);
+        uint32_t look_back_cnt = atoi(prop);
+        if (m_relCamSyncInfo.is_frame_sync_enabled) {
+            look_back_cnt += EXTRA_FRAME_SYNC_BUFFERS;
+        }
+        set(KEY_QC_ZSL_BURST_LOOKBACK, look_back_cnt);
         CDBG_HIGH("%s: [ZSL Retro] look back count: %s", __func__, prop);
     }
 
@@ -4374,7 +4404,11 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
     } else {
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.queuedepth", prop, "2");
-        set(KEY_QC_ZSL_QUEUE_DEPTH, prop);
+        uint32_t queue_depth = atoi(prop);
+        if (m_relCamSyncInfo.is_frame_sync_enabled) {
+            queue_depth += EXTRA_FRAME_SYNC_BUFFERS;
+        }
+        set(KEY_QC_ZSL_QUEUE_DEPTH, queue_depth);
         CDBG_HIGH("%s: [ZSL Retro] queue depth: %s", __func__, prop);
     }
 
@@ -6543,7 +6577,7 @@ int32_t  QCameraParameters::setExposureTime(const char *expTimeStr)
     if (expTimeStr != NULL) {
         double expTimeMs = atof(expTimeStr);
         //input is in milli seconds. Convert to nano sec for backend
-        int64_t expTimeNs = ((int64_t)expTimeMs)*1000000L;
+        int64_t expTimeNs = (int64_t)(expTimeMs*1000000L);
 
         // expTime == 0 means not to use manual exposure time.
         if ((0 <= expTimeNs) &&
@@ -12292,20 +12326,35 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
          feature_mask |= CAM_QCOM_FEATURE_CDS;
     }
 
-    // enable DCRF feature mask on analysis stream in case of dual camera
-    if ((m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) &&
-            (CAM_STREAM_TYPE_ANALYSIS == stream_type)) {
-        feature_mask |= CAM_QCOM_FEATURE_DCRF;
-    } else {
-        feature_mask &= ~CAM_QCOM_FEATURE_DCRF;
-    }
-
     //Rotation could also have an effect on pp feature mask
     cam_pp_feature_config_t config;
     cam_dimension_t dim;
     memset(&config, 0, sizeof(cam_pp_feature_config_t));
     getStreamRotation(stream_type, config, dim);
     feature_mask |= config.feature_mask;
+
+    // Dual Camera scenarios
+    // all feature masks are disabled for preview and analysis streams
+    // for aux session
+    // all required feature masks for aux session preview and analysis streams need
+    // to be enabled explicitly here
+    if (m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        if (((CAM_STREAM_TYPE_ANALYSIS == stream_type) ||
+                (CAM_STREAM_TYPE_PREVIEW == stream_type)) &&
+                (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY)) {
+            CDBG_HIGH("%s: Disabling all pp feature masks for aux preview and "
+                    "analysis streams", __func__);
+            feature_mask = 0;
+        }
+
+        // all feature masks need to be enabled here
+        // enable DCRF feature mask on analysis stream in case of dual camera
+        if (CAM_STREAM_TYPE_ANALYSIS == stream_type) {
+            feature_mask |= CAM_QCOM_FEATURE_DCRF;
+        } else {
+            feature_mask &= ~CAM_QCOM_FEATURE_DCRF;
+        }
+    }
 
     // Store stream feature mask
     setStreamPpMask(stream_type, feature_mask);

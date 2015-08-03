@@ -466,6 +466,7 @@ typedef struct {
        Linking will be done with this session in the
        backend */
     uint32_t related_sensor_session_id;
+    uint8_t is_frame_sync_enabled;
 }cam_sync_related_sensors_event_info_t;
 
 /* Related camera sensor specific calibration data */
@@ -828,10 +829,6 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_VIDEO_HDR,                    int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_SENSOR_HDR,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_VT,                           int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_GET_CHROMATIX,                tune_chromatix_t,            1);
-    INCLUDE(CAM_INTF_PARM_SET_RELOAD_CHROMATIX,         tune_chromatix_t,            1);
-    INCLUDE(CAM_INTF_PARM_GET_AFTUNE,                   tune_autofocus_t,            1);
-    INCLUDE(CAM_INTF_PARM_SET_RELOAD_AFTUNE,            tune_autofocus_t,            1);
     INCLUDE(CAM_INTF_PARM_SET_AUTOFOCUSTUNING,          tune_actuator_t,             1);
     INCLUDE(CAM_INTF_PARM_SET_VFE_COMMAND,              tune_cmd_t,                  1);
     INCLUDE(CAM_INTF_PARM_SET_PP_COMMAND,               tune_cmd_t,                  1);

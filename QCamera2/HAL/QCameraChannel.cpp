@@ -637,21 +637,15 @@ QCameraPicChannel::~QCameraPicChannel()
  * DESCRIPTION: send request for queued snapshot frames
  *
  * PARAMETERS :
- *   @num_of_snapshot : number of snapshot frames requested
- *   @num_of_retro_snapshot : number of retro snapshot frames requested
+ *   @buf : request buf info
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraPicChannel::takePicture (
-    uint8_t num_of_snapshot,
-    uint8_t num_of_retro_snapshot)
+int32_t QCameraPicChannel::takePicture (mm_camera_req_buf_t *buf)
 {
-    int32_t rc = m_camOps->request_super_buf(m_camHandle,
-                                             m_handle,
-                                             num_of_snapshot,
-                                             num_of_retro_snapshot);
+    int32_t rc = m_camOps->request_super_buf(m_camHandle, m_handle, buf);
     return rc;
 }
 
