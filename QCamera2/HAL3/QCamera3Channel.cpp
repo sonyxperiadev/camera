@@ -126,6 +126,22 @@ QCamera3Channel::QCamera3Channel()
  *==========================================================================*/
 QCamera3Channel::~QCamera3Channel()
 {
+}
+
+/*===========================================================================
+ * FUNCTION   : destroy
+ *
+ * DESCRIPTION: internal destructor of QCamera3Channel called by the subclasses
+ *              this destructor will call pure virtual functions.  stop will eventuall call
+ *              QCamera3Stream::putBufs.  The putBufs function will
+ *              call QCamera3Channel::putStreamBufs which is pure virtual
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera3Channel::destroy()
+{
     if (m_bIsActive)
         stop();
 
@@ -710,14 +726,9 @@ QCamera3ProcessingChannel::QCamera3ProcessingChannel(uint32_t cam_handle,
  *==========================================================================*/
 QCamera3ProcessingChannel::~QCamera3ProcessingChannel()
 {
-    stop();
+    destroy();
 
-    int32_t rc = m_postprocessor.stop();
-    if (rc != NO_ERROR) {
-        ALOGE("%s: Postprocessor stop failed", __func__);
-    }
-
-    rc = m_postprocessor.deinit();
+    int32_t rc = m_postprocessor.deinit();
     if (rc != 0) {
         ALOGE("De-init Postprocessor failed");
     }
@@ -728,6 +739,7 @@ QCamera3ProcessingChannel::~QCamera3ProcessingChannel()
     if (0 < mOfflineMemory.getCnt()) {
         mOfflineMemory.unregisterBuffers();
     }
+
 }
 
 /*===========================================================================
@@ -1285,6 +1297,7 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
  *==========================================================================*/
 QCamera3RegularChannel::~QCamera3RegularChannel()
 {
+    destroy();
 }
 
 /*===========================================================================
@@ -1593,8 +1606,7 @@ QCamera3MetadataChannel::QCamera3MetadataChannel(uint32_t cam_handle,
 
 QCamera3MetadataChannel::~QCamera3MetadataChannel()
 {
-    if (m_bIsActive)
-        stop();
+    destroy();
 
     if (mMemory) {
         mMemory->deallocate();
@@ -1938,6 +1950,7 @@ QCamera3RawDumpChannel::QCamera3RawDumpChannel(uint32_t cam_handle,
 
 QCamera3RawDumpChannel::~QCamera3RawDumpChannel()
 {
+    destroy();
 }
 
 /*===========================================================================
@@ -3180,6 +3193,7 @@ void QCamera3ReprocessChannel::putStreamBufs()
  *==========================================================================*/
 QCamera3ReprocessChannel::~QCamera3ReprocessChannel()
 {
+    destroy();
 }
 
 /*===========================================================================
@@ -3790,8 +3804,7 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
 
 QCamera3SupportChannel::~QCamera3SupportChannel()
 {
-    if (m_bIsActive)
-        stop();
+    destroy();
 
     if (mMemory) {
         mMemory->deallocate();

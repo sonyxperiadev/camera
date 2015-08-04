@@ -72,6 +72,7 @@ public:
 
     virtual uint32_t getStreamTypeMask();
     uint32_t getStreamID(uint32_t streamMask);
+    void destroy();
     virtual int32_t initialize(cam_is_type_t isType) = 0;
     virtual int32_t request(buffer_handle_t * /*buffer*/,
                 uint32_t /*frameNumber*/){ return 0;};
