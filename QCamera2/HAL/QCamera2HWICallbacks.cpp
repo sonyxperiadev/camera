@@ -270,7 +270,10 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
     }
 
     // Wait on Postproc initialization if needed
-    pme->waitDeferredWork(pme->mReprocJob);
+    if (NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) {
+        ALOGE("%s: Reprocess Deferred work failed", __func__);
+        return;
+    }
 
     // send to postprocessor
     pme->m_postprocessor.processData(frame);

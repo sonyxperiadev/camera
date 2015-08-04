@@ -686,7 +686,17 @@ private:
         BackgroundTask *genericArgs;
     } DeferWorkArgs;
 
-    uint32_t mDefOngoingJobs[MAX_ONGOING_JOBS];
+    typedef struct {
+        uint32_t mDefJobId;
+
+        //Job status is needed to check job was successful or failed
+        //Error code when job was not sucessful and there is error
+        //0 when is initialized.
+        //for sucessfull job, do not need to maintain job status
+        int32_t mDefJobStatus;
+    } DefOngoingJob;
+
+    DefOngoingJob mDefOngoingJobs[MAX_ONGOING_JOBS];
 
     struct DefWork
     {
@@ -710,10 +720,11 @@ private:
 
     uint32_t queueDeferredWork(DeferredWorkCmd cmd,
                                DeferWorkArgs args);
-    uint32_t dequeueDeferredWork(DefWork* dw);
+    uint32_t dequeueDeferredWork(DefWork* dw, int32_t jobStatus);
     int32_t waitDeferredWork(uint32_t &job_id);
     static void *deferredWorkRoutine(void *obj);
     bool checkDeferredWork(uint32_t &job_id);
+    int32_t getDefJobStatus(uint32_t &job_id);
 
     uint32_t mPostviewJob;
     uint32_t mReprocJob;
