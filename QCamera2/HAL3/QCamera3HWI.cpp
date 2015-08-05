@@ -27,7 +27,6 @@
 *
 */
 
-#define ATRACE_TAG ATRACE_TAG_CAMERA
 #define LOG_TAG "QCamera3HWI"
 //#define LOG_NDEBUG 0
 
@@ -42,7 +41,6 @@
 #include <qdMetaData.h>
 #include <utils/Log.h>
 #include <utils/Errors.h>
-#include <utils/Trace.h>
 #include <ui/Fence.h>
 #include <gralloc_priv.h>
 #include "QCamera3HWI.h"
@@ -8416,6 +8414,10 @@ void QCamera3HardwareInterface::getLogLevel()
     if (0 <= val) {
         gCamHal3LogLevel = (uint32_t)val;
     }
+
+    property_get("persist.camera.kpi.debug", prop, "1");
+    gKpiDebugLevel = atoi(prop);
+
     property_get("persist.camera.global.debug", prop, "0");
     val = atoi(prop);
     if (0 <= val) {
