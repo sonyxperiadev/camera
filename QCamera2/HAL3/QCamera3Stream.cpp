@@ -397,6 +397,7 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     stream_config.padding_info = mPaddingInfo;
     stream_config.userdata = this;
     stream_config.stream_cb = dataNotifyCB;
+    stream_config.stream_cb_sync = NULL;
 
     rc = mCamOps->config_stream(mCamHandle,
             mChannelHandle, mHandle, &stream_config);

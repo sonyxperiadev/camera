@@ -64,6 +64,7 @@
 // Very long wait, just to be sure we don't deadlock
 #define CAMERA_DEFERRED_THREAD_TIMEOUT 5000000000 // 5 seconds
 #define CAMERA_MIN_METADATA_BUFFERS 10 // Need at least 10 for ZSL snapshot
+#define CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS 5
 
 namespace qcamera {
 
@@ -1282,6 +1283,9 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
 
     mDeferredWorkThread.launch(deferredWorkRoutine, this);
     mDeferredWorkThread.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
+
+    pthread_mutex_init(&mGrallocLock, NULL);
+    mEnqueuedBuffers = 0;
 }
 
 /*===========================================================================
@@ -1316,6 +1320,7 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     pthread_mutex_destroy(&m_parm_lock);
     pthread_mutex_destroy(&m_int_lock);
     pthread_cond_destroy(&m_int_cond);
+    pthread_mutex_destroy(&mGrallocLock);
     CDBG_HIGH("%s: X", __func__);
 }
 
@@ -1943,7 +1948,6 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
 
                 bufferCnt = zslQBuffers + minCircularBufNum +
                         mParameters.getNumOfExtraBuffersForImageProc() +
-                        EXTRA_ZSL_PREVIEW_STREAM_BUF +
                         mParameters.getNumOfExtraBuffersForPreview() +
                         mParameters.getNumOfExtraHDRInBufsIfNeeded();
             } else {
@@ -2178,10 +2182,20 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                     }
                 }
                 if (grallocMemory) {
+                    grallocMemory->setMappable(
+                            CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS);
                     grallocMemory->setWindowInfo(mPreviewWindow,
                             dim.width,dim.height, stride, scanline,
                             mParameters.getPreviewHalPixelFormat(),
                             maxFPS, usage);
+                    pthread_mutex_lock(&mGrallocLock);
+                    if (bufferCnt > CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS) {
+                        mEnqueuedBuffers = (bufferCnt -
+                                CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS);
+                    } else {
+                        mEnqueuedBuffers = 0;
+                    }
+                    pthread_mutex_unlock(&mGrallocLock);
                 }
                 mem = grallocMemory;
             }
@@ -5869,8 +5883,6 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     if (rc != NO_ERROR) {
         ALOGE("%s: add stream type (%d) failed, ret = %d",
               __func__, streamType, rc);
-        pStreamInfo->deallocate();
-        delete pStreamInfo;
         // Returning error will delete corresponding channel but at the same time some of
         // deferred streams in same channel might be still in process of allocating buffers
         // by CAM_defrdWrk thread.
@@ -5944,6 +5956,8 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         } else {
             rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                     preview_stream_cb_routine, this);
+            pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
+                    synchronous_stream_cb_routine);
         }
     }
 
@@ -6223,6 +6237,8 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     } else {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                 preview_stream_cb_routine, this);
+        pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
+                synchronous_stream_cb_routine);
     }
     if (rc != NO_ERROR) {
         ALOGE("%s: add preview stream failed, ret = %d", __func__, rc);
@@ -6343,6 +6359,8 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
             ALOGE("%s: add preview stream failed, ret = %d", __func__, rc);
             return rc;
         }
+        pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
+                synchronous_stream_cb_routine);
     }
 
     if (!mParameters.getofflineRAW()) {
@@ -6904,8 +6922,6 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addOfflineReprocChannel(
 
     if (rc != NO_ERROR) {
         ALOGE("%s: add reprocess stream failed, ret = %d", __func__, rc);
-        pStreamInfo->deallocate();
-        delete pStreamInfo;
         delete pChannel;
         return NULL;
     }

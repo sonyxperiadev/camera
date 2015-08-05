@@ -677,6 +677,99 @@ void QCamera2HardwareInterface::postproc_channel_cb_routine(mm_camera_super_buf_
 }
 
 /*===========================================================================
+ * FUNCTION   : synchronous_stream_cb_routine
+ *
+ * DESCRIPTION: Function to handle STREAM SYNC CALLBACKS
+ *
+ * PARAMETERS :
+ *   @super_frame : received super buffer
+ *   @stream      : stream object
+ *   @userdata    : user data ptr
+ *
+ * RETURN    : None
+ *
+ * NOTE      : This Function is excecuted in mm-interface context.
+ *             Avoid adding latency on this thread.
+ *==========================================================================*/
+void QCamera2HardwareInterface::synchronous_stream_cb_routine(
+        mm_camera_super_buf_t *super_frame, QCameraStream * stream,
+        void *userdata)
+{
+    nsecs_t frameTime = 0, mPreviewTimestamp = 0;
+    int err = NO_ERROR;
+
+    ATRACE_CALL();
+    CDBG_HIGH("[KPI Perf] %s : BEGIN", __func__);
+    QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
+    QCameraGrallocMemory *memory = NULL;
+
+    if (pme == NULL) {
+        ALOGE("%s: Invalid hardware object", __func__);
+        return;
+    }
+    if (super_frame == NULL) {
+        ALOGE("%s: Invalid super buffer", __func__);
+        return;
+    }
+    mm_camera_buf_def_t *frame = super_frame->bufs[0];
+    if (NULL == frame) {
+        ALOGE("%s: Frame is NULL", __func__);
+        return;
+    }
+
+    if (stream->getMyType() != CAM_STREAM_TYPE_PREVIEW) {
+        ALOGE("%s: This is only for PREVIEW stream for now", __func__);
+        return;
+    }
+
+    if (!pme->needProcessPreviewFrame()) {
+        ALOGE("%s: preview is not running, no need to process", __func__);
+        return;
+    }
+
+#if WINDOW_TIMESTAMP
+    frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
+    if(pme->m_bPreviewStarted) {
+        cam_fps_range_t fpsRange = pme->mParameters.getFpsRange();
+        nsecs_t previewRate = 0;
+        ALOGI("[KPI Perf] %s : PROFILE_FIRST_PREVIEW_FRAME fps = %d", __func__, fpsRange.min_fps);
+        pme->m_bPreviewStarted = false ;
+        if (fpsRange.min_fps != 0) {
+            previewRate = (nsecs_t)(((int)(1000/fpsRange.min_fps) * 1000) * 1000000LL);
+        }
+        mPreviewTimestamp = frameTime + previewRate;
+    } else {
+        nsecs_t diff = (nsecs_t)(frameTime - stream->mStreamTimestamp);
+        if (diff >= 0) {
+            mPreviewTimestamp = frameTime + diff;
+        } else {
+            ALOGE ("%s: Issue in frame timestamp", __func__);
+            mPreviewTimestamp = frameTime;
+        }
+    }
+    stream->mStreamTimestamp = frameTime;
+#endif
+    memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
+
+    // Enqueue  buffer to gralloc.
+    uint32_t idx = frame->buf_idx;
+    CDBG("%p Enqueue Buffer to display %d frame Time = %lld Display Time = %lld",
+            pme, idx, frameTime, mPreviewTimestamp);
+    err = memory->enqueueBuffer(idx, mPreviewTimestamp);
+
+    if (err == NO_ERROR) {
+        pthread_mutex_lock(&pme->mGrallocLock);
+        pme->mEnqueuedBuffers++;
+        pthread_mutex_unlock(&pme->mGrallocLock);
+    } else {
+        ALOGE ("%s: Enqueue Buffer failed", __func__);
+    }
+
+    CDBG_HIGH("[KPI Perf] %s : END", __func__);
+    return;
+}
+
+/*===========================================================================
  * FUNCTION   : preview_stream_cb_routine
  *
  * DESCRIPTION: helper function to handle preview frame from preview stream in
@@ -704,6 +797,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     int err = NO_ERROR;
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     QCameraGrallocMemory *memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
+    uint8_t dequeueCnt = 0;
 
     if (pme == NULL) {
         ALOGE("%s: Invalid hardware object", __func__);
@@ -745,17 +839,38 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
        pme->m_bPreviewStarted = false ;
     }
 
+    pthread_mutex_lock(&pme->mGrallocLock);
+    dequeueCnt = pme->mEnqueuedBuffers;
+    pthread_mutex_unlock(&pme->mGrallocLock);
+
     // Display the buffer.
     CDBG("%p displayBuffer %d E", pme, idx);
-    int dequeuedIdx = memory->displayBuffer(idx);
-    if (dequeuedIdx < 0 || dequeuedIdx >= memory->getCnt()) {
-        CDBG_HIGH("%s: Invalid dequeued buffer index %d from display",
-              __func__, dequeuedIdx);
-    } else {
-        // Return dequeued buffer back to driver
-        err = stream->bufDone((uint32_t)dequeuedIdx);
-        if ( err < 0) {
-            ALOGE("stream bufDone failed %d", err);
+    uint8_t numMapped = memory->getMappable();
+
+    for (uint8_t i = 0; i < dequeueCnt; i++) {
+        int dequeuedIdx = memory->dequeueBuffer();
+        if (dequeuedIdx < 0 || dequeuedIdx >= memory->getCnt()) {
+            CDBG_HIGH("%s: Invalid dequeued buffer index %d from display",
+                  __func__, dequeuedIdx);
+            break;
+        } else {
+            pthread_mutex_lock(&pme->mGrallocLock);
+            pme->mEnqueuedBuffers--;
+            pthread_mutex_unlock(&pme->mGrallocLock);
+            if (dequeuedIdx >= numMapped) {
+                // This buffer has not yet been mapped to the backend
+                err = stream->mapNewBuffer((uint32_t)dequeuedIdx);
+            }
+        }
+
+        if (err < 0) {
+            ALOGE("buffer mapping failed %d", err);
+        } else {
+            // Return dequeued buffer back to driver
+            err = stream->bufDone((uint32_t)dequeuedIdx);
+            if ( err < 0) {
+                ALOGE("stream bufDone failed %d", err);
+            }
         }
     }
 

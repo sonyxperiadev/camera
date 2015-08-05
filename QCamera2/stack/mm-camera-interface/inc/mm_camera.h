@@ -207,6 +207,7 @@ typedef struct {
     /* cb_count = -1: infinite
      * cb_count > 0: register only for required times */
     int8_t cb_count;
+    mm_camera_stream_cb_type cb_type;
 } mm_stream_data_cb_t;
 
 typedef struct {
@@ -315,7 +316,8 @@ typedef enum {
     MM_CHANNEL_EVT_ZOOM_1X,
     MM_CAMERA_EVT_CAPTURE_SETTING,
     MM_CHANNEL_EVT_GET_STREAM_QUEUED_BUF_COUNT,
-    MM_CHANNEL_EVT_MAP_STREAM_BUFS
+    MM_CHANNEL_EVT_MAP_STREAM_BUFS,
+    MM_CHANNEL_EVT_REG_STREAM_BUF_CB
 } mm_channel_evt_type_t;
 
 typedef struct {
@@ -332,6 +334,12 @@ typedef struct {
     uint32_t stream_id;
     void *actions;
 } mm_evt_paylod_do_stream_action_t;
+
+typedef struct {
+    uint32_t stream_id;
+    mm_stream_data_cb_t buf_cb;
+} mm_evt_paylod_reg_stream_buf_cb;
+
 
 typedef struct {
     uint8_t num_of_bufs;
@@ -607,6 +615,11 @@ extern uint32_t mm_camera_link_stream(mm_camera_obj_t *my_obj,
         uint32_t ch_id,
         uint32_t stream_id,
         uint32_t linked_ch_id);
+
+extern int32_t mm_camera_reg_stream_buf_cb(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id, mm_camera_buf_notify_t buf_cb,
+        mm_camera_stream_cb_type cb_type, void *userdata);
+
 extern int32_t mm_camera_config_stream(mm_camera_obj_t *my_obj,
                                        uint32_t ch_id,
                                        uint32_t stream_id,
@@ -681,13 +694,9 @@ extern int32_t mm_stream_fsm_fn(mm_stream_t *my_obj,
                                 mm_stream_evt_type_t evt,
                                 void * in_val,
                                 void * out_val);
-/* Allow other stream to register dataCB at certain stream.
- * This is for use case of video sized live snapshot,
- * because snapshot stream need register one time CB at video stream.
- * ext_image_mode and sensor_idx are used to identify the destinate stream
- * to be register with dataCB. */
+/* Function to register special callback for stream buffer*/
 extern int32_t mm_stream_reg_buf_cb(mm_stream_t *my_obj,
-                                    mm_stream_data_cb_t *val);
+        mm_stream_data_cb_t val);
 extern int32_t mm_stream_map_buf(mm_stream_t *my_obj,
                                  uint8_t buf_type,
                                  uint32_t frame_idx,

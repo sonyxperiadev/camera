@@ -34,6 +34,7 @@
 #include <utils/Mutex.h>
 #include <utils/List.h>
 #include <qdMetaData.h>
+#include <utils/Timers.h>
 
 extern "C" {
 #include <sys/types.h>
@@ -64,6 +65,7 @@ public:
     int getFd(uint32_t index) const;
     ssize_t getSize(uint32_t index) const;
     uint8_t getCnt() const;
+    virtual uint8_t getMappable() const;
 
     virtual int allocate(uint8_t count, size_t size, uint32_t is_secure) = 0;
     virtual void deallocate() = 0;
@@ -242,6 +244,8 @@ public:
     virtual camera_memory_t *getMemory(uint32_t index, bool metadata) const;
     virtual int getMatchBufIndex(const void *opaque, bool metadata) const;
     virtual void *getPtr(uint32_t index) const;
+    virtual void setMappable(uint8_t mappable);
+    virtual uint8_t getMappable() const;
 
     void setWindowInfo(preview_stream_ops_t *window, int width, int height,
         int stride, int scanline, int format, int maxFPS, int usage = 0);
@@ -250,6 +254,8 @@ public:
     // Returns the buffer index of the dequeued buffer.
     int displayBuffer(uint32_t index);
     void setMaxFPS(int maxFPS);
+    int32_t enqueueBuffer(uint32_t index, nsecs_t timeStamp = 0);
+    int32_t dequeueBuffer();
 
 private:
     buffer_handle_t *mBufferHandle[MM_CAMERA_MAX_NUM_FRAMES];
@@ -261,6 +267,9 @@ private:
     camera_memory_t *mCameraMemory[MM_CAMERA_MAX_NUM_FRAMES];
     int mMinUndequeuedBuffers;
     enum ColorSpace_t mColorSpace;
+    uint8_t mMappableBuffers;
+    pthread_mutex_t mLock;
+    uint8_t mEnqueuedBuffers;
 };
 
 }; // namespace qcamera

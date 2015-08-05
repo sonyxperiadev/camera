@@ -241,6 +241,49 @@ void mm_stream_handle_rcvd_buf(mm_stream_t *my_obj,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_stream_dispatch_sync_data
+ *
+ * DESCRIPTION: dispatch stream buffer to registered users on poll thread
+ *
+ * PARAMETERS :
+ *   @cmd_cb  : ptr storing stream buffer information
+ *   @userdata: user data ptr (stream object)
+ *
+ * RETURN     : none
+ *==========================================================================*/
+static void mm_stream_dispatch_sync_data(mm_stream_t * my_obj,
+         mm_stream_data_cb_t *buf_cb, mm_camera_buf_info_t *buf_info)
+{
+    mm_camera_super_buf_t super_buf;
+
+    if (NULL == my_obj || buf_info == NULL ||
+            buf_cb == NULL) {
+        return;
+    }
+
+    memset(&super_buf, 0, sizeof(mm_camera_super_buf_t));
+    super_buf.num_bufs = 1;
+    super_buf.bufs[0] = buf_info->buf;
+    super_buf.camera_handle = my_obj->ch_obj->cam_obj->my_hdl;
+    super_buf.ch_id = my_obj->ch_obj->my_hdl;
+    if ((buf_cb != NULL) && (buf_cb->cb_type == MM_CAMERA_STREAM_CB_TYPE_SYNC)
+            && (buf_cb->cb_count != 0)) {
+        /* callback */
+        buf_cb->cb(&super_buf, buf_cb->user_data);
+
+        /* if >0, reduce count by 1 every time we called CB until reaches 0
+             * when count reach 0, reset the buf_cb to have no CB */
+        if (buf_cb->cb_count > 0) {
+            buf_cb->cb_count--;
+            if (0 == buf_cb->cb_count) {
+                buf_cb->cb = NULL;
+                buf_cb->user_data = NULL;
+            }
+        }
+    }
+}
+
+/*===========================================================================
  * FUNCTION   : mm_stream_data_notify
  *
  * DESCRIPTION: callback to handle data notify from kernel
@@ -288,9 +331,14 @@ static void mm_stream_data_notify(void* user_data)
     pthread_mutex_lock(&my_obj->cb_lock);
     for (i = 0; i < MM_CAMERA_STREAM_BUF_CB_MAX; i++) {
         if(NULL != my_obj->buf_cb[i].cb) {
-            /* for every CB, add ref count */
-            has_cb = 1;
-            break;
+            if (my_obj->buf_cb[i].cb_type == MM_CAMERA_STREAM_CB_TYPE_SYNC) {
+                /*For every SYNC callback, send data*/
+                mm_stream_dispatch_sync_data(my_obj,
+                        &my_obj->buf_cb[i], &buf_info);
+            } else {
+                /* for every ASYNC CB, need ref count */
+                has_cb = 1;
+            }
         }
     }
     pthread_mutex_unlock(&my_obj->cb_lock);
@@ -352,7 +400,9 @@ static void mm_stream_dispatch_app_data(mm_camera_cmdcb_t *cmd_cb,
 
     pthread_mutex_lock(&my_obj->cb_lock);
     for(i = 0; i < MM_CAMERA_STREAM_BUF_CB_MAX; i++) {
-        if(NULL != my_obj->buf_cb[i].cb) {
+        if(NULL != my_obj->buf_cb[i].cb
+                && (my_obj->buf_cb[i].cb_type !=
+                MM_CAMERA_STREAM_CB_TYPE_SYNC)) {
             if (my_obj->buf_cb[i].cb_count != 0) {
                 /* if <0, means infinite CB
                  * if >0, means CB for certain times
@@ -748,7 +798,8 @@ int32_t mm_stream_fsm_reg(mm_stream_t * my_obj,
             /* launch cmd thread if CB is not null */
             pthread_mutex_lock(&my_obj->cb_lock);
             for (i = 0; i < MM_CAMERA_STREAM_BUF_CB_MAX; i++) {
-                if(NULL != my_obj->buf_cb[i].cb) {
+                if((NULL != my_obj->buf_cb[i].cb) &&
+                        (my_obj->buf_cb[i].cb_type != MM_CAMERA_STREAM_CB_TYPE_SYNC)) {
                     has_cb = 1;
                     break;
                 }
@@ -839,7 +890,8 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
 
             pthread_mutex_lock(&my_obj->cb_lock);
             for (i = 0; i < MM_CAMERA_STREAM_BUF_CB_MAX; i++) {
-                if(NULL != my_obj->buf_cb[i].cb) {
+                if(NULL != my_obj->buf_cb[i].cb
+                        && my_obj->buf_cb[i].cb_type != MM_CAMERA_STREAM_CB_TYPE_SYNC) {
                     has_cb = 1;
                     break;
                 }
@@ -896,16 +948,27 @@ int32_t mm_stream_config(mm_stream_t *my_obj,
                          mm_camera_stream_config_t *config)
 {
     int32_t rc = 0;
+    int32_t cb_index = 0;
+
     CDBG("%s: E, my_handle = 0x%x, fd = %d, state = %d",
          __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
     my_obj->stream_info = config->stream_info;
     my_obj->buf_num = (uint8_t) config->stream_info->num_bufs;
     my_obj->mem_vtbl = config->mem_vtbl;
     my_obj->padding_info = config->padding_info;
-    /* cd through intf always palced at idx 0 of buf_cb */
-    my_obj->buf_cb[0].cb = config->stream_cb;
-    my_obj->buf_cb[0].user_data = config->userdata;
-    my_obj->buf_cb[0].cb_count = -1; /* infinite by default */
+
+    if (config->stream_cb_sync != NULL) {
+        /* SYNC callback is always placed at index 0*/
+        my_obj->buf_cb[cb_index].cb = config->stream_cb_sync;
+        my_obj->buf_cb[cb_index].user_data = config->userdata;
+        my_obj->buf_cb[cb_index].cb_count = -1; /* infinite by default */
+        my_obj->buf_cb[cb_index].cb_type = MM_CAMERA_STREAM_CB_TYPE_SYNC;
+        cb_index++;
+    }
+    my_obj->buf_cb[cb_index].cb = config->stream_cb;
+    my_obj->buf_cb[cb_index].user_data = config->userdata;
+    my_obj->buf_cb[cb_index].cb_count = -1; /* infinite by default */
+    my_obj->buf_cb[cb_index].cb_type = MM_CAMERA_STREAM_CB_TYPE_ASYNC;
 
     rc = mm_stream_sync_info(my_obj);
     if (rc == 0) {
@@ -4045,14 +4108,14 @@ int32_t mm_stream_get_queued_buf_count(mm_stream_t *my_obj)
  *
  * PARAMETERS :
  *   @my_obj       : stream object
- *   @val          : ptr to info about the callback to be registered
+ *   @val          : callback function to be registered
  *
  * RETURN     : int32_t type of status
  *              0  -- success
  *              -1 -- failure
  *==========================================================================*/
 int32_t mm_stream_reg_buf_cb(mm_stream_t *my_obj,
-                             mm_stream_data_cb_t *val)
+        mm_stream_data_cb_t val)
 {
     int32_t rc = -1;
     uint8_t i;
@@ -4062,7 +4125,7 @@ int32_t mm_stream_reg_buf_cb(mm_stream_t *my_obj,
     pthread_mutex_lock(&my_obj->cb_lock);
     for (i=0 ;i < MM_CAMERA_STREAM_BUF_CB_MAX; i++) {
         if(NULL == my_obj->buf_cb[i].cb) {
-            my_obj->buf_cb[i] = *val;
+            my_obj->buf_cb[i] = val;
             rc = 0;
             break;
         }

@@ -127,6 +127,32 @@ void QCameraChannel::deleteChannel()
 }
 
 /*===========================================================================
+ * FUNCTION   : setStreamSyncCB
+ *
+ * DESCRIPTION: reg callback function to stream of stream type
+ *
+ * PARAMETERS :
+ *    @stream_type : Stream type for which callback needs to be registered.
+ *    @stream_cb   : Callback function
+
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              non-zero failure code
+ *==========================================================================*/
+int32_t QCameraChannel::setStreamSyncCB (cam_stream_type_t stream_type,
+        stream_cb_routine stream_cb)
+{
+    int32_t rc = UNKNOWN_ERROR;
+    for (size_t i = 0; i < mStreams.size(); i++) {
+        if ((mStreams[i] != NULL) && (stream_type == mStreams[i]->getMyType())) {
+            rc = mStreams[i]->setSyncDataCB(stream_cb);
+            break;
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : init
  *
  * DESCRIPTION: initialization of channel
