@@ -2717,12 +2717,13 @@ bool QCamera3YUVChannel::needsFramePostprocessing(metadata_buffer_t *meta)
         //gCamCapability[cameraId]->max_downscale_factor
     }
 
-    if (!(CAM_EDGE_MODE_OFF == mEdgeMode.edge_mode) ||
-            (CAM_EDGE_MODE_ZERO_SHUTTER_LAG == mEdgeMode.edge_mode)) {
+    if ((CAM_EDGE_MODE_OFF != mEdgeMode.edge_mode) &&
+            (CAM_EDGE_MODE_ZERO_SHUTTER_LAG != mEdgeMode.edge_mode)) {
         ppNeeded = true;
     }
-    if (!((CAM_NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG == mNoiseRedMode) ||
-             (CAM_NOISE_REDUCTION_MODE_OFF == mNoiseRedMode))) {
+    if ((CAM_NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG != mNoiseRedMode) &&
+            (CAM_NOISE_REDUCTION_MODE_OFF != mNoiseRedMode) &&
+            (CAM_NOISE_REDUCTION_MODE_MINIMAL != mNoiseRedMode)) {
         ppNeeded = true;
     }
 
