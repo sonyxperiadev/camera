@@ -1880,15 +1880,8 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
     }
 
     IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, pMetaData) {
-        bool sendFocusUpdate=FALSE;
-        IF_META_AVAILABLE(uint32_t, afFocusMode, CAM_INTF_PARM_FOCUS_MODE, pMetaData) {
-            if (((cam_focus_mode_type)(*afFocusMode) == CAM_FOCUS_MODE_INFINITY) &&
-                    pme->mActiveAF){
-                sendFocusUpdate = TRUE;
-                CDBG("%s: send Focus Update to frameworks %d", __func__, sendFocusUpdate);
-            }
-        }
-        if (pme->m_currentFocusState != (*afState) || sendFocusUpdate) {
+        if ((pme->m_currentFocusState != (*afState)) ||
+                (pme->mActiveAF && (pme->m_currentFocusState != CAM_AF_STATE_ACTIVE_SCAN))) {
             pme->m_currentFocusState = (cam_af_state_t)(*afState);
             qcamera_sm_internal_evt_payload_t *payload = (qcamera_sm_internal_evt_payload_t *)
                     malloc(sizeof(qcamera_sm_internal_evt_payload_t));
