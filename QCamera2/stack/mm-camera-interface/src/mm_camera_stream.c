@@ -993,6 +993,10 @@ int32_t mm_stream_release(mm_stream_t *my_obj)
     CDBG("%s: E, my_handle = 0x%x, fd = %d, state = %d",
          __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
 
+    pthread_mutex_lock(&my_obj->buf_lock);
+    memset(my_obj->buf_status, 0, sizeof(my_obj->buf_status));
+    pthread_mutex_unlock(&my_obj->buf_lock);
+
     /* close fd */
     if(my_obj->fd >= 0)
     {
@@ -1000,6 +1004,7 @@ int32_t mm_stream_release(mm_stream_t *my_obj)
     }
 
     /* destroy mutex */
+    pthread_cond_destroy(&my_obj->buf_cond);
     pthread_mutex_destroy(&my_obj->buf_lock);
     pthread_mutex_destroy(&my_obj->cb_lock);
     pthread_mutex_destroy(&my_obj->cmd_lock);
@@ -1026,10 +1031,24 @@ int32_t mm_stream_release(mm_stream_t *my_obj)
 int32_t mm_stream_streamon(mm_stream_t *my_obj)
 {
     int32_t rc;
+    int8_t i;
     enum v4l2_buf_type buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
     CDBG("%s: E, my_handle = 0x%x, fd = %d, state = %d",
          __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
+
+    pthread_mutex_lock(&my_obj->buf_lock);
+    for (i = 0; i < my_obj->buf_num; i++) {
+        if ((!my_obj->buf_status[i].is_mapped) &&
+                (my_obj->buf_status[i].in_kernel)) {
+            CDBG ("%s: waiting for mapping to done: strm fd = %d",
+                    __func__, my_obj->fd);
+            pthread_cond_wait(&my_obj->buf_cond, &my_obj->buf_lock);
+            break;
+        }
+    }
+
+    pthread_mutex_unlock(&my_obj->buf_lock);
 
     rc = ioctl(my_obj->fd, VIDIOC_STREAMON, &buf_type);
     if (rc < 0) {
@@ -1056,7 +1075,7 @@ int32_t mm_stream_streamon(mm_stream_t *my_obj)
  *==========================================================================*/
 int32_t mm_stream_streamoff(mm_stream_t *my_obj)
 {
-    int32_t rc;
+    int32_t rc = 0;
     enum v4l2_buf_type buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
     CDBG("%s: E, my_handle = 0x%x, fd = %d, state = %d",
          __func__, my_obj->my_hdl, my_obj->fd, my_obj->state);
@@ -1632,6 +1651,33 @@ int32_t mm_stream_request_buf(mm_stream_t * my_obj)
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_stream_need_wait_for_mapping
+ *
+ * DESCRIPTION: Utility function to determine whether to wait for mapping
+ *
+ * PARAMETERS :
+ *   @my_obj       : stream object
+ *
+ * RETURN     : int8_t whether wait is necessary
+ *              0  -- no wait
+ *              1 -- wait
+ *==========================================================================*/
+int8_t mm_stream_need_wait_for_mapping(mm_stream_t * my_obj)
+{
+    uint32_t i;
+    for (i = 0; i < my_obj->buf_num; i++) {
+        if ((!my_obj->buf_status[i].is_mapped)
+                && (my_obj->buf_status[i].in_kernel)) {
+            /*do not signal in case if any buffer is not mapped
+              but queued to kernel.*/
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_stream_map_buf
  *
  * DESCRIPTION: mapping stream buffer via domain socket to server
@@ -1662,10 +1708,13 @@ int32_t mm_stream_map_buf(mm_stream_t * my_obj,
                           int32_t fd,
                           size_t size)
 {
+    int32_t rc = 0;
+    int8_t i;
     if (NULL == my_obj || NULL == my_obj->ch_obj || NULL == my_obj->ch_obj->cam_obj) {
         CDBG_ERROR("%s: NULL obj of stream/channel/camera", __func__);
         return -1;
     }
+
     cam_sock_packet_t packet;
     memset(&packet, 0, sizeof(cam_sock_packet_t));
     packet.msg_type = CAM_MAPPING_TYPE_FD_MAPPING;
@@ -1675,10 +1724,25 @@ int32_t mm_stream_map_buf(mm_stream_t * my_obj,
     packet.payload.buf_map.stream_id = my_obj->server_stream_id;
     packet.payload.buf_map.frame_idx = frame_idx;
     packet.payload.buf_map.plane_idx = plane_idx;
-    return mm_camera_util_sendmsg(my_obj->ch_obj->cam_obj,
-                                  &packet,
-                                  sizeof(cam_sock_packet_t),
-                                  fd);
+    rc = mm_camera_util_sendmsg(my_obj->ch_obj->cam_obj,
+            &packet, sizeof(cam_sock_packet_t), fd);
+
+    if ((buf_type == CAM_MAPPING_BUF_TYPE_STREAM_BUF)
+            || ((buf_type
+            == CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF)
+            && (my_obj->stream_info != NULL)
+            && (my_obj->stream_info->streaming_mode
+            == CAM_STREAMING_MODE_BATCH))) {
+        pthread_mutex_lock(&my_obj->buf_lock);
+        my_obj->buf_status[frame_idx].is_mapped = 1;
+        if (mm_stream_need_wait_for_mapping(my_obj) == 0) {
+            CDBG ("%s: Buffer mapping Done: Signal strm fd = %d",
+                    __func__, my_obj->fd);
+            pthread_cond_signal(&my_obj->buf_cond);
+        }
+        pthread_mutex_unlock(&my_obj->buf_lock);
+    }
+    return rc;
 }
 
 /*===========================================================================
@@ -1729,10 +1793,26 @@ int32_t mm_stream_map_bufs(mm_stream_t * my_obj,
     }
 
     int32_t ret = mm_camera_util_bundled_sendmsg(my_obj->ch_obj->cam_obj,
-                                                 &packet,
-                                                 sizeof(cam_sock_packet_t),
-                                                 sendfds,
-                                                 numbufs);
+            &packet, sizeof(cam_sock_packet_t), sendfds, numbufs);
+    if ((numbufs > 0) && ((buf_map_list->buf_maps[0].type
+            == CAM_MAPPING_BUF_TYPE_STREAM_BUF)
+            || ((buf_map_list->buf_maps[0].type ==
+            CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF)
+            && (my_obj->stream_info != NULL)
+            && (my_obj->stream_info->streaming_mode
+            == CAM_STREAMING_MODE_BATCH)))) {
+        pthread_mutex_lock(&my_obj->buf_lock);
+        for (i = 0; i < numbufs; i++) {
+           my_obj->buf_status[i].is_mapped = 1;
+        }
+
+        if (mm_stream_need_wait_for_mapping(my_obj) == 0) {
+            CDBG ("%s: Buffer mapping Done: Signal strm fd = %d",
+                    __func__, my_obj->fd);
+            pthread_cond_signal(&my_obj->buf_cond);
+        }
+        pthread_mutex_unlock(&my_obj->buf_lock);
+    }
     return ret;
 }
 
@@ -1774,10 +1854,14 @@ int32_t mm_stream_unmap_buf(mm_stream_t * my_obj,
     packet.payload.buf_unmap.stream_id = my_obj->server_stream_id;
     packet.payload.buf_unmap.frame_idx = frame_idx;
     packet.payload.buf_unmap.plane_idx = plane_idx;
-    return mm_camera_util_sendmsg(my_obj->ch_obj->cam_obj,
-                                  &packet,
-                                  sizeof(cam_sock_packet_t),
-                                  -1);
+    int32_t ret = mm_camera_util_sendmsg(my_obj->ch_obj->cam_obj,
+            &packet,
+            sizeof(cam_sock_packet_t),
+            -1);
+    pthread_mutex_lock(&my_obj->buf_lock);
+    my_obj->buf_status[frame_idx].is_mapped = 0;
+    pthread_mutex_unlock(&my_obj->buf_lock);
+    return ret;
 }
 
 /*===========================================================================
@@ -1917,17 +2001,6 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
         return rc;
     }
 
-    my_obj->buf_status =
-        (mm_stream_buf_status_t *)malloc(sizeof(mm_stream_buf_status_t) * my_obj->buf_num);
-
-    if (NULL == my_obj->buf_status) {
-        CDBG_ERROR("%s: No memory for buf_status", __func__);
-        mm_stream_deinit_bufs(my_obj);
-        free(reg_flags);
-        return -1;
-    }
-
-    memset(my_obj->buf_status, 0, sizeof(mm_stream_buf_status_t) * my_obj->buf_num);
     for (i = 0; i < my_obj->buf_num; i++) {
         my_obj->buf_status[i].initial_reg_flag = reg_flags[i];
         my_obj->buf[i].stream_id = my_obj->my_hdl;
@@ -2006,10 +2079,6 @@ int32_t mm_stream_deinit_bufs(mm_stream_t * my_obj)
 
     free(my_obj->buf);
     my_obj->buf = NULL;
-    if (my_obj->buf_status != NULL) {
-        free(my_obj->buf_status);
-        my_obj->buf_status = NULL;
-    }
 
     return rc;
 }
