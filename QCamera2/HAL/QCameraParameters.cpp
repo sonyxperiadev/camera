@@ -5563,6 +5563,9 @@ int32_t QCameraParameters::initDefaultParameters()
     //Default set for video batch size
     set(KEY_QC_VIDEO_BATCH_SIZE, 0);
 
+    //Setup dual-camera
+    setDcrf();
+
     return rc;
 }
 
@@ -10850,6 +10853,21 @@ const char *QCameraParameters::getFrameFmtString(cam_format_t fmt)
 }
 
 /*===========================================================================
+ * FUNCTION   : setDcrf
+ *
+ * DESCRIPTION: Enable/Disable DCRF (dual-camera-range-finding)
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::setDcrf()
+{
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.dcrf.enable", prop, "1");
+    m_bDcrfEnabled = atoi(prop);
+}
+
+/*===========================================================================
  * FUNCTION   : setRelatedCamSyncInfo
  *
  * DESCRIPTION: set the related cam info parameters
@@ -12417,7 +12435,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
         // all feature masks need to be enabled here
         // enable DCRF feature mask on analysis stream in case of dual camera
-        if (CAM_STREAM_TYPE_ANALYSIS == stream_type) {
+        if (m_bDcrfEnabled && (CAM_STREAM_TYPE_ANALYSIS == stream_type)) {
             feature_mask |= CAM_QCOM_FEATURE_DCRF;
         } else {
             feature_mask &= ~CAM_QCOM_FEATURE_DCRF;

@@ -805,6 +805,7 @@ public:
     uint32_t getJpegRotation() { return mJpegRotation;};
 
     /* Dual camera specific */
+    void setDcrf();
     int32_t setRelatedCamSyncInfo(
             cam_sync_related_sensors_event_info_t* info);
     const cam_sync_related_sensors_event_info_t*
@@ -1108,6 +1109,7 @@ private:
     cam_capture_frame_config_t m_captureFrameConfig;
     int8_t mBufBatchCnt;
     bool m_bEztuneEnabled;
+    bool m_bDcrfEnabled;
     uint32_t mRotation;
     uint32_t mJpegRotation;
 };
