@@ -354,7 +354,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
       mPrevUrgentFrameNumber(0),
       mPrevFrameNumber(0),
-      mNeedSensorRestart(false)
+      mNeedSensorRestart(false),
+      mPprocBypass(false)
 {
     getLogLevel();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
@@ -1140,6 +1141,7 @@ int QCamera3HardwareInterface::configureStreams(
 
     pthread_mutex_lock(&mMutex);
 
+    mPprocBypass = false;
     /* Check whether we have video stream */
     m_bIs4KVideo = false;
     m_bIsVideo = false;
@@ -1583,7 +1585,11 @@ int QCamera3HardwareInterface::configureStreams(
                 } else {
                     mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                             fullFeatureMask;
-              }
+                }
+                if (CAM_QCOM_FEATURE_NONE ==
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams]) {
+                    mPprocBypass = true;
+                }
             break;
             case HAL_PIXEL_FORMAT_BLOB:
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
@@ -8126,11 +8132,13 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     // CDS
     if (frame_settings.exists(QCAMERA3_CDS_MODE)) {
-        int32_t *cds = frame_settings.find(QCAMERA3_CDS_MODE).data.i32;
-        if ((CAM_CDS_MODE_MAX <= (*cds)) || (0 > (*cds))) {
-            ALOGE("%s: Invalid CDS mode %d!", __func__, *cds);
+        int32_t *fwk_cds = frame_settings.find(QCAMERA3_CDS_MODE).data.i32;
+        int32_t overridden_cds = (mPprocBypass ? CAM_CDS_MODE_OFF : *fwk_cds);
+        if ((CAM_CDS_MODE_MAX <= overridden_cds) || (0 > overridden_cds)) {
+            ALOGE("%s: Invalid CDS mode %d!", __func__, overridden_cds);
         } else {
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_CDS_MODE, *cds)) {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                    CAM_INTF_PARM_CDS_MODE, overridden_cds)) {
                 rc = BAD_VALUE;
             }
         }

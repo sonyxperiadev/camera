@@ -402,6 +402,9 @@ private:
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;
 
+    /* Whether PPROC bypass is enabled for YUV888 */
+    bool mPprocBypass;
+
     static const QCameraMap<camera_metadata_enum_android_control_effect_mode_t,
             cam_effect_mode_type> EFFECT_MODES_MAP[];
     static const QCameraMap<camera_metadata_enum_android_control_awb_mode_t,
