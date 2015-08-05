@@ -263,6 +263,8 @@ typedef struct {
 **/
 typedef struct {
   void *user_data;
+  int32_t (*set_config_ops) (mm_camera_map_unmap_ops_tbl_t *ops_tbl,
+          void *user_data);
   int32_t (*get_bufs) (cam_frame_len_offset_t *offset,
                        uint8_t *num_bufs,
                        uint8_t **initial_reg_flag,

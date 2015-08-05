@@ -248,6 +248,7 @@ QCamera3Stream::QCamera3Stream(uint32_t camHandle,
     mMemVtbl.put_bufs = put_bufs;
     mMemVtbl.invalidate_buf = invalidate_buf;
     mMemVtbl.clean_invalidate_buf = clean_invalidate_buf;
+    mMemVtbl.set_config_ops = NULL;
     memset(&mFrameLenOffset, 0, sizeof(mFrameLenOffset));
     memcpy(&mPaddingInfo, paddingInfo, sizeof(cam_padding_info_t));
 }

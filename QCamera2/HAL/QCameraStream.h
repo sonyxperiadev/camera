@@ -70,6 +70,7 @@ public:
 
     /* Used for deffered allocation of buffers */
     virtual int32_t allocateBuffers();
+    virtual int32_t mapBuffers();
     virtual int32_t releaseBuffs();
 
     static void dataNotifyCB(mm_camera_super_buf_t *recvd_frame, void *userdata);
@@ -190,14 +191,26 @@ private:
             mm_camera_map_unmap_ops_tbl_t *ops_tbl,
             void *user_data);
 
+    static int32_t set_config_ops(
+            mm_camera_map_unmap_ops_tbl_t *ops_tbl,
+            void *user_data);
+
     static int32_t invalidate_buf(uint32_t index, void *user_data);
     static int32_t clean_invalidate_buf(uint32_t index, void *user_data);
+
+    static int32_t backgroundAllocate(void* data);
+    static int32_t backgroundMap(void* data);
 
     int32_t getBufs(cam_frame_len_offset_t *offset,
                      uint8_t *num_bufs,
                      uint8_t **initial_reg_flag,
                      mm_camera_buf_def_t **bufs,
                      mm_camera_map_unmap_ops_tbl_t *ops_tbl);
+    int32_t getBufsDeferred(cam_frame_len_offset_t *offset,
+            uint8_t *num_bufs,
+            uint8_t **initial_reg_flag,
+            mm_camera_buf_def_t **bufs,
+            mm_camera_map_unmap_ops_tbl_t *ops_tbl);
     int32_t putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl);
 
     /* Used for deffered allocation of buffers */
@@ -223,6 +236,11 @@ private:
     bool wait_for_cond;
     pthread_mutex_t m_lock;
     pthread_cond_t m_cond;
+
+    BackgroundTask mAllocTask;
+    uint32_t mAllocTaskId;
+    BackgroundTask mMapTask;
+    uint32_t mMapTaskId;
 };
 
 }; // namespace qcamera

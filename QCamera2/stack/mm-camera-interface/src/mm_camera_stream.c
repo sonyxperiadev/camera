@@ -931,6 +931,100 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_stream_map_buf_ops
+ *
+ * DESCRIPTION: ops for mapping stream buffer via domain socket to server.
+ *              This function will be passed to upper layer as part of ops table
+ *              to be used by upper layer when allocating stream buffers and mapping
+ *              buffers to server via domain socket.
+ *
+ * PARAMETERS :
+ *   @frame_idx    : index of buffer within the stream buffers, only valid if
+ *                   buf_type is CAM_MAPPING_BUF_TYPE_STREAM_BUF or
+ *                   CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF
+ *   @plane_idx    : plane index. If all planes share the same fd,
+ *                   plane_idx = -1; otherwise, plean_idx is the
+ *                   index to plane (0..num_of_planes)
+ *   @fd           : file descriptor of the buffer
+ *   @size         : size of the buffer
+ *   @userdata     : user data ptr (stream object)
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+static int32_t mm_stream_map_buf_ops(uint32_t frame_idx,
+                                     int32_t plane_idx,
+                                     int fd,
+                                     size_t size,
+                                     cam_mapping_buf_type type,
+                                     void *userdata)
+{
+    mm_stream_t *my_obj = (mm_stream_t *)userdata;
+    return mm_stream_map_buf(my_obj,
+                             type,
+                             frame_idx, plane_idx, fd, size);
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_stream_bundled_map_buf_ops
+ *
+ * DESCRIPTION: ops for mapping bundled stream buffers via domain socket to server.
+ *              This function will be passed to upper layer as part of ops table
+ *              to be used by upper layer when allocating stream buffers and mapping
+ *              buffers to server via domain socket.
+ *
+ * PARAMETERS :
+ *   @buf_map_list : list of buffer mapping information
+ *   @userdata     : user data ptr (stream object)
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+static int32_t mm_stream_bundled_map_buf_ops(
+        const cam_buf_map_type_list *buf_map_list,
+        void *userdata)
+{
+    mm_stream_t *my_obj = (mm_stream_t *)userdata;
+    return mm_stream_map_bufs(my_obj,
+                              buf_map_list);
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_stream_unmap_buf_ops
+ *
+ * DESCRIPTION: ops for unmapping stream buffer via domain socket to server.
+ *              This function will be passed to upper layer as part of ops table
+ *              to be used by upper layer when allocating stream buffers and unmapping
+ *              buffers to server via domain socket.
+ *
+ * PARAMETERS :
+ *   @frame_idx    : index of buffer within the stream buffers, only valid if
+ *                   buf_type is CAM_MAPPING_BUF_TYPE_STREAM_BUF or
+ *                   CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF
+ *   @plane_idx    : plane index. If all planes share the same fd,
+ *                   plane_idx = -1; otherwise, plean_idx is the
+ *                   index to plane (0..num_of_planes)
+ *   @userdata     : user data ptr (stream object)
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+static int32_t mm_stream_unmap_buf_ops(uint32_t frame_idx,
+                                       int32_t plane_idx,
+                                       cam_mapping_buf_type type,
+                                       void *userdata)
+{
+    mm_stream_t *my_obj = (mm_stream_t *)userdata;
+    return mm_stream_unmap_buf(my_obj,
+                               type,
+                               frame_idx,
+                               plane_idx);
+}
+
+/*===========================================================================
  * FUNCTION   : mm_stream_config
  *
  * DESCRIPTION: configure a stream
@@ -972,6 +1066,16 @@ int32_t mm_stream_config(mm_stream_t *my_obj,
     rc = mm_stream_sync_info(my_obj);
     if (rc == 0) {
         rc = mm_stream_set_fmt(my_obj);
+    }
+
+    my_obj->map_ops.map_ops = mm_stream_map_buf_ops;
+    my_obj->map_ops.bundled_map_ops = mm_stream_bundled_map_buf_ops;
+    my_obj->map_ops.unmap_ops = mm_stream_unmap_buf_ops;
+    my_obj->map_ops.userdata = my_obj;
+
+    if(my_obj->mem_vtbl.set_config_ops != NULL) {
+        my_obj->mem_vtbl.set_config_ops(&my_obj->map_ops,
+                my_obj->mem_vtbl.user_data);
     }
     return rc;
 }
@@ -1865,100 +1969,6 @@ int32_t mm_stream_unmap_buf(mm_stream_t * my_obj,
 }
 
 /*===========================================================================
- * FUNCTION   : mm_stream_map_buf_ops
- *
- * DESCRIPTION: ops for mapping stream buffer via domain socket to server.
- *              This function will be passed to upper layer as part of ops table
- *              to be used by upper layer when allocating stream buffers and mapping
- *              buffers to server via domain socket.
- *
- * PARAMETERS :
- *   @frame_idx    : index of buffer within the stream buffers, only valid if
- *                   buf_type is CAM_MAPPING_BUF_TYPE_STREAM_BUF or
- *                   CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF
- *   @plane_idx    : plane index. If all planes share the same fd,
- *                   plane_idx = -1; otherwise, plean_idx is the
- *                   index to plane (0..num_of_planes)
- *   @fd           : file descriptor of the buffer
- *   @size         : size of the buffer
- *   @userdata     : user data ptr (stream object)
- *
- * RETURN     : int32_t type of status
- *              0  -- success
- *              -1 -- failure
- *==========================================================================*/
-static int32_t mm_stream_map_buf_ops(uint32_t frame_idx,
-                                     int32_t plane_idx,
-                                     int fd,
-                                     size_t size,
-                                     cam_mapping_buf_type type,
-                                     void *userdata)
-{
-    mm_stream_t *my_obj = (mm_stream_t *)userdata;
-    return mm_stream_map_buf(my_obj,
-                             type,
-                             frame_idx, plane_idx, fd, size);
-}
-
-/*===========================================================================
- * FUNCTION   : mm_stream_bundled_map_buf_ops
- *
- * DESCRIPTION: ops for mapping bundled stream buffers via domain socket to server.
- *              This function will be passed to upper layer as part of ops table
- *              to be used by upper layer when allocating stream buffers and mapping
- *              buffers to server via domain socket.
- *
- * PARAMETERS :
- *   @buf_map_list : list of buffer mapping information
- *   @userdata     : user data ptr (stream object)
- *
- * RETURN     : int32_t type of status
- *              0  -- success
- *              -1 -- failure
- *==========================================================================*/
-static int32_t mm_stream_bundled_map_buf_ops(
-        const cam_buf_map_type_list *buf_map_list,
-        void *userdata)
-{
-    mm_stream_t *my_obj = (mm_stream_t *)userdata;
-    return mm_stream_map_bufs(my_obj,
-                              buf_map_list);
-}
-
-/*===========================================================================
- * FUNCTION   : mm_stream_unmap_buf_ops
- *
- * DESCRIPTION: ops for unmapping stream buffer via domain socket to server.
- *              This function will be passed to upper layer as part of ops table
- *              to be used by upper layer when allocating stream buffers and unmapping
- *              buffers to server via domain socket.
- *
- * PARAMETERS :
- *   @frame_idx    : index of buffer within the stream buffers, only valid if
- *                   buf_type is CAM_MAPPING_BUF_TYPE_STREAM_BUF or
- *                   CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF
- *   @plane_idx    : plane index. If all planes share the same fd,
- *                   plane_idx = -1; otherwise, plean_idx is the
- *                   index to plane (0..num_of_planes)
- *   @userdata     : user data ptr (stream object)
- *
- * RETURN     : int32_t type of status
- *              0  -- success
- *              -1 -- failure
- *==========================================================================*/
-static int32_t mm_stream_unmap_buf_ops(uint32_t frame_idx,
-                                       int32_t plane_idx,
-                                       cam_mapping_buf_type type,
-                                       void *userdata)
-{
-    mm_stream_t *my_obj = (mm_stream_t *)userdata;
-    return mm_stream_unmap_buf(my_obj,
-                               type,
-                               frame_idx,
-                               plane_idx);
-}
-
-/*===========================================================================
  * FUNCTION   : mm_stream_init_bufs
  *
  * DESCRIPTION: initialize stream buffers needed. This function will request
@@ -1983,11 +1993,6 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
     if (NULL != my_obj->buf) {
         mm_stream_deinit_bufs(my_obj);
     }
-
-    my_obj->map_ops.map_ops = mm_stream_map_buf_ops;
-    my_obj->map_ops.bundled_map_ops = mm_stream_bundled_map_buf_ops;
-    my_obj->map_ops.unmap_ops = mm_stream_unmap_buf_ops;
-    my_obj->map_ops.userdata = my_obj;
 
     rc = my_obj->mem_vtbl.get_bufs(&my_obj->frame_offset,
                                    &my_obj->buf_num,
