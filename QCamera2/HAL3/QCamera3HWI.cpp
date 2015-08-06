@@ -2986,7 +2986,17 @@ int QCamera3HardwareInterface::processCaptureRequest(
         int32_t tintless_value = 1;
         ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_PARM_TINTLESS, tintless_value);
+        //Disable CDS for HFR mode and if mPprocBypass = true.
+        //CDS is a session parameter in the backend/ISP, so need to be set/reset
+        //after every configure_stream
+        if((CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE == mOpMode) ||
+                mPprocBypass) {
+            int32_t cds = CAM_CDS_MODE_OFF;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                    CAM_INTF_PARM_CDS_MODE, cds))
+                ALOGE("%s: Failed to disable CDS for HFR mode", __func__);
 
+        }
         setMobicat();
 
         /* Set fps and hfr mode while sending meta stream info so that sensor
@@ -8130,15 +8140,16 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    // CDS
-    if (frame_settings.exists(QCAMERA3_CDS_MODE)) {
+    // CDS for non-HFR mode
+    if ((mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) &&
+            (false == mPprocBypass) &&
+            frame_settings.exists(QCAMERA3_CDS_MODE)) {
         int32_t *fwk_cds = frame_settings.find(QCAMERA3_CDS_MODE).data.i32;
-        int32_t overridden_cds = (mPprocBypass ? CAM_CDS_MODE_OFF : *fwk_cds);
-        if ((CAM_CDS_MODE_MAX <= overridden_cds) || (0 > overridden_cds)) {
-            ALOGE("%s: Invalid CDS mode %d!", __func__, overridden_cds);
+        if ((CAM_CDS_MODE_MAX <= *fwk_cds) || (0 > *fwk_cds)) {
+            ALOGE("%s: Invalid CDS mode %d!", __func__, *fwk_cds);
         } else {
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
-                    CAM_INTF_PARM_CDS_MODE, overridden_cds)) {
+                    CAM_INTF_PARM_CDS_MODE, *fwk_cds)) {
                 rc = BAD_VALUE;
             }
         }
