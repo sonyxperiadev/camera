@@ -2498,14 +2498,14 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                    for (uint32_t k = 0; k < p_cam_frame_drop->cam_stream_ID.num_streams; k++) {
                        if (streamID == p_cam_frame_drop->cam_stream_ID.streamID[k]) {
                            // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
-                           CDBG("%s: Start of reporting error frame#=%u, streamID=%u",
+                           ALOGW("%s: Start of reporting error frame#=%u, streamID=%u",
                                    __func__, i->frame_number, streamID);
                            notify_msg.type = CAMERA3_MSG_ERROR;
                            notify_msg.message.error.frame_number = i->frame_number;
                            notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER ;
                            notify_msg.message.error.error_stream = j->stream;
                            mCallbackOps->notify(mCallbackOps, &notify_msg);
-                           CDBG("%s: End of reporting error frame#=%u, streamID=%u",
+                           ALOGW("%s: End of reporting error frame#=%u, streamID=%u",
                                   __func__, i->frame_number, streamID);
                            PendingFrameDropInfo PendingFrameDrop;
                            PendingFrameDrop.frame_number=i->frame_number;
@@ -2514,6 +2514,9 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                            mPendingFrameDropList.push_back(PendingFrameDrop);
                       }
                    }
+               } else {
+                   ALOGE("%s: JPEG buffer dropped for frame number %d",
+                           __func__, i->frame_number);
                }
             }
         }
@@ -2653,7 +2656,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                         uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
                         if((m->stream_ID == streamID) && (m->frame_number==frame_number)) {
                             j->buffer->status=CAMERA3_BUFFER_STATUS_ERROR;
-                            CDBG("%s: Stream STATUS_ERROR frame_number=%u, streamID=%u",
+                            ALOGW("%s: Stream STATUS_ERROR frame_number=%u, streamID=%u",
                                   __func__, frame_number, streamID);
                             m = mPendingFrameDropList.erase(m);
                             break;
