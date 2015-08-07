@@ -1808,13 +1808,13 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                         meta_buffer->bufs[0]->buffer;
                             }
                             pp_job->jpeg_settings = jpeg_settings;
+                            pme->m_ongoingPPQ.enqueue((void *)pp_job);
                             if (pme->m_pReprocChannel != NULL) {
                                 mm_camera_buf_def_t *meta_buffer_arg = NULL;
                                 meta_buffer_arg = meta_buffer->bufs[0];
                                 qcamera_fwk_input_pp_data_t fwk_frame;
                                 memset(&fwk_frame, 0, sizeof(qcamera_fwk_input_pp_data_t));
                                 fwk_frame.frameNumber = pp_buffer->frameNumber;
-                                pme->m_ongoingPPQ.enqueue((void *)pp_job);
                                 ret = pme->m_pReprocChannel->extractFrameCropAndRotation(
                                         pp_buffer, meta_buffer_arg,
                                         pp_job->jpeg_settings,
