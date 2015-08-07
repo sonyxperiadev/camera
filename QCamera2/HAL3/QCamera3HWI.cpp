@@ -2544,7 +2544,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 } else {
                     ALOGE("%s: Input settings missing!", __func__);
                 }
-                result.result = i->settings;
+                result.result = settings.release();
                 result.partial_result = i->partial_result_cnt;
                 CDBG("%s: Input request metadata notify frame_number = %u, capture_time = %llu",
                        __func__, i->frame_number, notify_msg.message.shutter.timestamp);
