@@ -456,27 +456,27 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                 }
             }
             mm_frame_sync_unlock_queues();
-        }
-        else {
-            node = mm_channel_superbuf_dequeue(&ch_obj->bundle.superbuf_queue, ch_obj);
-            if (node != NULL) {
-                info.num_nodes = 1;
-                info.ch_obj[0] = ch_obj;
-                info.node[0] = node;
+        } else {
+           node = mm_channel_superbuf_dequeue(&ch_obj->bundle.superbuf_queue, ch_obj);
+           if (node != NULL) {
+               if (ch_obj->isConfigCapture &&
+                       (node->frame_idx <
+                        ch_obj->capture_frame_id[
+                        ch_obj->cur_capture_idx])) {
+                   uint8_t i;
+                   for (i = 0; i < node->num_of_bufs; i++) {
+                       mm_channel_qbuf(ch_obj, node->super_buf[i].buf);
+                   }
+                   free(node);
+               } else {
+                   info.num_nodes = 1;
+                   info.ch_obj[0] = ch_obj;
+                   info.node[0] = node;
+               }
             }
         }
         if (info.num_nodes > 0) {
              uint8_t bReady = 0;
-
-             if (ch_obj->isConfigCapture &&
-                     (node->frame_idx < ch_obj->capture_frame_id[ch_obj->cur_capture_idx])) {
-                 uint8_t i;
-                 for (i = 0; i < node->num_of_bufs; i++) {
-                     mm_channel_qbuf(ch_obj, node->super_buf[i].buf);
-                 }
-                 free(node);
-                 break;
-             }
 
             /* decrease pending_cnt */
             if (MM_CAMERA_SUPER_BUF_NOTIFY_BURST == notify_mode) {

@@ -4149,12 +4149,15 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
         CDBG_HIGH("%s: TNR is not supported",__func__);
         return NO_ERROR;
     }
+
     const char *str = params.get(KEY_QC_TNR_MODE);
     const char *prev_str = get(KEY_QC_TNR_MODE);
     const char *video_str = params.get(KEY_QC_VIDEO_TNR_MODE);
     const char *video_prev_str = get(KEY_QC_VIDEO_TNR_MODE);
     char video_value[PROPERTY_VALUE_MAX];
     char preview_value[PROPERTY_VALUE_MAX];
+    bool prev_video_tnr = m_bTNRVideoOn;
+    bool prev_preview_tnr = m_bTNRPreviewOn;
 
     if (m_bRecordingHint_new == true) {
         if (video_str) {
@@ -4187,22 +4190,30 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
     }
 
     //Read setprops only if UI is not present or disabled.
-    if ((video_str == NULL) || (strcmp(video_str, VALUE_ON))) {
+    if ((m_bRecordingHint_new == true)
+            && ((video_str == NULL)
+            || (strcmp(video_str, VALUE_ON)))) {
         memset(video_value, 0, sizeof(video_value));
         property_get("persist.camera.tnr.video", video_value, VALUE_OFF);
         if (!strcmp(video_value, VALUE_ON)) {
             m_bTNRVideoOn = true;
-            m_bTNRPreviewOn = true;
         } else {
             m_bTNRVideoOn = false;
-            m_bTNRPreviewOn = false;
         }
         updateParamEntry(KEY_QC_VIDEO_TNR_MODE, video_value);
-    }
 
-    if ((str == NULL) || (strcmp(str, VALUE_ON))) {
         memset(preview_value, 0, sizeof(preview_value));
-        property_get("persist.camera.tnr.preview", preview_value, video_value);
+        property_get("persist.camera.tnr.preview", preview_value, VALUE_OFF);
+        if (!strcmp(preview_value, VALUE_ON)) {
+            m_bTNRPreviewOn = true;
+        } else {
+            m_bTNRPreviewOn = false;
+        }
+        updateParamEntry(KEY_QC_TNR_MODE, preview_value);
+    } else if ((m_bRecordingHint_new != true)
+            && ((str == NULL) || (strcmp(str, VALUE_ON)))) {
+        memset(preview_value, 0, sizeof(preview_value));
+        property_get("persist.camera.tnr.preview", preview_value, VALUE_OFF);
         if (!strcmp(preview_value, VALUE_ON)) {
             m_bTNRPreviewOn = true;
         } else {
@@ -4222,6 +4233,9 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
 
         if (cds_mode != NAME_NOT_FOUND) {
             updateParamEntry(KEY_QC_VIDEO_CDS_MODE, CDS_MODE_OFF);
+            if (m_bTNRPreviewOn) {
+                updateParamEntry(KEY_QC_CDS_MODE, CDS_MODE_OFF);
+            }
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CDS_MODE, cds_mode)) {
                 ALOGE("%s:Failed CDS MODE to update table", __func__);
                 return BAD_VALUE;
@@ -4233,10 +4247,15 @@ int32_t QCameraParameters::setTemporalDenoise(const QCameraParameters& params)
             ALOGE("%s: Invalid argument for video CDS MODE %d", __func__, cds_mode);
         }
     }
-    CDBG("%s: TNR enabled = %d, plates = %d", __func__,
-            temp.denoise_enable, temp.process_plates);
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_TEMPORAL_DENOISE, temp)) {
-        return BAD_VALUE;
+
+    if ((m_bTNRVideoOn != prev_video_tnr)
+            || (m_bTNRPreviewOn != prev_preview_tnr)) {
+        CDBG("%s: TNR enabled = %d, plates = %d", __func__,
+                temp.denoise_enable, temp.process_plates);
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                CAM_INTF_PARM_TEMPORAL_DENOISE, temp)) {
+            return BAD_VALUE;
+        }
     }
 
     return NO_ERROR;
@@ -9264,8 +9283,8 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
                 CAM_FORMAT_Y_ONLY) {
             format = m_pCapability->analysis_recommended_format;
         } else {
-            ALOGE("%s:%d invalid analysis_recommended_format %d\n",
-                    m_pCapability->analysis_recommended_format);
+            ALOGE("%s:Invalid analysis_recommended_format %d\n",
+                    __func__, m_pCapability->analysis_recommended_format);
             format = mAppPreviewFormat;
         }
       break;
@@ -12630,7 +12649,8 @@ bool QCameraParameters::isUBWCEnabled()
     }
 
     //Disable UBWC if it is YUV sensor.
-    if (m_pCapability->sensor_type.sens_type == CAM_SENSOR_YUV) {
+    if ((m_pCapability != NULL) &&
+            (m_pCapability->sensor_type.sens_type == CAM_SENSOR_YUV)) {
         return FALSE;
     }
 
