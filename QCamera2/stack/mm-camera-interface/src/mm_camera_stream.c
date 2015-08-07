@@ -1633,17 +1633,6 @@ int32_t mm_stream_qbuf(mm_stream_t *my_obj, mm_camera_buf_def_t *buf)
     } else {
         memcpy(planes, buf->planes_buf.planes, sizeof(planes));
         length = buf->planes_buf.num_planes;
-
-        CDBG("%s:plane 0: stream_hdl=%u,fd=%d,frame idx=%d,num_planes = %u, "
-                "offset = %d, data_offset = %d\n", __func__,
-                 buf->stream_id, buf->fd, buffer.index, buffer.length,
-                 buf->planes_buf.planes[0].reserved[0],
-                 buf->planes_buf.planes[0].data_offset);
-        CDBG("%s:plane 1: stream_hdl=%u,fd=%d,frame idx=%d,num_planes = %u, "
-                "offset = %d, data_offset = %d\n", __func__,
-                 buf->stream_id, buf->fd, buffer.index, buffer.length,
-                 buf->planes_buf.planes[1].reserved[0],
-                 buf->planes_buf.planes[1].data_offset);
     }
 
     memset(&buffer, 0, sizeof(buffer));
