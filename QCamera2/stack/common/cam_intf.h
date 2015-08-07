@@ -403,6 +403,7 @@ typedef struct{
     uint32_t min_stride;
     uint32_t min_scanline;
     uint8_t flash_dev_name[QCAMERA_MAX_FILEPATH_LENGTH];
+    uint8_t eeprom_version_info[MAX_EEPROM_VERSION_INFO_LEN];
 
     /* maximum pixel bandwidth shared between cameras */
     uint64_t max_pixel_bandwidth;
