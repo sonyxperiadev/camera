@@ -351,6 +351,12 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
     memset(&mMapTask, 0, sizeof(mMapTask));
     pthread_mutex_init(&mCropLock, NULL);
     pthread_mutex_init(&mParameterLock, NULL);
+    mCurMetaMemory = NULL;
+    mCurBufIndex = -1;
+    mCurMetaIndex = -1;
+    mFirstTimeStamp = 0;
+    memset (&mStreamMetaMemory, 0,
+            (sizeof(MetaMemory) * CAMERA_MIN_VIDEO_BATCH_BUFFERS));
 }
 
 /*===========================================================================
@@ -841,6 +847,14 @@ int32_t QCameraStream::start()
     }
     pthread_mutex_init(&m_lock, NULL);
     pthread_cond_init(&m_cond, NULL);
+
+    mCurMetaMemory = NULL;
+    mCurBufIndex = -1;
+    mCurMetaIndex = -1;
+    mFirstTimeStamp = 0;
+    memset (&mStreamMetaMemory, 0,
+            (sizeof(MetaMemory) * CAMERA_MIN_VIDEO_BATCH_BUFFERS));
+
     return rc;
 }
 
@@ -1122,6 +1136,7 @@ int32_t QCameraStream::bufDone(uint32_t index)
         return BAD_INDEX;
 
     rc = mCamOps->qbuf(mCamHandle, mChannelHandle, &mBufDefs[index]);
+
     if (rc < 0)
         return rc;
 
@@ -1146,36 +1161,26 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
     int32_t rc = NO_ERROR;
     int index;
 
-    if (mStreamInfo != NULL
-            && mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH) {
-        index = mStreamBatchBufs->getMatchBufIndex(opaque, TRUE);
-        if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
-            ALOGE("%s: Cannot find buf for opaque data = %p", __func__, opaque);
-            return BAD_INDEX;
+    index = mStreamBufs->getMatchBufIndex(opaque, isMetaData);
+    if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
+        ALOGE("%s: Cannot find buf for opaque data = %p", __func__, opaque);
+        return BAD_INDEX;
+    }
+
+    if ((CAMERA_MIN_VIDEO_BATCH_BUFFERS > index)
+            && mStreamMetaMemory[index].numBuffers > 0) {
+        for (int i= 0; i < mStreamMetaMemory[index].numBuffers; i++) {
+            uint8_t buf_idx = mStreamMetaMemory[index].buf_index[i];
+            bufDone((uint32_t)buf_idx);
         }
-        camera_memory_t *video_mem = mStreamBatchBufs->getMemory(index, true);
-        if (video_mem != NULL) {
-            struct encoder_media_buffer_type * packet =
-                    (struct encoder_media_buffer_type *)video_mem->data;
-            native_handle_t *nh = const_cast<native_handle_t *>(packet->meta_handle);
-            if (NULL != nh) {
-               if (native_handle_delete(nh)) {
-                   ALOGE("%s: Unable to delete native handle", __func__);
-               }
-            } else {
-               ALOGE("%s : native handle not available", __func__);
-            }
-        }
+        mStreamMetaMemory[index].consumerOwned = FALSE;
+        mStreamMetaMemory[index].numBuffers = 0;
     } else {
-        index = mStreamBufs->getMatchBufIndex(opaque, isMetaData);
-        if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
-            ALOGE("%s: Cannot find buf for opaque data = %p", __func__, opaque);
-            return BAD_INDEX;
-        }
         CDBG_HIGH("%s: Buffer Index = %d, Frame Idx = %d", __func__, index,
                 mBufDefs[index].frame_idx);
+        rc = bufDone((uint32_t)index);
     }
-    rc = bufDone((uint32_t)index);
+
     return rc;
 }
 
@@ -1867,7 +1872,6 @@ int32_t QCameraStream::releaseBuffs()
         delete mStreamBufs;
         mStreamBufs = NULL;
     }
-
     return rc;
 }
 

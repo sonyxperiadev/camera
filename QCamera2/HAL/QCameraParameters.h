@@ -798,6 +798,8 @@ public:
     uint8_t getLongshotStages();
     void setBufBatchCount(int8_t buf_cnt);
     int8_t  getBufBatchCount() {return mBufBatchCnt;};
+    void setVideoBatchSize();
+    int8_t  getVideoBatchSize() {return mVideoBatchSize;};
 
     cam_capture_frame_config_t getCaptureFrameConfig()
             { return m_captureFrameConfig; };
@@ -1112,6 +1114,7 @@ private:
     bool m_bDcrfEnabled;
     uint32_t mRotation;
     uint32_t mJpegRotation;
+    int8_t mVideoBatchSize;
 };
 
 }; // namespace qcamera
