@@ -365,7 +365,7 @@ private:
     List<PendingFrameDropInfo> mPendingFrameDropList;
     PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
-    uint32_t mPendingRequest;
+    uint32_t mPendingLiveRequest;
     bool mWokenUpByDaemon;
     int32_t mCurrentRequestId;
     cam_stream_size_info_t mStreamConfigInfo;
