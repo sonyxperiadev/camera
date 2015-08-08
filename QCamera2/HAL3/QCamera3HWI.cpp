@@ -1503,8 +1503,7 @@ int QCamera3HardwareInterface::configureStreams(
     }
 
     // Create analysis stream all the time, even when h/w support is not available
-    // TODO: This is WAR. Need to enable analysis stream for HFR as well
-    if (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) {
+    {
         mAnalysisChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mCameraHandle->ops,
