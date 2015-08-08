@@ -2467,6 +2467,14 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
     }
 
 #endif
+
+    if (jpeg_settings->image_desc_valid) {
+        if (exif->addEntry(EXIFTAGID_IMAGE_DESCRIPTION, EXIF_ASCII,
+                strlen(jpeg_settings->image_desc)+1,
+                (void *)jpeg_settings->image_desc)) {
+            ALOGE("%s: Adding IMAGE_DESCRIPTION tag failed", __func__);
+        }
+    }
     return exif;
 }
 

@@ -3466,6 +3466,7 @@ void QCamera3PicChannel::putStreamBufs()
 
 int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *metadata)
 {
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     jpeg_settings_t *settings =
             (jpeg_settings_t *)malloc(sizeof(jpeg_settings_t));
 
@@ -3513,6 +3514,24 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
                 sizeof(settings->gps_processing_method));
         strlcpy(settings->gps_processing_method, (const char *)proc_methods,
                 sizeof(settings->gps_processing_method));
+    }
+
+    // Image description
+    const char *eepromVersion = hal_obj->getEepromVersionInfo();
+    const uint32_t *ldafCalib = hal_obj->getLdafCalib();
+    if ((eepromVersion && strlen(eepromVersion)) ||
+            ldafCalib) {
+        int len = 0;
+        settings->image_desc_valid = true;
+        if (eepromVersion && strlen(eepromVersion)) {
+            len = snprintf(settings->image_desc, sizeof(settings->image_desc),
+                    "M:%s ", eepromVersion);
+        }
+        if (ldafCalib) {
+            snprintf(settings->image_desc + len,
+                    sizeof(settings->image_desc) - len, "L:%u-%u",
+                    ldafCalib[0], ldafCalib[1]);
+        }
     }
 
     return m_postprocessor.processJpegSettingData(settings);

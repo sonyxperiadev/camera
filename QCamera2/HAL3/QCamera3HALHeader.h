@@ -68,6 +68,8 @@ class QCamera3ProcessingChannel;
         uint8_t gps_coordinates_valid;
         double gps_coordinates[3];
         char gps_processing_method[GPS_PROCESSING_METHOD_SIZE];
+        uint8_t image_desc_valid;
+        char image_desc[EXIF_IMAGE_DESCRIPTION_SIZE];
     } jpeg_settings_t;
 
     typedef struct {

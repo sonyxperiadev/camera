@@ -355,7 +355,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mPrevUrgentFrameNumber(0),
       mPrevFrameNumber(0),
       mNeedSensorRestart(false),
-      mPprocBypass(false)
+      mPprocBypass(false),
+      mLdafCalibExist(false)
 {
     getLogLevel();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
@@ -406,6 +407,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     }
 
     memset(&mInputStreamSize, 0, sizeof(mInputStreamSize));
+    memset(mLdafCalib, 0, sizeof(mLdafCalib));
 }
 
 /*===========================================================================
@@ -4806,6 +4808,18 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         }
     }
 
+    // Ldaf calibration data
+    if (!mLdafCalibExist) {
+        IF_META_AVAILABLE(uint32_t, ldafCalib,
+                CAM_INTF_META_LDAF_EXIF, metadata) {
+            mLdafCalibExist = true;
+            mLdafCalib[0] = ldafCalib[0];
+            mLdafCalib[1] = ldafCalib[1];
+            CDBG("%s: ldafCalib[0] is %d, ldafCalib[1] is %d", __func__,
+                    ldafCalib[0], ldafCalib[1]);
+        }
+    }
+
     resultMetadata = camMetadata.release();
     return resultMetadata;
 }
@@ -8966,6 +8980,40 @@ void QCamera3HardwareInterface::getFlashInfo(const int cameraId,
         strlcpy(flashNode,
                 (char*)camCapability->flash_dev_name,
                 QCAMERA_MAX_FILEPATH_LENGTH);
+    }
+}
+
+/*===========================================================================
+* FUNCTION   : getEepromVersionInfo
+*
+* DESCRIPTION: Retrieve version info of the sensor EEPROM data
+*
+* PARAMETERS : None
+*
+* RETURN     : string describing EEPROM version
+*              "\0" if no such info available
+*==========================================================================*/
+const char *QCamera3HardwareInterface::getEepromVersionInfo()
+{
+    return (const char *)&gCamCapability[mCameraId]->eeprom_version_info[0];
+}
+
+/*===========================================================================
+* FUNCTION   : getLdafCalib
+*
+* DESCRIPTION: Retrieve Laser AF calibration data
+*
+* PARAMETERS : None
+*
+* RETURN     : Two uint32_t describing laser AF calibration data
+*              NULL if none is available.
+*==========================================================================*/
+const uint32_t *QCamera3HardwareInterface::getLdafCalib()
+{
+    if (mLdafCalibExist) {
+        return &mLdafCalib[0];
+    } else {
+        return NULL;
     }
 }
 

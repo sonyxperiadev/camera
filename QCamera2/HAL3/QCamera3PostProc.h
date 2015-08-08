@@ -88,7 +88,7 @@ typedef struct {
     uint32_t frameNumber;
 } qcamera_hal3_pp_buffer_t;
 
-#define MAX_HAL3_EXIF_TABLE_ENTRIES 22
+#define MAX_HAL3_EXIF_TABLE_ENTRIES 23
 class QCamera3Exif
 {
 public:

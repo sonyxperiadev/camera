@@ -103,6 +103,7 @@
 #define MAX_TEST_PATTERN_CNT     8
 
 #define GPS_PROCESSING_METHOD_SIZE 33
+#define EXIF_IMAGE_DESCRIPTION_SIZE 100
 
 #define MAX_INFLIGHT_REQUESTS  6
 #define MIN_INFLIGHT_REQUESTS  3
@@ -1870,6 +1871,7 @@ typedef enum {
     CAM_INTF_PARM_REQUEST_FRAMES,
     /*Black level parameters*/
     CAM_INTF_META_BLACK_LEVEL_IND,
+    CAM_INTF_META_LDAF_EXIF,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

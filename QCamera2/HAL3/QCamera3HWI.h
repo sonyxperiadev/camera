@@ -198,6 +198,8 @@ public:
     static void getFlashInfo(const int cameraId,
             bool& hasFlash,
             char (&flashNode)[QCAMERA_MAX_FILEPATH_LENGTH]);
+    const char *getEepromVersionInfo();
+    const uint32_t *getLdafCalib();
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
@@ -404,6 +406,10 @@ private:
 
     /* Whether PPROC bypass is enabled for YUV888 */
     bool mPprocBypass;
+
+    /* Ldaf calibration data */
+    bool mLdafCalibExist;
+    uint32_t mLdafCalib[2];
 
     static const QCameraMap<camera_metadata_enum_android_control_effect_mode_t,
             cam_effect_mode_type> EFFECT_MODES_MAP[];
