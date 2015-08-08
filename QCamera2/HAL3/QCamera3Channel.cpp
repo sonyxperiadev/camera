@@ -1355,7 +1355,6 @@ int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cf
     }
 
     switch (reproc_cfg.stream_type) {
-        case CAM_STREAM_TYPE_CALLBACK:
         case CAM_STREAM_TYPE_PREVIEW:
             rc = mm_stream_calc_offset_preview(
                     getStreamByIndex(0)->getStreamInfo(),
@@ -1374,6 +1373,7 @@ int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cf
                     reproc_cfg.padding, &reproc_cfg.input_stream_plane_info);
             break;
         case CAM_STREAM_TYPE_SNAPSHOT:
+        case CAM_STREAM_TYPE_CALLBACK:
         default:
             rc = mm_stream_calc_offset_snapshot(streamFormat, &reproc_cfg.input_stream_dim,
                     reproc_cfg.padding, &reproc_cfg.input_stream_plane_info);
@@ -2513,11 +2513,16 @@ int32_t QCamera3YUVChannel::initialize(cam_is_type_t isType)
     if (mBypass) {
          // Allocate heap buffers up front
         cam_stream_buf_plane_info_t buf_planes;
+        cam_padding_info_t paddingInfo = *mPaddingInfo;
+
         memset(&buf_planes, 0, sizeof(buf_planes));
-        rc = mm_stream_calc_offset_preview(
-                getStreamByIndex(0)->getStreamInfo(),
-                &streamDim,
-                mPaddingInfo, &buf_planes);
+        //to ensure a big enough buffer size set the height and width
+        //padding to max(height padding, width padding)
+        paddingInfo.width_padding = MAX(paddingInfo.width_padding, paddingInfo.height_padding);
+        paddingInfo.height_padding = paddingInfo.width_padding;
+
+        rc = mm_stream_calc_offset_snapshot(mStreamFormat, &streamDim, &paddingInfo,
+                &buf_planes);
         if (rc < 0) {
             ALOGE("%s: mm_stream_calc_offset_preview failed", __func__);
             return rc;

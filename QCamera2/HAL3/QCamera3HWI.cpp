@@ -1665,7 +1665,10 @@ int QCamera3HardwareInterface::configureStreams(
                          GRALLOC_USAGE_HW_CAMERA_WRITE);
                 else if (newStream->usage & GRALLOC_USAGE_HW_CAMERA_ZSL)
                     CDBG("%s: ZSL usage flag skipping", __func__);
-                else
+                else if (newStream == zslStream
+                        || newStream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+                    newStream->usage |= GRALLOC_USAGE_HW_CAMERA_ZSL;
+                } else
                     newStream->usage |= GRALLOC_USAGE_HW_CAMERA_WRITE;
                 break;
             default:
