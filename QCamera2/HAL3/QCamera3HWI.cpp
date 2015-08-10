@@ -1393,7 +1393,6 @@ int QCamera3HardwareInterface::configureStreams(
                 mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
                 if (m_bIs4KVideo && !isZsl) {
                     mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
-                    mStreamConfigInfo.postprocess_mask[i] &= ~CAM_QCOM_FEATURE_CDS;
                 } else {
                     if (bUseCommonFeatureMask &&
                             (((int32_t)newStream->width > maxViewfinderSize.width) ||
