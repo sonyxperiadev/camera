@@ -4074,15 +4074,20 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
     const char *prev_val  = get(KEY_QC_ZSL);
     int32_t rc = NO_ERROR;
 
-    if(m_bForceZslMode && !m_bZslMode) {
-        // Force ZSL mode to ON
-        set(KEY_QC_ZSL, VALUE_ON);
-        m_bZslMode_new = true;
-        m_bZslMode = true;
-        m_bNeedRestart = true;
-        int32_t value = m_bForceZslMode;
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
-            rc = BAD_VALUE;
+    if(m_bForceZslMode) {
+        if (!m_bZslMode) {
+            // Force ZSL mode to ON
+            set(KEY_QC_ZSL, VALUE_ON);
+            m_bZslMode_new = true;
+            m_bZslMode = true;
+            m_bNeedRestart = true;
+
+            int32_t value = m_bForceZslMode;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
+                rc = BAD_VALUE;
+            }
+
+            CDBG_HIGH("%s: ZSL Mode forced to be enabled", __func__);
         }
     } else if (str_val != NULL) {
         if (prev_val == NULL || strcmp(str_val, prev_val) != 0) {
@@ -5581,11 +5586,13 @@ int32_t QCameraParameters::initDefaultParameters()
 
     // Check if zsl mode property is enabled.
     // If yes, force the camera to be in zsl mode
-    memset(value, 0x00, PROPERTY_VALUE_MAX);
+    // and force zsl mode to be enabled in dual camera mode.
+    memset(value, 0x0, PROPERTY_VALUE_MAX);
     property_get("persist.camera.zsl.mode", value, "0");
     int32_t zsl_mode = atoi(value);
-    if(zsl_mode == 1) {
-        CDBG_HIGH("%s: %d: Forcing Camera to ZSL mode ", __func__, __LINE__);
+    if((zsl_mode == 1) ||
+       (m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON)) {
+        CDBG_HIGH("%s: %d: Forcing Camera to ZSL mode enabled", __func__, __LINE__);
         set(KEY_QC_ZSL, VALUE_ON);
         m_bForceZslMode = true;
         m_bZslMode = true;
