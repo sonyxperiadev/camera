@@ -115,7 +115,7 @@
 
 #define RELCAM_CALIB_ROT_MATRIX_MAX 9
 #define RELCAM_CALIB_SURFACE_PARMS_MAX 32
-#define RELCAM_CALIB_RESERVED_MAX 64
+#define RELCAM_CALIB_RESERVED_MAX 62
 
 #define MAX_NUM_CAMERA_PER_BUNDLE    2 /* Max number of cameras per bundle */
 #define EXTRA_FRAME_SYNC_BUFFERS     4 /* Extra frame sync buffers in dc mode*/
