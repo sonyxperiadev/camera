@@ -12625,7 +12625,7 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
 void QCameraParameters::setVideoBatchSize()
 {
     char value[PROPERTY_VALUE_MAX];
-    int8_t minBatchcnt = 2; //Batching enabled only if batch size if greater that 2;
+    int8_t minBatchcnt = 2; //Batching enabled only if batch size if greater than 2;
     int32_t width = 0, height = 0;
     mVideoBatchSize = 0;
 
@@ -12633,20 +12633,21 @@ void QCameraParameters::setVideoBatchSize()
         //We don't need HAL to HAL batching if camera batching enabled.
         return;
     }
-    getVideoSize(&width, &height);
 
-    if ((width <= 1920) && (height <= 1080)) {
-        //We enable batching only for 1080p or below.
-        //Batch size is 6 is optimized and gives better power saving.
-        property_get("persist.camera.video.batchsize", value, "6");
-    } else {
-        property_get("persist.camera.video.batchsize", value, "0");
+    getVideoSize(&width, &height);
+    if ((width > 1920) || (height > 1080)) {
+        //Cannot enable batch mode for video size bigger than 1080p
+        return;
     }
+
+    //Batch size "6" is the recommended and gives optimal power saving.
+    property_get("persist.camera.video.batchsize", value, "0");
     mVideoBatchSize = atoi(value);
+
     if (mVideoBatchSize > CAMERA_MAX_CONSUMER_BATCH_BUFFER_SIZE) {
         mVideoBatchSize = CAMERA_MAX_CONSUMER_BATCH_BUFFER_SIZE;
     } else if (mVideoBatchSize <= minBatchcnt) {
-        //Batching enabled only if batch size if greater that 2;
+        //Batching enabled only if batch size is greater than 2.
         mVideoBatchSize = 0;
     }
     CDBG ("%s: mVideoBatchSize = %d", __func__, mVideoBatchSize);
