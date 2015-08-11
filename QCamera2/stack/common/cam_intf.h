@@ -512,6 +512,14 @@ typedef struct {
     uint16_t   relative_position_flag;
     /* Camera separation in mm */
     float      relative_baseline_distance;
+    /* main sensor setting during cal: 0-none, 1-hor-mirror, 2-ver-flip, 3-both */
+    uint16_t   main_sensor_mirror_flip_setting;
+    /* aux sensor setting during cal: 0-none, 1-hor-mirror, 2-ver-flip, 3-both */
+    uint16_t   aux_sensor_mirror_flip_setting;
+    /* module orientation during cal: 0-sensors in landscape, 1-sensors in portrait */
+    uint16_t   module_orientation_during_calibration;
+    /* cal images required rotation: 0-no, 1-90 degrees right, 2-90 degrees left */
+    uint16_t   rotation_flag;
     /* Reserved for future use */
     float      reserved[RELCAM_CALIB_RESERVED_MAX];
 }cam_related_system_calibration_data_t;
