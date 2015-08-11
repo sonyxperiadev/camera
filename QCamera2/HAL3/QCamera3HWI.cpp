@@ -9269,8 +9269,16 @@ int32_t QCamera3HardwareInterface::notifyErrorForPendingRequests()
 
     memset(&result, 0, sizeof(camera3_capture_result_t));
 
-    pendingRequestIterator i = mPendingRequestsList.begin();
-    frameNum = i->frame_number;
+    if (mPendingRequestsList.size() > 0) {
+        pendingRequestIterator i = mPendingRequestsList.begin();
+        frameNum = i->frame_number;
+    } else {
+        /* There might still be pending buffers even though there are
+         no pending requests. Setting the frameNum to MAX so that
+         all the buffers with smaller frame numbers are returned */
+        frameNum = UINT_MAX;
+    }
+
     CDBG_HIGH("%s: Oldest frame num on  mPendingRequestsList = %d",
       __func__, frameNum);
 
@@ -9363,6 +9371,8 @@ int32_t QCamera3HardwareInterface::notifyErrorForPendingRequests()
         k = mPendingBuffersMap.mPendingBufferList.erase(k);
     }
 
+    pendingRequestIterator i = mPendingRequestsList.begin(); //make sure i is at the beginning
+
     // Go through the pending requests info and send error request to framework
     for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
         uint32_t frame_number = flushMap.keyAt(iFlush);
@@ -9395,19 +9405,16 @@ int32_t QCamera3HardwareInterface::notifyErrorForPendingRequests()
             pStream_Buf[j].stream = info.stream;
         }
 
+        result.input_buffer = i->input_buffer;
         result.num_output_buffers = (uint32_t)pending.size();
         result.output_buffers = pStream_Buf;
         result.result = NULL;
         result.frame_number = frame_number;
         mCallbackOps->process_capture_result(mCallbackOps, &result);
         delete [] pStream_Buf;
-    }
-
-    /* Reset pending buffer list and requests list */
-    for (pendingRequestIterator i = mPendingRequestsList.begin();
-            i != mPendingRequestsList.end();) {
         i = erasePendingRequest(i);
     }
+
     /* Reset pending frame Drop list and requests list */
     mPendingFrameDropList.clear();
 
