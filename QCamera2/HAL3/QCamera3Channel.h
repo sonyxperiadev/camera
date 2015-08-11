@@ -45,6 +45,7 @@ extern "C" {
 using namespace android;
 
 #define MIN_STREAMING_BUFFER_NUM 7+11
+typedef int64_t nsecs_t;
 
 namespace qcamera {
 
@@ -182,9 +183,14 @@ public:
     virtual QCamera3Memory *getStreamBufs(uint32_t le);
     virtual void putStreamBufs();
     virtual int32_t registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType);
+    void showDebugFPS(int32_t streamType);
 
 protected:
     QCamera3GrallocMemory mMemory;
+    uint8_t mDebugFPS;
+    int mFrameCount;
+    int mLastFrameCount;
+    nsecs_t mLastFpsTime;
 private:
     int32_t initialize(struct private_handle_t *priv_handle);
 

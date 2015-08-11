@@ -699,6 +699,9 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                         QCamera3Channel(cam_handle, cam_ops, cb_routine,
                                 paddingInfo, postprocess_mask, userData,
                                 numBuffers),
+                        mFrameCount(0),
+                        mLastFrameCount(0),
+                        mLastFpsTime(0),
                         mCamera3Stream(stream),
                         mNumBufs(0),
                         mStreamType(stream_type),
@@ -706,6 +709,9 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                         mHeight(stream->height),
                         mBatchSize(0)
 {
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.debug.sf.showfps", prop, "0");
+    mDebugFPS = (uint8_t) atoi(prop);
 }
 
 /*===========================================================================
@@ -741,6 +747,9 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                         QCamera3Channel(cam_handle, cam_ops, cb_routine,
                                 paddingInfo, postprocess_mask, userData,
                                 numBuffers),
+                        mFrameCount(0),
+                        mLastFrameCount(0),
+                        mLastFpsTime(0),
                         mCamera3Stream(stream),
                         mNumBufs(0),
                         mStreamType(stream_type),
@@ -748,6 +757,9 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
                         mHeight(height),
                         mBatchSize(0)
 {
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.debug.sf.showfps", prop, "0");
+    mDebugFPS = (uint8_t) atoi(prop);
 }
 
 /*===========================================================================
@@ -1078,6 +1090,10 @@ void QCamera3RegularChannel::streamCbRoutine(
          return;
     }
 
+    if (mDebugFPS) {
+        showDebugFPS(stream->getMyType());
+    }
+
     ////Use below data to issue framework callback
     resultBuffer = (buffer_handle_t *)mMemory.getBufferHandle(frameIndex);
     resultFrameNumber = mMemory.getFrameNumber(frameIndex);
@@ -1118,6 +1134,52 @@ QCamera3Memory* QCamera3RegularChannel::getStreamBufs(uint32_t /*len*/)
 void QCamera3RegularChannel::putStreamBufs()
 {
     mMemory.unregisterBuffers();
+}
+
+/*===========================================================================
+ * FUNCTION   : showDebugFPS
+ *
+ * DESCRIPTION: Function to log the fps for preview, video, callback and raw
+ *              streams
+ *
+ * PARAMETERS : Stream type
+ *
+ * RETURN  : None
+ *==========================================================================*/
+void QCamera3RegularChannel::showDebugFPS(int32_t streamType)
+{
+    double fps = 0;
+    mFrameCount++;
+    nsecs_t now = systemTime();
+    nsecs_t diff = now - mLastFpsTime;
+    if (diff > ms2ns(250)) {
+        fps = (((double)(mFrameCount - mLastFrameCount)) *
+                (double)(s2ns(1))) / (double)diff;
+        switch(streamType) {
+            case CAM_STREAM_TYPE_PREVIEW:
+                CDBG_HIGH("%s: PROFILE_PREVIEW_FRAMES_PER_SECOND : %.4f",
+                        __func__, fps);
+                break;
+            case CAM_STREAM_TYPE_VIDEO:
+                CDBG_HIGH("%s: PROFILE_VIDEO_FRAMES_PER_SECOND : %.4f",
+                        __func__, fps);
+                break;
+            case CAM_STREAM_TYPE_CALLBACK:
+                CDBG_HIGH("%s: PROFILE_CALLBACK_FRAMES_PER_SECOND : %.4f",
+                        __func__, fps);
+                break;
+            case CAM_STREAM_TYPE_RAW:
+                CDBG_HIGH("%s: PROFILE_RAW_FRAMES_PER_SECOND : %.4f",
+                        __func__, fps);
+                break;
+            default:
+                CDBG_HIGH("%s: logging not supported for the stream",
+                         __func__);
+                break;
+        }
+        mLastFpsTime = now;
+        mLastFrameCount = mFrameCount;
+    }
 }
 
 QCamera3MetadataChannel::QCamera3MetadataChannel(uint32_t cam_handle,
