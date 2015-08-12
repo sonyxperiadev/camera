@@ -3106,12 +3106,14 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                     camera3_stream_t *stream,
                     uint32_t postprocess_mask,
                     bool is4KVideo,
+                    bool isInputStreamConfigured,
                     QCamera3Channel *metadataChannel,
                     uint32_t numBuffers) :
                          QCamera3ProcessingChannel(cam_handle, cam_ops, cb_routine,
                                 paddingInfo, userData, stream, CAM_STREAM_TYPE_SNAPSHOT,
                                 postprocess_mask, metadataChannel, numBuffers),
                         mNumSnapshotBufs(0),
+                        mInputBufferHint(isInputStreamConfigured),
                         mYuvMemory(NULL)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
@@ -3570,7 +3572,16 @@ void QCamera3PicChannel::overrideYuvSize(uint32_t width, uint32_t height)
  *==========================================================================*/
 reprocess_type_t QCamera3PicChannel::getReprocessType()
 {
-    return REPROCESS_TYPE_JPEG;
+    /* a picture channel could either use the postprocessor for reprocess+jpeg
+       or only for reprocess */
+    reprocess_type_t expectedReprocess;
+    if (mPostProcMask == CAM_QCOM_FEATURE_NONE || mInputBufferHint) {
+        expectedReprocess = REPROCESS_TYPE_JPEG;
+    } else {
+        expectedReprocess = REPROCESS_TYPE_NONE;
+    }
+    CDBG_HIGH("%s: expectedReprocess from Pic Channel is %d", __func__, expectedReprocess);
+    return expectedReprocess;
 }
 
 

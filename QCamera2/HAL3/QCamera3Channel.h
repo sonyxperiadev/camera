@@ -440,6 +440,7 @@ public:
             camera3_stream_t *stream,
             uint32_t postprocess_mask,
             bool is4KVideo,
+            bool isInputStreamConfigured,
             QCamera3Channel *metadataChannel,
             uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
     ~QCamera3PicChannel();
@@ -478,6 +479,7 @@ private:
     uint32_t mNumSnapshotBufs;
     uint32_t mYuvWidth, mYuvHeight;
     int32_t mCurrentBufIndex;
+    bool mInputBufferHint;
     QCamera3StreamMem *mYuvMemory;
     // Keep a list of free buffers
     Mutex mFreeBuffersLock;

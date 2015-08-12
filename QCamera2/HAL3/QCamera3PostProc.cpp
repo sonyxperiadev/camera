@@ -214,7 +214,7 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
     int32_t rc = NO_ERROR;
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
 
-    if (hal_obj->needReprocess(mPostProcMask) || config.src_channel != m_parent) {
+    if (config.reprocess_type != REPROCESS_TYPE_NONE) {
         if (m_pReprocChannel != NULL) {
             m_pReprocChannel->stop();
             delete m_pReprocChannel;
@@ -595,8 +595,7 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *input,
 int32_t QCamera3PostProcessor::processData(qcamera_fwk_input_pp_data_t *frame)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
-    if (hal_obj->needReprocess(mPostProcMask) ||
-            frame->reproc_config.src_channel != m_parent) {
+    if (frame->reproc_config.reprocess_type != REPROCESS_TYPE_NONE) {
         ATRACE_INT("Camera:Reprocess", 1);
         pthread_mutex_lock(&mReprocJobLock);
         // enqueu to post proc input queue
