@@ -31,7 +31,6 @@
 #define __QCAMERA2HARDWAREINTERFACE_H__
 
 #include <hardware/camera.h>
-#include <hardware/power.h>
 #include <utils/Log.h>
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
@@ -611,8 +610,6 @@ private:
     // Signifies AEC locked during zsl snapshots
     bool m_bLedAfAecLock;
     cam_af_state_t m_currentFocusState;
-
-    power_module_t *m_pPowerModule;   // power module
 
     uint32_t mDumpFrmCnt;  // frame dump count
     uint32_t mDumpSkipCnt; // frame skip count

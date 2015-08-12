@@ -345,7 +345,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mMinProcessedFrameDuration(0),
       mMinJpegFrameDuration(0),
       mMinRawFrameDuration(0),
-      m_pPowerModule(NULL),
       mMetaFrameCount(0U),
       mUpdateDebugLevel(false),
       mCallbacks(callbacks),
@@ -357,7 +356,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mPrevUrgentFrameNumber(0),
       mPrevFrameNumber(0),
       mNeedSensorRestart(false),
-      mLdafCalibExist(false)
+      mLdafCalibExist(false),
+      mPowerHintEnabled(false)
 {
     getLogLevel();
     m_perfLock.lock_init();
@@ -380,12 +380,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         mDefaultMetadata[i] = NULL;
-
-#ifdef HAS_MULTIMEDIA_HINTS
-    if (hw_get_module(POWER_HARDWARE_MODULE_ID, (const hw_module_t **)&m_pPowerModule)) {
-        ALOGE("%s: %s module not found", __func__, POWER_HARDWARE_MODULE_ID);
-    }
-#endif
 
     // Getting system props of different kinds
     char prop[PROPERTY_VALUE_MAX];
@@ -434,9 +428,9 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 {
     CDBG("%s: E", __func__);
 
-    /* Turn off video hint prior to acquiring perfLock in case they
+    /* Turn off current power hint before acquiring perfLock in case they
      * conflict with each other */
-    updatePowerHint(m_bIsVideo, false);
+    disablePowerHint();
 
     m_perfLock.lock_acq();
 
@@ -1035,32 +1029,39 @@ int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_d
 }
 
 /*==============================================================================
- * FUNCTION   : updatePowerHint
+ * FUNCTION   : enablePowerHint
  *
- * DESCRIPTION: update power hint based on whether it's video mode or not.
+ * DESCRIPTION: enable single powerhint for preview and different video modes.
  *
  * PARAMETERS :
- *   @bWasVideo : whether video mode before the switch
- *   @bIsVideo  : whether new mode is video or not.
  *
  * RETURN     : NULL
  *
  *==========================================================================*/
-void QCamera3HardwareInterface::updatePowerHint(bool bWasVideo, bool bIsVideo)
+void QCamera3HardwareInterface::enablePowerHint()
 {
-#ifdef HAS_MULTIMEDIA_HINTS
-    if (bWasVideo == bIsVideo)
-        return;
+    if (!mPowerHintEnabled) {
+        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, 1);
+        mPowerHintEnabled = true;
+    }
+}
 
-    if (m_pPowerModule && m_pPowerModule->powerHint) {
-        if (bIsVideo)
-            m_pPowerModule->powerHint(m_pPowerModule,
-                    POWER_HINT_VIDEO_ENCODE, (void *)"state=1");
-        else
-            m_pPowerModule->powerHint(m_pPowerModule,
-                    POWER_HINT_VIDEO_ENCODE, (void *)"state=0");
-     }
-#endif
+/*==============================================================================
+ * FUNCTION   : disablePowerHint
+ *
+ * DESCRIPTION: disable current powerhint.
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : NULL
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::disablePowerHint()
+{
+    if (mPowerHintEnabled) {
+        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, 0);
+        mPowerHintEnabled = false;
+    }
 }
 
 /*==============================================================================
@@ -1115,16 +1116,11 @@ int QCamera3HardwareInterface::configureStreams(
 {
     ATRACE_CALL();
     int rc = 0;
-    bool bWasVideo = m_bIsVideo;
 
     // Acquire perfLock before configure streams
     m_perfLock.lock_acq();
     rc = configureStreamsPerfLocked(streamList);
     m_perfLock.lock_rel();
-
-    /* Update power hint after releasing perfLock in case they
-     * conflict with each other. */
-    updatePowerHint(bWasVideo, m_bIsVideo);
 
     return rc;
 }
@@ -3350,6 +3346,7 @@ no_error:
         mWokenUpByDaemon = false;
         mPendingLiveRequest = 0;
         mFirstConfiguration = false;
+        enablePowerHint();
     }
 
     uint32_t frameNumber = request->frame_number;

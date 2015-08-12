@@ -32,6 +32,7 @@
 
 #include <dlfcn.h>
 #include <utils/Mutex.h>
+#include <hardware/power.h>
 
 #define ONE_SEC 1000
 
@@ -54,6 +55,8 @@ public:
     void    lock_deinit();
     int32_t lock_rel();
     int32_t lock_acq();
+    void    powerHintInternal(power_hint_t hint, uint32_t enable);
+    void    powerHint(power_hint_t hint, uint32_t enable);
 private:
     int32_t        (*perf_lock_acq)(int, int, int[], int);
     int32_t        (*perf_lock_rel)(int);
@@ -61,6 +64,9 @@ private:
     uint32_t        mPerfLockEnable;
     Mutex           mLock;
     int32_t         mPerfLockHandle;  // Performance lock library handle
+    power_module_t *m_pPowerModule;   // power module Handle
+    power_hint_t    mCurrentPowerHint;
+    uint32_t        mCurrentPowerHintEnable;
 };
 
 }; // namespace qcamera

@@ -108,6 +108,12 @@ void QCameraPerfLock::lock_init()
 
     property_get("persist.camera.perflock.enable", value, "1");
     mPerfLockEnable = atoi(value);
+    mCurrentPowerHintEnable = 0;
+#ifdef HAS_MULTIMEDIA_HINTS
+    if (hw_get_module(POWER_HARDWARE_MODULE_ID, (const hw_module_t **)&m_pPowerModule)) {
+        ALOGE("%s: %s module not found", __func__, POWER_HARDWARE_MODULE_ID);
+    }
+#endif
 
     if (mPerfLockEnable) {
         perf_lock_acq = NULL;
@@ -205,6 +211,12 @@ int32_t QCameraPerfLock::lock_acq()
                 CPU0_MIN_FREQ_TURBO_MAX,
                 CPU4_MIN_FREQ_TURBO_MAX
         };
+
+        // Disable power hint when acquiring the perf lock
+        if (mCurrentPowerHintEnable) {
+            powerHintInternal(mCurrentPowerHint, 0);
+        }
+
         if ((NULL != perf_lock_acq) && (mPerfLockHandle < 0)) {
             ret = (*perf_lock_acq)(mPerfLockHandle, ONE_SEC, perf_lock_params,
                     sizeof(perf_lock_params) / sizeof(int32_t));
@@ -240,7 +252,7 @@ int32_t QCameraPerfLock::lock_rel()
     int ret = -1;
     Mutex::Autolock lock(mLock);
     if (mPerfLockEnable) {
-        CDBG("%s E", __func__);
+        CDBG_HIGH("%s E", __func__);
         if (mPerfLockHandle < 0) {
             ALOGE("Error: mPerfLockHandle < 0,check if lock is acquired");
             return ret;
@@ -254,9 +266,58 @@ int32_t QCameraPerfLock::lock_rel()
             }
             mPerfLockHandle = -1;
         }
-        CDBG("%s X", __func__);
+
+        if (mCurrentPowerHintEnable == 1) {
+            powerHintInternal(mCurrentPowerHint, mCurrentPowerHintEnable);
+        }
+        CDBG_HIGH("%s X", __func__);
     }
     return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : powerHintInternal
+ *
+ * DESCRIPTION: Sets the requested power hint and state to power HAL.
+ *
+ * PARAMETERS :
+ * enable     : Enable power hint if set to 1. Disable if set to 0.
+ * RETURN     : void
+ *
+ *==========================================================================*/
+void QCameraPerfLock::powerHintInternal(power_hint_t hint, uint32_t enable)
+{
+#ifdef HAS_MULTIMEDIA_HINTS
+    if (m_pPowerModule != NULL) {
+        if (enable == 1) {
+            m_pPowerModule->powerHint(m_pPowerModule, hint, (void *)"state=1");
+        }
+        else {
+            m_pPowerModule->powerHint(m_pPowerModule, hint, (void *)"state=0");
+        }
+    }
+#endif
+}
+
+/*===========================================================================
+ * FUNCTION   : powerHint
+ *
+ * DESCRIPTION: Sets the requested power hint and state to power HAL.
+ *
+ * PARAMETERS :
+ * hint       : Power hint
+ * enable     : Enable power hint if set to 1. Disable if set to 0.
+ * RETURN     : void
+ *
+ *==========================================================================*/
+void QCameraPerfLock::powerHint(power_hint_t hint, uint32_t enable)
+{
+#ifdef HAS_MULTIMEDIA_HINTS
+    powerHintInternal(hint, enable);
+
+    mCurrentPowerHint       = hint;
+    mCurrentPowerHintEnable = enable;
+#endif
 }
 
 }; // namespace qcamera
