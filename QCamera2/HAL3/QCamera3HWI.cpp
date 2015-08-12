@@ -7579,6 +7579,13 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
             CDBG("%s: hfrMode: %d batchSize: %d", __func__, hfrMode, mBatchSize);
 
          }
+    } else {
+        /* HFR mode is session param in backend/ISP. This should be reset when
+         * in non-HFR mode  */
+        cam_hfr_mode_t hfrMode = CAM_HFR_MODE_OFF;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, hfrMode)) {
+            return BAD_VALUE;
+        }
     }
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
         return BAD_VALUE;
