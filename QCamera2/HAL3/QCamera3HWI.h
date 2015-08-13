@@ -200,6 +200,7 @@ public:
             char (&flashNode)[QCAMERA_MAX_FILEPATH_LENGTH]);
     const char *getEepromVersionInfo();
     const uint32_t *getLdafCalib();
+    void get3AVersion(cam_q3a_version_t &swVersion);
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;

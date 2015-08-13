@@ -1229,6 +1229,13 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         jpg_job.encode_job.main_dim.crop = crop;
     }
 
+    QCamera3HardwareInterface* obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+    // get 3a sw version info
+    cam_q3a_version_t sw_version;
+    memset(&sw_version, 0, sizeof(sw_version));
+    if (obj)
+        obj->get3AVersion(sw_version);
+
     // get exif data
     QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings);
     jpeg_job_data->pJpegExifObj = pJpegExifObj;
@@ -1236,6 +1243,14 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         jpg_job.encode_job.exif_info.exif_data = pJpegExifObj->getEntries();
         jpg_job.encode_job.exif_info.numOfEntries =
             pJpegExifObj->getNumOfEntries();
+        jpg_job.encode_job.exif_info.debug_data.sw_3a_version[0] =
+            sw_version.major_version;
+        jpg_job.encode_job.exif_info.debug_data.sw_3a_version[1] =
+            sw_version.minor_version;
+        jpg_job.encode_job.exif_info.debug_data.sw_3a_version[2] =
+            sw_version.patch_version;
+        jpg_job.encode_job.exif_info.debug_data.sw_3a_version[3] =
+            sw_version.new_feature_des;
     }
 
     // thumbnail dim
@@ -1488,6 +1503,13 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         jpg_job.encode_job.main_dim.crop = crop;
     }
 
+    QCamera3HardwareInterface* obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+    // get 3a sw version info
+    cam_q3a_version_t sw_version;
+    memset(&sw_version, 0, sizeof(sw_version));
+
+    if (obj)
+        obj->get3AVersion(sw_version);
 
     // get exif data
     QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings);
@@ -1496,6 +1518,14 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         jpg_job.encode_job.exif_info.exif_data = pJpegExifObj->getEntries();
         jpg_job.encode_job.exif_info.numOfEntries =
             pJpegExifObj->getNumOfEntries();
+        jpg_job.encode_job.exif_info.debug_data.sw_3a_version[0] =
+            sw_version.major_version;
+        jpg_job.encode_job.exif_info.debug_data.sw_3a_version[1] =
+            sw_version.minor_version;
+        jpg_job.encode_job.exif_info.debug_data.sw_3a_version[2] =
+            sw_version.patch_version;
+        jpg_job.encode_job.exif_info.debug_data.sw_3a_version[3] =
+            sw_version.new_feature_des;
     }
 
     // thumbnail dim

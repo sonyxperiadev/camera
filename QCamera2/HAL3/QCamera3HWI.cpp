@@ -5526,6 +5526,27 @@ open_failed:
     return rc;
 }
 
+/*==========================================================================
+ * FUNCTION   : get3Aversion
+ *
+ * DESCRIPTION: get the Q3A S/W version
+ *
+ * PARAMETERS :
+ *  @sw_version: Reference of Q3A structure which will hold version info upon
+ *               return
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::get3AVersion(cam_q3a_version_t &sw_version)
+{
+    if(gCamCapability[mCameraId])
+        sw_version = gCamCapability[mCameraId]->q3a_version;
+    else
+        ALOGE("%s:Capability structure NULL!", __func__);
+}
+
+
 /*===========================================================================
  * FUNCTION   : initParameters
  *
