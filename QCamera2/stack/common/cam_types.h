@@ -1216,6 +1216,10 @@ typedef struct {
     uint32_t exposure_mode;
     uint32_t scenetype;
     float brightness;
+    float est_snap_exp_time;
+    int32_t est_snap_iso_value;
+    uint32_t est_snap_luma;
+    uint32_t est_snap_target;
 } cam_3a_params_t;
 
 typedef struct {
