@@ -414,6 +414,10 @@ typedef struct{
     /* Count is K/4 */
     uint8_t optical_black_region_count;
 
+    /* hot pixel */
+    uint8_t hotPixel_mode;
+    uint32_t hotPixel_count;
+    cam_coordinate_type_t hotPixelMap[512];
 } cam_capability_t;
 
 typedef enum {
