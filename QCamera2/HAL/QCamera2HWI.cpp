@@ -2797,9 +2797,9 @@ void QCamera2HardwareInterface::setJpegCallBacks(jpeg_data_callback jpegCb,
  *==========================================================================*/
 int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
 {
-    if (mParameters.isUBWCEnabled()) {
-        int32_t rc = NO_ERROR;
+    int32_t rc = NO_ERROR;
 
+    if (mParameters.isUBWCEnabled()) {
         /*Need Special CALLBACK stream incase application requesting for
               Preview callback  in UBWC case*/
         if (!(msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
@@ -2815,7 +2815,7 @@ int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
 
     mMsgEnabled |= msg_type;
     CDBG_HIGH("%s (0x%x) : mMsgEnabled = 0x%x", __func__, msg_type , mMsgEnabled );
-    return NO_ERROR;
+    return rc;
 }
 
 /*===========================================================================
@@ -2832,9 +2832,9 @@ int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
  *==========================================================================*/
 int QCamera2HardwareInterface::disableMsgType(int32_t msg_type)
 {
-    if (mParameters.isUBWCEnabled()) {
-        int32_t rc = NO_ERROR;
+    int32_t rc = NO_ERROR;
 
+    if (mParameters.isUBWCEnabled()) {
         /*STOP CALLBACK STREAM*/
         if ((msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
                 (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
@@ -2849,7 +2849,7 @@ int QCamera2HardwareInterface::disableMsgType(int32_t msg_type)
 
     mMsgEnabled &= ~msg_type;
     CDBG_HIGH("%s (0x%x) : mMsgEnabled = 0x%x", __func__, msg_type , mMsgEnabled );
-    return NO_ERROR;
+    return rc;
 }
 
 /*===========================================================================
@@ -2904,10 +2904,6 @@ int QCamera2HardwareInterface::startPreview()
     KPI_ATRACE_CALL();
     int32_t rc = NO_ERROR;
     CDBG_HIGH("%s: E", __func__);
-    if (NO_ERROR != waitDeferredWork(mParamInitJob)) {
-        ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
-        return UNKNOWN_ERROR;
-    }
     updateThermalLevel((void *)&mThermalLevel);
     // start preview stream
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
@@ -4668,8 +4664,6 @@ char* QCamera2HardwareInterface::getParameters()
 {
     char* strParams = NULL;
     String8 str;
-
-    waitDeferredWork(mParamInitJob);
 
     int cur_width, cur_height;
     pthread_mutex_lock(&m_parm_lock);
@@ -7773,8 +7767,6 @@ int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
     enum msm_vfe_frame_skip_pattern skipPattern;
     qcamera_thermal_level_enum_t level = *(qcamera_thermal_level_enum_t *)thermal_level;
 
-    waitDeferredWork(mParamInitJob);
-
     pthread_mutex_lock(&m_parm_lock);
 
     if (!mCameraOpened) {
@@ -7817,8 +7809,6 @@ int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
 int QCamera2HardwareInterface::updateParameters(const char *parms, bool &needRestart)
 {
     int rc = NO_ERROR;
-
-    waitDeferredWork(mParamInitJob);
 
     pthread_mutex_lock(&m_parm_lock);
     String8 str = String8(parms);
