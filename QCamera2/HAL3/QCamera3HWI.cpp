@@ -2603,9 +2603,25 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
             i->timestamp = capture_time;
 
+            // Find channel requiring metadata, meaning internal offline postprocess
+            // is needed.
+            //TODO: for now, we don't support two streams requiring metadata at the same time.
+            // (because we are not making copies, and metadata buffer is not reference counted.
+            bool internalPproc = false;
+            for (pendingBufferIterator iter = i->buffers.begin();
+                    iter != i->buffers.end(); iter++) {
+                if (iter->need_metadata) {
+                    internalPproc = true;
+                    QCamera3ProcessingChannel *channel =
+                            (QCamera3ProcessingChannel *)iter->stream->priv;
+                    channel->queueReprocMetadata(metadata_buf);
+                    break;
+                }
+            }
+
             result.result = translateFromHalMetadata(metadata,
                     i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
-                    i->capture_intent);
+                    i->capture_intent, internalPproc);
 
             saveExifParams(metadata);
 
@@ -2626,24 +2642,13 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 }
             }
 
-            // Find channel requiring metadata, and queue the current metadata.
-            //TODO: for now, we don't support two streams requiring metadata at the same time.
-            // (because we are not making copies, and metadata buffer is not reference counted.
-            pendingBufferIterator iter = i->buffers.begin();
-            while (iter != i->buffers.end() && !iter->need_metadata)
-                iter++;
-            if (iter == i->buffers.end()) {
+            if (!internalPproc) {
                 CDBG("%s: couldn't find need_metadata for this metadata", __func__);
                 // Return metadata buffer
                 if (free_and_bufdone_meta_buf) {
                     mMetadataChannel->bufDone(metadata_buf);
                     free(metadata_buf);
                 }
-            } else {
-                CDBG("%s: need_metadata is set for this metadata", __func__);
-                QCamera3ProcessingChannel *channel =
-                        (QCamera3ProcessingChannel *)iter->stream->priv;
-                channel->queueReprocMetadata(metadata_buf);
             }
         }
         if (!result.result) {
@@ -4156,6 +4161,7 @@ template <class mapType> cam_cds_mode_type_t lookupProp(const mapType *arr,
  *   @timestamp: metadata buffer timestamp
  *   @request_id: request id
  *   @jpegMetadata: additional jpeg metadata
+ *   @pprocDone: whether internal offline postprocsesing is done
  *
  * RETURN     : camera_metadata_t*
  *              metadata in a format specified by fwk
@@ -4167,7 +4173,8 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                  int32_t request_id,
                                  const CameraMetadata& jpegMetadata,
                                  uint8_t pipeline_depth,
-                                 uint8_t capture_intent)
+                                 uint8_t capture_intent,
+                                 bool pprocDone)
 {
     CameraMetadata camMetadata;
     camera_metadata_t *resultMetadata;
@@ -4789,7 +4796,16 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     // Reprocess crop data
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, metadata) {
         uint8_t cnt = crop_data->num_of_streams;
-        if ((0 < cnt) && (cnt < MAX_NUM_STREAMS)) {
+        if (pprocDone) {
+            // HAL already does internal reprocessing, either via reprocessing before
+            // JPEG encoding, or offline postprocessing for pproc bypass case.
+            CDBG("%s: Internal offline postprocessing was done, no need for further crop", __func__);
+        } else if ( (0 >= cnt) || (cnt > MAX_NUM_STREAMS)) {
+            // mm-qcamera-daemon only posts crop_data for streams
+            // not linked to pproc. So no valid crop metadata is not
+            // necessarily an error case.
+            CDBG("%s: No valid crop metadata entries", __func__);
+        } else {
             uint32_t reproc_stream_id;
             if ( NO_ERROR != getReprocessibleOutputStreamId(reproc_stream_id)) {
                 CDBG("%s: No reprocessible stream found, ignore crop data", __func__);
@@ -4842,11 +4858,6 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                    delete [] crop;
                }
             }
-        } else {
-            // mm-qcamera-daemon only posts crop_data for streams
-            // not linked to pproc. So no valid crop metadata is not
-            // necessarily an error case.
-            CDBG("%s: No valid crop metadata entries", __func__);
         }
     }
 
