@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1675,13 +1675,10 @@ static int submain()
         (int)(sizeof(dimension_tbl)/sizeof(dimension_tbl[0]));
     int i,c;
     mm_camera_lib_snapshot_params snap_dim;
-    snap_dim.width = DEFAULT_SNAPSHOT_WIDTH;
-    snap_dim.height = DEFAULT_SNAPSHOT_HEIGHT;
+    snap_dim.dim.width = DEFAULT_SNAPSHOT_WIDTH;
+    snap_dim.dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     cam_scene_mode_type default_scene= CAM_SCENE_MODE_OFF;
     int set_tintless= 0;
-
-    mm_camera_test_obj_t test_obj;
-    memset(&test_obj, 0, sizeof(mm_camera_test_obj_t));
 
     rc = mm_camera_lib_open(&lib_handle, 0);
     if (rc != MM_CAMERA_OK) {
@@ -1708,8 +1705,8 @@ static int submain()
             CDBG_ERROR("%s:filter_resolutions()\n", __func__);
             goto ERROR;
         }
-        snap_dim.width = dimension_tbl[i].width;
-        snap_dim.height = dimension_tbl[i].height;
+        snap_dim.dim.width = dimension_tbl[i].width;
+        snap_dim.dim.height = dimension_tbl[i].height;
 
         rc = enableAFR(&lib_handle);
         if (rc != MM_CAMERA_OK) {
@@ -1900,8 +1897,8 @@ static int submain()
                     CDBG_ERROR("%s:filter_resolutions()\n", __func__);
                     goto ERROR;
                 }
-                snap_dim.width = dimension_tbl[i].width;
-                snap_dim.height = dimension_tbl[i].height;
+                snap_dim.dim.width = dimension_tbl[i].width;
+                snap_dim.dim.height = dimension_tbl[i].height;
 
                 rc = enableAFR(&lib_handle);
                 if (rc != MM_CAMERA_OK) {
@@ -1986,8 +1983,8 @@ static int submain()
                 printf("\n Switch snapshot resolution to %dx%d\n",
                        dimension_tbl[action_param].width,
                        dimension_tbl[action_param].height);
-                snap_dim.width = dimension_tbl[action_param].width;
-                snap_dim.height = dimension_tbl[action_param].height;
+                snap_dim.dim.width = dimension_tbl[action_param].width;
+                snap_dim.dim.height = dimension_tbl[action_param].height;
                 break;
 
       case ACTION_START_RECORDING:
