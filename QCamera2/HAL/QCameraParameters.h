@@ -301,6 +301,7 @@ public:
     static const char EFFECT_EMBOSS[];
     static const char EFFECT_SKETCH[];
     static const char EFFECT_NEON[];
+    static const char EFFECT_BEAUTY[];
 
     //AF Bracketing
     static const char KEY_QC_AF_BRACKET[];
