@@ -86,6 +86,8 @@ namespace qcamera {
 #define MAX_HFR_BATCH_SIZE     (4)
 
 #define REGIONS_TUPLE_COUNT    5
+#define MAX_INFLIGHT_HFR_REQUESTS (48)
+#define MIN_INFLIGHT_HFR_REQUESTS (40)
 
 #define FLUSH_TIMEOUT 3
 
@@ -1090,7 +1092,6 @@ int QCamera3HardwareInterface::configureStreams(
     ATRACE_CALL();
     int rc = 0;
     bool bWasVideo = m_bIsVideo;
-    uint32_t numBuffers = MAX_INFLIGHT_REQUESTS;
 
     // Sanity check stream_list
     if (streamList == NULL) {
@@ -1679,41 +1680,58 @@ int QCamera3HardwareInterface::configureStreams(
                 QCamera3ProcessingChannel *channel = NULL;
                 switch (newStream->format) {
                 case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-                    /* use higher number of buffers for HFR mode */
-                    if((newStream->format ==
-                            HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) &&
-                            (newStream->usage &
+                    if ((newStream->usage &
                             private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) &&
                             (streamList->operation_mode ==
                             CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)
                     ) {
-                        numBuffers = MAX_INFLIGHT_REQUESTS * MAX_HFR_BATCH_SIZE;
+                        channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
+                                mCameraHandle->ops, captureResultCb,
+                                &gCamCapability[mCameraId]->padding_info,
+                                this,
+                                newStream,
+                                (cam_stream_type_t)
+                                        mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                                mMetadataChannel,
+                                0); //heap buffers are not required for HFR video channel
+                        if (channel == NULL) {
+                            ALOGE("%s: allocation of channel failed", __func__);
+                            pthread_mutex_unlock(&mMutex);
+                            return -ENOMEM;
+                        }
+                        //channel->getNumBuffers() will return 0 here so use
+                        //MAX_INFLIGH_HFR_REQUESTS
+                        newStream->max_buffers = MAX_INFLIGHT_HFR_REQUESTS;
+                        newStream->priv = channel;
                         ALOGI("%s: num video buffers in HFR mode: %d",
-                                __func__, numBuffers);
+                                __func__, MAX_INFLIGHT_HFR_REQUESTS);
+                    } else {
+                        /* Copy stream contents in HFR preview only case to create
+                         * dummy batch channel so that sensor streaming is in
+                         * HFR mode */
+                        if (!m_bIsVideo && (streamList->operation_mode ==
+                                CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)) {
+                            mDummyBatchStream = *newStream;
+                        }
+                        channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
+                                mCameraHandle->ops, captureResultCb,
+                                &gCamCapability[mCameraId]->padding_info,
+                                this,
+                                newStream,
+                                (cam_stream_type_t)
+                                        mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                                mMetadataChannel,
+                                MAX_INFLIGHT_REQUESTS);
+                        if (channel == NULL) {
+                            ALOGE("%s: allocation of channel failed", __func__);
+                            pthread_mutex_unlock(&mMutex);
+                            return -ENOMEM;
+                        }
+                        newStream->max_buffers = channel->getNumBuffers();
+                        newStream->priv = channel;
                     }
-                    /* Copy stream contents in HFR preview only case to create
-                     * dummy batch channel */
-                    if (!m_bIsVideo && (streamList->operation_mode ==
-                            CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)) {
-                        mDummyBatchStream = *newStream;
-                    }
-                    channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
-                            mCameraHandle->ops, captureResultCb,
-                            &gCamCapability[mCameraId]->padding_info,
-                            this,
-                            newStream,
-                            (cam_stream_type_t)
-                                    mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
-                            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
-                            mMetadataChannel,
-                            numBuffers);
-                    if (channel == NULL) {
-                        ALOGE("%s: allocation of channel failed", __func__);
-                        pthread_mutex_unlock(&mMutex);
-                        return -ENOMEM;
-                    }
-                    newStream->max_buffers = channel->getNumBuffers();
-                    newStream->priv = channel;
                     break;
                 case HAL_PIXEL_FORMAT_YCbCr_420_888: {
                     channel = new QCamera3YUVChannel(mCameraHandle->camera_handle,
@@ -2281,6 +2299,11 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     }
     if (urgent_frame_number_valid || frame_number_valid) {
         loopCount = MAX(urgentFrameNumDiff, frameNumDiff);
+        if (urgentFrameNumDiff > MAX_HFR_BATCH_SIZE)
+            ALOGE("%s: urgentFrameNumDiff: %d", __func__, urgentFrameNumDiff);
+        if (frameNumDiff > MAX_HFR_BATCH_SIZE)
+            ALOGE("%s: frameNumDiff: %d", __func__, frameNumDiff);
+
     }
 
     CDBG("%s: urgent_frm: valid: %d frm_num: %d previous frm_num: %d",
@@ -3559,8 +3582,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
     //Block on conditional variable
     if (mBatchSize) {
         /* For HFR, more buffers are dequeued upfront to improve the performance */
-        minInFlightRequests = (MIN_INFLIGHT_REQUESTS + 1) * mBatchSize;
-        maxInFlightRequests = MAX_INFLIGHT_REQUESTS * mBatchSize;
+        minInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
+        maxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
     }
     while ((mPendingLiveRequest >= minInFlightRequests) && !pInputBuffer) {
         if (!isValidTimeout) {

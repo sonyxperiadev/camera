@@ -39,7 +39,7 @@
 using namespace android;
 
 namespace qcamera {
-#define NUM_BATCH_BUFS   (MAX_INFLIGHT_REQUESTS)
+#define NUM_BATCH_BUFS   12
 #define MAX_BATCH_SIZE   32
 
 const char* QCamera3Stream::mStreamNames[] = {
@@ -636,6 +636,7 @@ int32_t QCamera3Stream::bufDone(uint32_t index)
     Mutex::Autolock lock(mLock);
 
     if ((index >= mNumBufs) || (mBufDefs == NULL)) {
+        ALOGE("%s: index; %d, mNumBufs: %d", __func__, index, mNumBufs);
         return BAD_INDEX;
     }
 
