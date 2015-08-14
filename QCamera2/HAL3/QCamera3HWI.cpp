@@ -1822,7 +1822,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             &gCamCapability[mCameraId]->padding_info, this, newStream,
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                             m_bIs4KVideo, isZsl, mMetadataChannel,
-                            (m_bIsVideo ? 1 : MAX_INFLIGHT_REQUESTS));
+                            (m_bIsVideo ? 1 : MAX_INFLIGHT_BLOB));
                     if (mPictureChannel == NULL) {
                         ALOGE("%s: allocation of channel failed", __func__);
                         pthread_mutex_unlock(&mMutex);
