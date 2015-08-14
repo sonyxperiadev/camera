@@ -410,9 +410,6 @@ private:
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;
 
-    /* Whether PPROC bypass is enabled for YUV888 */
-    bool mPprocBypass;
-
     /* Ldaf calibration data */
     bool mLdafCalibExist;
     uint32_t mLdafCalib[2];
