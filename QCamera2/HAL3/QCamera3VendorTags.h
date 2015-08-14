@@ -59,6 +59,7 @@ enum qcamera3_ext_tags {
     QCAMERA3_PRIVATEDATA_REPROCESS = QCAMERA3_PRIVATEDATA_START,
     QCAMERA3_PRIVATEDATA_END,
     QCAMERA3_CDS_MODE = QCAMERA3_CDS_START,
+    QCAMERA3_CDS_INFO,
     QCAMERA3_CDS_END,
 
     //Property Name:  org.codeaurora.qcamera3.opaque_raw.opaque_raw_strides

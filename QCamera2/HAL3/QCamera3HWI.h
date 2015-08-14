@@ -261,7 +261,7 @@ private:
     int32_t startAllChannels();
     int32_t stopAllChannels();
     int32_t notifyErrorForPendingRequests();
-    stream_info_t* getReprocessibleOutputStream();
+    int32_t getReprocessibleOutputStreamId(uint32_t &id);
 
     bool isOnEncoder(const cam_dimension_t max_viewfinder_size,
             uint32_t width, uint32_t height);
@@ -298,7 +298,13 @@ private:
     bool m_bIs4KVideo;
     bool m_bEisSupportedSize;
     bool m_bEisEnable;
-    cam_dimension_t mInputStreamSize;
+    typedef struct {
+        cam_dimension_t dim;
+        int format;
+        uint32_t usage;
+    } InputStreamInfo;
+
+    InputStreamInfo mInputStreamInfo;
     uint8_t m_MobicatMask;
     uint8_t m_bTnrEnabled;
     int8_t  m_overrideAppFaceDetection;

@@ -1746,7 +1746,7 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 memset(pp_job, 0, sizeof(qcamera_hal3_pp_data_t));
                                 pp_job->jpeg_settings = jpeg_settings;
                                 if (pme->m_pReprocChannel != NULL) {
-                                    if (NO_ERROR != pme->m_pReprocChannel->extractCrop(fwk_frame)) {
+                                    if (NO_ERROR != pme->m_pReprocChannel->overrideFwkMetadata(fwk_frame)) {
                                         ALOGE("%s: Failed to extract output crop", __func__);
                                     }
                                     // add into ongoing PP job Q
@@ -1815,7 +1815,7 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 qcamera_fwk_input_pp_data_t fwk_frame;
                                 memset(&fwk_frame, 0, sizeof(qcamera_fwk_input_pp_data_t));
                                 fwk_frame.frameNumber = pp_buffer->frameNumber;
-                                ret = pme->m_pReprocChannel->extractFrameCropAndRotation(
+                                ret = pme->m_pReprocChannel->overrideMetadata(
                                         pp_buffer, meta_buffer_arg,
                                         pp_job->jpeg_settings,
                                         fwk_frame);

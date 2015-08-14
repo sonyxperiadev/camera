@@ -500,11 +500,11 @@ public:
     int32_t doReprocessOffline(qcamera_fwk_input_pp_data_t *frame);
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val,
                         mm_camera_super_buf_t *meta_buf);
-    int32_t extractFrameCropAndRotation(qcamera_hal3_pp_buffer_t *pp_buffer,
+    int32_t overrideMetadata(qcamera_hal3_pp_buffer_t *pp_buffer,
             mm_camera_buf_def_t *meta_buffer,
             jpeg_settings_t *jpeg_settings,
             qcamera_fwk_input_pp_data_t &fwk_frame);
-    int32_t extractCrop(qcamera_fwk_input_pp_data_t *frame);
+    int32_t overrideFwkMetadata(qcamera_fwk_input_pp_data_t *frame);
     virtual QCamera3StreamMem *getStreamBufs(uint32_t len);
     virtual void putStreamBufs();
     virtual int32_t initialize(cam_is_type_t isType);

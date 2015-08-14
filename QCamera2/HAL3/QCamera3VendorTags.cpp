@@ -76,7 +76,8 @@ vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVA
 };
 
 vendor_tag_info_t qcamera3_cds[QCAMERA3_CDS_END - QCAMERA3_CDS_START] = {
-    { "cds_mode", TYPE_INT32 }
+    { "cds_mode", TYPE_INT32 },
+    { "cds_info", TYPE_BYTE }
 };
 
 vendor_tag_info_t qcamera3_opaque_raw[QCAMERA3_OPAQUE_RAW_END -
@@ -130,6 +131,7 @@ uint32_t qcamera3_all_tags[] = {
 
     // QCAMERA3_CDS
     (uint32_t)QCAMERA3_CDS_MODE,
+    (uint32_t)QCAMERA3_CDS_INFO,
 
     // QCAMERA3_OPAQUE_RAW
     (uint32_t)QCAMERA3_OPAQUE_RAW_STRIDES,
