@@ -1942,6 +1942,7 @@ int QCamera3HardwareInterface::configureStreams(
     mPendingReprocessResultList.clear();
 
     mFirstRequest = true;
+    mCurJpegMeta.clear();
     //Get min frame duration for this streams configuration
     deriveMinFrameDuration();
 
@@ -3410,7 +3411,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
     pendingRequest.settings = input_settings.release();
     pendingRequest.pipeline_depth = 0;
     pendingRequest.partial_result_cnt = 0;
-    extractJpegMetadata(pendingRequest.jpegMetadata, request);
+    extractJpegMetadata(mCurJpegMeta, request);
+    pendingRequest.jpegMetadata = mCurJpegMeta;
 
     //extract capture intent
     if (meta.exists(ANDROID_CONTROL_CAPTURE_INTENT)) {
