@@ -1270,7 +1270,7 @@ int32_t QCameraStream::getBufs(cam_frame_len_offset_t *offset,
                        NULL,
                        BufAllocRoutine,
                        this);
-        pthread_setname_np(mBufAllocPid, "CAM_strmBufAlloc");
+        pthread_setname_np(mBufAllocPid, "CAM_strmBuf");
     }
 
     return NO_ERROR;

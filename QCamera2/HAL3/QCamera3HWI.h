@@ -35,6 +35,7 @@
 #include <utils/KeyedVector.h>
 #include <hardware/camera3.h>
 #include <camera/CameraMetadata.h>
+#include "QCameraTrace.h"
 #include "QCamera3HALHeader.h"
 #include "QCamera3Channel.h"
 #include "QCamera3CropRegionMapper.h"

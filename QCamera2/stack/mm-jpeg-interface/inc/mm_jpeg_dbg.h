@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -38,6 +38,7 @@
    1: turns-on CDBG_HIGH logs
    2: turns-on CDBG_HIGH and CDBG logs */
 extern volatile uint32_t gMmJpegIntfLogLevel;
+extern volatile uint32_t gKpiDebugLevel;
 
 #ifndef LOG_DEBUG
   #ifdef _ANDROID_
@@ -73,5 +74,21 @@ extern volatile uint32_t gMmJpegIntfLogLevel;
 #else
   #define CDBG_HIGH(fmt, args...) fprintf(stderr, fmt, ##args)
   #define CDBG_ERROR(fmt, args...) fprintf(stderr, fmt, ##args)
+#endif
+
+#ifndef KPI_DEBUG
+#define KPI_DEBUG
+#define ATRACE_TAG ATRACE_TAG_CAMERA
+#include <cutils/trace.h>
+
+#define KPI_APT 1
+#define KPI_DBG 2
+
+#define KPI_ATRACE_INT(name,val) ({\
+if (gKpiDebugLevel >= KPI_APT) { \
+     atrace_int(ATRACE_TAG, name, val); \
+}\
+})
+
 #endif
 #endif /* __MM_JPEG_DBG_H__ */

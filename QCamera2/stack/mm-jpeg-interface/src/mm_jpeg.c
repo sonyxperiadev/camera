@@ -27,8 +27,6 @@
  *
  */
 
-#define ATRACE_TAG ATRACE_TAG_CAMERA
-
 #include <pthread.h>
 #include <errno.h>
 #include <sys/ioctl.h>
@@ -37,7 +35,6 @@
 #include <sys/prctl.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <cutils/trace.h>
 
 #include "mm_jpeg_dbg.h"
 #include "mm_jpeg_interface.h"
@@ -2268,7 +2265,7 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
     return -1;
   }
 
-  ATRACE_INT("Camera:JPEG",
+  KPI_ATRACE_INT("Camera:JPEG",
       (int32_t)((uint32_t)session_idx<<16 | ++p_session->job_index));
 
   *job_id = job->encode_job.session_id |
@@ -2909,7 +2906,7 @@ OMX_ERRORTYPE mm_jpeg_fbd(OMX_HANDLETYPE hComponent,
   CDBG_HIGH("[KPI Perf] : PROFILE_JPEG_FBD");
 
   pthread_mutex_lock(&p_session->lock);
-  ATRACE_INT("Camera:JPEG",
+  KPI_ATRACE_INT("Camera:JPEG",
       (int32_t)((uint32_t)GET_SESSION_IDX(
         p_session->sessionId)<<16 | --p_session->job_index));
   if (MM_JPEG_ABORT_NONE != p_session->abort_state) {
