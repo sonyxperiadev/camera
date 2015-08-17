@@ -588,10 +588,10 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
             if (pFormat == 1) {
                 streamFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
-                streamFormat = CAM_FORMAT_YUV_420_NV21;
+                streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
             }
         } else {
-            streamFormat = CAM_FORMAT_YUV_420_NV21;
+            streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
