@@ -2787,7 +2787,8 @@ int QCamera2HardwareInterface::startPreview()
           to resume CAF.
         */
         cam_focus_mode_type focusMode = mParameters.getFocusMode();
-        if (focusMode == CAM_FOCUS_MODE_CONTINOUS_PICTURE)
+        if ((focusMode == CAM_FOCUS_MODE_CONTINOUS_PICTURE) ||
+                (focusMode == CAM_FOCUS_MODE_CONTINOUS_VIDEO))
             mCameraHandle->ops->cancel_auto_focus(mCameraHandle->camera_handle);
     }
 
@@ -2807,8 +2808,6 @@ int QCamera2HardwareInterface::startPreview()
 }
 
 int32_t QCamera2HardwareInterface::updatePostPreviewParameters() {
-    //Reset focus state to INACTIVE
-    m_currentFocusState = CAM_AF_STATE_INACTIVE;
     // Enable OIS only in Camera mode and 4k2k camcoder mode
     int32_t rc = NO_ERROR;
     rc = mParameters.updateOisValue(1);
@@ -3129,7 +3128,7 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
             }
             mHDRBracketingEnabled = false;
             rc = mParameters.stopAEBracket();
-        } else if (mParameters.isChromaFlashEnabled()) {
+        } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
             rc = mParameters.resetFrameCapture(TRUE);
         } else if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
             rc = configureAFBracketing(false);
@@ -3188,8 +3187,6 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         rc = configureAFBracketing();
     } else if (mParameters.isOptiZoomEnabled()) {
         rc = configureOptiZoom();
-    } else if (mParameters.isChromaFlashEnabled()) {
-        rc = mParameters.configFrameCapture(TRUE);
     } else if(mParameters.isHDREnabled()) {
         rc = configureHDRBracketing();
         if (mHDRBracketingEnabled) {
@@ -3206,6 +3203,8 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         rc = configureAEBracketing();
     } else if (mParameters.isStillMoreEnabled()) {
         rc = configureStillMore();
+    } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
+        rc = mParameters.configFrameCapture(TRUE);
     } else {
         ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
         rc = BAD_VALUE;
@@ -3466,7 +3465,7 @@ int32_t QCamera2HardwareInterface::stopAdvancedCapture(
 
     if(mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_AF_BRACKETING);
-    } else if (mParameters.isChromaFlashEnabled()) {
+    } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_FRAME_CAPTURE);
     } else if(mParameters.isHDREnabled()
             || mParameters.isAEBracketEnabled()) {
@@ -3509,7 +3508,7 @@ int32_t QCamera2HardwareInterface::startAdvancedCapture(
     } else if (mParameters.isHDREnabled()
             || mParameters.isAEBracketEnabled()) {
         rc = pChannel->startAdvancedCapture(MM_CAMERA_AE_BRACKETING);
-    } else if (mParameters.isChromaFlashEnabled()) {
+    } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
         cam_capture_frame_config_t config = mParameters.getCaptureFrameConfig();
         rc = pChannel->startAdvancedCapture(MM_CAMERA_FRAME_CAPTURE, &config);
     } else {
@@ -3536,6 +3535,7 @@ int QCamera2HardwareInterface::takePicture()
 
     // Get total number for snapshots (retro + regular)
     uint8_t numSnapshots = mParameters.getNumOfSnapshots();
+    uint8_t numAdvancedSnapshot = mParameters.getBurstCountForAdvancedCapture();
     // Get number of retro-active snapshots
     uint8_t numRetroSnapshots = mParameters.getNumOfRetroSnapshots();
     CDBG_HIGH("%s: E", __func__);
@@ -3558,7 +3558,7 @@ int QCamera2HardwareInterface::takePicture()
             mParameters.isStillMoreEnabled()) {
         rc = configureAdvancedCapture();
         if (rc == NO_ERROR) {
-            numSnapshots = mParameters.getBurstCountForAdvancedCapture();
+            numSnapshots = numAdvancedSnapshot;
         }
     }
     CDBG_HIGH("%s: [ZSL Retro] numSnapshots = %d, numRetroSnapshots = %d",

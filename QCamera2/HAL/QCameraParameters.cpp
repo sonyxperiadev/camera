@@ -5593,6 +5593,9 @@ int32_t QCameraParameters::initDefaultParameters()
     //Default set for video batch size
     set(KEY_QC_VIDEO_BATCH_SIZE, 0);
 
+    //Setup dual-camera
+    setDcrf();
+
     return rc;
 }
 
@@ -6772,13 +6775,13 @@ int32_t QCameraParameters::configureFlash(cam_capture_frame_config_t &frame_conf
     } else if (mFlashValue != CAM_FLASH_MODE_OFF) {
         frame_config.num_batch = 1;
         for (i = 0; i < frame_config.num_batch; i++) {
-            frame_config.configs[i].num_frames = 1;
+            frame_config.configs[i].num_frames = getNumOfSnapshots();
             frame_config.configs[i].type = CAM_CAPTURE_FLASH;
             frame_config.configs[i].flash_mode =(cam_flash_mode_t)mFlashValue;
         }
     }
 
-    CDBG("%s: Chroma Flash cnt = %d", __func__,frame_config.num_batch);
+    CDBG("%s: Flash frame batch cnt = %d", __func__,frame_config.num_batch);
     return rc;
 }
 
@@ -6903,6 +6906,8 @@ int32_t QCameraParameters::configureAEBracketing(cam_capture_frame_config_t &fra
 int32_t QCameraParameters::configFrameCapture(bool commitSettings)
 {
     int32_t rc = NO_ERROR;
+    int32_t value;
+
     memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
 
     if (commitSettings) {
@@ -6912,7 +6917,16 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
         }
     }
 
-    if (isChromaFlashEnabled() || mFlashValue != CAM_FLASH_MODE_OFF) {
+    if (isHDREnabled() || m_bAeBracketingEnabled || m_bAFBracketingOn ||
+          m_bOptiZoomOn || m_bReFocusOn) {
+        value = CAM_FLASH_MODE_OFF;
+    } else if (isChromaFlashEnabled()) {
+        value = CAM_FLASH_MODE_ON;
+    } else {
+        value = mFlashValue;
+    }
+
+    if (value != CAM_FLASH_MODE_OFF) {
         configureFlash(m_captureFrameConfig);
     } else if(isHDREnabled()) {
         configureHDRBracketing (m_captureFrameConfig);
@@ -6968,7 +6982,7 @@ int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
             CDBG_HIGH("%s: Failed to enable tone map during HDR/AEBracketing", __func__);
         }
         rc = stopAEBracket();
-    } else if (isChromaFlashEnabled()) {
+    } else if ((isChromaFlashEnabled()) || (mFlashValue != CAM_FLASH_MODE_OFF)) {
         rc = setToneMapMode(true, false);
         if (rc != NO_ERROR) {
             CDBG_HIGH("%s: Failed to enable tone map during chroma flash", __func__);
@@ -9643,7 +9657,7 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
       }
     }
     if (burstCount <= 0) {
-        burstCount = 1;
+        burstCount = getNumOfSnapshots();
     }
 
     CDBG_HIGH("%s: Snapshot burst count = %d", __func__, burstCount);
@@ -10826,6 +10840,21 @@ bool QCameraParameters::isYUVFrameInfoNeeded()
 const char *QCameraParameters::getFrameFmtString(cam_format_t fmt)
 {
     return lookupNameByValue(PICTURE_TYPES_MAP, PARAM_MAP_SIZE(PICTURE_TYPES_MAP), fmt);
+}
+
+/*===========================================================================
+ * FUNCTION   : setDcrf
+ *
+ * DESCRIPTION: Enable/Disable DCRF (dual-camera-range-finding)
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::setDcrf()
+{
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.dcrf.enable", prop, "1");
+    m_bDcrfEnabled = atoi(prop);
 }
 
 /*===========================================================================
@@ -12349,7 +12378,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
         // all feature masks need to be enabled here
         // enable DCRF feature mask on analysis stream in case of dual camera
-        if (CAM_STREAM_TYPE_ANALYSIS == stream_type) {
+        if (m_bDcrfEnabled && (CAM_STREAM_TYPE_ANALYSIS == stream_type)) {
             feature_mask |= CAM_QCOM_FEATURE_DCRF;
         } else {
             feature_mask &= ~CAM_QCOM_FEATURE_DCRF;
