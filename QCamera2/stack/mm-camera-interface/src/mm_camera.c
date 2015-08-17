@@ -189,6 +189,12 @@ static void mm_camera_event_notify(void* user_data)
                     mm_camera_enqueue_evt(my_obj, &evt);
                 }
                 break;
+            case CAM_EVENT_TYPE_CAC_DONE:
+                {
+                    evt.server_event_type = CAM_EVENT_TYPE_CAC_DONE;
+                    mm_camera_enqueue_evt(my_obj, &evt);
+                }
+                break;
             default:
                 break;
             }
