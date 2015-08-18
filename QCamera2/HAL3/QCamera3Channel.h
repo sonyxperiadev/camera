@@ -103,7 +103,7 @@ public:
     cam_format_t getStreamDefaultFormat(cam_stream_type_t type);
 
     void *mUserData;
-    cam_padding_info_t *mPaddingInfo;
+    cam_padding_info_t mPaddingInfo;
     QCamera3Stream *mStreams[MAX_STREAM_NUM_IN_BUNDLE];
     uint32_t m_numStreams;
 protected:

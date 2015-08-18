@@ -760,6 +760,11 @@ private:
     pthread_mutex_t mGrallocLock;
     uint8_t mEnqueuedBuffers;
     bool mCACDoneReceived;
+
+    //GPU library to read buffer padding details.
+    void *lib_surface_utils;
+    int (*LINK_get_surface_pixel_alignment)();
+    uint32_t mSurfaceStridePadding;
 };
 
 }; // namespace qcamera

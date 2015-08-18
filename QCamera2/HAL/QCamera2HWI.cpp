@@ -41,6 +41,7 @@
 #include <binder/IServiceManager.h>
 #include <utils/RefBase.h>
 #include <QServiceUtils.h>
+#include <dlfcn.h>
 
 #include "QCamera2HWI.h"
 #include "QCameraBufferMaps.h"
@@ -1282,6 +1283,20 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
 
     pthread_mutex_init(&mGrallocLock, NULL);
     mEnqueuedBuffers = 0;
+
+    //Load and read GPU library.
+    lib_surface_utils = NULL;
+    LINK_get_surface_pixel_alignment = NULL;
+    mSurfaceStridePadding = CAM_PAD_TO_32;
+    lib_surface_utils = dlopen("libadreno_utils.so", RTLD_NOW);
+    if (lib_surface_utils) {
+        *(void **)&LINK_get_surface_pixel_alignment =
+                dlsym(lib_surface_utils, "get_gpu_pixel_alignment");
+         if (LINK_get_surface_pixel_alignment) {
+             mSurfaceStridePadding = LINK_get_surface_pixel_alignment();
+         }
+         dlclose(lib_surface_utils);
+    }
 }
 
 /*===========================================================================
@@ -5957,14 +5972,17 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
         bDynAllocBuf = true;
     }
 
-    cam_padding_info_t *padding_info = NULL;
-
+    cam_padding_info_t padding_info;
     if (streamType == CAM_STREAM_TYPE_ANALYSIS) {
         padding_info =
-                &gCamCapability[mCameraId]->analysis_padding_info;
+                gCamCapability[mCameraId]->analysis_padding_info;
     } else {
         padding_info =
-                &gCamCapability[mCameraId]->padding_info;
+                gCamCapability[mCameraId]->padding_info;
+        if (streamType == CAM_STREAM_TYPE_PREVIEW) {
+            padding_info.width_padding = mSurfaceStridePadding;
+            padding_info.height_padding = CAM_PAD_TO_2;
+        }
     }
 
     bool deferAllocation = needDeferred(streamType);
@@ -5974,7 +5992,7 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
             pStreamInfo,
             NULL,
             minStreamBufNum,
-            padding_info,
+            &padding_info,
             streamCB, userData,
             bDynAllocBuf,
             deferAllocation);
@@ -6935,7 +6953,8 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
             snapshot_feature_mask, pp_config.feature_mask);
 
     bool offlineReproc = isRegularCapture();
-    cam_padding_info_t* paddingInfo = &gCamCapability[mCameraId]->padding_info;
+
+    cam_padding_info_t *paddingInfo = &gCamCapability[mCameraId]->padding_info;
     rc = pChannel->addReprocStreamsFromSource(*this,
                                               pp_config,
                                               pInputChannel,
