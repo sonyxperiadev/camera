@@ -915,6 +915,8 @@ int32_t mm_stream_calc_offset_analysis(cam_format_t fmt,
         cam_padding_info_t *padding,
         cam_stream_buf_plane_info_t *buf_planes);
 
+uint32_t mm_stream_calc_lcm (int32_t num1, int32_t num2);
+
 struct camera_info *get_cam_info(uint32_t camera_id, cam_sync_type_t *pCamType);
 
 uint8_t is_yuv_sensor(uint32_t camera_id);

@@ -76,7 +76,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
 
     mStreamInfoBuf = NULL;
     mChannelCB = cb_routine;
-    mPaddingInfo = paddingInfo;
+    mPaddingInfo = *paddingInfo;
 
     mPostProcMask = postprocess_mask;
 
@@ -110,7 +110,7 @@ QCamera3Channel::QCamera3Channel()
 
     mStreamInfoBuf = NULL;
     mChannelCB = NULL;
-    mPaddingInfo = NULL;
+    memset(&mPaddingInfo, 0, sizeof(cam_padding_info_t));
 
     mPostProcMask = 0;
 }
@@ -229,7 +229,7 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
     QCamera3Stream *pStream = new QCamera3Stream(m_camHandle,
                                                m_handle,
                                                m_camOps,
-                                               mPaddingInfo,
+                                               &mPaddingInfo,
                                                this);
     if (pStream == NULL) {
         ALOGE("%s: No mem for Stream", __func__);
@@ -1048,7 +1048,7 @@ int32_t QCamera3ProcessingChannel::setFwkInputPPData(qcamera_fwk_input_pp_data_t
 
     cam_dimension_t dim = {sizeof(metadata_buffer_t), 1};
     cam_stream_buf_plane_info_t meta_planes;
-    rc = mm_stream_calc_offset_metadata(&dim, mPaddingInfo, &meta_planes);
+    rc = mm_stream_calc_offset_metadata(&dim, &mPaddingInfo, &meta_planes);
     if (rc != 0) {
         ALOGE("%s: Metadata stream plane info calculation failed!", __func__);
         return rc;
@@ -1341,7 +1341,7 @@ int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cf
         cam_format_t streamFormat, cam_dimension_t dim)
 {
     int32_t rc = 0;
-    reproc_cfg.padding = mPaddingInfo;
+    reproc_cfg.padding = &mPaddingInfo;
     //to ensure a big enough buffer size set the height and width
     //padding to max(height padding, width padding)
     if (reproc_cfg.padding->height_padding > reproc_cfg.padding->width_padding) {
@@ -2532,7 +2532,7 @@ int32_t QCamera3YUVChannel::initialize(cam_is_type_t isType)
     }
 
     cam_stream_buf_plane_info_t buf_planes;
-    cam_padding_info_t paddingInfo = *mPaddingInfo;
+    cam_padding_info_t paddingInfo = mPaddingInfo;
 
     memset(&buf_planes, 0, sizeof(buf_planes));
     //to ensure a big enough buffer size set the height and width
@@ -4476,7 +4476,7 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
     QCamera3Stream *pStream = new QCamera3Stream(m_camHandle,
             m_handle,
             m_camOps,
-            mPaddingInfo,
+            &mPaddingInfo,
             (QCamera3Channel*)this);
     if (pStream == NULL) {
         ALOGE("%s: No mem for Stream", __func__);
