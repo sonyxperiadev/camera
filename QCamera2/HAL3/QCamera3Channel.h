@@ -200,6 +200,7 @@ public:
             uint32_t frameNumber);
     int32_t checkStreamCbErrors(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
+    int32_t getStreamSize(cam_dimension_t &dim);
 
     QCamera3PostProcessor m_postprocessor; // post processor
     void showDebugFPS(int32_t streamType);

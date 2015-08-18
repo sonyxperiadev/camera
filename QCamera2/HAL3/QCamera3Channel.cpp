@@ -1121,6 +1121,29 @@ int32_t QCamera3ProcessingChannel::checkStreamCbErrors(mm_camera_super_buf_t *su
 }
 
 /*===========================================================================
+ * FUNCTION   : getStreamSize
+ *
+ * DESCRIPTION: get the size from the camera3_stream_t for the channel
+ *
+ * PARAMETERS :
+ *   @dim     : Return the size of the stream
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3ProcessingChannel::getStreamSize(cam_dimension_t &dim)
+{
+    if (mCamera3Stream) {
+        dim.width = mCamera3Stream->width;
+        dim.height = mCamera3Stream->height;
+        return NO_ERROR;
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
  * FUNCTION   : getStreamBufs
  *
  * DESCRIPTION: get the buffers allocated to the stream
