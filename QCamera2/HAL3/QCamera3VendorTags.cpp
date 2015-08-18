@@ -51,7 +51,8 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_TUNING_META_DATA_END,
         QCAMERA3_TEMPORAL_DENOISE_END,
         QCAMERA3_AV_TIMER_END,
-        QCAMERA3_SENSOR_META_DATA_END
+        QCAMERA3_SENSOR_META_DATA_END,
+        NEXUS_EXPERIMENTAL_2015_END,
 } ;
 
 typedef struct vendor_tag_info {
@@ -68,7 +69,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.tuning_meta_data",
     "org.codeaurora.qcamera3.temporal_denoise",
     "org.codeaurora.qcamera3.av_timer",
-    "org.codeaurora.qcamera3.sensor_meta_data"
+    "org.codeaurora.qcamera3.sensor_meta_data",
+    "com.google.nexus.experimental2015"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -113,6 +115,12 @@ vendor_tag_info qcamera3_sensor_meta_data[QCAMERA3_SENSOR_META_DATA_END -
    {"dynamic_black_level_pattern", TYPE_FLOAT }
 };
 
+vendor_tag_info_t nexus_experimental_2015[NEXUS_EXPERIMENTAL_2015_END -
+        NEXUS_EXPERIMENTAL_2015_START] = {
+    {"sensor.dynamicBlackLevel", TYPE_FLOAT },
+    {"sensor.info.opticallyShieldedRegions", TYPE_INT32 }
+};
+
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
     qcamera3_privatedata,
@@ -123,6 +131,7 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_temporal_denoise,
     qcamera3_av_timer,
     qcamera3_sensor_meta_data,
+    nexus_experimental_2015,
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -152,7 +161,11 @@ uint32_t qcamera3_all_tags[] = {
     (uint32_t)QCAMERA3_USE_AV_TIMER,
 
     //QCAMERA3_SENSOR_META_DATA
-    (uint32_t)QCAMERA3_SENSOR_DYNAMIC_BLACK_LEVEL_PATTERN
+    (uint32_t)QCAMERA3_SENSOR_DYNAMIC_BLACK_LEVEL_PATTERN,
+
+    //NEXUS_EXPERIMENTAL_2015
+    (uint32_t)NEXUS_EXPERIMENTAL_2015_SENSOR_DYNAMIC_BLACK_LEVEL,
+    (uint32_t)NEXUS_EXPERIMENTAL_2015_SENSOR_INFO_OPTICALLY_SHIELDED_REGIONS,
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;

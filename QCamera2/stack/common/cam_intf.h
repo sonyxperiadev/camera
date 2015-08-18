@@ -407,6 +407,14 @@ typedef struct{
 
     /* maximum pixel bandwidth shared between cameras */
     uint64_t max_pixel_bandwidth;
+
+    /* Array of K integers, where K%4==0,
+      as a list of rectangles in the pixelArray co-ord system
+      left, top, right, bottom */
+    int32_t optical_black_regions[MAX_OPTICAL_BLACK_REGIONS * 4];
+    /* Count is K/4 */
+    uint8_t optical_black_region_count;
+
 } cam_capability_t;
 
 typedef enum {

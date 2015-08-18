@@ -4373,6 +4373,18 @@ QCamera3HardwareInterface::translateFromHalMetadata(
           blackLevelAppliedPattern->cam_black_level[2],
           blackLevelAppliedPattern->cam_black_level[3]);
         camMetadata.update(QCAMERA3_SENSOR_DYNAMIC_BLACK_LEVEL_PATTERN, fwk_blackLevelInd, 4);
+        camMetadata.update(NEXUS_EXPERIMENTAL_2015_SENSOR_DYNAMIC_BLACK_LEVEL, fwk_blackLevelInd, 4);
+    }
+
+
+    if (gCamCapability[mCameraId]->optical_black_region_count != 0 &&
+        gCamCapability[mCameraId]->optical_black_region_count <= MAX_OPTICAL_BLACK_REGIONS) {
+        int32_t opticalBlackRegions[MAX_OPTICAL_BLACK_REGIONS * 4];
+        for (size_t i = 0; i < gCamCapability[mCameraId]->optical_black_region_count * 4; i++) {
+            opticalBlackRegions[i] = gCamCapability[mCameraId]->optical_black_regions[i];
+        }
+        camMetadata.update(NEXUS_EXPERIMENTAL_2015_SENSOR_INFO_OPTICALLY_SHIELDED_REGIONS,
+                opticalBlackRegions, gCamCapability[mCameraId]->optical_black_region_count * 4);
     }
 
     IF_META_AVAILABLE(cam_crop_region_t, hScalerCropRegion,

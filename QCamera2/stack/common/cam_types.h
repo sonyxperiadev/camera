@@ -129,6 +129,8 @@
 
 #define MAX_EEPROM_VERSION_INFO_LEN 32
 
+#define MAX_OPTICAL_BLACK_REGIONS 5
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3
