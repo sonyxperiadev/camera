@@ -550,6 +550,7 @@ int32_t QCamera3PostProcessor::processData(qcamera_fwk_input_pp_data_t *frame)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
     if (hal_obj->needReprocess(mPostProcMask)) {
+        ATRACE_INT("Camera:Reprocess", 1);
         pthread_mutex_lock(&mReprocJobLock);
         // enqueu to post proc input queue
         m_inputFWKPPQ.enqueue((void *)frame);
@@ -673,7 +674,7 @@ int32_t QCamera3PostProcessor::processRawData(mm_camera_super_buf_t *frame)
 int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame)
 {
     qcamera_hal3_pp_data_t *job = (qcamera_hal3_pp_data_t *)m_ongoingPPQ.dequeue();
-
+    ATRACE_INT("Camera:Reprocess", 0);
     if (job == NULL || ((NULL == job->src_frame) && (NULL == job->fwk_src_frame))) {
         ALOGE("%s: Cannot find reprocess job", __func__);
         return BAD_VALUE;

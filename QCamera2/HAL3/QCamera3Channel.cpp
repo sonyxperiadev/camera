@@ -1056,12 +1056,18 @@ void QCamera3RegularChannel::streamCbRoutine(
                             mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream)
 {
-    ATRACE_CALL();
+    KPI_ATRACE_CALL();
     //FIXME Q Buf back in case of error?
     uint8_t frameIndex;
     buffer_handle_t *resultBuffer;
     int32_t resultFrameNumber;
     camera3_stream_buffer_t result;
+
+    if (mStreamType == CAM_STREAM_TYPE_PREVIEW) {
+        KPI_ATRACE_NAME("preview_stream_cb_routine");
+    }else if (mStreamType == CAM_STREAM_TYPE_SNAPSHOT) {
+        ATRACE_NAME("snapshot_stream_cb_routine");
+    }
 
     if (NULL == stream) {
         ALOGE("%s: Invalid stream", __func__);
@@ -1730,6 +1736,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
     camera3_stream_buffer_t result;
     camera3_jpeg_blob_t jpegHeader;
 
+    KPI_ATRACE_INT("SNAPSHOT", 0);
     QCamera3PicChannel *obj = (QCamera3PicChannel *)userdata;
     if (obj) {
         //Construct payload for process_capture_result. Call mChannelCb
