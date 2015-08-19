@@ -56,6 +56,7 @@
 #define CAMERA_LONGSHOT_STAGES           4
 #define CAMERA_MIN_CAMERA_BATCH_BUFFERS  6
 #define CAMERA_ISP_PING_PONG_BUFFERS     2
+#define MIN_UNDEQUEUED_BUFFERS           1 // This is required if preview window is not set
 
 #define HDR_CONFIDENCE_THRESHOLD 0.4
 
@@ -1920,15 +1921,21 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                 ALOGE("get_min_undequeued_buffer_count  failed");
                 //TODO: hardcoded because MIN_UNDEQUEUED_BUFFERS not defined
                 //minUndequeCount = BufferQueue::MIN_UNDEQUEUED_BUFFERS;
-                minUndequeCount = 2;
+                minUndequeCount = MIN_UNDEQUEUED_BUFFERS;
             }
         } else {
             //preview window might not be set at this point. So, query directly
             //from BufferQueue implementation of gralloc buffers.
             //minUndequeCount = BufferQueue::MIN_UNDEQUEUED_BUFFERS;
             //hardcoded because MIN_UNDEQUEUED_BUFFERS not defined. REVISIT
-            minUndequeCount = 2;
+            minUndequeCount = MIN_UNDEQUEUED_BUFFERS;
         }
+    }
+
+    if (minUndequeCount != MIN_UNDEQUEUED_BUFFERS) {
+        // minUndequeCount from valid preview window != hardcoded MIN_UNDEQUEUED_BUFFERS
+        ALOGE("%s: *** ERROR Case*** minUndequeCount(%d) != hardcoded value(%d)",
+                __func__, minUndequeCount, MIN_UNDEQUEUED_BUFFERS);
     }
 
     // Get buffer count for the particular stream type
@@ -1951,6 +1958,11 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                         mParameters.getMaxUnmatchedFramesInQueue() +
                         mParameters.getNumOfExtraBuffersForPreview();
             }
+            // ISP allocates native preview buffers and so reducing same from HAL allocation
+            if (bufferCnt > CAMERA_ISP_PING_PONG_BUFFERS )
+                bufferCnt -= CAMERA_ISP_PING_PONG_BUFFERS;
+
+            // Add the display minUndequeCount count on top of camera requirement
             bufferCnt += minUndequeCount;
 
             property_get("persist.camera.preview_yuv", value, "0");
