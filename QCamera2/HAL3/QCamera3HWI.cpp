@@ -919,28 +919,31 @@ int QCamera3HardwareInterface::validateStreamDimensions(
  *
  * PARAMETERS :
  *   @stream_list : streams to be configured
+ *   @stream_config_info : the config info for streams to be configured
  *
  * RETURN     : Boolen true/false decision
  *
  *==========================================================================*/
-bool QCamera3HardwareInterface::isSupportChannelNeeded(camera3_stream_configuration_t *streamList,
+bool QCamera3HardwareInterface::isSupportChannelNeeded(
+        camera3_stream_configuration_t *streamList,
         cam_stream_size_info_t stream_config_info)
 {
     uint32_t i;
-    bool bSuperSetPresent = false;
+    bool pprocRequested = false;
     /* Check for conditions where PProc pipeline does not have any streams*/
     for (i = 0; i < stream_config_info.num_streams; i++) {
-        if (stream_config_info.postprocess_mask[i] == CAM_QCOM_FEATURE_PP_SUPERSET) {
-            bSuperSetPresent = true;
+        if (stream_config_info.type[i] != CAM_STREAM_TYPE_ANALYSIS &&
+                stream_config_info.postprocess_mask[i] != CAM_QCOM_FEATURE_NONE) {
+            pprocRequested = true;
             break;
         }
     }
 
-    if (bSuperSetPresent == false )
+    if (pprocRequested == false )
         return true;
 
     /* Dummy stream needed if only raw or jpeg streams present */
-    for (i = 0;i < streamList->num_streams;i++) {
+    for (i = 0; i < streamList->num_streams; i++) {
         switch(streamList->streams[i]->format) {
             case HAL_PIXEL_FORMAT_RAW_OPAQUE:
             case HAL_PIXEL_FORMAT_RAW10:
