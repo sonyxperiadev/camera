@@ -369,7 +369,12 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_ENABLE_MSG_TYPE:
         {
-            rc = m_parent->enableMsgType(*((int32_t *)payload));
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->enableMsgType(*((int32_t *)payload));
+            }
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -378,7 +383,12 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_DISABLE_MSG_TYPE:
         {
-            rc = m_parent->disableMsgType(*((int32_t *)payload));
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->disableMsgType(*((int32_t *)payload));
+            }
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -398,7 +408,13 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
     case QCAMERA_SM_EVT_SET_PARAMS:
         {
             bool needRestart = false;
-            rc = m_parent->updateParameters((char*)payload, needRestart);
+
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->updateParameters((char*)payload, needRestart);
+            }
             if (needRestart) {
                 // Clear memory pools
                 m_parent->m_memoryPool.clear();
@@ -414,8 +430,14 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_GET_PARAMS:
         {
-            result.params = m_parent->getParameters();
-            rc = NO_ERROR;
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+                result.params = NULL;
+            } else {
+                result.params = m_parent->getParameters();
+            }
+            rc = result.params ? NO_ERROR : UNKNOWN_ERROR;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_PARAMS;
@@ -433,7 +455,12 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_PREPARE_PREVIEW:
         {
-            rc = m_parent->preparePreview();
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->preparePreview();
+            }
             if (rc == NO_ERROR) {
                 //prepare preview success, move to ready state
                 m_state = QCAMERA_SM_STATE_PREVIEW_READY;
@@ -446,7 +473,10 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_START_PREVIEW:
         {
-            if (m_parent->mPreviewWindow == NULL) {
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else if (m_parent->mPreviewWindow == NULL) {
                 rc = m_parent->preparePreview();
                 if(rc == NO_ERROR) {
                     // preview window is not set yet, move to previewReady state
@@ -474,7 +504,12 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
         {
-            rc = m_parent->preparePreview();
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->preparePreview();
+            }
             if (rc == NO_ERROR) {
                 rc = m_parent->startPreview();
                 if (rc != NO_ERROR) {
@@ -529,7 +564,12 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_DUMP:
         {
-            rc = m_parent->dump(*((int *)payload));
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->dump(*((int *)payload));
+            }
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -538,11 +578,16 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_SEND_COMMAND:
         {
-            qcamera_sm_evt_command_payload_t *cmd_payload =
-                (qcamera_sm_evt_command_payload_t *)payload;
-            rc = m_parent->sendCommand(cmd_payload->cmd,
-                                       cmd_payload->arg1,
-                                       cmd_payload->arg2);
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                qcamera_sm_evt_command_payload_t *cmd_payload =
+                        (qcamera_sm_evt_command_payload_t *)payload;
+                rc = m_parent->sendCommand(cmd_payload->cmd,
+                        cmd_payload->arg1,
+                        cmd_payload->arg2);
+            }
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -576,7 +621,12 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_STOP_AUTO_FOCUS:
         {
-            rc = m_parent->cancelAutoFocus();
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->cancelAutoFocus();
+            }
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -600,7 +650,12 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_THERMAL_NOTIFY:
         {
-            rc = m_parent->updateThermalLevel(payload);
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->updateThermalLevel(payload);
+            }
         }
         break;
     case QCAMERA_SM_EVT_EVT_NOTIFY:
@@ -645,7 +700,12 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
                (qcamera_sm_internal_evt_payload_t *)payload;
            switch (internal_evt->evt_type) {
            case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
-               rc = m_parent->mParameters.updateFlashMode(internal_evt->led_data);
+               rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+               if (NO_ERROR != rc) {
+                   ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+               } else {
+                   rc = m_parent->mParameters.updateFlashMode(internal_evt->led_data);
+               }
                break;
            default:
                ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
@@ -778,7 +838,7 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_GET_PARAMS:
         {
             result.params = m_parent->getParameters();
-            rc = NO_ERROR;
+            rc = result.params ? NO_ERROR : UNKNOWN_ERROR;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_PARAMS;
@@ -1142,7 +1202,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_GET_PARAMS:
         {
             result.params = m_parent->getParameters();
-            rc = NO_ERROR;
+            rc = result.params ? NO_ERROR : UNKNOWN_ERROR;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_PARAMS;
@@ -1745,7 +1805,7 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_GET_PARAMS:
         {
             result.params = m_parent->getParameters();
-            rc = NO_ERROR;
+            rc = result.params ? NO_ERROR : UNKNOWN_ERROR;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_PARAMS;
@@ -2160,7 +2220,7 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_GET_PARAMS:
         {
             result.params = m_parent->getParameters();
-            rc = NO_ERROR;
+            rc = result.params ? NO_ERROR : UNKNOWN_ERROR;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_PARAMS;
@@ -2536,7 +2596,7 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
     case QCAMERA_SM_EVT_GET_PARAMS:
         {
             result.params = m_parent->getParameters();
-            rc = NO_ERROR;
+            rc = result.params ? NO_ERROR : UNKNOWN_ERROR;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_PARAMS;
@@ -2909,7 +2969,7 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
     case QCAMERA_SM_EVT_GET_PARAMS:
         {
             result.params = m_parent->getParameters();
-            rc = NO_ERROR;
+            rc = result.params ? NO_ERROR : UNKNOWN_ERROR;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_PARAMS;
