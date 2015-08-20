@@ -4594,7 +4594,7 @@ void QCamera3SupportChannel::streamCbRoutine(
 QCamera3StreamMem* QCamera3SupportChannel::getStreamBufs(uint32_t len)
 {
     int rc;
-    mMemory = new QCamera3StreamMem(MIN_STREAMING_BUFFER_NUM);
+    mMemory = new QCamera3StreamMem(mNumBuffers);
     if (!mMemory) {
         ALOGE("%s: unable to create heap memory", __func__);
         return NULL;
