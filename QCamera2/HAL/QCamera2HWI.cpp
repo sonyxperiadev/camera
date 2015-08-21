@@ -1198,8 +1198,6 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mActiveAF(false),
       m_HDRSceneEnabled(false),
       mLongshotEnabled(false),
-      m_max_pic_width(0),
-      m_max_pic_height(0),
       mLiveSnapshotThread(0),
       mIntPicThread(0),
       mFlashNeeded(false),
@@ -8619,10 +8617,6 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                 case CMD_DEF_PPROC_INIT:
                     {
                         int32_t rc = NO_ERROR;
-                        int32_t l_curr_width = 0;
-                        int32_t l_curr_height = 0;
-                        pme->m_max_pic_width = 0;
-                        pme->m_max_pic_height = 0;
 
                         jpeg_encode_callback_t jpegEvtHandle =
                                 dw->args.pprocInitArgs.jpeg_cb;
@@ -8635,22 +8629,6 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         cam_padding_info_t padding_info;
                         cam_padding_info_t& cam_capability_padding_info =
                                 capability->padding_info;
-
-                        for(uint32_t i = 0;
-                                i < capability->picture_sizes_tbl_cnt - 1;
-                                i++) {
-                            l_curr_width =
-                                    capability->picture_sizes_tbl[i].width;
-                            l_curr_height =
-                                    capability->picture_sizes_tbl[i].height;
-
-                            if ((l_curr_width * l_curr_height) >
-                                    (int32_t)(pme->m_max_pic_width *
-                                    pme->m_max_pic_height)) {
-                                pme->m_max_pic_width = l_curr_width;
-                                pme->m_max_pic_height = l_curr_height;
-                            }
-                        }
 
                         if(!pme->mJpegClientHandle &&
                                 (pme->getRelatedCamSyncInfo()->mode
@@ -8846,9 +8824,12 @@ int32_t QCamera2HardwareInterface::initJpegHandle() {
     CDBG_HIGH("%s: E", __func__);
     if(!mJpegClientHandle) {
         mm_dimension max_size = {0, 0};
-        //set max pic size
-        max_size.w = m_max_pic_width;
-        max_size.h = m_max_pic_height;
+        cam_dimension_t size;
+
+        mParameters.getMaxPicSize(size);
+        max_size.w = size.width;
+        max_size.h = size.height;
+
         if (m_bRelCamCalibValid) {
             mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle,
                     max_size, &mRelCamCalibData);

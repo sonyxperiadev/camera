@@ -5699,6 +5699,26 @@ int32_t QCameraParameters::initDefaultParameters()
     //Setup dual-camera
     setDcrf();
 
+    cam_dimension_t pic_dim;
+    pic_dim.width = 0;
+    pic_dim.height = 0;
+
+    for(uint32_t i = 0;
+            i < (m_pCapability->picture_sizes_tbl_cnt - 1);
+            i++) {
+        if ((pic_dim.width * pic_dim.height) <
+                (int32_t)(m_pCapability->picture_sizes_tbl[i].width *
+                m_pCapability->picture_sizes_tbl[i].height)) {
+            pic_dim.width =
+                    m_pCapability->picture_sizes_tbl[i].width;
+            pic_dim.height =
+                    m_pCapability->picture_sizes_tbl[i].height;
+        }
+    }
+    CDBG ("%s: max pic size = %d %d", __func__, pic_dim.width,
+            pic_dim.height);
+    setMaxPicSize(pic_dim);
+
     return rc;
 }
 
@@ -9478,7 +9498,9 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         getPreviewSize(&dim.width, &dim.height);
         break;
     case CAM_STREAM_TYPE_SNAPSHOT:
-        if (getRecordingHintValue() == true) {
+        if (isPostProcScaling()) {
+            getMaxPicSize(dim);
+        } else if (getRecordingHintValue()) {
             // live snapshot
             getLiveSnapshotSize(dim);
         } else {
@@ -9497,6 +9519,14 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         dim.height = 1;
         break;
     case CAM_STREAM_TYPE_OFFLINE_PROC:
+        if (isPostProcScaling()) {
+            if (getRecordingHintValue()) {
+                // live snapshot
+                getLiveSnapshotSize(dim);
+            } else {
+                getPictureSize(&dim.width, &dim.height);
+            }
+        }
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
         cam_dimension_t prv_dim, max_dim;
@@ -12703,6 +12733,33 @@ bool QCameraParameters::isUBWCEnabled()
 #else
     return FALSE;
 #endif
+}
+
+/*===========================================================================
+ * FUNCTION   : isPostProcScaling
+ *
+ * DESCRIPTION: is scaling to be done by CPP?
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : TRUE  : If CPP scaling enabled
+ *              FALSE : If VFE scaling enabled
+ *==========================================================================*/
+bool QCameraParameters::isPostProcScaling()
+{
+    char value[PROPERTY_VALUE_MAX];
+    bool cpp_scaling = FALSE;
+
+    if (getRecordingHintValue()) {
+        return FALSE;
+    }
+
+    property_get("persist.camera.pp_scaling", value, "0");
+    cpp_scaling = atoi(value) > 0 ? TRUE : FALSE;
+
+    CDBG_HIGH("%s: Post proc scaling enabled : %d",
+            __func__, cpp_scaling);
+    return cpp_scaling;
 }
 
 /*===========================================================================

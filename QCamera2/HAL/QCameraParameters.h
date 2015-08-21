@@ -700,6 +700,8 @@ public:
     void getLiveSnapshotSize(cam_dimension_t &dim);
     int32_t getRawSize(cam_dimension_t &dim) {dim = m_rawSize; return NO_ERROR;};
     int32_t setRawSize(cam_dimension_t &dim);
+    int32_t setMaxPicSize(cam_dimension_t &dim) { m_maxPicSize = dim; return NO_ERROR; };
+    int32_t getMaxPicSize(cam_dimension_t &dim) { dim = m_maxPicSize; return NO_ERROR; };
     int getFlipMode(cam_stream_type_t streamType);
     bool isSnapshotFDNeeded();
 
@@ -793,6 +795,7 @@ public:
     int8_t  getReprocCount(){return mTotalPPCount;};
     int8_t  getCurPPCount(){return mCurPPCount;};
     void    setReprocCount();
+    bool    isPostProcScaling();
     void    setCurPPCount(int8_t count) {mCurPPCount = count;};
     int32_t  updateCurrentFocusPosition(int32_t pos);
     int32_t setToneMapMode(uint32_t value, bool initCommit);
@@ -1060,6 +1063,7 @@ private:
     qcamera_thermal_mode m_ThermalMode; // adjust fps vs adjust frameskip
     cam_dimension_t m_LiveSnapshotSize; // live snapshot size
     cam_dimension_t m_rawSize; // live snapshot size
+    cam_dimension_t m_maxPicSize;
     bool m_bHDREnabled;             // if HDR is enabled
     bool m_bAVTimerEnabled;    //if AVTimer is enabled
     bool m_bDISEnabled;

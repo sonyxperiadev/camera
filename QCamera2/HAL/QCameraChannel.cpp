@@ -978,13 +978,20 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             } else {
                 rc = pStream->getFormat(streamInfo->fmt);
             }
+
             if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
                     pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
                 param.getThumbnailSize(&(streamInfo->dim.width), &(streamInfo->dim.height));
+            } else {
+                if ((param.isPostProcScaling()) &&
+                        (featureConfig.feature_mask & CAM_QCOM_FEATURE_SCALE)) {
+                    rc = param.getStreamDimension(CAM_STREAM_TYPE_OFFLINE_PROC,
+                            streamInfo->dim);
+                } else {
+                    rc = pStream->getFrameDimension(streamInfo->dim);
+                }
             }
-            else {
-                rc = pStream->getFrameDimension(streamInfo->dim);
-            }
+
             if ( contStream ) {
                 streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
                 streamInfo->num_of_burst = 0;
