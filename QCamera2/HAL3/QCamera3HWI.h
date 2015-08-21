@@ -171,7 +171,7 @@ public:
     camera_metadata_t* translateFromHalMetadata(metadata_buffer_t *metadata,
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
-                            uint8_t capture_intent);
+                            uint8_t capture_intent, uint8_t fwk_cacMode);
     int initParameters();
     void deinitParameters();
     QCamera3ReprocessChannel *addOfflineReprocChannel(const reprocess_config_t &config,
@@ -296,6 +296,7 @@ private:
         uint8_t pipeline_depth;
         uint32_t partial_result_cnt;
         uint8_t capture_intent;
+        uint8_t fwkCacMode;
     } PendingRequestInfo;
     typedef struct {
         uint32_t frame_number;
@@ -354,6 +355,7 @@ private:
     const camera_module_callbacks_t *mCallbacks;
 
     uint8_t mCaptureIntent;
+    uint8_t mCacMode;
     metadata_buffer_t mRreprocMeta; //scratch meta buffer
     /* 0: Not batch, non-zero: Number of image buffers in a batch */
     uint8_t mBatchSize;
