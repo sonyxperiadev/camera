@@ -122,7 +122,7 @@ int32_t QCamera3Stream::put_bufs(
     int32_t rc = NO_ERROR;
     QCamera3Stream *stream = reinterpret_cast<QCamera3Stream *>(user_data);
     if (!stream) {
-        ALOGE("putBufs invalid stream pointer");
+        ALOGE("%s: putBufs invalid stream pointer", __func__);
         return NO_MEMORY;
     }
 
@@ -155,7 +155,7 @@ int32_t QCamera3Stream::invalidate_buf(uint32_t index, void *user_data)
 
     QCamera3Stream *stream = reinterpret_cast<QCamera3Stream *>(user_data);
     if (!stream) {
-        ALOGE("invalid stream pointer");
+        ALOGE("%s: invalid stream pointer", __func__);
         return NO_MEMORY;
     }
     if (stream->mBatchSize) {
@@ -195,7 +195,7 @@ int32_t QCamera3Stream::clean_invalidate_buf(uint32_t index, void *user_data)
 
     QCamera3Stream *stream = reinterpret_cast<QCamera3Stream *>(user_data);
     if (!stream) {
-        ALOGE("invalid stream pointer");
+        ALOGE("%s: invalid stream pointer", __func__);
         return NO_MEMORY;
     }
     if (stream->mBatchSize) {
@@ -282,7 +282,7 @@ QCamera3Stream::~QCamera3Stream()
         int rc = mCamOps->unmap_stream_buf(mCamHandle,
                     mChannelHandle, mHandle, CAM_MAPPING_BUF_TYPE_STREAM_INFO, 0, -1);
         if (rc < 0) {
-            ALOGE("Failed to un-map stream info buffer");
+            ALOGE("%s: Failed to un-map stream info buffer", __func__);
         }
         mStreamInfoBuf->deallocate();
         delete mStreamInfoBuf;
@@ -640,6 +640,11 @@ int32_t QCamera3Stream::bufDone(uint32_t index)
         ALOGE("%s: index; %d, mNumBufs: %d", __func__, index, mNumBufs);
         return BAD_INDEX;
     }
+    if (mStreamBufs == NULL)
+    {
+        ALOGE("%s: putBufs already called", __func__);
+        return INVALID_OPERATION;
+    }
 
     if( NULL == mBufDefs[index].mem_info) {
         if (NULL == mMemOps) {
@@ -760,6 +765,10 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
     mFrameLenOffset = *offset;
     mMemOps = ops_tbl;
 
+    if (mStreamBufs != NULL) {
+       ALOGE("%s: Failed getBufs being called twice in a row without a putBufs call", __func__);
+       return INVALID_OPERATION;
+    }
     mStreamBufs = mChannel->getStreamBufs(mFrameLenOffset.frame_len);
     if (!mStreamBufs) {
         ALOGE("%s: Failed to allocate stream buffers", __func__);
@@ -785,7 +794,7 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
                     return INVALID_OPERATION;
                 }
             } else {
-                ALOGE("Failed to retrieve buffer size (bad index)");
+                ALOGE("%s: Failed to retrieve buffer size (bad index)", __func__);
                 return INVALID_OPERATION;
             }
         }
@@ -875,7 +884,15 @@ int32_t QCamera3Stream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
     mBufDefs = NULL; // mBufDefs just keep a ptr to the buffer
                      // mm-camera-interface own the buffer, so no need to free
     memset(&mFrameLenOffset, 0, sizeof(mFrameLenOffset));
+
+    if (mStreamBufs == NULL) {
+        ALOGE("%s: getBuf failed previously, or calling putBufs twice");
+    }
+
     mChannel->putStreamBufs();
+
+    //need to set mStreamBufs to null because putStreamBufs deletes that memory
+    mStreamBufs = NULL;
 
     return rc;
 }
@@ -894,7 +911,11 @@ int32_t QCamera3Stream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
  *==========================================================================*/
 int32_t QCamera3Stream::invalidateBuf(uint32_t index)
 {
-    return mStreamBufs->invalidateCache(index);
+    if (mStreamBufs == NULL) {
+       ALOGE("%s: putBufs already called", __func__);
+       return INVALID_OPERATION;
+    } else
+       return mStreamBufs->invalidateCache(index);
 }
 
 /*===========================================================================
@@ -911,7 +932,11 @@ int32_t QCamera3Stream::invalidateBuf(uint32_t index)
  *==========================================================================*/
 int32_t QCamera3Stream::cleanInvalidateBuf(uint32_t index)
 {
-    return mStreamBufs->cleanInvalidateCache(index);
+    if (mStreamBufs == NULL) {
+        ALOGE("%s: putBufs already called", __func__);
+        return INVALID_OPERATION;
+    } else
+        return mStreamBufs->cleanInvalidateCache(index);
 }
 
 /*===========================================================================
@@ -1186,7 +1211,7 @@ int32_t QCamera3Stream::getBatchBufs(
                 goto err2;
             }
         } else {
-            ALOGE("Failed to retrieve buffer size (bad index)");
+            ALOGE("%s: Failed to retrieve buffer size (bad index)", __func__);
             return INVALID_OPERATION;
         }
     }
