@@ -59,6 +59,11 @@
  */
 #define MM_JPEG_MIN_NOM_RESOLUTION 7680000 /*8MP*/
 
+#ifdef MM_JPEG_USE_PIPELINE
+#undef MM_JPEG_CONCURRENT_SESSIONS_COUNT
+#define MM_JPEG_CONCURRENT_SESSIONS_COUNT 1
+#endif
+
 OMX_ERRORTYPE mm_jpeg_ebd(OMX_HANDLETYPE hComponent,
     OMX_PTR pAppData,
     OMX_BUFFERHEADERTYPE* pBuffer);
@@ -2126,7 +2131,7 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
       cam_sem_post(&my_obj->job_mgr.job_sem);
   }
 
-  CDBG_HIGH("%s:%d] X", __func__, __LINE__);
+  CDBG_HIGH("%s:%d] job_id %d X", __func__, __LINE__, *job_id);
 
   return rc;
 }
