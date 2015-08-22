@@ -42,6 +42,8 @@ LOCAL_C_INCLUDES += \
     frameworks/native/include/media/openmax \
     $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 
+LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+
 LOCAL_MODULE:= camera_test
 LOCAL_MODULE_TAGS:= tests
 
