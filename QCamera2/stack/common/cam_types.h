@@ -106,7 +106,6 @@
 
 #define MAX_INFLIGHT_REQUESTS  6
 #define MIN_INFLIGHT_REQUESTS  3
-#define MAX_INFLIGHT_REPROCESS_REQUESTS 1
 
 #define QCAMERA_DUMP_FRM_LOCATION "/data/misc/camera/"
 #define QCAMERA_MAX_FILEPATH_LENGTH 64
@@ -121,8 +120,6 @@
 #define MAX_NUM_CAMERA_PER_BUNDLE    2 /* Max number of cameras per bundle */
 #define EXTRA_FRAME_SYNC_BUFFERS     4 /* Extra frame sync buffers in dc mode*/
 #define MM_CAMERA_FRAME_SYNC_NODES   EXTRA_FRAME_SYNC_BUFFERS
-
-#define MAX_REPROCESS_STALL 2
 
 typedef enum {
     CAM_HAL_V1 = 1,
@@ -739,8 +736,7 @@ typedef enum {
 typedef enum {
     CAM_NOISE_REDUCTION_MODE_OFF,
     CAM_NOISE_REDUCTION_MODE_FAST,
-    CAM_NOISE_REDUCTION_MODE_HIGH_QUALITY,
-    CAM_NOISE_REDUCTION_MODE_MINIMAL
+    CAM_NOISE_REDUCTION_MODE_HIGH_QUALITY
 } cam_noise_reduction_mode_t;
 
 typedef enum {
@@ -1854,11 +1850,7 @@ typedef enum {
     CAM_INTF_PARM_FLIP,
     /*Frame divert info from ISP*/
     CAM_INTF_BUF_DIVERT_INFO, /* 190 */
-    /* Use AV timer */
-    CAM_INTF_META_USE_AV_TIMER,
-
-    CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,
-    CAM_INTF_PARM_MAX
+    CAM_INTF_PARM_MAX /* 191 */
 } cam_intf_parm_type_t;
 
 typedef struct {

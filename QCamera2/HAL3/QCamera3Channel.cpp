@@ -45,7 +45,15 @@
 
 using namespace android;
 
+
 namespace qcamera {
+static const char ExifAsciiPrefix[] =
+    { 0x41, 0x53, 0x43, 0x49, 0x49, 0x0, 0x0, 0x0 };          // "ASCII\0\0\0"
+static const char ExifUndefinedPrefix[] =
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };   // "\0\0\0\0\0\0\0\0"
+
+#define EXIF_ASCII_PREFIX_SIZE           8   //(sizeof(ExifAsciiPrefix))
+#define FOCAL_LENGTH_DECIMAL_PRECISION   100
 
 /*===========================================================================
  * FUNCTION   : QCamera3Channel
@@ -180,7 +188,6 @@ int32_t QCamera3Channel::init(mm_camera_channel_attr_t *attr,
  *   @streamType     : stream type
  *   @streamFormat   : stream format
  *   @streamDim      : stream dimension
- *   @streamRotation : rotation of the stream
  *   @minStreamBufNum : minimal buffer count for particular stream type
  *   @postprocessMask : post-proccess feature mask
  *   @isType         : type of image stabilization required on the stream
@@ -192,7 +199,6 @@ int32_t QCamera3Channel::init(mm_camera_channel_attr_t *attr,
 int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
                                   cam_format_t streamFormat,
                                   cam_dimension_t streamDim,
-                                  cam_rotation_t streamRotation,
                                   uint8_t minStreamBufNum,
                                   uint32_t postprocessMask,
                                   cam_is_type_t isType,
@@ -221,9 +227,8 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
     }
     CDBG("%s: batch size is %d", __func__, batchSize);
 
-    rc = pStream->init(streamType, streamFormat, streamDim, streamRotation,
-            NULL, minStreamBufNum, postprocessMask, isType, batchSize,
-            streamCbRoutine, this);
+    rc = pStream->init(streamType, streamFormat, streamDim, NULL, minStreamBufNum,
+            postprocessMask, isType, batchSize, streamCbRoutine, this);
     if (rc == 0) {
         mStreams[m_numStreams] = pStream;
         m_numStreams++;
@@ -531,9 +536,9 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
     memset(buf, 0, sizeof(buf));
     static int counter = 0;
     /* Note that the image dimension will be the unrotated stream dimension.
-     * If you feel that the image would have been rotated during reprocess
-     * then swap the dimensions while opening the file
-     * */
+    * If you feel that the image would have been rotated during reprocess
+    * then swap the dimensions while opening the file
+    * */
     snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"%d_%d_%d_%dx%d.yuv",
             name, counter, frame->frame_idx, dim.width, dim.height);
     counter++;
@@ -546,7 +551,6 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
         ALOGE("%s: failed to open file to dump image", __func__);
     }
 }
-
 
 /*===========================================================================
  * FUNCTION   : isUBWCEnabled
@@ -651,594 +655,6 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
     return streamFormat;
 }
 
-
-/* QCamera3ProcessingChannel methods */
-
-/*===========================================================================
- * FUNCTION   : QCamera3ProcessingChannel
- *
- * DESCRIPTION: constructor of QCamera3ProcessingChannel
- *
- * PARAMETERS :
- *   @cam_handle : camera handle
- *   @cam_ops    : ptr to camera ops table
- *   @cb_routine : callback routine to frame aggregator
- *   @paddingInfo: stream padding info
- *   @userData   : HWI handle
- *   @stream     : camera3_stream_t structure
- *   @stream_type: Channel stream type
- *   @postprocess_mask: the postprocess mask for streams of this channel
- *   @metadataChannel: handle to the metadataChannel
- *   @numBuffers : number of max dequeued buffers
- * RETURN     : none
- *==========================================================================*/
-QCamera3ProcessingChannel::QCamera3ProcessingChannel(uint32_t cam_handle,
-        mm_camera_ops_t *cam_ops,
-        channel_cb_routine cb_routine,
-        cam_padding_info_t *paddingInfo,
-        void *userData,
-        camera3_stream_t *stream,
-        cam_stream_type_t stream_type,
-        uint32_t postprocess_mask,
-        QCamera3Channel *metadataChannel,
-        uint32_t numBuffers) :
-            QCamera3Channel(cam_handle, cam_ops, cb_routine,
-                    paddingInfo, postprocess_mask, userData, numBuffers),
-            m_postprocessor(this),
-            mCamera3Stream(stream),
-            mNumBufs(CAM_MAX_NUM_BUFS_PER_STREAM),
-            mStreamType(stream_type),
-            mPostProcStarted(false),
-            mInputBufferConfig(false),
-            m_pMetaChannel(metadataChannel),
-            mMetaFrame(NULL)
-{
-    int32_t rc = m_postprocessor.init(&mMemory, mPostProcMask);
-    if (rc != 0) {
-        ALOGE("Init Postprocessor failed");
-    }
-}
-
-/*===========================================================================
- * FUNCTION   : ~QCamera3ProcessingChannel
- *
- * DESCRIPTION: destructor of QCamera3ProcessingChannel
- *
- * PARAMETERS : none
- *
- * RETURN     : none
- *==========================================================================*/
-QCamera3ProcessingChannel::~QCamera3ProcessingChannel()
-{
-    stop();
-
-    int32_t rc = m_postprocessor.stop();
-    if (rc != NO_ERROR) {
-        ALOGE("%s: Postprocessor stop failed", __func__);
-    }
-
-    rc = m_postprocessor.deinit();
-    if (rc != 0) {
-        ALOGE("De-init Postprocessor failed");
-    }
-
-    if (0 < mOfflineMetaMemory.getCnt()) {
-        mOfflineMetaMemory.deallocate();
-    }
-    if (0 < mOfflineMemory.getCnt()) {
-        mOfflineMemory.unregisterBuffers();
-    }
-}
-
-/*===========================================================================
- * FUNCTION   : streamCbRoutine
- *
- * DESCRIPTION:
- *
- * PARAMETERS :
- * @super_frame : the super frame with filled buffer
- * @stream      : stream on which the buffer was requested and filled
- *
- * RETURN     : none
- *==========================================================================*/
-void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
-        QCamera3Stream *stream)
-{
-     ATRACE_CALL();
-    //FIXME Q Buf back in case of error?
-    uint8_t frameIndex;
-    buffer_handle_t *resultBuffer;
-    int32_t resultFrameNumber;
-    camera3_stream_buffer_t result;
-
-    if (NULL == stream) {
-        ALOGE("%s: Invalid stream", __func__);
-        return;
-    }
-
-    if(!super_frame) {
-         ALOGE("%s: Invalid Super buffer",__func__);
-         return;
-    }
-
-    if(super_frame->num_bufs != 1) {
-         ALOGE("%s: Multiple streams are not supported",__func__);
-         return;
-    }
-    if(super_frame->bufs[0] == NULL ) {
-         ALOGE("%s: Error, Super buffer frame does not contain valid buffer",
-                  __func__);
-         return;
-    }
-
-    frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
-    if(frameIndex >= mNumBufs) {
-         ALOGE("%s: Error, Invalid index for buffer",__func__);
-         stream->bufDone(frameIndex);
-         return;
-    }
-
-    ////Use below data to issue framework callback
-    resultBuffer = (buffer_handle_t *)mMemory.getBufferHandle(frameIndex);
-    resultFrameNumber = mMemory.getFrameNumber(frameIndex);
-
-    result.stream = mCamera3Stream;
-    result.buffer = resultBuffer;
-    result.status = CAMERA3_BUFFER_STATUS_OK;
-    result.acquire_fence = -1;
-    result.release_fence = -1;
-    if(mPerFrameMapUnmapEnable) {
-        int32_t rc = stream->bufRelease(frameIndex);
-        if (NO_ERROR != rc) {
-            ALOGE("%s: Error %d releasing stream buffer %d",
-                    __func__, rc, frameIndex);
-        }
-
-        rc = mMemory.unregisterBuffer(frameIndex);
-        if (NO_ERROR != rc) {
-            ALOGE("%s: Error %d unregistering stream buffer %d",
-                    __func__, rc, frameIndex);
-        }
-    }
-
-    if (0 <= resultFrameNumber) {
-        mChannelCB(NULL, &result, (uint32_t)resultFrameNumber, mUserData);
-    } else {
-        ALOGE("%s: Bad frame number", __func__);
-    }
-    free(super_frame);
-    return;
-}
-
-/*===========================================================================
- * FUNCTION   : request
- *
- * DESCRIPTION: handle the request - either with an input buffer or a direct
- *              output request
- *
- * PARAMETERS :
- * @buffer       : pointer to the output buffer
- * @frameNumber  : frame number of the request
- * @pInputBuffer : pointer to input buffer if an input request
- * @metadata     : parameters associated with the request
- *
- * RETURN     : 0 on a success start of capture
- *              -EINVAL on invalid input
- *              -ENODEV on serious error
- *==========================================================================*/
-int32_t QCamera3ProcessingChannel::request(buffer_handle_t *buffer,
-        uint32_t frameNumber,
-        camera3_stream_buffer_t* pInputBuffer,
-        metadata_buffer_t* metadata)
-{
-    int32_t rc = NO_ERROR;
-    int index;
-
-    if (NULL == buffer || NULL == metadata) {
-        ALOGE("%s: Invalid buffer/metadata in channel request", __func__);
-        return BAD_VALUE;
-    }
-
-    if (pInputBuffer) {
-        //need to send to reprocessing
-        CDBG("%s: Got a request with input buffer, output streamType = %d", __func__, mStreamType);
-        reprocess_config_t reproc_cfg;
-        memset(&reproc_cfg, 0, sizeof(reprocess_config_t));
-        setReprocConfig(reproc_cfg, pInputBuffer, metadata, mStreamFormat);
-        startPostProc((NULL != pInputBuffer), reproc_cfg);
-
-        if (0 < mOfflineMetaMemory.getCnt()) {
-            mOfflineMetaMemory.deallocate();
-        }
-        if (0 < mOfflineMemory.getCnt()) {
-            mOfflineMemory.unregisterBuffers();
-        }
-
-        int input_index = mOfflineMemory.getMatchBufIndex((void*)pInputBuffer->buffer);
-        if(input_index < 0) {
-            rc = mOfflineMemory.registerBuffer(pInputBuffer->buffer, mStreamType);
-            if (NO_ERROR != rc) {
-                ALOGE("%s: On-the-fly input buffer registration failed %d",
-                        __func__, rc);
-                return rc;
-            }
-            input_index = mOfflineMemory.getMatchBufIndex((void*)pInputBuffer->buffer);
-            if (input_index < 0) {
-                ALOGE("%s: Could not find object among registered buffers",__func__);
-                return DEAD_OBJECT;
-            }
-        }
-
-        qcamera_fwk_input_pp_data_t *src_frame = NULL;
-        src_frame = (qcamera_fwk_input_pp_data_t *)calloc(1,
-                sizeof(qcamera_fwk_input_pp_data_t));
-        if (src_frame == NULL) {
-            ALOGE("%s: No memory for src frame", __func__);
-            return NO_MEMORY;
-        }
-        src_frame->src_frame = *pInputBuffer;
-        rc = mOfflineMemory.getBufDef(reproc_cfg.input_stream_plane_info.plane_info,
-                src_frame->input_buffer, input_index);
-        if (rc != 0) {
-            free(src_frame);
-            return rc;
-        }
-        if (mYUVDump) {
-           dumpYUV(&src_frame->input_buffer, reproc_cfg.input_stream_dim,
-                   reproc_cfg.input_stream_plane_info.plane_info, 1);
-        }
-        cam_dimension_t dim = {sizeof(metadata_buffer_t), 1};
-        cam_stream_buf_plane_info_t meta_planes;
-        rc = mm_stream_calc_offset_metadata(&dim, mPaddingInfo, &meta_planes);
-        if (rc != 0) {
-            ALOGE("%s: Metadata stream plane info calculation failed!", __func__);
-            free(src_frame);
-            return rc;
-        }
-        rc = mOfflineMetaMemory.allocate(1, sizeof(metadata_buffer_t), false);
-        if (NO_ERROR != rc) {
-            ALOGE("%s: Couldn't allocate offline metadata buffer!", __func__);
-            free(src_frame);
-            return rc;
-        }
-        mm_camera_buf_def_t meta_buf;
-        cam_frame_len_offset_t offset = meta_planes.plane_info;
-        rc = mOfflineMetaMemory.getBufDef(offset, meta_buf, 0);
-        if (NO_ERROR != rc) {
-            free(src_frame);
-            return rc;
-        }
-        memcpy(meta_buf.buffer, metadata, sizeof(metadata_buffer_t));
-        src_frame->metadata_buffer = meta_buf;
-        src_frame->reproc_config = reproc_cfg;
-        src_frame->output_buffer = buffer;
-        src_frame->frameNumber = frameNumber;
-
-        CDBG_HIGH("%s: Post-process started", __func__);
-        CDBG_HIGH("%s: Issue call to reprocess", __func__);
-        m_postprocessor.processData(src_frame);
-    } else {
-        //need to fill output buffer with new data and return
-        if(!m_bIsActive) {
-            rc = registerBuffer(buffer, mIsType);
-            if (NO_ERROR != rc) {
-                ALOGE("%s: On-the-fly buffer registration failed %d",
-                        __func__, rc);
-                return rc;
-            }
-
-            rc = start();
-            if (NO_ERROR != rc)
-                return rc;
-        } else {
-            CDBG("%s: Request on an existing stream",__func__);
-        }
-
-        index = mMemory.getMatchBufIndex((void*)buffer);
-        if(index < 0) {
-            rc = registerBuffer(buffer, mIsType);
-            if (NO_ERROR != rc) {
-                ALOGE("%s: On-the-fly buffer registration failed %d",
-                        __func__, rc);
-                return rc;
-            }
-
-            index = mMemory.getMatchBufIndex((void*)buffer);
-            if (index < 0) {
-                ALOGE("%s: Could not find object among registered buffers",
-                        __func__);
-                return DEAD_OBJECT;
-            }
-        }
-        rc = mStreams[0]->bufDone(index);
-        if(rc != NO_ERROR) {
-            ALOGE("%s: Failed to Q new buffer to stream",__func__);
-            return rc;
-        }
-        rc = mMemory.markFrameNumber(index, frameNumber);
-    }
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : initialize
- *
- * DESCRIPTION:
- *
- * PARAMETERS : isType : type of image stabilization on the buffer
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera3ProcessingChannel::initialize(cam_is_type_t isType)
-{
-    mIsType = isType;
-    return NO_ERROR;
-}
-
-/*===========================================================================
- * FUNCTION   : registerBuffer
- *
- * DESCRIPTION: register streaming buffer to the channel object
- *
- * PARAMETERS :
- *   @buffer     : buffer to be registered
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera3ProcessingChannel::registerBuffer(buffer_handle_t *buffer,
-        cam_is_type_t isType)
-{
-    ATRACE_CALL();
-    int rc = 0;
-    mIsType = isType;
-    cam_stream_type_t streamType;
-
-    if ((uint32_t)mMemory.getCnt() > (mNumBufs - 1)) {
-        ALOGE("%s: Trying to register more buffers than initially requested",
-                __func__);
-        return BAD_VALUE;
-    }
-
-    if (0 == m_numStreams) {
-        rc = initialize(mIsType);
-        if (rc != NO_ERROR) {
-            ALOGE("%s: Couldn't initialize camera stream %d",
-                    __func__, rc);
-            return rc;
-        }
-    }
-
-    streamType = mStreams[0]->getMyType();
-    rc = mMemory.registerBuffer(buffer, streamType);
-    if (ALREADY_EXISTS == rc) {
-        return NO_ERROR;
-    } else if (NO_ERROR != rc) {
-        ALOGE("%s: Buffer %p couldn't be registered %d", __func__, buffer, rc);
-        return rc;
-    }
-
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : getStreamBufs
- *
- * DESCRIPTION:
- *
- * PARAMETERS :
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-QCamera3Memory* QCamera3ProcessingChannel::getStreamBufs(uint32_t /*len*/)
-{
-    return &mMemory;
-}
-
-
-/*===========================================================================
- * FUNCTION   : putStreamBufs
- *
- * DESCRIPTION:
- *
- * PARAMETERS : NONE
- *
- * RETURN     : NONE
- *==========================================================================*/
-void QCamera3ProcessingChannel::putStreamBufs()
-{
-    mMemory.unregisterBuffers();
-}
-
-
-/*===========================================================================
- * FUNCTION   : stop
- *
- * DESCRIPTION: stop processing channel, which will stop all streams within,
- *              including the reprocessing channel in postprocessor.
- *
- * PARAMETERS : none
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera3ProcessingChannel::stop()
-{
-    int32_t rc = NO_ERROR;
-    if(!m_bIsActive) {
-        ALOGE("%s: Attempt to stop inactive channel",__func__);
-        return rc;
-    }
-
-    m_postprocessor.stop();
-    mPostProcStarted = false;
-    rc |= QCamera3Channel::stop();
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : startPostProc
- *
- * DESCRIPTION: figure out if the postprocessor needs to be restarted and if yes
- *              start it
- *
- * PARAMETERS :
- * @inputBufExists : whether there is an input buffer for post processing
- * @config         : reprocessing configuration
- * @metadata       : metadata associated with the reprocessing request
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-void QCamera3ProcessingChannel::startPostProc(bool inputBufExists,
-                                        const reprocess_config_t &config)
-{
-    // This component needs to be re-configured
-    // once we switch from input(framework) buffer
-    // reprocess to standard capture!
-    bool restartNeeded = ((!mInputBufferConfig) != inputBufExists);
-    if((!mPostProcStarted) || restartNeeded) {
-        m_postprocessor.start(config);
-        mPostProcStarted = true;
-    }
-    mInputBufferConfig = !inputBufExists;
-}
-
-/*===========================================================================
- * FUNCTION   : queueReprocMetadata
- *
- * DESCRIPTION: queue the reprocess metadata to the postprocessor
- *
- * PARAMETERS : metadata : the metadata corresponding to the pp frame
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera3ProcessingChannel::queueReprocMetadata(mm_camera_super_buf_t *metadata)
-{
-    return m_postprocessor.processPPMetadata(metadata);
-}
-
-/*===========================================================================
- * FUNCTION : metadataBufDone
- *
- * DESCRIPTION: Buffer done method for a metadata buffer
- *
- * PARAMETERS :
- * @recvd_frame : received metadata frame
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera3ProcessingChannel::metadataBufDone(mm_camera_super_buf_t *recvd_frame)
-{
-    int32_t rc = NO_ERROR;;
-    if ((NULL == m_pMetaChannel) || (NULL == recvd_frame)) {
-        ALOGE("%s: Metadata channel or metadata buffer invalid", __func__);
-        return BAD_VALUE;
-    }
-
-    rc = ((QCamera3MetadataChannel*)m_pMetaChannel)->bufDone(recvd_frame);
-
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION : setReprocConfig
- *
- * DESCRIPTION: sets the reprocessing parameters for the input buffer
- *
- * PARAMETERS :
- * @reproc_cfg : the configuration to be set
- * @pInputBuffer : pointer to the input buffer
- * @metadata : pointer to the reprocessing metadata buffer
- * @streamFormat : format of the input stream
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cfg,
-        camera3_stream_buffer_t *pInputBuffer,
-        metadata_buffer_t *metadata,
-        cam_format_t streamFormat)
-{
-    int32_t rc = 0;
-    reproc_cfg.padding = mPaddingInfo;
-    //to ensure a big enough buffer size set the height and width
-    //padding to max(height padding, width padding)
-    if (reproc_cfg.padding->height_padding > reproc_cfg.padding->width_padding) {
-       reproc_cfg.padding->width_padding = reproc_cfg.padding->height_padding;
-    } else {
-       reproc_cfg.padding->height_padding = reproc_cfg.padding->width_padding;
-    }
-    if (NULL != pInputBuffer) {
-        reproc_cfg.input_stream_dim.width = (int32_t)pInputBuffer->stream->width;
-        reproc_cfg.input_stream_dim.height = (int32_t)pInputBuffer->stream->height;
-    } else {
-        reproc_cfg.input_stream_dim.width = (int32_t)mCamera3Stream->width;
-        reproc_cfg.input_stream_dim.height = (int32_t)mCamera3Stream->height;
-        reproc_cfg.src_channel = this;
-    }
-    reproc_cfg.output_stream_dim.width = mCamera3Stream->width;
-    reproc_cfg.output_stream_dim.height = mCamera3Stream->height;
-    reproc_cfg.stream_type = mStreamType;
-    reproc_cfg.stream_format = streamFormat;
-    reproc_cfg.reprocess_type = getReprocessType();
-
-    //any input buffer will be of the ZSL format so use the snapshot offset calculations
-    reproc_cfg.stream_type = CAM_STREAM_TYPE_SNAPSHOT;
-    reproc_cfg.stream_format = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
-    rc = mm_stream_calc_offset_snapshot(streamFormat,
-                 &reproc_cfg.input_stream_dim, reproc_cfg.padding,
-                 &reproc_cfg.input_stream_plane_info);
-    CDBG("%s: reproc_cfg.stream_type = %d, reproc_cfg.stream_format = %d", __func__,
-              reproc_cfg.stream_type, reproc_cfg.stream_format);
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : reprocessCbRoutine
- *
- * DESCRIPTION: callback function for the reprocessed frame. This frame now
- *              should be returned to the framework
- *
- * PARAMETERS :
- * @resultBuffer      : buffer containing the reprocessed data
- * @resultFrameNumber : frame number on which the buffer was requested
- *
- * RETURN     : NONE
- *
- *==========================================================================*/
-void QCamera3ProcessingChannel::reprocessCbRoutine(buffer_handle_t *resultBuffer,
-        uint32_t resultFrameNumber)
-{
-    ATRACE_CALL();
-    camera3_stream_buffer_t result;
-    int rc = 0;
-
-    //Use below data to issue framework callback
-    result.stream = mCamera3Stream;
-    result.buffer = resultBuffer;
-    result.status = CAMERA3_BUFFER_STATUS_OK;
-    result.acquire_fence = -1;
-    result.release_fence = -1;
-
-    mChannelCB(NULL, &result, resultFrameNumber, mUserData);
-    return;
-}
-
-
-/* Regular Channel methods */
 /*===========================================================================
  * FUNCTION   : QCamera3RegularChannel
  *
@@ -1251,26 +667,70 @@ void QCamera3ProcessingChannel::reprocessCbRoutine(buffer_handle_t *resultBuffer
  *   @stream     : camera3_stream_t structure
  *   @stream_type: Channel stream type
  *   @postprocess_mask: feature mask for postprocessing
- *   @metadataChannel : metadata channel for the session
  *   @numBuffers : number of max dequeued buffers
  *
  * RETURN     : none
  *==========================================================================*/
 QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
-        mm_camera_ops_t *cam_ops,
-        channel_cb_routine cb_routine,
-        cam_padding_info_t *paddingInfo,
-        void *userData,
-        camera3_stream_t *stream,
-        cam_stream_type_t stream_type,
-        uint32_t postprocess_mask,
-        QCamera3Channel *metadataChannel,
-        uint32_t numBuffers) :
-            QCamera3ProcessingChannel(cam_handle, cam_ops, cb_routine,
-                    paddingInfo, userData, stream, stream_type,
-                    postprocess_mask, metadataChannel, numBuffers),
-            mBatchSize(0),
-            mRotation(ROTATE_0)
+                    mm_camera_ops_t *cam_ops,
+                    channel_cb_routine cb_routine,
+                    cam_padding_info_t *paddingInfo,
+                    void *userData,
+                    camera3_stream_t *stream,
+                    cam_stream_type_t stream_type,
+                    uint32_t postprocess_mask,
+                    uint32_t numBuffers) :
+                        QCamera3Channel(cam_handle, cam_ops, cb_routine,
+                                paddingInfo, postprocess_mask, userData,
+                                numBuffers),
+                        mCamera3Stream(stream),
+                        mNumBufs(0),
+                        mStreamType(stream_type),
+                        mWidth(stream->width),
+                        mHeight(stream->height),
+                        mBatchSize(0)
+{
+}
+
+/*===========================================================================
+ * FUNCTION   : QCamera3RegularChannel
+ *
+ * DESCRIPTION: constructor of QCamera3RegularChannel
+ *
+ * PARAMETERS :
+ *   @cam_handle  : camera handle
+ *   @cam_ops     : ptr to camera ops table
+ *   @cb_routine  : callback routine to frame aggregator
+ *   @padding_info: padding information for stream
+ *   @userData    : pointer to hal object
+ *   @stream      : camera3_stream_t structure
+ *   @stream_type : Channel stream type
+ *   @postprocess_mask: bit mask for postprocessing
+ *   @width       : width overriding camera3_stream_t::width
+ *   @height      : height overriding camera3_stream_t::height
+ *   @numBuffers  : number of maximum dequeued buffers`
+ *
+ * RETURN     : none
+ *==========================================================================*/
+QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
+                    mm_camera_ops_t *cam_ops,
+                    channel_cb_routine cb_routine,
+                    cam_padding_info_t *paddingInfo,
+                    void *userData,
+                    camera3_stream_t *stream,
+                    cam_stream_type_t stream_type,
+                    uint32_t postprocess_mask,
+                    uint32_t width, uint32_t height,
+                    uint32_t numBuffers) :
+                        QCamera3Channel(cam_handle, cam_ops, cb_routine,
+                                paddingInfo, postprocess_mask, userData,
+                                numBuffers),
+                        mCamera3Stream(stream),
+                        mNumBufs(0),
+                        mStreamType(stream_type),
+                        mWidth(width),
+                        mHeight(height),
+                        mBatchSize(0)
 {
 }
 
@@ -1300,11 +760,15 @@ QCamera3RegularChannel::~QCamera3RegularChannel()
  *              none-zero failure code
  *==========================================================================*/
 
+int32_t QCamera3RawChannel::initialize(cam_is_type_t isType)
+{
+    return QCamera3RegularChannel::initialize(isType);
+}
 int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
 {
     ATRACE_CALL();
     int32_t rc = NO_ERROR;
-
+    cam_format_t streamFormat;
     cam_dimension_t streamDim;
 
     if (NULL == mCamera3Stream) {
@@ -1323,83 +787,32 @@ int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
         return rc;
     }
 
-
+    mNumBufs = CAM_MAX_NUM_BUFS_PER_STREAM;
     mIsType  = isType;
 
-    switch (mCamera3Stream->format) {
-        case HAL_PIXEL_FORMAT_YCbCr_420_888:
-            mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK);
-            break;
-        case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-            {
-                 if (mStreamType ==  CAM_STREAM_TYPE_VIDEO) {
-                     mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_VIDEO);
-                 } else if (mStreamType == CAM_STREAM_TYPE_PREVIEW) {
-                     mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW);
-                 } else {
-                    //TODO: Add a new flag in libgralloc for ZSL buffers, and
-                    //its size needs to be properly aligned and padded.
-                    mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_DEFAULT);
-                 }
-            }
-            break;
-        case HAL_PIXEL_FORMAT_RAW_OPAQUE:
-        case HAL_PIXEL_FORMAT_RAW16:
-        case HAL_PIXEL_FORMAT_RAW10:
-            mStreamFormat = CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG;
-            break;
-        default:
-            ALOGE("%s: format is not IMPLEMENTATION_DEFINED or flexible", __func__);
-            return -EINVAL;
-    }
-
-
-    if ((mStreamType == CAM_STREAM_TYPE_VIDEO) ||
-            (mStreamType == CAM_STREAM_TYPE_PREVIEW)) {
-        if ((mCamera3Stream->rotation != CAMERA3_STREAM_ROTATION_0) &&
-                ((mPostProcMask & CAM_QCOM_FEATURE_ROTATION) == 0)) {
-            ALOGE("%s: attempting rotation %d when rotation is disabled",
-                    __func__,
-                    mCamera3Stream->rotation);
-            return -EINVAL;
-        }
-
-        switch (mCamera3Stream->rotation) {
-            case CAMERA3_STREAM_ROTATION_0:
-                mRotation = ROTATE_0;
-                break;
-            case CAMERA3_STREAM_ROTATION_90: {
-                mRotation = ROTATE_90;
-                break;
-            }
-            case CAMERA3_STREAM_ROTATION_180:
-                mRotation = ROTATE_180;
-                break;
-            case CAMERA3_STREAM_ROTATION_270: {
-                mRotation = ROTATE_270;
-                break;
-            }
-            default:
-                ALOGE("%s: Unknown rotation: %d",
-                        __func__, mCamera3Stream->rotation);
-            return -EINVAL;
-        }
-    } else if (mCamera3Stream->rotation != CAMERA3_STREAM_ROTATION_0) {
-        ALOGE("%s: Rotation %d is not supported by stream type %d",
-                __func__,
-                mCamera3Stream->rotation,
-                mStreamType);
+    if (mCamera3Stream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
+        streamFormat = getStreamDefaultFormat(mStreamType);
+    } else if(mCamera3Stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+        streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK);
+    } else if (mCamera3Stream->format == HAL_PIXEL_FORMAT_RAW_OPAQUE ||
+         mCamera3Stream->format == HAL_PIXEL_FORMAT_RAW10 ||
+         mCamera3Stream->format == HAL_PIXEL_FORMAT_RAW16) {
+         // Bayer pattern doesn't matter here.
+         // All CAMIF raw format uses 10bit.
+         streamFormat = CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG;
+    } else {
+        //TODO: Fail for other types of streams for now
+        ALOGE("%s: format is not IMPLEMENTATION_DEFINED or flexible", __func__);
         return -EINVAL;
     }
 
-    streamDim.width = mCamera3Stream->width;
-    streamDim.height = mCamera3Stream->height;
+    streamDim.width = (int32_t)mWidth;
+    streamDim.height = (int32_t)mHeight;
 
     CDBG("%s: batch size is %d", __func__, mBatchSize);
     rc = QCamera3Channel::addStream(mStreamType,
-            mStreamFormat,
+            streamFormat,
             streamDim,
-            mRotation,
             mNumBufs,
             mPostProcMask,
             mIsType,
@@ -1564,19 +977,131 @@ int32_t QCamera3RegularChannel::request(buffer_handle_t *buffer, uint32_t frameN
 }
 
 /*===========================================================================
- * FUNCTION   : getReprocessType
+ * FUNCTION   : registerBuffer
  *
- * DESCRIPTION: get the type of reprocess output supported by this channel
+ * DESCRIPTION: register streaming buffer to the channel object
  *
- * PARAMETERS : NONE
+ * PARAMETERS :
+ *   @buffer     : buffer to be registered
+ *   @isType : type of image stabilization required on this stream
  *
- * RETURN     : reprocess_type_t : type of reprocess
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
  *==========================================================================*/
-reprocess_type_t QCamera3RegularChannel::getReprocessType()
+int32_t QCamera3RegularChannel::registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType)
 {
-    return REPROCESS_TYPE_PRIVATE;
+    ATRACE_CALL();
+    int rc = 0;
+    mIsType = isType;
+    cam_stream_type_t streamType;
+
+    if (0 == m_numStreams) {
+        rc = initialize(mIsType);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Couldn't initialize camera stream %d",
+                    __func__, rc);
+            return rc;
+        }
+    }
+
+    if (((uint32_t)mMemory.getCnt() + 1) > mNumBufs) {
+        ALOGE("%s: Trying to register more buffers than initially requested",
+                __func__);
+        return BAD_VALUE;
+    }
+
+    streamType = mStreams[0]->getMyType();
+    rc = mMemory.registerBuffer(buffer, streamType);
+    if (ALREADY_EXISTS == rc) {
+        return NO_ERROR;
+    } else if (NO_ERROR != rc) {
+        ALOGE("%s: Buffer %p couldn't be registered %d", __func__, buffer, rc);
+        return rc;
+    }
+
+    return rc;
 }
 
+void QCamera3RegularChannel::streamCbRoutine(
+                            mm_camera_super_buf_t *super_frame,
+                            QCamera3Stream *stream)
+{
+    ATRACE_CALL();
+    //FIXME Q Buf back in case of error?
+    uint8_t frameIndex;
+    buffer_handle_t *resultBuffer;
+    int32_t resultFrameNumber;
+    camera3_stream_buffer_t result;
+
+    if (NULL == stream) {
+        ALOGE("%s: Invalid stream", __func__);
+        return;
+    }
+
+    if(!super_frame) {
+         ALOGE("%s: Invalid Super buffer",__func__);
+         return;
+    }
+
+    if(super_frame->num_bufs != 1) {
+         ALOGE("%s: Multiple streams are not supported",__func__);
+         return;
+    }
+    if(super_frame->bufs[0] == NULL ) {
+         ALOGE("%s: Error, Super buffer frame does not contain valid buffer",
+                  __func__);
+         return;
+    }
+
+    frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
+    if(frameIndex >= mNumBufs) {
+         ALOGE("%s: Error, Invalid index for buffer",__func__);
+         stream->bufDone(frameIndex);
+         return;
+    }
+
+    ////Use below data to issue framework callback
+    resultBuffer = (buffer_handle_t *)mMemory.getBufferHandle(frameIndex);
+    resultFrameNumber = mMemory.getFrameNumber(frameIndex);
+
+    result.stream = mCamera3Stream;
+    result.buffer = resultBuffer;
+    result.status = CAMERA3_BUFFER_STATUS_OK;
+    result.acquire_fence = -1;
+    result.release_fence = -1;
+    if(mPerFrameMapUnmapEnable) {
+        int32_t rc = stream->bufRelease(frameIndex);
+        if (NO_ERROR != rc) {
+            ALOGE("%s: Error %d releasing stream buffer %d",
+                    __func__, rc, frameIndex);
+        }
+
+        rc = mMemory.unregisterBuffer(frameIndex);
+        if (NO_ERROR != rc) {
+            ALOGE("%s: Error %d unregistering stream buffer %d",
+                    __func__, rc, frameIndex);
+        }
+    }
+
+    if (0 <= resultFrameNumber) {
+        mChannelCB(NULL, &result, (uint32_t)resultFrameNumber, mUserData);
+    } else {
+        ALOGE("%s: Bad brame number", __func__);
+    }
+    free(super_frame);
+    return;
+}
+
+QCamera3Memory* QCamera3RegularChannel::getStreamBufs(uint32_t /*len*/)
+{
+    return &mMemory;
+}
+
+void QCamera3RegularChannel::putStreamBufs()
+{
+    mMemory.unregisterBuffers();
+}
 
 QCamera3MetadataChannel::QCamera3MetadataChannel(uint32_t cam_handle,
                     mm_camera_ops_t *cam_ops,
@@ -1625,7 +1150,7 @@ int32_t QCamera3MetadataChannel::initialize(cam_is_type_t isType)
 
     mIsType = isType;
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_METADATA, CAM_FORMAT_MAX,
-            streamDim, ROTATE_0, (uint8_t)mNumBuffers, mPostProcMask, mIsType);
+            streamDim, (uint8_t)mNumBuffers, mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
     }
@@ -1696,12 +1221,10 @@ QCamera3RawChannel::QCamera3RawChannel(uint32_t cam_handle,
                     void *userData,
                     camera3_stream_t *stream,
                     uint32_t postprocess_mask,
-                    QCamera3Channel *metadataChannel,
                     bool raw_16, uint32_t numBuffers) :
                         QCamera3RegularChannel(cam_handle, cam_ops,
                                 cb_routine, paddingInfo, userData, stream,
-                                CAM_STREAM_TYPE_RAW, postprocess_mask,
-                                metadataChannel, numBuffers),
+                                CAM_STREAM_TYPE_RAW, postprocess_mask, numBuffers),
                         mIsRaw16(raw_16)
 {
     char prop[PROPERTY_VALUE_MAX];
@@ -1711,23 +1234,6 @@ QCamera3RawChannel::QCamera3RawChannel(uint32_t cam_handle,
 
 QCamera3RawChannel::~QCamera3RawChannel()
 {
-}
-
-/*===========================================================================
- * FUNCTION   : initialize
- *
- * DESCRIPTION: Initialize and add camera channel & stream
- *
- * PARAMETERS :
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-
-int32_t QCamera3RawChannel::initialize(cam_is_type_t isType)
-{
-    return QCamera3RegularChannel::initialize(isType);
 }
 
 void QCamera3RawChannel::streamCbRoutine(
@@ -1873,20 +1379,6 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
         ALOGE("%s: Could not find stream", __func__);
     }
 
-}
-
-/*===========================================================================
- * FUNCTION   : getReprocessType
- *
- * DESCRIPTION: get the type of reprocess output supported by this channel
- *
- * PARAMETERS : NONE
- *
- * RETURN     : reprocess_type_t : type of reprocess
- *==========================================================================*/
-reprocess_type_t QCamera3RawChannel::getReprocessType()
-{
-    return REPROCESS_TYPE_RAW;
 }
 
 
@@ -2121,7 +1613,7 @@ int32_t QCamera3RawDumpChannel::initialize(cam_is_type_t isType)
     }
     mIsType = isType;
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_RAW,
-        CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG, mDim, ROTATE_0, (uint8_t)mNumBuffers,
+        CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG, mDim, (uint8_t)mNumBuffers,
         mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
@@ -2129,141 +1621,6 @@ int32_t QCamera3RawDumpChannel::initialize(cam_is_type_t isType)
     return rc;
 }
 /*************************************************************************************/
-
-/* QCamera3YUVChannel methods */
-
-/*===========================================================================
- * FUNCTION   : QCamera3YUVChannel
- *
- * DESCRIPTION: constructor of QCamera3YUVChannel
- *
- * PARAMETERS :
- *   @cam_handle : camera handle
- *   @cam_ops    : ptr to camera ops table
- *   @cb_routine : callback routine to frame aggregator
- *   @paddingInfo : padding information for the stream
- *   @stream     : camera3_stream_t structure
- *   @stream_type: Channel stream type
- *   @postprocess_mask: the postprocess mask for streams of this channel
- *   @metadataChannel: handle to the metadataChannel
- * RETURN     : none
- *==========================================================================*/
-QCamera3YUVChannel::QCamera3YUVChannel(uint32_t cam_handle,
-        mm_camera_ops_t *cam_ops,
-        channel_cb_routine cb_routine,
-        cam_padding_info_t *paddingInfo,
-        void *userData,
-        camera3_stream_t *stream,
-        cam_stream_type_t stream_type,
-        uint32_t postprocess_mask,
-        QCamera3Channel *metadataChannel) :
-            QCamera3ProcessingChannel(cam_handle, cam_ops, cb_routine,
-                    paddingInfo, userData, stream, stream_type, postprocess_mask,
-                    metadataChannel)
-{
-}
-
-/*===========================================================================
- * FUNCTION   : ~QCamera3YUVChannel
- *
- * DESCRIPTION: destructor of QCamera3YUVChannel
- *
- * PARAMETERS : none
- *
- *
- * RETURN     : none
- *==========================================================================*/
-QCamera3YUVChannel::~QCamera3YUVChannel()
-{
-}
-
-/*===========================================================================
- * FUNCTION   : initialize
- *
- * DESCRIPTION: Initialize and add camera channel & stream
- *
- * PARAMETERS :
- * @isType    : the image stabilization type
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera3YUVChannel::initialize(cam_is_type_t isType)
-{
-    ATRACE_CALL();
-    int32_t rc = NO_ERROR;
-    cam_dimension_t streamDim;
-
-    if (NULL == mCamera3Stream) {
-        ALOGE("%s: Camera stream uninitialized", __func__);
-        return NO_INIT;
-    }
-
-    if (1 <= m_numStreams) {
-        // Only one stream per channel supported in v3 Hal
-        return NO_ERROR;
-    }
-
-    rc = init(NULL, NULL);
-    if (rc < 0) {
-        ALOGE("%s: init failed", __func__);
-        return rc;
-    }
-
-    mIsType  = isType;
-    mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK);
-    streamDim.width = mCamera3Stream->width;
-    streamDim.height = mCamera3Stream->height;
-
-    rc = QCamera3Channel::addStream(mStreamType,
-            mStreamFormat,
-            streamDim,
-            ROTATE_0,
-            mNumBufs,
-            mPostProcMask,
-            mIsType);
-
-    return rc;
-}
-
-/*===========================================================================
-* FUNCTION   : start
-*
-* DESCRIPTION: start a YUV channel
-*
-* PARAMETERS :
-*
-* RETURN     : int32_t type of status
-*              NO_ERROR  -- success
-*              none-zero failure code
-*==========================================================================*/
-int32_t QCamera3YUVChannel::start()
-{
-    ATRACE_CALL();
-    int32_t rc = NO_ERROR;
-
-    if (0 < mMemory.getCnt()) {
-        rc = QCamera3Channel::start();
-    }
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : getReprocessType
- *
- * DESCRIPTION: get the type of reprocess output supported by this channel
- *
- * PARAMETERS : NONE
- *
- * RETURN     : reprocess_type_t : type of reprocess
- *==========================================================================*/
-reprocess_type_t QCamera3YUVChannel::getReprocessType()
-{
-    return REPROCESS_TYPE_YUV;
-}
-
-/* QCamera3PicChannel methods */
 
 /*===========================================================================
  * FUNCTION   : jpegEvtHandle
@@ -2423,12 +1780,18 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                     bool is4KVideo,
                     QCamera3Channel *metadataChannel,
                     uint32_t numBuffers) :
-                         QCamera3ProcessingChannel(cam_handle, cam_ops, cb_routine,
-                                paddingInfo, userData, stream, CAM_STREAM_TYPE_SNAPSHOT,
-                                postprocess_mask, metadataChannel, numBuffers),
+                        QCamera3Channel(cam_handle, cam_ops, cb_routine,
+                        paddingInfo, postprocess_mask, userData, numBuffers),
+                        m_postprocessor(this),
+                        mCamera3Stream(stream),
+                        mNumBufsRegistered(CAM_MAX_NUM_BUFS_PER_STREAM),
                         mNumSnapshotBufs(0),
-                        mCurrentBufIndex(-1),
-                        mYuvMemory(NULL)
+                        mCurrentBufIndex(0U),
+                        mPostProcStarted(false),
+                        mInputBufferConfig(false),
+                        mYuvMemory(NULL),
+                        m_pMetaChannel(metadataChannel),
+                        mMetaFrame(NULL)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     m_max_pic_dim = hal_obj->calcMaxJpegDim();
@@ -2439,7 +1802,8 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
     mStreamFormat = is4KVideo ?
             getStreamDefaultFormat(CAM_STREAM_TYPE_VIDEO)
             :getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
-    int32_t rc = m_postprocessor.initJpeg(jpegEvtHandle, &m_max_pic_dim, this);
+    int32_t rc = m_postprocessor.init(&mMemory, jpegEvtHandle, mPostProcMask,
+            this);
     if (rc != 0) {
         ALOGE("Init Postprocessor failed");
     }
@@ -2485,9 +1849,47 @@ int32_t QCamera3PicChannel::flush()
     return rc;
 }
 
+/*===========================================================================
+ * FUNCTION   : stop
+ *
+ * DESCRIPTION: stop pic channel, which will stop all streams within, including
+ *              the reprocessing channel in postprocessor and YUV stream.
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3PicChannel::stop()
+{
+    int32_t rc = NO_ERROR;
+    if(!m_bIsActive) {
+        ALOGE("%s: Attempt to stop inactive channel",__func__);
+        return rc;
+    }
+
+    m_postprocessor.stop();
+    mPostProcStarted = false;
+    rc |= QCamera3Channel::stop();
+    return rc;
+}
 
 QCamera3PicChannel::~QCamera3PicChannel()
 {
+   stop();
+
+   int32_t rc = m_postprocessor.deinit();
+   if (rc != 0) {
+       ALOGE("De-init Postprocessor failed");
+   }
+
+   if (0 < mOfflineMetaMemory.getCnt()) {
+       mOfflineMetaMemory.deallocate();
+   }
+   if (0 < mOfflineMemory.getCnt()) {
+       mOfflineMemory.unregisterBuffers();
+   }
 }
 
 int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
@@ -2528,8 +1930,7 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
 
     mNumSnapshotBufs = mCamera3Stream->max_buffers;
     rc = QCamera3Channel::addStream(streamType, streamFormat, streamDim,
-            ROTATE_0, (uint8_t)mCamera3Stream->max_buffers, mPostProcMask,
-            mIsType);
+            (uint8_t)mCamera3Stream->max_buffers, mPostProcMask, mIsType);
 
     Mutex::Autolock lock(mFreeBuffersLock);
     mFreeBufferList.clear();
@@ -2552,17 +1953,29 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 
     reprocess_config_t reproc_cfg;
     memset(&reproc_cfg, 0, sizeof(reprocess_config_t));
-    setReprocConfig(reproc_cfg, pInputBuffer, metadata, mStreamFormat);
-    //make sure to set the correct input stream dim in case of YUV size override
-    //and recalculate the plane info
-    if (pInputBuffer == NULL) {
-       reproc_cfg.input_stream_dim.width = (int32_t)mYuvWidth;
-       reproc_cfg.input_stream_dim.height = (int32_t)mYuvHeight;
-       rc = mm_stream_calc_offset_snapshot(mStreamFormat, &reproc_cfg.input_stream_dim,
-               reproc_cfg.padding, &reproc_cfg.input_stream_plane_info);
-       if (rc != 0) {
-        ALOGE("%s: Stream %d plane info calculation failed!", __func__, mStreamType);
-       }
+    reproc_cfg.padding = mPaddingInfo;
+    //to ensure a big enough buffer size set the height and width
+    //padding to max(height padding, width padding)
+    if (reproc_cfg.padding->height_padding > reproc_cfg.padding->width_padding) {
+       reproc_cfg.padding->width_padding = reproc_cfg.padding->height_padding;
+    } else {
+       reproc_cfg.padding->height_padding = reproc_cfg.padding->width_padding;
+    }
+
+    reproc_cfg.input_stream_dim.width = (int32_t)mYuvWidth;
+    reproc_cfg.input_stream_dim.height = (int32_t)mYuvHeight;
+    if (NULL == pInputBuffer)
+       reproc_cfg.src_channel = this;
+
+    reproc_cfg.output_stream_dim.width = (int32_t)mCamera3Stream->width;
+    reproc_cfg.output_stream_dim.height = (int32_t)mCamera3Stream->height;
+    reproc_cfg.stream_type = mStreamType;
+    reproc_cfg.stream_format = mStreamFormat;
+    rc = mm_stream_calc_offset_snapshot(mStreamFormat, &reproc_cfg.input_stream_dim,
+            reproc_cfg.padding, &reproc_cfg.input_stream_plane_info);
+    if (rc != 0) {
+        ALOGE("%s: Snapshot stream plane info calculation failed!", __func__);
+        return rc;
     }
 
     // Picture stream has already been started before any request comes in
@@ -2595,7 +2008,15 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     mCurrentBufIndex = (uint32_t)index;
 
     // Start postprocessor
-    startPostProc((NULL != pInputBuffer), reproc_cfg);
+    // This component needs to be re-configured
+    // once we switch from input(framework) buffer
+    // reprocess to standard capture!
+    bool restartNeeded = ((!mInputBufferConfig) != (NULL != pInputBuffer));
+    if((!mPostProcStarted) || restartNeeded) {
+        m_postprocessor.start(reproc_cfg, metadata);
+        mPostProcStarted = true;
+        mInputBufferConfig = (NULL == pInputBuffer);
+    }
 
     // Queue jpeg settings
     rc = queueJpegSetting((uint32_t)index, metadata);
@@ -2678,8 +2099,6 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         memcpy(meta_buf.buffer, metadata, sizeof(metadata_buffer_t));
         src_frame->metadata_buffer = meta_buf;
         src_frame->reproc_config = reproc_cfg;
-        src_frame->output_buffer = NULL;
-        src_frame->frameNumber = frameNumber;
 
         CDBG_HIGH("%s: Post-process started", __func__);
         CDBG_HIGH("%s: Issue call to reprocess", __func__);
@@ -2690,6 +2109,30 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 }
 
 
+/*===========================================================================
+ * FUNCTION : metadataBufDone
+ *
+ * DESCRIPTION: Buffer done method for a metadata buffer
+ *
+ * PARAMETERS :
+ * @recvd_frame : received metadata frame
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3PicChannel::metadataBufDone(mm_camera_super_buf_t *recvd_frame)
+{
+    int32_t rc = NO_ERROR;;
+    if ((NULL == m_pMetaChannel) || (NULL == recvd_frame)) {
+        ALOGE("%s: Metadata channel or metadata buffer invalid", __func__);
+        return BAD_VALUE;
+    }
+
+    rc = ((QCamera3MetadataChannel*)m_pMetaChannel)->bufDone(recvd_frame);
+
+    return rc;
+}
 
 /*===========================================================================
  * FUNCTION   : dataNotifyCB
@@ -2731,6 +2174,51 @@ void QCamera3PicChannel::dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
 
     CDBG("%s: X\n", __func__);
     return;
+}
+
+/*===========================================================================
+ * FUNCTION   : registerBuffer
+ *
+ * DESCRIPTION: register streaming buffer to the channel object
+ *
+ * PARAMETERS :
+ *   @buffer     : buffer to be registered
+ *   @isType     : type of image stabilization required on this channel
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3PicChannel::registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType)
+{
+    int rc = 0;
+    mIsType = isType;
+    if ((uint32_t)mMemory.getCnt() > (mNumBufsRegistered - 1)) {
+        ALOGE("%s: Trying to register more buffers than initially requested",
+                __func__);
+        return BAD_VALUE;
+    }
+
+    if (0 == m_numStreams) {
+        rc = initialize(mIsType);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Couldn't initialize camera stream %d",
+                    __func__, rc);
+            return rc;
+        }
+    }
+
+    rc = mMemory.registerBuffer(buffer, mStreamType);
+    if (ALREADY_EXISTS == rc) {
+        return NO_ERROR;
+    } else if (NO_ERROR != rc) {
+        ALOGE("%s: Buffer %p couldn't be registered %d", __func__, buffer, rc);
+        return rc;
+    }
+
+    CDBG("%s: X",__func__);
+
+    return rc;
 }
 
 void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
@@ -2830,6 +2318,11 @@ void QCamera3PicChannel::putStreamBufs()
     mYuvMemory = NULL;
 }
 
+int32_t QCamera3PicChannel::queueReprocMetadata(mm_camera_super_buf_t *metadata)
+{
+    return m_postprocessor.processPPMetadata(metadata);
+}
+
 int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *metadata)
 {
     jpeg_settings_t *settings =
@@ -2884,27 +2377,567 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
     return m_postprocessor.processJpegSettingData(settings);
 }
 
+/*===========================================================================
+ * FUNCTION   : getRational
+ *
+ * DESCRIPTION: compose rational struct
+ *
+ * PARAMETERS :
+ *   @rat     : ptr to struct to store rational info
+ *   @num     :num of the rational
+ *   @denom   : denom of the rational
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getRational(rat_t *rat, int num, int denom)
+{
+    if ((0 > num) || (0 > denom)) {
+        ALOGE("%s: Negative values", __func__);
+        return BAD_VALUE;
+    }
+    if (NULL == rat) {
+        ALOGE("%s: NULL rat input", __func__);
+        return BAD_VALUE;
+    }
+    rat->num = (uint32_t)num;
+    rat->denom = (uint32_t)denom;
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : parseGPSCoordinate
+ *
+ * DESCRIPTION: parse GPS coordinate string
+ *
+ * PARAMETERS :
+ *   @coord_str : [input] coordinate string
+ *   @coord     : [output]  ptr to struct to store coordinate
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int parseGPSCoordinate(const char *coord_str, rat_t* coord)
+{
+    if(coord == NULL) {
+        ALOGE("%s: error, invalid argument coord == NULL", __func__);
+        return BAD_VALUE;
+    }
+    double degF = atof(coord_str);
+    if (degF < 0) {
+        degF = -degF;
+    }
+    double minF = (degF - (int) degF) * 60;
+    double secF = (minF - (int) minF) * 60;
+
+    getRational(&coord[0], (int)degF, 1);
+    getRational(&coord[1], (int)minF, 1);
+    getRational(&coord[2], (int)(secF * 10000), 10000);
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifDateTime
+ *
+ * DESCRIPTION: query exif date time
+ *
+ * PARAMETERS :
+ *   @dateTime   : string to store exif date time
+ *   @subsecTime : string to store exif subsec time
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifDateTime(String8 &dateTime, String8 &subsecTime)
+{
+    int32_t ret = NO_ERROR;
+
+    //get time and date from system
+    struct timeval tv;
+    struct tm timeinfo_data;
+
+    int res = gettimeofday(&tv, NULL);
+    if (0 == res) {
+        struct tm *timeinfo = localtime_r(&tv.tv_sec, &timeinfo_data);
+        if (NULL != timeinfo) {
+            //Write datetime according to EXIF Spec
+            //"YYYY:MM:DD HH:MM:SS" (20 chars including \0)
+            dateTime = String8::format("%04d:%02d:%02d %02d:%02d:%02d",
+                    timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,
+                    timeinfo->tm_mday, timeinfo->tm_hour,
+                    timeinfo->tm_min, timeinfo->tm_sec);
+            //Write subsec according to EXIF Sepc
+            subsecTime = String8::format("%06ld", tv.tv_usec);
+        } else {
+            ALOGE("%s: localtime_r() error", __func__);
+            ret = UNKNOWN_ERROR;
+        }
+    } else if (-1 == res) {
+        ALOGE("%s: gettimeofday() error: %s", __func__, strerror(errno));
+        ret = UNKNOWN_ERROR;
+    } else {
+        ALOGE("%s: gettimeofday() unexpected return code: %d", __func__, res);
+        ret = UNKNOWN_ERROR;
+    }
+
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifFocalLength
+ *
+ * DESCRIPTION: get exif focal lenght
+ *
+ * PARAMETERS :
+ *   @focalLength : ptr to rational strcut to store focal lenght
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifFocalLength(rat_t *focalLength, float value)
+{
+    int focalLengthValue =
+        (int)(value * FOCAL_LENGTH_DECIMAL_PRECISION);
+    return getRational(focalLength, focalLengthValue, FOCAL_LENGTH_DECIMAL_PRECISION);
+}
+
+/*===========================================================================
+  * FUNCTION   : getExifExpTimeInfo
+  *
+  * DESCRIPTION: get exif exposure time information
+  *
+  * PARAMETERS :
+  *   @expoTimeInfo     : expousure time value
+  * RETURN     : nt32_t type of status
+  *              NO_ERROR  -- success
+  *              none-zero failure code
+  *==========================================================================*/
+int32_t getExifExpTimeInfo(rat_t *expoTimeInfo, int64_t value)
+{
+
+    int64_t cal_exposureTime;
+    if (value != 0)
+        cal_exposureTime = value;
+    else
+        cal_exposureTime = 60;
+
+    return getRational(expoTimeInfo, 1, (int)cal_exposureTime);
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifGpsProcessingMethod
+ *
+ * DESCRIPTION: get GPS processing method
+ *
+ * PARAMETERS :
+ *   @gpsProcessingMethod : string to store GPS process method
+ *   @count               : lenght of the string
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifGpsProcessingMethod(char *gpsProcessingMethod,
+                                   uint32_t &count, char* value)
+{
+    if(value != NULL) {
+        memcpy(gpsProcessingMethod, ExifAsciiPrefix, EXIF_ASCII_PREFIX_SIZE);
+        count = EXIF_ASCII_PREFIX_SIZE;
+        strlcpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE,
+                value,
+                GPS_PROCESSING_METHOD_SIZE);
+        count += (uint32_t)strlen(value);
+        gpsProcessingMethod[count++] = '\0'; // increase 1 for the last NULL char
+        return NO_ERROR;
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifLatitude
+ *
+ * DESCRIPTION: get exif latitude
+ *
+ * PARAMETERS :
+ *   @latitude : ptr to rational struct to store latitude info
+ *   @ladRef   : charater to indicate latitude reference
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifLatitude(rat_t *latitude,
+                                           char *latRef, double value)
+{
+    char str[30];
+    snprintf(str, sizeof(str), "%f", value);
+    if(str != NULL) {
+        parseGPSCoordinate(str, latitude);
+
+        //set Latitude Ref
+        float latitudeValue = strtof(str, 0);
+        if(latitudeValue < 0.0f) {
+            latRef[0] = 'S';
+        } else {
+            latRef[0] = 'N';
+        }
+        latRef[1] = '\0';
+        return NO_ERROR;
+    }else{
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifLongitude
+ *
+ * DESCRIPTION: get exif longitude
+ *
+ * PARAMETERS :
+ *   @longitude : ptr to rational struct to store longitude info
+ *   @lonRef    : charater to indicate longitude reference
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifLongitude(rat_t *longitude,
+                                            char *lonRef, double value)
+{
+    char str[30];
+    snprintf(str, sizeof(str), "%f", value);
+    if(str != NULL) {
+        parseGPSCoordinate(str, longitude);
+
+        //set Longitude Ref
+        float longitudeValue = strtof(str, 0);
+        if(longitudeValue < 0.0f) {
+            lonRef[0] = 'W';
+        } else {
+            lonRef[0] = 'E';
+        }
+        lonRef[1] = '\0';
+        return NO_ERROR;
+    }else{
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifAltitude
+ *
+ * DESCRIPTION: get exif altitude
+ *
+ * PARAMETERS :
+ *   @altitude : ptr to rational struct to store altitude info
+ *   @altRef   : charater to indicate altitude reference
+ *   @argValue : altitude value
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifAltitude(rat_t *altitude, char *altRef, double argValue)
+{
+    char str[30];
+    snprintf(str, sizeof(str), "%f", argValue);
+    if (str != NULL) {
+        double value = atof(str);
+        *altRef = 0;
+        if(value < 0){
+            *altRef = 1;
+            value = -value;
+        }
+        return getRational(altitude, (int)(value * 1000), 1000);
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifGpsDateTimeStamp
+ *
+ * DESCRIPTION: get exif GPS date time stamp
+ *
+ * PARAMETERS :
+ *   @gpsDateStamp : GPS date time stamp string
+ *   @bufLen       : length of the string
+ *   @gpsTimeStamp : ptr to rational struct to store time stamp info
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifGpsDateTimeStamp(char *gpsDateStamp,
+                                           uint32_t bufLen,
+                                           rat_t *gpsTimeStamp, int64_t value)
+{
+    char str[30];
+    snprintf(str, sizeof(str), "%lld", (long long int)value);
+    if(str != NULL) {
+        time_t unixTime = (time_t)atol(str);
+        struct tm *UTCTimestamp = gmtime(&unixTime);
+        if (UTCTimestamp != NULL) {
+            strftime(gpsDateStamp, bufLen, "%Y:%m:%d", UTCTimestamp);
+
+            getRational(&gpsTimeStamp[0], UTCTimestamp->tm_hour, 1);
+            getRational(&gpsTimeStamp[1], UTCTimestamp->tm_min, 1);
+            getRational(&gpsTimeStamp[2], UTCTimestamp->tm_sec, 1);
+            return NO_ERROR;
+        } else {
+            ALOGE("%s: Could not get the timestamp", __func__);
+            return BAD_VALUE;
+        }
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+int32_t getExifExposureValue(srat_t* exposure_val, int32_t exposure_comp,
+                             cam_rational_type_t step)
+{
+    exposure_val->num = exposure_comp * step.numerator;
+    exposure_val->denom = step.denominator;
+    return 0;
+}
+/*===========================================================================
+ * FUNCTION   : getExifData
+ *
+ * DESCRIPTION: get exif data to be passed into jpeg encoding
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : exif data from user setting and GPS
+ *==========================================================================*/
+QCamera3Exif *QCamera3PicChannel::getExifData(metadata_buffer_t *metadata,
+        jpeg_settings_t *jpeg_settings)
+{
+    QCamera3Exif *exif = new QCamera3Exif();
+    if (exif == NULL) {
+        ALOGE("%s: No memory for QCamera3Exif", __func__);
+        return NULL;
+    }
+
+    int32_t rc = NO_ERROR;
+    uint32_t count = 0;
+
+    // add exif entries
+    String8 dateTime;
+    String8 subsecTime;
+    rc = getExifDateTime(dateTime, subsecTime);
+    if (rc == NO_ERROR) {
+        exif->addEntry(EXIFTAGID_DATE_TIME, EXIF_ASCII,
+                (uint32_t)(dateTime.length() + 1), (void *)dateTime.string());
+        exif->addEntry(EXIFTAGID_EXIF_DATE_TIME_ORIGINAL, EXIF_ASCII,
+                (uint32_t)(dateTime.length() + 1), (void *)dateTime.string());
+        exif->addEntry(EXIFTAGID_EXIF_DATE_TIME_DIGITIZED, EXIF_ASCII,
+                (uint32_t)(dateTime.length() + 1), (void *)dateTime.string());
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME, EXIF_ASCII,
+                (uint32_t)(subsecTime.length() + 1), (void *)subsecTime.string());
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME_ORIGINAL, EXIF_ASCII,
+                (uint32_t)(subsecTime.length() + 1), (void *)subsecTime.string());
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME_DIGITIZED, EXIF_ASCII,
+                (uint32_t)(subsecTime.length() + 1), (void *)subsecTime.string());
+    } else {
+        ALOGE("%s: getExifDateTime failed", __func__);
+    }
+
+    if (metadata != NULL) {
+        IF_META_AVAILABLE(float,
+                focal_length,
+                CAM_INTF_META_LENS_FOCAL_LENGTH,
+                metadata) {
+            rat_t focalLength;
+            rc = getExifFocalLength(&focalLength, *focal_length);
+            if (rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_FOCAL_LENGTH,
+                        EXIF_RATIONAL,
+                        1,
+                        (void *)&(focalLength));
+            } else {
+                ALOGE("%s: getExifFocalLength failed", __func__);
+            }
+        }
+
+        IF_META_AVAILABLE(int32_t, isoSpeed, CAM_INTF_META_SENSOR_SENSITIVITY,
+                metadata) {
+            int16_t fwk_isoSpeed = (int16_t) *isoSpeed;
+            exif->addEntry(EXIFTAGID_ISO_SPEED_RATING,
+                    EXIF_SHORT,
+                    1,
+                    (void *) &(fwk_isoSpeed));
+        }
+
+        IF_META_AVAILABLE(int64_t, sensor_exposure_time,
+                CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata) {
+            rat_t sensorExpTime;
+            rc = getExifExpTimeInfo(&sensorExpTime, *sensor_exposure_time);
+            if (rc == NO_ERROR){
+                exif->addEntry(EXIFTAGID_EXPOSURE_TIME,
+                        EXIF_RATIONAL,
+                        1,
+                        (void *)&(isoSpeed));
+            }
+        }
+
+        char* jpeg_gps_processing_method = jpeg_settings->gps_processing_method;
+        if (strlen(jpeg_gps_processing_method) > 0) {
+            char gpsProcessingMethod[EXIF_ASCII_PREFIX_SIZE +
+                    GPS_PROCESSING_METHOD_SIZE];
+            count = 0;
+            rc = getExifGpsProcessingMethod(gpsProcessingMethod,
+                    count,
+                    jpeg_gps_processing_method);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_PROCESSINGMETHOD,
+                        EXIF_ASCII,
+                        count,
+                        (void *)gpsProcessingMethod);
+            } else {
+                ALOGE("%s: getExifGpsProcessingMethod failed", __func__);
+            }
+        }
+
+        if (jpeg_settings->gps_coordinates_valid) {
+
+            //latitude
+            rat_t latitude[3];
+            char latRef[2];
+            rc = getExifLatitude(latitude, latRef,
+                    jpeg_settings->gps_coordinates[0]);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_LATITUDE,
+                        EXIF_RATIONAL,
+                        3,
+                        (void *)latitude);
+                exif->addEntry(EXIFTAGID_GPS_LATITUDE_REF,
+                        EXIF_ASCII,
+                        2,
+                        (void *)latRef);
+            } else {
+                ALOGE("%s: getExifLatitude failed", __func__);
+            }
+
+            //longitude
+            rat_t longitude[3];
+            char lonRef[2];
+            rc = getExifLongitude(longitude, lonRef,
+                    jpeg_settings->gps_coordinates[1]);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_LONGITUDE,
+                        EXIF_RATIONAL,
+                        3,
+                        (void *)longitude);
+
+                exif->addEntry(EXIFTAGID_GPS_LONGITUDE_REF,
+                        EXIF_ASCII,
+                        2,
+                        (void *)lonRef);
+            } else {
+                ALOGE("%s: getExifLongitude failed", __func__);
+            }
+
+            //altitude
+            rat_t altitude;
+            char altRef;
+            rc = getExifAltitude(&altitude, &altRef,
+                    jpeg_settings->gps_coordinates[2]);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_ALTITUDE,
+                        EXIF_RATIONAL,
+                        1,
+                        (void *)&(altitude));
+
+                exif->addEntry(EXIFTAGID_GPS_ALTITUDE_REF,
+                        EXIF_BYTE,
+                        1,
+                        (void *)&altRef);
+            } else {
+                ALOGE("%s: getExifAltitude failed", __func__);
+            }
+        }
+
+        if (jpeg_settings->gps_timestamp_valid) {
+
+            char gpsDateStamp[20];
+            rat_t gpsTimeStamp[3];
+            rc = getExifGpsDateTimeStamp(gpsDateStamp, 20, gpsTimeStamp,
+                    jpeg_settings->gps_timestamp);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_DATESTAMP, EXIF_ASCII,
+                        (uint32_t)(strlen(gpsDateStamp) + 1),
+                        (void *)gpsDateStamp);
+
+                exif->addEntry(EXIFTAGID_GPS_TIMESTAMP,
+                        EXIF_RATIONAL,
+                        3,
+                        (void *)gpsTimeStamp);
+            } else {
+                ALOGE("%s: getExifGpsDataTimeStamp failed", __func__);
+            }
+        }
+
+        IF_META_AVAILABLE(int32_t,
+                exposure_comp,
+                CAM_INTF_PARM_EXPOSURE_COMPENSATION,
+                metadata) {
+            IF_META_AVAILABLE(cam_rational_type_t,
+                    comp_step,
+                    CAM_INTF_PARM_EV_STEP,
+                    metadata) {
+                srat_t exposure_val;
+                rc = getExifExposureValue(&exposure_val,
+                        *exposure_comp,
+                        *comp_step);
+                if(rc == NO_ERROR) {
+                    exif->addEntry(EXIFTAGID_EXPOSURE_BIAS_VALUE,
+                            EXIF_SRATIONAL,
+                            1,
+                            (void *)(&exposure_val));
+                } else {
+                    ALOGE("%s: getExifExposureValue failed ", __func__);
+                }
+            }
+        }
+    } else {
+        ALOGE("%s: no metadata provided ", __func__);
+    }
+
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get("ro.product.manufacturer", value, "QCOM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_MAKE, EXIF_ASCII,
+                (uint32_t)(strlen(value) + 1), (void *)value);
+    } else {
+        ALOGE("%s: getExifMaker failed", __func__);
+    }
+
+    if (property_get("ro.product.model", value, "QCAM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_MODEL, EXIF_ASCII,
+                (uint32_t)(strlen(value) + 1), (void *)value);
+    } else {
+        ALOGE("%s: getExifModel failed", __func__);
+    }
+
+    if (property_get("ro.build.description", value, "QCAM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_SOFTWARE, EXIF_ASCII,
+                (uint32_t)(strlen(value) + 1), (void *)value);
+    } else {
+        ALOGE("%s: getExifSoftware failed", __func__);
+    }
+
+    return exif;
+}
 
 void QCamera3PicChannel::overrideYuvSize(uint32_t width, uint32_t height)
 {
    mYuvWidth = width;
    mYuvHeight = height;
 }
-
-/*===========================================================================
- * FUNCTION   : getReprocessType
- *
- * DESCRIPTION: get the type of reprocess output supported by this channel
- *
- * PARAMETERS : NONE
- *
- * RETURN     : reprocess_type_t : type of reprocess
- *==========================================================================*/
-reprocess_type_t QCamera3PicChannel::getReprocessType()
-{
-    return REPROCESS_TYPE_JPEG;
-}
-
 
 /*===========================================================================
  * FUNCTION   : QCamera3ReprocessChannel
@@ -2925,10 +2958,9 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
                                                  uint32_t postprocess_mask,
                                                  void *userData, void *ch_hdl) :
     QCamera3Channel(cam_handle, cam_ops, cb_routine, paddingInfo, postprocess_mask,
-                    userData, ((QCamera3ProcessingChannel *)ch_hdl)->getNumBuffers()),
-    inputChHandle(ch_hdl),
+                    userData, ((QCamera3PicChannel *)ch_hdl)->getNumBuffers()),
+    picChHandle(ch_hdl),
     mOfflineBuffersIndex(-1),
-    mReprocessType(REPROCESS_TYPE_NONE),
     m_pSrcChannel(NULL),
     m_pMetaChannel(NULL),
     mMemory(NULL)
@@ -2967,58 +2999,6 @@ int32_t QCamera3ReprocessChannel::initialize(cam_is_type_t isType)
     return rc;
 }
 
-/*===========================================================================
- * FUNCTION   : registerBuffer
- *
- * DESCRIPTION: register streaming buffer to the channel object
- *
- * PARAMETERS :
- *   @buffer     : buffer to be registered
- *   @isType     : the image stabilization type for the buffer
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCamera3ReprocessChannel::registerBuffer(buffer_handle_t *buffer,
-        cam_is_type_t isType)
-{
-    ATRACE_CALL();
-    int rc = 0;
-    mIsType = isType;
-    cam_stream_type_t streamType;
-
-    if (buffer == NULL) {
-        ALOGE("%s: Error: Cannot register a NULL buffer", __func__);
-        return BAD_VALUE;
-    }
-
-    if ((uint32_t)mGrallocMemory.getCnt() > (mNumBuffers - 1)) {
-        ALOGE("%s: Trying to register more buffers than initially requested",
-                __func__);
-        return BAD_VALUE;
-    }
-
-    if (0 == m_numStreams) {
-        rc = initialize(mIsType);
-        if (rc != NO_ERROR) {
-            ALOGE("%s: Couldn't initialize camera stream %d",
-                    __func__, rc);
-            return rc;
-        }
-    }
-
-    streamType = mStreams[0]->getMyType();
-    rc = mGrallocMemory.registerBuffer(buffer, streamType);
-    if (ALREADY_EXISTS == rc) {
-        return NO_ERROR;
-    } else if (NO_ERROR != rc) {
-        ALOGE("%s: Buffer %p couldn't be registered %d", __func__, buffer, rc);
-        return rc;
-    }
-
-    return rc;
-}
 
 /*===========================================================================
  * FUNCTION   : QCamera3ReprocessChannel
@@ -3038,7 +3018,7 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
     //Got the pproc data callback. Now send to jpeg encoding
     uint8_t frameIndex;
     mm_camera_super_buf_t* frame = NULL;
-    QCamera3ProcessingChannel *obj = (QCamera3ProcessingChannel *)inputChHandle;
+    QCamera3PicChannel *obj = (QCamera3PicChannel *)picChHandle;
 
     if(!super_frame) {
          ALOGE("%s: Invalid Super buffer",__func__);
@@ -3054,8 +3034,20 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
                   __func__);
          return;
     }
-    frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
 
+    frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
+    frame = (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
+    if (frame == NULL) {
+       ALOGE("%s: Error allocating memory to save received_frame structure.",
+                                                                    __func__);
+       if(stream) {
+           stream->bufDone(frameIndex);
+       }
+       return;
+    }
+    CDBG("%s: bufIndex: %u recvd from post proc",
+        __func__, (uint32_t)frameIndex);
+    *frame = *super_frame;
     if (mYUVDump) {
         cam_dimension_t dim;
         memset(&dim, 0, sizeof(dim));
@@ -3063,42 +3055,9 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
         cam_frame_len_offset_t offset;
         memset(&offset, 0, sizeof(cam_frame_len_offset_t));
         stream->getFrameOffset(offset);
-        dumpYUV(super_frame->bufs[0], dim, offset, 2);
+        dumpYUV(frame->bufs[0], dim, offset, 2);
     }
-
-    if (mReprocessType == REPROCESS_TYPE_JPEG) {
-        frame = (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
-        if (frame == NULL) {
-           ALOGE("%s: Error allocating memory to save received_frame structure.",
-                                                                        __func__);
-           if(stream) {
-               stream->bufDone(frameIndex);
-           }
-           return;
-        }
-        CDBG("%s: bufIndex: %u recvd from post proc",
-            __func__, (uint32_t)frameIndex);
-        *frame = *super_frame;
-
-        obj->m_postprocessor.processPPData(frame);
-    } else {
-        buffer_handle_t *resultBuffer;
-        uint32_t resultFrameNumber;
-        frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
-        resultBuffer = (buffer_handle_t *)mGrallocMemory.getBufferHandle(frameIndex);
-        resultFrameNumber = mGrallocMemory.getFrameNumber(frameIndex);
-        int32_t rc = stream->bufRelease(frameIndex);
-        if (NO_ERROR != rc) {
-            ALOGE("%s: Error %d releasing stream buffer %d",
-                    __func__, rc, frameIndex);
-        }
-        rc = mGrallocMemory.unregisterBuffer(frameIndex);
-        if (NO_ERROR != rc) {
-            ALOGE("%s: Error %d unregistering stream buffer %d",
-                    __func__, rc, frameIndex);
-        }
-        obj->reprocessCbRoutine(resultBuffer, resultFrameNumber);
-    }
+    obj->m_postprocessor.processPPData(frame);
     free(super_frame);
     return;
 }
@@ -3129,29 +3088,28 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel() :
  *==========================================================================*/
 QCamera3Memory* QCamera3ReprocessChannel::getStreamBufs(uint32_t len)
 {
-    int rc = 0;
-    if (mReprocessType == REPROCESS_TYPE_JPEG) {
-        mMemory = new QCamera3HeapMemory();
-        if (!mMemory) {
-            ALOGE("%s: unable to create reproc memory", __func__);
-            return NULL;
-        }
-        rc = mMemory->allocate(mNumBuffers, len, true);
-        if (rc < 0) {
-            ALOGE("%s: unable to allocate reproc memory", __func__);
-            delete mMemory;
-            mMemory = NULL;
-            return NULL;
-        }
-        return mMemory;
+   int rc = 0;
+
+    mMemory = new QCamera3HeapMemory();
+    if (!mMemory) {
+        ALOGE("%s: unable to create reproc memory", __func__);
+        return NULL;
     }
-    return &mGrallocMemory;
+
+    rc = mMemory->allocate(mNumBuffers, len, true);
+    if (rc < 0) {
+        ALOGE("%s: unable to allocate reproc memory", __func__);
+        delete mMemory;
+        mMemory = NULL;
+        return NULL;
+    }
+    return mMemory;
 }
 
 /*===========================================================================
- * FUNCTION   : putStreamBufs
+ * FUNCTION   : getStreamBufs
  *
- * DESCRIPTION: release the reprocess channel buffers
+ * DESCRIPTION: register the buffers of the reprocess channel
  *
  * PARAMETERS : none
  *
@@ -3159,13 +3117,9 @@ QCamera3Memory* QCamera3ReprocessChannel::getStreamBufs(uint32_t len)
  *==========================================================================*/
 void QCamera3ReprocessChannel::putStreamBufs()
 {
-   if (mReprocessType == REPROCESS_TYPE_JPEG) {
-       mMemory->deallocate();
-       delete mMemory;
-       mMemory = NULL;
-   } else {
-       mGrallocMemory.unregisterBuffers();
-   }
+    mMemory->deallocate();
+    delete mMemory;
+    mMemory = NULL;
 }
 
 /*===========================================================================
@@ -3314,6 +3268,7 @@ int32_t QCamera3ReprocessChannel::unmapOfflineBuffers(bool all)
     }
     return rc;
 }
+
 
 /*===========================================================================
  * FUNCTION   : extractFrameAndRotation
@@ -3498,7 +3453,6 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
  int32_t QCamera3ReprocessChannel::doReprocessOffline(qcamera_fwk_input_pp_data_t *frame)
 {
     int32_t rc = 0;
-    int index;
     OfflineBuffer mappedBuffer;
 
     if (m_numStreams < 1) {
@@ -3527,46 +3481,6 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
     }
 
     QCamera3Stream *pStream = mStreams[0];
-
-    //qbuf the output buffer if it was allocated by the framework
-    if (mReprocessType != REPROCESS_TYPE_JPEG && frame->output_buffer != NULL) {
-        if(!m_bIsActive) {
-            rc = registerBuffer(frame->output_buffer, mIsType);
-            if (NO_ERROR != rc) {
-                ALOGE("%s: On-the-fly buffer registration failed %d",
-                        __func__, rc);
-                return rc;
-            }
-
-            rc = start();
-            if (NO_ERROR != rc) {
-                return rc;
-            }
-        }
-        index = mGrallocMemory.getMatchBufIndex((void*)frame->output_buffer);
-        if(index < 0) {
-            rc = registerBuffer(frame->output_buffer, mIsType);
-            if (NO_ERROR != rc) {
-                ALOGE("%s: On-the-fly buffer registration failed %d",
-                        __func__, rc);
-                return rc;
-            }
-
-            index = mGrallocMemory.getMatchBufIndex((void*)frame->output_buffer);
-            if (index < 0) {
-                ALOGE("%s: Could not find object among registered buffers",
-                        __func__);
-                return DEAD_OBJECT;
-            }
-        }
-        rc = pStream->bufDone(index);
-        if(rc != NO_ERROR) {
-            ALOGE("%s: Failed to Q new buffer to stream",__func__);
-            return rc;
-        }
-        rc = mGrallocMemory.markFrameNumber(index, frame->frameNumber);
-    }
-
     int32_t max_idx = (int32_t) (mNumBuffers - 1);
     //loop back the indices if max burst count reached
     if (mOfflineBuffersIndex == max_idx) {
@@ -3735,7 +3649,7 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
     }
 
     rc = pStream->init(streamType, src_config.stream_format,
-            streamDim, ROTATE_0, &reprocess_config,
+            streamDim, &reprocess_config,
             (uint8_t)mNumBuffers,
             reprocess_config.pp_feature_config.feature_mask,
             is_type,
@@ -3753,7 +3667,6 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
     if (rc == NO_ERROR) {
         m_pSrcChannel = src_config.src_channel;
         m_pMetaChannel = pMetaChannel;
-        mReprocessType = src_config.reprocess_type;
     }
     mm_camera_req_buf_t buf;
     memset(&buf, 0x0, sizeof(buf));
@@ -3764,8 +3677,6 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
     }
     return rc;
 }
-
-/* QCamera3SupportChannel methods */
 
 cam_dimension_t QCamera3SupportChannel::kDim = {640, 480};
 
@@ -3815,8 +3726,8 @@ int32_t QCamera3SupportChannel::initialize(cam_is_type_t isType)
     }
     mIsType = isType;
     rc = QCamera3Channel::addStream(mStreamType,
-            mStreamFormat, mDim, ROTATE_0, MIN_STREAMING_BUFFER_NUM,
-            mPostProcMask, mIsType);
+        mStreamFormat, mDim, MIN_STREAMING_BUFFER_NUM,
+        mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
     }
@@ -3844,6 +3755,7 @@ void QCamera3SupportChannel::streamCbRoutine(
 QCamera3Memory* QCamera3SupportChannel::getStreamBufs(uint32_t len)
 {
     int rc;
+
     mMemory = new QCamera3HeapMemory();
     if (!mMemory) {
         ALOGE("%s: unable to create heap memory", __func__);
