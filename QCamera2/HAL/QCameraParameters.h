@@ -813,6 +813,7 @@ public:
 
     /* Dual camera specific */
     void setDcrf();
+    bool getDcrf() { return m_bDcrfEnabled; }
     int32_t setRelatedCamSyncInfo(
             cam_sync_related_sensors_event_info_t* info);
     const cam_sync_related_sensors_event_info_t*
