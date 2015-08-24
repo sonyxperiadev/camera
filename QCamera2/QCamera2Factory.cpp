@@ -359,6 +359,9 @@ int QCamera2Factory::cameraDeviceOpen(int camera_id,
         return NO_INIT;
     }
 
+    ALOGI("%s: Open camera id %d API version %d", __func__,
+            camera_id, mHalDescriptors[camera_id].device_version);
+
     if ( mHalDescriptors[camera_id].device_version == CAMERA_DEVICE_API_VERSION_3_0 ) {
         QCamera3HardwareInterface *hw = new QCamera3HardwareInterface(mHalDescriptors[camera_id].cameraId,
                 mCallbacks);

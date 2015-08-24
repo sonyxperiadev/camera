@@ -550,12 +550,17 @@ int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
         *hw_device = NULL;
         return PERMISSION_DENIED;
     }
+    ALOGI("[KPI Perf] %s: E PROFILE_OPEN_CAMERA camera id %d",
+            __func__, mCameraId);
 
     rc = openCamera();
     if (rc == 0) {
         *hw_device = &mCameraDevice.common;
     } else
         *hw_device = NULL;
+
+    ALOGI("[KPI Perf] %s: X PROFILE_OPEN_CAMERA camera id %d, rc: %d",
+            __func__, mCameraId, rc);
 
     return rc;
 }
@@ -8046,7 +8051,6 @@ int QCamera3HardwareInterface::flush(
  *==========================================================================*/
 int QCamera3HardwareInterface::close_camera_device(struct hw_device_t* device)
 {
-    CDBG("%s: E", __func__);
     int ret = NO_ERROR;
     QCamera3HardwareInterface *hw =
         reinterpret_cast<QCamera3HardwareInterface *>(
@@ -8055,9 +8059,9 @@ int QCamera3HardwareInterface::close_camera_device(struct hw_device_t* device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    ALOGI("[KPI Perf] %s: E camera id %d",__func__, hw->mCameraId);
     delete hw;
-
-    CDBG("%s: X", __func__);
+    ALOGI("[KPI Perf] %s: X",__func__);
     return ret;
 }
 

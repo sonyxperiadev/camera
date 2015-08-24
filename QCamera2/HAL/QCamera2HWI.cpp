@@ -1928,6 +1928,12 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             //hardcoded because MIN_UNDEQUEUED_BUFFERS not defined. REVISIT
             minUndequeCount = MIN_UNDEQUEUED_BUFFERS;
         }
+        if (minUndequeCount != MIN_UNDEQUEUED_BUFFERS) {
+            // minUndequeCount from valid preview window != hardcoded MIN_UNDEQUEUED_BUFFERS
+            // and so change the MACRO as per minUndequeCount
+            ALOGE("%s: ***ERROR Case*** minUndequeCount(%d) != hardcoded value(%d)",
+                    __func__, minUndequeCount, MIN_UNDEQUEUED_BUFFERS);
+        }
     }
 
     if (minUndequeCount != MIN_UNDEQUEUED_BUFFERS) {

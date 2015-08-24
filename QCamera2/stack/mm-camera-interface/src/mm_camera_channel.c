@@ -487,14 +487,14 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                   }
                   ch_obj->pending_retro_cnt--;
                 }
-                CDBG("%s: [ZSL Retro] Super Buffer received, Call client callback,"
+                CDBG_HIGH("%s: [ZSL Retro] Super Buffer received, Call client callback,"
                     "pending_cnt=%d", __func__, ch_obj->pending_cnt);
 
                 if (((ch_obj->pending_cnt == 0) ||
                       (ch_obj->stopZslSnapshot == 1)) &&
                       (ch_obj->manualZSLSnapshot == FALSE) &&
                        ch_obj->startZSlSnapshotCalled == TRUE) {
-                    CDBG("%s: [ZSL Retro] Received all frames, stop zsl snapshot",
+                    CDBG_HIGH("%s: [ZSL Retro] Received all frames, stop zsl snapshot",
                             __func__);
                     mm_camera_stop_zsl_snapshot(ch_obj->cam_obj);
                     ch_obj->startZSlSnapshotCalled = FALSE;
@@ -520,7 +520,7 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                         ch_obj->bundle.superbuf_queue.expected_frame_id =
                                 ch_obj->capture_frame_id[ch_obj->cur_capture_idx];
                     } else {
-                        CDBG("Need %d frames more for batch %d",
+                        CDBG_HIGH("Need %d frames more for batch %d",
                                 ch_obj->frameConfig.configs[ch_obj->cur_capture_idx].num_frames,
                                 ch_obj->cur_capture_idx);
                     }
@@ -2395,13 +2395,13 @@ int32_t mm_channel_handle_metadata(
                 CAM_INTF_META_PREP_SNAPSHOT_DONE, metadata) {
             prep_snapshot_done_state = *p_prep_snapshot_done_state;
             is_prep_snapshot_done_valid = 1;
-            CDBG("%s: prepare snapshot done valid ", __func__);
+            CDBG_HIGH("%s: prepare snapshot done valid ", __func__);
         }
         IF_META_AVAILABLE(const cam_frame_idx_range_t, p_good_frame_idx_range,
                 CAM_INTF_META_GOOD_FRAME_IDX_RANGE, metadata) {
             good_frame_idx_range = *p_good_frame_idx_range;
             is_good_frame_idx_range_valid = 1;
-            CDBG("%s: good_frame_idx_range : min: %d, max: %d , num frames = %d",
+            CDBG_HIGH("%s: good_frame_idx_range : min: %d, max: %d , num frames = %d",
                 __func__, good_frame_idx_range.min_frame_idx,
                 good_frame_idx_range.max_frame_idx, good_frame_idx_range.num_led_on_frames);
         }
@@ -2457,7 +2457,7 @@ int32_t mm_channel_handle_metadata(
             ch_obj->bWaitForPrepSnapshotDone = 0;
             if (prep_snapshot_done_state == NEED_FUTURE_FRAME) {
                 queue->expected_frame_id += max_future_frame_offset;
-                CDBG("%s: [ZSL Retro] NEED_FUTURE_FRAME, expected frame id = %d ",
+                CDBG_HIGH("%s: [ZSL Retro] NEED_FUTURE_FRAME, expected frame id = %d ",
                         __func__,  queue->expected_frame_id);
 
                 mm_channel_superbuf_flush(ch_obj,
@@ -2613,7 +2613,8 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
 
     if (mm_channel_util_seq_comp_w_rollover(buf_info->frame_idx,
                                             queue->expected_frame_id) < 0) {
-        /* incoming buf is older than expected buf id, will discard it */
+        CDBG_HIGH("%s: incoming buf id(%d) is older than expected buf id(%d), will discard it",
+                __func__, buf_info->frame_idx, queue->expected_frame_id);
         mm_channel_qbuf(ch_obj, buf_info->buf);
         return 0;
     }
