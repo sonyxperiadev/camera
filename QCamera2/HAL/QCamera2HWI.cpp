@@ -8830,12 +8830,16 @@ int32_t QCamera2HardwareInterface::initJpegHandle() {
         max_size.w = size.width;
         max_size.h = size.height;
 
-        if (m_bRelCamCalibValid) {
-            mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle,
-                    max_size, &mRelCamCalibData);
+        if (getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+            if (m_bRelCamCalibValid) {
+                mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle,
+                        max_size, &mRelCamCalibData);
+            } else {
+                mJpegClientHandle =  jpeg_open(&mJpegHandle, &mJpegMpoHandle,
+                        max_size, NULL);
+            }
         } else {
-            mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle,
-                    max_size, NULL);
+            mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, NULL);
         }
         if (!mJpegClientHandle) {
             ALOGE("%s: Error !! jpeg_open failed!! ", __func__);
