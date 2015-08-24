@@ -1600,14 +1600,12 @@ void get_sensor_info()
                 g_cam_ctrl.info[num_cameras].orientation = (int)mount_angle;
                 g_cam_ctrl.cam_type[num_cameras] = type;
                 g_cam_ctrl.is_yuv[num_cameras] = is_yuv;
+                CDBG("%s: dev_info[id=%zu,name='%s']\n",
+                        __func__, num_cameras, g_cam_ctrl.video_dev_name[num_cameras]);
                 num_cameras++;
                 continue;
             }
         }
-
-        CDBG("%s: dev_info[id=%zu,name='%s']\n",
-                __func__, num_cameras, g_cam_ctrl.video_dev_name[num_cameras]);
-
         close(dev_fd);
         dev_fd = -1;
     }
@@ -1628,16 +1626,39 @@ void get_sensor_info()
 void sort_camera_info(int num_cam)
 {
     int idx = 0, i;
+    int8_t is_dual_cam = 0, is_aux_cam_exposed = 0;
+    char prop[PROPERTY_VALUE_MAX];
     struct camera_info temp_info[MM_CAMERA_MAX_NUM_SENSORS];
     cam_sync_type_t temp_type[MM_CAMERA_MAX_NUM_SENSORS];
     cam_sync_mode_t temp_mode[MM_CAMERA_MAX_NUM_SENSORS];
     uint8_t temp_is_yuv[MM_CAMERA_MAX_NUM_SENSORS];
     char temp_dev_name[MM_CAMERA_MAX_NUM_SENSORS][MM_CAMERA_DEV_NAME_LEN];
+
     memset(temp_info, 0, sizeof(temp_info));
     memset(temp_dev_name, 0, sizeof(temp_dev_name));
     memset(temp_type, 0, sizeof(temp_type));
     memset(temp_mode, 0, sizeof(temp_mode));
     memset(temp_is_yuv, 0, sizeof(temp_is_yuv));
+
+    // Signifies whether system has to enable dual camera mode
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.dual.camera", prop, "0");
+    is_dual_cam = atoi(prop);
+
+    // Signifies whether AUX camera has to be exposed as physical camera
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.aux.camera", prop, "0");
+    is_aux_cam_exposed = atoi(prop);
+    ALOGI("%s[%d]: dualCamera:%d auxCamera %d", __func__, __LINE__,
+            is_dual_cam, is_aux_cam_exposed);
+
+    /*
+    1. If dual camera is enabled, dont hide any camera here. Further logic to handle AUX
+       cameras is handled in setupLogicalCameras().
+    2. If dual camera is not enabled, hide Front camera if AUX camera property is set.
+        In such case, application will see only back MAIN and back AUX cameras.
+    3. TODO: Need to revisit this logic if front AUX is available.
+    */
 
     /* firstly save the main back cameras info*/
     for (i = 0; i < num_cam; i++) {
@@ -1654,33 +1675,38 @@ void sort_camera_info(int num_cam)
     }
 
     /* save the aux back cameras info*/
-    for (i = 0; i < num_cam; i++) {
-        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
-            (g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX)) {
-            temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = g_cam_ctrl.cam_type[i];
-            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
-            temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
-            CDBG("%s: Found Back Aux Camera: i: %d idx: %d", __func__, i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
-                MM_CAMERA_DEV_NAME_LEN);
+    if (is_dual_cam || is_aux_cam_exposed) {
+        for (i = 0; i < num_cam; i++) {
+            if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
+                (g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX)) {
+                temp_info[idx] = g_cam_ctrl.info[i];
+                temp_type[idx] = g_cam_ctrl.cam_type[i];
+                temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+                temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
+                CDBG("%s: Found Back Aux Camera: i: %d idx: %d", __func__, i, idx);
+                memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+                    MM_CAMERA_DEV_NAME_LEN);
+            }
         }
     }
 
-    /* then save the front cameras info*/
-    for (i = 0; i < num_cam; i++) {
-        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
-            (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
-            temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = g_cam_ctrl.cam_type[i];
-            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
-            temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
-            CDBG("%s: Found Front Main Camera: i: %d idx: %d", __func__, i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
-                MM_CAMERA_DEV_NAME_LEN);
+    if (is_dual_cam || !is_aux_cam_exposed) {
+        /* then save the front cameras info*/
+        for (i = 0; i < num_cam; i++) {
+            if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
+                (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
+                temp_info[idx] = g_cam_ctrl.info[i];
+                temp_type[idx] = g_cam_ctrl.cam_type[i];
+                temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+                temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
+                CDBG("%s: Found Front Main Camera: i: %d idx: %d", __func__, i, idx);
+                memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+                    MM_CAMERA_DEV_NAME_LEN);
+            }
         }
     }
 
+    //TODO: Need to revisit this logic if front AUX is available.
     /* save the aux front cameras info*/
     for (i = 0; i < num_cam; i++) {
         if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
@@ -1695,20 +1721,20 @@ void sort_camera_info(int num_cam)
         }
     }
 
-    if (idx == num_cam) {
+    if (idx <= num_cam) {
         memcpy(g_cam_ctrl.info, temp_info, sizeof(temp_info));
         memcpy(g_cam_ctrl.cam_type, temp_type, sizeof(temp_type));
         memcpy(g_cam_ctrl.cam_mode, temp_mode, sizeof(temp_mode));
         memcpy(g_cam_ctrl.is_yuv, temp_is_yuv, sizeof(temp_is_yuv));
         memcpy(g_cam_ctrl.video_dev_name, temp_dev_name, sizeof(temp_dev_name));
-        for (i = 0; i < num_cam; i++) {
-            CDBG_HIGH("%s: Camera id: %d facing: %d, type: %d is_yuv: %d", __func__,
+        //Set num cam based on the cameras exposed finally via dual/aux properties.
+        g_cam_ctrl.num_cam = idx;
+        for (i = 0; i < idx; i++) {
+            ALOGI("%s: Camera id: %d facing: %d, type: %d is_yuv: %d", __func__,
                 i, g_cam_ctrl.info[i].facing, g_cam_ctrl.cam_type[i], g_cam_ctrl.is_yuv[i]);
         }
-    } else {
-        ALOGE("%s: Failed to sort all cameras!", __func__);
-        ALOGE("%s: Number of cameras %d sorted %d", __func__, num_cam, idx);
     }
+    ALOGI("%s: Number of cameras %d sorted %d", __func__, num_cam, idx);
     return;
 }
 
@@ -1882,7 +1908,7 @@ uint8_t get_num_of_cameras()
     sort_camera_info(g_cam_ctrl.num_cam);
     /* unlock the mutex */
     pthread_mutex_unlock(&g_intf_lock);
-    CDBG("%s: num_cameras=%d\n", __func__, (int)g_cam_ctrl.num_cam);
+    ALOGI("%s: num_cameras=%d\n", __func__, (int)g_cam_ctrl.num_cam);
     return(uint8_t)g_cam_ctrl.num_cam;
 }
 
