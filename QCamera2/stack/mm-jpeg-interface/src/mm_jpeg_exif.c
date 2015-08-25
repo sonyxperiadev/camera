@@ -388,10 +388,11 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
  *
  *  Arguments:
  *   @p_3a_params : ptr to 3a data
+ *   @exif_info : Exif info struct
  *
  *  Return     : int32_t type of status
  *               NO_ERROR  -- success
- *              none-zero failure code
+ *               none-zero failure code
  *
  *  Description:
  *       process 3a data
@@ -413,16 +414,19 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   CDBG("%s:%d] exp_time %f, iso_value %d, wb_mode %d", __func__, __LINE__,
     p_3a_params->exp_time, p_3a_params->iso_value, p_3a_params->wb_mode);
 
-  /*Exposure time*/
-  if (0.0f >= p_3a_params->exp_time) {
-      val_rat.num = 0;
-      val_rat.denom = 0;
+  /* Exposure time */
+  if (p_3a_params->exp_time <= 0.0f) {
+    val_rat.num = 0;
+    val_rat.denom = 0;
+  } else if (p_3a_params->exp_time < 1.0f) {
+    val_rat.num = 1;
+    val_rat.denom = ROUND(1.0/p_3a_params->exp_time);
   } else {
-      val_rat.num = 1;
-      val_rat.denom = ROUND(1.0/p_3a_params->exp_time);
+    val_rat.num = ROUND(p_3a_params->exp_time);
+    val_rat.denom = 1;
   }
   CDBG("%s: numer %d denom %d %zd", __func__, val_rat.num, val_rat.denom,
-      sizeof(val_rat) / (8));
+    sizeof(val_rat) / (8));
 
   rc = addExifEntry(exif_info, EXIFTAGID_EXPOSURE_TIME, EXIF_RATIONAL,
     (sizeof(val_rat)/(8)), &val_rat);
