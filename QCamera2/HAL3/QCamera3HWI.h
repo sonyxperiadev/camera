@@ -314,6 +314,8 @@ private:
     uint8_t m_MobicatMask;
     uint8_t m_bTnrEnabled;
     int8_t  mSupportedFaceDetectMode;
+    uint8_t m_bTnrPreview;
+    uint8_t m_bTnrVideo;
 
     /* Data structure to store pending request */
     typedef struct {

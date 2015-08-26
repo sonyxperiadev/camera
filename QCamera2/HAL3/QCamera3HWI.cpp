@@ -395,12 +395,15 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
         CDBG("%s: Raw dump from Camera HAL enabled", __func__);
 
     memset(prop, 0, sizeof(prop));
-
-    property_get("persist.camera.tnr.preview", prop, "0");
-    m_bTnrEnabled = (uint8_t)atoi(prop);
-
     memset(&mInputStreamInfo, 0, sizeof(mInputStreamInfo));
     memset(mLdafCalib, 0, sizeof(mLdafCalib));
+
+    property_get("persist.camera.tnr.preview", prop, "1");
+    m_bTnrPreview = (uint8_t)atoi(prop);
+
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.tnr.video", prop, "1");
+    m_bTnrVideo = (uint8_t)atoi(prop);
 }
 
 /*===========================================================================
@@ -1177,6 +1180,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     m_bIs4KVideo = false;
     m_bIsVideo = false;
     m_bEisSupportedSize = false;
+    m_bTnrEnabled = false;
     bool isZsl = false;
     uint32_t videoWidth = 0U;
     uint32_t videoHeight = 0U;
@@ -1192,23 +1196,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     bool bJpegExceeds4K = false;
     bool bUseCommonFeatureMask = false;
     uint32_t commonFeatureMask = 0;
-
-    //@todo Remove fullFeatureMask and possibly m_bTnrEnabled once CPP checks
-    //      both feature mask and param for TNR enable.
-    uint32_t fullFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-    if (gCamCapability[mCameraId]->qcom_supported_feature_mask
-            & CAM_QCOM_FEATURE_DSDN) {
-        //Use CPP CDS incase h/w supports it.
-        fullFeatureMask &= ~CAM_QCOM_FEATURE_CDS;
-        fullFeatureMask |= CAM_QCOM_FEATURE_DSDN;
-    }
-    if (m_bTnrEnabled != 0)
-    {
-        fullFeatureMask |= CAM_QCOM_FEATURE_CPP_TNR;
-        // TNR and CDS cannot be enabled at the same time. Unmask CDS feature.
-        fullFeatureMask &= ~CAM_QCOM_FEATURE_CDS;
-        fullFeatureMask &= ~CAM_QCOM_FEATURE_DSDN;
-    }
     maxViewfinderSize = gCamCapability[mCameraId]->max_viewfinder_size;
     camera3_stream_t *inputStream = NULL;
     bool isJpeg = false;
@@ -1319,7 +1306,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             IS_USAGE_ZSL(newStream->usage)) {
                         commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
                     } else {
-                        commonFeatureMask |= fullFeatureMask;
+                        commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                     }
                     numStreamsOnEncoder++;
                 }
@@ -1339,7 +1326,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 processedStreamCnt++;
                 if (isOnEncoder(maxViewfinderSize, newStream->width,
                         newStream->height)) {
-                    commonFeatureMask |= fullFeatureMask;
+                    commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                     numStreamsOnEncoder++;
                 }
                 break;
@@ -1352,6 +1339,13 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         !m_bIsVideo) {
         m_bEisEnable = false;
     }
+
+    /* Logic to enable/disable TNR based on specific config size/etc.*/
+    if ((m_bTnrPreview || m_bTnrVideo) && m_bIsVideo &&
+            ((videoWidth == 1920 && videoHeight == 1080) ||
+            (videoWidth == 1280 && videoHeight == 720)) &&
+            (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE))
+        m_bTnrEnabled = true;
 
     /* Check if num_streams is sane */
     if (stallStreamCnt > MAX_STALLING_STREAMS ||
@@ -1539,7 +1533,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 mCameraHandle->camera_handle,
                 mCameraHandle->ops,
                 &gCamCapability[mCameraId]->padding_info,
-                fullFeatureMask,
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
                 CAM_STREAM_TYPE_ANALYSIS,
                 &gCamCapability[mCameraId]->analysis_recommended_res,
                 (gCamCapability[mCameraId]->analysis_recommended_format
@@ -1592,19 +1586,29 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     ALOGE("%s: Wrong feature mask setting: %s", __func__, feature_mask_value);
                 }
 
-                if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
-                    mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_VIDEO;
-                } else {
-                    mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_PREVIEW;
-                }
-                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = fullFeatureMask;
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                        CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] |= feature_mask;
-                if ((newStream->rotation == CAMERA3_STREAM_ROTATION_90) ||
-                        (newStream->rotation == CAMERA3_STREAM_ROTATION_270)) {
-                     mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
-                             newStream->height;
-                     mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
-                             newStream->width;
+
+               if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
+                       mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_VIDEO;
+                   if (m_bTnrEnabled && m_bTnrVideo) {
+                       mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] |=
+                           CAM_QCOM_FEATURE_CPP_TNR;
+                   }
+               } else {
+                       mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_PREVIEW;
+                   if (m_bTnrEnabled && m_bTnrPreview) {
+                       mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] |=
+                               CAM_QCOM_FEATURE_CPP_TNR;
+                   }
+               }
+               if ((newStream->rotation == CAMERA3_STREAM_ROTATION_90) ||
+                       (newStream->rotation == CAMERA3_STREAM_ROTATION_270)) {
+                   mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
+                           newStream->height;
+                   mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
+                           newStream->width;
                 }
             }
             break;
@@ -1619,13 +1623,14 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                                 CAM_QCOM_FEATURE_NONE;
                 } else {
                     mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
-                            fullFeatureMask;
+                            CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                 }
             break;
             case HAL_PIXEL_FORMAT_BLOB:
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
                 if (m_bIs4KVideo && !isZsl) {
-                    mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = fullFeatureMask;
+                    mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                        CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                     mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] &= ~CAM_QCOM_FEATURE_CDS;
                 } else {
                     if (bUseCommonFeatureMask &&
@@ -1909,7 +1914,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
                 CAM_STREAM_TYPE_CALLBACK;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
-                fullFeatureMask;
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
         mStreamConfigInfo.num_streams++;
     }
 
@@ -3078,7 +3083,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         //CDS is a session parameter in the backend/ISP, so need to be set/reset
         //after every configure_stream
         if((CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE == mOpMode) ||
-                (DIS_ENABLE == vsMode)) {
+                (m_bIsVideo)) {
             int32_t cds = CAM_CDS_MODE_OFF;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                     CAM_INTF_PARM_CDS_MODE, cds))
@@ -7470,12 +7475,35 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         settings.update(ANDROID_COLOR_CORRECTION_MODE, &manualColorCorrectMode, 1);
     }
 
-    /* TNR default */
-    uint8_t tnr_enable       = m_bTnrEnabled;
-    int32_t tnr_process_type = (int32_t)getTemporalDenoiseProcessPlate();
-    settings.update(QCAMERA3_TEMPORAL_DENOISE_ENABLE, &tnr_enable, 1);
-    settings.update(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE, &tnr_process_type, 1);
-    CDBG("%s: default TNR enable %d, process plate %d", __func__, tnr_enable, tnr_process_type);
+
+    /* TNR
+     * We'll use this location to determine which modes TNR will be set.
+     * We will enable TNR to be on if either of the Preview/Video stream requires TNR
+     * This is not to be confused with linking on a per stream basis that decision
+     * is still on per-session basis and will be handled as part of config stream
+     */
+    uint8_t tnr_enable = 0;
+
+    if (m_bTnrPreview || m_bTnrVideo) {
+
+        switch (type) {
+            case CAMERA3_TEMPLATE_VIDEO_RECORD:
+            case CAMERA3_TEMPLATE_VIDEO_SNAPSHOT:
+                    tnr_enable = 1;
+                    break;
+
+            default:
+                    tnr_enable = 0;
+                    break;
+        }
+
+        int32_t tnr_process_type = (int32_t)getTemporalDenoiseProcessPlate();
+        settings.update(QCAMERA3_TEMPORAL_DENOISE_ENABLE, &tnr_enable, 1);
+        settings.update(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE, &tnr_process_type, 1);
+
+        CDBG("%s: TNR:%d with process plate %d for template:%d",
+                            __func__, tnr_enable, tnr_process_type, type);
+    }
 
     /* CDS default */
     char prop[PROPERTY_VALUE_MAX];
@@ -7486,12 +7514,11 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     if (CAM_CDS_MODE_MAX == cds_mode) {
         cds_mode = CAM_CDS_MODE_AUTO;
     }
-    //@note: force cds mode to be OFF when TNR is enabled.
-    if (m_bTnrEnabled == true) {
-        CDBG_HIGH("%s: default CDS mode %d is forced to be OFF because TNR is enabled.",
-                __func__, cds_mode);
+
+    /* Disabling CDS in templates which have TNR enabled*/
+    if (tnr_enable)
         cds_mode = CAM_CDS_MODE_OFF;
-    }
+
     int32_t mode = cds_mode;
     settings.update(QCAMERA3_CDS_MODE, &mode, 1);
     mDefaultMetadata[type] = settings.release();
@@ -8415,10 +8442,9 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    // CDS for non-HFR non-EIS mode
+    // CDS for non-HFR non-video mode
     if ((mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) &&
-            !(m_bEisEnable && m_bEisSupportedSize) &&
-            frame_settings.exists(QCAMERA3_CDS_MODE)) {
+            !(m_bIsVideo) && frame_settings.exists(QCAMERA3_CDS_MODE)) {
         int32_t *fwk_cds = frame_settings.find(QCAMERA3_CDS_MODE).data.i32;
         if ((CAM_CDS_MODE_MAX <= *fwk_cds) || (0 > *fwk_cds)) {
             ALOGE("%s: Invalid CDS mode %d!", __func__, *fwk_cds);
@@ -8433,12 +8459,13 @@ int QCamera3HardwareInterface::translateToHalMetadata
     // TNR
     if (frame_settings.exists(QCAMERA3_TEMPORAL_DENOISE_ENABLE) &&
         frame_settings.exists(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE)) {
+        uint8_t b_TnrRequested = 0;
         cam_denoise_param_t tnr;
         tnr.denoise_enable = frame_settings.find(QCAMERA3_TEMPORAL_DENOISE_ENABLE).data.u8[0];
         tnr.process_plates =
             (cam_denoise_process_type_t)frame_settings.find(
             QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE).data.i32[0];
-
+        b_TnrRequested = tnr.denoise_enable;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_TEMPORAL_DENOISE, tnr)) {
             rc = BAD_VALUE;
         }
