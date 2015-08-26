@@ -39,7 +39,6 @@
 using namespace android;
 
 namespace qcamera {
-#define NUM_BATCH_BUFS   12
 #define MAX_BATCH_SIZE   32
 
 const char* QCamera3Stream::mStreamNames[] = {
@@ -251,7 +250,7 @@ QCamera3Stream::QCamera3Stream(uint32_t camHandle,
         mBufDefs(NULL),
         mChannel(channel),
         mBatchSize(0),
-        mNumBatchBufs(NUM_BATCH_BUFS),
+        mNumBatchBufs(0),
         mStreamBatchBufs(NULL),
         mBatchBufDefs(NULL),
         mCurrentBatchBufDef(NULL),
@@ -389,12 +388,14 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
         mStreamInfo->streaming_mode = CAM_STREAMING_MODE_BURST;
         //mStreamInfo->num_of_burst = reprocess_config->offline.num_of_bufs;
         mStreamInfo->num_of_burst = 1;
-        ALOGI("%s: num_of_burst is %d", __func__, mStreamInfo->num_of_burst);
     } else if (batchSize) {
         if (batchSize > MAX_BATCH_SIZE) {
             ALOGE("%s: batchSize:%d is very large", __func__, batchSize);
+            rc = BAD_VALUE;
+            goto err4;
         }
         else {
+            mNumBatchBufs = MAX_INFLIGHT_HFR_REQUESTS / batchSize;
             mStreamInfo->streaming_mode = CAM_STREAMING_MODE_BATCH;
             mStreamInfo->user_buf_info.frame_buf_cnt = batchSize;
             mStreamInfo->user_buf_info.size =
@@ -1417,7 +1418,7 @@ int32_t QCamera3Stream::handleBatchBuffer(mm_camera_super_buf_t *superBuf)
 {
     int32_t rc = NO_ERROR;
     mm_camera_super_buf_t *frame;
-    mm_camera_buf_def_t* batchBuf;
+    mm_camera_buf_def_t batchBuf;
 
     if (LIKELY(!mBatchSize)) {
         ALOGE("%s: Stream: %d not in batch mode, but batch buffer received",
@@ -1433,15 +1434,23 @@ int32_t QCamera3Stream::handleBatchBuffer(mm_camera_super_buf_t *superBuf)
         return BAD_VALUE;
     }
 
-    batchBuf = superBuf->bufs[0];
+    /* Copy the batch buffer to local and queue the batch buffer to  empty queue
+     * to handle the new requests received while callbacks are in progress */
+    batchBuf = *superBuf->bufs[0];
+    if (!mFreeBatchBufQ.enqueue((void*) superBuf->bufs[0])) {
+        ALOGE("%s: batchBuf.buf_idx: %d enqueue failed", __func__,
+                batchBuf.buf_idx);
+        free(superBuf);
+        return NO_MEMORY;
+    }
     CDBG("%s: Received batch buffer: %d bufs_used: %d", __func__,
-            batchBuf->buf_idx, batchBuf->user_buf.bufs_used);
+            batchBuf.buf_idx, batchBuf.user_buf.bufs_used);
     //dummy local bufDef to issue multiple callbacks
     mm_camera_buf_def_t buf;
     memset(&buf, 0, sizeof(mm_camera_buf_def_t));
 
-    for (size_t i = 0; i < batchBuf->user_buf.bufs_used; i++) {
-        int32_t buf_idx = batchBuf->user_buf.buf_idx[i];
+    for (size_t i = 0; i < batchBuf.user_buf.bufs_used; i++) {
+        int32_t buf_idx = batchBuf.user_buf.buf_idx[i];
         buf = mBufDefs[buf_idx];
 
         /* this memory is freed inside dataCB. Should not be freed here */
@@ -1457,12 +1466,8 @@ int32_t QCamera3Stream::handleBatchBuffer(mm_camera_super_buf_t *superBuf)
             mDataCB(frame, this, mUserData);
         }
     }
-    CDBG("%s: batch buffer: %d callbacks done. Add to empty queue", __func__,
-            batchBuf->buf_idx);
-    if (!mFreeBatchBufQ.enqueue((void*) batchBuf)) {
-        ALOGE("%s: batchBuf->buf_idx: %d enqueue failed", __func__,
-                batchBuf->buf_idx);
-    }
+    CDBG("%s: batch buffer: %d callbacks done", __func__,
+            batchBuf.buf_idx);
 
     free(superBuf);
     return rc;

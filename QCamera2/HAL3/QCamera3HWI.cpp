@@ -85,8 +85,6 @@ namespace qcamera {
 #define DEFAULT_VIDEO_FPS      (30.0)
 #define MAX_HFR_BATCH_SIZE     (8)
 #define REGIONS_TUPLE_COUNT    5
-#define MAX_INFLIGHT_HFR_REQUESTS (48)
-#define MIN_INFLIGHT_HFR_REQUESTS (40)
 
 #define FLUSH_TIMEOUT 3
 
