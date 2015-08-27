@@ -92,6 +92,16 @@
 #define FALSE 0
 #endif
 
+#define QCAMAPP_DUMP_FRM_PREVIEW    1
+#define QCAMAPP_DUMP_FRM_VIDEO      (1<<1)
+#define QCAMAPP_DUMP_FRM_SNAPSHOT   (1<<2)
+#define QCAMAPP_DUMP_FRM_THUMBNAIL  (1<<3)
+#define QCAMAPP_DUMP_FRM_RAW        (1<<4)
+#define QCAMAPP_DUMP_FRM_JPEG       (1<<5)
+
+#define QCAMAPP_DUMP_FRM_MASK_ALL    0x000000ff
+
+
 typedef enum {
     TUNE_CMD_INIT,
     TUNE_CMD_GET_LIST,
@@ -178,6 +188,8 @@ typedef struct {
     uint32_t multipleOf;
     mm_camera_app_buf_t s_bufs[MM_CAMERA_MAX_NUM_FRAMES];
     mm_camera_app_buf_t s_info_buf;
+    uint32_t mDumpFrame;
+    uint32_t mDumpSkipCnt;
 } mm_camera_stream_t;
 
 typedef struct {
@@ -207,9 +219,28 @@ typedef struct {
 } USER_INPUT_DISPLAY_T;
 
 typedef struct {
+    cam_dimension_t dim;
+} mm_camera_lib_snapshot_params;
+
+typedef struct {
+    cam_dimension_t dim;
+} mm_camera_lib_video_params;
+
+typedef struct {
+    USER_INPUT_DISPLAY_T preview_params;
+    mm_camera_lib_snapshot_params snapshot_params;
+    mm_camera_lib_video_params video_params;
+    uint8_t zsl_enabled;
+    uint8_t video_enabled;
+    cam_focus_mode_type af_mode;
+    uint32_t featureMask[CAM_STREAM_TYPE_MAX];
+} mm_camera_lib_params;
+
+typedef struct {
     mm_camera_vtbl_t *cam;
     uint8_t num_channels;
     mm_camera_channel_t channels[MM_CHANNEL_TYPE_MAX];
+    mm_camera_lib_params params;
     mm_jpeg_ops_t jpeg_ops;
     uint32_t jpeg_hdl;
     mm_camera_app_buf_t cap_buf;
@@ -224,17 +255,15 @@ typedef struct {
     struct fb_var_screeninfo vinfo;
     struct mdp_overlay data_overlay;
     uint32_t slice_size;
-    uint32_t buffer_width, buffer_height;
+    int32_t buffer_width, buffer_height;
     uint32_t buffer_size;
     cam_format_t buffer_format;
     uint32_t frame_size;
     uint32_t frame_count;
     int encodeJpeg;
-    int zsl_enabled;
     int8_t focus_supported;
     prev_callback user_preview_cb;
     parm_buffer_t *params_buffer;
-    USER_INPUT_DISPLAY_T preview_resolution;
 
     //Reprocess params&stream
     int8_t enable_reproc;
@@ -262,11 +291,6 @@ typedef struct {
     uint8_t num_cameras;
     hal_interface_lib_t hal_lib;
 } mm_camera_app_t;
-
-typedef struct {
-    uint32_t width;
-    uint32_t height;
-} mm_camera_lib_snapshot_params;
 
 typedef enum {
     MM_CAMERA_LIB_NO_ACTION = 0,
@@ -318,11 +342,6 @@ typedef enum {
 } mm_camera_lib_commands;
 
 typedef struct {
-    int32_t stream_width, stream_height;
-    cam_focus_mode_type af_mode;
-} mm_camera_lib_params;
-
-typedef struct {
   tuneserver_protocol_t *proto;
   int clientsocket_id;
   prserver_protocol_t *pr_proto;
@@ -333,7 +352,6 @@ typedef struct {
 typedef struct {
     mm_camera_app_t app_ctx;
     mm_camera_test_obj_t test_obj;
-    mm_camera_lib_params current_params;
     int stream_running;
     tuningserver_t tsctrl;
 } mm_camera_lib_ctx;
@@ -348,10 +366,9 @@ typedef struct {
 
 extern int mm_app_unit_test_entry(mm_camera_app_t *cam_app);
 extern int mm_app_dual_test_entry(mm_camera_app_t *cam_app);
-extern void mm_app_dump_frame(mm_camera_buf_def_t *frame,
-                              char *name,
-                              char *ext,
-                              uint32_t frame_idx);
+extern int mm_app_dump_frame(mm_camera_test_obj_t *testObj, mm_camera_stream_t *stream,
+        mm_camera_buf_def_t *frame, uint32_t dump_type);
+
 extern void mm_app_dump_jpeg_frame(const void * data,
                                    size_t size,
                                    char* name,
@@ -476,7 +493,8 @@ int32_t mm_camera_load_tuninglibrary(
   mm_camera_tuning_lib_params_t *tuning_param);
 int mm_camera_lib_set_preview_usercb(
   mm_camera_lib_handle *handle, prev_callback cb);
-//
+int32_t setStreamConfigure(mm_camera_test_obj_t *testObj,
+        int8_t resetConfig, int8_t isCapture);
 
 int mm_app_start_regression_test(int run_tc);
 int mm_app_load_hal(mm_camera_app_t *my_cam_app);

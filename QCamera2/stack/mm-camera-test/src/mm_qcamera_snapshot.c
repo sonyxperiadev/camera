@@ -312,7 +312,7 @@ static void mm_app_snapshot_notify_cb_raw(mm_camera_super_buf_t *bufs,
         goto EXIT;
     }
 
-    mm_app_dump_frame(m_frame, "main", "raw", m_frame->frame_idx);
+    mm_app_dump_frame(pme, m_stream, m_frame, QCAMAPP_DUMP_FRM_RAW);
 
 EXIT:
     for (i=0; i<bufs->num_bufs; i++) {
@@ -382,7 +382,7 @@ static void mm_app_snapshot_notify_cb(mm_camera_super_buf_t *bufs,
         goto error;
     }
 
-    mm_app_dump_frame(m_frame, "main", "yuv", m_frame->frame_idx);
+    mm_app_dump_frame(pme, m_stream, m_frame, QCAMAPP_DUMP_FRM_SNAPSHOT);
 
     /* find postview stream */
     for (i = 0; i < channel->num_streams; i++) {
@@ -400,7 +400,7 @@ static void mm_app_snapshot_notify_cb(mm_camera_super_buf_t *bufs,
             }
         }
         if (NULL != p_frame) {
-            mm_app_dump_frame(p_frame, "postview", "yuv", p_frame->frame_idx);
+            mm_app_dump_frame(pme, p_stream, p_frame, QCAMAPP_DUMP_FRM_THUMBNAIL);
         }
     }
 
@@ -605,6 +605,14 @@ int mm_app_start_capture(mm_camera_test_obj_t *test_obj,
     memset(&attr, 0, sizeof(mm_camera_channel_attr_t));
     attr.notify_mode = MM_CAMERA_SUPER_BUF_NOTIFY_CONTINUOUS;
     attr.max_unmatched_frames = 3;
+
+    rc = setStreamConfigure(test_obj, FALSE, TRUE);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: setStreamConfigure() failed\n",
+                   __func__);
+        return rc;
+    }
+
     channel = mm_app_add_channel(test_obj,
                                  MM_CHANNEL_TYPE_CAPTURE,
                                  &attr,
@@ -659,6 +667,13 @@ int mm_app_stop_capture(mm_camera_test_obj_t *test_obj)
     rc = mm_app_stop_and_del_channel(test_obj, ch);
     if (MM_CAMERA_OK != rc) {
         CDBG_ERROR("%s:stop capture channel failed rc=%d\n", __func__, rc);
+    }
+
+    rc = setStreamConfigure(test_obj, TRUE, FALSE);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s:%d: setStreamConfigure() failed\n",
+                   __func__, __LINE__);
+        return rc;
     }
 
     return rc;
