@@ -6081,7 +6081,9 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         }
     }
 
-    if (mParameters.getRecordingHintValue() != true && !mParameters.isSecureMode()) {
+    if (((getCamHalCapabilities()->hw_analysis_supported)
+            || (mParameters.getRecordingHintValue() != true))
+            && (!mParameters.isSecureMode())) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_ANALYSIS,
                 NULL, this);
         if (rc != NO_ERROR) {
@@ -7222,7 +7224,8 @@ int32_t QCamera2HardwareInterface::preparePreview()
             if (isLongshotEnabled()) {
                 sendCommand(CAMERA_CMD_LONGSHOT_OFF, arg, arg);
             }
-            if (mParameters.isFaceDetectionEnabled()) {
+            if (mParameters.isFaceDetectionEnabled()
+                    && (!getCamHalCapabilities()->hw_analysis_supported)) {
                 sendCommand(CAMERA_CMD_STOP_FACE_DETECTION, arg, arg);
             }
             if (mParameters.isHistogramEnabled()) {
