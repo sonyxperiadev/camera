@@ -311,7 +311,7 @@ private:
     InputStreamInfo mInputStreamInfo;
     uint8_t m_MobicatMask;
     uint8_t m_bTnrEnabled;
-    int8_t  m_overrideAppFaceDetection;
+    int8_t  mSupportedFaceDetectMode;
 
     /* Data structure to store pending request */
     typedef struct {
