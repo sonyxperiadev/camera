@@ -178,6 +178,8 @@ public:
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
                             uint8_t capture_intent, bool pprocDone);
+    camera_metadata_t* saveRequestSettings(const CameraMetadata& jpegMetadata,
+                            camera3_capture_request_t *request);
     int initParameters();
     void deinitParameters();
     QCamera3ReprocessChannel *addOfflineReprocChannel(const reprocess_config_t &config,

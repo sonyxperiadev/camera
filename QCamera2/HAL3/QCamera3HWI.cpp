@@ -3446,13 +3446,12 @@ no_error:
        pendingRequest.input_buffer = NULL;
        pInputBuffer = NULL;
     }
-    CameraMetadata input_settings;
-    input_settings = request->settings;
-    pendingRequest.settings = input_settings.release();
+
     pendingRequest.pipeline_depth = 0;
     pendingRequest.partial_result_cnt = 0;
     extractJpegMetadata(mCurJpegMeta, request);
     pendingRequest.jpegMetadata = mCurJpegMeta;
+    pendingRequest.settings = saveRequestSettings(mCurJpegMeta, request);
 
     //extract capture intent
     if (meta.exists(ANDROID_CONTROL_CAPTURE_INTENT)) {
@@ -7687,6 +7686,39 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
     }
 
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : saveRequestSettings
+ *
+ * DESCRIPTION: Add any settings that might have changed to the request settings
+ *              and save the settings to be applied on the frame
+ *
+ * PARAMETERS :
+ *   @jpegMetadata : the extracted and/or modified jpeg metadata
+ *   @request      : request with initial settings
+ *
+ * RETURN     :
+ * camera_metadata_t* : pointer to the saved request settings
+ *==========================================================================*/
+camera_metadata_t* QCamera3HardwareInterface::saveRequestSettings(
+        const CameraMetadata &jpegMetadata,
+        camera3_capture_request_t *request)
+{
+    camera_metadata_t *resultMetadata;
+    CameraMetadata camMetadata;
+    camMetadata = request->settings;
+
+    if (jpegMetadata.exists(ANDROID_JPEG_THUMBNAIL_SIZE)) {
+        int32_t thumbnail_size[2];
+        thumbnail_size[0] = jpegMetadata.find(ANDROID_JPEG_THUMBNAIL_SIZE).data.i32[0];
+        thumbnail_size[1] = jpegMetadata.find(ANDROID_JPEG_THUMBNAIL_SIZE).data.i32[1];
+        camMetadata.update(ANDROID_JPEG_THUMBNAIL_SIZE, thumbnail_size,
+                jpegMetadata.find(ANDROID_JPEG_THUMBNAIL_SIZE).count);
+    }
+
+    resultMetadata = camMetadata.release();
+    return resultMetadata;
 }
 
 /*===========================================================================
