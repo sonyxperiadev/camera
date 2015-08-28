@@ -7656,6 +7656,33 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
         ALOGE("%s: No crop data from matching output stream", __func__);
     }
 
+    /* These settings are not needed for regular requests so handle them specially for
+       reprocess requests; information needed for EXIF tags */
+    if (frame_settings.exists(ANDROID_FLASH_MODE)) {
+        int val = lookupHalName(FLASH_MODES_MAP, METADATA_MAP_SIZE(FLASH_MODES_MAP),
+                    (int)frame_settings.find(ANDROID_FLASH_MODE).data.u8[0]);
+        if (NAME_NOT_FOUND != val) {
+            uint32_t flashMode = (uint32_t)val;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_FLASH_MODE, flashMode)) {
+                rc = BAD_VALUE;
+            }
+        } else {
+            ALOGE("%s: Could not map fwk flash mode %d to correct hal flash mode", __func__,
+                    frame_settings.find(ANDROID_FLASH_MODE).data.u8[0]);
+        }
+    } else {
+        CDBG_HIGH("%s: No flash mode in reprocess settings", __func__);
+    }
+
+    if (frame_settings.exists(ANDROID_FLASH_STATE)) {
+        int32_t flashState = (int32_t)frame_settings.find(ANDROID_FLASH_STATE).data.u8[0];
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_FLASH_STATE, flashState)) {
+            rc = BAD_VALUE;
+        }
+    } else {
+        CDBG_HIGH("%s: No flash state in reprocess settings", __func__);
+    }
+
     return rc;
 }
 
