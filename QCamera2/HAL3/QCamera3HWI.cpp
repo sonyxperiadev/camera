@@ -1401,6 +1401,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             largeYuv888Size.width > jpegSize.width &&
             largeYuv888Size.height > jpegSize.height) {
         bYuv888OverrideJpeg = true;
+    } else if (!isJpeg && numStreamsOnEncoder > 1) {
+        commonFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
     }
 
     rc = validateStreamDimensions(streamList);
