@@ -7019,8 +7019,11 @@ double QCamera3HardwareInterface::computeNoiseModelEntryS(int32_t sens) {
  *
  *==========================================================================*/
 double QCamera3HardwareInterface::computeNoiseModelEntryO(int32_t sens) {
-    double o = gCamCapability[mCameraId]->gradient_O * sens +
-            gCamCapability[mCameraId]->offset_O;
+    int32_t max_analog_sens = gCamCapability[mCameraId]->max_analog_sensitivity;
+    double digital_gain = (1.0 * sens / max_analog_sens) < 1.0 ?
+            1.0 : (1.0 * sens / max_analog_sens);
+    double o = gCamCapability[mCameraId]->gradient_O * sens * sens +
+            gCamCapability[mCameraId]->offset_O * digital_gain * digital_gain;
     return ((o < 0.0) ? 0.0 : o);
 }
 
