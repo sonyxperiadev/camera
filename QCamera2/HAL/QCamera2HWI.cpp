@@ -3331,7 +3331,8 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
             }
             mHDRBracketingEnabled = false;
             rc = mParameters.stopAEBracket();
-        } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
+        } else if (mParameters.isChromaFlashEnabled()
+                || (mFlashNeeded && !mLongshotEnabled)) {
             rc = mParameters.resetFrameCapture(TRUE);
         } else if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
             rc = configureAFBracketing(false);
@@ -3379,6 +3380,7 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
 
     setOutputImageCount(0);
     mInputCount = 0;
+    mAdvancedCaptureConfigured = true;
 
     /* Temporarily stop display only if not in stillmore livesnapshot */
     if (!(mParameters.isStillMoreEnabled() &&
@@ -3406,16 +3408,11 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         rc = configureAEBracketing();
     } else if (mParameters.isStillMoreEnabled()) {
         rc = configureStillMore();
-    } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
+    } else if (mParameters.isChromaFlashEnabled()
+            || (mFlashNeeded && !mLongshotEnabled)) {
         rc = mParameters.configFrameCapture(TRUE);
     } else {
-        ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
-        rc = BAD_VALUE;
-    }
-
-    if (NO_ERROR == rc) {
-        mAdvancedCaptureConfigured = true;
-    } else {
+        CDBG_HIGH ("%s: Advanced Capture feature not enabled!! ", __func__);
         mAdvancedCaptureConfigured = false;
     }
 
@@ -3672,7 +3669,8 @@ int32_t QCamera2HardwareInterface::stopAdvancedCapture(
 
     if(mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_AF_BRACKETING);
-    } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
+    } else if (mParameters.isChromaFlashEnabled()
+            || (mFlashNeeded && !mLongshotEnabled)) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_FRAME_CAPTURE);
     } else if(mParameters.isHDREnabled()
             || mParameters.isAEBracketEnabled()) {
@@ -3715,7 +3713,8 @@ int32_t QCamera2HardwareInterface::startAdvancedCapture(
     } else if (mParameters.isHDREnabled()
             || mParameters.isAEBracketEnabled()) {
         rc = pChannel->startAdvancedCapture(MM_CAMERA_AE_BRACKETING);
-    } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
+    } else if (mParameters.isChromaFlashEnabled()
+            || (mFlashNeeded && !mLongshotEnabled)) {
         cam_capture_frame_config_t config = mParameters.getCaptureFrameConfig();
         rc = pChannel->startAdvancedCapture(MM_CAMERA_FRAME_CAPTURE, &config);
     } else {
@@ -3742,7 +3741,6 @@ int QCamera2HardwareInterface::takePicture()
 
     // Get total number for snapshots (retro + regular)
     uint8_t numSnapshots = mParameters.getNumOfSnapshots();
-    uint8_t numAdvancedSnapshot = mParameters.getBurstCountForAdvancedCapture();
     // Get number of retro-active snapshots
     uint8_t numRetroSnapshots = mParameters.getNumOfRetroSnapshots();
     CDBG_HIGH("%s: E", __func__);
@@ -3756,20 +3754,13 @@ int QCamera2HardwareInterface::takePicture()
       numRetroSnapshots = 0;
       CDBG_HIGH("%s: [ZSL Retro] Reset retro snaphot count to zero", __func__);
     }
-    if (mParameters.isUbiFocusEnabled() ||
-            mParameters.isUbiRefocus() ||
-            mParameters.isOptiZoomEnabled() ||
-            mParameters.isHDREnabled() ||
-            mParameters.isChromaFlashEnabled() ||
-            mParameters.isAEBracketEnabled() ||
-            mParameters.isStillMoreEnabled()) {
-        rc = configureAdvancedCapture();
-        if (rc == NO_ERROR) {
-            numSnapshots = numAdvancedSnapshot;
-        }
+
+    //Do special configure for advanced capture modes.
+    configureAdvancedCapture();
+    if (mAdvancedCaptureConfigured) {
+        numSnapshots = mParameters.getBurstCountForAdvancedCapture();
     }
-    CDBG_HIGH("%s: [ZSL Retro] numSnapshots = %d, numRetroSnapshots = %d",
-          __func__, numSnapshots, numRetroSnapshots);
+    CDBG_HIGH("%s:numSnapshots = %d", __func__, numSnapshots);
 
     if (mParameters.isZSLMode()) {
         QCameraPicChannel *pZSLChannel =
@@ -3805,13 +3796,7 @@ int QCamera2HardwareInterface::takePicture()
                 return UNKNOWN_ERROR;
             }
 
-            if (mParameters.isUbiFocusEnabled() ||
-                    mParameters.isUbiRefocus() ||
-                    mParameters.isOptiZoomEnabled() ||
-                    mParameters.isHDREnabled() ||
-                    mParameters.isChromaFlashEnabled() ||
-                    mParameters.isAEBracketEnabled() ||
-                    mParameters.isStillMoreEnabled()) {
+            if (mAdvancedCaptureConfigured) {
                 rc = startAdvancedCapture(pZSLChannel);
                 if (rc != NO_ERROR) {
                     ALOGE("%s: cannot start zsl advanced capture", __func__);
@@ -4594,18 +4579,7 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
     mParameters.setJpegRotation(mParameters.getRotation());
 
     // Configure advanced capture
-    if (mParameters.isUbiFocusEnabled() ||
-            mParameters.isUbiRefocus() ||
-            mParameters.isOptiZoomEnabled() ||
-            mParameters.isHDREnabled() ||
-            mParameters.isChromaFlashEnabled() ||
-            mParameters.isAEBracketEnabled() ||
-            mParameters.isStillMoreEnabled()) {
-        rc = configureAdvancedCapture();
-        if (rc != NO_ERROR) {
-            CDBG_HIGH("%s: configureAdvancedCapture unsuccessful", __func__);
-        }
-    }
+    configureAdvancedCapture();
 
     // start post processor
     if (NO_ERROR != waitDeferredWork(mInitPProcJob)) {
