@@ -4791,6 +4791,25 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                 hAeRegions->rect.height);
     }
 
+    IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metadata) {
+        uint8_t fwk_afState = (uint8_t) *afState;
+        camMetadata.update(ANDROID_CONTROL_AF_STATE, &fwk_afState, 1);
+        CDBG("%s: urgent Metadata : ANDROID_CONTROL_AF_STATE %u", __func__, *afState);
+    }
+
+    IF_META_AVAILABLE(float, focusDistance, CAM_INTF_META_LENS_FOCUS_DISTANCE, metadata) {
+        camMetadata.update(ANDROID_LENS_FOCUS_DISTANCE , focusDistance, 1);
+    }
+
+    IF_META_AVAILABLE(float, focusRange, CAM_INTF_META_LENS_FOCUS_RANGE, metadata) {
+        camMetadata.update(ANDROID_LENS_FOCUS_RANGE , focusRange, 2);
+    }
+
+    IF_META_AVAILABLE(cam_af_lens_state_t, lensState, CAM_INTF_META_LENS_STATE, metadata) {
+        uint8_t fwk_lensState = *lensState;
+        camMetadata.update(ANDROID_LENS_STATE , &fwk_lensState, 1);
+    }
+
     IF_META_AVAILABLE(cam_area_t, hAfRegions, CAM_INTF_META_AF_ROI, metadata) {
         /*af regions*/
         int32_t afRegions[REGIONS_TUPLE_COUNT];
@@ -5069,19 +5088,6 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
     CameraMetadata camMetadata;
     camera_metadata_t *resultMetadata;
 
-    IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metadata) {
-        uint8_t fwk_afState = (uint8_t) *afState;
-        camMetadata.update(ANDROID_CONTROL_AF_STATE, &fwk_afState, 1);
-        CDBG("%s: urgent Metadata : ANDROID_CONTROL_AF_STATE %u", __func__, *afState);
-    }
-
-    IF_META_AVAILABLE(float, focusDistance, CAM_INTF_META_LENS_FOCUS_DISTANCE, metadata) {
-        camMetadata.update(ANDROID_LENS_FOCUS_DISTANCE , focusDistance, 1);
-    }
-
-    IF_META_AVAILABLE(float, focusRange, CAM_INTF_META_LENS_FOCUS_RANGE, metadata) {
-        camMetadata.update(ANDROID_LENS_FOCUS_RANGE , focusRange, 2);
-    }
 
     IF_META_AVAILABLE(uint32_t, whiteBalanceState, CAM_INTF_META_AWB_STATE, metadata) {
         uint8_t fwk_whiteBalanceState = (uint8_t) *whiteBalanceState;
@@ -5176,11 +5182,6 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
         ALOGE("%s: Not enough info to deduce ANDROID_CONTROL_AE_MODE redeye:%d, "
               "flashMode:%d, aeMode:%u!!!",
                 __func__, redeye, flashMode, aeMode);
-    }
-
-    IF_META_AVAILABLE(cam_af_lens_state_t, lensState, CAM_INTF_META_LENS_STATE, metadata) {
-        uint8_t fwk_lensState = *lensState;
-        camMetadata.update(ANDROID_LENS_STATE , &fwk_lensState, 1);
     }
 
     resultMetadata = camMetadata.release();
