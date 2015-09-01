@@ -281,6 +281,7 @@ private:
     int32_t numOfSizesOnEncoder(const camera3_stream_configuration_t *streamList,
             const cam_dimension_t &maxViewfinderSize);
 
+    void addToPPFeatureMask(int stream_format, uint32_t stream_idx);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
 
     void enablePowerHint();

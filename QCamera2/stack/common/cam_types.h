@@ -2182,7 +2182,8 @@ typedef struct {
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
-                                         CAM_QCOM_FEATURE_EZTUNE|CAM_QCOM_FEATURE_CPP_TNR)
+                                         CAM_QCOM_FEATURE_EZTUNE|CAM_QCOM_FEATURE_CPP_TNR|\
+                                         CAM_QCOM_FEATURE_LLVD)
 
 #define CAM_QCOM_FEATURE_PP_PASS_1      CAM_QCOM_FEATURE_PP_SUPERSET
 #define CAM_QCOM_FEATURE_PP_PASS_2      CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP;
