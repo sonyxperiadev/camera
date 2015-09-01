@@ -240,6 +240,7 @@ private:
     int32_t setBatchMetaStreamID(cam_stream_ID_t &streamID);
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
+    void addToPPFeatureMask(int stream_format, uint32_t stream_idx);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
 
     camera3_device_t   mCameraDevice;
