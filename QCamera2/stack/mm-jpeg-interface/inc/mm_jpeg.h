@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -47,7 +47,9 @@
 #define MAX_JPEG_SIZE 20000000
 #define MAX_OMX_HANDLES (5)
 #define ASPECT_TOLERANCE 0.001
-
+#define MM_JPEG_NOM_QUALITY_THRESHOLD 95
+#define MM_JPEG_NOM_QUALITY_MUL_FACTOR 3U / 2U
+#define MM_JPEG_HIGH_QUALITY_MUL_FACTOR 2U
 
 /** mm_jpeg_abort_state_t:
  *  @MM_JPEG_ABORT_NONE: Abort is not issued

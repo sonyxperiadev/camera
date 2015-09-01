@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1897,7 +1897,9 @@ int32_t mm_jpeg_init(mm_jpeg_obj *my_obj)
     return -1;
   }
   work_buf_size = CEILING64((uint32_t)my_obj->max_pic_w) *
-    CEILING64((uint32_t)my_obj->max_pic_h) * 3U / 2U;
+    CEILING64((uint32_t)my_obj->max_pic_h) *
+    MM_JPEG_NOM_QUALITY_MUL_FACTOR;
+
   for (i = 0; i < initial_workbufs_cnt; i++) {
     my_obj->ionBuffer[i].size = CEILING32(work_buf_size);
     CDBG_HIGH("Max picture size %d x %d, WorkBufSize = %zu",
@@ -2267,6 +2269,30 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
     return -1;
   }
 
+  if (p_params->quality > MM_JPEG_NOM_QUALITY_THRESHOLD) {
+
+    work_buf_size = CEILING64((uint32_t)my_obj->max_pic_w) *
+      CEILING64((uint32_t)my_obj->max_pic_h) *
+      MM_JPEG_HIGH_QUALITY_MUL_FACTOR;
+
+    for (i = 0; i < my_obj->work_buf_cnt; i++) {
+      CDBG_HIGH("Max picture size %d x %d, modified WorkBufSize = %zu",
+        my_obj->max_pic_w, my_obj->max_pic_h, CEILING32(work_buf_size));
+
+      my_obj->ionBuffer[i].addr =
+        (uint8_t *)buffer_reallocate(&my_obj->ionBuffer[i],
+        CEILING32(work_buf_size), 1);
+      if (NULL == my_obj->ionBuffer[i].addr) {
+        CDBG_ERROR("%s:%d] Ion reallocation failed", __func__, __LINE__);
+        goto error1;
+      }
+    }
+  } else {
+    work_buf_size = CEILING64((uint32_t)my_obj->max_pic_w) *
+      CEILING64((uint32_t)my_obj->max_pic_h) *
+      MM_JPEG_NOM_QUALITY_MUL_FACTOR;
+  }
+
   num_omx_sessions = 1;
   if (p_params->burst_mode) {
     num_omx_sessions = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
@@ -2276,8 +2302,6 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
     work_bufs_need = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
   }
   CDBG_HIGH("%s:%d] >>>> Work bufs need %d", __func__, __LINE__, work_bufs_need);
-  work_buf_size = CEILING64((uint32_t)my_obj->max_pic_w) *
-      CEILING64((uint32_t)my_obj->max_pic_h) * 3 / 2;
   for (i = my_obj->work_buf_cnt; i < work_bufs_need; i++) {
      my_obj->ionBuffer[i].size = CEILING32(work_buf_size);
      CDBG_HIGH("Max picture size %d x %d, WorkBufSize = %zu",

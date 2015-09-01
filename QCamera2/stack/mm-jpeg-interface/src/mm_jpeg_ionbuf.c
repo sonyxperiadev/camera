@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -129,6 +129,35 @@ int buffer_deallocate(buffer_t *p_buffer)
   close(p_buffer->ion_fd);
   return lrc;
 }
+
+/** buffer_reallocate:
+ *
+ *  Arguments:
+ *    @p_buffer: ION buffer
+ *    @buf_size: reallocate buffer size
+ *    @cached: flag indicating to cache or not
+ *
+ *  Return:
+ *    buffer address
+ *
+ *  Description:
+ *    reallocates ION buffer
+ *
+ **/
+void* buffer_reallocate(buffer_t *p_buffer, uint32_t buf_size, int cached)
+{
+  int rc = 0;
+
+  rc = buffer_deallocate(p_buffer);
+  if (0 != rc) {
+    CDBG_ERROR("%s:%d] Error releasing ION buffer", __func__, __LINE__);
+    return NULL;
+  }
+
+  p_buffer->size = buf_size;
+  return buffer_allocate(p_buffer, cached);
+}
+
 
 /** buffer_invalidate:
  *
