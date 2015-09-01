@@ -750,10 +750,12 @@ int QCameraMuxer::start_recording(struct camera_device * device)
         QCamera2HardwareInterface *hwi = pCam->hwi;
         CHECK_HWI_ERROR(hwi);
 
-        rc = hwi->start_recording(pCam->dev);
-        if (rc != NO_ERROR) {
-            ALOGE("%s: Error starting recording!! ", __func__);
-            return rc;
+        if (pCam->mode == CAM_MODE_PRIMARY) {
+            rc = hwi->start_recording(pCam->dev);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: Error starting recording!! ", __func__);
+            }
+            break;
         }
     }
     CDBG_HIGH("%s: X", __func__);
@@ -785,7 +787,10 @@ void QCameraMuxer::stop_recording(struct camera_device * device)
         QCamera2HardwareInterface *hwi = pCam->hwi;
         CHECK_HWI(hwi);
 
-        QCamera2HardwareInterface::stop_recording(pCam->dev);
+        if (pCam->mode == CAM_MODE_PRIMARY) {
+            QCamera2HardwareInterface::stop_recording(pCam->dev);
+            break;
+        }
     }
     CDBG_HIGH("%s: X", __func__);
 }
