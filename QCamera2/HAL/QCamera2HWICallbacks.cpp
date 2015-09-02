@@ -1315,14 +1315,17 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                 if (frame->user_buf.buf_idx[i] >= 0) {
                     mm_camera_buf_def_t *plane_frame =
                             &frame->user_buf.plane_buf[frame->user_buf.buf_idx[i]];
-                    QCameraMemory *frameobj = (QCameraMemory *)plane_frame->mem_info;
+                    QCameraVideoMemory *frameobj = (QCameraVideoMemory *)plane_frame->mem_info;
                     nsecs_t frame_ts = nsecs_t(plane_frame->ts.tv_sec) * 1000000000LL
                             + plane_frame->ts.tv_nsec;
-                    /*data[0] => FD data[1] => OFFSET data[2] => SIZE data[3] => TIMESTAMP*/
+                    /*data[0] => FD data[1] => OFFSET data[2] => SIZE data[3] => USAGE
+                    data[4] => TIMESTAMP data[5] => FORMAT*/
                     nh->data[i] = frameobj->getFd(plane_frame->buf_idx);
                     nh->data[fd_cnt + i] = 0;
                     nh->data[(2 * fd_cnt) + i] = (int)frameobj->getSize(plane_frame->buf_idx);
-                    nh->data[(3 * fd_cnt) + i] = (int)(frame_ts - timeStamp);
+                    nh->data[(3 * fd_cnt) + i] = frameobj->getUsage();
+                    nh->data[(4 * fd_cnt) + i] = (int)(frame_ts - timeStamp);
+                    nh->data[(5 * fd_cnt) + i] = frameobj->getFormat();
                     CDBG("Send Video frames to services/encoder delta : %lld FD = %d index = %d",
                             (frame_ts - timeStamp), plane_frame->fd, plane_frame->buf_idx);
                     pme->dumpFrameToFile(stream, plane_frame, QCAMERA_DUMP_FRM_VIDEO);

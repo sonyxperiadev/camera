@@ -41,6 +41,9 @@ extern "C" {
 #include <mm_camera_interface.h>
 }
 
+//OFFSET, SIZE, USAGE, TIMESTAMP, FORMAT
+#define VIDEO_METADATA_NUM_INTS 5
+
 namespace qcamera {
 
 class QCameraMemoryPool;
@@ -215,7 +218,9 @@ public:
     int allocateMeta(uint8_t buf_cnt);
     void deallocateMeta();
     void setVideoInfo(int usage, cam_format_t format);
-    int getOMXFormat(cam_format_t format);
+    int convCamtoOMXFormat(cam_format_t format);
+    int getUsage(){return mUsage;};
+    int getFormat(){return mFormat;};
 private:
     camera_memory_t *mMetadata[MM_CAMERA_MAX_NUM_FRAMES];
     uint8_t mMetaBufCount;
