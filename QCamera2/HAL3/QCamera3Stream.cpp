@@ -321,6 +321,7 @@ QCamera3Stream::~QCamera3Stream()
 int32_t QCamera3Stream::init(cam_stream_type_t streamType,
                             cam_format_t streamFormat,
                             cam_dimension_t streamDim,
+                            cam_rotation_t streamRotation,
                             cam_stream_reproc_config_t* reprocess_config,
                             uint8_t minNumBuffers,
                             uint32_t postprocess_mask,
@@ -364,6 +365,7 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     mStreamInfo->num_bufs = minNumBuffers;
     mStreamInfo->pp_config.feature_mask = postprocess_mask;
     mStreamInfo->is_type = is_type;
+    mStreamInfo->pp_config.rotation = streamRotation;
     CDBG("%s: stream_type is %d, feature_mask is %d",
           __func__, mStreamInfo->stream_type, mStreamInfo->pp_config.feature_mask);
 

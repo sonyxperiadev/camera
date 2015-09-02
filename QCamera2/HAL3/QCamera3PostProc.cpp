@@ -32,6 +32,7 @@
 
 #include <stdlib.h>
 #include <utils/Errors.h>
+#include <cutils/properties.h>
 
 #include "QCamera3PostProc.h"
 #include "QCamera3HWI.h"
@@ -39,6 +40,14 @@
 #include "QCamera3Stream.h"
 
 namespace qcamera {
+
+static const char ExifAsciiPrefix[] =
+    { 0x41, 0x53, 0x43, 0x49, 0x49, 0x0, 0x0, 0x0 };          // "ASCII\0\0\0"
+static const char ExifUndefinedPrefix[] =
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };   // "\0\0\0\0\0\0\0\0"
+
+#define EXIF_ASCII_PREFIX_SIZE           8   //(sizeof(ExifAsciiPrefix))
+#define FOCAL_LENGTH_DECIMAL_PRECISION   100
 
 /*===========================================================================
  * FUNCTION   : QCamera3PostProcessor
@@ -50,7 +59,7 @@ namespace qcamera {
  *
  * RETURN     : None
  *==========================================================================*/
-QCamera3PostProcessor::QCamera3PostProcessor(QCamera3PicChannel* ch_ctrl)
+QCamera3PostProcessor::QCamera3PostProcessor(QCamera3ProcessingChannel* ch_ctrl)
     : m_parent(ch_ctrl),
       mJpegCB(NULL),
       mJpegUserData(NULL),
@@ -91,41 +100,18 @@ QCamera3PostProcessor::~QCamera3PostProcessor()
  * DESCRIPTION: initialization of postprocessor
  *
  * PARAMETERS :
- *   @jpeg_cb      : callback to handle jpeg event from mm-camera-interface
- *   @user_data    : user data ptr for jpeg callback
+ *   @memory              : output buffer memory
+ *   @postprocess_mask    : postprocess mask for the buffer
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3PostProcessor::init(QCamera3Memory* mMemory,
-                                    jpeg_encode_callback_t jpeg_cb,
-                                    uint32_t postprocess_mask,
-                                    void *user_data)
+int32_t QCamera3PostProcessor::init(QCamera3Memory *memory,
+        uint32_t postprocess_mask)
 {
     ATRACE_CALL();
-    mJpegCB = jpeg_cb;
-    mJpegUserData = user_data;
-    mm_dimension max_size;
-
-    if ((0 > m_parent->m_max_pic_dim.width) ||
-            (0 > m_parent->m_max_pic_dim.height)) {
-        ALOGE("%s : Negative dimension %dx%d", __func__,
-                m_parent->m_max_pic_dim.width, m_parent->m_max_pic_dim.height);
-        return BAD_VALUE;
-    }
-
-    //set max pic size
-    memset(&max_size, 0, sizeof(mm_dimension));
-    max_size.w = (uint32_t)m_parent->m_max_pic_dim.width;
-    max_size.h = (uint32_t)m_parent->m_max_pic_dim.height;
-
-    mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, NULL);
-    mJpegMem = mMemory;
-    if(!mJpegClientHandle) {
-        ALOGE("%s : jpeg_open did not work", __func__);
-        return UNKNOWN_ERROR;
-    }
+    mOutputMem = memory;
     mPostProcMask = postprocess_mask;
     m_dataProcTh.launch(dataProcessRoutine, this);
 
@@ -145,6 +131,7 @@ int32_t QCamera3PostProcessor::init(QCamera3Memory* mMemory,
  *==========================================================================*/
 int32_t QCamera3PostProcessor::deinit()
 {
+    int rc = NO_ERROR;
     m_dataProcTh.exit();
 
     if (m_pReprocChannel != NULL) {
@@ -154,15 +141,56 @@ int32_t QCamera3PostProcessor::deinit()
     }
 
     if(mJpegClientHandle > 0) {
-        int rc = mJpegHandle.close(mJpegClientHandle);
+        rc = mJpegHandle.close(mJpegClientHandle);
         CDBG_HIGH("%s: Jpeg closed, rc = %d, mJpegClientHandle = %x",
               __func__, rc, mJpegClientHandle);
         mJpegClientHandle = 0;
         memset(&mJpegHandle, 0, sizeof(mJpegHandle));
     }
 
-    mJpegMem = NULL;
+    mOutputMem = NULL;
+    return rc;
+}
 
+/*===========================================================================
+ * FUNCTION   : initJpeg
+ *
+ * DESCRIPTION: initialization of jpeg through postprocessor
+ *
+ * PARAMETERS :
+ *   @jpeg_cb      : callback to handle jpeg event from mm-camera-interface
+ *   @max_pic_dim  : max picture dimensions
+ *   @user_data    : user data ptr for jpeg callback
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3PostProcessor::initJpeg(jpeg_encode_callback_t jpeg_cb,
+        cam_dimension_t* max_pic_dim,
+        void *user_data)
+{
+    ATRACE_CALL();
+    mJpegCB = jpeg_cb;
+    mJpegUserData = user_data;
+    mm_dimension max_size;
+
+    if ((0 > max_pic_dim->width) || (0 > max_pic_dim->height)) {
+        ALOGE("%s : Negative dimension %dx%d", __func__,
+                max_pic_dim->width, max_pic_dim->height);
+        return BAD_VALUE;
+    }
+
+    //set max pic size
+    memset(&max_size, 0, sizeof(mm_dimension));
+    max_size.w =  max_pic_dim->width;
+    max_size.h =  max_pic_dim->height;
+
+    mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, NULL);
+    if(!mJpegClientHandle) {
+        ALOGE("%s : jpeg_open did not work", __func__);
+        return UNKNOWN_ERROR;
+    }
     return NO_ERROR;
 }
 
@@ -173,7 +201,6 @@ int32_t QCamera3PostProcessor::deinit()
  *              will be launched.
  *
  * PARAMETERS :
- *   @pMemory       : memory object representing buffers to store JPEG.
  *   @config        : reprocess configuration
  *   @metadata      : metadata for the reprocessing
  *
@@ -184,13 +211,12 @@ int32_t QCamera3PostProcessor::deinit()
  * NOTE       : if any reprocess is needed, a reprocess channel/stream
  *              will be started.
  *==========================================================================*/
-int32_t QCamera3PostProcessor::start(const reprocess_config_t &config,
-        metadata_buffer_t *metadata)
+int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
 {
     int32_t rc = NO_ERROR;
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
 
-    if (hal_obj->needReprocess(mPostProcMask)) {
+    if (hal_obj->needReprocess(mPostProcMask) || config.src_channel != m_parent) {
         if (m_pReprocChannel != NULL) {
             m_pReprocChannel->stop();
             delete m_pReprocChannel;
@@ -199,18 +225,21 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config,
 
         // if reprocess is needed, start reprocess channel
         CDBG("%s: Setting input channel as pInputChannel", __func__);
-        m_pReprocChannel = hal_obj->addOfflineReprocChannel(config, m_parent, metadata);
+        m_pReprocChannel = hal_obj->addOfflineReprocChannel(config, m_parent);
         if (m_pReprocChannel == NULL) {
             ALOGE("%s: cannot add reprocess channel", __func__);
             return UNKNOWN_ERROR;
         }
-
-        rc = m_pReprocChannel->start();
-        if (rc != 0) {
-            ALOGE("%s: cannot start reprocess channel", __func__);
-            delete m_pReprocChannel;
-            m_pReprocChannel = NULL;
-            return rc;
+        /*start the reprocess channel only if buffers are already allocated, thus
+          only start it in an intermediate reprocess type, defer it for others*/
+        if (config.reprocess_type == REPROCESS_TYPE_JPEG) {
+            rc = m_pReprocChannel->start();
+            if (rc != 0) {
+                ALOGE("%s: cannot start reprocess channel", __func__);
+                delete m_pReprocChannel;
+                m_pReprocChannel = NULL;
+                return rc;
+            }
         }
     }
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, TRUE, FALSE);
@@ -298,7 +327,7 @@ int32_t QCamera3PostProcessor::getFWKJpegEncodeConfig(
         return BAD_VALUE;
     }
 
-    ssize_t bufSize = mJpegMem->getSize(jpeg_settings->out_buf_index);
+    ssize_t bufSize = mOutputMem->getSize(jpeg_settings->out_buf_index);
     if (BAD_INDEX == bufSize) {
         ALOGE("%s: cannot retrieve buffer size for buffer %u", __func__,
                 jpeg_settings->out_buf_index);
@@ -347,13 +376,13 @@ int32_t QCamera3PostProcessor::getFWKJpegEncodeConfig(
     }
 
     //Pass output jpeg buffer info to encoder.
-    //mJpegMem is allocated by framework.
+    //mOutputMem is allocated by framework.
     encode_parm.num_dst_bufs = 1;
     encode_parm.dest_buf[0].index = 0;
     encode_parm.dest_buf[0].buf_size = (size_t)bufSize;
-    encode_parm.dest_buf[0].buf_vaddr = (uint8_t *)mJpegMem->getPtr(
+    encode_parm.dest_buf[0].buf_vaddr = (uint8_t *)mOutputMem->getPtr(
             jpeg_settings->out_buf_index);
-    encode_parm.dest_buf[0].fd = mJpegMem->getFd(
+    encode_parm.dest_buf[0].fd = mOutputMem->getFd(
             jpeg_settings->out_buf_index);
     encode_parm.dest_buf[0].format = MM_JPEG_FMT_YUV;
     encode_parm.dest_buf[0].offset = main_offset;
@@ -476,7 +505,7 @@ int32_t QCamera3PostProcessor::getJpegEncodeConfig(
 
     //Pass output jpeg buffer info to encoder.
     //mJpegMem is allocated by framework.
-    bufSize = mJpegMem->getSize(jpeg_settings->out_buf_index);
+    bufSize = mOutputMem->getSize(jpeg_settings->out_buf_index);
     if (BAD_INDEX == bufSize) {
         ALOGE("%s: cannot retrieve buffer size for buffer %u", __func__,
                 jpeg_settings->out_buf_index);
@@ -486,9 +515,9 @@ int32_t QCamera3PostProcessor::getJpegEncodeConfig(
     encode_parm.num_dst_bufs = 1;
     encode_parm.dest_buf[0].index = 0;
     encode_parm.dest_buf[0].buf_size = (size_t)bufSize;
-    encode_parm.dest_buf[0].buf_vaddr = (uint8_t *)mJpegMem->getPtr(
+    encode_parm.dest_buf[0].buf_vaddr = (uint8_t *)mOutputMem->getPtr(
             jpeg_settings->out_buf_index);
-    encode_parm.dest_buf[0].fd = mJpegMem->getFd(
+    encode_parm.dest_buf[0].fd = mOutputMem->getFd(
             jpeg_settings->out_buf_index);
     encode_parm.dest_buf[0].format = MM_JPEG_FMT_YUV;
     encode_parm.dest_buf[0].offset = main_offset;
@@ -549,7 +578,8 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *frame)
 int32_t QCamera3PostProcessor::processData(qcamera_fwk_input_pp_data_t *frame)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
-    if (hal_obj->needReprocess(mPostProcMask)) {
+    if (hal_obj->needReprocess(mPostProcMask) ||
+            frame->reproc_config.src_channel != m_parent) {
         ATRACE_INT("Camera:Reprocess", 1);
         pthread_mutex_lock(&mReprocJobLock);
         // enqueu to post proc input queue
@@ -1140,7 +1170,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     }
 
     // get exif data
-    QCamera3Exif *pJpegExifObj = m_parent->getExifData(metadata, jpeg_settings);
+    QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings);
     jpeg_job_data->pJpegExifObj = pJpegExifObj;
     if (pJpegExifObj != NULL) {
         jpg_job.encode_job.exif_info.exif_data = pJpegExifObj->getEntries();
@@ -1400,7 +1430,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
 
 
     // get exif data
-    QCamera3Exif *pJpegExifObj = m_parent->getExifData(metadata, jpeg_settings);
+    QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings);
     jpeg_job_data->pJpegExifObj = pJpegExifObj;
     if (pJpegExifObj != NULL) {
         jpg_job.encode_job.exif_info.exif_data = pJpegExifObj->getEntries();
@@ -1806,6 +1836,571 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
     } while (running);
     CDBG("%s: X", __func__);
     return NULL;
+}
+
+/* EXIF related helper methods */
+
+/*===========================================================================
+ * FUNCTION   : getRational
+ *
+ * DESCRIPTION: compose rational struct
+ *
+ * PARAMETERS :
+ *   @rat     : ptr to struct to store rational info
+ *   @num     :num of the rational
+ *   @denom   : denom of the rational
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getRational(rat_t *rat, int num, int denom)
+{
+    if ((0 > num) || (0 > denom)) {
+        ALOGE("%s: Negative values", __func__);
+        return BAD_VALUE;
+    }
+    if (NULL == rat) {
+        ALOGE("%s: NULL rat input", __func__);
+        return BAD_VALUE;
+    }
+    rat->num = (uint32_t)num;
+    rat->denom = (uint32_t)denom;
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : parseGPSCoordinate
+ *
+ * DESCRIPTION: parse GPS coordinate string
+ *
+ * PARAMETERS :
+ *   @coord_str : [input] coordinate string
+ *   @coord     : [output]  ptr to struct to store coordinate
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int parseGPSCoordinate(const char *coord_str, rat_t* coord)
+{
+    if(coord == NULL) {
+        ALOGE("%s: error, invalid argument coord == NULL", __func__);
+        return BAD_VALUE;
+    }
+    double degF = atof(coord_str);
+    if (degF < 0) {
+        degF = -degF;
+    }
+    double minF = (degF - (int) degF) * 60;
+    double secF = (minF - (int) minF) * 60;
+
+    getRational(&coord[0], (int)degF, 1);
+    getRational(&coord[1], (int)minF, 1);
+    getRational(&coord[2], (int)(secF * 10000), 10000);
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifDateTime
+ *
+ * DESCRIPTION: query exif date time
+ *
+ * PARAMETERS :
+ *   @dateTime   : string to store exif date time
+ *   @subsecTime : string to store exif subsec time
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifDateTime(String8 &dateTime, String8 &subsecTime)
+{
+    int32_t ret = NO_ERROR;
+
+    //get time and date from system
+    struct timeval tv;
+    struct tm timeinfo_data;
+
+    int res = gettimeofday(&tv, NULL);
+    if (0 == res) {
+        struct tm *timeinfo = localtime_r(&tv.tv_sec, &timeinfo_data);
+        if (NULL != timeinfo) {
+            //Write datetime according to EXIF Spec
+            //"YYYY:MM:DD HH:MM:SS" (20 chars including \0)
+            dateTime = String8::format("%04d:%02d:%02d %02d:%02d:%02d",
+                    timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,
+                    timeinfo->tm_mday, timeinfo->tm_hour,
+                    timeinfo->tm_min, timeinfo->tm_sec);
+            //Write subsec according to EXIF Sepc
+            subsecTime = String8::format("%06ld", tv.tv_usec);
+        } else {
+            ALOGE("%s: localtime_r() error", __func__);
+            ret = UNKNOWN_ERROR;
+        }
+    } else if (-1 == res) {
+        ALOGE("%s: gettimeofday() error: %s", __func__, strerror(errno));
+        ret = UNKNOWN_ERROR;
+    } else {
+        ALOGE("%s: gettimeofday() unexpected return code: %d", __func__, res);
+        ret = UNKNOWN_ERROR;
+    }
+
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifFocalLength
+ *
+ * DESCRIPTION: get exif focal length
+ *
+ * PARAMETERS :
+ *   @focalLength : ptr to rational struct to store focal length
+ *   @value       : focal length value
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifFocalLength(rat_t *focalLength, float value)
+{
+    int focalLengthValue =
+        (int)(value * FOCAL_LENGTH_DECIMAL_PRECISION);
+    return getRational(focalLength, focalLengthValue, FOCAL_LENGTH_DECIMAL_PRECISION);
+}
+
+/*===========================================================================
+  * FUNCTION   : getExifExpTimeInfo
+  *
+  * DESCRIPTION: get exif exposure time information
+  *
+  * PARAMETERS :
+  *   @expoTimeInfo     : rational exposure time value
+  *   @value            : exposure time value
+  * RETURN     : nt32_t type of status
+  *              NO_ERROR  -- success
+  *              none-zero failure code
+  *==========================================================================*/
+int32_t getExifExpTimeInfo(rat_t *expoTimeInfo, int64_t value)
+{
+
+    int64_t cal_exposureTime;
+    if (value != 0)
+        cal_exposureTime = value;
+    else
+        cal_exposureTime = 60;
+
+    return getRational(expoTimeInfo, 1, (int)cal_exposureTime);
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifGpsProcessingMethod
+ *
+ * DESCRIPTION: get GPS processing method
+ *
+ * PARAMETERS :
+ *   @gpsProcessingMethod : string to store GPS process method
+ *   @count               : length of the string
+ *   @value               : the value of the processing method
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifGpsProcessingMethod(char *gpsProcessingMethod,
+        uint32_t &count, char* value)
+{
+    if(value != NULL) {
+        memcpy(gpsProcessingMethod, ExifAsciiPrefix, EXIF_ASCII_PREFIX_SIZE);
+        count = EXIF_ASCII_PREFIX_SIZE;
+        strlcpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE,
+                value,
+                strlen(value)+1);
+        count += (uint32_t)strlen(value);
+        gpsProcessingMethod[count++] = '\0'; // increase 1 for the last NULL char
+        return NO_ERROR;
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifLatitude
+ *
+ * DESCRIPTION: get exif latitude
+ *
+ * PARAMETERS :
+ *   @latitude : ptr to rational struct to store latitude info
+ *   @ladRef   : charater to indicate latitude reference
+ *   @value    : value of the latitude
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifLatitude(rat_t *latitude, char *latRef, double value)
+{
+    char str[30];
+    snprintf(str, sizeof(str), "%f", value);
+    if(str != NULL) {
+        parseGPSCoordinate(str, latitude);
+
+        //set Latitude Ref
+        float latitudeValue = strtof(str, 0);
+        if(latitudeValue < 0.0f) {
+            latRef[0] = 'S';
+        } else {
+            latRef[0] = 'N';
+        }
+        latRef[1] = '\0';
+        return NO_ERROR;
+    }else{
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifLongitude
+ *
+ * DESCRIPTION: get exif longitude
+ *
+ * PARAMETERS :
+ *   @longitude : ptr to rational struct to store longitude info
+ *   @lonRef    : charater to indicate longitude reference
+ *   @value     : value of the longitude
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifLongitude(rat_t *longitude, char *lonRef, double value)
+{
+    char str[30];
+    snprintf(str, sizeof(str), "%f", value);
+    if(str != NULL) {
+        parseGPSCoordinate(str, longitude);
+
+        //set Longitude Ref
+        float longitudeValue = strtof(str, 0);
+        if(longitudeValue < 0.0f) {
+            lonRef[0] = 'W';
+        } else {
+            lonRef[0] = 'E';
+        }
+        lonRef[1] = '\0';
+        return NO_ERROR;
+    }else{
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifAltitude
+ *
+ * DESCRIPTION: get exif altitude
+ *
+ * PARAMETERS :
+ *   @altitude : ptr to rational struct to store altitude info
+ *   @altRef   : charater to indicate altitude reference
+ *   @argValue : altitude value
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifAltitude(rat_t *altitude, char *altRef, double argValue)
+{
+    char str[30];
+    snprintf(str, sizeof(str), "%f", argValue);
+    if (str != NULL) {
+        double value = atof(str);
+        *altRef = 0;
+        if(value < 0){
+            *altRef = 1;
+            value = -value;
+        }
+        return getRational(altitude, (int)(value * 1000), 1000);
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifGpsDateTimeStamp
+ *
+ * DESCRIPTION: get exif GPS date time stamp
+ *
+ * PARAMETERS :
+ *   @gpsDateStamp : GPS date time stamp string
+ *   @bufLen       : length of the string
+ *   @gpsTimeStamp : ptr to rational struct to store time stamp info
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifGpsDateTimeStamp(char *gpsDateStamp, uint32_t bufLen,
+        rat_t *gpsTimeStamp, int64_t value)
+{
+    char str[30];
+    snprintf(str, sizeof(str), "%lld", (long long int)value);
+    if(str != NULL) {
+        time_t unixTime = (time_t)atol(str);
+        struct tm *UTCTimestamp = gmtime(&unixTime);
+        if (UTCTimestamp != NULL && gpsDateStamp != NULL
+                && gpsTimeStamp != NULL) {
+            strftime(gpsDateStamp, bufLen, "%Y:%m:%d", UTCTimestamp);
+
+            getRational(&gpsTimeStamp[0], UTCTimestamp->tm_hour, 1);
+            getRational(&gpsTimeStamp[1], UTCTimestamp->tm_min, 1);
+            getRational(&gpsTimeStamp[2], UTCTimestamp->tm_sec, 1);
+            return NO_ERROR;
+        } else {
+            ALOGE("%s: Could not get the timestamp", __func__);
+            return BAD_VALUE;
+        }
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifExposureValue
+ *
+ * DESCRIPTION: get exif GPS date time stamp
+ *
+ * PARAMETERS :
+ *   @exposure_val        : rational exposure value
+ *   @exposure_comp       : exposure compensation
+ *   @step                : exposure step
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t getExifExposureValue(srat_t* exposure_val, int32_t exposure_comp,
+        cam_rational_type_t step)
+{
+    exposure_val->num = exposure_comp * step.numerator;
+    exposure_val->denom = step.denominator;
+    return 0;
+}
+
+/*===========================================================================
+ * FUNCTION   : getExifData
+ *
+ * DESCRIPTION: get exif data to be passed into jpeg encoding
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : exif data from user setting and GPS
+ *==========================================================================*/
+QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
+        jpeg_settings_t *jpeg_settings)
+{
+    QCamera3Exif *exif = new QCamera3Exif();
+    if (exif == NULL) {
+        ALOGE("%s: No memory for QCamera3Exif", __func__);
+        return NULL;
+    }
+
+    int32_t rc = NO_ERROR;
+    uint32_t count = 0;
+
+    // add exif entries
+    String8 dateTime;
+    String8 subsecTime;
+    rc = getExifDateTime(dateTime, subsecTime);
+    if (rc == NO_ERROR) {
+        exif->addEntry(EXIFTAGID_DATE_TIME, EXIF_ASCII,
+                (uint32_t)(dateTime.length() + 1), (void *)dateTime.string());
+        exif->addEntry(EXIFTAGID_EXIF_DATE_TIME_ORIGINAL, EXIF_ASCII,
+                (uint32_t)(dateTime.length() + 1), (void *)dateTime.string());
+        exif->addEntry(EXIFTAGID_EXIF_DATE_TIME_DIGITIZED, EXIF_ASCII,
+                (uint32_t)(dateTime.length() + 1), (void *)dateTime.string());
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME, EXIF_ASCII,
+                (uint32_t)(subsecTime.length() + 1), (void *)subsecTime.string());
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME_ORIGINAL, EXIF_ASCII,
+                (uint32_t)(subsecTime.length() + 1), (void *)subsecTime.string());
+        exif->addEntry(EXIFTAGID_SUBSEC_TIME_DIGITIZED, EXIF_ASCII,
+                (uint32_t)(subsecTime.length() + 1), (void *)subsecTime.string());
+    } else {
+        ALOGE("%s: getExifDateTime failed", __func__);
+    }
+
+
+    if (metadata != NULL) {
+        IF_META_AVAILABLE(float, focal_length, CAM_INTF_META_LENS_FOCAL_LENGTH, metadata) {
+            rat_t focalLength;
+            rc = getExifFocalLength(&focalLength, *focal_length);
+            if (rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_FOCAL_LENGTH,
+                        EXIF_RATIONAL,
+                        1,
+                        (void *)&(focalLength));
+            } else {
+                ALOGE("%s: getExifFocalLength failed", __func__);
+            }
+        }
+
+        IF_META_AVAILABLE(int32_t, isoSpeed, CAM_INTF_META_SENSOR_SENSITIVITY, metadata) {
+            int16_t fwk_isoSpeed = (int16_t) *isoSpeed;
+            exif->addEntry(EXIFTAGID_ISO_SPEED_RATING, EXIF_SHORT, 1, (void *) &(fwk_isoSpeed));
+        }
+
+
+        IF_META_AVAILABLE(int64_t, sensor_exposure_time,
+                CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata) {
+            rat_t sensorExpTime;
+            rc = getExifExpTimeInfo(&sensorExpTime, *sensor_exposure_time);
+            if (rc == NO_ERROR){
+                exif->addEntry(EXIFTAGID_EXPOSURE_TIME,
+                        EXIF_RATIONAL,
+                        1,
+                        (void *)&(sensorExpTime));
+            } else {
+                ALOGE("%s: getExifExpTimeInfo failed", __func__);
+            }
+        }
+
+        char* jpeg_gps_processing_method = jpeg_settings->gps_processing_method;
+        if (strlen(jpeg_gps_processing_method) > 0) {
+            char gpsProcessingMethod[EXIF_ASCII_PREFIX_SIZE +
+                    GPS_PROCESSING_METHOD_SIZE];
+            count = 0;
+            rc = getExifGpsProcessingMethod(gpsProcessingMethod,
+                    count,
+                    jpeg_gps_processing_method);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_PROCESSINGMETHOD,
+                        EXIF_ASCII,
+                        count,
+                        (void *)gpsProcessingMethod);
+            } else {
+                ALOGE("%s: getExifGpsProcessingMethod failed", __func__);
+            }
+        }
+
+        if (jpeg_settings->gps_coordinates_valid) {
+
+            //latitude
+            rat_t latitude[3];
+            char latRef[2];
+            rc = getExifLatitude(latitude, latRef,
+                    jpeg_settings->gps_coordinates[0]);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_LATITUDE,
+                        EXIF_RATIONAL,
+                        3,
+                        (void *)latitude);
+                exif->addEntry(EXIFTAGID_GPS_LATITUDE_REF,
+                        EXIF_ASCII,
+                        2,
+                        (void *)latRef);
+            } else {
+                ALOGE("%s: getExifLatitude failed", __func__);
+            }
+
+            //longitude
+            rat_t longitude[3];
+            char lonRef[2];
+            rc = getExifLongitude(longitude, lonRef,
+                    jpeg_settings->gps_coordinates[1]);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_LONGITUDE,
+                        EXIF_RATIONAL,
+                        3,
+                        (void *)longitude);
+
+                exif->addEntry(EXIFTAGID_GPS_LONGITUDE_REF,
+                        EXIF_ASCII,
+                        2,
+                        (void *)lonRef);
+            } else {
+                ALOGE("%s: getExifLongitude failed", __func__);
+            }
+
+            //altitude
+            rat_t altitude;
+            char altRef;
+            rc = getExifAltitude(&altitude, &altRef,
+                    jpeg_settings->gps_coordinates[2]);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_ALTITUDE,
+                        EXIF_RATIONAL,
+                        1,
+                        (void *)&(altitude));
+
+                exif->addEntry(EXIFTAGID_GPS_ALTITUDE_REF,
+                        EXIF_BYTE,
+                        1,
+                        (void *)&altRef);
+            } else {
+                ALOGE("%s: getExifAltitude failed", __func__);
+            }
+        }
+
+        if (jpeg_settings->gps_timestamp_valid) {
+
+            char gpsDateStamp[20];
+            rat_t gpsTimeStamp[3];
+            rc = getExifGpsDateTimeStamp(gpsDateStamp, 20, gpsTimeStamp,
+                    jpeg_settings->gps_timestamp);
+            if(rc == NO_ERROR) {
+                exif->addEntry(EXIFTAGID_GPS_DATESTAMP, EXIF_ASCII,
+                        (uint32_t)(strlen(gpsDateStamp) + 1),
+                        (void *)gpsDateStamp);
+
+                exif->addEntry(EXIFTAGID_GPS_TIMESTAMP,
+                        EXIF_RATIONAL,
+                        3,
+                        (void *)gpsTimeStamp);
+            } else {
+                ALOGE("%s: getExifGpsDataTimeStamp failed", __func__);
+            }
+        }
+
+        IF_META_AVAILABLE(int32_t, exposure_comp, CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata) {
+            IF_META_AVAILABLE(cam_rational_type_t, comp_step, CAM_INTF_PARM_EV_STEP, metadata) {
+                srat_t exposure_val;
+                rc = getExifExposureValue(&exposure_val, *exposure_comp, *comp_step);
+                if(rc == NO_ERROR) {
+                    exif->addEntry(EXIFTAGID_EXPOSURE_BIAS_VALUE,
+                            EXIF_SRATIONAL,
+                            1,
+                            (void *)(&exposure_val));
+                } else {
+                    ALOGE("%s: getExifExposureValue failed ", __func__);
+                }
+            }
+        }
+    } else {
+        ALOGE("%s: no metadata provided ", __func__);
+    }
+
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get("ro.product.manufacturer", value, "QCOM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_MAKE, EXIF_ASCII,
+                (uint32_t)(strlen(value) + 1), (void *)value);
+    } else {
+        ALOGE("%s: getExifMaker failed", __func__);
+    }
+
+    if (property_get("ro.product.model", value, "QCAM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_MODEL, EXIF_ASCII,
+                (uint32_t)(strlen(value) + 1), (void *)value);
+    } else {
+        ALOGE("%s: getExifModel failed", __func__);
+    }
+
+    if (property_get("ro.build.description", value, "QCAM-AA") > 0) {
+        exif->addEntry(EXIFTAGID_SOFTWARE, EXIF_ASCII,
+                (uint32_t)(strlen(value) + 1), (void *)value);
+    } else {
+        ALOGE("%s: getExifSoftware failed", __func__);
+    }
+
+    return exif;
 }
 
 /*===========================================================================

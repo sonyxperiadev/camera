@@ -60,6 +60,7 @@ public:
     virtual int32_t init(cam_stream_type_t streamType,
                          cam_format_t streamFormat,
                          cam_dimension_t streamDim,
+                         cam_rotation_t streamRotation,
                          cam_stream_reproc_config_t* reprocess_config,
                          uint8_t minStreamBufNum,
                          uint32_t postprocess_mask,
@@ -88,6 +89,7 @@ public:
             int32_t plane_idx, int fd, size_t size);
     int32_t unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plane_idx);
     int32_t setParameter(cam_stream_parm_buffer_t &param);
+    cam_stream_info_t* getStreamInfo() const {return mStreamInfo; };
 
     static void releaseFrameData(void *data, void *user_data);
 

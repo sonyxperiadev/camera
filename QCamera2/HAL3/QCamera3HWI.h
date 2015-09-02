@@ -175,7 +175,7 @@ public:
     int initParameters();
     void deinitParameters();
     QCamera3ReprocessChannel *addOfflineReprocChannel(const reprocess_config_t &config,
-            QCamera3PicChannel *picChHandle, metadata_buffer_t *metadata);
+            QCamera3ProcessingChannel *inputChHandle);
     bool needRotationReprocess();
     bool needReprocess(uint32_t postprocess_mask);
     bool needJpegRotation();
@@ -211,6 +211,7 @@ private:
 
     int validateCaptureRequest(camera3_capture_request_t *request);
     int validateStreamDimensions(camera3_stream_configuration_t *streamList);
+    int validateStreamRotations(camera3_stream_configuration_t *streamList);
     void deriveMinFrameDuration();
     int32_t handlePendingReprocResults(uint32_t frame_number);
     int64_t getMinFrameDuration(const camera3_capture_request_t *request);
@@ -229,7 +230,8 @@ private:
     void extractJpegMetadata(CameraMetadata& jpegMetadata,
             const camera3_capture_request_t *request);
 
-    bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList);
+    bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList,
+            cam_stream_size_info_t stream_config_info);
     int32_t setMobicat();
 
     int32_t getSensorOutputSize(cam_dimension_t &sensor_dim);
@@ -237,10 +239,10 @@ private:
             metadata_buffer_t *hal_metadata);
     int32_t extractSceneMode(const CameraMetadata &frame_settings, uint8_t metaMode,
             metadata_buffer_t *hal_metadata);
-    int32_t setBatchMetaStreamID(cam_stream_ID_t &streamID);
 
     void updatePowerHint(bool bWasVideo, bool bIsVideo);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
+    void clearInputBuffer(camera3_stream_buffer_t *input_buffer);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -250,7 +252,6 @@ private:
     camera_metadata_t *mDefaultMetadata[CAMERA3_TEMPLATE_COUNT];
     const camera3_callback_ops_t *mCallbackOps;
 
-    camera3_stream_t *mInputStream;
     QCamera3MetadataChannel *mMetadataChannel;
     QCamera3PicChannel *mPictureChannel;
     QCamera3RawChannel *mRawChannel;
@@ -331,7 +332,7 @@ private:
     List<PendingFrameDropInfo> mPendingFrameDropList;
     PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
-    int mPendingRequest;
+    uint32_t mPendingRequest;
     bool mWokenUpByDaemon;
     int32_t mCurrentRequestId;
     cam_stream_size_info_t mStreamConfigInfo;
@@ -354,7 +355,7 @@ private:
     const camera_module_callbacks_t *mCallbacks;
 
     uint8_t mCaptureIntent;
-    metadata_buffer_t mRreprocMeta; //scratch meta buffer
+    metadata_buffer_t mReprocMeta; //scratch meta buffer
     /* 0: Not batch, non-zero: Number of image buffers in a batch */
     uint8_t mBatchSize;
     // Used only in batch mode
@@ -362,6 +363,7 @@ private:
     // Fixed video fps
     float mHFRVideoFps;
     cam_stream_ID_t mBatchStreamID;
+    uint8_t mOpMode;
 
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;
@@ -392,6 +394,8 @@ private:
             cam_test_pattern_mode_t> TEST_PATTERN_MAP[];
     static const QCameraMap<camera_metadata_enum_android_sensor_reference_illuminant1_t,
             cam_illuminat_t> REFERENCE_ILLUMINANT_MAP[];
+    static const QCameraMap<int32_t,
+            cam_hfr_mode_t> HFR_MODE_MAP[];
 
     static const QCameraPropMap CDS_MAP[];
 };
