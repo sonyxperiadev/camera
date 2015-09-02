@@ -1318,7 +1318,15 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 processedStreamCnt++;
                 if (isOnEncoder(maxViewfinderSize, newStream->width,
                         newStream->height)) {
-                    commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
+                    // If Yuv888 size is not greater than 4K, set feature mask
+                    // to SUPERSET so that it support concurrent request on
+                    // YUV and JPEG.
+                    if (newStream->width <= VIDEO_4K_WIDTH &&
+                            newStream->height <= VIDEO_4K_HEIGHT) {
+                        commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                    } else {
+                        commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
+                    }
                     numStreamsOnEncoder++;
                     numYuv888OnEncoder++;
                     largeYuv888Size.width = newStream->width;
@@ -1388,11 +1396,11 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     // If jpeg stream is available, and a YUV 888 stream is on Encoder path, and
     // the YUV stream's size is greater or equal to the JPEG size, set common
     // postprocess mask to NONE, so that we can take advantage of postproc bypass.
-    if (numYuv888OnEncoder && isJpeg &&
-            largeYuv888Size.width >= jpegSize.width &&
-            largeYuv888Size.height >= jpegSize.height) {
+    if (numYuv888OnEncoder && isOnEncoder(maxViewfinderSize,
+            jpegSize.width, jpegSize.height) &&
+            largeYuv888Size.width > jpegSize.width &&
+            largeYuv888Size.height > jpegSize.height) {
         bYuv888OverrideJpeg = true;
-        commonFeatureMask = CAM_QCOM_FEATURE_NONE;
     }
 
     rc = validateStreamDimensions(streamList);
