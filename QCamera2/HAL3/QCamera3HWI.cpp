@@ -1276,10 +1276,10 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         if ((HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == newStream->format) &&
                 (newStream->usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER)) {
             m_bIsVideo = true;
+            videoWidth = newStream->width;
+            videoHeight = newStream->height;
             if ((VIDEO_4K_WIDTH <= newStream->width) &&
                     (VIDEO_4K_HEIGHT <= newStream->height)) {
-                videoWidth = newStream->width;
-                videoHeight = newStream->height;
                 m_bIs4KVideo = true;
             }
             m_bEisSupportedSize = (newStream->width <= maxEisWidth) &&
