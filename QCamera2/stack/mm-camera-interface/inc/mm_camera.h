@@ -51,6 +51,10 @@
 #define MM_CAMERA_DEV_OPEN_RETRY_SLEEP 20
 #define THREAD_NAME_SIZE 15
 
+/* Future frame idx, large enough to make sure capture
+* settings can be applied and small enough to still capture an image */
+#define MM_CAMERA_MAX_FUTURE_FRAME_WAIT 100
+
 #ifndef TRUE
 #define TRUE 1
 #endif
@@ -466,16 +470,16 @@ typedef struct mm_channel {
     uint32_t burstSnapNum;
     char threadName[THREAD_NAME_SIZE];
 
-    /*Frame capture configaration*/
-    uint8_t isConfigCapture;
-    uint8_t cur_capture_idx;
-
     /*Buffer diverted*/
     uint8_t diverted_frame_id;
     uint32_t sessionid;
 
-    uint8_t capture_frame_id[MAX_CAPTURE_BATCH_NUM];
+    /*Frame capture configaration*/
+    uint8_t isConfigCapture;
+    uint8_t cur_capture_idx;
+    uint32_t capture_frame_id[MAX_CAPTURE_BATCH_NUM];
     cam_capture_frame_config_t frameConfig;
+    uint8_t needLowLightZSL;
 } mm_channel_t;
 
 typedef struct {

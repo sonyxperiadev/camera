@@ -229,6 +229,10 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
     mm_channel_queue_node_t *node = NULL;
     mm_channel_t *ch_obj = (mm_channel_t *)user_data;
     uint32_t i = 0;
+    /* Set expected frame id to a future frame idx, large enough to wait
+    * for good_frame_idx_range, and small enough to still capture an image */
+    const uint32_t max_future_frame_offset = MM_CAMERA_MAX_FUTURE_FRAME_WAIT;
+    uint8_t needStartZSL = FALSE;
 
     if (NULL == ch_obj) {
         return;
@@ -358,11 +362,35 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
     }
     notify_mode = ch_obj->bundle.superbuf_queue.attr.notify_mode;
 
+    /*Handle use case which does not need start ZSL even in unified case*/
     if ((ch_obj->pending_cnt > 0)
+            && (ch_obj->isConfigCapture)
             && (ch_obj->manualZSLSnapshot == FALSE)
-            && (ch_obj->startZSlSnapshotCalled == FALSE)
-            && (ch_obj->needLEDFlash == TRUE)
-            && (ch_obj->isConfigCapture)) {
+            && (ch_obj->startZSlSnapshotCalled == FALSE)) {
+        needStartZSL = TRUE;
+        for (i = ch_obj->cur_capture_idx;
+                i < ch_obj->frameConfig.num_batch;
+                i++) {
+            cam_capture_type type = ch_obj->frameConfig.configs[i].type;
+            if (((type == CAM_CAPTURE_FLASH) && (!ch_obj->needLEDFlash))
+                    || ((type == CAM_CAPTURE_LOW_LIGHT) && (!ch_obj->needLowLightZSL))) {
+                /*For flash and low light capture, start ZSL is triggered only if needed*/
+                needStartZSL = FALSE;
+                break;
+            }
+        }
+    }
+
+    if ((ch_obj->isConfigCapture)
+            && (needStartZSL)) {
+        for (i = ch_obj->cur_capture_idx;
+                i < ch_obj->frameConfig.num_batch;
+                i++) {
+            ch_obj->capture_frame_id[i] =
+                    ch_obj->bundle.superbuf_queue.expected_frame_id
+                    + MM_CAMERA_MAX_FUTURE_FRAME_WAIT;
+        }
+
         /* Need to Flush the queue and trigger frame config */
         mm_channel_superbuf_flush(ch_obj,
                 &ch_obj->bundle.superbuf_queue, CAM_STREAM_TYPE_DEFAULT);
@@ -372,7 +400,7 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
         ch_obj->burstSnapNum = ch_obj->pending_cnt;
         ch_obj->bWaitForPrepSnapshotDone = 0;
     } else if ((ch_obj->pending_cnt > 0)
-        && ( (ch_obj->needLEDFlash == TRUE) ||
+        && ((ch_obj->needLEDFlash == TRUE) ||
         (MM_CHANNEL_BRACKETING_STATE_OFF != ch_obj->bracketingState))
         && (ch_obj->manualZSLSnapshot == FALSE)
         && ch_obj->startZSlSnapshotCalled == FALSE) {
@@ -460,9 +488,8 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
            node = mm_channel_superbuf_dequeue(&ch_obj->bundle.superbuf_queue, ch_obj);
            if (node != NULL) {
                if (ch_obj->isConfigCapture &&
-                       (node->frame_idx <
-                        ch_obj->capture_frame_id[
-                        ch_obj->cur_capture_idx])) {
+                       ((node->frame_idx <
+                        ch_obj->capture_frame_id[ch_obj->cur_capture_idx]))) {
                    uint8_t i;
                    for (i = 0; i < node->num_of_bufs; i++) {
                        mm_channel_qbuf(ch_obj, node->super_buf[i].buf);
@@ -2361,7 +2388,7 @@ int32_t mm_channel_handle_metadata(
     uint32_t i;
     /* Set expected frame id to a future frame idx, large enough to wait
     * for good_frame_idx_range, and small enough to still capture an image */
-    const uint32_t max_future_frame_offset = 100U;
+    const uint32_t max_future_frame_offset = MM_CAMERA_MAX_FUTURE_FRAME_WAIT;
 
     memset(&good_frame_idx_range, 0, sizeof(good_frame_idx_range));
 
@@ -2557,6 +2584,11 @@ int32_t mm_channel_handle_metadata(
                         __func__, buf_info->frame_idx, queue->expected_frame_id);
          }
        }
+
+        IF_META_AVAILABLE(const cam_low_light_mode_t, low_light_level,
+            CAM_INTF_META_LOW_LIGHT, metadata) {
+            ch_obj->needLowLightZSL = *low_light_level;
+        }
     }
 end:
     return rc;
