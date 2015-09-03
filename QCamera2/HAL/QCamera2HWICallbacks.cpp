@@ -2220,6 +2220,13 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         }
     }
 
+    if (pme->mParameters.getLowLightCapture()) {
+        IF_META_AVAILABLE(cam_low_light_mode_t, low_light_level,
+                CAM_INTF_META_LOW_LIGHT, pMetaData) {
+            pme->mParameters.setLowLightLevel(*low_light_level);
+        }
+    }
+
     stream->bufDone(frame->buf_idx);
     free(super_frame);
 
