@@ -3022,7 +3022,8 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                                 postprocess_mask, metadataChannel, numBuffers),
                         mNumSnapshotBufs(0),
                         mInputBufferHint(isInputStreamConfigured),
-                        mYuvMemory(NULL)
+                        mYuvMemory(NULL),
+                        mFrameLen(0)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     m_max_pic_dim = hal_obj->calcMaxJpegDim();
@@ -3113,12 +3114,6 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
             ROTATE_0, (uint8_t)mCamera3Stream->max_buffers, mPostProcMask,
             mIsType);
 
-    Mutex::Autolock lock(mFreeBuffersLock);
-    mFreeBufferList.clear();
-    for (uint32_t i = 0; i < mCamera3Stream->max_buffers; i++) {
-        mFreeBufferList.push_back(i);
-    }
-
     if (NO_ERROR != rc) {
         ALOGE("%s: Initialize failed, rc = %d", __func__, rc);
         return rc;
@@ -3203,15 +3198,22 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 
     if (pInputBuffer == NULL) {
         Mutex::Autolock lock(mFreeBuffersLock);
-        if (!mFreeBufferList.empty()) {
-            List<uint32_t>::iterator it = mFreeBufferList.begin();
-            uint32_t freeBuffer = *it;
-            mStreams[0]->bufDone(freeBuffer);
-            mFreeBufferList.erase(it);
+        uint32_t bufIdx;
+        if (mFreeBufferList.empty()) {
+            rc = mYuvMemory->allocateOne(mFrameLen);
+            if (rc < 0) {
+                ALOGE("%s: Failed to allocate heap buffer. Fatal", __func__);
+                return rc;
+            } else {
+                bufIdx = (uint32_t)rc;
+            }
         } else {
-            ALOGE("%s: No snapshot buffers available!", __func__);
-            rc = NOT_ENOUGH_DATA;
+            List<uint32_t>::iterator it = mFreeBufferList.begin();
+            bufIdx = *it;
+            mFreeBufferList.erase(it);
         }
+        mYuvMemory->markFrameNumber(bufIdx, frameNumber);
+        mStreams[0]->bufDone(bufIdx);
     } else {
         qcamera_fwk_input_pp_data_t *src_frame = NULL;
         src_frame = (qcamera_fwk_input_pp_data_t *)calloc(1,
@@ -3356,15 +3358,8 @@ QCamera3StreamMem* QCamera3PicChannel::getStreamBufs(uint32_t len)
         ALOGE("%s: unable to create metadata memory", __func__);
         return NULL;
     }
+    mFrameLen = len;
 
-    //Queue YUV buffers in the beginning mQueueAll = true
-    rc = mYuvMemory->allocateAll(len);
-    if (rc < 0) {
-        ALOGE("%s: unable to allocate metadata memory", __func__);
-        delete mYuvMemory;
-        mYuvMemory = NULL;
-        return NULL;
-    }
     return mYuvMemory;
 }
 
@@ -3505,6 +3500,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
                     ((QCamera3ProcessingChannel *)ch_hdl)->getNumBuffers()),
     inputChHandle(ch_hdl),
     mOfflineBuffersIndex(-1),
+    mFrameLen(0),
     mReprocessType(REPROCESS_TYPE_NONE),
     m_pSrcChannel(NULL),
     m_pMetaChannel(NULL),
@@ -3707,18 +3703,12 @@ QCamera3StreamMem* QCamera3ReprocessChannel::getStreamBufs(uint32_t len)
 {
     int rc = 0;
     if (mReprocessType == REPROCESS_TYPE_JPEG) {
-        mMemory = new QCamera3StreamMem(mNumBuffers);
+        mMemory = new QCamera3StreamMem(mNumBuffers, false);
         if (!mMemory) {
             ALOGE("%s: unable to create reproc memory", __func__);
             return NULL;
         }
-        rc = mMemory->allocateAll(len);
-        if (rc < 0) {
-            ALOGE("%s: unable to allocate reproc memory", __func__);
-            delete mMemory;
-            mMemory = NULL;
-            return NULL;
-        }
+        mFrameLen = len;
         return mMemory;
     }
     return &mGrallocMemory;
@@ -3932,6 +3922,35 @@ int32_t QCamera3ReprocessChannel::unmapOfflineBuffers(bool all)
            mOfflineMetaBuffers.clear();
         }
     }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : bufDone
+ *
+ * DESCRIPTION: Return reprocess stream buffer to free buffer list.
+ *              Note that this function doesn't queue buffer back to kernel.
+ *              It's up to doReprocessOffline to do that instead.
+ * PARAMETERS :
+ *   @recvd_frame  : stream buf frame to be returned
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3ReprocessChannel::bufDone(mm_camera_super_buf_t *recvd_frame)
+{
+    int rc = NO_ERROR;
+    if (recvd_frame && recvd_frame->num_bufs == 1) {
+        Mutex::Autolock lock(mFreeBuffersLock);
+        uint32_t buf_idx = recvd_frame->bufs[0]->buf_idx;
+        mFreeBufferList.push_back(buf_idx);
+
+    } else {
+        ALOGE("%s: Fatal. Not supposed to be here", __func__);
+        rc = BAD_VALUE;
+    }
+
     return rc;
 }
 
@@ -4222,6 +4241,29 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
             return rc;
         }
         rc = mGrallocMemory.markFrameNumber(index, frame->frameNumber);
+
+    } else if (mReprocessType == REPROCESS_TYPE_JPEG) {
+        Mutex::Autolock lock(mFreeBuffersLock);
+        uint32_t bufIdx;
+        if (mFreeBufferList.empty()) {
+            rc = mMemory->allocateOne(mFrameLen);
+            if (rc < 0) {
+                ALOGE("%s: Failed allocating heap buffer. Fatal", __func__);
+                return BAD_VALUE;
+            } else {
+                bufIdx = (uint32_t)rc;
+            }
+        } else {
+            bufIdx = *(mFreeBufferList.begin());
+            mFreeBufferList.erase(mFreeBufferList.begin());
+        }
+
+        mMemory->markFrameNumber(bufIdx, frame->frameNumber);
+        rc = pStream->bufDone(bufIdx);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Failed to queue new buffer to stream", __func__);
+            return rc;
+        }
     }
 
     int32_t max_idx = (int32_t) (mNumBuffers - 1);

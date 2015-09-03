@@ -487,6 +487,7 @@ private:
     // Keep a list of free buffers
     Mutex mFreeBuffersLock;
     List<uint32_t> mFreeBufferList;
+    uint32_t mFrameLen;
 };
 
 // reprocess channel class
@@ -517,6 +518,7 @@ public:
     virtual void putStreamBufs();
     virtual int32_t initialize(cam_is_type_t isType);
     int32_t unmapOfflineBuffers(bool all);
+    int32_t bufDone(mm_camera_super_buf_t *recvd_frame);
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream);
     static void dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
@@ -543,6 +545,9 @@ private:
     android::List<OfflineBuffer> mOfflineMetaBuffers;
     int32_t mOfflineBuffersIndex;
     int32_t mOfflineMetaIndex;
+    uint32_t mFrameLen;
+    Mutex mFreeBuffersLock; // Lock for free heap buffers
+    List<int32_t> mFreeBufferList; // Free heap buffers list
     reprocess_type_t mReprocessType;
     uint32_t mSrcStreamHandles[MAX_STREAM_NUM_IN_BUNDLE];
     QCamera3ProcessingChannel *m_pSrcChannel; // ptr to source channel for reprocess
