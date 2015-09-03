@@ -1098,7 +1098,15 @@ void QCamera3Stream::releaseFrameData(void *data, void *user_data)
     QCamera3Stream *pme = (QCamera3Stream *)user_data;
     mm_camera_super_buf_t *frame = (mm_camera_super_buf_t *)data;
     if (NULL != pme) {
-        pme->bufDone(frame->bufs[0]->buf_idx);
+        if (UNLIKELY(pme->mBatchSize)) {
+            /* For batch mode, the batch buffer is added to empty list */
+            if(!pme->mFreeBatchBufQ.enqueue((void*) frame->bufs[0])) {
+                ALOGE("%s: batchBuf.buf_idx: %d enqueue failed", __func__,
+                        frame->bufs[0]->buf_idx);
+            }
+        } else {
+            pme->bufDone(frame->bufs[0]->buf_idx);
+        }
     }
 }
 
