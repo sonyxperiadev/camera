@@ -3592,7 +3592,7 @@ no_error:
     //If 2 streams have need_metadata set to true, fail the request, unless
     //we copy/reference count the metadata buffer
     if (streams_need_metadata > 1) {
-        ALOGE("s: not supporting request in which two streams requires"
+        ALOGE("%s: not supporting request in which two streams requires"
                 " 2 HAL metadata for reprocessing", __func__);
         pthread_mutex_unlock(&mMutex);
         return -EINVAL;
