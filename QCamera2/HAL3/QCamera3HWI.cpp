@@ -394,15 +394,15 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     if (mEnableRawDump)
         CDBG("%s: Raw dump from Camera HAL enabled", __func__);
 
-    memset(prop, 0, sizeof(prop));
     memset(&mInputStreamInfo, 0, sizeof(mInputStreamInfo));
     memset(mLdafCalib, 0, sizeof(mLdafCalib));
 
-    property_get("persist.camera.tnr.preview", prop, "1");
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.tnr.preview", prop, "0");
     m_bTnrPreview = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.tnr.video", prop, "1");
+    property_get("persist.camera.tnr.video", prop, "0");
     m_bTnrVideo = (uint8_t)atoi(prop);
 }
 
