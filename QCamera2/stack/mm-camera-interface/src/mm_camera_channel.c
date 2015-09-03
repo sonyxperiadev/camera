@@ -339,13 +339,21 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                     __func__, __LINE__, start);
 
                 if (start) {
-                    ch_obj->frameConfig = cmd_cb->u.gen_cmd.frame_config;
+                    memset(&ch_obj->frameConfig, 0, sizeof(cam_capture_frame_config_t));
+                    for (i = 0; i < cmd_cb->u.gen_cmd.frame_config.num_batch; i++) {
+                        if (cmd_cb->u.gen_cmd.frame_config.configs[i].type
+                                != CAM_CAPTURE_RESET) {
+                            ch_obj->frameConfig.configs[
+                                    ch_obj->frameConfig.num_batch] =
+                                    cmd_cb->u.gen_cmd.frame_config.configs[i];
+                            ch_obj->frameConfig.num_batch++;
+                            CDBG("capture setting frame = %d type = %d",
+                                    i,ch_obj->frameConfig.configs[
+                                    ch_obj->frameConfig.num_batch].type);
+                        }
+                    }
                     CDBG_HIGH("%s:%d] Capture setting Batch Count %d",
                             __func__, __LINE__, ch_obj->frameConfig.num_batch);
-                    for (i = 0; i < ch_obj->frameConfig.num_batch; i++) {
-                        CDBG("capture setting frame = %d type = %d",
-                                i,ch_obj->frameConfig.configs[i].type);
-                    }
                     ch_obj->isConfigCapture = TRUE;
                 } else {
                     ch_obj->isConfigCapture = FALSE;
