@@ -269,6 +269,7 @@ private:
 
     bool isOnEncoder(const cam_dimension_t max_viewfinder_size,
             uint32_t width, uint32_t height);
+    void hdrPlusPerfLock(mm_camera_super_buf_t *metadata_buf);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -421,6 +422,7 @@ private:
     bool mLdafCalibExist;
     uint32_t mLdafCalib[2];
     bool mPowerHintEnabled;
+    int32_t mLastCustIntentFrmNum;
 
     static const QCameraMap<camera_metadata_enum_android_control_effect_mode_t,
             cam_effect_mode_type> EFFECT_MODES_MAP[];

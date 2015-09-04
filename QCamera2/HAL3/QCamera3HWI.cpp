@@ -86,6 +86,7 @@ namespace qcamera {
 #define DEFAULT_VIDEO_FPS      (30.0)
 #define MAX_HFR_BATCH_SIZE     (8)
 #define REGIONS_TUPLE_COUNT    5
+#define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
 
 #define FLUSH_TIMEOUT 3
 
@@ -357,7 +358,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mPrevFrameNumber(0),
       mNeedSensorRestart(false),
       mLdafCalibExist(false),
-      mPowerHintEnabled(false)
+      mPowerHintEnabled(false),
+      mLastCustIntentFrmNum(-1)
 {
     getLogLevel();
     m_perfLock.lock_init();
@@ -2808,6 +2810,44 @@ done_metadata:
 }
 
 /*===========================================================================
+ * FUNCTION   : hdrPlusPerfLock
+ *
+ * DESCRIPTION: perf lock for HDR+ using custom intent
+ *
+ * PARAMETERS : @metadata_buf: Metadata super_buf pointer
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::hdrPlusPerfLock(
+        mm_camera_super_buf_t *metadata_buf)
+{
+    if (NULL == metadata_buf) {
+        ALOGE("%s: metadata_buf is NULL", __func__);
+        return;
+    }
+    metadata_buffer_t *metadata =
+            (metadata_buffer_t *)metadata_buf->bufs[0]->buffer;
+    int32_t *p_frame_number_valid =
+            POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
+    uint32_t *p_frame_number =
+            POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
+
+    //acquire perf lock for 5 sec after the last HDR frame is captured
+    if (*p_frame_number_valid) {
+        if (mLastCustIntentFrmNum == (int32_t)*p_frame_number) {
+            m_perfLock.lock_acq_timed(HDR_PLUS_PERF_TIME_OUT);
+        }
+    }
+
+    //release lock after perf lock timer is expired. If lock is already released,
+    //isTimerReset returns false
+    if (m_perfLock.isTimerReset()) {
+        mLastCustIntentFrmNum = -1;
+        m_perfLock.lock_rel_timed();
+    }
+}
+/*===========================================================================
  * FUNCTION   : handleBufferWithLock
  *
  * DESCRIPTION: Handles image buffer callback with mMutex lock held.
@@ -3472,6 +3512,9 @@ no_error:
         }
     }
 
+    if (mCaptureIntent == ANDROID_CONTROL_CAPTURE_INTENT_CUSTOM) {
+        mLastCustIntentFrmNum = frameNumber;
+    }
     /* Update pending request list and pending buffers map */
     PendingRequestInfo pendingRequest;
     pendingRequestIterator latestRequest;
@@ -4083,6 +4126,7 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
             handleBatchMetadata(metadata_buf,
                     true /* free_and_bufdone_meta_buf */);
         } else { /* mBatchSize = 0 */
+            hdrPlusPerfLock(metadata_buf);
             pthread_mutex_lock(&mMutex);
             handleMetadataWithLock(metadata_buf,
                     true /* free_and_bufdone_meta_buf */);

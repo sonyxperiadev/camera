@@ -65,7 +65,11 @@ QCameraPerfLock::QCameraPerfLock() :
         perf_lock_rel(NULL),
         mDlHandle(NULL),
         mPerfLockEnable(0),
-        mPerfLockHandle(-1)
+        mPerfLockHandle(-1),
+        mPerfLockHandleTimed(-1),
+        mTimerSet(0),
+        mPerfLockTimeout(0),
+        mStartTimeofLock(0)
 {
 }
 
@@ -133,13 +137,13 @@ void QCameraPerfLock::lock_init()
 
         perf_lock_acq = (int (*) (int, int, int[], int))dlsym(mDlHandle, "perf_lock_acq");
         if ((rc = dlerror()) != NULL) {
-            ALOGE("failed to perf_lock_acq function handle");
+            ALOGE("%s: failed to perf_lock_acq function handle", __func__);
             goto cleanup;
         }
 
         perf_lock_rel = (int (*) (int))dlsym(mDlHandle, "perf_lock_rel");
         if ((rc = dlerror()) != NULL) {
-            ALOGE("failed to perf_lock_rel function handle");
+            ALOGE("%s: failed to perf_lock_rel function handle", __func__);
             goto cleanup;
         }
         CDBG("%s X", __func__);
@@ -186,6 +190,108 @@ void QCameraPerfLock::lock_deinit()
 }
 
 /*===========================================================================
+ * FUNCTION   : isTimerReset
+ *
+ * DESCRIPTION: Check if timout duration is reached
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : true if timeout reached
+ *              false if timeout not reached
+ *
+ *==========================================================================*/
+bool QCameraPerfLock::isTimerReset()
+{
+    Mutex::Autolock lock(mLock);
+    if (mPerfLockEnable && mTimerSet) {
+        nsecs_t timeDiff = systemTime() - mStartTimeofLock;
+        if (ns2ms(timeDiff) > (uint32_t)mPerfLockTimeout) {
+            mTimerSet = 0;
+            return true;
+        }
+    }
+    return false;
+}
+
+/*===========================================================================
+ * FUNCTION   : start_timer
+ *
+ * DESCRIPTION: get the start of the timer
+ *
+ * PARAMETERS :
+ *  @timer_val: timer duration in milliseconds
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *
+ *==========================================================================*/
+void QCameraPerfLock::startTimer(uint32_t timer_val)
+{
+    mStartTimeofLock = systemTime();
+    mTimerSet = 1;
+    mPerfLockTimeout = timer_val;
+}
+
+/*===========================================================================
+ * FUNCTION   : lock_acq_timed
+ *
+ * DESCRIPTION: Acquire the performance lock for the specified duration.
+ *              If an existing lock timeout has not elapsed, extend the
+ *              lock further for the specified duration
+ *
+ * PARAMETERS :
+ *  @timer_val: lock duration
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *
+ *==========================================================================*/
+int32_t QCameraPerfLock::lock_acq_timed(int32_t timer_val)
+{
+    int32_t ret = -1;
+
+    CDBG("%s E", __func__);
+    Mutex::Autolock lock(mLock);
+
+    if (mPerfLockEnable) {
+        int32_t perf_lock_params[] = {
+                ALL_CPUS_PWR_CLPS_DIS,
+                CPU0_MIN_FREQ_TURBO_MAX,
+                CPU4_MIN_FREQ_TURBO_MAX
+        };
+        if (mTimerSet) {
+            nsecs_t curElapsedTime = systemTime() - mStartTimeofLock;
+            int32_t pendingTimeout = mPerfLockTimeout - ns2ms(curElapsedTime);
+            timer_val += pendingTimeout;
+        }
+        startTimer(timer_val);
+
+        // Disable power hint when acquiring the perf lock
+        if (mCurrentPowerHintEnable) {
+            CDBG_HIGH("%s mCurrentPowerHintEnable %d", __func__ ,mCurrentPowerHintEnable);
+            powerHintInternal(mCurrentPowerHint, 0);
+        }
+
+        if ((NULL != perf_lock_acq) && (mPerfLockHandleTimed < 0)) {
+            ret = (*perf_lock_acq)(mPerfLockHandleTimed, timer_val, perf_lock_params,
+                    sizeof(perf_lock_params) / sizeof(int32_t));
+            CDBG("%s ret %d", __func__, ret);
+            if (ret < 0) {
+                ALOGE("%s: failed to acquire lock", __func__);
+            } else {
+                mPerfLockHandleTimed = ret;
+            }
+        }
+        CDBG("%s perf_handle_acq %d ",__func__, mPerfLockHandleTimed);
+    }
+
+    CDBG("%s X", __func__);
+    return ret;
+}
+
+/*===========================================================================
  * FUNCTION   : lock_acq
  *
  * DESCRIPTION: acquire the performance lock
@@ -222,7 +328,7 @@ int32_t QCameraPerfLock::lock_acq()
                     sizeof(perf_lock_params) / sizeof(int32_t));
             CDBG("%s ret %d", __func__, ret);
             if (ret < 0) {
-                ALOGE("failed to acquire lock");
+                ALOGE("%s: failed to acquire lock", __func__);
             } else {
                 mPerfLockHandle = ret;
             }
@@ -231,6 +337,47 @@ int32_t QCameraPerfLock::lock_acq()
     }
 
     CDBG("%s X", __func__);
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : lock_rel_timed
+ *
+ * DESCRIPTION: release the performance lock
+ *
+ * PARAMETERS :
+ *   None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *
+ *==========================================================================*/
+int32_t QCameraPerfLock::lock_rel_timed()
+{
+    int ret = -1;
+    Mutex::Autolock lock(mLock);
+    if (mPerfLockEnable) {
+        CDBG("%s E", __func__);
+        if (mPerfLockHandleTimed < 0) {
+            ALOGE("%s: mPerfLockHandle < 0,check if lock is acquired", __func__);
+            return ret;
+        }
+        CDBG("%s perf_handle_rel %d ",__func__, mPerfLockHandleTimed);
+
+        if ((NULL != perf_lock_rel) && (0 <= mPerfLockHandleTimed)) {
+            ret = (*perf_lock_rel)(mPerfLockHandleTimed);
+            if (ret < 0) {
+                ALOGE("%s: failed to release lock", __func__);
+            }
+            mPerfLockHandleTimed = -1;
+        }
+
+        if ((mCurrentPowerHintEnable == 1) && (mTimerSet == 0)) {
+            powerHintInternal(mCurrentPowerHint, mCurrentPowerHintEnable);
+        }
+        CDBG("%s X", __func__);
+    }
     return ret;
 }
 
@@ -252,9 +399,9 @@ int32_t QCameraPerfLock::lock_rel()
     int ret = -1;
     Mutex::Autolock lock(mLock);
     if (mPerfLockEnable) {
-        CDBG_HIGH("%s E", __func__);
+        CDBG("%s E", __func__);
         if (mPerfLockHandle < 0) {
-            ALOGE("Error: mPerfLockHandle < 0,check if lock is acquired");
+            ALOGE("%s: mPerfLockHandle < 0,check if lock is acquired", __func__);
             return ret;
         }
         CDBG("%s perf_handle_rel %d ",__func__, mPerfLockHandle);
@@ -262,15 +409,15 @@ int32_t QCameraPerfLock::lock_rel()
         if ((NULL != perf_lock_rel) && (0 <= mPerfLockHandle)) {
             ret = (*perf_lock_rel)(mPerfLockHandle);
             if (ret < 0) {
-                ALOGE("failed to release lock");
+                ALOGE("%s: failed to release lock", __func__);
             }
             mPerfLockHandle = -1;
         }
 
-        if (mCurrentPowerHintEnable == 1) {
+        if ((mCurrentPowerHintEnable == 1) && (mTimerSet == 0)) {
             powerHintInternal(mCurrentPowerHint, mCurrentPowerHintEnable);
         }
-        CDBG_HIGH("%s X", __func__);
+        CDBG("%s X", __func__);
     }
     return ret;
 }
@@ -313,6 +460,10 @@ void QCameraPerfLock::powerHintInternal(power_hint_t hint, uint32_t enable)
 void QCameraPerfLock::powerHint(power_hint_t hint, uint32_t enable)
 {
 #ifdef HAS_MULTIMEDIA_HINTS
+    if (mCurrentPowerHintEnable) {
+        //disable previous hint
+        powerHintInternal(mCurrentPowerHint, 0);
+    }
     powerHintInternal(hint, enable);
 
     mCurrentPowerHint       = hint;

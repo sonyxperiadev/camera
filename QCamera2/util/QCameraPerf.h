@@ -34,13 +34,17 @@
 #include <utils/Mutex.h>
 #include <hardware/power.h>
 
-#define ONE_SEC 1000
-
 typedef enum {
+    ALL_CORES_ONLINE = 0x7FE,
     ALL_CPUS_PWR_CLPS_DIS = 0x101,
     CPU0_MIN_FREQ_TURBO_MAX = 0x2FE,
     CPU4_MIN_FREQ_TURBO_MAX = 0x1FFE,
 }perf_lock_params_t;
+
+/* Time related macros */
+#define ONE_SEC 1000
+typedef int64_t nsecs_t;
+#define NSEC_PER_SEC 1000000000LLU
 
 using namespace android;
 
@@ -55,18 +59,27 @@ public:
     void    lock_deinit();
     int32_t lock_rel();
     int32_t lock_acq();
+    int32_t lock_acq_timed(int32_t timer_val);
+    int32_t lock_rel_timed();
+    bool    isTimerReset();
     void    powerHintInternal(power_hint_t hint, uint32_t enable);
     void    powerHint(power_hint_t hint, uint32_t enable);
+
 private:
     int32_t        (*perf_lock_acq)(int, int, int[], int);
     int32_t        (*perf_lock_rel)(int);
+    void            startTimer(uint32_t timer_val);
     void           *mDlHandle;
     uint32_t        mPerfLockEnable;
     Mutex           mLock;
     int32_t         mPerfLockHandle;  // Performance lock library handle
+    int32_t         mPerfLockHandleTimed;  // Performance lock library handle
     power_module_t *m_pPowerModule;   // power module Handle
     power_hint_t    mCurrentPowerHint;
     uint32_t        mCurrentPowerHintEnable;
+    uint32_t        mTimerSet;
+    uint32_t        mPerfLockTimeout;
+    nsecs_t         mStartTimeofLock;
 };
 
 }; // namespace qcamera
