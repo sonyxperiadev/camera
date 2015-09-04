@@ -35,6 +35,8 @@
 #include <utils/Log.h>
 #include <gralloc_priv.h>
 #include <QComOMXMetadata.h>
+#include "OMX_QCOMExtns.h"
+#include <OMX_IVCommon.h>
 
 #include "QCamera2HWI.h"
 #include "QCameraMem.h"
@@ -1250,6 +1252,7 @@ QCameraVideoMemory::QCameraVideoMemory(camera_request_memory memory,
     mMetaBufCount = 0;
     mBufType = bufType;
     mUsage = 0;
+    mFormat = OMX_COLOR_FormatYUV420SemiPlanar;
 }
 
 /*===========================================================================
@@ -1292,7 +1295,7 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
     if (!(mBufType & QCAMERA_MEM_TYPE_BATCH)) {
         /*
         *    FDs = 1
-        *    numInts  = 3 //offset, size, usage
+        *    numInts  = 5 //offset, size, usage, timestamp, format
         */
         rc = allocateMeta(count, 1, VIDEO_METADATA_NUM_INTS);
         if (rc != NO_ERROR) {
@@ -1312,6 +1315,8 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
             nh->data[3] = usage;
+            nh->data[4] = 0; //dummy value for timestamp in non-batch mode
+            nh->data[5] = mFormat;
         }
     }
     mBufferCount = count;
@@ -1360,8 +1365,10 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             }
             struct encoder_media_buffer_type * packet =
                     (struct encoder_media_buffer_type *)mMetadata[i]->data;
-            //1 fd, 1 offset, 1 size  and 1 usage
-            packet->meta_handle = native_handle_create(1, 3);
+
+            //FDs = 1
+            //numInts  = 5 (offset, size, usage, timestamp, format)
+            packet->meta_handle = native_handle_create(1, VIDEO_METADATA_NUM_INTS);
             packet->buffer_type = kMetadataBufferTypeCameraSource;
             native_handle_t * nh = const_cast<native_handle_t *>(packet->meta_handle);
             if (!nh) {
@@ -1373,6 +1380,8 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
             nh->data[3] = usage;
+            nh->data[4] = 0; //dummy value for timestamp in non-batch mode
+            nh->data[5] = mFormat;
         }
     }
     mBufferCount = (uint8_t)(mBufferCount + count);
@@ -1543,9 +1552,40 @@ int QCameraVideoMemory::getMatchBufIndex(const void *opaque,
  *
  * RETURN     : none
  *==========================================================================*/
-void QCameraVideoMemory::setVideoInfo(int usage)
+void QCameraVideoMemory::setVideoInfo(int usage, cam_format_t format)
 {
     mUsage = usage;
+    mFormat = convCamtoOMXFormat(format);
+}
+
+/*===========================================================================
+ * FUNCTION   : convCamtoOMXFormat
+ *
+ * DESCRIPTION: map cam_format_t to corresponding OMX format
+ *
+ * PARAMETERS :
+ *   @format : format in cam_format_t type
+ *
+ * RETURN     : omx format
+ *==========================================================================*/
+int QCameraVideoMemory::convCamtoOMXFormat(cam_format_t format)
+{
+    int omxFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+    switch (format) {
+        case CAM_FORMAT_YUV_420_NV21:
+        case CAM_FORMAT_YUV_420_NV21_VENUS:
+        case CAM_FORMAT_YUV_420_NV21_ADRENO:
+            omxFormat = QOMX_COLOR_FormatYVU420SemiPlanar;
+            break;
+        case CAM_FORMAT_YUV_420_NV12:
+        case CAM_FORMAT_YUV_420_NV12_VENUS:
+        case CAM_FORMAT_YUV_420_NV12_UBWC:
+            omxFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+            break;
+        default:
+            omxFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+    }
+    return omxFormat;
 }
 
 /*===========================================================================

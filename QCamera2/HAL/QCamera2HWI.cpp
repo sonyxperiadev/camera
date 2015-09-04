@@ -2301,12 +2301,12 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                 }
                 /*
                 *   numFDs = BATCH size
-                *  numInts = 4  // OFFSET, SIZE, USAGE, TIMESTAMP
+                *  numInts = 5  // OFFSET, SIZE, USAGE, TIMESTAMP, FORMAT
                 */
                 rc = videoMemory->allocateMeta(
                         CAMERA_MIN_VIDEO_BATCH_BUFFERS,
                         mParameters.getVideoBatchSize(),
-                        VIDEO_BATCH_METADATA_NUM_INTS);
+                        VIDEO_METADATA_NUM_INTS);
                 if (rc < 0) {
                     delete videoMemory;
                     return NULL;
@@ -2321,14 +2321,12 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
             }
 
             int usage = 0;
-            if(mParameters.isUBWCEnabled()) {
-                cam_format_t fmt;
-                mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
-                if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
-                    usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
-                    videoMemory->setVideoInfo(usage);
-                }
+            cam_format_t fmt;
+            mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
+            if (mParameters.isUBWCEnabled() && (fmt == CAM_FORMAT_YUV_420_NV12_UBWC)) {
+                usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
             }
+            videoMemory->setVideoInfo(usage, fmt);
             mem = videoMemory;
         }
         break;
@@ -2648,24 +2646,22 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
         }
         /*
         *   numFDs = BATCH size
-        *  numInts = 4  // OFFSET, SIZE, USAGE, TIMESTAMP
+        *  numInts = 5  // OFFSET, SIZE, USAGE, TIMESTAMP, FORMAT
         */
         rc = video_mem->allocateMeta(streamInfo->num_bufs,
-                mParameters.getBufBatchCount(), VIDEO_BATCH_METADATA_NUM_INTS);
+                mParameters.getBufBatchCount(), VIDEO_METADATA_NUM_INTS);
         if (rc < 0) {
             ALOGE("%s: allocateMeta failed", __func__);
             delete video_mem;
             return NULL;
         }
         int usage = 0;
-        if(mParameters.isUBWCEnabled()) {
-            cam_format_t fmt;
-            mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
-            if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
-                usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
-                video_mem->setVideoInfo(usage);
-            }
+        cam_format_t fmt;
+        mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO, fmt);
+        if(mParameters.isUBWCEnabled() && (fmt == CAM_FORMAT_YUV_420_NV12_UBWC)) {
+            usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
         }
+        video_mem->setVideoInfo(usage, fmt);
         mem = static_cast<QCameraMemory *>(video_mem);
     }
     break;
