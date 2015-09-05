@@ -1273,8 +1273,9 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
         for (int i = 0; i < count; i ++) {
             struct encoder_media_buffer_type * packet =
                     (struct encoder_media_buffer_type *)mMetadata[i]->data;
-            //1 fd, 1 offset, 1 size, 1 usage, 1 format
-            packet->meta_handle = native_handle_create(1, 4);
+            /*data[0] => FD data[1] => OFFSET data[2] => SIZE data[3] => USAGE
+            data[4] => TIMESTAMP data[5] => FORMAT*/
+            packet->meta_handle = native_handle_create(1, VIDEO_METADATA_NUM_INTS);
             packet->buffer_type = kMetadataBufferTypeCameraSource;
             native_handle_t * nh = const_cast<native_handle_t *>(packet->meta_handle);
             if (!nh) {
@@ -1285,7 +1286,8 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
             nh->data[3] = usage;
-            nh->data[4] = mFormat;
+            nh->data[4] = 0; //dummy value for timestamp in non-batch mode
+            nh->data[5] = mFormat;
         }
     }
     mBufferCount = count;
@@ -1331,8 +1333,9 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             }
             struct encoder_media_buffer_type * packet =
                     (struct encoder_media_buffer_type *)mMetadata[i]->data;
-            //1 fd, 1 offset, 1 size , 1 usage and 1 format
-            packet->meta_handle = native_handle_create(1, 4);
+            /*data[0] => FD data[1] => OFFSET data[2] => SIZE data[3] => USAGE
+            data[4] => TIMESTAMP data[5] => FORMAT*/
+            packet->meta_handle = native_handle_create(1, VIDEO_METADATA_NUM_INTS);
             packet->buffer_type = kMetadataBufferTypeCameraSource;
             native_handle_t * nh = const_cast<native_handle_t *>(packet->meta_handle);
             if (!nh) {
@@ -1343,7 +1346,8 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
             nh->data[3] = usage;
-            nh->data[4] = mFormat;
+            nh->data[4] = 0; //dummy value for timestamp in non-batch mode
+            nh->data[5] = mFormat;
         }
     }
     mBufferCount = (uint8_t)(mBufferCount + count);
@@ -1511,11 +1515,11 @@ int QCameraVideoMemory::getMatchBufIndex(const void *opaque,
 void QCameraVideoMemory::setVideoInfo(int usage, cam_format_t format)
 {
     mUsage = usage;
-    mFormat = getOMXFormat(format);
+    mFormat = convCamtoOMXFormat(format);
 }
 
 /*===========================================================================
- * FUNCTION   : getOMXFormat
+ * FUNCTION   : convCamtoOMXFormat
  *
  * DESCRIPTION: map cam_format_t to corresponding OMX format
  *
@@ -1524,7 +1528,7 @@ void QCameraVideoMemory::setVideoInfo(int usage, cam_format_t format)
  *
  * RETURN     : none
  *==========================================================================*/
-int QCameraVideoMemory::getOMXFormat(cam_format_t format)
+int QCameraVideoMemory::convCamtoOMXFormat(cam_format_t format)
 {
     //OMX format is purely based on YUV pattern. For UBWC
     //or any other format change, hint to be provided in the
