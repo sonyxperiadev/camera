@@ -42,11 +42,20 @@ namespace qcamera {
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 class QCamera3Channel;
+class QCamera3ProcessingChannel;
 
     typedef enum {
         INVALID,
         VALID,
     } stream_status_t;
+
+    typedef enum {
+       REPROCESS_TYPE_NONE,
+       REPROCESS_TYPE_JPEG,
+       REPROCESS_TYPE_YUV,
+       REPROCESS_TYPE_PRIVATE,
+       REPROCESS_TYPE_RAW
+    } reprocess_type_t;
 
     typedef struct {
         uint32_t out_buf_index;
@@ -73,8 +82,10 @@ class QCamera3Channel;
         cam_stream_buf_plane_info_t input_stream_plane_info;
         cam_dimension_t output_stream_dim;
         cam_padding_info_t *padding;
-        QCamera3Channel *src_channel;
+        reprocess_type_t reprocess_type;
+        QCamera3ProcessingChannel *src_channel;
     } reprocess_config_t;
+
 };//namespace qcamera
 
 #endif

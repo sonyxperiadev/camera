@@ -402,6 +402,10 @@ typedef struct{
     uint32_t buf_alignment;
     uint32_t min_stride;
     uint32_t min_scanline;
+    uint8_t flash_dev_name[QCAMERA_MAX_FILEPATH_LENGTH];
+
+    /* maximum pixel bandwidth shared between cameras */
+    uint64_t max_pixel_bandwidth;
 } cam_capability_t;
 
 typedef enum {
@@ -901,6 +905,9 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,         cam_capture_frame_config_t,  1);
     INCLUDE(CAM_INTF_PARM_CUSTOM,                       custom_parm_buffer_t,        1);
     INCLUDE(CAM_INTF_PARM_FLIP,                         int32_t,                     1);
+    INCLUDE(CAM_INTF_META_USE_AV_TIMER,                 uint8_t,                     1);
+    INCLUDE(CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,    float,                       1);
+    INCLUDE(CAM_INTF_META_BLACK_LEVEL_IND,              cam_black_level_metadata_t,  1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

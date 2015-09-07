@@ -487,6 +487,7 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             } else {
                 rc = m_parent->preparePreview();
                 if (rc == NO_ERROR) {
+                    applyDelayedMsgs();
                     rc = m_parent->startPreview();
                     if (rc != NO_ERROR) {
                         m_parent->unpreparePreview();
@@ -511,6 +512,7 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
                 rc = m_parent->preparePreview();
             }
             if (rc == NO_ERROR) {
+                applyDelayedMsgs();
                 rc = m_parent->startPreview();
                 if (rc != NO_ERROR) {
                     m_parent->unpreparePreview();
@@ -749,6 +751,7 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
         {
             m_parent->setPreviewWindow((struct preview_stream_ops *)payload);
             if (m_parent->mPreviewWindow != NULL) {
+                applyDelayedMsgs();
                 rc = m_parent->startPreview();
                 if (rc != NO_ERROR) {
                     m_parent->unpreparePreview();
@@ -1181,6 +1184,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                     // start preview again
                     rc = m_parent->preparePreview();
                     if (rc == NO_ERROR) {
+                        applyDelayedMsgs();
                         rc = m_parent->startPreview();
                         if (rc != NO_ERROR) {
                             m_parent->unpreparePreview();
@@ -1405,6 +1409,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                     // start preview again
                     rc = m_parent->preparePreview();
                     if (rc == NO_ERROR) {
+                        applyDelayedMsgs();
                         rc = m_parent->startPreview();
                         if (rc != NO_ERROR) {
                             m_parent->unpreparePreview();
@@ -2079,6 +2084,7 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 rc = m_parent->preparePreview();
                 if (NO_ERROR == rc) {
                     m_parent->m_bPreviewStarted = true;
+                    applyDelayedMsgs();
                     rc = m_parent->startPreview();
                 }
             }
@@ -2950,6 +2956,7 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                     // start preview again
                     rc = m_parent->preparePreview();
                     if (rc == NO_ERROR) {
+                        applyDelayedMsgs();
                         rc = m_parent->startPreview();
                         if (rc != NO_ERROR) {
                             m_parent->unpreparePreview();

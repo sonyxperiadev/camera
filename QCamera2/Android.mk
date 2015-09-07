@@ -8,6 +8,7 @@ LOCAL_SRC_FILES := \
         util/QCameraCmdThread.cpp \
         util/QCameraQueue.cpp \
         util/QCameraBufferMaps.cpp \
+        util/QCameraFlash.cpp \
         QCamera2Hal.cpp \
         QCamera2Factory.cpp
 
@@ -19,7 +20,8 @@ LOCAL_SRC_FILES += \
         HAL3/QCamera3Channel.cpp \
         HAL3/QCamera3VendorTags.cpp \
         HAL3/QCamera3PostProc.cpp \
-        HAL3/QCamera3CropRegionMapper.cpp
+        HAL3/QCamera3CropRegionMapper.cpp \
+        HAL3/QCamera3StreamMem.cpp
 
 #HAL 1.0 source
 LOCAL_SRC_FILES += \
@@ -81,7 +83,7 @@ LOCAL_C_INCLUDES += \
         $(TARGET_OUT_HEADERS)/qcom/display
 LOCAL_C_INCLUDES += \
         hardware/qcom/display/libqservice
-LOCAL_SHARED_LIBRARIES := libcamera_client liblog libhardware libutils libcutils libdl
+LOCAL_SHARED_LIBRARIES := libcamera_client liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 ifeq ($(TARGET_TS_MAKEUP),true)

@@ -106,6 +106,7 @@
 
 #define MAX_INFLIGHT_REQUESTS  6
 #define MIN_INFLIGHT_REQUESTS  3
+#define MAX_INFLIGHT_REPROCESS_REQUESTS 1
 
 #define QCAMERA_DUMP_FRM_LOCATION "/data/misc/camera/"
 #define QCAMERA_MAX_FILEPATH_LENGTH 64
@@ -120,6 +121,10 @@
 #define MAX_NUM_CAMERA_PER_BUNDLE    2 /* Max number of cameras per bundle */
 #define EXTRA_FRAME_SYNC_BUFFERS     4 /* Extra frame sync buffers in dc mode*/
 #define MM_CAMERA_FRAME_SYNC_NODES   EXTRA_FRAME_SYNC_BUFFERS
+
+#define MAX_REPROCESS_STALL 2
+
+#define QCAMERA_MAX_FILEPATH_LENGTH 64
 
 typedef enum {
     CAM_HAL_V1 = 1,
@@ -733,13 +738,16 @@ typedef enum {
 typedef enum {
     CAM_NOISE_REDUCTION_MODE_OFF,
     CAM_NOISE_REDUCTION_MODE_FAST,
-    CAM_NOISE_REDUCTION_MODE_HIGH_QUALITY
+    CAM_NOISE_REDUCTION_MODE_HIGH_QUALITY,
+    CAM_NOISE_REDUCTION_MODE_MINIMAL,
+    CAM_NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG
 } cam_noise_reduction_mode_t;
 
 typedef enum {
     CAM_EDGE_MODE_OFF,
     CAM_EDGE_MODE_FAST,
     CAM_EDGE_MODE_HIGH_QUALITY,
+    CAM_EDGE_MODE_ZERO_SHUTTER_LAG,
 } cam_edge_mode_t;
 
 typedef struct {
@@ -751,6 +759,12 @@ typedef enum {
     CAM_BLACK_LEVEL_LOCK_OFF,
     CAM_BLACK_LEVEL_LOCK_ON,
 } cam_black_level_lock_t;
+
+typedef enum {
+    CAM_HOTPIXEL_MODE_OFF,
+    CAM_HOTPIXEL_MODE_FAST,
+    CAM_HOTPIXEL_MODE_HIGH_QUALITY,
+} cam_hotpixel_mode_t;
 
 typedef enum {
     CAM_LENS_SHADING_MAP_MODE_OFF,
@@ -1852,8 +1866,9 @@ typedef enum {
     CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,
     /* Special event to request stream frames*/
     CAM_INTF_PARM_REQUEST_FRAMES,
-
-    CAM_INTF_PARM_MAX /* 194 */
+    /*Black level parameters*/
+    CAM_INTF_META_BLACK_LEVEL_IND,
+    CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
 typedef struct {
@@ -1867,6 +1882,10 @@ typedef struct {
       float    force_snap_gain_value;
     } u;
 } cam_ez_force_params_t;
+
+typedef struct {
+    uint32_t cam_black_level[4];
+} cam_black_level_metadata_t;
 
 typedef enum {
     CAM_EZTUNE_CMD_STATUS,

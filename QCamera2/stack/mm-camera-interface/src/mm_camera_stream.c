@@ -1455,7 +1455,7 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
         buf_info->buf->ts.tv_sec  = vb.timestamp.tv_sec;
         buf_info->buf->ts.tv_nsec = vb.timestamp.tv_usec * 1000;
 
-        CDBG("%s: VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d,"
+        CDBG_HIGH("%s: VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d,"
                 "queued: %d, buf_type = %d",
             __func__, vb.index, buf_info->buf->frame_idx,
             my_obj->stream_info->stream_type, rc,
@@ -1692,7 +1692,7 @@ int32_t mm_stream_qbuf(mm_stream_t *my_obj, mm_camera_buf_def_t *buf)
                 my_obj, my_obj->stream_info->stream_type);
         }
     } else {
-        CDBG("%s: VIDIOC_QBUF buf_index %d, stream type %d, rc %d, queued: %d", __func__,
+        CDBG_HIGH("%s: VIDIOC_QBUF buf_index %d, stream type %d, rc %d, queued: %d", __func__,
             buffer.index, my_obj->stream_info->stream_type, rc, my_obj->queued_buffer_count);
     }
 
@@ -1817,6 +1817,8 @@ int32_t mm_stream_map_buf(mm_stream_t * my_obj,
     packet.payload.buf_map.stream_id = my_obj->server_stream_id;
     packet.payload.buf_map.frame_idx = frame_idx;
     packet.payload.buf_map.plane_idx = plane_idx;
+    CDBG("%s: mapping buf_type %d, stream_id %d, frame_idx %d, fd %d, size %d",
+            __func__, buf_type, my_obj->server_stream_id, frame_idx, fd, size);
     rc = mm_camera_util_sendmsg(my_obj->ch_obj->cam_obj,
             &packet, sizeof(cam_sock_packet_t), fd);
 
