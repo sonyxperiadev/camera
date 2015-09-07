@@ -1227,7 +1227,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mHDRBracketingEnabled(false),
       mNumPreviewFaces(-1),
       mJpegClientHandle(0),
-      mJpegHandleOwner(false)
+      mJpegHandleOwner(false),
+      mCACDoneReceived(false)
 {
 #ifdef TARGET_TS_MAKEUP
     memset(&mFaceRect, -1, sizeof(mFaceRect));
@@ -4603,6 +4604,7 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
             }
             //
             mPrepSnapRun = false;
+            mCACDoneReceived = FALSE;
         } else {
             rc = NO_INIT;
         }
@@ -4622,6 +4624,7 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
         CDBG_HIGH("%s: Longshot Disabled", __func__);
         mLongshotEnabled = false;
         rc = mParameters.setLongshotEnable(mLongshotEnabled);
+        mCACDoneReceived = FALSE;
         break;
     case CAMERA_CMD_HISTOGRAM_ON:
     case CAMERA_CMD_HISTOGRAM_OFF:
