@@ -738,6 +738,7 @@ public:
     inline bool isStillMoreEnabled() {return m_bStillMoreOn;};
     bool isOptiZoomEnabled();
     inline bool isLowMemoryDevice() {return m_bIsLowMemoryDevice;};
+    bool isPreviewSeeMoreRequired();
     int32_t commitAFBracket(cam_af_bracketing_t afBracket);
     int32_t commitFlashBracket(cam_flash_bracketing_t flashBracket);
     int32_t set3ALock(const char *lockStr);
