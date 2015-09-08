@@ -12448,6 +12448,34 @@ bool QCameraParameters::is4k2kVideoResolution()
 }
 
 /*===========================================================================
+ * FUNCTION   : isPreviewSeeMoreRequired
+ *
+ * DESCRIPTION: This function checks whether SeeMmore(SW TNR) needs to be applied for
+ *              preview stream depending on video resoluion and setprop
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : true: If SeeMore needs to apply
+ *              false: No need to apply
+ *==========================================================================*/
+bool QCameraParameters::isPreviewSeeMoreRequired()
+{
+   cam_dimension_t dim;
+   char prop[PROPERTY_VALUE_MAX];
+
+   getVideoSize(&dim.width, &dim.height);
+   memset(prop, 0, sizeof(prop));
+   property_get("persist.camera.preview.seemore", prop, "0");
+   int enable = atoi(prop);
+
+   // Enable SeeMore for preview stream if :
+   // 1. Video resolution <= (1920x1080)  (or)
+   // 2. persist.camera.preview.seemore is set
+   CDBG("%s:width=%d, height=%d, enable=%d", __func__, dim.width, dim.height, enable);
+   return (((dim.width * dim.height) <= (1920 * 1080)) || enable);
+}
+
+/*===========================================================================
  * FUNCTION   : updateDebugLevel
  *
  * DESCRIPTION: send CAM_INTF_PARM_UPDATE_DEBUG_LEVEL to backend
@@ -12535,10 +12563,9 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
     }
 
     // Update feature mask for SeeMore in video and video preview
-    if (isSeeMoreEnabled() &&
-            !is4k2kVideoResolution() &&
-            ((stream_type == CAM_STREAM_TYPE_VIDEO) ||
-            (stream_type == CAM_STREAM_TYPE_PREVIEW && getRecordingHintValue()))) {
+    if (isSeeMoreEnabled() && ((stream_type == CAM_STREAM_TYPE_VIDEO) ||
+            (stream_type == CAM_STREAM_TYPE_PREVIEW && getRecordingHintValue() &&
+            isPreviewSeeMoreRequired()))) {
        feature_mask |= CAM_QCOM_FEATURE_LLVD;
     }
 
