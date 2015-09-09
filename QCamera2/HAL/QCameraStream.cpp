@@ -470,6 +470,7 @@ int32_t QCameraStream::releaseStreamInfoBuf()
         mStreamInfoBuf->deallocate();
         delete mStreamInfoBuf;
         mStreamInfoBuf = NULL;
+        mStreamInfo = NULL;
     }
 
     return rc;
@@ -682,6 +683,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         mAllocTaskId = mAllocator.scheduleBackgroundTask(&mAllocTask);
         if (mAllocTaskId == 0) {
             ALOGE("%s : Failed to schedule buffer alloction", __func__);
+            rc = UNKNOWN_ERROR;
             goto done;
         }
     }
@@ -690,19 +692,12 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     if (!mHandle) {
         ALOGE("add_stream failed");
         rc = UNKNOWN_ERROR;
-        if (streamInfoBuf != NULL) {
-            streamInfoBuf->deallocate();
-            delete streamInfoBuf;
-            streamInfoBuf = NULL;
-        }
         goto done;
     }
 
     rc = mapBufs(mStreamInfoBuf, CAM_MAPPING_BUF_TYPE_STREAM_INFO, NULL);
     if (rc < 0) {
         ALOGE("Failed to map stream info buffer");
-        releaseStreamInfoBuf();
-        mStreamInfo = 0;
         goto err1;
     }
 
@@ -728,7 +723,8 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         mMapTaskId = mAllocator.scheduleBackgroundTask(&mMapTask);
         if (mMapTaskId == 0) {
             ALOGE("%s : Failed to schedule buffer alloction", __func__);
-            goto done;
+            rc = UNKNOWN_ERROR;
+            goto err1;
         }
     }
 
