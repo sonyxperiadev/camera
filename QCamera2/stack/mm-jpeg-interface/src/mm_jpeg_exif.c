@@ -538,83 +538,86 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
   int rc = 0;
   cam_sensor_params_t p_sensor_params;
   cam_3a_params_t p_3a_params;
+  bool is_3a_meta_valid = false, is_sensor_meta_valid = false;
 
   memset(&p_3a_params,  0,  sizeof(cam_3a_params_t));
   memset(&p_sensor_params, 0, sizeof(cam_sensor_params_t));
 
-  if (hal_version == CAM_HAL_V1) {
-    IF_META_AVAILABLE(cam_3a_params_t, l_3a_params, CAM_INTF_META_AEC_INFO,
-        p_meta) {
-      p_3a_params = *l_3a_params;
-    } else if (p_cam_exif_params) {
-      p_3a_params = p_cam_exif_params->cam_3a_params;
-    } else {
-      p_3a_params.exp_time = 0.0;
-      p_3a_params.iso_value = 0;
-      p_3a_params.metering_mode = CAM_METERING_MODE_UNKNOWN;
-      p_3a_params.exposure_program = 0;
-      p_3a_params.exposure_mode = 255;
-      p_3a_params.scenetype = 1;
-      p_3a_params.brightness = 0.0;
-    }
+  if (p_meta) {
+    /* for HAL V1*/
+    if (hal_version == CAM_HAL_V1) {
 
-    IF_META_AVAILABLE(int32_t, wb_mode, CAM_INTF_PARM_WHITE_BALANCE, p_meta) {
-      p_3a_params.wb_mode = *wb_mode;
-    }
+      IF_META_AVAILABLE(cam_3a_params_t, l_3a_params, CAM_INTF_META_AEC_INFO,
+          p_meta) {
+        p_3a_params = *l_3a_params;
+        is_3a_meta_valid = true;
+      }
 
-    IF_META_AVAILABLE(cam_sensor_params_t, l_sensor_params,
-        CAM_INTF_META_SENSOR_INFO, p_meta) {
-      p_sensor_params = *l_sensor_params;
-    } else if (p_cam_exif_params) {
-      p_sensor_params = p_cam_exif_params->sensor_params;
-    } else {
-      p_sensor_params.focal_length = 0;
-      p_sensor_params.f_number = 0;
-      p_sensor_params.sensing_method = 2;
-      p_sensor_params.crop_factor = 0;
-    }
-  } else {
+      IF_META_AVAILABLE(int32_t, wb_mode, CAM_INTF_PARM_WHITE_BALANCE, p_meta) {
+        p_3a_params.wb_mode = *wb_mode;
+      }
 
-    /* Process 3a data */
-    IF_META_AVAILABLE(int32_t, iso, CAM_INTF_META_SENSOR_SENSITIVITY, p_meta) {
-      p_3a_params.iso_value= *iso;
+      IF_META_AVAILABLE(cam_sensor_params_t, l_sensor_params,
+          CAM_INTF_META_SENSOR_INFO, p_meta) {
+        p_sensor_params = *l_sensor_params;
+        is_sensor_meta_valid = true;
+      }
     } else {
-      ALOGE("%s: Cannot extract Iso value", __func__);
-    }
+      /* HAL V3 */
+      IF_META_AVAILABLE(int32_t, iso, CAM_INTF_META_SENSOR_SENSITIVITY, p_meta) {
+        p_3a_params.iso_value= *iso;
+      } else {
+        ALOGE("%s: Cannot extract Iso value", __func__);
+      }
 
-    IF_META_AVAILABLE(int64_t, sensor_exposure_time,
-        CAM_INTF_META_SENSOR_EXPOSURE_TIME, p_meta) {
-      p_3a_params.exp_time =
-        (float)((double)(*sensor_exposure_time) / 1000000000.0);
-    } else {
-      ALOGE("%s: Cannot extract Exp time value", __func__);
-    }
+      IF_META_AVAILABLE(int64_t, sensor_exposure_time,
+          CAM_INTF_META_SENSOR_EXPOSURE_TIME, p_meta) {
+        p_3a_params.exp_time =
+          (float)((double)(*sensor_exposure_time) / 1000000000.0);
+      } else {
+        ALOGE("%s: Cannot extract Exp time value", __func__);
+      }
 
-    IF_META_AVAILABLE(int32_t, wb_mode, CAM_INTF_PARM_WHITE_BALANCE, p_meta) {
-      p_3a_params.wb_mode = *wb_mode;
-    } else {
-      ALOGE("%s: Cannot extract white balance mode", __func__);
-    }
+      IF_META_AVAILABLE(int32_t, wb_mode, CAM_INTF_PARM_WHITE_BALANCE, p_meta) {
+        p_3a_params.wb_mode = *wb_mode;
+      } else {
+        ALOGE("%s: Cannot extract white balance mode", __func__);
+      }
 
-    /* Process sensor data */
-    IF_META_AVAILABLE(float, aperture, CAM_INTF_META_LENS_APERTURE, p_meta) {
-      p_sensor_params.aperture_value = *aperture;
-    } else {
-      ALOGE("%s: Cannot extract Aperture value", __func__);
-    }
+      /* Process sensor data */
+      IF_META_AVAILABLE(float, aperture, CAM_INTF_META_LENS_APERTURE, p_meta) {
+        p_sensor_params.aperture_value = *aperture;
+      } else {
+        ALOGE("%s: Cannot extract Aperture value", __func__);
+      }
 
-    IF_META_AVAILABLE(uint32_t, flash_mode, CAM_INTF_META_FLASH_MODE, p_meta) {
-      p_sensor_params.flash_mode = *flash_mode;
-    } else {
-      ALOGE("%s: Cannot extract flash mode value", __func__);
-    }
+      IF_META_AVAILABLE(uint32_t, flash_mode, CAM_INTF_META_FLASH_MODE, p_meta) {
+        p_sensor_params.flash_mode = *flash_mode;
+      } else {
+        ALOGE("%s: Cannot extract flash mode value", __func__);
+      }
 
-    IF_META_AVAILABLE(int32_t, flash_state, CAM_INTF_META_FLASH_STATE, p_meta) {
-      p_sensor_params.flash_state = (cam_flash_state_t) *flash_state;
-    } else {
-      ALOGE("%s: Cannot extract flash state value", __func__);
+      IF_META_AVAILABLE(int32_t, flash_state, CAM_INTF_META_FLASH_STATE, p_meta) {
+        p_sensor_params.flash_state = (cam_flash_state_t) *flash_state;
+      } else {
+        ALOGE("%s: Cannot extract flash state value", __func__);
+      }
     }
   }
+
+  /* take the cached values if meta is invalid */
+  if (!is_3a_meta_valid) {
+    p_3a_params = p_cam_exif_params->cam_3a_params;
+    CDBG_ERROR("%s:%d] Warning using cached values for 3a",
+      __func__, __LINE__);
+  }
+
+  if (!is_sensor_meta_valid) {
+    p_sensor_params = p_cam_exif_params->sensor_params;
+    CDBG_ERROR("%s:%d] Warning using cached values for sensor",
+      __func__, __LINE__);
+  }
+
   if ((hal_version != CAM_HAL_V1) || (p_sensor_params.sens_type != CAM_SENSOR_YUV)) {
     rc = process_3a_data(&p_3a_params, exif_info);
     if (rc) {
