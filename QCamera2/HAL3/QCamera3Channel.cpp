@@ -85,6 +85,8 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
     mStreamInfoBuf = NULL;
     mChannelCB = cb_routine;
     mPaddingInfo = *paddingInfo;
+    mPaddingInfo.offset_info.offset_x = 0;
+    mPaddingInfo.offset_info.offset_y = 0;
 
     mPostProcMask = postprocess_mask;
 

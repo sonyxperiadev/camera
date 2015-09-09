@@ -916,6 +916,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
     //can be rotated
     padding.width_padding = MAX(padding.width_padding, padding.height_padding);
     padding.height_padding = padding.width_padding;
+    padding.offset_info.offset_x = 0;
+    padding.offset_info.offset_y = 0;
 
     CDBG("%s : %d: num of src stream = %d", __func__, __LINE__, pSrcChannel->getNumOfStreams());
 

@@ -12803,6 +12803,33 @@ bool QCameraParameters::isPostProcScaling()
 }
 
 /*===========================================================================
+ * FUNCTION   : isLLNoiseEnabled
+ *
+ * DESCRIPTION: Low light noise change
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : TRUE  : If low light noise enabled
+ *              FALSE : If low light noise disabled
+ *==========================================================================*/
+bool QCameraParameters::isLLNoiseEnabled()
+{
+    char value[PROPERTY_VALUE_MAX];
+    bool llnoise = FALSE;
+
+    if (!isWNREnabled()) {
+        return FALSE;
+    }
+
+    property_get("persist.camera.llnoise", value, "0");
+    llnoise = atoi(value) > 0 ? TRUE : FALSE;
+
+    CDBG_HIGH("%s: Low light noise enabled : %d",
+            __func__, llnoise);
+    return llnoise;
+}
+
+/*===========================================================================
  * FUNCTION   : setBufBatchCount
  *
  * DESCRIPTION: Function to configure batch buffer
