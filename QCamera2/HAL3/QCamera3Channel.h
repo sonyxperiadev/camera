@@ -266,8 +266,6 @@ public:
     virtual int32_t request(buffer_handle_t *buffer, uint32_t frameNumber);
     virtual reprocess_type_t getReprocessType();
 
-protected:
-    QCamera3GrallocMemory mMemory;
 private:
     int32_t initialize(struct private_handle_t *priv_handle);
 

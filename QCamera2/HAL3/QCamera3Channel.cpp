@@ -1582,7 +1582,6 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
             QCamera3ProcessingChannel(cam_handle, cam_ops, cb_routine,
                     paddingInfo, userData, stream, stream_type,
                     postprocess_mask, metadataChannel, numBuffers),
-            mMemory(numBuffers),
             mBatchSize(0),
             mRotation(ROTATE_0)
 {
