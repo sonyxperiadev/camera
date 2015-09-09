@@ -394,6 +394,11 @@ private:
             cam_illuminat_t> REFERENCE_ILLUMINANT_MAP[];
 
     static const QCameraPropMap CDS_MAP[];
+
+    //GPU library to read buffer padding details.
+    void *lib_surface_utils;
+    int (*LINK_get_surface_pixel_alignment)();
+    uint32_t mSurfaceStridePadding;
 };
 
 }; // namespace qcamera

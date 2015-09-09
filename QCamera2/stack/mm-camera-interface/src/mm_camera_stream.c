@@ -102,6 +102,7 @@ int32_t mm_stream_calc_offset_metadata(cam_dimension_t *dim,
 int32_t mm_stream_calc_offset_postproc(cam_stream_info_t *stream_info,
                                        cam_padding_info_t *padding,
                                        cam_stream_buf_plane_info_t *plns);
+uint32_t mm_stream_calc_lcm(int32_t num1, int32_t num2);
 
 
 /* state machine function declare */
@@ -2276,7 +2277,7 @@ int32_t mm_stream_calc_offset_preview(cam_stream_info_t *stream_info,
         buf_planes->plane_info.num_planes = 2;
 
         if (stream_info->stream_type != CAM_STREAM_TYPE_OFFLINE_PROC) {
-            width_padding =  CAM_PAD_TO_32;
+            width_padding =  padding->width_padding;
             height_padding = CAM_PAD_TO_2;
         } else {
             width_padding =  padding->width_padding;
@@ -2865,10 +2866,8 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
         offset_y = scanline - dim->height;
         scanline += offset_y; /* double padding */
     } else {
-        stride = PAD_TO_SIZE(dim->width,
-                             padding->width_padding);
-        scanline = PAD_TO_SIZE(dim->height,
-                               padding->height_padding);
+        stride = PAD_TO_SIZE(dim->width, padding->width_padding);
+        scanline = PAD_TO_SIZE(dim->height, padding->height_padding);
         offset_x = 0;
         offset_y = 0;
     }
@@ -2881,10 +2880,10 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
 
         buf_planes->plane_info.mp[0].len =
                 PAD_TO_SIZE((uint32_t)(stride * scanline),
-                        padding->plane_padding);
+                padding->plane_padding);
         buf_planes->plane_info.mp[0].offset =
                 PAD_TO_SIZE((uint32_t)(offset_x + stride * offset_y),
-                        padding->plane_padding);
+                padding->plane_padding);
         buf_planes->plane_info.mp[0].offset_x = offset_x;
         buf_planes->plane_info.mp[0].offset_y = offset_y;
         buf_planes->plane_info.mp[0].stride = stride;
@@ -2892,13 +2891,13 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
         buf_planes->plane_info.mp[0].width = dim->width;
         buf_planes->plane_info.mp[0].height = dim->height;
 
-        scanline = scanline / 2;
+        scanline = scanline/2;
         buf_planes->plane_info.mp[1].len =
                 PAD_TO_SIZE((uint32_t)(stride * scanline),
-                        padding->plane_padding);
+                padding->plane_padding);
         buf_planes->plane_info.mp[1].offset =
                 PAD_TO_SIZE((uint32_t)(offset_x + stride * offset_y),
-                        padding->plane_padding);
+                padding->plane_padding);
         buf_planes->plane_info.mp[1].offset_x = offset_x;
         buf_planes->plane_info.mp[1].offset_y = offset_y;
         buf_planes->plane_info.mp[1].stride = stride;
@@ -2908,8 +2907,8 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
 
         buf_planes->plane_info.frame_len =
                 PAD_TO_SIZE(buf_planes->plane_info.mp[0].len +
-                        buf_planes->plane_info.mp[1].len,
-                        CAM_PAD_TO_4K);
+                buf_planes->plane_info.mp[1].len,
+                CAM_PAD_TO_4K);
         break;
     case CAM_FORMAT_YUV_420_YV12:
         /* 3 planes: Y + Cr + Cb */
@@ -3914,6 +3913,47 @@ int32_t mm_stream_calc_offset_postproc(cam_stream_info_t *stream_info,
         break;
     }
     return rc;
+}
+
+/*===========================================================================
+* FUNCTION    : mm_stream_calc_lcm
+*
+* DESCRIPTION: calculate LCM of two numbers
+*
+* PARAMETERS :
+*   @num1  : number 1
+*   @num2  : number 2
+*
+* RETURN     : uint32_t type
+*
+*===========================================================================*/
+uint32_t mm_stream_calc_lcm(int32_t num1, int32_t num2)
+{
+    uint32_t lcm = 0;
+    uint32_t temp = 0;
+
+    if ((num1 < 1) && (num2 < 1)) {
+        return 0;
+    } else if (num1 < 1) {
+        return num2;
+    } else if (num2 < 1) {
+        return num1;
+    }
+
+    if (num1 > num2) {
+        lcm = num1;
+    } else {
+        lcm = num2;
+    }
+    temp = lcm;
+
+    while (1) {
+        if (((lcm%num1) == 0) && ((lcm%num2) == 0)) {
+            break;
+        }
+        lcm += temp;
+    }
+    return lcm;
 }
 
 /*===========================================================================

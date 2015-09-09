@@ -49,6 +49,7 @@
 #include "QCamera3PostProc.h"
 #include "QCamera3VendorTags.h"
 #include <cutils/properties.h>
+#include <dlfcn.h>
 
 #include <binder/Parcel.h>
 #include <binder/IServiceManager.h>
@@ -371,6 +372,20 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     memset(prop, 0, sizeof(prop));
     property_get("persist.camera.tnr.preview", prop, "0");
     m_bTnrEnabled = (uint8_t)atoi(prop);
+
+    //Load and read GPU library.
+    lib_surface_utils = NULL;
+    LINK_get_surface_pixel_alignment = NULL;
+    mSurfaceStridePadding = CAM_PAD_TO_32;
+    lib_surface_utils = dlopen("libadreno_utils.so", RTLD_NOW);
+    if (lib_surface_utils) {
+        *(void **)&LINK_get_surface_pixel_alignment =
+                dlsym(lib_surface_utils, "get_gpu_pixel_alignment");
+         if (LINK_get_surface_pixel_alignment) {
+             mSurfaceStridePadding = LINK_get_surface_pixel_alignment();
+         }
+         dlclose(lib_surface_utils);
+    }
 }
 
 /*===========================================================================
@@ -1065,6 +1080,8 @@ int QCamera3HardwareInterface::configureStreams(
     }
     maxViewfinderSize = gCamCapability[mCameraId]->max_viewfinder_size;
 
+    cam_padding_info_t padding_info = gCamCapability[mCameraId]->padding_info;
+
     /*EIS configuration*/
     bool eisSupported = false;
     bool oisSupported = false;
@@ -1290,7 +1307,7 @@ int QCamera3HardwareInterface::configureStreams(
     //Create metadata channel and initialize it
     mMetadataChannel = new QCamera3MetadataChannel(mCameraHandle->camera_handle,
                     mCameraHandle->ops, captureResultCb,
-                    &gCamCapability[mCameraId]->padding_info, CAM_QCOM_FEATURE_NONE, this);
+                    &padding_info, CAM_QCOM_FEATURE_NONE, this);
     if (mMetadataChannel == NULL) {
         ALOGE("%s: failed to allocate metadata channel", __func__);
         rc = -ENOMEM;
@@ -1311,7 +1328,7 @@ int QCamera3HardwareInterface::configureStreams(
         mAnalysisChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mCameraHandle->ops,
-                &gCamCapability[mCameraId]->padding_info,
+                &gCamCapability[mCameraId]->analysis_padding_info,
                 fullFeatureMask,
                 CAM_STREAM_TYPE_ANALYSIS,
                 &gCamCapability[mCameraId]->analysis_recommended_res,
@@ -1330,7 +1347,7 @@ int QCamera3HardwareInterface::configureStreams(
         mSupportChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mCameraHandle->ops,
-                &gCamCapability[mCameraId]->padding_info,
+                &padding_info,
                 fullFeatureMask,
                 CAM_STREAM_TYPE_CALLBACK,
                 &QCamera3SupportChannel::kDim,
@@ -1385,6 +1402,8 @@ int QCamera3HardwareInterface::configureStreams(
                     mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_VIDEO;
                 } else {
                     mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_PREVIEW;
+                    padding_info.width_padding = mSurfaceStridePadding;
+                    padding_info.height_padding = CAM_PAD_TO_2;
                 }
                 mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
                 mStreamConfigInfo.postprocess_mask[i] |= feature_mask;
@@ -1457,7 +1476,7 @@ int QCamera3HardwareInterface::configureStreams(
                 QCamera3Channel *channel = NULL;
                 channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                         mCameraHandle->ops, captureResultCb,
-                        &gCamCapability[mCameraId]->padding_info,
+                        &padding_info,
                         this,
                         newStream,
                         (cam_stream_type_t) mStreamConfigInfo.type[i],
@@ -1477,7 +1496,7 @@ int QCamera3HardwareInterface::configureStreams(
                 case HAL_PIXEL_FORMAT_YCbCr_420_888:
                     channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
-                            &gCamCapability[mCameraId]->padding_info,
+                            &padding_info,
                             this,
                             newStream,
                             (cam_stream_type_t) mStreamConfigInfo.type[i],
@@ -1496,7 +1515,7 @@ int QCamera3HardwareInterface::configureStreams(
                     mRawChannel = new QCamera3RawChannel(
                             mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
-                            &gCamCapability[mCameraId]->padding_info,
+                            &padding_info,
                             this, newStream, CAM_QCOM_FEATURE_NONE,
                             (newStream->format == HAL_PIXEL_FORMAT_RAW16));
                     if (mRawChannel == NULL) {
@@ -1513,7 +1532,7 @@ int QCamera3HardwareInterface::configureStreams(
                     // allocated, the more frame drops there are.
                     mPictureChannel = new QCamera3PicChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
-                            &gCamCapability[mCameraId]->padding_info, this, newStream,
+                            &padding_info, this, newStream,
                             mStreamConfigInfo.postprocess_mask[i],
                             m_bIs4KVideo, mMetadataChannel,
                             (m_bIsVideo ? 1 : MAX_INFLIGHT_REQUESTS));
@@ -1552,6 +1571,7 @@ int QCamera3HardwareInterface::configureStreams(
             // Channel already exists for this stream
             // Do nothing for now
         }
+        padding_info = gCamCapability[mCameraId]->padding_info;
     }
 
     if (mPictureChannel && m_bIs4KVideo) {
@@ -1565,7 +1585,7 @@ int QCamera3HardwareInterface::configureStreams(
         mRawDumpChannel = new QCamera3RawDumpChannel(mCameraHandle->camera_handle,
                                   mCameraHandle->ops,
                                   rawDumpSize,
-                                  &gCamCapability[mCameraId]->padding_info,
+                                  &padding_info,
                                   this, CAM_QCOM_FEATURE_NONE);
         if (!mRawDumpChannel) {
             ALOGE("%s: Raw Dump channel cannot be created", __func__);
