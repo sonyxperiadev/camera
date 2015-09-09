@@ -469,11 +469,17 @@ typedef struct{
 } cam_mp_len_offset_t;
 
 typedef struct {
+    uint32_t offset_x;
+    uint32_t offset_y;
+} cam_offset_info_t;
+
+typedef struct {
     uint32_t width_padding;
     uint32_t height_padding;
     uint32_t plane_padding;
     uint32_t min_stride;
     uint32_t min_scanline;
+    cam_offset_info_t offset_info;
 } cam_padding_info_t;
 
 typedef struct {
