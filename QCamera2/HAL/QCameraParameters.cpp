@@ -980,7 +980,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mParmEffect(CAM_EFFECT_MODE_OFF),
     m_LLCaptureEnabled(FALSE),
     m_LowLightLevel(CAM_LOW_LIGHT_OFF),
-    m_bLtmForSeeMoreEnabled(false)
+    m_bLtmForSeeMoreEnabled(false),
+    m_expTime(0)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -3053,6 +3054,16 @@ int32_t  QCameraParameters::setExposureTime(const QCameraParameters& params)
         if (prev_str == NULL ||
                 strcmp(str, prev_str) != 0) {
             return setExposureTime(str);
+        }
+    } else if(getManualCaptureMode()) {
+        char expTime[PROPERTY_VALUE_MAX];
+
+        property_get("persist.camera.exposure.time", expTime, "");
+        if (strlen(expTime) > 0) {
+            if (prev_str == NULL ||
+                    strcmp(expTime, prev_str) != 0) {
+                return setExposureTime(expTime);
+            }
         }
     }
 
@@ -5739,6 +5750,8 @@ int32_t QCameraParameters::initDefaultParameters()
             pic_dim.height);
     setMaxPicSize(pic_dim);
 
+    setManualCaptureMode();
+
     return rc;
 }
 
@@ -6778,6 +6791,7 @@ int32_t  QCameraParameters::setExposureTime(const char *expTimeStr)
                     (uint64_t)expTimeNs)) {
                 return BAD_VALUE;
             }
+            m_expTime = expTimeNs;
             return NO_ERROR;
         }
     }
@@ -12593,26 +12607,33 @@ int32_t QCameraParameters::updateDebugLevel()
  *
  * DESCRIPTION: Function to decide Offline RAW feature.
  *
- * PARAMETERS : none
+ * PARAMETERS :
+ *  @raw_value: offline raw value to set.
  *
  * RETURN     : none
  *==========================================================================*/
-void QCameraParameters::setOfflineRAW()
+void QCameraParameters::setOfflineRAW(bool raw_value)
 {
-   char value[PROPERTY_VALUE_MAX];
-   bool raw_yuv = false;
-   bool offlineRaw = false;
+    char value[PROPERTY_VALUE_MAX];
+    bool raw_yuv = false;
+    bool offlineRaw = false;
 
-   property_get("persist.camera.raw_yuv", value, "0");
-   raw_yuv = atoi(value) > 0 ? true : false;
-   property_get("persist.camera.offlineraw", value, "0");
-   offlineRaw = atoi(value) > 0 ? true : false;
-   if((raw_yuv || isRdiMode()) && offlineRaw){
-       mOfflineRAW = true;
-   }else{
-       mOfflineRAW = false;
-   }
-   CDBG_HIGH("%s: Offline Raw  %d",__func__, mOfflineRAW);
+    if (raw_value) {
+        mOfflineRAW = true;
+        CDBG_HIGH("%s: Offline Raw  %d",__func__, mOfflineRAW);
+        return;
+    }
+
+    property_get("persist.camera.raw_yuv", value, "0");
+    raw_yuv = atoi(value) > 0 ? true : false;
+    property_get("persist.camera.offlineraw", value, "0");
+    offlineRaw = atoi(value) > 0 ? true : false;
+    if ((raw_yuv || isRdiMode()) && offlineRaw) {
+        mOfflineRAW = true;
+    } else {
+        mOfflineRAW = false;
+    }
+    CDBG_HIGH("%s: Offline Raw  %d",__func__, mOfflineRAW);
 }
 
 /*===========================================================================
@@ -13361,4 +13382,38 @@ bool QCameraParameters::isFDInVideoEnabled()
     return fdvideo;
 }
 
+/*===========================================================================
+ * FUNCTION   : setManualCaptureMode
+ *
+ * DESCRIPTION: Function to set Manual capture modes
+ *
+ * PARAMETERS :
+ *   @mode : Capture mode configured
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setManualCaptureMode(QCameraManualCaptureModes mode)
+{
+    int32_t rc = NO_ERROR;
+    char value[PROPERTY_VALUE_MAX];
+    int8_t count = 0;
+
+    property_get("persist.camera.manual.capture", value, "0");
+    count = atoi(value);
+
+    if (count) {
+        m_ManualCaptureMode = mode;
+    }
+
+    if (mode >= CAM_MANUAL_CAPTURE_TYPE_3) {
+        setOfflineRAW(TRUE);
+    } else {
+        setOfflineRAW(FALSE);
+    }
+
+    CDBG_HIGH("%s: Manual capture mode - %d", __func__, m_ManualCaptureMode);
+    return rc;
+}
 }; // namespace qcamera
