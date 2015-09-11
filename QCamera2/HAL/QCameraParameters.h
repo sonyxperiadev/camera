@@ -671,7 +671,8 @@ public:
     bool isSceneSelectionEnabled() {return m_bSceneSelection;};
     int32_t setSelectedScene(cam_scene_mode_type scene);
     cam_scene_mode_type getSelectedScene();
-    bool isFaceDetectionEnabled() {return ((m_nFaceProcMask & CAM_FACE_PROCESS_MASK_DETECTION) != 0);};
+    bool isFaceDetectionEnabled() {return ((m_nFaceProcMask &
+            (CAM_FACE_PROCESS_MASK_DETECTION | CAM_FACE_PROCESS_MASK_FOCUS)) != 0);};
     bool getFaceDetectionOption() { return  m_bFaceDetectionOn;}
     int32_t setFaceDetectionOption(bool enabled);
     int32_t setHistogram(bool enabled);
