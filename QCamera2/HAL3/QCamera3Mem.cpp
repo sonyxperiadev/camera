@@ -35,7 +35,6 @@
 #include <utils/Log.h>
 #include <utils/Errors.h>
 #include <gralloc_priv.h>
-#include <qdMetaData.h>
 #include "QCamera3Mem.h"
 #include "QCamera3HWI.h"
 
@@ -568,7 +567,8 @@ int QCamera3HeapMemory::getMatchBufIndex(void * /*object*/)
  * RETURN     : none
  *==========================================================================*/
 QCamera3GrallocMemory::QCamera3GrallocMemory()
-        : QCamera3Memory()
+        : QCamera3Memory(),
+          mColorSpace(ITU_R_601_FR)
 {
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++) {
         mBufferHandle[i] = NULL;
@@ -597,20 +597,16 @@ QCamera3GrallocMemory::~QCamera3GrallocMemory()
  *
  * PARAMETERS :
  *   @buffers : buffer_handle_t pointer
- *   @type :    cam_stream_type_t
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
-        cam_stream_type_t type)
+int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer)
 {
     status_t ret = NO_ERROR;
     struct ion_fd_data ion_info_fd;
     void *vaddr = NULL;
-    int32_t colorSpace =
-            (type == CAM_STREAM_TYPE_VIDEO) ? ITU_R_709 : ITU_R_601_FR;
     CDBG(" %s : E ", __FUNCTION__);
 
     memset(&ion_info_fd, 0, sizeof(ion_info_fd));
@@ -630,7 +626,7 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     mPrivateHandle[mBufferCount] =
         (struct private_handle_t *)(*mBufferHandle[mBufferCount]);
 
-    setMetaData(mPrivateHandle[mBufferCount], UPDATE_COLOR_SPACE, &colorSpace);
+    setMetaData(mPrivateHandle[mBufferCount], UPDATE_COLOR_SPACE, &mColorSpace);
 
     mMemInfo[mBufferCount].main_ion_fd = open("/dev/ion", O_RDONLY);
     if (mMemInfo[mBufferCount].main_ion_fd < 0) {

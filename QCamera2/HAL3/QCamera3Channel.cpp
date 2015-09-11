@@ -765,7 +765,6 @@ int32_t QCamera3RegularChannel::registerBuffer(buffer_handle_t *buffer, cam_is_t
     ATRACE_CALL();
     int rc = 0;
     mIsType = isType;
-    cam_stream_type_t streamType;
 
     if (0 == m_numStreams) {
         rc = initialize(mIsType);
@@ -782,8 +781,7 @@ int32_t QCamera3RegularChannel::registerBuffer(buffer_handle_t *buffer, cam_is_t
         return BAD_VALUE;
     }
 
-    streamType = mStreams[0]->getMyType();
-    rc = mMemory.registerBuffer(buffer, streamType);
+    rc = mMemory.registerBuffer(buffer);
     if (ALREADY_EXISTS == rc) {
         return NO_ERROR;
     } else if (NO_ERROR != rc) {
@@ -1727,7 +1725,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 
         int input_index = mOfflineMemory.getMatchBufIndex((void*)pInputBuffer->buffer);
         if(input_index < 0) {
-            rc = mOfflineMemory.registerBuffer(pInputBuffer->buffer, mStreamType);
+            rc = mOfflineMemory.registerBuffer(pInputBuffer->buffer);
             if (NO_ERROR != rc) {
                 ALOGE("%s: On-the-fly input buffer registration failed %d",
                         __func__, rc);
@@ -1893,7 +1891,7 @@ int32_t QCamera3PicChannel::registerBuffer(buffer_handle_t *buffer, cam_is_type_
         }
     }
 
-    rc = mMemory.registerBuffer(buffer, mStreamType);
+    rc = mMemory.registerBuffer(buffer);
     if (ALREADY_EXISTS == rc) {
         return NO_ERROR;
     } else if (NO_ERROR != rc) {
