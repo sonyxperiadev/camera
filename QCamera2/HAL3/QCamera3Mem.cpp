@@ -567,8 +567,7 @@ int QCamera3HeapMemory::getMatchBufIndex(void * /*object*/)
  * RETURN     : none
  *==========================================================================*/
 QCamera3GrallocMemory::QCamera3GrallocMemory()
-        : QCamera3Memory(),
-          mColorSpace(ITU_R_601_FR)
+        : QCamera3Memory()
 {
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++) {
         mBufferHandle[i] = NULL;
@@ -625,9 +624,6 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer)
     mBufferHandle[mBufferCount] = buffer;
     mPrivateHandle[mBufferCount] =
         (struct private_handle_t *)(*mBufferHandle[mBufferCount]);
-
-    setMetaData(mPrivateHandle[mBufferCount], UPDATE_COLOR_SPACE, &mColorSpace);
-
     mMemInfo[mBufferCount].main_ion_fd = open("/dev/ion", O_RDONLY);
     if (mMemInfo[mBufferCount].main_ion_fd < 0) {
         ALOGE("%s: failed: could not open ion device", __func__);

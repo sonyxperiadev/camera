@@ -31,7 +31,6 @@
 #define __QCAMERA3HWI_MEM_H__
 #include <hardware/camera3.h>
 #include <utils/Mutex.h>
-#include <qdMetaData.h>
 
 extern "C" {
 #include <sys/types.h>
@@ -131,7 +130,6 @@ private:
     buffer_handle_t *mBufferHandle[MM_CAMERA_MAX_NUM_FRAMES];
     struct private_handle_t *mPrivateHandle[MM_CAMERA_MAX_NUM_FRAMES];
     int32_t mCurrentFrameNumbers[MM_CAMERA_MAX_NUM_FRAMES];
-    enum ColorSpace_t mColorSpace;
 };
 
 };
