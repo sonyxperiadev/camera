@@ -2231,14 +2231,12 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
                     new QCameraVideoMemory(mGetMemory, bCachedMem);
 
             int usage = 0;
-            if(mParameters.isUBWCEnabled()) {
-                cam_format_t fmt;
-                mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
-                if (fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
-                    usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
-                    videoMemory->setVideoInfo(usage);
-                }
+            cam_format_t fmt;
+            mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
+            if (mParameters.isUBWCEnabled() && (fmt == CAM_FORMAT_YUV_420_NV12_UBWC)) {
+                usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
             }
+            videoMemory->setVideoInfo(usage, fmt);
             mem = videoMemory;
         }
         break;

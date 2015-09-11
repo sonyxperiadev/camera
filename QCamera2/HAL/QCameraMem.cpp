@@ -38,6 +38,8 @@
 #include <utils/Log.h>
 #include <gralloc_priv.h>
 #include <QComOMXMetadata.h>
+#include "OMX_QCOMExtns.h"
+#include <OMX_IVCommon.h>
 
 #include "QCamera2HWI.h"
 #include "QCameraMem.h"
@@ -1271,8 +1273,8 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
         for (int i = 0; i < count; i ++) {
             struct encoder_media_buffer_type * packet =
                     (struct encoder_media_buffer_type *)mMetadata[i]->data;
-            //1 fd, 1 offset, 1 size, 1 usage
-            packet->meta_handle = native_handle_create(1, 3);
+            //1 fd, 1 offset, 1 size, 1 usage, 1 format
+            packet->meta_handle = native_handle_create(1, 4);
             packet->buffer_type = kMetadataBufferTypeCameraSource;
             native_handle_t * nh = const_cast<native_handle_t *>(packet->meta_handle);
             if (!nh) {
@@ -1283,6 +1285,7 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
             nh->data[3] = usage;
+            nh->data[4] = mFormat;
         }
     }
     mBufferCount = count;
@@ -1328,8 +1331,8 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             }
             struct encoder_media_buffer_type * packet =
                     (struct encoder_media_buffer_type *)mMetadata[i]->data;
-            //1 fd, 1 offset, 1 size  and 1 usage
-            packet->meta_handle = native_handle_create(1, 3);
+            //1 fd, 1 offset, 1 size , 1 usage and 1 format
+            packet->meta_handle = native_handle_create(1, 4);
             packet->buffer_type = kMetadataBufferTypeCameraSource;
             native_handle_t * nh = const_cast<native_handle_t *>(packet->meta_handle);
             if (!nh) {
@@ -1340,6 +1343,7 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
             nh->data[3] = usage;
+            nh->data[4] = mFormat;
         }
     }
     mBufferCount = (uint8_t)(mBufferCount + count);
@@ -1504,9 +1508,43 @@ int QCameraVideoMemory::getMatchBufIndex(const void *opaque,
  *
  * RETURN     : none
  *==========================================================================*/
-void QCameraVideoMemory::setVideoInfo(int usage)
+void QCameraVideoMemory::setVideoInfo(int usage, cam_format_t format)
 {
     mUsage = usage;
+    mFormat = getOMXFormat(format);
+}
+
+/*===========================================================================
+ * FUNCTION   : getOMXFormat
+ *
+ * DESCRIPTION: map cam_format_t to corresponding OMX format
+ *
+ * PARAMETERS :
+ *   @format : format in cam_format_t type
+ *
+ * RETURN     : none
+ *==========================================================================*/
+int QCameraVideoMemory::getOMXFormat(cam_format_t format)
+{
+    //OMX format is purely based on YUV pattern. For UBWC
+    //or any other format change, hint to be provided in the
+    //usage flags of native_handle_t.
+    int omxFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+    switch (format) {
+        case CAM_FORMAT_YUV_420_NV21:
+        case CAM_FORMAT_YUV_420_NV21_VENUS:
+        case CAM_FORMAT_YUV_420_NV21_ADRENO:
+            omxFormat = QOMX_COLOR_FormatYVU420SemiPlanar;
+            break;
+        case CAM_FORMAT_YUV_420_NV12:
+        case CAM_FORMAT_YUV_420_NV12_VENUS:
+        case CAM_FORMAT_YUV_420_NV12_UBWC:
+            omxFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+            break;
+        default:
+            omxFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+    }
+    return omxFormat;
 }
 
 /*===========================================================================
