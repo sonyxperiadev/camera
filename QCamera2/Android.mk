@@ -36,6 +36,7 @@ LOCAL_CFLAGS += -DHAS_MULTIMEDIA_HINTS
 
 #HAL 1.0 Flags
 LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3
+LOCAL_CFLAGS += -DVANILLA_HAL
 
 LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/stack/common \
@@ -52,14 +53,13 @@ LOCAL_C_INCLUDES += \
         frameworks/native/include/media/hardware \
         hardware/qcom/camera/QCamera2/HAL
 
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
-
 #LOCAL_STATIC_LIBRARIES := libqcamera2_util
 LOCAL_C_INCLUDES += \
-        hardware/qcom/display/libgralloc
+        hardware/qcom/display/msm8974/libgralloc
 
 LOCAL_SHARED_LIBRARIES := libcamera_client liblog libhardware libutils libcutils libdl
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
+LOCAL_COPY_HEADERS := ../QCamera_Intf.h
 
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_MODULE := camera.$(TARGET_BOARD_PLATFORM)

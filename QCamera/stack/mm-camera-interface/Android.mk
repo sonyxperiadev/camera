@@ -30,10 +30,6 @@ LOCAL_C_INCLUDES := \
     $(TARGET_OUT_HEADERS)/mm-camera \
     $(TARGET_OUT_HEADERS)/mm-camera/common
 
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include/media
-LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
-
 # (BEGIN) Need to remove later once dependency on jpeg removed
 LOCAL_C_INCLUDES += \
     $(TARGET_OUT_HEADERS)/mm-still \
@@ -52,6 +48,7 @@ LOCAL_MODULE           := libmmcamera_interface
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog
 LOCAL_MODULE_TAGS := optional
+LOCAL_PROPRIETARY_MODULE := true
 
 # (BEGIN) Need to remove later once dependency on jpeg removed
 # LOCAL_SHARED_LIBRARIES += libmmjpeg_interface
