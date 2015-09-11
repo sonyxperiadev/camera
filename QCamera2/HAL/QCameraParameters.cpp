@@ -3995,9 +3995,12 @@ int32_t QCameraParameters::setRecordingHint(const QCameraParameters& params)
             if(value != NAME_NOT_FOUND){
                 updateParamEntry(KEY_RECORDING_HINT, str);
                 setRecordingHintValue(value);
-                if ((getFaceDetectionOption() == true)
-                        && (!m_pCapability->hw_analysis_supported)) {
-                    setFaceDetection(value > 0 ? false : true, false);
+                if (getFaceDetectionOption() == true) {
+                    if (!m_pCapability->hw_analysis_supported) {
+                        setFaceDetection(value > 0 ? false : true, false);
+                    } else {
+                        setFaceDetection(true, false);
+                    }
                 }
                 if (m_bDISEnabled) {
                     CDBG_HIGH("%s: %d: Setting DIS value again", __func__, __LINE__);
@@ -10619,8 +10622,16 @@ int32_t QCameraParameters::setFaceDetection(bool enabled, bool initCommit)
     // set face detection mask
     if (enabled) {
         faceProcMask |= CAM_FACE_PROCESS_MASK_DETECTION;
+        if (getRecordingHintValue() > 0) {
+            faceProcMask = 0;
+            faceProcMask |= CAM_FACE_PROCESS_MASK_FOCUS;
+        } else {
+            faceProcMask |= CAM_FACE_PROCESS_MASK_FOCUS;
+            faceProcMask |= CAM_FACE_PROCESS_MASK_DETECTION;
+        }
     } else {
-        faceProcMask &= ~CAM_FACE_PROCESS_MASK_DETECTION;
+        faceProcMask &= ~(CAM_FACE_PROCESS_MASK_DETECTION
+                | CAM_FACE_PROCESS_MASK_FOCUS);
     }
 
     if(m_nFaceProcMask == faceProcMask) {
