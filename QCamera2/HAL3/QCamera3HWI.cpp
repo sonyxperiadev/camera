@@ -354,8 +354,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mToBeQueuedVidBufs(0),
       mHFRVideoFps(DEFAULT_VIDEO_FPS),
       mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
-      mPrevUrgentFrameNumber(0),
-      mPrevFrameNumber(0),
+      mFirstFrameNumberInBatch(0),
       mNeedSensorRestart(false),
       mLdafCalibExist(false),
       mPowerHintEnabled(false),
@@ -2308,8 +2307,9 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     metadata_buffer_t *metadata =
             (metadata_buffer_t *)metadata_buf->bufs[0]->buffer;
     int32_t frame_number_valid = 0, urgent_frame_number_valid = 0;
-    uint32_t last_frame_number, last_urgent_frame_number;
-    uint32_t frame_number, urgent_frame_number = 0;
+    uint32_t last_frame_number = 0, last_urgent_frame_number = 0;
+    uint32_t first_frame_number = 0, first_urgent_frame_number = 0;
+    uint32_t frame_number = 0, urgent_frame_number = 0;
     int64_t last_frame_capture_time = 0, first_frame_capture_time, capture_time;
     bool invalid_metadata = false;
     size_t urgentFrameNumDiff = 0, frameNumDiff = 0;
@@ -2339,50 +2339,45 @@ void QCamera3HardwareInterface::handleBatchMetadata(
         last_urgent_frame_number = *p_urgent_frame_number;
     }
 
-    // If reported capture_time is 0, skip handling this metadata
-    if (!last_frame_capture_time) {
-        goto done_batch_metadata;
-    }
     /* In batchmode, when no video buffers are requested, set_parms are sent
      * for every capture_request. The difference between consecutive urgent
      * frame numbers and frame numbers should be used to interpolate the
      * corresponding frame numbers and time stamps */
+    pthread_mutex_lock(&mMutex);
     if (urgent_frame_number_valid) {
-        /* Frame numbers start with 0, handle it in the else condition */
-        if (last_urgent_frame_number &&
-                (last_urgent_frame_number >= mPrevUrgentFrameNumber)) {
-            urgentFrameNumDiff = last_urgent_frame_number - mPrevUrgentFrameNumber;
-        } else {
-            urgentFrameNumDiff = 1;
-        }
-        mPrevUrgentFrameNumber = last_urgent_frame_number;
+        first_urgent_frame_number =
+                mPendingBatchMap.valueFor(last_urgent_frame_number);
+        urgentFrameNumDiff = last_urgent_frame_number + 1 -
+                first_urgent_frame_number;
+
+        CDBG("%s: urgent_frm: valid: %d frm_num: %d - %d",
+                __func__, urgent_frame_number_valid,
+                first_urgent_frame_number, last_urgent_frame_number);
     }
+
     if (frame_number_valid) {
-        /* Frame numbers start with 0, handle it in the else condition */
-        if(last_frame_number && (last_frame_number >= mPrevFrameNumber)) {
-            frameNumDiff = last_frame_number - mPrevFrameNumber;
-        } else {
-            frameNumDiff = 1;
-        }
-        mPrevFrameNumber = last_frame_number;
+        first_frame_number = mPendingBatchMap.valueFor(last_frame_number);
+        frameNumDiff = last_frame_number + 1 -
+                first_frame_number;
+        mPendingBatchMap.removeItem(last_frame_number);
+
+        CDBG("%s:        frm: valid: %d frm_num: %d - %d",
+                __func__, frame_number_valid,
+                first_frame_number, last_frame_number);
+
     }
+    pthread_mutex_unlock(&mMutex);
+
     if (urgent_frame_number_valid || frame_number_valid) {
         loopCount = MAX(urgentFrameNumDiff, frameNumDiff);
         if (urgentFrameNumDiff > MAX_HFR_BATCH_SIZE)
-            ALOGE("%s: urgentFrameNumDiff: %d", __func__, urgentFrameNumDiff);
+            ALOGE("%s: urgentFrameNumDiff: %d urgentFrameNum: %d",
+                    __func__, urgentFrameNumDiff, last_urgent_frame_number);
         if (frameNumDiff > MAX_HFR_BATCH_SIZE)
-            ALOGE("%s: frameNumDiff: %d", __func__, frameNumDiff);
-
+            ALOGE("%s: frameNumDiff: %d frameNum: %d",
+                    __func__, frameNumDiff, last_frame_number);
     }
 
-    CDBG("%s: urgent_frm: valid: %d frm_num: %d previous frm_num: %d",
-            __func__, urgent_frame_number_valid, last_urgent_frame_number,
-            mPrevUrgentFrameNumber);
-    CDBG("%s:        frm: valid: %d frm_num: %d previous frm_num:: %d",
-            __func__, frame_number_valid, last_frame_number, mPrevFrameNumber);
-
-    //TODO: Need to ensure, metadata is not posted with the same frame numbers
-    //when urgentFrameNumDiff != frameNumDiff
     for (size_t i = 0; i < loopCount; i++) {
         /* handleMetadataWithLock is called even for invalid_metadata for
          * pipeline depth calculation */
@@ -2392,7 +2387,7 @@ void QCamera3HardwareInterface::handleBatchMetadata(
             if (urgent_frame_number_valid) {
                 if (i < urgentFrameNumDiff) {
                     urgent_frame_number =
-                            last_urgent_frame_number + 1 - urgentFrameNumDiff + i;
+                            first_urgent_frame_number + i;
                     CDBG("%s: inferred urgent frame_number: %d",
                             __func__, urgent_frame_number);
                     ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
@@ -2408,7 +2403,7 @@ void QCamera3HardwareInterface::handleBatchMetadata(
              * last frame */
             if (frame_number_valid) {
                 if (i < frameNumDiff) {
-                    frame_number = last_frame_number + 1 - frameNumDiff + i;
+                    frame_number = first_frame_number + i;
                     CDBG("%s: inferred frame_number: %d", __func__, frame_number);
                     ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
                             CAM_INTF_META_FRAME_NUMBER, frame_number);
@@ -2419,15 +2414,17 @@ void QCamera3HardwareInterface::handleBatchMetadata(
                 }
             }
 
-            //Infer timestamp
-            first_frame_capture_time = last_frame_capture_time -
-                    (((loopCount - 1) * NSEC_PER_SEC) / mHFRVideoFps);
-            capture_time =
-                    first_frame_capture_time + (i * NSEC_PER_SEC / mHFRVideoFps);
-            ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
-                    CAM_INTF_META_SENSOR_TIMESTAMP, capture_time);
-            CDBG("%s: batch capture_time: %lld, capture_time: %lld",
-                    __func__, last_frame_capture_time, capture_time);
+            if (last_frame_capture_time) {
+                //Infer timestamp
+                first_frame_capture_time = last_frame_capture_time -
+                        (((loopCount - 1) * NSEC_PER_SEC) / mHFRVideoFps);
+                capture_time =
+                        first_frame_capture_time + (i * NSEC_PER_SEC / mHFRVideoFps);
+                ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                        CAM_INTF_META_SENSOR_TIMESTAMP, capture_time);
+                CDBG("%s: batch capture_time: %lld, capture_time: %lld",
+                        __func__, last_frame_capture_time, capture_time);
+            }
         }
         pthread_mutex_lock(&mMutex);
         handleMetadataWithLock(metadata_buf,
@@ -3480,11 +3477,20 @@ no_error:
             }
         }
         /* For batchMode HFR, setFrameParameters is not called for every
-         * request. But only frame number of the latest request is parsed */
-        if (mBatchSize && ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+         * request. But only frame number of the latest request is parsed.
+         * Keep track of first and last frame numbers in a batch so that
+         * metadata for the frame numbers of batch can be duplicated in
+         * handleBatchMetadta */
+        if (mBatchSize) {
+            if (!mToBeQueuedVidBufs) {
+                //start of the batch
+                mFirstFrameNumberInBatch = request->frame_number;
+            }
+            if(ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_META_FRAME_NUMBER, request->frame_number)) {
-            ALOGE("%s: Failed to set the frame number in the parameters", __func__);
-            return BAD_VALUE;
+                ALOGE("%s: Failed to set the frame number in the parameters", __func__);
+                return BAD_VALUE;
+            }
         }
         if (mNeedSensorRestart) {
             /* Unlock the mutex as restartSensor waits on the channels to be
@@ -3688,6 +3694,7 @@ no_error:
             }
             /* reset to zero coz, the batch is queued */
             mToBeQueuedVidBufs = 0;
+            mPendingBatchMap.add(frameNumber, mFirstFrameNumberInBatch);
         }
         mPendingLiveRequest++;
     }

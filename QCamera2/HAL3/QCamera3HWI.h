@@ -378,6 +378,10 @@ private:
     List<PendingReprocessResult> mPendingReprocessResultList;
     List<PendingRequestInfo> mPendingRequestsList;
     List<PendingFrameDropInfo> mPendingFrameDropList;
+    /* Use last frame number of the batch as key and first frame number of the
+     * batch as value for that key */
+    KeyedVector<uint32_t, uint32_t> mPendingBatchMap;
+
     PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
     uint32_t mPendingLiveRequest;
@@ -410,8 +414,7 @@ private:
     // Fixed video fps
     float mHFRVideoFps;
     uint8_t mOpMode;
-    uint32_t mPrevUrgentFrameNumber;
-    uint32_t mPrevFrameNumber;
+    uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
     bool mNeedSensorRestart;
 
