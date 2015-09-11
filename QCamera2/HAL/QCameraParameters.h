@@ -46,6 +46,8 @@ static const char ExifUndefinedPrefix[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 
 #define CAMERA_MIN_BATCH_COUNT           4
 
+typedef cam_manual_capture_type QCameraManualCaptureModes;
+
 class QCameraTorchInterface
 {
 public:
@@ -782,7 +784,7 @@ public:
     int getBrightness();
     int32_t updateOisValue(bool oisValue);
     int32_t setIntEvent(cam_int_evt_params_t params);
-    void setOfflineRAW();
+    void setOfflineRAW(bool value = 0);
     bool getofflineRAW() {return mOfflineRAW;}
     int32_t updatePpFeatureMask(cam_stream_type_t stream_type);
     int32_t setStreamPpMask(cam_stream_type_t stream_type, uint32_t pp_mask);
@@ -818,6 +820,12 @@ public:
     int8_t  getBufBatchCount() {return mBufBatchCnt;};
     void setVideoBatchSize();
     int8_t  getVideoBatchSize() {return mVideoBatchSize;};
+
+    int32_t setManualCaptureMode(
+            QCameraManualCaptureModes value = CAM_MANUAL_CAPTURE_TYPE_OFF);
+    QCameraManualCaptureModes getManualCaptureMode()
+            {return m_ManualCaptureMode;};
+    int64_t getExposureTime() {return m_expTime;};
 
     cam_capture_frame_config_t getCaptureFrameConfig()
             { return m_captureFrameConfig; };
@@ -1151,6 +1159,8 @@ private:
     bool m_LLCaptureEnabled;
     cam_low_light_mode_t m_LowLightLevel;
     bool m_bLtmForSeeMoreEnabled;
+    QCameraManualCaptureModes m_ManualCaptureMode;
+    int64_t m_expTime;
 };
 
 }; // namespace qcamera
