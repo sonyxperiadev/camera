@@ -31,6 +31,8 @@
 #define MM_JPEG_H_
 
 #include <cam_semaphore.h>
+#include <string.h>
+#include <malloc.h>
 #include "mm_jpeg_interface.h"
 #include "cam_list.h"
 #include "OMX_Types.h"

@@ -27,6 +27,8 @@
  *
  */
 
+#include <string.h>
+#include <malloc.h>
 #include "cam_list.h"
 
 typedef struct {

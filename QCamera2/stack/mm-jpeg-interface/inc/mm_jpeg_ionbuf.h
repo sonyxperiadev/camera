@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <string.h>
 #include "mm_jpeg_dbg.h"
 
 typedef struct  {
