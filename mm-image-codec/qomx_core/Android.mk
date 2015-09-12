@@ -24,8 +24,8 @@ LOCAL_COPY_HEADERS := ../qexif/qexif.h
 LOCAL_COPY_HEADERS := QOMX_JpegExtensions.h
 
 LOCAL_MODULE           := libqomx_core
-LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libcutils libdl
+LOCAL_PROPRIETARY_MODULE := true
 
 LOCAL_32_BIT_ONLY := true
 include $(BUILD_SHARED_LIBRARY)
