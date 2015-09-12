@@ -370,9 +370,13 @@ typedef enum {
 /* values that persist.camera.global.debug can be set to */
 /* all camera modules need to map their internal debug levels to this range */
 typedef enum {
-    CAM_GLBL_DBG_ERR    = 0,
-    CAM_GLBL_DBG_HIGH   = 1,
-    CAM_GLBL_DBG_LOW    = 2,
+    CAM_GLBL_DBG_NONE  = 0,
+    CAM_GLBL_DBG_ERR   = 1,
+    CAM_GLBL_DBG_HIGH  = 2,
+    CAM_GLBL_DBG_WARN  = 3,
+    CAM_GLBL_DBG_LOW   = 4,
+    CAM_GLBL_DBG_DEBUG = 5,
+    CAM_GLBL_DBG_INFO  = 6
 } cam_global_debug_level_t;
 
 typedef struct {
