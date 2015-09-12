@@ -53,7 +53,7 @@
 #define MAX_ZOOMS_CNT 91
 #define MAX_SIZES_CNT 30
 #define MAX_EXP_BRACKETING_LENGTH 32
-#define MAX_ROI 5
+#define MAX_ROI 10
 #define MAX_STREAM_NUM_IN_BUNDLE 6
 #define MAX_NUM_STREAMS          8
 #define CHROMATIX_SIZE 60000
