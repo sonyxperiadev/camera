@@ -348,7 +348,6 @@ int32_t QCameraPostProcessor::stop()
 int32_t QCameraPostProcessor::createJpegSession(QCameraChannel *pSrcChannel)
 {
     int32_t rc = NO_ERROR;
-    QCameraChannel *pInputChannel = pSrcChannel;
 
     CDBG_HIGH("%s: E ", __func__);
     if (m_bInited == FALSE) {
@@ -356,7 +355,7 @@ int32_t QCameraPostProcessor::createJpegSession(QCameraChannel *pSrcChannel)
         return UNKNOWN_ERROR;
     }
 
-    if (pInputChannel == NULL) {
+    if (pSrcChannel == NULL) {
         ALOGE("%s : Input Channel for pproc is NULL.", __func__);
         return UNKNOWN_ERROR;
     }
@@ -374,6 +373,12 @@ int32_t QCameraPostProcessor::createJpegSession(QCameraChannel *pSrcChannel)
             (m_parent->mParameters.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT) ==
              m_parent->mParameters.getFlipMode(CAM_STREAM_TYPE_PREVIEW))) &&
             !m_parent->mParameters.generateThumbFromMain());
+
+        if (pChannel == NULL) {
+            ALOGE("%s : Input Channel for pproc is NULL for index %d.",
+                    __func__, ppChannel_idx);
+            return UNKNOWN_ERROR;
+        }
 
         for (uint32_t i = 0; i < pChannel->getNumOfStreams(); ++i) {
             QCameraStream *pStream = pChannel->getStreamByIndex(i);
