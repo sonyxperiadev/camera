@@ -714,6 +714,11 @@ private:
     bool TsMakeupProcess(mm_camera_buf_def_t *frame,QCameraStream * stream,TSRect& faceRect);
 #endif
     bool mCACDoneReceived;
+
+    //GPU library to read buffer padding details.
+    void *lib_surface_utils;
+    int (*LINK_get_surface_pixel_alignment)();
+    uint32_t mSurfaceStridePadding;
 };
 
 }; // namespace qcamera
