@@ -1593,7 +1593,14 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 || IS_USAGE_ZSL(newStream->usage)) &&
             newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
             mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
-            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = CAM_QCOM_FEATURE_NONE;
+            if (bUseCommonFeatureMask) {
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                        commonFeatureMask;
+            } else {
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                        CAM_QCOM_FEATURE_NONE;
+            }
+
         } else if(newStream->stream_type == CAMERA3_STREAM_INPUT) {
                 CDBG_HIGH("%s: Input stream configured, reprocess config", __func__);
         } else {
