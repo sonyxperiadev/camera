@@ -2619,14 +2619,13 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
          * 1. have a pending reprocess request or
          * 2. miss a metadata buffer callback */
         if (i->frame_number < frame_number) {
-            /* Clear notify_msg structure */
-            camera3_notify_msg_t notify_msg;
-            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-            notify_msg.type = CAMERA3_MSG_SHUTTER;
-            notify_msg.message.shutter.frame_number = i->frame_number;
-            notify_msg.message.shutter.timestamp = (uint64_t)capture_time -
-                    (frame_number - i->frame_number) * NSEC_PER_33MSEC;
             if (i->input_buffer) {
+                /* Clear notify_msg structure */
+                camera3_notify_msg_t notify_msg;
+                memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+                notify_msg.type = CAMERA3_MSG_SHUTTER;
+                notify_msg.message.shutter.frame_number = i->frame_number;
+
                 i->partial_result_cnt++; //input request will not have urgent metadata
                 CameraMetadata settings;
                 if(i->settings) {
@@ -2646,19 +2645,24 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 result.partial_result = i->partial_result_cnt;
                 CDBG("%s: Input request metadata notify frame_number = %u, capture_time = %llu",
                        __func__, i->frame_number, notify_msg.message.shutter.timestamp);
+                mCallbackOps->notify(mCallbackOps, &notify_msg);
+                i->timestamp = (nsecs_t)notify_msg.message.shutter.timestamp;
+                CDBG("%s: Support notification !!!! notify frame_number = %u, capture_time = %llu",
+                        __func__, i->frame_number, notify_msg.message.shutter.timestamp);
+
             } else {
-                mPendingLiveRequest--;
-                CameraMetadata dummyMetadata;
-                dummyMetadata.update(ANDROID_SENSOR_TIMESTAMP,
-                        &i->timestamp, 1);
-                dummyMetadata.update(ANDROID_REQUEST_ID,
-                        &(i->request_id), 1);
-                result.result = dummyMetadata.release();
+                ALOGE("%s: Fatal: Missing metadata buffer for frame number %d", __func__, i->frame_number);
+                if (free_and_bufdone_meta_buf) {
+                    mMetadataChannel->bufDone(metadata_buf);
+                    free(metadata_buf);
+                }
+                camera3_notify_msg_t notify_msg;
+                memset(&notify_msg, 0, sizeof(notify_msg));
+                notify_msg.type = CAMERA3_MSG_ERROR;
+                notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_DEVICE;
+                mCallbackOps->notify(mCallbackOps, &notify_msg);
+                goto done_metadata;
             }
-            mCallbackOps->notify(mCallbackOps, &notify_msg);
-            i->timestamp = (nsecs_t)notify_msg.message.shutter.timestamp;
-            CDBG("%s: Support notification !!!! notify frame_number = %u, capture_time = %llu",
-                       __func__, i->frame_number, notify_msg.message.shutter.timestamp);
         } else {
             mPendingLiveRequest--;
             /* Clear notify_msg structure */
