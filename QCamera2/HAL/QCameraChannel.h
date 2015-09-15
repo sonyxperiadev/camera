@@ -106,6 +106,8 @@ public:
                         mm_camera_ops_t *cam_ops);
     QCameraVideoChannel();
     virtual ~QCameraVideoChannel();
+    int32_t takePicture(mm_camera_req_buf_t *buf);
+    int32_t cancelPicture();
     int32_t releaseFrame(const void *opaque, bool isMetaData);
 };
 
