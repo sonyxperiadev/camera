@@ -46,6 +46,10 @@ static const char ExifUndefinedPrefix[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 
 #define CAMERA_MIN_BATCH_COUNT           4
 
+#define QCAMERA_MAX_EXP_TIME_LEVEL1      100
+#define QCAMERA_MAX_EXP_TIME_LEVEL2      500
+#define QCAMERA_MAX_EXP_TIME_LEVEL3      1000
+#define QCAMERA_MAX_EXP_TIME_LEVEL4      10000
 typedef cam_manual_capture_type QCameraManualCaptureModes;
 
 class QCameraTorchInterface
@@ -798,6 +802,7 @@ public:
 
     int32_t getZoomLevel(){return mZoomLevel;};
     int32_t getParmZoomLevel(){return mParmZoomLevel;};
+    bool isMultiPassReprocessing();
     int8_t  getReprocCount(){return mTotalPPCount;};
     int8_t  getCurPPCount(){return mCurPPCount;};
     void    setReprocCount();
@@ -840,6 +845,8 @@ public:
             cam_related_system_calibration_data_t* calib);
     int32_t bundleRelatedCameras(bool sync, uint32_t sessionid);
     bool isFDInVideoEnabled();
+    int32_t setZslMode(bool value);
+    int32_t updateZSLModeValue(bool value);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1147,8 +1154,8 @@ private:
     bool m_LLCaptureEnabled;
     cam_low_light_mode_t m_LowLightLevel;
     bool m_bLtmForSeeMoreEnabled;
-    QCameraManualCaptureModes m_ManualCaptureMode;
     int64_t m_expTime;
+    QCameraManualCaptureModes m_ManualCaptureMode;
 };
 
 }; // namespace qcamera

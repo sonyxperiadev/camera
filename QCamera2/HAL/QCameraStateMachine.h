@@ -239,6 +239,7 @@ private:
     cam_semaphore_t cmd_sem;              // semaphore for cmd thread
     bool m_bDelayPreviewMsgs;             // Delay preview callback enable during ZSL snapshot
     int32_t m_DelayedMsgs;
+    bool m_RestoreZSL;
 };
 
 }; // namespace qcamera

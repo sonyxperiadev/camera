@@ -137,7 +137,10 @@ public:
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val);
 
     int32_t doReprocessOffline(mm_camera_super_buf_t *frame,
-             mm_camera_buf_def_t *meta_buf);
+             mm_camera_buf_def_t *meta_buf, QCameraParameters &param);
+
+    int32_t doReprocessOffline(mm_camera_buf_def_t *frame,
+             mm_camera_buf_def_t *meta_buf, QCameraStream *pStream);
 
     int32_t stop();
     QCameraChannel *getSrcChannel(){return m_pSrcChannel;};
@@ -154,7 +157,6 @@ private:
     uint32_t mSrcStreamHandles[MAX_STREAM_NUM_IN_BUNDLE];
     QCameraChannel *m_pSrcChannel; // ptr to source channel for reprocess
     android::List<OfflineBuffer> mOfflineBuffers;
-
 };
 
 }; // namespace qcamera

@@ -2541,8 +2541,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     case CAM_STREAM_TYPE_RAW:
         property_get("persist.camera.raw_yuv", value, "0");
         raw_yuv = atoi(value) > 0 ? true : false;
-        if ((mParameters.isZSLMode() || isRdiMode() || raw_yuv) &&
-                !mParameters.getofflineRAW()) {
+        if ((mParameters.isZSLMode()) || (isRdiMode()) || (raw_yuv)) {
             CDBG_HIGH("RDI_DEBUG %s[%d]: CAM_STREAM_TYPE_RAW",
               __func__, __LINE__);
             streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
@@ -2640,7 +2639,6 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
                 CAM_QCOM_FEATURE_SCALE)
             streamInfo->pp_config.feature_mask |= CAM_QCOM_FEATURE_SCALE;
     }
-
     CDBG_HIGH("%s: allocateStreamInfoBuf: stream type: %d, pp_mask: 0x%x",
             __func__, stream_type, streamInfo->pp_config.feature_mask);
 
@@ -3027,6 +3025,7 @@ int QCamera2HardwareInterface::stopPreview()
     stopChannel(QCAMERA_CH_TYPE_CALLBACK);
     stopChannel(QCAMERA_CH_TYPE_ZSL);
     stopChannel(QCAMERA_CH_TYPE_PREVIEW);
+    stopChannel(QCAMERA_CH_TYPE_RAW);
 
     m_cbNotifier.flushPreviewNotifications();
     //add for ts makeup
@@ -3806,11 +3805,22 @@ int QCamera2HardwareInterface::takePicture()
     CDBG_HIGH("%s:numSnapshots = %d", __func__, numSnapshots);
 
     if (mParameters.isZSLMode()) {
-        QCameraPicChannel *pZSLChannel =
+        QCameraPicChannel *pPicChannel =
             (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
-        if (NULL != pZSLChannel) {
+        if (NULL != pPicChannel) {
 
-            rc = configureOnlineRotation(*pZSLChannel);
+            if (mParameters.getofflineRAW()) {
+                startRAWChannel(pPicChannel);
+                pPicChannel = (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_RAW];
+                if (pPicChannel == NULL) {
+                    ALOGE("%s: RAW Channel is NULL in Manual capture mode",
+                            __func__);
+                    stopRAWChannel();
+                    return UNKNOWN_ERROR;
+                }
+            }
+
+            rc = configureOnlineRotation(*pPicChannel);
             if (rc != NO_ERROR) {
                 ALOGE("%s: online rotation failed", __func__);
                 return rc;
@@ -3820,7 +3830,7 @@ int QCamera2HardwareInterface::takePicture()
             DeferWorkArgs args;
             memset(&args, 0, sizeof(DeferWorkArgs));
 
-            args.pprocArgs = pZSLChannel;
+            args.pprocArgs = pPicChannel;
 
             // No need to wait for mInitPProcJob here, because it was
             // queued in startPreview, and will definitely be processed before
@@ -3840,7 +3850,7 @@ int QCamera2HardwareInterface::takePicture()
             }
 
             if (mAdvancedCaptureConfigured) {
-                rc = startAdvancedCapture(pZSLChannel);
+                rc = startAdvancedCapture(pPicChannel);
                 if (rc != NO_ERROR) {
                     ALOGE("%s: cannot start zsl advanced capture", __func__);
                     return rc;
@@ -3849,7 +3859,7 @@ int QCamera2HardwareInterface::takePicture()
             if (mLongshotEnabled && mPrepSnapRun) {
                 mCameraHandle->ops->start_zsl_snapshot(
                         mCameraHandle->camera_handle,
-                        pZSLChannel->getMyHandle());
+                        pPicChannel->getMyHandle());
             }
             // If frame sync is ON and it is a SECONDARY camera,
             // we do not need to send the take picture command to interface
@@ -3864,7 +3874,7 @@ int QCamera2HardwareInterface::takePicture()
                 if (getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY) {
                     buf.type = MM_CAMERA_REQ_FRAME_SYNC_BUF;
                     buf.num_buf_requested = numSnapshots;
-                    rc = pZSLChannel->takePicture(&buf);
+                    rc = pPicChannel->takePicture(&buf);
                     if (rc != NO_ERROR) {
                         ALOGE("%s: FS_DBG cannot take ZSL picture, stop pproc",
                                 __func__);
@@ -3888,7 +3898,7 @@ int QCamera2HardwareInterface::takePicture()
                 buf.type = MM_CAMERA_REQ_SUPER_BUF;
                 buf.num_buf_requested = numSnapshots;
                 buf.num_retro_buf_requested = numRetroSnapshots;
-                rc = pZSLChannel->takePicture(&buf);
+                rc = pPicChannel->takePicture(&buf);
                 if (rc != NO_ERROR) {
                     ALOGE("%s: cannot take ZSL picture, stop pproc", __func__);
                         if (NO_ERROR != waitDeferredWork(mReprocJob)) {
@@ -4044,7 +4054,7 @@ int QCamera2HardwareInterface::takePicture()
                 return rc;
             }
 
-            rc = addRawChannel();
+            rc = addChannel(QCAMERA_CH_TYPE_RAW);
             if (rc == NO_ERROR) {
                 // start postprocessor
                 if (NO_ERROR != waitDeferredWork(mInitPProcJob)) {
@@ -4098,7 +4108,8 @@ int32_t QCamera2HardwareInterface::configureOnlineRotation(QCameraChannel &ch)
     for (uint8_t i = 0; i < ch.getNumOfStreams(); i++) {
         QCameraStream *stream = ch.getStreamByIndex(i);
         if ((NULL != stream) &&
-                (CAM_STREAM_TYPE_SNAPSHOT == stream->getMyType())) {
+                ((CAM_STREAM_TYPE_SNAPSHOT == stream->getMyType())
+                || (CAM_STREAM_TYPE_RAW == stream->getMyType()))) {
             pStream = stream;
             break;
         }
@@ -4253,6 +4264,7 @@ int QCamera2HardwareInterface::cancelPicture()
         QCameraPicChannel *pZSLChannel =
             (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
         if (NULL != pZSLChannel) {
+            stopRAWChannel();
             stopAdvancedCapture(pZSLChannel);
             pZSLChannel->cancelPicture();
         }
@@ -4537,7 +4549,7 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *r
         //setting it to a default know value for this task
         property_set("persist.camera.raw.format", "18");
 
-        rc = addRawChannel();
+        rc = addChannel(QCAMERA_CH_TYPE_RAW);
         if (rc == NO_ERROR) {
             // start postprocessor
             if (NO_ERROR != waitDeferredWork(mInitPProcJob)) {
@@ -6293,24 +6305,47 @@ int32_t QCamera2HardwareInterface::addRawChannel()
         return NO_MEMORY;
     }
 
-    rc = pChannel->init(NULL, NULL, NULL);
-    if (rc != NO_ERROR) {
-        ALOGE("%s: init raw channel failed, ret = %d", __func__, rc);
-        delete pChannel;
-        return rc;
+    if (mParameters.getofflineRAW()) {
+        mm_camera_channel_attr_t attr;
+        memset(&attr, 0, sizeof(mm_camera_channel_attr_t));
+        attr.notify_mode = MM_CAMERA_SUPER_BUF_NOTIFY_BURST;
+        attr.look_back = mParameters.getZSLBackLookCount();
+        attr.post_frame_skip = mParameters.getZSLBurstInterval();
+        attr.water_mark = 1;
+        attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
+        rc = pChannel->init(&attr, raw_channel_cb_routine, this);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: init RAW channel failed, ret = %d", __func__, rc);
+            delete pChannel;
+            return rc;
+        }
+    } else {
+        rc = pChannel->init(NULL, NULL, NULL);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: init raw channel failed, ret = %d", __func__, rc);
+            delete pChannel;
+            return rc;
+        }
     }
 
-    // meta data stream always coexists with snapshot in regular RAW capture case
-    rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_METADATA,
-                            metadata_stream_cb_routine, this);
-    if (rc != NO_ERROR) {
-        ALOGE("%s: add metadata stream failed, ret = %d", __func__, rc);
-        delete pChannel;
-        return rc;
+    if (!mParameters.isZSLMode()) {
+        // meta data stream always coexists with snapshot in regular RAW capture case
+        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_METADATA,
+                metadata_stream_cb_routine, this);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: add metadata stream failed, ret = %d", __func__, rc);
+            delete pChannel;
+            return rc;
+        }
     }
 
-    rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
-                            raw_stream_cb_routine, this);
+    if (mParameters.getofflineRAW()) {
+        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
+                NULL, this);
+    } else {
+        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
+                raw_stream_cb_routine, this);
+    }
     if (rc != NO_ERROR) {
         ALOGE("%s: add snapshot stream failed, ret = %d", __func__, rc);
         delete pChannel;
@@ -6429,7 +6464,7 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
 
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
-    if ( raw_yuv ) {
+    if (raw_yuv) {
         rc = addStreamToChannel(pChannel,
                                 CAM_STREAM_TYPE_RAW,
                                 NULL,
@@ -6534,20 +6569,18 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
             return rc;
         }
     }
+
+    stream_cb_routine stream_cb = NULL;
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
-    if ( raw_yuv ) {
-        if (!mParameters.getofflineRAW()) {
-            rc = addStreamToChannel(pChannel,
-                    CAM_STREAM_TYPE_RAW,
-                    snapshot_raw_stream_cb_routine,
-                    this);
-        } else {
-            rc = addStreamToChannel(pChannel,
-                    CAM_STREAM_TYPE_RAW,
-                    NULL,
-                    this);
-        }
+
+    if (raw_yuv) {
+        stream_cb = snapshot_raw_stream_cb_routine;
+    }
+
+    if ((raw_yuv) || (mParameters.getofflineRAW())) {
+        rc = addStreamToChannel(pChannel,
+                CAM_STREAM_TYPE_RAW, stream_cb, this);
         if (rc != NO_ERROR) {
             ALOGE("%s: add raw stream failed, ret = %d", __func__, rc);
             return rc;
@@ -6857,7 +6890,9 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 }
             }
 
-            if (curCount != mParameters.getReprocCount()) {
+            if ((curCount != mParameters.getReprocCount())
+                    && (!(mParameters.getManualCaptureMode() >=
+                    CAM_MANUAL_CAPTURE_TYPE_3))) {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_PP_PASS_2;
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_ROTATION;
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CDS;
@@ -6926,6 +6961,7 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
 {
     int32_t rc = NO_ERROR;
     QCameraReprocessChannel *pChannel = NULL;
+    uint32_t burst_cnt = mParameters.getNumOfSnapshots();
 
     if (pInputChannel == NULL) {
         ALOGE("%s: input channel obj is NULL", __func__);
@@ -6986,6 +7022,11 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         }
     }
 
+    if (mParameters.getManualCaptureMode() >= CAM_MANUAL_CAPTURE_TYPE_3) {
+        minStreamBufNum += mParameters.getReprocCount() - 1;
+        burst_cnt = mParameters.getReprocCount();
+    }
+
     // Add non inplace image lib buffers only when ppproc is present,
     // becuase pproc is non inplace and input buffers for img lib
     // are output for pproc and this number of extra buffers is required
@@ -7014,7 +7055,7 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
                                               pp_config,
                                               pInputChannel,
                                               minStreamBufNum,
-                                              mParameters.getNumOfSnapshots(),
+                                              burst_cnt,
                                               &paddingInfo,
                                               mParameters,
                                               mLongshotEnabled,
@@ -7262,6 +7303,10 @@ int32_t QCamera2HardwareInterface::preparePreview()
                 }
             }
         }
+
+        if (mParameters.getofflineRAW()) {
+            addChannel(QCAMERA_CH_TYPE_RAW);
+        }
     } else {
         bool recordingHint = mParameters.getRecordingHintValue();
         if(!isRdiMode() && recordingHint) {
@@ -7341,6 +7386,7 @@ void QCamera2HardwareInterface::unpreparePreview()
     delChannel(QCAMERA_CH_TYPE_VIDEO);
     delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
     delChannel(QCAMERA_CH_TYPE_CALLBACK);
+    delChannel(QCAMERA_CH_TYPE_RAW);
 }
 
 /*===========================================================================
@@ -9212,15 +9258,20 @@ bool QCamera2HardwareInterface::needDeferred(cam_stream_type_t stream_type)
         return FALSE;
     }
 
-    if ((stream_type == CAM_STREAM_TYPE_PREVIEW)
-            || (stream_type == CAM_STREAM_TYPE_METADATA)
-            || (stream_type == CAM_STREAM_TYPE_RAW)
-            || (stream_type == CAM_STREAM_TYPE_POSTVIEW)) {
-        return TRUE;
+    if ((stream_type == CAM_STREAM_TYPE_RAW)
+            && (mParameters.getofflineRAW())) {
+        return FALSE;
     }
 
     if ((stream_type == CAM_STREAM_TYPE_SNAPSHOT)
             && (!mParameters.getRecordingHintValue())){
+        return TRUE;
+    }
+
+    if ((stream_type == CAM_STREAM_TYPE_PREVIEW)
+            || (stream_type == CAM_STREAM_TYPE_METADATA)
+            || (stream_type == CAM_STREAM_TYPE_RAW)
+            || (stream_type == CAM_STREAM_TYPE_POSTVIEW)) {
         return TRUE;
     }
 
@@ -9307,4 +9358,65 @@ cam_sensor_t QCamera2HardwareInterface::getSensorType()
     return gCamCapability[mCameraId]->sensor_type.sens_type;
 }
 
+/*===========================================================================
+ * FUNCTION   : startRAWChannel
+ *
+ * DESCRIPTION: start RAW Channel
+ *
+ * PARAMETERS :
+ *   @pChannel  : Src channel to link this RAW channel.
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::startRAWChannel(QCameraChannel *pMetaChannel)
+{
+    int32_t rc = NO_ERROR;
+    QCameraChannel *pChannel = m_channels[QCAMERA_CH_TYPE_RAW];
+    if ((NULL != pChannel) && (mParameters.getofflineRAW())) {
+        // Find and try to link a metadata stream from preview channel
+        QCameraStream *pMetaStream = NULL;
+
+        if (pMetaChannel != NULL) {
+            uint32_t streamNum = pMetaChannel->getNumOfStreams();
+            QCameraStream *pStream = NULL;
+            for (uint32_t i = 0 ; i < streamNum ; i++ ) {
+                pStream = pMetaChannel->getStreamByIndex(i);
+                if ((NULL != pStream) &&
+                        (CAM_STREAM_TYPE_METADATA == pStream->getMyType())) {
+                    pMetaStream = pStream;
+                    break;
+                }
+            }
+
+            if (NULL != pMetaStream) {
+                rc = pChannel->linkStream(pMetaChannel, pMetaStream);
+                if (NO_ERROR != rc) {
+                    ALOGE("%s : Metadata stream link failed %d", __func__, rc);
+                }
+            }
+        }
+        rc = pChannel->start();
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : startRecording
+ *
+ * DESCRIPTION: start recording impl
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::stopRAWChannel()
+{
+    int32_t rc = NO_ERROR;
+    rc = stopChannel(QCAMERA_CH_TYPE_RAW);
+    return rc;
+}
 }; // namespace qcamera

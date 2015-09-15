@@ -122,6 +122,7 @@ QCameraStateMachine::QCameraStateMachine(QCamera2HardwareInterface *ctrl) :
     pthread_setname_np(cmd_pid, "CAM_stMachine");
     m_bDelayPreviewMsgs = false;
     m_DelayedMsgs = 0;
+    m_RestoreZSL = TRUE;
 }
 
 /*===========================================================================
@@ -1348,8 +1349,20 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                 }
            }
            if (m_parent->isZSLMode() || m_parent->isLongshotEnabled()) {
-               m_state = QCAMERA_SM_STATE_PREVIEW_PIC_TAKING;
-               m_bDelayPreviewMsgs = true;
+               bool restartPreview = m_parent->isPreviewRestartEnabled();
+               if ((restartPreview) && (m_parent->mParameters.getManualCaptureMode()
+                       >= CAM_MANUAL_CAPTURE_TYPE_3)) {
+                   /* stop preview and disable ZSL now */
+                   m_parent->stopPreview();
+                   m_parent->mParameters.updateZSLModeValue(FALSE);
+                   m_RestoreZSL = TRUE;
+                   m_bDelayPreviewMsgs = true;
+                   m_state = QCAMERA_SM_STATE_PIC_TAKING;
+               } else {
+                   m_state = QCAMERA_SM_STATE_PREVIEW_PIC_TAKING;
+                   m_bDelayPreviewMsgs = true;
+               }
+
                rc = m_parent->takePicture();
                if (rc != NO_ERROR) {
                    // move state to previewing state
@@ -2061,6 +2074,17 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
 
             bool restartPreview = m_parent->isPreviewRestartEnabled();
             if (restartPreview) {
+                if (m_parent->mParameters.getManualCaptureMode()
+                        >= CAM_MANUAL_CAPTURE_TYPE_3) {
+                    m_parent->mParameters.updateZSLModeValue(m_RestoreZSL);
+                    m_RestoreZSL = FALSE;
+                    rc = m_parent->preparePreview();
+                    if (NO_ERROR == rc) {
+                        m_parent->m_bPreviewStarted = true;
+                        applyDelayedMsgs();
+                        rc = m_parent->startPreview();
+                    }
+                }
                 m_state = QCAMERA_SM_STATE_PREVIEWING;
             } else {
                 m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;

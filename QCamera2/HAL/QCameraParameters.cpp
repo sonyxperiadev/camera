@@ -858,7 +858,9 @@ QCameraParameters::QCameraParameters()
       mCds_mode(CAM_CDS_MODE_OFF),
       m_LLCaptureEnabled(FALSE),
       m_LowLightLevel(CAM_LOW_LIGHT_OFF),
-      m_bLtmForSeeMoreEnabled(false)
+      m_bLtmForSeeMoreEnabled(false),
+      m_expTime(0),
+      m_ManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -981,7 +983,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_LLCaptureEnabled(FALSE),
     m_LowLightLevel(CAM_LOW_LIGHT_OFF),
     m_bLtmForSeeMoreEnabled(false),
-    m_expTime(0)
+    m_expTime(0),
+    m_ManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -4105,6 +4108,46 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
         if (!m_bZslMode) {
             // Force ZSL mode to ON
             set(KEY_QC_ZSL, VALUE_ON);
+            setZslMode(TRUE);
+            CDBG_HIGH("%s: ZSL Mode forced to be enabled", __func__);
+        }
+    } else if (str_val != NULL) {
+        if (prev_val == NULL || strcmp(str_val, prev_val) != 0) {
+            int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
+                    str_val);
+            if (value != NAME_NOT_FOUND) {
+                set(KEY_QC_ZSL, str_val);
+                rc = setZslMode(value);
+                // ZSL mode changed, need restart preview
+                m_bNeedRestart = true;
+            } else {
+                ALOGE("Invalid ZSL mode value: %s", str_val);
+                rc = BAD_VALUE;
+            }
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setZslMode
+ *
+ * DESCRIPTION: set ZSL mode from user setting
+ *
+ * PARAMETERS :
+ *   @value  : ZSL mode value
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setZslMode(bool value)
+{
+    int32_t rc = NO_ERROR;
+    if(m_bForceZslMode) {
+        if (!m_bZslMode) {
+            // Force ZSL mode to ON
+            set(KEY_QC_ZSL, VALUE_ON);
             m_bZslMode_new = true;
             m_bZslMode = true;
             m_bNeedRestart = true;
@@ -4116,28 +4159,49 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
 
             CDBG_HIGH("%s: ZSL Mode forced to be enabled", __func__);
         }
-    } else if (str_val != NULL) {
-        if (prev_val == NULL || strcmp(str_val, prev_val) != 0) {
-            int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
-                    str_val);
-            if (value != NAME_NOT_FOUND) {
-                set(KEY_QC_ZSL, str_val);
-                m_bZslMode_new = (value > 0)? true : false;
-
-                // ZSL mode changed, need restart preview
-                m_bNeedRestart = true;
-                CDBG_HIGH("%s: ZSL Mode  -> %s", __func__, m_bZslMode_new ? "Enabled" : "Disabled");
-
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
-                    rc = BAD_VALUE;
-                }
-            } else {
-                ALOGE("Invalid ZSL mode value: %s", str_val);
-                rc = BAD_VALUE;
-            }
+    } else {
+        CDBG_HIGH("%s: ZSL Mode  -> %s", __func__, m_bZslMode_new ? "Enabled" : "Disabled");
+        m_bZslMode_new = (value > 0)? true : false;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
+            rc = BAD_VALUE;
         }
     }
     ALOGI("%s: enabled: %d", __func__, m_bZslMode_new);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : updateZSLModeValue
+ *
+ * DESCRIPTION: update zsl mode value locally and to daemon
+ *
+ * PARAMETERS :
+ *   @value   : zsl mode value
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateZSLModeValue(bool value)
+{
+    int32_t rc = NO_ERROR;
+    if(initBatchUpdate(m_pParamBuf) < 0 ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return BAD_TYPE;
+    }
+
+    rc = setZslMode(value);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to ZSL value", __func__);
+        return rc;
+    }
+
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update recording hint", __func__);
+        return rc;
+    }
+
     return rc;
 }
 
@@ -5750,7 +5814,7 @@ int32_t QCameraParameters::initDefaultParameters()
             pic_dim.height);
     setMaxPicSize(pic_dim);
 
-    setManualCaptureMode();
+    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF);
 
     return rc;
 }
@@ -6792,6 +6856,19 @@ int32_t  QCameraParameters::setExposureTime(const char *expTimeStr)
                 return BAD_VALUE;
             }
             m_expTime = expTimeNs;
+
+            //Based on exposure values we can decide the capture type here
+            if (getManualCaptureMode() != CAM_MANUAL_CAPTURE_TYPE_OFF) {
+                if (expTimeMs < QCAMERA_MAX_EXP_TIME_LEVEL1) {
+                    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_1);
+                } else if (expTimeMs < QCAMERA_MAX_EXP_TIME_LEVEL2) {
+                    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_2);
+                } else if (expTimeMs < QCAMERA_MAX_EXP_TIME_LEVEL4) {
+                    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_3);
+                } else {
+                    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF);
+                }
+            }
             return NO_ERROR;
         }
     }
@@ -12235,8 +12312,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             stream_config_info.num_streams++;
         }
     }
-    if (raw_yuv && !raw_capture && (isZSLMode() ||
-            (getofflineRAW() && isCapture && !getRecordingHintValue()))) {
+
+    if ((!raw_capture) && ((getofflineRAW() && !getRecordingHintValue())
+            || (raw_yuv))) {
         cam_dimension_t max_dim = {0,0};
         updateRAW(max_dim);
         stream_config_info.type[stream_config_info.num_streams] =
@@ -12799,6 +12877,27 @@ int32_t QCameraParameters::getStreamPpMask(cam_stream_type_t stream_type,
 }
 
 /*===========================================================================
+ * FUNCTION   : isMultiPassReprocessing
+ *
+ * DESCRIPTION: Read setprop to enable/disable multipass
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : TRUE  -- If enabled
+ *              FALSE  -- disabled
+ *==========================================================================*/
+bool QCameraParameters::isMultiPassReprocessing()
+{
+    char value[PROPERTY_VALUE_MAX];
+    int multpass = 0;
+
+    property_get("persist.camera.multi_pass", value, "0");
+    multpass = atoi(value);
+
+    return (multpass == 0)? FALSE : TRUE;
+}
+
+/*===========================================================================
  * FUNCTION   : setReprocCount
  *
  * DESCRIPTION: Set total reprocessing pass count
@@ -12810,20 +12909,22 @@ int32_t QCameraParameters::getStreamPpMask(cam_stream_type_t stream_type,
 void QCameraParameters::setReprocCount()
 {
     mTotalPPCount = 1; //Default reprocessing Pass count
-    char value[PROPERTY_VALUE_MAX];
-    int multpass = 0;
 
-    property_get("persist.camera.multi_pass", value, "0");
-    multpass = atoi(value);
+    if (getManualCaptureMode() >=
+            CAM_MANUAL_CAPTURE_TYPE_3) {
+        CDBG ("2 Pass postprocessing enabled for MANUAL Capture mode");
+        mTotalPPCount++;
+        return;
+    }
 
-    if ( multpass == 0 ) {
+    if (!isMultiPassReprocessing()) {
         return;
     }
 
     if ((getZoomLevel() != 0)
             && (getBurstCountForAdvancedCapture()
             == getNumOfSnapshots())) {
-        ALOGW("Zoom Present. Need 2nd pass for post processing");
+        CDBG("2 Pass postprocessing enabled");
         mTotalPPCount++;
     }
 }
@@ -13404,16 +13505,25 @@ int32_t QCameraParameters::setManualCaptureMode(QCameraManualCaptureModes mode)
     count = atoi(value);
 
     if (count) {
-        m_ManualCaptureMode = mode;
+        if (mode == CAM_MANUAL_CAPTURE_TYPE_OFF) {
+            m_ManualCaptureMode = CAM_MANUAL_CAPTURE_TYPE_1;
+        } else {
+            m_ManualCaptureMode = mode;
+        }
+    } else {
+        m_ManualCaptureMode = CAM_MANUAL_CAPTURE_TYPE_OFF;
     }
 
-    if (mode >= CAM_MANUAL_CAPTURE_TYPE_3) {
+    if (m_ManualCaptureMode == CAM_MANUAL_CAPTURE_TYPE_2) {
+        setOfflineRAW(FALSE);
+    } else if (m_ManualCaptureMode >= CAM_MANUAL_CAPTURE_TYPE_3) {
         setOfflineRAW(TRUE);
     } else {
         setOfflineRAW(FALSE);
     }
-
+    setReprocCount();
     CDBG_HIGH("%s: Manual capture mode - %d", __func__, m_ManualCaptureMode);
     return rc;
 }
+
 }; // namespace qcamera

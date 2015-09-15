@@ -276,7 +276,13 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
     }
 
     // send to postprocessor
-    pme->m_postprocessor.processData(frame);
+    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+        ALOGE("%s: Failed to trigger process data", __func__);
+        pChannel->bufDone(recvd_frame);
+        free(frame);
+        frame = NULL;
+        return;
+    }
 
     CDBG_HIGH("[KPI Perf] %s: X", __func__);
 }
@@ -453,7 +459,13 @@ void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t
     pme->waitDeferredWork(pme->mReprocJob);
 
     // send to postprocessor
-    pme->m_postprocessor.processData(frame);
+    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+        ALOGE("%s: Failed to trigger process data", __func__);
+        pChannel->bufDone(recvd_frame);
+        free(frame);
+        frame = NULL;
+        return;
+    }
 
 /* START of test register face image for face authentication */
 #ifdef QCOM_TEST_FACE_REGISTER_FACE
@@ -1613,7 +1625,13 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
     }
     *frame = *super_frame;
 
-    pme->m_postprocessor.processData(frame);
+    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+        ALOGE("%s: Failed to trigger process data", __func__);
+        pChannel->bufDone(super_frame);
+        free(frame);
+        frame = NULL;
+        return;
+    }
 
     CDBG_HIGH("[KPI Perf] %s: X", __func__);
 }
@@ -1655,6 +1673,104 @@ void QCamera2HardwareInterface::raw_stream_cb_routine(mm_camera_super_buf_t * su
 
     pme->m_postprocessor.processRawData(super_frame);
     CDBG_HIGH("[KPI Perf] %s : END", __func__);
+}
+
+/*===========================================================================
+ * FUNCTION   : raw_channel_cb_routine
+ *
+ * DESCRIPTION: helper function to handle RAW  superbuf callback directly from
+ *              mm-camera-interface
+ *
+ * PARAMETERS :
+ *   @super_frame : received super buffer
+ *   @userdata    : user data ptr
+ *
+ * RETURN    : None
+ *
+ * NOTE      : recvd_frame will be released after this call by caller, so if
+ *             async operation needed for recvd_frame, it's our responsibility
+ *             to save a copy for this variable to be used later.
+*==========================================================================*/
+void QCamera2HardwareInterface::raw_channel_cb_routine(mm_camera_super_buf_t *super_frame,
+        void *userdata)
+
+{
+    ATRACE_CALL();
+    char value[PROPERTY_VALUE_MAX];
+
+    CDBG_HIGH("[KPI Perf] %s: E", __func__);
+    QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
+    if (pme == NULL ||
+        pme->mCameraHandle == NULL ||
+        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        ALOGE("%s: camera obj not valid", __func__);
+        // simply free super frame
+        free(super_frame);
+        return;
+    }
+
+    QCameraChannel *pChannel = pme->m_channels[QCAMERA_CH_TYPE_RAW];
+    if (pChannel == NULL) {
+        ALOGE("%s: RAW channel doesn't exist, return here", __func__);
+        pChannel->bufDone(super_frame);
+        return;
+    }
+
+    if (pChannel->getMyHandle() != super_frame->ch_id) {
+        ALOGE("%s: Invalid Input super buffer", __func__);
+        pChannel->bufDone(super_frame);
+        return;
+    }
+
+    property_get("persist.camera.dumpmetadata", value, "0");
+    int32_t enabled = atoi(value);
+    if (enabled) {
+        mm_camera_buf_def_t *pMetaFrame = NULL;
+        QCameraStream *pStream = NULL;
+        for (uint32_t i = 0; i < super_frame->num_bufs; i++) {
+            pStream = pChannel->getStreamByHandle(super_frame->bufs[i]->stream_id);
+            if (pStream != NULL) {
+                if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
+                    pMetaFrame = super_frame->bufs[i]; //find the metadata
+                    if (pMetaFrame != NULL &&
+                            ((metadata_buffer_t *)pMetaFrame->buffer)->is_tuning_params_valid) {
+                        pme->dumpMetadataToFile(pStream, pMetaFrame, (char *) "raw");
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    // save a copy for the superbuf
+    mm_camera_super_buf_t* frame = (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
+    if (frame == NULL) {
+        ALOGE("%s: Error allocating memory to save received_frame structure.",
+                __func__);
+        pChannel->bufDone(super_frame);
+        return;
+    }
+    *frame = *super_frame;
+
+    // Wait on Postproc initialization if needed
+    if (NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) {
+        ALOGE("%s: Reprocess Deferred work failed", __func__);
+        pChannel->bufDone(super_frame);
+        free(frame);
+        frame = NULL;
+        return;
+    }
+
+    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+        ALOGE("%s: Failed to trigger process data", __func__);
+        pChannel->bufDone(super_frame);
+        free(frame);
+        frame = NULL;
+        return;
+    }
+
+    CDBG_HIGH("[KPI Perf] %s: X", __func__);
+
 }
 
 /*===========================================================================

@@ -534,6 +534,8 @@ private:
                                         void *userdata);
     static void snapshot_channel_cb_routine(mm_camera_super_buf_t *frame,
            void *userdata);
+    static void raw_channel_cb_routine(mm_camera_super_buf_t *frame,
+            void *userdata);
     static void raw_stream_cb_routine(mm_camera_super_buf_t *frame,
                                       QCameraStream *stream,
                                       void *userdata);
@@ -559,6 +561,9 @@ private:
                                    void *cookie,
                                    int32_t cbStatus);
     static void getLogLevel();
+
+    int32_t startRAWChannel(QCameraChannel *pChannel);
+    int32_t stopRAWChannel();
 
 private:
     camera_device_t   mCameraDevice;
