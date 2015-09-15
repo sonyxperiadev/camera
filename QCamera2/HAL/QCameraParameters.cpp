@@ -12545,14 +12545,17 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
     feature_mask |= config.feature_mask;
 
     // Dual Camera scenarios
-    // all feature masks are disabled for preview and analysis streams
-    // for aux session
+    // all feature masks are disabled for preview and analysis streams for aux session
     // all required feature masks for aux session preview and analysis streams need
     // to be enabled explicitly here
+    ///@note When aux camera is of bayer type, keep pp mask as is or we'd run
+    ///      into stream mapping problems. YUV sensor is marked as interleaved and has
+    ///      preferred mapping setup so we don't see any mapping issues.
     if (m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
         if (((CAM_STREAM_TYPE_ANALYSIS == stream_type) ||
                 (CAM_STREAM_TYPE_PREVIEW == stream_type)) &&
-                (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY)) {
+                (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) &&
+                (m_pCapability->sensor_type.sens_type == CAM_SENSOR_YUV)) {
             CDBG_HIGH("%s: Disabling all pp feature masks for aux preview and "
                     "analysis streams", __func__);
             feature_mask = 0;
