@@ -1629,7 +1629,8 @@ bool QCamera2HardwareInterface::getMpoComposition(void)
  *==========================================================================*/
 int32_t QCamera2HardwareInterface::setMpoComposition(bool enable)
 {
-    if (getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+    if ((getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) &&
+            !mParameters.isAdvCamFeaturesEnabled() ){
         m_bMpoEnabled = enable;
         CDBG_HIGH("%s: MpoComposition:%d ", __func__, m_bMpoEnabled);
         return NO_ERROR;
@@ -3393,6 +3394,12 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     mInputCount = 0;
     mAdvancedCaptureConfigured = true;
 
+    if (getRelatedCamSyncInfo()->mode == CAM_MODE_SECONDARY) {
+        // no Advance capture settings for Aux camera
+        CDBG_HIGH("%s: X Secondary Camera, no need to process!! ", __func__);
+        return rc;
+    }
+
     /* Temporarily stop display only if not in stillmore livesnapshot */
     if (!(mParameters.isStillMoreEnabled() &&
             mParameters.isSeeMoreEnabled())) {
@@ -3824,7 +3831,8 @@ int QCamera2HardwareInterface::takePicture()
             // It will be handled along with PRIMARY camera takePicture request
             mm_camera_req_buf_t buf;
             memset(&buf, 0x0, sizeof(buf));
-            if ((getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
+            if ((!mParameters.isAdvCamFeaturesEnabled() &&
+                    getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
                     (getRelatedCamSyncInfo()->sync_control ==
                     CAM_SYNC_RELATED_SENSORS_ON)) {
                 if (getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY) {
