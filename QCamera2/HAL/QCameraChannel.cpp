@@ -988,9 +988,13 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
                     pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
                 param.getThumbnailSize(&(streamInfo->dim.width), &(streamInfo->dim.height));
-            }
-            else {
-                rc = pStream->getFrameDimension(streamInfo->dim);
+            } else {
+                if ((param.getofflineRAW()) &&
+                        (pStream->isTypeOf(CAM_STREAM_TYPE_RAW))) {
+                    param.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,streamInfo->dim);
+                } else {
+                    rc = pStream->getFrameDimension(streamInfo->dim);
+                }
             }
             if ( contStream ) {
                 streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
