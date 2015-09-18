@@ -472,6 +472,7 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         }
         break;
     case QCAMERA_SM_EVT_START_PREVIEW:
+    case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
         {
             rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
             if (NO_ERROR != rc) {
@@ -502,28 +503,6 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             m_parent->signalAPIResult(&result);
         }
         break;
-    case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
-        {
-            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
-            if (NO_ERROR != rc) {
-                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
-            } else {
-                rc = m_parent->preparePreview();
-            }
-            if (rc == NO_ERROR) {
-                rc = m_parent->startPreview();
-                if (rc != NO_ERROR) {
-                    m_parent->unpreparePreview();
-                } else {
-                    m_state = QCAMERA_SM_STATE_PREVIEWING;
-                }
-            }
-            result.status = rc;
-            result.request_api = evt;
-            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
-            m_parent->signalAPIResult(&result);
-        }
-    break;
     case QCAMERA_SM_EVT_STOP_PREVIEW:
         {
             // no op needed here
@@ -864,24 +843,8 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
             m_parent->signalAPIResult(&result);
         }
         break;
-    case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
-        {
-            rc = m_parent->startPreview();
-            if (rc != NO_ERROR) {
-                m_parent->unpreparePreview();
-                m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
-            } else {
-                m_state = QCAMERA_SM_STATE_PREVIEWING;
-            }
-            // no ops here
-            rc = NO_ERROR;
-            result.status = rc;
-            result.request_api = evt;
-            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
-            m_parent->signalAPIResult(&result);
-        }
-        break;
     case QCAMERA_SM_EVT_START_PREVIEW:
+    case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
         {
             if (m_parent->mPreviewWindow != NULL) {
                 rc = m_parent->startPreview();
