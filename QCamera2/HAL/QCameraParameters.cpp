@@ -9482,13 +9482,14 @@ void QCameraParameters::getTouchIndexAf(int *x, int *y)
 }
 
 /*===========================================================================
- * FUNCTION   : getStreamFormat
+ * FUNCTION   : getStreamRotation
  *
- * DESCRIPTION: get stream format by its type
+ * DESCRIPTION: get stream rotation by its type
  *
  * PARAMETERS :
- *   @streamType : [input] stream type
- *   @format     : [output] stream format
+ *   @streamType        : stream type
+ *   @featureConfig     : stream feature config structure
+ *   @dim               : stream dimension
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -9634,12 +9635,10 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_RAW:
-        if (isRdiMode()) {
+        if ((isRdiMode()) || (getofflineRAW())) {
             format = m_pCapability->rdi_mode_stream_fmt;
         } else if (mPictureFormat >= CAM_FORMAT_YUV_RAW_8BIT_YUYV) {
             format = (cam_format_t)mPictureFormat;
-        } else if (getofflineRAW()) {
-            format = CAM_FORMAT_BAYER_MIPI_RAW_10BPP_BGGR;
         } else {
             char raw_format[PROPERTY_VALUE_MAX];
             int rawFormat;
