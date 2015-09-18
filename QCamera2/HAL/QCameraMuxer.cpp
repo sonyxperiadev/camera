@@ -1019,6 +1019,11 @@ int QCameraMuxer::take_picture(struct camera_device * device)
         }
         // set Mpo composition for each session
         rc = hwi->setMpoComposition(gMuxer->m_bMpoEnabled);
+        //disable MPO if AOST features are enabled
+        if (rc != NO_ERROR) {
+            gMuxer->m_bMpoEnabled = 0;
+            rc = NO_ERROR;
+        }
     }
 
     // initialize Jpeg Queues
@@ -1040,10 +1045,13 @@ int QCameraMuxer::take_picture(struct camera_device * device)
         QCamera2HardwareInterface *hwi = pCam->hwi;
         CHECK_HWI_ERROR(hwi);
 
-        rc = QCamera2HardwareInterface::take_picture(pCam->dev);
-        if (rc != NO_ERROR) {
-            ALOGE("%s: Error taking picture !! ", __func__);
-            return rc;
+        // no need to call take_pic on Aux if not MPO (for AOST)
+        if ( (gMuxer->m_bMpoEnabled == 1) || (pCam->mode == CAM_MODE_PRIMARY) ) {
+            rc = QCamera2HardwareInterface::take_picture(pCam->dev);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: Error taking picture !! ", __func__);
+                return rc;
+            }
         }
     }
     CDBG_HIGH("%s: X", __func__);
