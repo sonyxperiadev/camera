@@ -946,6 +946,8 @@ typedef struct {
 
 #define CAM_FACE_PROCESS_MASK_DETECTION    (1U<<0)
 #define CAM_FACE_PROCESS_MASK_RECOGNITION  (1U<<1)
+#define CAM_FACE_PROCESS_MASK_FOCUS        (1U<<2)
+
 typedef struct {
     uint32_t fd_mode;          /* mask of face process */
     uint32_t num_fd;
