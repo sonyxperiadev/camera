@@ -989,6 +989,9 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                         (featureConfig.feature_mask & CAM_QCOM_FEATURE_SCALE)) {
                     rc = param.getStreamDimension(CAM_STREAM_TYPE_OFFLINE_PROC,
                             streamInfo->dim);
+                } else if ((param.getofflineRAW()) &&
+                        (pStream->isTypeOf(CAM_STREAM_TYPE_RAW))) {
+                    param.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,streamInfo->dim);
                 } else {
                     rc = pStream->getFrameDimension(streamInfo->dim);
                 }
