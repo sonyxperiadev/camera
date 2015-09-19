@@ -134,6 +134,9 @@
 
 #define MAX_OPTICAL_BLACK_REGIONS 5
 
+/*reprocess pipeline stages are pproc and jpeg */
+#define MAX_REPROCESS_PIPELINE_STAGES 2
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3
