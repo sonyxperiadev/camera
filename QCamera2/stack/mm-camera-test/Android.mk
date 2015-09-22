@@ -5,6 +5,9 @@ LOCAL_PATH:=$(call my-dir)
 include $(LOCAL_PATH)/../../../common.mk
 include $(CLEAR_VARS)
 
+# b/24171136 many files not compiling with clang/llvm yet
+LOCAL_CLANG := false
+
 LOCAL_CFLAGS:= \
         -DAMSS_VERSION=$(AMSS_VERSION) \
         $(mmcamera_debug_defines) \
@@ -94,6 +97,9 @@ include $(BUILD_EXECUTABLE)
 
 # Build tuning library
 include $(CLEAR_VARS)
+
+# b/24171136 many files not compiling with clang/llvm yet
+LOCAL_CLANG := false
 
 LOCAL_CFLAGS:= \
         -DAMSS_VERSION=$(AMSS_VERSION) \
