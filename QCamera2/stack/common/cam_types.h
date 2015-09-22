@@ -390,6 +390,11 @@ typedef struct {
 } cam_buf_map_type;
 
 typedef struct {
+    uint32_t length;
+    cam_buf_map_type buf_maps[CAM_MAX_NUM_BUFS_PER_STREAM];
+} cam_buf_map_type_list;
+
+typedef struct {
     cam_mapping_buf_type type;
     uint32_t stream_id;   /* stream id: valid if STREAM_BUF */
     uint32_t frame_idx;   /* frame index: valid if STREAM_BUF or HIST_BUF */
@@ -399,9 +404,16 @@ typedef struct {
     uint32_t cookie;      /* could be job_id(uint32_t) to identify unmapping job */
 } cam_buf_unmap_type;
 
+typedef struct {
+    uint32_t length;
+    cam_buf_unmap_type buf_unmaps[CAM_MAX_NUM_BUFS_PER_STREAM];
+} cam_buf_unmap_type_list;
+
 typedef enum {
     CAM_MAPPING_TYPE_FD_MAPPING,
     CAM_MAPPING_TYPE_FD_UNMAPPING,
+    CAM_MAPPING_TYPE_FD_BUNDLED_MAPPING,
+    CAM_MAPPING_TYPE_FD_BUNDLED_UNMAPPING,
     CAM_MAPPING_TYPE_MAX
 } cam_mapping_type;
 
@@ -410,6 +422,8 @@ typedef struct {
     union {
         cam_buf_map_type buf_map;
         cam_buf_unmap_type buf_unmap;
+        cam_buf_map_type_list buf_map_list;
+        cam_buf_unmap_type_list buf_unmap_list;
     } payload;
 } cam_sock_packet_t;
 
@@ -1349,6 +1363,12 @@ typedef struct {
     uint32_t postprocess_mask[MAX_NUM_STREAMS];
     cam_buffer_info_t buffer_info;
     cam_is_type_t is_type;
+    cam_hfr_mode_t hfr_mode;
+    cam_format_t format[MAX_NUM_STREAMS];
+    uint32_t buf_alignment;
+    uint32_t min_stride;
+    uint32_t min_scanline;
+    uint8_t batch_size;
 } cam_stream_size_info_t;
 
 
@@ -2038,7 +2058,9 @@ typedef struct {
 #define CAM_QCOM_FEATURE_DCRF           (1U<<23)
 #define CAM_QCOM_FEATURE_CDS            (1U<<24)
 #define CAM_QCOM_FEATURE_EZTUNE         (1U<<25)
-#define CAM_QCOM_FEATURE_MAX            (1U<<26)
+#define CAM_QCOM_FEATURE_DSDN           (1U<<26) //Special CDS in CPP block
+#define CAM_QCOM_FEATURE_SW2D           (1U<<27)
+#define CAM_QCOM_FEATURE_MAX            (1U<<28)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\

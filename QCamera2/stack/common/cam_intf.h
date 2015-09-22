@@ -399,6 +399,9 @@ typedef struct{
 
     /* Max cpp batch size */
     uint8_t max_batch_bufs_supported;
+    uint32_t buf_alignment;
+    uint32_t min_stride;
+    uint32_t min_scanline;
 } cam_capability_t;
 
 typedef enum {

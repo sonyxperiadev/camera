@@ -5670,6 +5670,39 @@ int32_t QCameraParameters::initDefaultParameters()
 }
 
 /*===========================================================================
+ * FUNCTION   : allocate
+ *
+ * DESCRIPTION: Allocate buffer memory for parameter obj (if necessary)
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::allocate()
+{
+    int32_t rc = NO_ERROR;
+
+    if (m_pParamHeap != NULL) {
+        return rc;
+    }
+
+    //Allocate Set Param Buffer
+    m_pParamHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
+    if (m_pParamHeap == NULL) {
+        return NO_MEMORY;
+    }
+
+    rc = m_pParamHeap->allocate(1, sizeof(parm_buffer_t), NON_SECURE);
+    if(rc != OK) {
+        rc = NO_MEMORY;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : init
  *
  * DESCRIPTION: initialize parameter obj
@@ -5694,13 +5727,10 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     m_AdjustFPS = adjustFPS;
     m_pTorch = torch;
 
-    //Allocate Set Param Buffer
-    m_pParamHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
-    rc = m_pParamHeap->allocate(1, sizeof(parm_buffer_t), NON_SECURE);
-    if(rc != OK) {
-        rc = NO_MEMORY;
-        ALOGE("Failed to allocate SETPARM Heap memory");
-        goto TRANS_INIT_ERROR1;
+    if (m_pParamHeap == NULL) {
+        ALOGE("%s: Parameter buffers have not been allocated", __func__);
+        rc = UNKNOWN_ERROR;
+        goto TRANS_INIT_DONE;
     }
 
     //Map memory for parameters buffer
@@ -11837,6 +11867,18 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         return rc;
     }
 
+    stream_config_info.hfr_mode       = static_cast<cam_hfr_mode_t>(mHfrMode);
+    stream_config_info.buf_alignment  = m_pCapability->buf_alignment;
+    stream_config_info.min_stride     = m_pCapability->min_stride;
+    stream_config_info.min_scanline   = m_pCapability->min_scanline;
+    stream_config_info.batch_size = getBufBatchCount();
+    CDBG_HIGH("%s:%d: buf_alignment=%d stride X scan=%dx%d batch size = %d\n", __func__, __LINE__,
+            m_pCapability->buf_alignment,
+            m_pCapability->min_stride,
+            m_pCapability->min_scanline,
+            stream_config_info.batch_size);
+
+
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
 
@@ -11848,6 +11890,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         updatePpFeatureMask(CAM_STREAM_TYPE_PREVIEW);
         stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                 mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
+        getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
+                stream_config_info.format[stream_config_info.num_streams]);
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
@@ -11857,6 +11901,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
         stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                 mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
+        getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
+                stream_config_info.format[stream_config_info.num_streams]);
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
@@ -11866,6 +11912,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
         stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                 mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
+        getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
+                stream_config_info.format[stream_config_info.num_streams]);
         stream_config_info.num_streams++;
 
         if (isUBWCEnabled() && getRecordingHintValue() != true) {
@@ -11879,6 +11927,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 updatePpFeatureMask(CAM_STREAM_TYPE_CALLBACK);
                 stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                         mStreamPpMask[CAM_STREAM_TYPE_CALLBACK];
+                getStreamFormat(CAM_STREAM_TYPE_CALLBACK,
+                        stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.num_streams++;
             }
         }
@@ -11901,6 +11951,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
             stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                     mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
+            getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
+                        stream_config_info.format[stream_config_info.num_streams]);
             stream_config_info.num_streams++;
 
             stream_config_info.type[stream_config_info.num_streams] =
@@ -11910,6 +11962,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             updatePpFeatureMask(CAM_STREAM_TYPE_VIDEO);
             stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                     mStreamPpMask[CAM_STREAM_TYPE_VIDEO];
+            getStreamFormat(CAM_STREAM_TYPE_VIDEO,
+                    stream_config_info.format[stream_config_info.num_streams]);
             stream_config_info.num_streams++;
         }
 
@@ -11922,6 +11976,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
             stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                     mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
+            getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
+                    stream_config_info.format[stream_config_info.num_streams]);
             stream_config_info.num_streams++;
         }
 
@@ -11932,6 +11988,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         updatePpFeatureMask(CAM_STREAM_TYPE_PREVIEW);
         stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                 mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
+        getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
+                    stream_config_info.format[stream_config_info.num_streams]);
         stream_config_info.num_streams++;
 
         if (isUBWCEnabled() && getRecordingHintValue() != true) {
@@ -11945,6 +12003,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 updatePpFeatureMask(CAM_STREAM_TYPE_CALLBACK);
                 stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                         mStreamPpMask[CAM_STREAM_TYPE_CALLBACK];
+                getStreamFormat(CAM_STREAM_TYPE_CALLBACK,
+                        stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.num_streams++;
             }
         }
@@ -11959,6 +12019,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
                 stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                         mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
+                getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
+                        stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.num_streams++;
             }
 
@@ -11970,6 +12032,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 updatePpFeatureMask(CAM_STREAM_TYPE_PREVIEW);
                 stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                         mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
+                getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
+                        stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.num_streams++;
             } else {
                 stream_config_info.type[stream_config_info.num_streams] =
@@ -11979,6 +12043,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 updatePpFeatureMask(CAM_STREAM_TYPE_POSTVIEW);
                 stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                         mStreamPpMask[CAM_STREAM_TYPE_POSTVIEW];
+                getStreamFormat(CAM_STREAM_TYPE_POSTVIEW,
+                        stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.num_streams++;
             }
         } else {
@@ -11990,6 +12056,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             updatePpFeatureMask(CAM_STREAM_TYPE_RAW);
             stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                     mStreamPpMask[CAM_STREAM_TYPE_RAW];
+            getStreamFormat(CAM_STREAM_TYPE_RAW,
+                    stream_config_info.format[stream_config_info.num_streams]);
             stream_config_info.num_streams++;
         }
     }
@@ -12004,14 +12072,18 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         updatePpFeatureMask(CAM_STREAM_TYPE_RAW);
         stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                 mStreamPpMask[CAM_STREAM_TYPE_RAW];
+        getStreamFormat(CAM_STREAM_TYPE_RAW,
+                stream_config_info.format[stream_config_info.num_streams]);
         stream_config_info.num_streams++;
     }
     for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
-        ALOGI("%s: stream type %d, w x h: %d x %d, pp_mask: 0x%x", __func__,
+        ALOGI("%s: STREAM INFO : type %d, w x h: %d x %d, pp_mask: 0x%x Format = %d",
+                __func__,
                 stream_config_info.type[k],
                 stream_config_info.stream_sizes[k].width,
                 stream_config_info.stream_sizes[k].height,
-                stream_config_info.postprocess_mask[k]);
+                stream_config_info.postprocess_mask[k],
+                stream_config_info.format[k]);
     }
 
     rc = sendStreamConfigInfo(stream_config_info);
@@ -12290,6 +12362,34 @@ bool QCameraParameters::is4k2kVideoResolution()
 }
 
 /*===========================================================================
+ * FUNCTION   : isPreviewSeeMoreRequired
+ *
+ * DESCRIPTION: This function checks whether SeeMmore(SW TNR) needs to be applied for
+ *              preview stream depending on video resoluion and setprop
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : true: If SeeMore needs to apply
+ *              false: No need to apply
+ *==========================================================================*/
+bool QCameraParameters::isPreviewSeeMoreRequired()
+{
+   cam_dimension_t dim;
+   char prop[PROPERTY_VALUE_MAX];
+
+   getVideoSize(&dim.width, &dim.height);
+   memset(prop, 0, sizeof(prop));
+   property_get("persist.camera.preview.seemore", prop, "0");
+   int enable = atoi(prop);
+
+   // Enable SeeMore for preview stream if :
+   // 1. Video resolution <= (1920x1080)  (or)
+   // 2. persist.camera.preview.seemore is set
+   CDBG("%s:width=%d, height=%d, enable=%d", __func__, dim.width, dim.height, enable);
+   return (((dim.width * dim.height) <= (1920 * 1080)) || enable);
+}
+
+/*===========================================================================
  * FUNCTION   : updateDebugLevel
  *
  * DESCRIPTION: send CAM_INTF_PARM_UPDATE_DEBUG_LEVEL to backend
@@ -12377,10 +12477,9 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
     }
 
     // Update feature mask for SeeMore in video and video preview
-    if (isSeeMoreEnabled() &&
-            !is4k2kVideoResolution() &&
-            ((stream_type == CAM_STREAM_TYPE_VIDEO) ||
-            (stream_type == CAM_STREAM_TYPE_PREVIEW && getRecordingHintValue()))) {
+    if (isSeeMoreEnabled() && ((stream_type == CAM_STREAM_TYPE_VIDEO) ||
+            (stream_type == CAM_STREAM_TYPE_PREVIEW && getRecordingHintValue() &&
+            isPreviewSeeMoreRequired()))) {
        feature_mask |= CAM_QCOM_FEATURE_LLVD;
     }
 
@@ -12417,12 +12516,17 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         feature_mask |= CAM_QCOM_FEATURE_EZTUNE;
     }
 
-    if (isCDSEnabled() && ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
+    if ((getCDSMode() != CAM_CDS_MODE_OFF) &&
+            ((CAM_STREAM_TYPE_PREVIEW == stream_type) ||
             (CAM_STREAM_TYPE_VIDEO == stream_type) ||
             (CAM_STREAM_TYPE_CALLBACK == stream_type) ||
             ((CAM_STREAM_TYPE_SNAPSHOT == stream_type) &&
             getRecordingHintValue() && is4k2kVideoResolution()))) {
-         feature_mask |= CAM_QCOM_FEATURE_CDS;
+         if (m_nMinRequiredPpMask & CAM_QCOM_FEATURE_DSDN) {
+             feature_mask |= CAM_QCOM_FEATURE_DSDN;
+         } else {
+             feature_mask |= CAM_QCOM_FEATURE_CDS;
+         }
     }
 
     //Rotation could also have an effect on pp feature mask

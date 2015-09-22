@@ -272,7 +272,7 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
     }
 
     // Wait on Postproc initialization if needed
-    pme->waitDefferedWork(pme->mReprocJob);
+    pme->waitDeferredWork(pme->mReprocJob);
 
     // send to postprocessor
     pme->m_postprocessor.processData(frame);
@@ -449,7 +449,7 @@ void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t
     }
 
     // Wait on Postproc initialization if needed
-    pme->waitDefferedWork(pme->mReprocJob);
+    pme->waitDeferredWork(pme->mReprocJob);
 
     // send to postprocessor
     pme->m_postprocessor.processData(frame);
@@ -667,7 +667,7 @@ void QCamera2HardwareInterface::postproc_channel_cb_routine(mm_camera_super_buf_
     *frame = *recvd_frame;
 
     // Wait on JPEG create session
-    pme->waitDefferedWork(pme->mJpegJob);
+    pme->waitDeferredWork(pme->mJpegJob);
 
     // send to postprocessor
     pme->m_postprocessor.processPPData(frame);
@@ -1375,6 +1375,7 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
 {
     ATRACE_CALL();
     char value[PROPERTY_VALUE_MAX];
+    QCameraChannel *pChannel = NULL;
 
     CDBG_HIGH("[KPI Perf] %s: E", __func__);
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
@@ -1387,7 +1388,12 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
         return;
     }
 
-    QCameraChannel *pChannel = pme->m_channels[QCAMERA_CH_TYPE_SNAPSHOT];
+    if (pme->isLowPowerMode()) {
+        pChannel = pme->m_channels[QCAMERA_CH_TYPE_VIDEO];
+    } else {
+        pChannel = pme->m_channels[QCAMERA_CH_TYPE_SNAPSHOT];
+    }
+
     if ((pChannel == NULL) || (pChannel->getMyHandle() != super_frame->ch_id)) {
         ALOGE("%s: Snapshot channel doesn't exist, return here", __func__);
         return;
@@ -1650,7 +1656,13 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
     } else {
         rotation_info.device_rotation = ROTATE_0;
     }
+
     ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData, CAM_INTF_PARM_ROTATION, rotation_info);
+
+    //CPP CDS
+    int32_t prmCDSMode = mParameters.getCDSMode();
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
+            CAM_INTF_PARM_CDS_MODE, prmCDSMode);
 
     return rc;
 }

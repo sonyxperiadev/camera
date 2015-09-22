@@ -971,6 +971,37 @@ int QCameraMuxer::take_picture(struct camera_device * device)
     gMuxer->m_bMpoEnabled = atoi(prop);
     CDBG_HIGH("%s: dualCamera MPO Enabled:%d ", __func__, gMuxer->m_bMpoEnabled);
 
+    if (!gMuxer->mJpegClientHandle) {
+        // set up jpeg handles
+        pCam = gMuxer->getPhysicalCamera(cam, 0);
+        CHECK_CAMERA_ERROR(pCam);
+
+        QCamera2HardwareInterface *hwi = pCam->hwi;
+        CHECK_HWI_ERROR(hwi);
+
+        rc = hwi->getJpegHandleInfo(&gMuxer->mJpegOps, &gMuxer->mJpegMpoOps,
+                &gMuxer->mJpegClientHandle);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Error retrieving jpeg handle!", __func__);
+            return rc;
+        }
+
+        for (uint32_t i = 1; i < cam->numCameras; i++) {
+            pCam = gMuxer->getPhysicalCamera(cam, i);
+            CHECK_CAMERA_ERROR(pCam);
+
+            QCamera2HardwareInterface *hwi = pCam->hwi;
+            CHECK_HWI_ERROR(hwi);
+
+            rc = hwi->setJpegHandleInfo(&gMuxer->mJpegOps, &gMuxer->mJpegMpoOps,
+                    gMuxer->mJpegClientHandle);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: Error setting jpeg handle %d!", __func__, i);
+                return rc;
+            }
+        }
+    }
+
     // prepare snapshot for main camera
     for (uint32_t i = 0; i < cam->numCameras; i++) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
@@ -1773,6 +1804,11 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
         // HW Dev Holders
         hw_device_t *hw_dev[cam->numCameras];
 
+        if (m_pPhyCamera[cam->pId[0]].type != CAM_TYPE_MAIN) {
+            ALOGE("%s: Physical camera at index 0 is not main!", __func__);
+            return UNKNOWN_ERROR;
+        }
+
         // Open all physical cameras
         for (uint32_t i = 0; i < cam->numCameras; i++) {
             phyId = cam->pId[i];
@@ -1781,14 +1817,6 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
             if (!hw) {
                 ALOGE("%s: Allocation of hardware interface failed", __func__);
                 return NO_MEMORY;
-            }
-            if (mJpegClientHandle) {
-                rc = hw->setJpegHandleInfo(&mJpegOps, &mJpegMpoOps,
-                        mJpegClientHandle);
-                if (rc != NO_ERROR) {
-                    delete hw;
-                    return rc;
-                }
             }
             hw_dev[i] = NULL;
 
@@ -1809,14 +1837,6 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
             if (rc != NO_ERROR) {
                 delete hw;
                 return rc;
-            }
-            if (m_pPhyCamera[phyId].type == CAM_TYPE_MAIN) {
-                rc = hw->getJpegHandleInfo(&mJpegOps, &mJpegMpoOps,
-                        &mJpegClientHandle);
-                if (rc != NO_ERROR) {
-                    delete hw;
-                    return rc;
-                }
             }
             hw->getCameraSessionId(&m_pPhyCamera[phyId].camera_server_id);
             m_pPhyCamera[phyId].dev = reinterpret_cast<camera_device_t*>(hw_dev[i]);
