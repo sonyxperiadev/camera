@@ -52,7 +52,8 @@ namespace qcamera {
 
 typedef void (*channel_cb_routine)(mm_camera_super_buf_t *metadata,
                                 camera3_stream_buffer_t *buffer,
-                                uint32_t frame_number, void *userdata);
+                                uint32_t frame_number, bool isInputBuffer,
+                                void *userdata);
 class QCamera3Channel
 {
 public:

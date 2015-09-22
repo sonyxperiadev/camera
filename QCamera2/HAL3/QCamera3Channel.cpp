@@ -762,7 +762,9 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
     }
 
     if (0 <= resultFrameNumber) {
-        mChannelCB(NULL, &result, (uint32_t)resultFrameNumber, mUserData);
+        if (mChannelCB) {
+            mChannelCB(NULL, &result, (uint32_t)resultFrameNumber, false, mUserData);
+        }
     } else {
         ALOGE("%s: Bad frame number", __func__);
     }
@@ -1042,7 +1044,7 @@ int32_t QCamera3ProcessingChannel::setFwkInputPPData(qcamera_fwk_input_pp_data_t
 
     mm_camera_buf_def_t meta_buf;
     cam_frame_len_offset_t offset = meta_planes.plane_info;
-    rc = mOfflineMetaMemory.getBufDef(offset, meta_buf, 0);
+    rc = mOfflineMetaMemory.getBufDef(offset, meta_buf, metaBufIdx);
     if (NO_ERROR != rc) {
         return rc;
     }
@@ -1402,7 +1404,10 @@ void QCamera3ProcessingChannel::reprocessCbRoutine(buffer_handle_t *resultBuffer
     if (NO_ERROR != rc) {
         ALOGE("%s: Error releasing offline memory %d", __func__, rc);
     }
-
+    /* Since reprocessing is done, send the callback to release the input buffer */
+    if (mChannelCB) {
+        mChannelCB(NULL, NULL, resultFrameNumber, true, mUserData);
+    }
     issueChannelCb(resultBuffer, resultFrameNumber);
 
     return;
@@ -1432,7 +1437,9 @@ void QCamera3ProcessingChannel::issueChannelCb(buffer_handle_t *resultBuffer,
     result.acquire_fence = -1;
     result.release_fence = -1;
 
-    mChannelCB(NULL, &result, resultFrameNumber, mUserData);
+    if (mChannelCB) {
+        mChannelCB(NULL, &result, resultFrameNumber, false, mUserData);
+    }
 }
 
 /*===========================================================================
@@ -1883,7 +1890,9 @@ void QCamera3MetadataChannel::streamCbRoutine(
         ALOGE("%s: super_frame is not valid", __func__);
         return;
     }
-    mChannelCB(super_frame, NULL, requestNumber, mUserData);
+    if (mChannelCB) {
+        mChannelCB(super_frame, NULL, requestNumber, false, mUserData);
+    }
 }
 
 QCamera3StreamMem* QCamera3MetadataChannel::getStreamBufs(uint32_t len)
@@ -2700,6 +2709,10 @@ void QCamera3YUVChannel::reprocessCbRoutine(buffer_handle_t *resultBuffer,
         if (NO_ERROR != rc) {
             ALOGE("%s: Error releasing offline memory rc = %d", __func__, rc);
         }
+        /* Since reprocessing is done, send the callback to release the input buffer */
+        if (mChannelCB) {
+            mChannelCB(NULL, NULL, resultFrameNumber, true, mUserData);
+        }
     }
 
     if (mBypass) {
@@ -2984,10 +2997,13 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             }
 
             CDBG("%s: Issue Callback", __func__);
-            obj->mChannelCB(NULL,
-                    &result,
-                    (uint32_t)resultFrameNumber,
-                    obj->mUserData);
+            if (obj->mChannelCB) {
+                obj->mChannelCB(NULL,
+                        &result,
+                        (uint32_t)resultFrameNumber,
+                        false,
+                        obj->mUserData);
+            }
 
             // release internal data for jpeg job
             if ((NULL != job->fwk_frame) || (NULL != job->fwk_src_buffer)) {
@@ -3646,6 +3662,7 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
 {
     //Got the pproc data callback. Now send to jpeg encoding
     uint8_t frameIndex;
+    uint32_t resultFrameNumber;
     mm_camera_super_buf_t* frame = NULL;
     QCamera3ProcessingChannel *obj = (QCamera3ProcessingChannel *)inputChHandle;
 
@@ -3676,6 +3693,7 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
     }
 
     if (mReprocessType == REPROCESS_TYPE_JPEG) {
+        resultFrameNumber =  mMemory->getFrameNumber(frameIndex);
         frame = (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
         if (frame == NULL) {
            ALOGE("%s: Error allocating memory to save received_frame structure.",
@@ -3689,10 +3707,13 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
             __func__, (uint32_t)frameIndex);
         *frame = *super_frame;
 
+        /* Since reprocessing is done, send the callback to release the input buffer */
+        if (mChannelCB) {
+            mChannelCB(NULL, NULL, resultFrameNumber, true, mUserData);
+        }
         obj->m_postprocessor.processPPData(frame);
     } else {
         buffer_handle_t *resultBuffer;
-        uint32_t resultFrameNumber;
         frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
         resultBuffer = (buffer_handle_t *)mGrallocMemory.getBufferHandle(frameIndex);
         resultFrameNumber = mGrallocMemory.getFrameNumber(frameIndex);
