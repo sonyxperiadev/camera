@@ -1415,6 +1415,7 @@ int QCamera2HardwareInterface::openCamera()
 {
     size_t i;
     int32_t rc = NO_ERROR;
+    char value[PROPERTY_VALUE_MAX];
 
     if (mCameraHandle) {
         ALOGE("Failure: Camera already opened");
@@ -1487,12 +1488,21 @@ int QCamera2HardwareInterface::openCamera()
 
     mCameraOpened = true;
 
-    //Notify display HAL that a camera session is active
-    pthread_mutex_lock(&gCamLock);
-    if (gNumCameraSessions++ == 0) {
-        setCameraLaunchStatus(true);
+    //Notify display HAL that a camera session is active.
+    //But avoid calling the same during bootup because camera service might open/close
+    //cameras at boot time during its initialization and display service will also internally
+    //wait for camera service to initialize first while calling this display API, resulting in a
+    //deadlock situation. Since boot time camera open/close calls are made only to fetch
+    //capabilities, no need of this display bw optimization.
+    //Use "service.bootanim.exit" property to know boot status.
+    property_get("service.bootanim.exit", value, "0");
+    if (atoi(value) == 1) {
+        pthread_mutex_lock(&gCamLock);
+        if (gNumCameraSessions++ == 0) {
+            setCameraLaunchStatus(true);
+        }
+        pthread_mutex_unlock(&gCamLock);
     }
-    pthread_mutex_unlock(&gCamLock);
 
     return NO_ERROR;
 error_exit:
@@ -1664,6 +1674,7 @@ int QCamera2HardwareInterface::closeCamera()
 {
     int rc = NO_ERROR;
     int i;
+    char value[PROPERTY_VALUE_MAX];
     CDBG_HIGH("%s: E", __func__);
     if (!mCameraOpened) {
         return NO_ERROR;
@@ -1722,11 +1733,16 @@ int QCamera2HardwareInterface::closeCamera()
     mCameraHandle = NULL;
 
     //Notify display HAL that there is no active camera session
-    pthread_mutex_lock(&gCamLock);
-    if (--gNumCameraSessions == 0) {
-        setCameraLaunchStatus(false);
+    //but avoid calling the same during bootup. Refer to openCamera
+    //for more details.
+    property_get("service.bootanim.exit", value, "0");
+    if (atoi(value) == 1) {
+        pthread_mutex_lock(&gCamLock);
+        if (--gNumCameraSessions == 0) {
+            setCameraLaunchStatus(false);
+        }
+        pthread_mutex_unlock(&gCamLock);
     }
-    pthread_mutex_unlock(&gCamLock);
 
     if (mExifParams.debug_params) {
         free(mExifParams.debug_params);
