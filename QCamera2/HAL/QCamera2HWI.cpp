@@ -1534,7 +1534,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
     memset(m_BackendFileName, 0, QCAMERA_MAX_FILEPATH_LENGTH);
 
     memset(mDefOngoingJobs, 0, sizeof(mDefOngoingJobs));
-    memset(&mRelCamCalibData, 0, sizeof(cam_related_system_calibration_data_t));
+    memset(&mJpegMetadata, 0, sizeof(mJpegMetadata));
     memset(&mJpegHandle, 0, sizeof(mJpegHandle));
     memset(&mJpegMpoHandle, 0, sizeof(mJpegMpoHandle));
 
@@ -9239,10 +9239,10 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         }
 
                         rc = pme->mParameters.getRelatedCamCalibration(
-                            &pme->mRelCamCalibData);
+                            &(pme->mJpegMetadata.otp_calibration_data));
                         CDBG("%s: Dumping Calibration Data Version Id %f rc %d",
                                 __func__,
-                                pme->mRelCamCalibData.calibration_format_version,
+                                pme->mJpegMetadata.otp_calibration_data.calibration_format_version,
                                 rc);
                         if (rc != 0) {
                             job_status = UNKNOWN_ERROR;
@@ -9251,10 +9251,13 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                                     CAMERA_ERROR_UNKNOWN, 0);
                             break;
                         }
+                        pme->m_bRelCamCalibValid = true;
+                        pme->mJpegMetadata.sensor_mount_angle =
+                            cap->sensor_mount_angle;
+                        pme->mJpegMetadata.default_sensor_flip = FLIP_NONE;
 
                         pme->mParameters.setMinPpMask(
                             cap->qcom_supported_feature_mask);
-
                         pme->mExifParams.debug_params =
                                 (mm_jpeg_debug_exif_params_t *)
                                 malloc(sizeof(mm_jpeg_debug_exif_params_t));
@@ -9364,7 +9367,7 @@ int32_t QCamera2HardwareInterface::initJpegHandle() {
         if (getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
             if (m_bRelCamCalibValid) {
                 mJpegClientHandle = jpeg_open(&mJpegHandle, &mJpegMpoHandle,
-                        max_size, &mRelCamCalibData);
+                        max_size, &mJpegMetadata);
             } else {
                 mJpegClientHandle =  jpeg_open(&mJpegHandle, &mJpegMpoHandle,
                         max_size, NULL);
