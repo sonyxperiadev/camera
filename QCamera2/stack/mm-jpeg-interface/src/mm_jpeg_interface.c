@@ -315,19 +315,19 @@ static int32_t mm_jpeg_intf_compose_mpo(mm_jpeg_mpo_info_t *mpo_info)
  *    @ops: ops table pointer
  *    @mpo_ops: mpo ops table ptr
  *    @picture_size: Max available dim
- *    @calibration_data: Static calibration data
+ *    @jpeg_metadata: Jpeg meta data
  *
  *  Return:
  *       0 failure, success otherwise
  *
  *  Description:
- *       Open a jpeg client. Calibration data will be cached
+ *       Open a jpeg client. Jpeg meta data will be cached
  *       but memory manegement has to be done by the cient.
  *
  **/
 uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
   mm_dimension picture_size,
-  cam_related_system_calibration_data_t *calibration_data)
+  cam_jpeg_metadata_t *jpeg_metadata)
 {
   int32_t rc = 0;
   uint32_t clnt_hdl = 0;
@@ -380,8 +380,8 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
     jpeg_obj->max_pic_h = picture_size.h;
 
     /*Cache OTP Data for the session*/
-    if (NULL != calibration_data) {
-      jpeg_obj->calibration_data = calibration_data;
+    if (NULL != jpeg_metadata) {
+      jpeg_obj->jpeg_metadata = jpeg_metadata;
     }
 
     rc = mm_jpeg_init(jpeg_obj);

@@ -377,10 +377,10 @@ typedef struct {
  * returns client_handle.
  * failed if client_handle=0
  * jpeg ops tbl and mpo ops tbl will be filled in if open succeeds
- * and calibration data will be cached */
+ * and jpeg meta data will be cached */
 uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
   mm_dimension picture_size,
-  cam_related_system_calibration_data_t *calibration_data);
+  cam_jpeg_metadata_t *jpeg_metadata);
 
 /* open a jpeg client -- sync call
  * returns client_handle.

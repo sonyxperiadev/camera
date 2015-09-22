@@ -562,7 +562,7 @@ private:
     mm_camera_vtbl_t *mCameraHandle;
     bool mCameraOpened;
 
-    cam_related_system_calibration_data_t mRelCamCalibData;
+    cam_jpeg_metadata_t mJpegMetadata;
     bool m_bRelCamCalibValid;
 
     preview_stream_ops_t *mPreviewWindow;

@@ -719,7 +719,7 @@ OMX_ERRORTYPE mm_jpeg_metadata(
   lMeta.metadata = (OMX_U8 *)p_jobparams->p_metadata;
   lMeta.metaPayloadSize = sizeof(*p_jobparams->p_metadata);
   lMeta.mobicat_mask = p_jobparams->mobicat_mask;
-  lMeta.static_metadata = (OMX_U8 *)my_obj->calibration_data;
+  lMeta.static_metadata = (OMX_U8 *)my_obj->jpeg_metadata;
 
   rc = OMX_SetConfig(p_session->omx_handle, indexType, &lMeta);
   if (rc != OMX_ErrorNone) {
@@ -2105,7 +2105,7 @@ int32_t mm_jpeg_deinit(mm_jpeg_obj *my_obj)
       CDBG_ERROR("%s:%d] Error releasing ION buffer", __func__, __LINE__);
     }
   }
-  my_obj->calibration_data = NULL;
+  my_obj->jpeg_metadata = NULL;
 
   /* destroy locks */
   pthread_mutex_destroy(&my_obj->job_lock);

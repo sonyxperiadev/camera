@@ -522,7 +522,13 @@ typedef struct {
     uint16_t   rotation_flag;
     /* Reserved for future use */
     float      reserved[RELCAM_CALIB_RESERVED_MAX];
-}cam_related_system_calibration_data_t;
+} cam_related_system_calibration_data_t;
+
+typedef struct {
+  uint32_t default_sensor_flip;
+  uint32_t sensor_mount_angle;
+  cam_related_system_calibration_data_t otp_calibration_data;
+} cam_jpeg_metadata_t;
 
 #define IMG_NAME_SIZE 32
 typedef struct {
