@@ -341,16 +341,12 @@ int QCameraMuxer::set_preview_window(struct camera_device * device,
         pCam = gMuxer->getPhysicalCamera(cam, i);
         CHECK_CAMERA_ERROR(pCam);
 
-        // Set preview window only for primary camera
-        if (pCam->mode == CAM_MODE_PRIMARY) {
-            QCamera2HardwareInterface *hwi = pCam->hwi;
-            CHECK_HWI_ERROR(hwi);
-            rc = hwi->set_preview_window(pCam->dev, window);
-            if (rc != NO_ERROR) {
-                ALOGE("%s: Error!! setting preview window", __func__);
-                return rc;
-            }
-            break;
+        QCamera2HardwareInterface *hwi = pCam->hwi;
+        CHECK_HWI_ERROR(hwi);
+        rc = hwi->set_preview_window(pCam->dev, window);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Error!! setting preview window", __func__);
+            return rc;
         }
     }
     return rc;
