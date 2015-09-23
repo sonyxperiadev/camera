@@ -1155,9 +1155,16 @@ int32_t QCameraStream::bufDone(uint32_t index)
 int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
 {
     int32_t rc = NO_ERROR;
-    int index;
+    int index = -1;
 
-    index = mStreamBufs->getMatchBufIndex(opaque, isMetaData);
+    if ((mStreamInfo != NULL)
+            && (mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH)
+            && (mStreamBatchBufs != NULL)) {
+        index = mStreamBatchBufs->getMatchBufIndex(opaque, isMetaData);
+    } else if (mStreamBufs != NULL){
+        index = mStreamBufs->getMatchBufIndex(opaque, isMetaData);
+    }
+
     if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
         ALOGE("%s: Cannot find buf for opaque data = %p", __func__, opaque);
         return BAD_INDEX;
