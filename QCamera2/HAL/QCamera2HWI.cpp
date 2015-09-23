@@ -8607,6 +8607,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                                     ALOGE("%s: Error allocating buffers !!!",
                                             __func__);
                                     job_status =  NO_MEMORY;
+                                    pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                            CAMERA_ERROR_UNKNOWN, 0);
                                 }
                                 break;
                             }
@@ -8622,7 +8624,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                             ALOGE("%s: cannot start postprocessor", __func__);
                             job_status = BAD_VALUE;
                             pme->sendEvtNotify(CAMERA_MSG_ERROR,
-                                CAMERA_ERROR_UNKNOWN, 0);
+                                    CAMERA_ERROR_UNKNOWN, 0);
                         }
                     }
                     break;
@@ -8635,6 +8637,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                             ALOGE("%s: Unable to allocate metadata buffers",
                                     __func__);
                             job_status = BAD_VALUE;
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
                         } else {
                             int32_t rc = pme->mMetadataMem->allocate(
                                     dw->args.metadataAllocArgs.bufferCnt,
@@ -8657,7 +8661,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                             ALOGE("%s: cannot create JPEG session", __func__);
                             job_status = UNKNOWN_ERROR;
                             pme->sendEvtNotify(CAMERA_MSG_ERROR,
-                                CAMERA_ERROR_UNKNOWN, 0);
+                                    CAMERA_ERROR_UNKNOWN, 0);
                         }
                     }
                     break;
@@ -8685,6 +8689,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                                 ALOGE("%s: Error!! creating JPEG handle failed",
                                     __func__);
                                 job_status = UNKNOWN_ERROR;
+                                pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                        CAMERA_ERROR_UNKNOWN, 0);
                                 break;
                             }
                         }
@@ -8698,6 +8704,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                             ALOGE("%s: Error!! set JPEG handle failed",
                                 __func__);
                             job_status = UNKNOWN_ERROR;
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
                             break;
                         }
 
@@ -8707,9 +8715,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         if (rc != NO_ERROR) {
                             ALOGE("%s: cannot init postprocessor", __func__);
                             job_status = UNKNOWN_ERROR;
-                            pme->mCameraHandle->ops->close_camera(
-                                    pme->mCameraHandle->camera_handle);
-                            pme->mCameraHandle = NULL;
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
                             break;
                         }
 
@@ -8762,6 +8769,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         if (pme->mCameraHandle == NULL) {
                             ALOGE("%s: Camera handle is null", __func__);
                             job_status = BAD_VALUE;
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
                             break;
                         }
 
@@ -8769,10 +8778,18 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         // time for jpeg_open and calibration data is a
                         // get param for now, so params needs to be initialized
                         // before postproc init
-                        pme->mParameters.init(cap,
+                        rc = pme->mParameters.init(cap,
                                 pme->mCameraHandle,
                                 pme,
                                 pme);
+                        if (rc != 0) {
+                            job_status = UNKNOWN_ERROR;
+                            ALOGE("Parameter Initialization failed");
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
+                            break;
+                        }
+
                         rc = pme->mParameters.getRelatedCamCalibration(
                             &pme->mRelCamCalibData);
                         CDBG("%s: Dumping Calibration Data Version Id %f rc %d",
@@ -8782,11 +8799,11 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         if (rc != 0) {
                             job_status = UNKNOWN_ERROR;
                             ALOGE("getRelatedCamCalibration failed");
-                            pme->mCameraHandle->ops->close_camera(
-                                pme->mCameraHandle->camera_handle);
-                            pme->mCameraHandle = NULL;
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
                             break;
                         }
+
                         pme->mParameters.setMinPpMask(
                             cap->qcom_supported_feature_mask);
 
@@ -8797,9 +8814,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                             ALOGE("%s: Out of Memory. Allocation failed for "
                                     "3A debug exif params", __func__);
                             job_status = NO_MEMORY;
-                            pme->mCameraHandle->ops->close_camera(
-                                pme->mCameraHandle->camera_handle);
-                            pme->mCameraHandle = NULL;
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
                             break;
                         }
                         memset(pme->mExifParams.debug_params, 0,
