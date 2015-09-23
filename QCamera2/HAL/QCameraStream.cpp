@@ -1496,7 +1496,7 @@ int32_t QCameraStream::allocateBuffers()
 
     if (!mStreamBufs) {
         ALOGE("%s: Failed to allocate stream buffers", __func__);
-        rc = NO_MEMORY;
+        return NO_MEMORY;
     }
 
     mNumBufs = (uint8_t)(numBufAlloc + mNumBufsNeedAlloc);
