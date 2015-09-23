@@ -1462,6 +1462,15 @@ typedef struct {
 } cam_img_hysterisis_info_t;
 
 typedef struct {
+  /* dynamic feature enablement */
+  uint64_t dyn_feature_mask;
+  /* input frame count for stacking */
+  uint32_t input_count;
+  /* reserved for future use */
+  uint8_t  reserved[32];
+} cam_dyn_img_data_t;
+
+typedef struct {
   cam_intf_overwrite_type_t overwrite_type;
   char isp_hw_data_list[4096];     /*add upper bound memory, customer to fill*/
   char chromatix_data_overwrite[4096]; /*add bound memory, customer fill*/
@@ -1590,6 +1599,11 @@ typedef  struct {
 
     uint8_t is_dcrf_result_valid;
     cam_dcrf_result_t dcrf_result;
+
+    /* Dynamic feature enablement from postprocessing modules */
+    uint8_t is_dyn_img_data_valid;
+    cam_dyn_img_data_t dyn_img_data;
+
 } cam_metadata_info_t;
 
 typedef enum {
@@ -1935,6 +1949,8 @@ typedef enum {
     CAM_INTF_PARM_MANUAL_CAPTURE_TYPE,
     /*AF state change detected by AF module*/
     CAM_INTF_AF_STATE_TRANSITION,
+    /* dynamic feature detection */
+    CAM_INTF_META_IMG_DYN_FEAT,
     CAM_INTF_PARM_MAX /* 201 */
 } cam_intf_parm_type_t;
 
