@@ -1454,11 +1454,19 @@ int QCameraMuxer::setupLogicalCameras()
     char prop[PROPERTY_VALUE_MAX];
     int i = 0;
     camera_info info;
+    int primaryType = CAM_TYPE_MAIN;
 
     CDBG_HIGH("%s[%d] E: rc = %d", __func__, __LINE__, rc);
     // Signifies whether AUX camera has to be exposed as physical camera
     property_get("persist.camera.aux.camera", prop, "0");
     m_bAuxCameraExposed = atoi(prop);
+
+    // Signifies whether AUX camera needs to be swapped
+    property_get("persist.camera.auxcamera.swap", prop, "0");
+    int swapAux = atoi(prop);
+    if (swapAux != 0) {
+        primaryType = CAM_TYPE_AUX;
+    }
 
     // Check for number of camera present on device
     if (!m_nPhyCameras || (m_nPhyCameras > MM_CAMERA_MAX_NUM_SENSORS)) {
@@ -1485,15 +1493,18 @@ int QCameraMuxer::setupLogicalCameras()
         m_pPhyCamera[i].id = cameraId;
         m_pPhyCamera[i].device_version = CAMERA_DEVICE_API_VERSION_1_0;
         m_pPhyCamera[i].mode = CAM_MODE_PRIMARY;
-        if (!m_bAuxCameraExposed && (m_pPhyCamera[i].type != CAM_TYPE_MAIN)) {
+
+        if (!m_bAuxCameraExposed && (m_pPhyCamera[i].type != primaryType)) {
             m_pPhyCamera[i].mode = CAM_MODE_SECONDARY;
-            CDBG_HIGH("%s[%d]: Camera ID: %d, Aux Camera, type: %d",
-                    __func__, __LINE__, cameraId, m_pPhyCamera[i].type);
+            CDBG_HIGH("%s[%d]: Camera ID: %d, Aux Camera, type: %d, facing: %d",
+                    __func__, __LINE__, cameraId, m_pPhyCamera[i].type,
+                    m_pPhyCamera[i].cam_info.facing);
         }
         else {
             m_nLogicalCameras++;
-            CDBG_HIGH("%s[%d]: Camera ID: %d, Main Camera, type: %d",
-                    __func__, __LINE__, cameraId, m_pPhyCamera[i].type);
+            CDBG_HIGH("%s[%d]: Camera ID: %d, Main Camera, type: %d, facing: %d",
+                    __func__, __LINE__, cameraId, m_pPhyCamera[i].type,
+                    m_pPhyCamera[i].cam_info.facing);
         }
     }
 
@@ -1542,6 +1553,7 @@ int QCameraMuxer::setupLogicalCameras()
         if (m_pPhyCamera[i].mode == CAM_MODE_SECONDARY) {
             for (int j = 0; j < m_nLogicalCameras; j++) {
                 int n = m_pLogicalCamera[j].numCameras;
+                ///@note n can only be 1 at this point
                 if ((n < MAX_NUM_CAMERA_PER_BUNDLE) &&
                         (m_pLogicalCamera[j].facing ==
                         m_pPhyCamera[i].cam_info.facing)) {
@@ -1549,10 +1561,9 @@ int QCameraMuxer::setupLogicalCameras()
                     m_pLogicalCamera[j].type[n] = CAM_TYPE_AUX;
                     m_pLogicalCamera[j].mode[n] = CAM_MODE_SECONDARY;
                     m_pLogicalCamera[j].numCameras++;
-                    CDBG_HIGH("%s[%d]: Logical Aux Camera ID: %d,"
-                        "index: %d, aux phy id:%d, facing: %d, "
-                        "Phy Id: %d type: %d mode: %d",
-                        __func__, __LINE__, j, n, m_pLogicalCamera[j].pId[n],
+                    CDBG_HIGH("%s[%d]: Aux %d for Logical Camera ID: %d,"
+                        "aux phy id:%d, type: %d mode: %d",
+                        __func__, __LINE__, n, j, m_pLogicalCamera[j].pId[n],
                         m_pLogicalCamera[j].type[n], m_pLogicalCamera[j].mode[n]);
                 }
             }
