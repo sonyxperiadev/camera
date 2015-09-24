@@ -392,6 +392,7 @@ public:
     virtual int32_t start();
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
+    virtual void putStreamBufs();
     virtual void reprocessCbRoutine(buffer_handle_t *resultBuffer,
         uint32_t resultFrameNumber);
 

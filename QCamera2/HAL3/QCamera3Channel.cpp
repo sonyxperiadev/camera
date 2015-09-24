@@ -824,6 +824,27 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
 }
 
 /*===========================================================================
+ * FUNCTION   : putStreamBufs
+ *
+ * DESCRIPTION: release the buffers allocated to the stream
+ *
+ * PARAMETERS : NONE
+ *
+ * RETURN     : NONE
+ *==========================================================================*/
+void QCamera3YUVChannel::putStreamBufs()
+{
+    QCamera3ProcessingChannel::putStreamBufs();
+
+    // Free allocated heap buffer.
+    mMemory.deallocate();
+    // Clear free heap buffer list.
+    mFreeHeapBufferList.clear();
+    // Clear offlinePpInfoList
+    mOfflinePpInfoList.clear();
+}
+
+/*===========================================================================
  * FUNCTION   : request
  *
  * DESCRIPTION: handle the request - either with an input buffer or a direct
