@@ -3047,6 +3047,8 @@ int32_t QCameraPostProcessor::getJpegPaddingReq(cam_padding_info_t &padding_info
     padding_info.width_padding  = CAM_PAD_NONE;
     padding_info.height_padding  = CAM_PAD_TO_16;
     padding_info.plane_padding  = CAM_PAD_TO_WORD;
+    padding_info.offset_info.offset_x = 0;
+    padding_info.offset_info.offset_y = 0;
     return NO_ERROR;
 }
 

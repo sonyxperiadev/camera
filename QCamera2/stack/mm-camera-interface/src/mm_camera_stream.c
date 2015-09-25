@@ -2866,10 +2866,14 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
         offset_y = scanline - dim->height;
         scanline += offset_y; /* double padding */
     } else {
-        stride = PAD_TO_SIZE(dim->width, padding->width_padding);
-        scanline = PAD_TO_SIZE(dim->height, padding->height_padding);
-        offset_x = 0;
-        offset_y = 0;
+        offset_x = PAD_TO_SIZE(padding->offset_info.offset_x,
+                padding->plane_padding);
+        offset_y = PAD_TO_SIZE(padding->offset_info.offset_y,
+                padding->plane_padding);
+        stride = PAD_TO_SIZE((dim->width +
+                (2 * offset_x)), padding->width_padding);
+        scanline = PAD_TO_SIZE((dim->height +
+                (2 * offset_y)), padding->height_padding);
     }
 
     switch (fmt) {
@@ -2891,7 +2895,8 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
         buf_planes->plane_info.mp[0].width = dim->width;
         buf_planes->plane_info.mp[0].height = dim->height;
 
-        scanline = scanline/2;
+        scanline = PAD_TO_SIZE(((dim->height/2) +
+                (2 * offset_y)), padding->height_padding);
         buf_planes->plane_info.mp[1].len =
                 PAD_TO_SIZE((uint32_t)(stride * scanline),
                 padding->plane_padding);

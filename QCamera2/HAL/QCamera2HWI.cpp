@@ -1802,6 +1802,8 @@ int QCamera2HardwareInterface::initCapabilities(uint32_t cameraId,
     }
     memcpy(gCamCapability[cameraId], DATA_PTR(capabilityHeap,0),
                                         sizeof(cam_capability_t));
+    gCamCapability[cameraId]->analysis_padding_info.offset_info.offset_x = 0;
+    gCamCapability[cameraId]->analysis_padding_info.offset_info.offset_y = 0;
 
     rc = NO_ERROR;
 
@@ -6006,6 +6008,12 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
             padding_info.width_padding = mSurfaceStridePadding;
             padding_info.height_padding = CAM_PAD_TO_2;
         }
+        if((!needReprocess())
+                || (streamType != CAM_STREAM_TYPE_SNAPSHOT)
+                || (!mParameters.isLLNoiseEnabled())) {
+            padding_info.offset_info.offset_x = 0;
+            padding_info.offset_info.offset_y = 0;
+        }
     }
 
     bool deferAllocation = needDeferred(streamType);
@@ -6977,13 +6985,15 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
 
     bool offlineReproc = isRegularCapture();
 
-    cam_padding_info_t *paddingInfo = &gCamCapability[mCameraId]->padding_info;
+    cam_padding_info_t paddingInfo = gCamCapability[mCameraId]->padding_info;
+    paddingInfo.offset_info.offset_x = 0;
+    paddingInfo.offset_info.offset_y = 0;
     rc = pChannel->addReprocStreamsFromSource(*this,
                                               pp_config,
                                               pInputChannel,
                                               minStreamBufNum,
                                               mParameters.getNumOfSnapshots(),
-                                              paddingInfo,
+                                              &paddingInfo,
                                               mParameters,
                                               mLongshotEnabled,
                                               offlineReproc);
@@ -8701,10 +8711,26 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                             cam_capability_padding_info.height_padding =
                                     padding_info.height_padding;
                         }
-                        if (cam_capability_padding_info.plane_padding <
+                        if (cam_capability_padding_info.plane_padding !=
                                 padding_info.plane_padding) {
                             cam_capability_padding_info.plane_padding =
-                                    padding_info.plane_padding;
+                                    mm_stream_calc_lcm(
+                                    cam_capability_padding_info.plane_padding,
+                                    padding_info.plane_padding);
+                        }
+                        if (cam_capability_padding_info.offset_info.offset_x
+                                != padding_info.offset_info.offset_x) {
+                            cam_capability_padding_info.offset_info.offset_x =
+                                    mm_stream_calc_lcm (
+                                    cam_capability_padding_info.offset_info.offset_x,
+                                    padding_info.offset_info.offset_x);
+                        }
+                        if (cam_capability_padding_info.offset_info.offset_y
+                                != padding_info.offset_info.offset_y) {
+                            cam_capability_padding_info.offset_info.offset_y =
+                            mm_stream_calc_lcm (
+                                    cam_capability_padding_info.offset_info.offset_y,
+                                    padding_info.offset_info.offset_y);
                         }
                     }
                     break;
