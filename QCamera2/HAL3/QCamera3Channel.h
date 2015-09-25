@@ -313,6 +313,7 @@ public:
             void *userdata);
     virtual int32_t registerBuffer(buffer_handle_t *buffer, cam_is_type_t isType);
     int32_t queueReprocMetadata(mm_camera_super_buf_t *metadata);
+    int32_t getStreamSize(cam_dimension_t &dim);
 
 private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata);

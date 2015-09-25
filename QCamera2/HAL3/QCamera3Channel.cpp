@@ -2049,6 +2049,31 @@ int32_t QCamera3PicChannel::queueReprocMetadata(mm_camera_super_buf_t *metadata)
     return m_postprocessor.processPPMetadata(metadata);
 }
 
+/*===========================================================================
+ * FUNCTION   : getStreamSize
+ *
+ * DESCRIPTION: get the size from the camera3_stream_t for the channe
+ *
+ * PARAMETERS :
+ *   @dim     : Return the size of the stream
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3PicChannel::getStreamSize(cam_dimension_t &dim)
+{
+   if (mCamera3Stream) {
+      dim.width = mCamera3Stream->width;
+      dim.height = mCamera3Stream->height;
+      return NO_ERROR;
+   } else {
+      return BAD_VALUE;
+   }
+}
+
+
+
 int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *metadata)
 {
     jpeg_settings_t *settings =
