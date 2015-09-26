@@ -430,6 +430,7 @@ int32_t QCameraStream::releaseStreamInfoBuf()
         mStreamInfoBuf->deallocate();
         delete mStreamInfoBuf;
         mStreamInfoBuf = NULL;
+        mStreamInfo = NULL;
     }
 
     return rc;
@@ -597,11 +598,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     if (!mHandle) {
         ALOGE("add_stream failed");
         rc = UNKNOWN_ERROR;
-        if (streamInfoBuf != NULL) {
-            streamInfoBuf->deallocate();
-            delete streamInfoBuf;
-            streamInfoBuf = NULL;
-        }
         goto done;
     }
 
@@ -613,8 +609,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     rc = mapBuf(mStreamInfoBuf, CAM_MAPPING_BUF_TYPE_STREAM_INFO, NULL);
     if (rc < 0) {
         ALOGE("Failed to map stream info buffer");
-        releaseStreamInfoBuf();
-        mStreamInfo = 0;
         goto err1;
     }
 
