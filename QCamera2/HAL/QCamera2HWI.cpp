@@ -3414,6 +3414,7 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     /* Temporarily stop display only if not in stillmore livesnapshot */
     if (!(mParameters.isStillMoreEnabled() &&
             mParameters.isSeeMoreEnabled())) {
+        CDBG_HIGH("%s: Stopping preview temporarily", __func__);
         mParameters.setDisplayFrame(FALSE);
     }
 
@@ -4226,7 +4227,7 @@ int QCamera2HardwareInterface::cancelPicture()
     m_postprocessor.stop();
 
     unconfigureAdvancedCapture();
-
+    CDBG_HIGH("%s: Enable display frames again", __func__);
     mParameters.setDisplayFrame(TRUE);
 
     if (!mLongshotEnabled) {
@@ -4725,6 +4726,9 @@ int QCamera2HardwareInterface::cancelLiveSnapshot()
     int rc = NO_ERROR;
 
     unconfigureAdvancedCapture();
+    CDBG_HIGH("%s: Enable display frames again", __func__);
+    mParameters.setDisplayFrame(TRUE);
+
     if (!mLongshotEnabled) {
         m_perfLock.lock_rel();
     }
