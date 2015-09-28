@@ -3405,6 +3405,8 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     setOutputImageCount(0);
     mInputCount = 0;
     mAdvancedCaptureConfigured = true;
+    /* Display should be disabled for advanced modes */
+    bool bDisplay = false;
 
     if (getRelatedCamSyncInfo()->mode == CAM_MODE_SECONDARY) {
         // no Advance capture settings for Aux camera
@@ -3412,13 +3414,11 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         return rc;
     }
 
-    /* Temporarily stop display only if not in stillmore livesnapshot */
-    if (!(mParameters.isStillMoreEnabled() &&
-            mParameters.isSeeMoreEnabled())) {
-        CDBG_HIGH("%s: Stopping preview temporarily", __func__);
-        mParameters.setDisplayFrame(FALSE);
+    /* Do not stop display if in stillmore livesnapshot */
+    if (mParameters.isStillMoreEnabled() &&
+            mParameters.isSeeMoreEnabled()) {
+        bDisplay = true;
     }
-
     if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
         rc = configureAFBracketing();
     } else if (mParameters.isOptiZoomEnabled()) {
@@ -3439,13 +3439,19 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         rc = configureAEBracketing();
     } else if (mParameters.isStillMoreEnabled()) {
         rc = configureStillMore();
-    } else if (mParameters.isChromaFlashEnabled()
-            || (mFlashNeeded && !mLongshotEnabled)) {
+    } else if (mParameters.isChromaFlashEnabled()) {
         rc = mParameters.configFrameCapture(TRUE);
+    } else if (mFlashNeeded && !mLongshotEnabled) {
+        rc = mParameters.configFrameCapture(TRUE);
+        bDisplay = true;
     } else {
         CDBG_HIGH ("%s: Advanced Capture feature not enabled!! ", __func__);
         mAdvancedCaptureConfigured = false;
+        bDisplay = true;
     }
+
+    CDBG_HIGH("%s: Stop preview temporarily for advanced captures", __func__);
+    mParameters.setDisplayFrame(bDisplay);
 
     CDBG_HIGH("%s: X",__func__);
     return rc;
