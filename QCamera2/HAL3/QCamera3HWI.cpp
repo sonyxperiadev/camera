@@ -331,6 +331,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mUpdateDebugLevel(false),
       mCallbacks(callbacks),
       mCaptureIntent(0),
+      mCacMode(0),
       mBatchSize(0),
       mToBeQueuedVidBufs(0),
       mHFRVideoFps(DEFAULT_VIDEO_FPS)
@@ -2234,7 +2235,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
             result.result = translateFromHalMetadata(metadata,
                     i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
-                    i->capture_intent);
+                    i->capture_intent, i->fwkCacMode);
 
             saveExifParams(metadata);
 
@@ -2960,6 +2961,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
     }
     pendingRequest.capture_intent = mCaptureIntent;
 
+    //extract CAC info
+    if (meta.exists(ANDROID_COLOR_CORRECTION_ABERRATION_MODE)) {
+        mCacMode =
+                meta.find(ANDROID_COLOR_CORRECTION_ABERRATION_MODE).data.u8[0];
+    }
+    pendingRequest.fwkCacMode = mCacMode;
+
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         RequestedBufferInfo requestedBuf;
         requestedBuf.stream = request->output_buffers[i].stream;
@@ -3003,6 +3011,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
             QCamera3RegularChannel* inputChannel = NULL;
+            CDBG("%s: snapshot request with output buffer %p, input buffer %p, frame_number %d",
+                     __func__, output.buffer, request->input_buffer, frameNumber);
             if(request->input_buffer != NULL){
 
                 //Try to get the internal format
@@ -3028,8 +3038,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     return rc;
                 }
             } else{
-                 CDBG("%s: %d, snapshot request with buffer %p, frame_number %d", __func__,
-                       __LINE__, output.buffer, frameNumber);
                  if (!request->settings) {
                    rc = channel->request(output.buffer, frameNumber,
                                NULL, mPrevParameters);
@@ -3822,7 +3830,8 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                  int32_t request_id,
                                  const CameraMetadata& jpegMetadata,
                                  uint8_t pipeline_depth,
-                                 uint8_t capture_intent)
+                                 uint8_t capture_intent,
+                                 uint8_t fwk_cacMode)
 {
     CameraMetadata camMetadata;
     camera_metadata_t *resultMetadata;
@@ -4519,14 +4528,27 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         }
     }
 
-    IF_META_AVAILABLE(cam_aberration_mode_t, cacMode, CAM_INTF_PARM_CAC, metadata) {
-        int val = lookupFwkName(COLOR_ABERRATION_MAP, METADATA_MAP_SIZE(COLOR_ABERRATION_MAP),
-                *cacMode);
-        if (NAME_NOT_FOUND != val) {
-            uint8_t fwkCacMode = (uint8_t)val;
-            camMetadata.update(ANDROID_COLOR_CORRECTION_ABERRATION_MODE, &fwkCacMode, 1);
-        } else {
-            ALOGE("%s: Invalid CAC camera parameter: %d", __func__, *cacMode);
+    if (gCamCapability[mCameraId]->aberration_modes_count == 0) {
+        // Regardless of CAC supports or not, CTS is expecting the CAC result to be non NULL and
+        // so hardcoding the CAC result to OFF mode.
+        uint8_t fwkCacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_OFF;
+        camMetadata.update(ANDROID_COLOR_CORRECTION_ABERRATION_MODE, &fwkCacMode, 1);
+    } else {
+        IF_META_AVAILABLE(cam_aberration_mode_t, cacMode, CAM_INTF_PARM_CAC, metadata) {
+            int val = lookupFwkName(COLOR_ABERRATION_MAP, METADATA_MAP_SIZE(COLOR_ABERRATION_MAP),
+                    *cacMode);
+            if (NAME_NOT_FOUND != val) {
+                uint8_t resultCacMode = (uint8_t)val;
+                // check whether CAC result from CB is equal to Framework set CAC mode
+                // If not equal then set the CAC mode came in corresponding request
+                if (fwk_cacMode != resultCacMode) {
+                    resultCacMode = fwk_cacMode;
+                }
+                CDBG("%s: fwk_cacMode=%d resultCacMode=%d", __func__, fwk_cacMode, resultCacMode);
+                camMetadata.update(ANDROID_COLOR_CORRECTION_ABERRATION_MODE, &resultCacMode, 1);
+            } else {
+                ALOGE("%s: Invalid CAC camera parameter: %d", __func__, *cacMode);
+            }
         }
     }
 
@@ -5764,28 +5786,20 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       avail_antibanding_modes,
                       size);
 
-    uint8_t avail_abberation_modes[CAM_COLOR_CORRECTION_ABERRATION_MAX];
-    size = 0;
+    uint8_t avail_abberation_modes[] = {
+            ANDROID_COLOR_CORRECTION_ABERRATION_MODE_OFF,
+            ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST,
+            ANDROID_COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY};
     count = CAM_COLOR_CORRECTION_ABERRATION_MAX;
     count = MIN(gCamCapability[cameraId]->aberration_modes_count, count);
     if (0 == count) {
-        avail_abberation_modes[0] =
-                ANDROID_COLOR_CORRECTION_ABERRATION_MODE_OFF;
-        size++;
+        //  If no aberration correction modes are available for a device, this advertise OFF mode
+        size = 1;
     } else {
-        for (size_t i = 0; i < count; i++) {
-            int val = lookupFwkName(COLOR_ABERRATION_MAP, METADATA_MAP_SIZE(COLOR_ABERRATION_MAP),
-                    gCamCapability[cameraId]->aberration_modes[i]);
-            if (NAME_NOT_FOUND != val) {
-                avail_abberation_modes[size] = (uint8_t)val;
-                size++;
-            } else {
-                ALOGE("%s: Invalid CAC mode %d", __func__,
-                        gCamCapability[cameraId]->aberration_modes[i]);
-                break;
-            }
-        }
-
+        // If count is not zero then atleast one among the FAST or HIGH quality is supported
+        // So, advertize all 3 modes if atleast any one mode is supported as per the
+        // new M requirement
+        size = 3;
     }
     staticInfo.update(ANDROID_COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES,
             avail_abberation_modes,
@@ -6579,6 +6593,8 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     uint8_t vsMode;
     uint8_t optStabMode;
     uint8_t cacMode;
+    bool highQualityModeEntryAvailable = FALSE;
+    bool fastModeEntryAvailable = FALSE;
     vsMode = ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF;
     switch (type) {
       case CAMERA3_TEMPLATE_PREVIEW:
@@ -6590,7 +6606,22 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_STILL_CAPTURE;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
-        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY;
+        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_OFF;
+        // Order of priority for default CAC is HIGH Quality -> FAST -> OFF
+        for (size_t i = 0; i < gCamCapability[mCameraId]->aberration_modes_count; i++) {
+            if (gCamCapability[mCameraId]->aberration_modes[i] ==
+                    CAM_COLOR_CORRECTION_ABERRATION_HIGH_QUALITY) {
+                highQualityModeEntryAvailable = TRUE;
+            } else if (gCamCapability[mCameraId]->aberration_modes[i] ==
+                    CAM_COLOR_CORRECTION_ABERRATION_FAST) {
+                fastModeEntryAvailable = TRUE;
+            }
+        }
+        if (highQualityModeEntryAvailable) {
+            cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY;
+        } else if (fastModeEntryAvailable) {
+            cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
+        }
         settings.update(ANDROID_COLOR_CORRECTION_ABERRATION_MODE, &cacMode, 1);
         break;
       case CAMERA3_TEMPLATE_VIDEO_RECORD:
@@ -7187,6 +7218,36 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 fwk_cacMode);
         if (NAME_NOT_FOUND != val) {
             cam_aberration_mode_t cacMode = (cam_aberration_mode_t) val;
+            bool entryAvailable = FALSE;
+            // Check whether Frameworks set CAC mode is supported in device or not
+            for (size_t i = 0; i < gCamCapability[mCameraId]->aberration_modes_count; i++) {
+                if (gCamCapability[mCameraId]->aberration_modes[i] == cacMode) {
+                    entryAvailable = TRUE;
+                    break;
+                }
+            }
+            CDBG("%s: FrameworksCacMode=%d entryAvailable=%d", __func__, cacMode, entryAvailable);
+            // If entry not found then set the device supported mode instead of frameworks mode i.e,
+            // Only HW ISP CAC + NO SW CAC : Advertise all 3 with High doing same as fast by ISP
+            // NO HW ISP CAC + Only SW CAC : Advertise all 3 with Fast doing the same as OFF
+            if (entryAvailable == FALSE) {
+                if (gCamCapability[mCameraId]->aberration_modes_count == 0) {
+                    cacMode = CAM_COLOR_CORRECTION_ABERRATION_OFF;
+                } else {
+                    if (cacMode == CAM_COLOR_CORRECTION_ABERRATION_HIGH_QUALITY) {
+                        // High is not supported and so set the FAST as spec say's underlying
+                        // device implementation can be the same for both modes.
+                        cacMode = CAM_COLOR_CORRECTION_ABERRATION_FAST;
+                    } else if (cacMode == CAM_COLOR_CORRECTION_ABERRATION_FAST) {
+                        // Fast is not supported and so we cannot set HIGH or FAST but choose OFF
+                        // in order to avoid the fps drop due to high quality
+                        cacMode = CAM_COLOR_CORRECTION_ABERRATION_OFF;
+                    } else {
+                        cacMode = CAM_COLOR_CORRECTION_ABERRATION_OFF;
+                    }
+                }
+            }
+            CDBG("%s: Final cacMode is %d", __func__, cacMode);
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_CAC, cacMode)) {
                 rc = BAD_VALUE;
             }
