@@ -943,6 +943,59 @@ void QCamera3HardwareInterface::updatePowerHint(bool bWasVideo, bool bIsVideo)
 }
 
 /*==============================================================================
+ * FUNCTION   : addToPPFeatureMask
+ *
+ * DESCRIPTION: add additional features to pp feature mask based on
+ *              stream type and usecase
+ *
+ * PARAMETERS :
+ *   @stream_format : stream type for feature mask
+ *   @stream_idx : stream idx within postprocess_mask list to change
+ *
+ * RETURN     : NULL
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
+        uint32_t stream_idx)
+{
+    char feature_mask_value[PROPERTY_VALUE_MAX];
+    uint32_t feature_mask;
+    int args_converted;
+    int property_len;
+
+    /* Get feature mask from property */
+    property_len = property_get("persist.camera.hal3.feature",
+            feature_mask_value, "0");
+    if ((property_len > 2) && (feature_mask_value[0] == '0') &&
+            (feature_mask_value[1] == 'x')) {
+        args_converted = sscanf(feature_mask_value, "0x%x", &feature_mask);
+    } else {
+        args_converted = sscanf(feature_mask_value, "%d", &feature_mask);
+    }
+    if (1 != args_converted) {
+        feature_mask = 0;
+        ALOGE("%s: Wrong feature mask %s", __func__, feature_mask_value);
+        return;
+    }
+
+    switch (stream_format) {
+    case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED: {
+        /* Add LLVD to pp feature mask only if video hint is enabled */
+        if ((m_bIsVideo) && (feature_mask & CAM_QCOM_FEATURE_LLVD)) {
+            mStreamConfigInfo.postprocess_mask[stream_idx]
+                    |= CAM_QCOM_FEATURE_LLVD;
+            ALOGI("%s: Added LLVD SeeMore to pp feature mask %x", __func__);
+        }
+        break;
+    }
+    deafult:
+        break;
+    }
+    CDBG("%s: PP feature mask %x", __func__,
+            mStreamConfigInfo.postprocess_mask[stream_idx]);
+}
+
+/*==============================================================================
  * FUNCTION   : updateFpsInPreviewBuffer
  *
  * DESCRIPTION: update FPS information in preview buffer.
@@ -1381,24 +1434,6 @@ int QCamera3HardwareInterface::configureStreams(
             switch (newStream->format) {
             case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED :
             {
-                char feature_mask_value[PROPERTY_VALUE_MAX];
-                uint32_t feature_mask;
-                int args_converted;
-                int property_len;
-
-                property_len = property_get("persist.camera.hal3.prv.feature",
-                        feature_mask_value, "0");
-                if ((property_len > 2) && (feature_mask_value[0] == '0') &&
-                        (feature_mask_value[1] == 'x')) {
-                    args_converted = sscanf(feature_mask_value, "0x%x", &feature_mask);
-                } else {
-                    args_converted = sscanf(feature_mask_value, "%d", &feature_mask);
-                }
-                if (1 != args_converted) {
-                    feature_mask = 0;
-                    ALOGE("%s: Wrong feature mask setting: %s", __func__, feature_mask_value);
-                }
-
                 if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
                     mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_VIDEO;
                 } else {
@@ -1407,7 +1442,10 @@ int QCamera3HardwareInterface::configureStreams(
                     padding_info.height_padding = CAM_PAD_TO_2;
                 }
                 mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
-                mStreamConfigInfo.postprocess_mask[i] |= feature_mask;
+
+                /* add additional features to pp feature mask */
+                addToPPFeatureMask(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED,
+                        mStreamConfigInfo.num_streams);
             }
             break;
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
