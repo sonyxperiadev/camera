@@ -254,6 +254,9 @@ public:
     void checkIntPicPending(bool JpegMemOpt, char *raw_format);
     static int cancel_picture(struct camera_device *);
     static int set_parameters(struct camera_device *, const char *parms);
+    static int stop_after_set_params(struct camera_device *);
+    static int commit_params(struct camera_device *);
+    static int restart_after_set_params(struct camera_device *);
     static char* get_parameters(struct camera_device *);
     static void put_parameters(struct camera_device *, char *);
     static int send_command(struct camera_device *,
@@ -579,6 +582,9 @@ private:
     int32_t startRAWChannel(QCameraChannel *pChannel);
     int32_t stopRAWChannel();
 
+    inline bool getNeedRestart() {return m_bNeedRestart;}
+    inline void setNeedRestart(bool needRestart) {m_bNeedRestart = needRestart;}
+
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
@@ -785,6 +791,8 @@ private:
 
     //QCamera Display Object
     QCameraDisplay mCameraDisplay;
+
+    bool m_bNeedRestart;
 };
 
 }; // namespace qcamera

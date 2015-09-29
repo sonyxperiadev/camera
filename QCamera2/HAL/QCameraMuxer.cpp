@@ -1352,6 +1352,7 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
+    bool needRestart = false;
     CHECK_CAMERA_ERROR(cam);
 
     for (uint32_t i = 0; i < cam->numCameras; i++) {
@@ -1366,7 +1367,59 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
             ALOGE("%s: Error setting parameters !! ", __func__);
             return rc;
         }
+
+        needRestart |= hwi->getNeedRestart();
     }
+
+    if (needRestart) {
+        for (uint32_t i = 0; i < cam->numCameras; i++) {
+            pCam = gMuxer->getPhysicalCamera(cam, i);
+            CHECK_CAMERA_ERROR(pCam);
+
+            QCamera2HardwareInterface *hwi = pCam->hwi;
+            CHECK_HWI_ERROR(hwi);
+
+            CDBG("%s: stopping preview for cam %d", __func__, i);
+            rc = QCamera2HardwareInterface::stop_after_set_params(pCam->dev);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: Error stopping camera rc=%d!! ", __func__, rc);
+                return rc;
+            }
+        }
+    }
+
+    for (uint32_t i = 0; i < cam->numCameras; i++) {
+        pCam = gMuxer->getPhysicalCamera(cam, i);
+        CHECK_CAMERA_ERROR(pCam);
+
+        QCamera2HardwareInterface *hwi = pCam->hwi;
+        CHECK_HWI_ERROR(hwi);
+
+        CDBG("%s: commiting parameters for cam %d", __func__, i);
+        rc = QCamera2HardwareInterface::commit_params(pCam->dev);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Error committing parameters rc=%d!! ", __func__, rc);
+            return rc;
+        }
+    }
+
+    if (needRestart) {
+        for (uint32_t i = 0; i < cam->numCameras; i++) {
+            pCam = gMuxer->getPhysicalCamera(cam, i);
+            CHECK_CAMERA_ERROR(pCam);
+
+            QCamera2HardwareInterface *hwi = pCam->hwi;
+            CHECK_HWI_ERROR(hwi);
+
+            CDBG("%s: restarting preview for cam %d", __func__, i);
+            rc = QCamera2HardwareInterface::restart_after_set_params(pCam->dev);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: Error restarting camera rc=%d!! ", __func__, rc);
+                return rc;
+            }
+        }
+    }
+
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }

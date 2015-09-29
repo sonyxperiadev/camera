@@ -53,6 +53,9 @@ typedef enum {
     QCAMERA_SM_EVT_MSG_TYPE_ENABLED,         // query certain msg type is enabled
 
     QCAMERA_SM_EVT_SET_PARAMS,               // set parameters
+    QCAMERA_SM_EVT_SET_PARAMS_STOP,          // stop camera after set params, if necessary
+    QCAMERA_SM_EVT_SET_PARAMS_COMMIT,        // commit set params
+    QCAMERA_SM_EVT_SET_PARAMS_RESTART,       // restart after set params, if necessary
     QCAMERA_SM_EVT_GET_PARAMS,               // get parameters
     QCAMERA_SM_EVT_PUT_PARAMS,               // put parameters, release param buf
 

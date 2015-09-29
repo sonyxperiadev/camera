@@ -1073,8 +1073,169 @@ int QCamera2HardwareInterface::set_parameters(struct camera_device *device,
         hw->waitAPIResult(QCAMERA_SM_EVT_SET_PARAMS, &apiResult);
         ret = apiResult.status;
     }
+
+    // Give HWI control to restart (if necessary) after set params
+    // in single camera mode. In dual-cam mode, this control belongs to muxer.
+    if (hw->getRelatedCamSyncInfo()->sync_control != CAM_SYNC_RELATED_SENSORS_ON) {
+        if ((ret == NO_ERROR) && hw->getNeedRestart()) {
+            CDBG("%s: stopping after param change", __func__);
+            ret = hw->processAPI(QCAMERA_SM_EVT_SET_PARAMS_STOP, NULL);
+            if (ret == NO_ERROR) {
+                hw->waitAPIResult(QCAMERA_SM_EVT_SET_PARAMS_STOP, &apiResult);
+                ret = apiResult.status;
+            }
+        }
+
+        if (ret == NO_ERROR) {
+            CDBG("%s: committing param change", __func__);
+            ret = hw->processAPI(QCAMERA_SM_EVT_SET_PARAMS_COMMIT, NULL);
+            if (ret == NO_ERROR) {
+                hw->waitAPIResult(QCAMERA_SM_EVT_SET_PARAMS_COMMIT, &apiResult);
+                ret = apiResult.status;
+            }
+        }
+
+        if ((ret == NO_ERROR) && hw->getNeedRestart()) {
+            CDBG("%s: restarting after param change", __func__);
+            ret = hw->processAPI(QCAMERA_SM_EVT_SET_PARAMS_RESTART, NULL);
+            if (ret == NO_ERROR) {
+                hw->waitAPIResult(QCAMERA_SM_EVT_SET_PARAMS_RESTART, &apiResult);
+                ret = apiResult.status;
+            }
+        }
+    }
+
     hw->unlockAPI();
+    CDBG("%s: X camera id %d ret %d", __func__, hw->getCameraId(), ret);
+
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : stop_after_set_params
+ *
+ * DESCRIPTION: stop after a set param call, if necessary
+ *
+ * PARAMETERS :
+ *   @device  : ptr to camera device struct
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::stop_after_set_params(struct camera_device *device)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+        reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
     CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+
+    if (hw->getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        ret = hw->processAPI(QCAMERA_SM_EVT_SET_PARAMS_STOP, NULL);
+        if (ret == NO_ERROR) {
+            hw->waitAPIResult(QCAMERA_SM_EVT_SET_PARAMS_STOP, &apiResult);
+            ret = apiResult.status;
+        }
+    } else {
+        ALOGE("%s is not supposed to be called in single-camera mode", __func__);
+        ret = INVALID_OPERATION;
+    }
+
+    hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
+
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : commit_params
+ *
+ * DESCRIPTION: commit after a set param call
+ *
+ * PARAMETERS :
+ *   @device  : ptr to camera device struct
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::commit_params(struct camera_device *device)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+        reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+
+    if (hw->getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        ret = hw->processAPI(QCAMERA_SM_EVT_SET_PARAMS_COMMIT, NULL);
+        if (ret == NO_ERROR) {
+            hw->waitAPIResult(QCAMERA_SM_EVT_SET_PARAMS_COMMIT, &apiResult);
+            ret = apiResult.status;
+        }
+    } else {
+        ALOGE("%s is not supposed to be called in single-camera mode", __func__);
+        ret = INVALID_OPERATION;
+    }
+
+    hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
+
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : restart_after_set_params
+ *
+ * DESCRIPTION: restart after a set param call, if necessary
+ *
+ * PARAMETERS :
+ *   @device  : ptr to camera device struct
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::restart_after_set_params(struct camera_device *device)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+        reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+
+    if (hw->getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        ret = hw->processAPI(QCAMERA_SM_EVT_SET_PARAMS_RESTART, NULL);
+        if (ret == NO_ERROR) {
+            hw->waitAPIResult(QCAMERA_SM_EVT_SET_PARAMS_RESTART, &apiResult);
+            ret = apiResult.status;
+        }
+    } else {
+        ALOGE("%s is not supposed to be called in single-camera mode", __func__);
+        ret = INVALID_OPERATION;
+    }
+
+    hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }
@@ -1506,7 +1667,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mJpegClientHandle(0),
       mJpegHandleOwner(false),
       mMetadataMem(NULL),
-      mCACDoneReceived(false)
+      mCACDoneReceived(false),
+      m_bNeedRestart(false)
 {
 #ifdef TARGET_TS_MAKEUP
     memset(&mFaceRect, -1, sizeof(mFaceRect));
@@ -8411,6 +8573,7 @@ int QCamera2HardwareInterface::updateParameters(const char *parms, bool &needRes
 
     String8 str = String8(parms);
     rc =  mParameters.updateParameters(str, needRestart);
+    setNeedRestart(needRestart);
 
     // update stream based parameter settings
     for (int i = 0; i < QCAMERA_CH_TYPE_MAX; i++) {
