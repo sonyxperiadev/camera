@@ -59,8 +59,9 @@
 #define CAMERA_ISP_PING_PONG_BUFFERS     2
 #define MIN_UNDEQUEUED_BUFFERS           1 // This is required if preview window is not set
 
-
 #define HDR_CONFIDENCE_THRESHOLD 0.4
+
+#define CAMERA_OPEN_PERF_TIME_OUT 500 // 500 milliseconds
 
 // Very long wait, just to be sure we don't deadlock
 #define CAMERA_DEFERRED_THREAD_TIMEOUT 5000000000 // 5 seconds
@@ -375,7 +376,6 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
     hw->unlockAPI();
     hw->m_bPreviewStarted = true;
     ALOGI("[KPI Perf] %s: X", __func__);
-    hw->m_perfLock.lock_rel();
     return ret;
 }
 
@@ -400,6 +400,10 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
     }
     ALOGI("[KPI Perf] %s: E PROFILE_STOP_PREVIEW camera id %d",
             __func__, hw->getCameraId());
+
+    // Disable power Hint for preview
+    hw->m_perfLock.powerHint(POWER_HINT_CAM_PREVIEW, false);
+
     hw->m_perfLock.lock_acq();
     hw->lockAPI();
     qcamera_api_result_t apiResult;
@@ -408,7 +412,6 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
         hw->waitAPIResult(QCAMERA_SM_EVT_STOP_PREVIEW, &apiResult);
     }
     hw->unlockAPI();
-    hw->m_perfLock.lock_rel();
     ALOGI("[KPI Perf] %s: X", __func__);
 }
 
@@ -520,6 +523,12 @@ int QCamera2HardwareInterface::start_recording(struct camera_device *device)
     hw->unlockAPI();
     hw->m_bRecordStarted = true;
     ALOGI("[KPI Perf] %s: X", __func__);
+
+    if (ret == NO_ERROR) {
+        // Set power Hint for video encoding
+        hw->m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
+    }
+
     return ret;
 }
 
@@ -544,6 +553,10 @@ void QCamera2HardwareInterface::stop_recording(struct camera_device *device)
     }
     ALOGI("[KPI Perf] %s: E PROFILE_STOP_RECORDING camera id %d",
             __func__, hw->getCameraId());
+
+    // Disable power hint for video encoding
+    hw->m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, false);
+
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_STOP_RECORDING, NULL);
@@ -1391,7 +1404,7 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
     }
     ALOGI("[KPI Perf] %s: E PROFILE_OPEN_CAMERA camera id %d",
         __func__,mCameraId);
-    m_perfLock.lock_acq();
+    m_perfLock.lock_acq_timed(CAMERA_OPEN_PERF_TIME_OUT);
     rc = openCamera();
     if (rc == NO_ERROR){
         *hw_device = &mCameraDevice.common;
@@ -1405,7 +1418,6 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
     ALOGI("[KPI Perf] %s: X PROFILE_OPEN_CAMERA camera id %d, rc: %d",
         __func__,mCameraId, rc);
 
-    m_perfLock.lock_rel();
     return rc;
 }
 
@@ -2954,6 +2966,9 @@ int QCamera2HardwareInterface::startPreview()
     KPI_ATRACE_CALL();
     int32_t rc = NO_ERROR;
     CDBG_HIGH("%s: E", __func__);
+
+    m_perfLock.lock_acq();
+
     updateThermalLevel((void *)&mThermalLevel);
     // start preview stream
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
@@ -2996,6 +3011,13 @@ int QCamera2HardwareInterface::startPreview()
     }
 
     CDBG_HIGH("%s: X", __func__);
+
+    m_perfLock.lock_rel();
+
+    if (rc == NO_ERROR) {
+        // Set power Hint for preview
+        m_perfLock.powerHint(POWER_HINT_CAM_PREVIEW, true);
+    }
     return rc;
 }
 
@@ -3023,6 +3045,12 @@ int QCamera2HardwareInterface::stopPreview()
     CDBG_HIGH("%s: E", __func__);
     mNumPreviewFaces = -1;
     mActiveAF = false;
+
+    // Disable power Hint for preview
+    m_perfLock.powerHint(POWER_HINT_CAM_PREVIEW, false);
+
+    m_perfLock.lock_acq();
+
     // stop preview stream
     stopChannel(QCAMERA_CH_TYPE_CALLBACK);
     stopChannel(QCAMERA_CH_TYPE_ZSL);
@@ -3035,6 +3063,9 @@ int QCamera2HardwareInterface::stopPreview()
 #endif
     // delete all channels from preparePreview
     unpreparePreview();
+
+    m_perfLock.lock_rel();
+
     CDBG_HIGH("%s: X", __func__);
     return NO_ERROR;
 }
@@ -3121,11 +3152,6 @@ int QCamera2HardwareInterface::startRecording()
         rc = pChannel->start();
     }
 
-    if (rc == NO_ERROR) {
-        // Set power Hint for video encoding
-        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, 1);
-    }
-
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
@@ -3153,10 +3179,6 @@ int QCamera2HardwareInterface::stopRecording()
 
     int rc = stopChannel(QCAMERA_CH_TYPE_VIDEO);
 
-    if (rc == NO_ERROR) {
-        // Disable power Hint
-        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, 0);
-    }
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
