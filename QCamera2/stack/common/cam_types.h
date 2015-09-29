@@ -2422,6 +2422,7 @@ typedef enum {
     CAM_TEST_PATTERN_COLOR_BARS,
     CAM_TEST_PATTERN_COLOR_BARS_FADE_TO_GRAY,
     CAM_TEST_PATTERN_PN9,
+    CAM_TEST_PATTERN_CUSTOM1 = 256
 } cam_test_pattern_mode_t;
 
 typedef struct {
