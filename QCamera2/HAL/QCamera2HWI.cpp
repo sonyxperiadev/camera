@@ -3370,7 +3370,7 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
             mParameters.setStillMoreSettings(stillmore_config);
 
             /* If SeeMore is running, it will handle re-enabling tone map */
-            if (!mParameters.isSeeMoreEnabled()) {
+            if (!mParameters.isSeeMoreEnabled() && !mParameters.isLTMForSeeMoreEnabled()) {
                 rc = mParameters.setToneMapMode(true, true);
                 if (rc != NO_ERROR) {
                     CDBG_HIGH("%s: Failed to enable tone map during StillMore", __func__);
@@ -3649,7 +3649,7 @@ int32_t QCamera2HardwareInterface::configureStillMore()
     cam_still_more_t stillmore_cap;
 
     /* Disable Tone Map. If seemore is enabled, it will handle disabling it. */
-    if (!mParameters.isSeeMoreEnabled()) {
+    if (!mParameters.isSeeMoreEnabled() && !mParameters.isLTMForSeeMoreEnabled()) {
         rc = mParameters.setToneMapMode(false, true);
         if (rc != NO_ERROR) {
             CDBG_HIGH("%s: Failed to disable tone map during StillMore", __func__);

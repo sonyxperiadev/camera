@@ -870,7 +870,8 @@ QCameraParameters::QCameraParameters()
       m_bIsLowMemoryDevice(false),
       mCds_mode(CAM_CDS_MODE_OFF),
       m_LLCaptureEnabled(FALSE),
-      m_LowLightLevel(CAM_LOW_LIGHT_OFF)
+      m_LowLightLevel(CAM_LOW_LIGHT_OFF),
+      m_bLtmForSeeMoreEnabled(false)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -890,6 +891,12 @@ QCameraParameters::QCameraParameters()
             ALOGE("%s: Invalid camera thermal mode %s", __func__, value);
         m_ThermalMode = QCAMERA_THERMAL_ADJUST_FPS;
     }
+
+    memset(value, 0, sizeof(value));
+    // As per Power/Quality evaluation, LTM is enabled by default in SeeMore/StillMore usecase
+    // to improve the quality as there is no much impact to power
+    property_get("persist.camera.ltmforseemore", value, "1");
+    m_bLtmForSeeMoreEnabled = atoi(value);
 
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -986,7 +993,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mCds_mode(CAM_CDS_MODE_OFF),
     mParmEffect(CAM_EFFECT_MODE_OFF),
     m_LLCaptureEnabled(FALSE),
-    m_LowLightLevel(CAM_LOW_LIGHT_OFF)
+    m_LowLightLevel(CAM_LOW_LIGHT_OFF),
+    m_bLtmForSeeMoreEnabled(false)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -5575,6 +5583,9 @@ int32_t QCameraParameters::initDefaultParameters()
     //Set SkinTone Enhancement
     set(KEY_QC_SUPPORTED_SKIN_TONE_ENHANCEMENT_MODES, enableDisableValues);
 
+    // Enable LTM by default and disable it in HDR & SeeMore usecases
+    setToneMapMode(true, false);
+
     // Set feature on/off
     String8 onOffValues = createValuesStringFromMap(
             ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP));
@@ -8768,13 +8779,17 @@ int32_t QCameraParameters::setSeeMore(const char *seeMoreStr)
             // and disable tone map
             if (m_bSeeMoreOn) {
                 m_bStillMoreOn = TRUE;
-                rc = setToneMapMode(false, false);
+                if (!m_bLtmForSeeMoreEnabled) {
+                    rc = setToneMapMode(false, false);
+                }
                 if (rc != NO_ERROR) {
                     CDBG_HIGH("%s: Failed to disable tone map during SeeMore", __func__);
                 }
             } else {
                 m_bStillMoreOn = FALSE;
-                rc = setToneMapMode(true, false);
+                if (!m_bLtmForSeeMoreEnabled) {
+                    rc = setToneMapMode(true, false);
+                }
                 if (rc != NO_ERROR) {
                     CDBG_HIGH("%s: Failed to enable tone map during SeeMore", __func__);
                 }
