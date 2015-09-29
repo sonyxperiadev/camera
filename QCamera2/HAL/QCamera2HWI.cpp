@@ -642,6 +642,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
 {
     ATRACE_CALL();
     int ret = NO_ERROR;
+    int32_t flashMode;
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
     if (!hw) {
@@ -701,8 +702,10 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
         CDBG_HIGH("%s: [ZSL Retro] Normal Pic Taking Mode", __func__);
 
         CDBG_HIGH("%s: [ZSL Retro] Start Prepare Snapshot", __func__);
+        flashMode = hw->mParameters.getFlash();
         /* Prepare snapshot in case LED needs to be flashed */
-        if (hw->mFlashNeeded == 1 || hw->mParameters.isChromaFlashEnabled()) {
+        if ((hw->mFlashNeeded == 1 && flashMode != CAM_FLASH_MODE_OFF) ||
+          hw->mParameters.isChromaFlashEnabled()) {
             // Start Preparing for normal Frames
             CDBG_HIGH("%s: [ZSL Retro]  Start Prepare Snapshot", __func__);
             /* Prepare snapshot in case LED needs to be flashed */
@@ -3650,6 +3653,7 @@ void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt, char *raw_fo
 int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *raw_format)
 {
     int rc = NO_ERROR;
+    int32_t flashMode;
     qcamera_api_result_t apiResult;
 
     lockAPI();
@@ -3658,8 +3662,10 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *r
     mParameters.setJpegRotation(mParameters.getRotation());
 
     setRetroPicture(0);
+    flashMode = mParameters.getFlash();
     /* Prepare snapshot in case LED needs to be flashed */
-    if (mFlashNeeded == 1 || mParameters.isChromaFlashEnabled()) {
+    if ((mFlashNeeded == 1 && flashMode != CAM_FLASH_MODE_OFF) ||
+      mParameters.isChromaFlashEnabled()) {
         // Start Preparing for normal Frames
         CDBG_HIGH("%s: Start Prepare Snapshot", __func__);
         /* Prepare snapshot in case LED needs to be flashed */

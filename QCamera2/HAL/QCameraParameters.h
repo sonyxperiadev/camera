@@ -622,6 +622,7 @@ public:
     uint8_t getBurstNum();
     int getBurstLEDOnPeriod();
     int getRetroActiveBurstNum();
+    int32_t getFlash();
     bool getRecordingHintValue() {return m_bRecordingHint;}; // return local copy of video hint
     int setRecordingHintValue(int32_t value); // set local copy of video hint and send to server
                                               // no change in parameters value

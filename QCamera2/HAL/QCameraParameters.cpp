@@ -2959,6 +2959,23 @@ int32_t QCameraParameters::setFlash(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : getFlash
+ *
+ * DESCRIPTION: get flash mode value from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::getFlash()
+{
+    return mFlashValue;
+}
+
+/*===========================================================================
  * FUNCTION   : setAecLock
  *
  * DESCRIPTION: set AEC lock value from user setting
