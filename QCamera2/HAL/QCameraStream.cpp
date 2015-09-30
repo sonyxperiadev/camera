@@ -1590,6 +1590,12 @@ int32_t QCameraStream::mapBuffers()
 {
     int32_t rc = NO_ERROR;
     QCameraBufferMaps bufferMaps;
+
+    if (mStreamBufs == NULL) {
+        ALOGE("%s: Stream buffers not allocated", __func__);
+        return UNKNOWN_ERROR;
+    }
+
     uint8_t numBufsToMap = mStreamBufs->getMappable();
     for (uint32_t i = 0; i < numBufsToMap; i++) {
         ssize_t bufSize = mStreamBufs->getSize(i);
