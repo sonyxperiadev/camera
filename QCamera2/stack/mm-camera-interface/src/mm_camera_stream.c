@@ -2898,8 +2898,7 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
         buf_planes->plane_info.mp[0].width = dim->width;
         buf_planes->plane_info.mp[0].height = dim->height;
 
-        scanline = PAD_TO_SIZE(((dim->height/2) +
-                (2 * offset_y)), padding->height_padding);
+        scanline = scanline/2;
         buf_planes->plane_info.mp[1].len =
                 PAD_TO_SIZE((uint32_t)(stride * scanline),
                 padding->plane_padding);
