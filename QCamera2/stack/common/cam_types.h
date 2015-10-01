@@ -323,6 +323,9 @@ typedef enum {
 
     CAM_FORMAT_YUV_420_NV21_VENUS,
 
+    /* RGB formats */
+    CAM_FORMAT_8888_ARGB,
+
     CAM_FORMAT_MAX
 } cam_format_t;
 
