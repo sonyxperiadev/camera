@@ -1808,7 +1808,7 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
     }
 
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.dc.frame.sync", prop, "0");
+    property_get("persist.camera.dc.frame.sync", prop, "1");
     m_bFrameSyncEnabled = atoi(prop);
 
     // Get logical camera
