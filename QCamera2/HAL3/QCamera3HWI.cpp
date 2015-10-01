@@ -321,7 +321,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
         const camera_module_callbacks_t *callbacks)
     : mCameraId(cameraId),
       mCameraHandle(NULL),
-      mCameraOpened(false),
       mCameraInitialized(false),
       mCallbackOps(NULL),
       mMetadataChannel(NULL),
@@ -331,7 +330,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mAnalysisChannel(NULL),
       mRawDumpChannel(NULL),
       mDummyBatchChannel(NULL),
-      mFirstRequest(false),
       mFirstConfiguration(true),
       mFlush(false),
       mFlushPerf(false),
@@ -358,7 +356,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mNeedSensorRestart(false),
       mLdafCalibExist(false),
       mPowerHintEnabled(false),
-      mLastCustIntentFrmNum(-1)
+      mLastCustIntentFrmNum(-1),
+      mState(CLOSED)
 {
     getLogLevel();
     m_perfLock.lock_init();
@@ -505,7 +504,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         deinitParameters();
     }
 
-    if (mCameraOpened)
+    if (mState != CLOSED)
         closeCamera();
 
     mPendingBuffersMap.mPendingBufferList.clear();
@@ -623,10 +622,11 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
 int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
 {
     int rc = 0;
-    if (mCameraOpened) {
+    if (mState != CLOSED) {
         *hw_device = NULL;
         return PERMISSION_DENIED;
     }
+
     m_perfLock.lock_acq();
     ALOGI("[KPI Perf] %s: E PROFILE_OPEN_CAMERA camera id %d",
             __func__, mCameraId);
@@ -641,6 +641,9 @@ int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
     ALOGI("[KPI Perf] %s: X PROFILE_OPEN_CAMERA camera id %d, rc: %d",
             __func__, mCameraId, rc);
 
+    if (rc == NO_ERROR) {
+        mState = OPENED;
+    }
     return rc;
 }
 
@@ -683,8 +686,6 @@ int QCamera3HardwareInterface::openCamera()
         ALOGE("camera_open failed. mCameraHandle = %p", mCameraHandle);
         return -ENODEV;
     }
-
-    mCameraOpened = true;
 
     rc = mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
             camEvtHandle, (void *)this);
@@ -733,7 +734,6 @@ int QCamera3HardwareInterface::closeCamera()
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
-    mCameraOpened = false;
 
     //Notify display HAL that there is no active camera session
     pthread_mutex_lock(&gCamLock);
@@ -750,6 +750,7 @@ int QCamera3HardwareInterface::closeCamera()
                 __func__,
                 mCameraId);
     }
+    mState = CLOSED;
 
     return rc;
 }
@@ -773,6 +774,12 @@ int QCamera3HardwareInterface::initialize(
 
     pthread_mutex_lock(&mMutex);
 
+    if (mState != OPENED) {
+        ALOGE("%s: Invalid state %d", __func__, mState);
+        rc = -ENODEV;
+        goto err1;
+    }
+
     rc = initParameters();
     if (rc < 0) {
         ALOGE("%s: initParamters failed %d", __func__, rc);
@@ -782,6 +789,7 @@ int QCamera3HardwareInterface::initialize(
 
     pthread_mutex_unlock(&mMutex);
     mCameraInitialized = true;
+    mState = INITIALIZED;
     return 0;
 
 err1:
@@ -1196,6 +1204,15 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     }
 
     pthread_mutex_lock(&mMutex);
+
+    // Check state
+    if ((mState != INITIALIZED) && (mState != CONFIGURED)
+            && (mState != STARTED)) {
+        ALOGE("%s: Wrong state %d", __func__, mState);
+        pthread_mutex_unlock(&mMutex);
+        rc = -ENODEV;
+        return rc;
+    }
 
     /* Check whether we have video stream */
     m_bIs4KVideo = false;
@@ -2015,12 +2032,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     mPendingBuffersMap.mPendingBufferList.clear();
     mPendingReprocessResultList.clear();
 
-    mFirstRequest = true;
     mCurJpegMeta.clear();
     //Get min frame duration for this streams configuration
     deriveMinFrameDuration();
 
-    /* Turn on video hint only if video stream is configured */
+    // Update state
+    mState = CONFIGURED;
 
     pthread_mutex_unlock(&mMutex);
 
@@ -2051,7 +2068,7 @@ int QCamera3HardwareInterface::validateCaptureRequest(
         return BAD_VALUE;
     }
 
-    if (request->settings == NULL && mFirstRequest) {
+    if ((request->settings == NULL) && (mState == CONFIGURED)) {
         /*settings cannot be null for the first request*/
         return BAD_VALUE;
     }
@@ -3083,6 +3100,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
     pthread_mutex_lock(&mMutex);
 
+    // Validate current state
+    if ((mState != CONFIGURED) && (mState != STARTED)) {
+        ALOGE("%s: Wrong state %d", __func__, mState);
+        pthread_mutex_unlock(&mMutex);
+        return -ENODEV;
+    }
+
     rc = validateCaptureRequest(request);
     if (rc != NO_ERROR) {
         ALOGE("%s: incoming request is not valid", __func__);
@@ -3094,7 +3118,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
     // For first capture request, send capture intent, and
     // stream on all streams
-    if (mFirstRequest) {
+    if (mState == CONFIGURED) {
         // send an unconfigure to the backend so that the isp
         // resources are deallocated
         if (!mFirstConfiguration) {
@@ -3407,7 +3431,7 @@ no_error:
         request_id = meta.find(ANDROID_REQUEST_ID).data.i32[0];
         mCurrentRequestId = request_id;
         CDBG("%s: Received request with id: %d",__func__, request_id);
-    } else if (mFirstRequest || mCurrentRequestId == -1){
+    } else if (mState == CONFIGURED || mCurrentRequestId == -1){
         ALOGE("%s: Unable to find request id field, \
                 & no previous id available", __func__);
         pthread_mutex_unlock(&mMutex);
@@ -3708,7 +3732,7 @@ no_error:
 
     CDBG("%s: mPendingLiveRequest = %d", __func__, mPendingLiveRequest);
 
-    mFirstRequest = false;
+    mState = STARTED;
     // Added a timed condition wait
     struct timespec ts;
     uint8_t isValidTimeout = 1;
@@ -3830,6 +3854,11 @@ int QCamera3HardwareInterface::flush()
 
     CDBG("%s: Unblocking Process Capture Request", __func__);
     pthread_mutex_lock(&mMutex);
+    if (mState != STARTED) {
+        ALOGI("%s: Flush returned during state %d", __func__, mState);
+        pthread_mutex_unlock(&mMutex);
+        return 0;
+    }
     mFlush = true;
     pthread_mutex_unlock(&mMutex);
 
@@ -9470,7 +9499,9 @@ int32_t QCamera3HardwareInterface::stopAllChannels()
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
         QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-        channel->stop();
+        if (channel) {
+            channel->stop();
+        }
         (*it)->status = INVALID;
     }
 
