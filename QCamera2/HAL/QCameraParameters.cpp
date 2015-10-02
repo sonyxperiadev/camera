@@ -11973,8 +11973,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             stream_config_info.num_streams++;
         }
 
-        if (getRecordingHintValue() != true) {
-            /* Analysis stream is used only in capture usecase */
+        /* Analysis stream is needed by DCRF regardless of recording hint */
+        if (getDcrf() == true) {
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_ANALYSIS;
             getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,

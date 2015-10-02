@@ -6020,7 +6020,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         return rc;
     }
 
-    if (mParameters.getRecordingHintValue() != true && !mParameters.isSecureMode()) {
+    if (mParameters.getDcrf() == true && !mParameters.isSecureMode()) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_ANALYSIS,
                 NULL, this);
         if (rc != NO_ERROR) {
