@@ -792,6 +792,7 @@ public:
     int32_t configureAEBracketing(cam_capture_frame_config_t &frame_config);
     int32_t configureHDRBracketing(cam_capture_frame_config_t &frame_config);
     int32_t configureLowLight(cam_capture_frame_config_t &frame_config);
+    int32_t configureManualCapture(cam_capture_frame_config_t &frame_config);
     int32_t configFrameCapture(bool commitSettings);
     int32_t resetFrameCapture(bool commitSettings);
     cam_still_more_t getStillMoreSettings() {return m_stillmore_config;};
@@ -1155,6 +1156,7 @@ private:
     cam_low_light_mode_t m_LowLightLevel;
     bool m_bLtmForSeeMoreEnabled;
     int64_t m_expTime;
+    int32_t m_isoValue;
     QCameraManualCaptureModes m_ManualCaptureMode;
 };
 
