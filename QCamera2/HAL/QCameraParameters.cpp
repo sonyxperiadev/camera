@@ -7189,6 +7189,12 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
         configureAEBracketing (m_captureFrameConfig);
     } else if (m_LowLightLevel) {
         configureLowLight (m_captureFrameConfig);
+
+        //Added reset capture type as a last batch for back-end to restore settings.
+        int32_t batch_count = m_captureFrameConfig.num_batch;
+        m_captureFrameConfig.configs[batch_count].type = CAM_CAPTURE_RESET;
+        m_captureFrameConfig.configs[batch_count].num_frames = 0;
+        m_captureFrameConfig.num_batch++;
     }
 
     rc = ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,

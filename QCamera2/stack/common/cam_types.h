@@ -898,6 +898,7 @@ typedef enum {
     CAM_CAPTURE_FLASH,
     CAM_CAPTURE_BRACKETING,
     CAM_CAPTURE_LOW_LIGHT,
+    CAM_CAPTURE_RESET,
     CAM_CAPTURE_MAX
 } cam_capture_type;
 
