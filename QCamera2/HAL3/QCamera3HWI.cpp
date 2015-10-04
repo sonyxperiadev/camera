@@ -5983,20 +5983,21 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       1);
 
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_APERTURES,
-                      gCamCapability[cameraId]->apertures,
-                      gCamCapability[cameraId]->apertures_count);
+            gCamCapability[cameraId]->apertures,
+            MIN(CAM_APERTURES_MAX, gCamCapability[cameraId]->apertures_count));
 
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_FILTER_DENSITIES,
-                gCamCapability[cameraId]->filter_densities,
-                gCamCapability[cameraId]->filter_densities_count);
+            gCamCapability[cameraId]->filter_densities,
+            MIN(CAM_FILTER_DENSITIES_MAX, gCamCapability[cameraId]->filter_densities_count));
 
 
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,
-                      (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
-                      gCamCapability[cameraId]->optical_stab_modes_count);
+            (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
+            MIN((size_t)CAM_OPT_STAB_MAX, gCamCapability[cameraId]->optical_stab_modes_count));
 
-    int32_t lens_shading_map_size[] = {gCamCapability[cameraId]->lens_shading_map_size.width,
-            gCamCapability[cameraId]->lens_shading_map_size.height};
+    int32_t lens_shading_map_size[] = {
+            MIN(CAM_MAX_SHADING_MAP_WIDTH, gCamCapability[cameraId]->lens_shading_map_size.width),
+            MIN(CAM_MAX_SHADING_MAP_HEIGHT, gCamCapability[cameraId]->lens_shading_map_size.height)};
     staticInfo.update(ANDROID_LENS_INFO_SHADING_MAP_SIZE,
                       lens_shading_map_size,
                       sizeof(lens_shading_map_size)/sizeof(int32_t));
@@ -6025,11 +6026,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       pixel_array_size, sizeof(pixel_array_size)/sizeof(pixel_array_size[0]));
 
     int32_t active_array_size[] = {gCamCapability[cameraId]->active_array_size.left,
-                                                gCamCapability[cameraId]->active_array_size.top,
-                                                gCamCapability[cameraId]->active_array_size.width,
-                                                gCamCapability[cameraId]->active_array_size.height};
+            gCamCapability[cameraId]->active_array_size.top,
+            gCamCapability[cameraId]->active_array_size.width,
+            gCamCapability[cameraId]->active_array_size.height};
     staticInfo.update(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE,
-                      active_array_size, sizeof(active_array_size)/sizeof(active_array_size[0]));
+            active_array_size, sizeof(active_array_size)/sizeof(active_array_size[0]));
 
     staticInfo.update(ANDROID_SENSOR_INFO_WHITE_LEVEL,
             &gCamCapability[cameraId]->white_level, 1);
@@ -6038,22 +6039,23 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             gCamCapability[cameraId]->black_level_pattern, BLACK_LEVEL_PATTERN_CNT);
 
     staticInfo.update(ANDROID_FLASH_INFO_CHARGE_DURATION,
-                      &gCamCapability[cameraId]->flash_charge_duration, 1);
+            &gCamCapability[cameraId]->flash_charge_duration, 1);
 
     staticInfo.update(ANDROID_TONEMAP_MAX_CURVE_POINTS,
-                      &gCamCapability[cameraId]->max_tone_map_curve_points, 1);
+            &gCamCapability[cameraId]->max_tone_map_curve_points, 1);
 
     uint8_t timestampSource = ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN;
     staticInfo.update(ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE,
             &timestampSource, 1);
 
     staticInfo.update(ANDROID_STATISTICS_INFO_HISTOGRAM_BUCKET_COUNT,
-                      &gCamCapability[cameraId]->histogram_size, 1);
+            &gCamCapability[cameraId]->histogram_size, 1);
 
     staticInfo.update(ANDROID_STATISTICS_INFO_MAX_HISTOGRAM_COUNT,
             &gCamCapability[cameraId]->max_histogram_count, 1);
 
-    int32_t sharpness_map_size[] = {gCamCapability[cameraId]->sharpness_map_size.width,
+    int32_t sharpness_map_size[] = {
+            gCamCapability[cameraId]->sharpness_map_size.width,
             gCamCapability[cameraId]->sharpness_map_size.height};
 
     staticInfo.update(ANDROID_STATISTICS_INFO_SHARPNESS_MAP_SIZE,
@@ -6145,8 +6147,9 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_STATISTICS_INFO_MAX_FACE_COUNT,
             (int32_t *)&maxFaces, 1);
 
-    int32_t exposureCompensationRange[] = {gCamCapability[cameraId]->exposure_compensation_min,
-                                           gCamCapability[cameraId]->exposure_compensation_max};
+    int32_t exposureCompensationRange[] = {
+            gCamCapability[cameraId]->exposure_compensation_min,
+            gCamCapability[cameraId]->exposure_compensation_max};
     staticInfo.update(ANDROID_CONTROL_AE_COMPENSATION_RANGE,
             exposureCompensationRange,
             sizeof(exposureCompensationRange)/sizeof(int32_t));
@@ -6166,7 +6169,6 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             count * 2, MAX_SIZES_CNT * 2, gCamCapability[cameraId]->active_array_size,
             gCamCapability[cameraId]->max_downscale_factor);
     /*android.scaler.availableStreamConfigurations*/
-    size_t max_stream_configs_size = count * scalar_formats_count * 4;
     Vector<int32_t> available_stream_configs;
     cam_dimension_t active_array_dim;
     active_array_dim.width = gCamCapability[cameraId]->active_array_size.width;
@@ -6177,7 +6179,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW16:
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW_OPAQUE:
         case HAL_PIXEL_FORMAT_RAW10:
-            for (size_t i = 0; i < gCamCapability[cameraId]->supported_raw_dim_cnt; i++) {
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->supported_raw_dim_cnt); i++) {
                 addStreamConfig(available_stream_configs, scalar_formats[j],
                         gCamCapability[cameraId]->raw_dim[i],
                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
@@ -6198,7 +6201,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         default:
             cam_dimension_t largest_picture_size;
             memset(&largest_picture_size, 0, sizeof(cam_dimension_t));
-            for (size_t i = 0; i < gCamCapability[cameraId]->picture_sizes_tbl_cnt; i++) {
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
                 addStreamConfig(available_stream_configs, scalar_formats[j],
                         gCamCapability[cameraId]->picture_sizes_tbl[i],
                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
@@ -6229,40 +6233,33 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_STATISTICS_HOT_PIXEL_MAP_MODE, &hotPixelMapMode, 1);
 
     /* android.scaler.availableMinFrameDurations */
-    int64_t available_min_durations[max_stream_configs_size];
-    size_t idx = 0;
+    Vector<int64_t> available_min_durations;
     for (size_t j = 0; j < scalar_formats_count; j++) {
         switch (scalar_formats[j]) {
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW16:
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW_OPAQUE:
         case HAL_PIXEL_FORMAT_RAW10:
-            for (size_t i = 0; i < gCamCapability[cameraId]->supported_raw_dim_cnt; i++) {
-                available_min_durations[idx] = scalar_formats[j];
-                available_min_durations[idx+1] =
-                    gCamCapability[cameraId]->raw_dim[i].width;
-                available_min_durations[idx+2] =
-                    gCamCapability[cameraId]->raw_dim[i].height;
-                available_min_durations[idx+3] =
-                    gCamCapability[cameraId]->raw_min_duration[i];
-                idx+=4;
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->supported_raw_dim_cnt); i++) {
+                available_min_durations.add(scalar_formats[j]);
+                available_min_durations.add(gCamCapability[cameraId]->raw_dim[i].width);
+                available_min_durations.add(gCamCapability[cameraId]->raw_dim[i].height);
+                available_min_durations.add(gCamCapability[cameraId]->raw_min_duration[i]);
             }
             break;
         default:
-            for (size_t i = 0; i < gCamCapability[cameraId]->picture_sizes_tbl_cnt; i++) {
-                available_min_durations[idx] = scalar_formats[j];
-                available_min_durations[idx+1] =
-                    gCamCapability[cameraId]->picture_sizes_tbl[i].width;
-                available_min_durations[idx+2] =
-                    gCamCapability[cameraId]->picture_sizes_tbl[i].height;
-                available_min_durations[idx+3] =
-                    gCamCapability[cameraId]->picture_min_duration[i];
-                idx+=4;
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
+                available_min_durations.add(scalar_formats[j]);
+                available_min_durations.add(gCamCapability[cameraId]->picture_sizes_tbl[i].width);
+                available_min_durations.add(gCamCapability[cameraId]->picture_sizes_tbl[i].height);
+                available_min_durations.add(gCamCapability[cameraId]->picture_min_duration[i]);
             }
             break;
         }
     }
     staticInfo.update(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS,
-                      &available_min_durations[0], idx);
+                      available_min_durations.array(), available_min_durations.size());
 
     Vector<int32_t> available_hfr_configs;
     for (size_t i = 0; i < gCamCapability[cameraId]->hfr_tbl_cnt; i++) {
@@ -6872,34 +6869,30 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     int32_t stall_formats[] = {HAL_PIXEL_FORMAT_BLOB, ANDROID_SCALER_AVAILABLE_FORMATS_RAW16};
     size_t stall_formats_count = sizeof(stall_formats)/sizeof(int32_t);
 
-    count = MIN(gCamCapability[cameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
-    size_t raw_count = MIN(gCamCapability[cameraId]->supported_raw_dim_cnt,
-            MAX_SIZES_CNT);
-    size_t available_stall_size = count * 4;
-    int64_t available_stall_durations[available_stall_size];
-    idx = 0;
+    Vector<int64_t> available_stall_durations;
     for (uint32_t j = 0; j < stall_formats_count; j++) {
-       if (stall_formats[j] == HAL_PIXEL_FORMAT_BLOB) {
-          for (uint32_t i = 0; i < count; i++) {
-             available_stall_durations[idx]   = stall_formats[j];
-             available_stall_durations[idx+1] = gCamCapability[cameraId]->picture_sizes_tbl[i].width;
-             available_stall_durations[idx+2] = gCamCapability[cameraId]->picture_sizes_tbl[i].height;
-             available_stall_durations[idx+3] = gCamCapability[cameraId]->jpeg_stall_durations[i];
-             idx+=4;
+        if (stall_formats[j] == HAL_PIXEL_FORMAT_BLOB) {
+            for (uint32_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
+                available_stall_durations.add(stall_formats[j]);
+                available_stall_durations.add(gCamCapability[cameraId]->picture_sizes_tbl[i].width);
+                available_stall_durations.add(gCamCapability[cameraId]->picture_sizes_tbl[i].height);
+                available_stall_durations.add(gCamCapability[cameraId]->jpeg_stall_durations[i]);
           }
-       } else {
-          for (uint32_t i = 0; i < raw_count; i++) {
-             available_stall_durations[idx]   = stall_formats[j];
-             available_stall_durations[idx+1] = gCamCapability[cameraId]->raw_dim[i].width;
-             available_stall_durations[idx+2] = gCamCapability[cameraId]->raw_dim[i].height;
-             available_stall_durations[idx+3] = gCamCapability[cameraId]->raw16_stall_durations[i];
-             idx+=4;
-          }
-       }
+        } else {
+            for (uint32_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->supported_raw_dim_cnt); i++) {
+                available_stall_durations.add(stall_formats[j]);
+                available_stall_durations.add(gCamCapability[cameraId]->raw_dim[i].width);
+                available_stall_durations.add(gCamCapability[cameraId]->raw_dim[i].height);
+                available_stall_durations.add(gCamCapability[cameraId]->raw16_stall_durations[i]);
+            }
+        }
     }
     staticInfo.update(ANDROID_SCALER_AVAILABLE_STALL_DURATIONS,
-                      available_stall_durations,
-                      idx);
+                      available_stall_durations.array(),
+                      available_stall_durations.size());
+
     //QCAMERA3_OPAQUE_RAW
     uint8_t raw_format = QCAMERA3_OPAQUE_RAW_FORMAT_LEGACY;
     cam_format_t fmt = CAM_FORMAT_BAYER_QCOM_RAW_10BPP_GBRG;
@@ -6929,17 +6922,18 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     }
     staticInfo.update(QCAMERA3_OPAQUE_RAW_FORMAT, &raw_format, 1);
 
-    int32_t strides[3*raw_count];
-    for (size_t i = 0; i < raw_count; i++) {
+    Vector<int32_t> strides;
+    for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+            gCamCapability[cameraId]->supported_raw_dim_cnt); i++) {
         cam_stream_buf_plane_info_t buf_planes;
-        strides[i*3] = gCamCapability[cameraId]->raw_dim[i].width;
-        strides[i*3+1] = gCamCapability[cameraId]->raw_dim[i].height;
+        strides.add(gCamCapability[cameraId]->raw_dim[i].width);
+        strides.add(gCamCapability[cameraId]->raw_dim[i].height);
         mm_stream_calc_offset_raw(fmt, &gCamCapability[cameraId]->raw_dim[i],
             &gCamCapability[cameraId]->padding_info, &buf_planes);
-        strides[i*3+2] = buf_planes.plane_info.mp[0].stride;
+        strides.add(buf_planes.plane_info.mp[0].stride);
     }
-    staticInfo.update(QCAMERA3_OPAQUE_RAW_STRIDES, strides,
-            3*raw_count);
+    staticInfo.update(QCAMERA3_OPAQUE_RAW_STRIDES, strides.array(),
+            strides.size());
 
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
