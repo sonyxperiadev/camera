@@ -1147,6 +1147,15 @@ QCamera3StreamMem* QCamera3ProcessingChannel::getStreamBufs(uint32_t /*len*/)
 void QCamera3ProcessingChannel::putStreamBufs()
 {
     mMemory.unregisterBuffers();
+
+    /* Reclaim all the offline metabuffers and push them to free list */
+    {
+        Mutex::Autolock lock(mFreeOfflineMetaBuffersLock);
+        mFreeOfflineMetaBuffersList.clear();
+        for (uint32_t i = 0; i < mOfflineMetaMemory.getCnt(); i++) {
+            mFreeOfflineMetaBuffersList.push_back(i);
+        }
+    }
 }
 
 
@@ -3405,7 +3414,7 @@ QCamera3StreamMem* QCamera3PicChannel::getStreamBufs(uint32_t len)
 
 void QCamera3PicChannel::putStreamBufs()
 {
-    mMemory.unregisterBuffers();
+    QCamera3ProcessingChannel::putStreamBufs();
 
     mYuvMemory->deallocate();
     delete mYuvMemory;
