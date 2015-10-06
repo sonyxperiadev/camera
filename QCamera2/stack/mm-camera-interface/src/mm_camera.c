@@ -50,8 +50,6 @@
 #define GET_PARM_BIT32(parm, parm_arr) \
     ((parm_arr[parm/32]>>(parm%32))& 0x1)
 
-#define WAIT_TIMEOUT 3
-
 /* internal function declare */
 int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
                           uint8_t reg_flag);
