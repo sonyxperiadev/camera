@@ -55,6 +55,8 @@
 * settings can be applied and small enough to still capture an image */
 #define MM_CAMERA_MAX_FUTURE_FRAME_WAIT 100
 
+#define WAIT_TIMEOUT 5
+
 #ifndef TRUE
 #define TRUE 1
 #endif
@@ -227,7 +229,7 @@ typedef struct {
     /* indicate if buf is in kernel(1) or client(0) */
     uint8_t in_kernel;
     /*indicate if this buffer is mapped to daemon*/
-    uint8_t is_mapped;
+    int8_t map_status;
 } mm_stream_buf_status_t;
 
 typedef struct mm_stream {
