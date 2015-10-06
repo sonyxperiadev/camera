@@ -641,6 +641,7 @@ public:
     bool isTNRVideoEnabled() {return m_bTNRVideoOn;};
     bool isTNRSnapshotEnabled() {return m_bTNRSnapshotOn;};
     int32_t getCDSMode() {return mCds_mode;};
+    bool isLTMForSeeMoreEnabled() {return m_bLtmForSeeMoreEnabled;};
     bool isHfrMode() {return m_bHfrMode;};
     void getHfrFps(cam_fps_range_t &pFpsRange) { pFpsRange = m_hfrFpsRange;};
     uint8_t getNumOfSnapshots();
@@ -1148,6 +1149,7 @@ private:
     int8_t mVideoBatchSize;
     bool m_LLCaptureEnabled;
     cam_low_light_mode_t m_LowLightLevel;
+    bool m_bLtmForSeeMoreEnabled;
 };
 
 }; // namespace qcamera
