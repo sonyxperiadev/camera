@@ -632,6 +632,7 @@ public:
     bool isTNRPreviewEnabled() {return m_bTNRPreviewOn;};
     bool isTNRVideoEnabled() {return m_bTNRVideoOn;};
     int32_t getCDSMode() {return mCds_mode;};
+    bool isLTMForSeeMoreEnabled() {return m_bLtmForSeeMoreEnabled;};
     bool isHfrMode() {return m_bHfrMode;};
     void getHfrFps(cam_fps_range_t &pFpsRange) { pFpsRange = m_hfrFpsRange;};
     uint8_t getNumOfSnapshots();
@@ -1108,6 +1109,7 @@ private:
     int32_t mParmZoomLevel;
     bool m_bIsLowMemoryDevice;
     int32_t mCds_mode;
+    bool m_bLtmForSeeMoreEnabled;
     int32_t mParmEffect;
     cam_capture_frame_config_t m_captureFrameConfig;
     int8_t mBufBatchCnt;
