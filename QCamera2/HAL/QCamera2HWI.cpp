@@ -6113,7 +6113,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         }
     }
 
-    if (((getCamHalCapabilities()->hw_analysis_supported)
+    if (((mParameters.isFDInVideoEnabled())
             || (mParameters.getDcrf() == true)
             || (mParameters.getRecordingHintValue() != true))
             && (!mParameters.isSecureMode())) {
@@ -7261,7 +7261,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
                 sendCommand(CAMERA_CMD_LONGSHOT_OFF, arg, arg);
             }
             if (mParameters.isFaceDetectionEnabled()
-                    && (!getCamHalCapabilities()->hw_analysis_supported)) {
+                    && (!mParameters.isFDInVideoEnabled())) {
                 sendCommand(CAMERA_CMD_STOP_FACE_DETECTION, arg, arg);
             }
             if (mParameters.isHistogramEnabled()) {

@@ -4052,7 +4052,7 @@ int32_t QCameraParameters::setRecordingHint(const QCameraParameters& params)
                 updateParamEntry(KEY_RECORDING_HINT, str);
                 setRecordingHintValue(value);
                 if (getFaceDetectionOption() == true) {
-                    if (!m_pCapability->hw_analysis_supported) {
+                    if (!isFDInVideoEnabled()) {
                         setFaceDetection(value > 0 ? false : true, false);
                     } else {
                         setFaceDetection(true, false);
@@ -12208,7 +12208,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         /* Analysis stream is needed by DCRF regardless of recording hint */
         if ((getDcrf() == true) ||
                 (getRecordingHintValue() != true) ||
-                (m_pCapability->hw_analysis_supported)) {
+                (isFDInVideoEnabled())) {
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_ANALYSIS;
             getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
@@ -13424,4 +13424,31 @@ void QCameraParameters::setLowLightCapture()
         m_LowLightLevel = CAM_LOW_LIGHT_OFF;
     }
 }
+
+/*===========================================================================
+ * FUNCTION   : isFDInVideoEnabled
+ *
+ * DESCRIPTION: FD in Video change
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : TRUE  : If FD in Video enabled
+ *              FALSE : If FD in Video disabled
+ *==========================================================================*/
+bool QCameraParameters::isFDInVideoEnabled()
+{
+    char value[PROPERTY_VALUE_MAX];
+    bool fdvideo = FALSE;
+
+    if (!m_pCapability->hw_analysis_supported) {
+        return FALSE;
+    }
+
+    property_get("persist.camera.fdvideo", value, "0");
+    fdvideo = (atoi(value) > 0) ? TRUE : FALSE;
+
+    CDBG("%s: FD in Video enabled : %d", __func__, fdvideo);
+    return fdvideo;
+}
+
 }; // namespace qcamera
