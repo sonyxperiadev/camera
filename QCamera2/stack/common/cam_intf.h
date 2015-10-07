@@ -30,6 +30,7 @@
 #ifndef __QCAMERA_INTF_H__
 #define __QCAMERA_INTF_H__
 
+#include <string.h>
 #include <media/msmb_isp.h>
 #include "cam_types.h"
 

@@ -74,7 +74,7 @@
 #include "cam_types.h"
 
 #define ERROR(format, ...) printf( \
-    "%s[%d] : ERROR: "format"\n", __func__, __LINE__, ##__VA_ARGS__)
+    "%s[%d] : ERROR: " format "\n", __func__, __LINE__, ##__VA_ARGS__)
 #define VIDEO_BUF_ALLIGN(size, allign) \
   (((size) + (allign-1)) & (typeof(size))(~(allign-1)))
 
@@ -839,7 +839,12 @@ void CameraContext::notify(int32_t msgType, int32_t ext1, int32_t ext2)
 {
     printf("Notify cb: %d %d %d\n", msgType, ext1, ext2);
 
-    if (( msgType & CAMERA_MSG_PREVIEW_FRAME) && (ext1 == CAMERA_FRAME_DATA_FD)) {
+    if (( msgType & CAMERA_MSG_PREVIEW_FRAME)
+#ifndef VANILLA_HAL
+          && (ext1 == CAMERA_FRAME_DATA_FD)
+#endif
+       )
+    {
         int fd = dup(ext2);
         printf("notify Preview Frame fd: %d dup fd: %d\n", ext2, fd);
         close(fd);
@@ -1644,7 +1649,11 @@ CameraContext::CameraContext(int cameraIndex) :
     mPreviewSurface(NULL),
     mInUse(false)
 {
+#ifdef USE_L_MR1
     mRecorder = new MediaRecorder();
+#else
+    mRecorder = new MediaRecorder(String16("camera"));
+#endif
 }
 
 /*===========================================================================
@@ -2964,8 +2973,10 @@ status_t Interpreter::configureViVCodec()
         format->setInt32("width", mTestContext->mViVVid.VideoSizes[1].width);
         format->setInt32("height", mTestContext->mViVVid.VideoSizes[1].height);
     }
+
+    int fd = open(fileName, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
     mTestContext->mViVVid.muxer = new MediaMuxer(
-        fileName, MediaMuxer::OUTPUT_FORMAT_MPEG_4);
+        fd, MediaMuxer::OUTPUT_FORMAT_MPEG_4);
 
     format->setString("mime", "video/avc");
     format->setInt32("color-format", OMX_COLOR_FormatAndroidOpaque);

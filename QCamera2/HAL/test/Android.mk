@@ -36,7 +36,7 @@ LOCAL_C_INCLUDES += \
     frameworks/base/include/media \
     external/skia/include/core \
     external/skia/include/images \
-    hardware/qcom/display/libgralloc \
+    $(TARGET_OUT_HEADERS)/qcom/display \
     hardware/qcom/camera/QCamera2/stack/common \
     frameworks/av/include/media/stagefright \
     frameworks/native/include/media/openmax \
@@ -52,6 +52,10 @@ ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) >= 20 ))" )))
 
 LOCAL_CFLAGS += -DUSE_SDK_20_OR_HIGHER
 
+endif
+
+ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) <= 22 ))" )))
+LOCAL_CFLAGS += -DUSE_L_MR1
 endif
 
 include $(BUILD_EXECUTABLE)

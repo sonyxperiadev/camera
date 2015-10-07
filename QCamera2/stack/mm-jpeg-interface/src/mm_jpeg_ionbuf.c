@@ -28,6 +28,8 @@
  */
 
 #include "mm_jpeg_ionbuf.h"
+#include <stdio.h>
+#include <string.h>
 #include <linux/msm_ion.h>
 
 /** buffer_allocate:
