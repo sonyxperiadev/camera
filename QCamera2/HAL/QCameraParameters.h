@@ -337,6 +337,10 @@ public:
     static const char KEY_QC_STILL_MORE[];
     static const char KEY_QC_SUPPORTED_STILL_MORE_MODES[];
 
+    //Noise reduction mode
+    static const char KEY_QC_NOISE_REDUCTION_MODE[];
+    static const char KEY_QC_NOISE_REDUCTION_MODE_VALUES[];
+
     //Longshot
     static const char KEY_QC_LONGSHOT_SUPPORTED[];
 
@@ -563,6 +567,9 @@ public:
     static const char CDS_MODE_ON[];
     static const char CDS_MODE_AUTO[];
 
+    static const char VALUE_FAST[];
+    static const char VALUE_HIGH_QUALITY[];
+
     static const char KEY_SELECTED_AUTO_SCENE[];
 
     // Values for Video rotation
@@ -728,6 +735,7 @@ public:
     bool needThumbnailReprocess(uint32_t *pFeatureMask);
     inline bool isUbiFocusEnabled() {return m_bAFBracketingOn && !m_bReFocusOn;};
     inline bool isChromaFlashEnabled() {return m_bChromaFlashOn;};
+    inline bool isHighQualityNoiseReductionMode() {return m_bHighQualityNoiseReductionMode;};
     inline bool isTruePortraitEnabled() {return m_bTruePortraitOn;};
     inline size_t getTPMaxMetaSize() {
         return m_pCapability->true_portrait_settings_need.meta_max_size;};
@@ -870,6 +878,7 @@ private:
     int32_t setTruePortrait(const QCameraParameters& );
     int32_t setSeeMore(const QCameraParameters& );
     int32_t setStillMore(const QCameraParameters& );
+    int32_t setNoiseReductionMode(const QCameraParameters& );
     int32_t setRedeyeReduction(const QCameraParameters& );
     int32_t setGpsLocation(const QCameraParameters& );
     int32_t setRecordingHint(const QCameraParameters& );
@@ -940,6 +949,7 @@ private:
     int32_t setTruePortrait(const char *truePortraitStr);
     int32_t setSeeMore(const char *SeeMoreStr);
     int32_t setStillMore(const char *StillMoreStr);
+    int32_t setNoiseReductionMode(const char *optiZoomStr);
     int32_t setRedeyeReduction(const char *redeyeStr);
     int32_t setWaveletDenoise(const char *wnrStr);
     int32_t setFaceRecognition(const char *faceRecog, uint32_t maxFaces);
@@ -1013,6 +1023,7 @@ private:
     static const QCameraMap<int> VIDEO_ROTATION_MODES_MAP[];
     static const QCameraMap<int> SEE_MORE_MODES_MAP[];
     static const QCameraMap<int> STILL_MORE_MODES_MAP[];
+    static const QCameraMap<int> NOISE_REDUCTION_MODES_MAP[];
 
     cam_capability_t *m_pCapability;
     mm_camera_vtbl_t *m_pCamOpsTbl;
@@ -1085,6 +1096,7 @@ private:
     cam_scene_mode_type m_SelectedScene;
     bool m_bSeeMoreOn;
     bool m_bStillMoreOn;
+    bool m_bHighQualityNoiseReductionMode;
     cam_fps_range_t m_hfrFpsRange;
     bool m_bHfrMode;
     bool m_bSensorHDREnabled;             // if HDR is enabled
