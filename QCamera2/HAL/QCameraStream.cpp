@@ -351,6 +351,8 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
     memset(&mMapTask, 0, sizeof(mMapTask));
     pthread_mutex_init(&mCropLock, NULL);
     pthread_mutex_init(&mParameterLock, NULL);
+    pthread_mutex_init(&m_lock, NULL);
+    pthread_cond_init(&m_cond, NULL);
 }
 
 /*===========================================================================
@@ -388,6 +390,8 @@ QCameraStream::~QCameraStream()
         mCamOps->delete_stream(mCamHandle, mChannelHandle, mHandle);
         mHandle = 0;
     }
+    pthread_mutex_destroy(&m_lock);
+    pthread_cond_destroy(&m_cond);
 }
 
 /*===========================================================================
@@ -833,8 +837,6 @@ int32_t QCameraStream::start()
     if (rc == NO_ERROR) {
         m_bActive = true;
     }
-    pthread_mutex_init(&m_lock, NULL);
-    pthread_cond_init(&m_cond, NULL);
     return rc;
 }
 
