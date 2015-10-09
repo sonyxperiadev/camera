@@ -7105,6 +7105,9 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
             snapshot_feature_mask, pp_config.feature_mask);
 
     bool offlineReproc = isRegularCapture();
+    if (m_postprocessor.mOfflineDataBufs != NULL) {
+        offlineReproc = TRUE;
+    }
 
     cam_padding_info_t paddingInfo = gCamCapability[mCameraId]->padding_info;
     paddingInfo.offset_info.offset_x = 0;
