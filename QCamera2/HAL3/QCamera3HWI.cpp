@@ -5693,9 +5693,12 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_POST_PROCESSING);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_READ_SENSOR_SETTINGS);
+#ifdef USE_L_MR1
     /* Adding this check for advertising burst capabilities only where min fps for max
      * resolution is >= 20 to fix CTS issue */
-    if (gCamCapability[cameraId]->picture_min_duration[0] <= m_MinDurationBoundNs) {
+    if (gCamCapability[cameraId]->picture_min_duration[0] <= m_MinDurationBoundNs)
+#endif
+    {
         available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BURST_CAPTURE);
     }
     if (CAM_SENSOR_YUV != gCamCapability[cameraId]->sensor_type.sens_type) {
