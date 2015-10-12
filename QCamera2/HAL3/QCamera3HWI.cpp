@@ -9537,10 +9537,12 @@ int32_t QCamera3HardwareInterface::startAllChannels()
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
         QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-        rc = channel->start();
-        if (rc < 0) {
-            ALOGE("%s: channel start failed", __func__);
-            return rc;
+        if (channel) {
+            rc = channel->start();
+            if (rc < 0) {
+                ALOGE("%s: channel start failed", __func__);
+                return rc;
+            }
         }
     }
     if (mAnalysisChannel) {
