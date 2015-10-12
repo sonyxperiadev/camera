@@ -3076,11 +3076,40 @@ int QCamera2HardwareInterface::startRecording()
         }
     }
 
+    //link meta stream with video channel if low power mode.
+    if (isLowPowerMode()) {
+        // Find and try to link a metadata stream from preview channel
+        QCameraChannel *pMetaChannel = NULL;
+        QCameraStream *pMetaStream = NULL;
+        QCameraChannel *pVideoChannel = m_channels[QCAMERA_CH_TYPE_VIDEO];
+
+        if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
+            pMetaChannel = m_channels[QCAMERA_CH_TYPE_PREVIEW];
+            uint32_t streamNum = pMetaChannel->getNumOfStreams();
+            QCameraStream *pStream = NULL;
+            for (uint32_t i = 0 ; i < streamNum ; i++ ) {
+                pStream = pMetaChannel->getStreamByIndex(i);
+                if ((NULL != pStream) &&
+                        (CAM_STREAM_TYPE_METADATA == pStream->getMyType())) {
+                    pMetaStream = pStream;
+                    break;
+                }
+            }
+        }
+
+        if ((NULL != pMetaChannel) && (NULL != pMetaStream)) {
+            rc = pVideoChannel->linkStream(pMetaChannel, pMetaStream);
+            if (NO_ERROR != rc) {
+                CDBG_HIGH("%s : Metadata stream link failed %d", __func__, rc);
+            }
+        }
+    }
+
     if (rc == NO_ERROR) {
         rc = startChannel(QCAMERA_CH_TYPE_VIDEO);
     }
 
-    if (mParameters.isTNRSnapshotEnabled()) {
+    if (mParameters.isTNRSnapshotEnabled() && !isLowPowerMode()) {
         QCameraChannel *pChannel = m_channels[QCAMERA_CH_TYPE_SNAPSHOT];
         if (!mParameters.is4k2kVideoResolution()) {
             // Find and try to link a metadata stream from preview channel
@@ -4625,24 +4654,39 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
     // Configure advanced capture
     configureAdvancedCapture();
 
+    if (isLowPowerMode()) {
+        pChannel = m_channels[QCAMERA_CH_TYPE_VIDEO];
+    } else {
+        pChannel = m_channels[QCAMERA_CH_TYPE_SNAPSHOT];
+    }
+
+    if (NULL == pChannel) {
+        ALOGE("%s: Snapshot/Video channel not initialized", __func__);
+        rc = NO_INIT;
+        goto end;
+    }
+
     // start post processor
     if (NO_ERROR != waitDeferredWork(mInitPProcJob)) {
         ALOGE("%s:%d Init PProc Deferred work failed",
                 __func__, __LINE__);
         return UNKNOWN_ERROR;
     }
-    rc = m_postprocessor.start(m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
+    rc = m_postprocessor.start(pChannel);
     if (NO_ERROR != rc) {
         ALOGE("%s: Post-processor start failed %d", __func__, rc);
         goto end;
     }
 
-    pChannel = m_channels[QCAMERA_CH_TYPE_SNAPSHOT];
-    if (NULL == pChannel) {
-        ALOGE("%s: Snapshot channel not initialized", __func__);
-        rc = NO_INIT;
+    if (isLowPowerMode()) {
+        mm_camera_req_buf_t buf;
+        memset(&buf, 0x0, sizeof(buf));
+        buf.type = MM_CAMERA_REQ_SUPER_BUF;
+        buf.num_buf_requested = 1;
+        rc = ((QCameraVideoChannel*)pChannel)->takePicture(&buf);
         goto end;
     }
+
     //Disable reprocess for 4K liveshot case
     if (!mParameters.is4k2kVideoResolution()) {
         rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
@@ -6176,8 +6220,20 @@ int32_t QCamera2HardwareInterface::addVideoChannel()
         return NO_MEMORY;
     }
 
-    // preview only channel, don't need bundle attr and cb
-    rc = pChannel->init(NULL, NULL, NULL);
+    if (isLowPowerMode()) {
+        mm_camera_channel_attr_t attr;
+        memset(&attr, 0, sizeof(mm_camera_channel_attr_t));
+        attr.notify_mode = MM_CAMERA_SUPER_BUF_NOTIFY_BURST;
+        attr.look_back = 0; //wait for future frame for liveshot
+        attr.post_frame_skip = mParameters.getZSLBurstInterval();
+        attr.water_mark = 1; //hold min buffers possible in Q
+        attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
+        rc = pChannel->init(&attr, snapshot_channel_cb_routine, this);
+    } else {
+        // preview only channel, don't need bundle attr and cb
+        rc = pChannel->init(NULL, NULL, NULL);
+    }
+
     if (rc != 0) {
         ALOGE("%s: init video channel failed, ret = %d", __func__, rc);
         delete pChannel;
@@ -7267,10 +7323,16 @@ int32_t QCamera2HardwareInterface::preparePreview()
             if (mParameters.isHistogramEnabled()) {
                 sendCommand(CAMERA_CMD_HISTOGRAM_OFF, arg, arg);
             }
-            rc = addChannel(QCAMERA_CH_TYPE_SNAPSHOT);
-            if (rc != NO_ERROR) {
-               return rc;
+
+            //Don't create snapshot channel for liveshot, if low power mode is set.
+            //Use video stream instead.
+            if (!isLowPowerMode()) {
+               rc = addChannel(QCAMERA_CH_TYPE_SNAPSHOT);
+               if (rc != NO_ERROR) {
+                   return rc;
+               }
             }
+
             rc = addChannel(QCAMERA_CH_TYPE_VIDEO);
             if (rc != NO_ERROR) {
                 delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
@@ -8106,9 +8168,9 @@ bool QCamera2HardwareInterface::needReprocess()
         return false;
     }
 
-    //Disable reprocess for 4K liveshot case
-    if (mParameters.is4k2kVideoResolution()&& mParameters.getRecordingHintValue()) {
-        //Disable reprocess for 4K liveshot case
+    //Disable reprocess for 4K liveshot case but enable if lowpower mode
+    if (mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
+            && !isLowPowerMode()) {
         pthread_mutex_unlock(&m_parm_lock);
         return false;
     }
@@ -8151,7 +8213,9 @@ bool QCamera2HardwareInterface::needRotationReprocess()
         return false;
     }
 
-    if (mParameters.is4k2kVideoResolution()&& mParameters.getRecordingHintValue()) {
+    //Disable reprocess for 4K liveshot case
+    if (mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
+            && !isLowPowerMode()) {
         //Disable reprocess for 4K liveshot case
         pthread_mutex_unlock(&m_parm_lock);
         return false;
@@ -9271,6 +9335,35 @@ void QCamera2HardwareInterface::getLogLevel()
 cam_sensor_t QCamera2HardwareInterface::getSensorType()
 {
     return gCamCapability[mCameraId]->sensor_type.sens_type;
+}
+
+/*===========================================================================
+ * FUNCTION   : isLowPowerMode
+ *
+ * DESCRIPTION: Returns TRUE if low power mode settings are to be applied for video recording
+ *
+ * PARAMETERS :
+ *   None
+ *
+ * RETURN     : TRUE/FALSE
+ *
+ *==========================================================================*/
+bool QCamera2HardwareInterface::isLowPowerMode()
+{
+    cam_dimension_t dim;
+    mParameters.getStreamDimension(CAM_STREAM_TYPE_VIDEO, dim);
+
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("camera.lowpower.record.enable", prop, "0");
+    int enable = atoi(prop);
+
+    //Enable low power mode if :
+    //1. Video resolution is 2k (2048x1080) or above and
+    //2. camera.lowpower.record.enable is set
+
+    bool isLowpower = mParameters.getRecordingHintValue() && enable
+            && ((dim.width * dim.height) >= (2048 * 1080));
+    return isLowpower;
 }
 
 }; // namespace qcamera
