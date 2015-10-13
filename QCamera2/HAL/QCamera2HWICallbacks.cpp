@@ -1294,7 +1294,8 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                 struct encoder_media_buffer_type * packet =
                         (struct encoder_media_buffer_type *)video_mem->data;
                 // fd cnt => Number of buffer FD's and buffer for offset, size, timestamp
-                packet->meta_handle = native_handle_create(fd_cnt, (3 * fd_cnt));
+                packet->meta_handle = native_handle_create(
+                        fd_cnt, (VIDEO_METADATA_NUM_INTS * fd_cnt));
                 packet->buffer_type = kMetadataBufferTypeCameraSource;
                 nh = const_cast<native_handle_t *>(packet->meta_handle);
             } else {
