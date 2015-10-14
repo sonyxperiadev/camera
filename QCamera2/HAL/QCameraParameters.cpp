@@ -5023,8 +5023,9 @@ int32_t QCameraParameters::initDefaultParameters()
     // Set default preview format
     CameraParameters::setPreviewFormat(PIXEL_FORMAT_YUV420SP);
 
-    // Set default Video Format
-    set(KEY_VIDEO_FRAME_FORMAT, "YVU420SemiPlanar");
+    // Set default Video Format as OPAQUE
+    //Internally both Video and Camera subsystems use NV21_VENUS
+    set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_ANDROID_OPAQUE);
 
     // Set supported picture formats
     String8 pictureTypeValues(PIXEL_FORMAT_JPEG);

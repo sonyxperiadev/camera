@@ -55,7 +55,9 @@ LOCAL_C_INCLUDES += \
         frameworks/native/include/media/hardware \
         hardware/qcom/camera/QCamera2/HAL
 
+ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+endif
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_CFLAGS += -DTARGET_TS_MAKEUP
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/HAL/tsMakeuplib/include
@@ -66,6 +68,10 @@ endif
 
 ifneq (,$(filter msm8996,$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DUBWC_PRESENT
+endif
+
+ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) <= 22 ))" )))
+LOCAL_CFLAGS += -DUSE_L_MR1
 endif
 
 #LOCAL_STATIC_LIBRARIES := libqcamera2_util

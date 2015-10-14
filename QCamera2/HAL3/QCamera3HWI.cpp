@@ -5148,9 +5148,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
                       gCamCapability[cameraId]->optical_stab_modes_count);
 
+    #ifdef USE_L_MR1
     staticInfo.update(ANDROID_LENS_POSITION,
                       gCamCapability[cameraId]->lens_position,
                       sizeof(gCamCapability[cameraId]->lens_position)/ sizeof(float));
+    #endif
 
     int32_t lens_shading_map_size[] = {gCamCapability[cameraId]->lens_shading_map_size.width,
             gCamCapability[cameraId]->lens_shading_map_size.height};
@@ -5717,12 +5719,14 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       &max_latency,
                       1);
 
+#ifdef USE_L_MR1
     float optical_axis_angle[2];
     optical_axis_angle[0] = 0; //need to verify
     optical_axis_angle[1] = 0; //need to verify
     staticInfo.update(ANDROID_LENS_OPTICAL_AXIS_ANGLE,
                       optical_axis_angle,
                       2);
+#endif
 
     uint8_t available_hot_pixel_modes[] = {ANDROID_HOT_PIXEL_MODE_FAST};
     staticInfo.update(ANDROID_HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES,
@@ -5887,7 +5891,10 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,
        ANDROID_LENS_INFO_HYPERFOCAL_DISTANCE, ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE,
        ANDROID_LENS_INFO_SHADING_MAP_SIZE, ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION,
-       ANDROID_LENS_FACING, ANDROID_LENS_OPTICAL_AXIS_ANGLE,ANDROID_LENS_POSITION,
+       ANDROID_LENS_FACING,
+#ifdef USE_L_MR1
+       ANDROID_LENS_OPTICAL_AXIS_ANGLE,ANDROID_LENS_POSITION,
+#endif
        ANDROID_REQUEST_MAX_NUM_OUTPUT_STREAMS, ANDROID_REQUEST_MAX_NUM_INPUT_STREAMS,
        ANDROID_REQUEST_PIPELINE_MAX_DEPTH, ANDROID_REQUEST_AVAILABLE_CAPABILITIES,
        ANDROID_REQUEST_AVAILABLE_REQUEST_KEYS, ANDROID_REQUEST_AVAILABLE_RESULT_KEYS,
