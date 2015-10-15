@@ -5792,7 +5792,7 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     if (m_pParamHeap == NULL) {
         ALOGE("%s: Parameter buffers have not been allocated", __func__);
         rc = UNKNOWN_ERROR;
-        goto TRANS_INIT_DONE;
+        goto TRANS_INIT_ERROR1;
     }
 
     //Map memory for parameters buffer
@@ -5857,10 +5857,14 @@ TRANS_INIT_ERROR3:
 
 TRANS_INIT_ERROR2:
     m_pParamHeap->deallocate();
-
-TRANS_INIT_ERROR1:
     delete m_pParamHeap;
     m_pParamHeap = NULL;
+
+TRANS_INIT_ERROR1:
+    m_pCapability = NULL;
+    m_pCamOpsTbl = NULL;
+    m_AdjustFPS = NULL;
+    m_pTorch = NULL;
 
 TRANS_INIT_DONE:
     return rc;
@@ -5885,7 +5889,7 @@ void QCameraParameters::deinit()
     String8 emptyStr;
     QCameraParameters::unflatten(emptyStr);
 
-    if (NULL != m_pCamOpsTbl) {
+    if ((NULL != m_pCamOpsTbl) && (m_pCamOpsTbl->ops != NULL)) {
         m_pCamOpsTbl->ops->unmap_buf(
                              m_pCamOpsTbl->camera_handle,
                              CAM_MAPPING_BUF_TYPE_PARM_BUF);
@@ -5893,7 +5897,6 @@ void QCameraParameters::deinit()
         m_pCamOpsTbl->ops->unmap_buf(
                 m_pCamOpsTbl->camera_handle,
                 CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
-        m_pCamOpsTbl = NULL;
     }
 
     m_pCapability = NULL;
@@ -5911,8 +5914,10 @@ void QCameraParameters::deinit()
     }
 
     m_AdjustFPS = NULL;
-
     m_tempMap.clear();
+    m_pCamOpsTbl = NULL;
+    m_AdjustFPS = NULL;
+    m_pTorch = NULL;
 
     m_bInited = false;
 }

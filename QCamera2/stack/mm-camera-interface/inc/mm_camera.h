@@ -54,6 +54,7 @@
 /* Future frame idx, large enough to make sure capture
 * settings can be applied and small enough to still capture an image */
 #define MM_CAMERA_MAX_FUTURE_FRAME_WAIT 100
+#define WAIT_TIMEOUT 5
 
 #ifndef TRUE
 #define TRUE 1
@@ -227,7 +228,7 @@ typedef struct {
     /* indicate if buf is in kernel(1) or client(0) */
     uint8_t in_kernel;
     /*indicate if this buffer is mapped to daemon*/
-    uint8_t is_mapped;
+    int8_t map_status;
 } mm_stream_buf_status_t;
 
 typedef struct mm_stream {
@@ -577,7 +578,6 @@ uint8_t mm_camera_util_chip_is_a_family(void);
 /* mm-camera */
 extern int32_t mm_camera_open(mm_camera_obj_t *my_obj);
 extern int32_t mm_camera_close(mm_camera_obj_t *my_obj);
-extern int32_t mm_camera_close_fd(mm_camera_obj_t *my_obj);
 extern int32_t mm_camera_register_event_notify(mm_camera_obj_t *my_obj,
                                                mm_camera_event_notify_t evt_cb,
                                                void * user_data);

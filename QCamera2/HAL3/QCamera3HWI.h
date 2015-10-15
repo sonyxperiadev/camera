@@ -216,6 +216,30 @@ public:
 
 private:
 
+    // State transition conditions:
+    // "\" means not applicable
+    // "x" means not valid
+    // +------------+----------+----------+-------------+------------+---------+
+    // |            |  CLOSED  |  OPENED  | INITIALIZED | CONFIGURED | STARTED |
+    // +------------+----------+----------+-------------+------------+---------+
+    // |  CLOSED    |    \     |   open   |     x       |    x       |    x    |
+    // +------------+----------+----------+-------------+------------+---------+
+    // |  OPENED    |  close   |    \     | initialize  |    x       |    x    |
+    // +------------+----------+----------+-------------+------------+---------+
+    // |INITIALIZED |  close   |    x     |     \       | configure  |   x     |
+    // +------------+----------+----------+-------------+------------+---------+
+    // | CONFIGURED |  close   |    x     |     x       | configure  | request |
+    // +------------+----------+----------+-------------+------------+---------+
+    // |  STARTED   |  close   |    x     |     x       | configure  |    \    |
+    // +------------+----------+----------+-------------+------------+---------+
+    typedef enum {
+        CLOSED,
+        OPENED,
+        INITIALIZED,
+        CONFIGURED,
+        STARTED,
+    } State;
+
     int openCamera();
     int closeCamera();
     static size_t calcMaxJpegSize(uint32_t camera_id);
@@ -274,7 +298,6 @@ private:
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
     mm_camera_vtbl_t  *mCameraHandle;
-    bool               mCameraOpened;
     bool               mCameraInitialized;
     camera_metadata_t *mDefaultMetadata[CAMERA3_TEMPLATE_COUNT];
     const camera3_callback_ops_t *mCallbackOps;
@@ -292,7 +315,6 @@ private:
     mm_jpeg_exif_params_t mExifParams;
 
      //First request yet to be processed after configureStreams
-    bool mFirstRequest;
     bool mFirstConfiguration;
     bool mFlush;
     bool mFlushPerf;
@@ -463,6 +485,8 @@ private:
     void *lib_surface_utils;
     int (*LINK_get_surface_pixel_alignment)();
     uint32_t mSurfaceStridePadding;
+
+    State mState;
 };
 
 }; // namespace qcamera
