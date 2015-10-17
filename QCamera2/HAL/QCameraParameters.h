@@ -857,6 +857,7 @@ public:
     bool isOEMFeatEnabled() { return m_bOEMFeatEnabled; }
     int32_t setZslMode(bool value);
     int32_t updateZSLModeValue(bool value);
+    int32_t checkFeatureConcurrency();
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
