@@ -296,6 +296,8 @@ private:
             uint32_t width, uint32_t height);
     void hdrPlusPerfLock(mm_camera_super_buf_t *metadata_buf);
 
+    static bool supportBurstCapture(uint32_t cameraId);
+
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
     mm_camera_vtbl_t  *mCameraHandle;
