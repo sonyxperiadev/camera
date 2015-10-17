@@ -3434,6 +3434,12 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     CDBG_HIGH("%s: E",__func__);
     int32_t rc = NO_ERROR;
 
+    rc = mParameters.checkFeatureConcurrency();
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Cannot support Advanced capture modes", __func__);
+        return rc;
+    }
+
     setOutputImageCount(0);
     mInputCount = 0;
     mAdvancedCaptureConfigured = true;
@@ -3828,7 +3834,12 @@ int QCamera2HardwareInterface::takePicture()
     }
 
     //Do special configure for advanced capture modes.
-    configureAdvancedCapture();
+    rc = configureAdvancedCapture();
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Unsupported capture call", __func__);
+        return rc;
+    }
+
     if (mAdvancedCaptureConfigured) {
         numSnapshots = mParameters.getBurstCountForAdvancedCapture();
     }
@@ -4661,7 +4672,11 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
     mParameters.setJpegRotation(mParameters.getRotation());
 
     // Configure advanced capture
-    configureAdvancedCapture();
+    rc = configureAdvancedCapture();
+    if (rc != NO_ERROR) {
+        ALOGE("%s: Unsupported capture call", __func__);
+        goto end;
+    }
 
     // start post processor
     if (NO_ERROR != waitDeferredWork(mInitPProcJob)) {
