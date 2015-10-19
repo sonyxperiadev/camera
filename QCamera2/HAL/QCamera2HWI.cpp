@@ -8737,8 +8737,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                             }
                         }
 
-                        if(!pme->mJpegClientHandle &&
-                                (pme->getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY)) {
+                        if(!pme->mJpegClientHandle) {
                             rc = pme->initJpegHandle();
                             if (rc != NO_ERROR) {
                                 ALOGE("%s: Error!! creating JPEG handle failed", __func__);
