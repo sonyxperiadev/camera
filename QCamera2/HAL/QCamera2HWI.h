@@ -250,6 +250,8 @@ public:
     void checkIntPicPending(bool JpegMemOpt, char *raw_format);
     static int cancel_picture(struct camera_device *);
     static int set_parameters(struct camera_device *, const char *parms);
+    static int commit_parameters_stop_preview(struct camera_device *);
+    static int commit_parameters_start_preview(struct camera_device *);
     static char* get_parameters(struct camera_device *);
     static void put_parameters(struct camera_device *, char *);
     static int send_command(struct camera_device *,

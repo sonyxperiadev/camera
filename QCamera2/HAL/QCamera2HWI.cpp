@@ -851,8 +851,108 @@ int QCamera2HardwareInterface::set_parameters(struct camera_device *device,
         hw->waitAPIResult(QCAMERA_SM_EVT_SET_PARAMS, &apiResult);
         ret = apiResult.status;
     }
+
+    // Give HWI control to commit parameters (restart if necessary) only
+    // in single camera mode. In dual-cam mode, this control belongs to muxer.
+    if (ret == NO_ERROR &&
+        hw->getRelatedCamSyncInfo()->sync_control != CAM_SYNC_RELATED_SENSORS_ON) {
+
+        CDBG("%s: committing param change", __func__);
+        ret = hw->processAPI(QCAMERA_SM_EVT_COMMIT_PARAMS, NULL);
+        if (ret == NO_ERROR) {
+            hw->waitAPIResult(QCAMERA_SM_EVT_COMMIT_PARAMS, &apiResult);
+            ret = apiResult.status;
+        }
+    }
+
     hw->unlockAPI();
     CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : commit_parameters_stop_preview
+ *
+ * DESCRIPTION: commit camera parameters, stop preview if necessary
+ *
+ * PARAMETERS :
+ *   @device  : ptr to camera device struct
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::commit_parameters_stop_preview(struct camera_device *device)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+        reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+
+    if (hw->getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        ret = hw->processAPI(QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW, NULL);
+        if (ret == NO_ERROR) {
+            hw->waitAPIResult(QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW, &apiResult);
+            ret = apiResult.status;
+        }
+    } else {
+        ALOGE("%s is not supposed to be called in single-camera mode", __func__);
+        ret = INVALID_OPERATION;
+    }
+
+    hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
+
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : commit_parameters_start_preview
+ *
+ * DESCRIPTION: commit camera parameters, start preview if necessary
+ *
+ * PARAMETERS :
+ *   @device  : ptr to camera device struct
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::commit_parameters_start_preview(struct camera_device *device)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+        reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+
+    if (hw->getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        ret = hw->processAPI(QCAMERA_SM_EVT_COMMIT_START_PREVIEW, NULL);
+        if (ret == NO_ERROR) {
+            hw->waitAPIResult(QCAMERA_SM_EVT_COMMIT_START_PREVIEW, &apiResult);
+            ret = apiResult.status;
+        }
+    } else {
+        ALOGE("%s is not supposed to be called in single-camera mode", __func__);
+        ret = INVALID_OPERATION;
+    }
+
+    hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 
     return ret;
 }

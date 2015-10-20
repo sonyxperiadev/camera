@@ -53,6 +53,9 @@ typedef enum {
     QCAMERA_SM_EVT_MSG_TYPE_ENABLED,         // query certain msg type is enabled
 
     QCAMERA_SM_EVT_SET_PARAMS,               // set parameters
+    QCAMERA_SM_EVT_COMMIT_PARAMS,            // commit parameter changes, restart if necessary
+    QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW,      // commit parameter changes, stop preview if necessary
+    QCAMERA_SM_EVT_COMMIT_START_PREVIEW,     // commit parameter changes, start preview if necessary
     QCAMERA_SM_EVT_GET_PARAMS,               // get parameters
     QCAMERA_SM_EVT_PUT_PARAMS,               // put parameters, release param buf
 
@@ -238,6 +241,7 @@ private:
     pthread_t cmd_pid;                    // cmd thread ID
     cam_semaphore_t cmd_sem;              // semaphore for cmd thread
     bool m_bDelayPreviewMsgs;             // Delay preview callback enable during ZSL snapshot
+    bool m_bPreviewNeedsRestart;          // Review needs restart
     int32_t m_DelayedMsgs;
 };
 

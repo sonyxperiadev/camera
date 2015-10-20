@@ -1134,6 +1134,37 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
             return rc;
         }
     }
+
+    for (uint32_t i = 0; i < cam->numCameras; i++) {
+        pCam = gMuxer->getPhysicalCamera(cam, i);
+        CHECK_CAMERA_ERROR(pCam);
+
+        QCamera2HardwareInterface *hwi = pCam->hwi;
+        CHECK_HWI_ERROR(hwi);
+
+        CDBG("%s: stopping preview for cam %d", __func__, i);
+        rc = QCamera2HardwareInterface::commit_parameters_stop_preview(pCam->dev);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Error committing parameters rc=%d!! ", __func__, rc);
+            return rc;
+        }
+    }
+
+    for (uint32_t i = 0; i < cam->numCameras; i++) {
+        pCam = gMuxer->getPhysicalCamera(cam, i);
+        CHECK_CAMERA_ERROR(pCam);
+
+        QCamera2HardwareInterface *hwi = pCam->hwi;
+        CHECK_HWI_ERROR(hwi);
+
+        CDBG("%s: starting preview for cam %d", __func__, i);
+        rc = QCamera2HardwareInterface::commit_parameters_start_preview(pCam->dev);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Error committing parameters rc=%d!! ", __func__, rc);
+            return rc;
+        }
+    }
+
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
