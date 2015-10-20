@@ -439,7 +439,8 @@ private:
     int32_t addRawChannel();
     int32_t addMetaDataChannel();
     int32_t addAnalysisChannel();
-    QCameraReprocessChannel *addReprocChannel(QCameraChannel *pInputChannel);
+    QCameraReprocessChannel *addReprocChannel(QCameraChannel *pInputChannel,
+            int8_t cur_channel_index = 0);
     QCameraReprocessChannel *addOfflineReprocChannel(
                                                 cam_pp_offline_src_config_t &img_config,
                                                 cam_pp_feature_config_t &pp_feature,
@@ -495,7 +496,8 @@ private:
     void captureDone();
     int32_t updateMetadata(metadata_buffer_t *pMetaData);
 
-    int32_t getPPConfig(cam_pp_feature_config_t &pp_config, int curCount);
+    int32_t getPPConfig(cam_pp_feature_config_t &pp_config,
+            int8_t curIndex = 0, bool multipass = FALSE);
     virtual uint32_t scheduleBackgroundTask(BackgroundTask* bgTask);
     virtual int32_t waitForBackgroundTask(uint32_t &taskId);
     bool needDeferred(cam_stream_type_t stream_type);

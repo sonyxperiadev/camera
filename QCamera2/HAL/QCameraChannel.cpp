@@ -920,7 +920,8 @@ int32_t QCameraVideoChannel::releaseFrame(const void * opaque, bool isMetaData)
 QCameraReprocessChannel::QCameraReprocessChannel(uint32_t cam_handle,
                                                  mm_camera_ops_t *cam_ops) :
     QCameraChannel(cam_handle, cam_ops),
-    m_pSrcChannel(NULL)
+    m_pSrcChannel(NULL),
+    mPassCount(0)
 {
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
 }
@@ -935,7 +936,8 @@ QCameraReprocessChannel::QCameraReprocessChannel(uint32_t cam_handle,
  * RETURN     : none
  *==========================================================================*/
 QCameraReprocessChannel::QCameraReprocessChannel() :
-    m_pSrcChannel(NULL)
+    m_pSrcChannel(NULL),
+    mPassCount(0)
 {
 }
 
@@ -1005,7 +1007,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
         if (pStream != NULL) {
             if (param.getofflineRAW() && !((pStream->isTypeOf(CAM_STREAM_TYPE_RAW))
                     || (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW))
-                    || (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)))) {
+                    || (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA))
+                    || (pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW)))) {
                 //Skip all the stream other than RAW and POSTVIEW incase of offline of RAW
                 continue;
             }
@@ -1179,6 +1182,10 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             mSrcStreamHandles[mStreams.size()] = pStream->getMyHandle();
 
             pMiscBuf = allocator.allocateMiscBuf(streamInfo);
+
+            CDBG_HIGH("Configure Reprocessing: stream = %d, res = %dX%d, fmt = %d, type = %d",
+                    pStream->getMyOriginalType(), streamInfo->dim.width,
+                    streamInfo->dim.height, streamInfo->fmt, type);
 
             // add reprocess stream
             if (streamInfo->reprocess_config.pp_feature_config.feature_mask
