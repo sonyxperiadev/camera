@@ -421,6 +421,10 @@ const char QCameraParameters::KEY_QC_USER_SETTING[] = "user-setting";
 const char QCameraParameters::KEY_QC_WB_CCT_MODE[] = "color-temperature";
 const char QCameraParameters::KEY_QC_WB_GAIN_MODE[] = "rbgb-gains";
 
+//KEY to share HFR batch size with video encoder.
+const char QCameraParameters::KEY_QC_VIDEO_BATCH_SIZE[] = "video-batch-size";
+
+
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
 
@@ -2097,10 +2101,15 @@ bool QCameraParameters::UpdateHFRFrameRate(const QCameraParameters& params)
         CDBG_HIGH("HFR mode is OFF");
     }
 
+    m_hfrFpsRange.min_fps = (float)parm_minfps;
+    m_hfrFpsRange.max_fps = (float)parm_maxfps;
     if (m_bHfrMode && (mHfrMode > CAM_HFR_MODE_120FPS)
             && (parm_maxfps != 0)) {
-        /* Setting Buffer batch count to use batch mode for higher fps*/
+        //Configure buffer batch count to use batch mode for higher fps
         setBufBatchCount((int8_t)(m_hfrFpsRange.video_max_fps / parm_maxfps));
+    } else {
+        //Reset batch count and update KEY for encoder
+        setBufBatchCount(0);
     }
 
     return updateNeeded;
@@ -5414,6 +5423,9 @@ int32_t QCameraParameters::initDefaultParameters()
 
     set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, videoRotationValues.string());
     set(KEY_QC_VIDEO_ROTATION, VIDEO_ROTATION_0);
+
+    //Default set for video batch size
+    set(KEY_QC_VIDEO_BATCH_SIZE, 0);
     return rc;
 }
 
@@ -11828,6 +11840,7 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
 
     if (!(count != 0 || buf_cnt > CAMERA_MIN_BATCH_COUNT)) {
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        set(KEY_QC_VIDEO_BATCH_SIZE, mBufBatchCnt);
         return;
     }
 
@@ -11839,12 +11852,14 @@ void QCameraParameters::setBufBatchCount(int8_t buf_cnt)
     if (count > 0) {
         mBufBatchCnt = count;
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        set(KEY_QC_VIDEO_BATCH_SIZE, mBufBatchCnt);
         return;
     }
 
     if (buf_cnt > CAMERA_MIN_BATCH_COUNT) {
         mBufBatchCnt = buf_cnt;
         CDBG_HIGH("%s : Buffer batch count = %d", __func__, mBufBatchCnt);
+        set(KEY_QC_VIDEO_BATCH_SIZE, mBufBatchCnt);
         return;
     }
 }

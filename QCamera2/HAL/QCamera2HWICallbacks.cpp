@@ -37,6 +37,7 @@
 #include <utils/Trace.h>
 #include <utils/Timers.h>
 #include <QComOMXMetadata.h>
+#include <gralloc_priv.h>
 #include "QCamera2HWI.h"
 
 namespace qcamera {
@@ -1130,8 +1131,8 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
             if (video_mem != NULL) {
                 struct encoder_media_buffer_type * packet =
                         (struct encoder_media_buffer_type *)video_mem->data;
-                // fd cnt => Number of buffer FD's and buffer for offset, size, timestamp
-                packet->meta_handle = native_handle_create(fd_cnt, (3 * fd_cnt));
+                // fd cnt => Number of buffer FD's and buffer for offset, size, usage, timestamp, format
+                packet->meta_handle = native_handle_create(fd_cnt, (5 * fd_cnt));
                 packet->buffer_type = kMetadataBufferTypeCameraSource;
                 nh = const_cast<native_handle_t *>(packet->meta_handle);
             } else {
@@ -1159,7 +1160,9 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                     nh->data[i] = frameobj->getFd(plane_frame->buf_idx);
                     nh->data[fd_cnt + i] = 0;
                     nh->data[(2 * fd_cnt) + i] = (int)frameobj->getSize(plane_frame->buf_idx);
-                    nh->data[(3 * fd_cnt) + i] = (int)(frame_ts - timeStamp);
+                    nh->data[(3 * fd_cnt) + i] = private_handle_t::PRIV_FLAGS_ITU_R_709;
+                    nh->data[(4 * fd_cnt) + i] = (int)(frame_ts - timeStamp);
+                    nh->data[(5 * fd_cnt) + i] = 0;
                     CDBG("Send Video frames to services/encoder delta : %lld FD = %d index = %d",
                             (frame_ts - timeStamp), plane_frame->fd, plane_frame->buf_idx);
                     pme->dumpFrameToFile(stream, plane_frame, QCAMERA_DUMP_FRM_VIDEO);
