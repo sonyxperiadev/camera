@@ -965,6 +965,12 @@ int QCameraMuxer::take_picture(struct camera_device * device)
     char prop[PROPERTY_VALUE_MAX];
     property_get("persist.camera.dual.camera.mpo", prop, "1");
     gMuxer->m_bMpoEnabled = atoi(prop);
+    //If only one Physical Camera included in Logical, disable MPO
+    int numOfAcitvePhyCam = 0;
+    gMuxer->getActiveNumOfPhyCam(cam, numOfAcitvePhyCam);
+    if (gMuxer->m_bMpoEnabled && numOfAcitvePhyCam <= 1) {
+        gMuxer->m_bMpoEnabled = 0;
+    }
     CDBG_HIGH("%s: dualCamera MPO Enabled:%d ", __func__, gMuxer->m_bMpoEnabled);
 
     if (!gMuxer->mJpegClientHandle) {
@@ -1945,6 +1951,30 @@ qcamera_physical_descriptor_t* QCameraMuxer::getPhysicalCamera(
     }
     return &m_pPhyCamera[log_cam->pId[index]];
 }
+
+/*===========================================================================
+ * FUNCTION   : getActiveNumOfPhyCam
+ *
+ * DESCRIPTION: Get active physical camera number in Logical Camera
+ *
+ * PARAMETERS :
+ *   @log_cam :   Logical camera descriptor
+ *   @numOfAcitvePhyCam :  number of active physical camera in Logical Camera.
+ *
+ * RETURN     :
+ *                NO_ERROR  : success
+ *                ENODEV : Camera not found
+ *                other: non-zero failure code
+ *==========================================================================*/
+int32_t QCameraMuxer::getActiveNumOfPhyCam(
+        qcamera_logical_descriptor_t* log_cam, int& numOfAcitvePhyCam)
+{
+    CHECK_CAMERA_ERROR(log_cam);
+
+    numOfAcitvePhyCam = log_cam->numCameras;
+    return NO_ERROR;
+}
+
 
 /*===========================================================================
  * FUNCTION   : sendEvtNotify
