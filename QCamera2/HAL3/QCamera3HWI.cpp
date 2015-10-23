@@ -5766,28 +5766,40 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
 #endif
 
     uint8_t available_hot_pixel_modes[] = {ANDROID_HOT_PIXEL_MODE_FAST,
-                                           ANDROID_HOT_PIXEL_MODE_HIGH_QUALITY};
+#ifndef USE_L_MR1
+                                           ANDROID_HOT_PIXEL_MODE_HIGH_QUALITY
+#endif
+                                           };
     staticInfo.update(ANDROID_HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES,
             available_hot_pixel_modes,
             sizeof(available_hot_pixel_modes)/sizeof(available_hot_pixel_modes[0]));
 
     uint8_t available_edge_modes[] = {ANDROID_EDGE_MODE_OFF,
                                       ANDROID_EDGE_MODE_FAST,
-                                      ANDROID_EDGE_MODE_HIGH_QUALITY};
+#ifndef USE_L_MR1
+                                      ANDROID_EDGE_MODE_HIGH_QUALITY
+#endif
+                                      };
     staticInfo.update(ANDROID_EDGE_AVAILABLE_EDGE_MODES,
             available_edge_modes,
             sizeof(available_edge_modes)/sizeof(available_edge_modes[0]));
 
     uint8_t available_noise_red_modes[] = {ANDROID_NOISE_REDUCTION_MODE_OFF,
                                            ANDROID_NOISE_REDUCTION_MODE_FAST,
-                                           ANDROID_NOISE_REDUCTION_MODE_HIGH_QUALITY};
+#ifndef USE_L_MR1
+                                           ANDROID_NOISE_REDUCTION_MODE_HIGH_QUALITY
+#endif
+                                           };
     staticInfo.update(ANDROID_NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES,
             available_noise_red_modes,
             sizeof(available_noise_red_modes)/sizeof(available_noise_red_modes[0]));
 
     uint8_t available_tonemap_modes[] = {ANDROID_TONEMAP_MODE_CONTRAST_CURVE,
                                          ANDROID_TONEMAP_MODE_FAST,
-                                         ANDROID_TONEMAP_MODE_HIGH_QUALITY};
+#ifndef USE_L_MR1
+                                         ANDROID_TONEMAP_MODE_HIGH_QUALITY
+#endif
+                                         };
     staticInfo.update(ANDROID_TONEMAP_AVAILABLE_TONE_MAP_MODES,
             available_tonemap_modes,
             sizeof(available_tonemap_modes)/sizeof(available_tonemap_modes[0]));
