@@ -974,14 +974,16 @@ extern "C" {
  * or removed from metadata_buffer_t */
 static inline void clear_metadata_buffer(metadata_buffer_t *meta)
 {
-    memset(meta->is_valid, 0, CAM_INTF_PARM_MAX);
-    meta->is_tuning_params_valid = 0;
-    meta->is_mobicat_aec_params_valid = 0;
-    meta->is_statsdebug_ae_params_valid = 0;
-    meta->is_statsdebug_awb_params_valid = 0;
-    meta->is_statsdebug_af_params_valid = 0;
-    meta->is_statsdebug_asd_params_valid = 0;
-    meta->is_statsdebug_stats_params_valid = 0;
+    if (meta) {
+      memset(meta->is_valid, 0, CAM_INTF_PARM_MAX);
+      meta->is_tuning_params_valid = 0;
+      meta->is_mobicat_aec_params_valid = 0;
+      meta->is_statsdebug_ae_params_valid = 0;
+      meta->is_statsdebug_awb_params_valid = 0;
+      meta->is_statsdebug_af_params_valid = 0;
+      meta->is_statsdebug_asd_params_valid = 0;
+      meta->is_statsdebug_stats_params_valid = 0;
+    }
 }
 
 #ifdef  __cplusplus
