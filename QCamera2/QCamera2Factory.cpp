@@ -70,12 +70,14 @@ QCamera2Factory::QCamera2Factory()
     mCallbacks = NULL;
     mNumOfCameras = get_num_of_cameras();
     int bDualCamera = 0;
+    char propDefault[PROPERTY_VALUE_MAX];
     char prop[PROPERTY_VALUE_MAX];
     property_get("persist.camera.HAL3.enabled", prop, "1");
     int isHAL3Enabled = atoi(prop);
 
     // Signifies whether system has to enable dual camera mode
-    property_get("persist.camera.dual.camera", prop, "0");
+    sprintf(propDefault, "%d", isDualCamAvailable(isHAL3Enabled));
+    property_get("persist.camera.dual.camera", prop, propDefault);
     bDualCamera = atoi(prop);
     CDBG_HIGH("%s[%d]: dualCamera:%d ", __func__, __LINE__, bDualCamera);
 
@@ -477,6 +479,39 @@ int QCamera2Factory::openLegacy(
             ALOGE("%s: Device API version: %d for camera id %d invalid",
                 __func__, halVersion, cameraId);
             return BAD_VALUE;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : isDualCamAvailable
+ *
+ * DESCRIPTION: Function to check whether we have dual Camera HW available
+ *
+ * PARAMETERS :
+ *   @hal3Enabled : HAL3 enable flag
+ *
+ * RETURN     : bool - true : have Dual Camera HW available
+ *                           false : not have Dual Camera HW available
+ *==========================================================================*/
+bool QCamera2Factory::isDualCamAvailable(int hal3Enabled)
+{
+    bool rc = FALSE;
+    int i = 0;
+    camera_info info;
+    cam_sync_type_t cam_type = CAM_TYPE_MAIN;
+
+    for (i = 0; i < mNumOfCameras; i++) {
+        if (!hal3Enabled) {
+            QCamera2HardwareInterface::getCapabilities(i, &info, &cam_type);
+        }
+
+        if(cam_type == CAM_TYPE_AUX) {
+            CDBG_HIGH("%s: Have Dual Camera HW Avaiable.", __func__);
+            rc = TRUE;
+            break;
+        }
     }
 
     return rc;

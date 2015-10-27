@@ -52,6 +52,7 @@ public:
     static int set_callbacks(const camera_module_callbacks_t *callbacks);
     static int open_legacy(const struct hw_module_t* module,
             const char* id, uint32_t halVersion, struct hw_device_t** device);
+    bool isDualCamAvailable(int hal3Enabled);
 
 private:
     int getNumberOfCameras();
