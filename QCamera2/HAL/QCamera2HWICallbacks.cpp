@@ -1001,9 +1001,10 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
     if (NULL != previewMemObj && NULL != preview_mem) {
         pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
 
-        if (pme->needProcessPreviewFrame() &&
-            pme->mDataCb != NULL &&
-            pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0 ) {
+        if ((pme->needProcessPreviewFrame()) &&
+                (pme->mDataCb != NULL) &&
+                (pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) &&
+                (pme->getRelatedCamSyncInfo()->mode != CAM_MODE_SECONDARY)) {
             qcamera_callback_argm_t cbArg;
             memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
             cbArg.cb_type = QCAMERA_DATA_CALLBACK;
