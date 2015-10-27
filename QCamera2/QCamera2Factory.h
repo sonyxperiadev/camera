@@ -53,6 +53,7 @@ public:
     static int open_legacy(const struct hw_module_t* module,
             const char* id, uint32_t halVersion, struct hw_device_t** device);
     static int set_torch_mode(const char* camera_id, bool on);
+    bool isDualCamAvailable(int hal3Enabled);
 
 private:
     int getNumberOfCameras();
