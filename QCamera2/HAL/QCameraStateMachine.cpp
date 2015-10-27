@@ -122,6 +122,7 @@ QCameraStateMachine::QCameraStateMachine(QCamera2HardwareInterface *ctrl) :
     pthread_setname_np(cmd_pid, "CAM_stMachine");
     m_bDelayPreviewMsgs = false;
     m_DelayedMsgs = 0;
+    m_RestoreZSL = TRUE;
 }
 
 /*===========================================================================
@@ -472,7 +473,6 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         }
         break;
     case QCAMERA_SM_EVT_START_PREVIEW:
-    case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
         {
             rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
             if (NO_ERROR != rc) {
@@ -488,6 +488,7 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             } else {
                 rc = m_parent->preparePreview();
                 if (rc == NO_ERROR) {
+                    applyDelayedMsgs();
                     rc = m_parent->startPreview();
                     if (rc != NO_ERROR) {
                         m_parent->unpreparePreview();
@@ -503,6 +504,29 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             m_parent->signalAPIResult(&result);
         }
         break;
+    case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
+        {
+            rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
+            if (NO_ERROR != rc) {
+                ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
+            } else {
+                rc = m_parent->preparePreview();
+            }
+            if (rc == NO_ERROR) {
+                applyDelayedMsgs();
+                rc = m_parent->startPreview();
+                if (rc != NO_ERROR) {
+                    m_parent->unpreparePreview();
+                } else {
+                    m_state = QCAMERA_SM_STATE_PREVIEWING;
+                }
+            }
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+    break;
     case QCAMERA_SM_EVT_STOP_PREVIEW:
         {
             // no op needed here
@@ -643,14 +667,6 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -728,6 +744,7 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
         {
             m_parent->setPreviewWindow((struct preview_stream_ops *)payload);
             if (m_parent->mPreviewWindow != NULL) {
+                applyDelayedMsgs();
                 rc = m_parent->startPreview();
                 if (rc != NO_ERROR) {
                     m_parent->unpreparePreview();
@@ -843,8 +860,24 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
             m_parent->signalAPIResult(&result);
         }
         break;
-    case QCAMERA_SM_EVT_START_PREVIEW:
     case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
+        {
+            rc = m_parent->startPreview();
+            if (rc != NO_ERROR) {
+                m_parent->unpreparePreview();
+                m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
+            } else {
+                m_state = QCAMERA_SM_STATE_PREVIEWING;
+            }
+            // no ops here
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_START_PREVIEW:
         {
             if (m_parent->mPreviewWindow != NULL) {
                 rc = m_parent->startPreview();
@@ -980,14 +1013,6 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1144,6 +1169,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                     // start preview again
                     rc = m_parent->preparePreview();
                     if (rc == NO_ERROR) {
+                        applyDelayedMsgs();
                         rc = m_parent->startPreview();
                         if (rc != NO_ERROR) {
                             m_parent->unpreparePreview();
@@ -1323,8 +1349,20 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                 }
            }
            if (m_parent->isZSLMode() || m_parent->isLongshotEnabled()) {
-               m_state = QCAMERA_SM_STATE_PREVIEW_PIC_TAKING;
-               m_bDelayPreviewMsgs = true;
+               bool restartPreview = m_parent->isPreviewRestartEnabled();
+               if ((restartPreview) && (m_parent->mParameters.getManualCaptureMode()
+                       >= CAM_MANUAL_CAPTURE_TYPE_3)) {
+                   /* stop preview and disable ZSL now */
+                   m_parent->stopPreview();
+                   m_parent->mParameters.updateZSLModeValue(FALSE);
+                   m_RestoreZSL = TRUE;
+                   m_bDelayPreviewMsgs = true;
+                   m_state = QCAMERA_SM_STATE_PIC_TAKING;
+               } else {
+                   m_state = QCAMERA_SM_STATE_PREVIEW_PIC_TAKING;
+                   m_bDelayPreviewMsgs = true;
+               }
+
                rc = m_parent->takePicture();
                if (rc != NO_ERROR) {
                    // move state to previewing state
@@ -1359,6 +1397,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             rc = m_parent->sendCommand(cmd_payload->cmd,
                                        cmd_payload->arg1,
                                        cmd_payload->arg2);
+#ifndef VANILLA_HAL
             if (CAMERA_CMD_LONGSHOT_ON == cmd_payload->cmd) {
                 if (QCAMERA_SM_EVT_RESTART_PERVIEW == cmd_payload->arg1) {
                     m_parent->stopPreview();
@@ -1367,6 +1406,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                     // start preview again
                     rc = m_parent->preparePreview();
                     if (rc == NO_ERROR) {
+                        applyDelayedMsgs();
                         rc = m_parent->startPreview();
                         if (rc != NO_ERROR) {
                             m_parent->unpreparePreview();
@@ -1374,6 +1414,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                     }
                 }
             }
+#endif
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -1464,14 +1505,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1631,14 +1664,6 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1992,14 +2017,6 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                     result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
                     m_parent->signalAPIResult(&result);
 
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -2040,6 +2057,7 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 rc = m_parent->preparePreview();
                 if (NO_ERROR == rc) {
                     m_parent->m_bPreviewStarted = true;
+                    applyDelayedMsgs();
                     rc = m_parent->startPreview();
                 }
             }
@@ -2056,6 +2074,17 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
 
             bool restartPreview = m_parent->isPreviewRestartEnabled();
             if (restartPreview) {
+                if (m_parent->mParameters.getManualCaptureMode()
+                        >= CAM_MANUAL_CAPTURE_TYPE_3) {
+                    m_parent->mParameters.updateZSLModeValue(m_RestoreZSL);
+                    m_RestoreZSL = FALSE;
+                    rc = m_parent->preparePreview();
+                    if (NO_ERROR == rc) {
+                        m_parent->m_bPreviewStarted = true;
+                        applyDelayedMsgs();
+                        rc = m_parent->startPreview();
+                    }
+                }
                 m_state = QCAMERA_SM_STATE_PREVIEWING;
             } else {
                 m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
@@ -2415,14 +2444,6 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -2779,14 +2800,6 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -2911,6 +2924,7 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                     // start preview again
                     rc = m_parent->preparePreview();
                     if (rc == NO_ERROR) {
+                        applyDelayedMsgs();
                         rc = m_parent->startPreview();
                         if (rc != NO_ERROR) {
                             m_parent->unpreparePreview();
@@ -3245,14 +3259,6 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);

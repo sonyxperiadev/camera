@@ -762,13 +762,16 @@ typedef enum {
 typedef enum {
     CAM_NOISE_REDUCTION_MODE_OFF,
     CAM_NOISE_REDUCTION_MODE_FAST,
-    CAM_NOISE_REDUCTION_MODE_HIGH_QUALITY
+    CAM_NOISE_REDUCTION_MODE_HIGH_QUALITY,
+    CAM_NOISE_REDUCTION_MODE_MINIMAL,
+    CAM_NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG
 } cam_noise_reduction_mode_t;
 
 typedef enum {
     CAM_EDGE_MODE_OFF,
     CAM_EDGE_MODE_FAST,
     CAM_EDGE_MODE_HIGH_QUALITY,
+    CAM_EDGE_MODE_ZERO_SHUTTER_LAG,
 } cam_edge_mode_t;
 
 typedef struct {
@@ -1935,6 +1938,7 @@ typedef enum {
     CAM_INTF_BUF_DIVERT_INFO,
     /* Use AV timer */
     CAM_INTF_META_USE_AV_TIMER,
+    CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,
     /* Special event to request stream frames*/
     CAM_INTF_PARM_REQUEST_FRAMES,
     /*Black level parameters*/
@@ -1944,13 +1948,13 @@ typedef enum {
     CAM_INTF_META_CDS_DATA,
     /*3A low light level information*/
     CAM_INTF_META_LOW_LIGHT,
+    /* dynamic feature detection */
+    CAM_INTF_META_IMG_DYN_FEAT,
     /*Parameter entry to communicate manual
     capture type*/
     CAM_INTF_PARM_MANUAL_CAPTURE_TYPE,
     /*AF state change detected by AF module*/
     CAM_INTF_AF_STATE_TRANSITION,
-    /* dynamic feature detection */
-    CAM_INTF_META_IMG_DYN_FEAT,
     CAM_INTF_PARM_MAX /* 201 */
 } cam_intf_parm_type_t;
 

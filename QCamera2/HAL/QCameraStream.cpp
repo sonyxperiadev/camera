@@ -1601,15 +1601,15 @@ int32_t QCameraStream::mapBuffers()
     int32_t rc = NO_ERROR;
     QCameraBufferMaps bufferMaps;
 
-    if (mStreamBufs == NULL) {
-        ALOGE("%s: Stream buffers not allocated", __func__);
-        return UNKNOWN_ERROR;
-    }
-
     rc = mAllocator.waitForBackgroundTask(mAllocTaskId);
     if (rc != NO_ERROR) {
         ALOGE("%s: Allocation Failed", __func__);
         return NO_MEMORY;
+    }
+
+    if (mStreamBufs == NULL) {
+        ALOGE("%s: Stream buffers not allocated", __func__);
+        return UNKNOWN_ERROR;
     }
 
     uint8_t numBufsToMap = mStreamBufs->getMappable();
@@ -1870,7 +1870,7 @@ int32_t QCameraStream::releaseBuffs()
         return releaseBatchBufs(NULL);
     }
 
-    if (NULL != mBufDefs && mStreamBufs != NULL) {
+    if ((NULL != mBufDefs) && (mStreamBufs != NULL)) {
         uint8_t numBufsToUnmap = mStreamBufs->getMappable();
         for (uint32_t i = 0; i < numBufsToUnmap; i++) {
             rc = unmapBuf(CAM_MAPPING_BUF_TYPE_STREAM_BUF, i, -1, NULL);
@@ -1884,7 +1884,7 @@ int32_t QCameraStream::releaseBuffs()
         mBufDefs = NULL;
         memset(&mFrameLenOffset, 0, sizeof(mFrameLenOffset));
     }
-    if (!mStreamBufsAcquired && mStreamBufs != NULL) {
+    if (!mStreamBufsAcquired && (mStreamBufs != NULL)) {
         mStreamBufs->deallocate();
         delete mStreamBufs;
         mStreamBufs = NULL;
@@ -1924,7 +1924,7 @@ int32_t QCameraStream::releaseBatchBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
         mNumPlaneBufs = 0;
     }
 
-    if ( mStreamBufs != NULL) {
+    if (mStreamBufs != NULL) {
         mStreamBufs->deallocate();
         delete mStreamBufs;
     }

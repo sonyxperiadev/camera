@@ -70,7 +70,7 @@
 #include <gralloc_priv.h>
 #include <math.h>
 
-#include "qcamera_test.h"
+//#include "qcamera_test.h"
 #include "cam_types.h"
 
 #define ERROR(format, ...) printf( \
@@ -839,7 +839,12 @@ void CameraContext::notify(int32_t msgType, int32_t ext1, int32_t ext2)
 {
     printf("Notify cb: %d %d %d\n", msgType, ext1, ext2);
 
-    if (( msgType & CAMERA_MSG_PREVIEW_FRAME) && (ext1 == CAMERA_FRAME_DATA_FD)) {
+    if (( msgType & CAMERA_MSG_PREVIEW_FRAME)
+#ifndef VANILLA_HAL
+            && (ext1 == CAMERA_FRAME_DATA_FD)
+#endif
+       )
+    {
         int fd = dup(ext2);
         printf("notify Preview Frame fd: %d dup fd: %d\n", ext2, fd);
         close(fd);

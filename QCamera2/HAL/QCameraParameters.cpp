@@ -888,7 +888,10 @@ QCameraParameters::QCameraParameters()
       mCds_mode(CAM_CDS_MODE_OFF),
       m_LLCaptureEnabled(FALSE),
       m_LowLightLevel(CAM_LOW_LIGHT_OFF),
-      m_bLtmForSeeMoreEnabled(false)
+      m_bLtmForSeeMoreEnabled(false),
+      m_expTime(0),
+      m_isoValue(0),
+      m_ManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1013,7 +1016,9 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_LLCaptureEnabled(FALSE),
     m_LowLightLevel(CAM_LOW_LIGHT_OFF),
     m_bLtmForSeeMoreEnabled(false),
-    m_expTime(0)
+    m_expTime(0),
+    m_isoValue(0),
+    m_ManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -3020,7 +3025,18 @@ int32_t  QCameraParameters::setISOValue(const QCameraParameters& params)
 {
     const char *str = params.get(KEY_QC_ISO_MODE);
     const char *prev_str = get(KEY_QC_ISO_MODE);
-    if (str != NULL) {
+
+    if(getManualCaptureMode()) {
+        char iso_val[PROPERTY_VALUE_MAX];
+
+        property_get("persist.camera.iso", iso_val, "");
+        if (strlen(iso_val) > 0) {
+            if (prev_str == NULL ||
+                    strcmp(iso_val, prev_str) != 0) {
+                return setISOValue(iso_val);
+            }
+        }
+    } else if (str != NULL) {
         if (prev_str == NULL ||
             strcmp(str, prev_str) != 0) {
             return setISOValue(str);
@@ -3058,7 +3074,12 @@ int32_t  QCameraParameters::setContinuousISO(const char *isoValue)
             (continous_iso <= m_pCapability->sensitivity_range.max_sensitivity)) {
         CDBG_HIGH("%s: Setting continuous ISO value %d", __func__, continous_iso);
         updateParamEntry(KEY_QC_CONTINUOUS_ISO, isoValue);
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ISO, continous_iso)) {
+
+        cam_intf_parm_manual_3a_t iso_settings;
+        memset(&iso_settings, 0, sizeof(cam_intf_parm_manual_3a_t));
+        iso_settings.previewOnly = FALSE;
+        iso_settings.value = continous_iso;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ISO, iso_settings)) {
             return BAD_VALUE;
         }
         return NO_ERROR;
@@ -4168,6 +4189,46 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
         if (!m_bZslMode) {
             // Force ZSL mode to ON
             set(KEY_QC_ZSL, VALUE_ON);
+            setZslMode(TRUE);
+            CDBG_HIGH("%s: ZSL Mode forced to be enabled", __func__);
+        }
+    } else if (str_val != NULL) {
+        if (prev_val == NULL || strcmp(str_val, prev_val) != 0) {
+            int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
+                    str_val);
+            if (value != NAME_NOT_FOUND) {
+                set(KEY_QC_ZSL, str_val);
+                rc = setZslMode(value);
+                // ZSL mode changed, need restart preview
+                m_bNeedRestart = true;
+            } else {
+                ALOGE("Invalid ZSL mode value: %s", str_val);
+                rc = BAD_VALUE;
+            }
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setZslMode
+ *
+ * DESCRIPTION: set ZSL mode from user setting
+ *
+ * PARAMETERS :
+ *   @value  : ZSL mode value
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setZslMode(bool value)
+{
+    int32_t rc = NO_ERROR;
+    if(m_bForceZslMode) {
+        if (!m_bZslMode) {
+            // Force ZSL mode to ON
+            set(KEY_QC_ZSL, VALUE_ON);
             m_bZslMode_new = true;
             m_bZslMode = true;
             m_bNeedRestart = true;
@@ -4179,28 +4240,49 @@ int32_t QCameraParameters::setZslMode(const QCameraParameters& params)
 
             CDBG_HIGH("%s: ZSL Mode forced to be enabled", __func__);
         }
-    } else if (str_val != NULL) {
-        if (prev_val == NULL || strcmp(str_val, prev_val) != 0) {
-            int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
-                    str_val);
-            if (value != NAME_NOT_FOUND) {
-                set(KEY_QC_ZSL, str_val);
-                m_bZslMode_new = (value > 0)? true : false;
-
-                // ZSL mode changed, need restart preview
-                m_bNeedRestart = true;
-                CDBG_HIGH("%s: ZSL Mode  -> %s", __func__, m_bZslMode_new ? "Enabled" : "Disabled");
-
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
-                    rc = BAD_VALUE;
-                }
-            } else {
-                ALOGE("Invalid ZSL mode value: %s", str_val);
-                rc = BAD_VALUE;
-            }
+    } else {
+        CDBG_HIGH("%s: ZSL Mode  -> %s", __func__, m_bZslMode_new ? "Enabled" : "Disabled");
+        m_bZslMode_new = (value > 0)? true : false;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
+            rc = BAD_VALUE;
         }
     }
     ALOGI("%s: enabled: %d", __func__, m_bZslMode_new);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : updateZSLModeValue
+ *
+ * DESCRIPTION: update zsl mode value locally and to daemon
+ *
+ * PARAMETERS :
+ *   @value   : zsl mode value
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateZSLModeValue(bool value)
+{
+    int32_t rc = NO_ERROR;
+    if(initBatchUpdate(m_pParamBuf) < 0 ) {
+        ALOGE("%s:Failed to initialize group update table", __func__);
+        return BAD_TYPE;
+    }
+
+    rc = setZslMode(value);
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to ZSL value", __func__);
+        return rc;
+    }
+
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        ALOGE("%s:Failed to update recording hint", __func__);
+        return rc;
+    }
+
     return rc;
 }
 
@@ -5824,7 +5906,7 @@ int32_t QCameraParameters::initDefaultParameters()
             pic_dim.height);
     setMaxPicSize(pic_dim);
 
-    setManualCaptureMode();
+    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF);
 
     return rc;
 }
@@ -5890,7 +5972,7 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     if (m_pParamHeap == NULL) {
         ALOGE("%s: Parameter buffers have not been allocated", __func__);
         rc = UNKNOWN_ERROR;
-        goto TRANS_INIT_DONE;
+        goto TRANS_INIT_ERROR1;
     }
 
     //Map memory for parameters buffer
@@ -5955,10 +6037,14 @@ TRANS_INIT_ERROR3:
 
 TRANS_INIT_ERROR2:
     m_pParamHeap->deallocate();
-
-TRANS_INIT_ERROR1:
     delete m_pParamHeap;
     m_pParamHeap = NULL;
+
+TRANS_INIT_ERROR1:
+    m_pCapability = NULL;
+    m_pCamOpsTbl = NULL;
+    m_AdjustFPS = NULL;
+    m_pTorch = NULL;
 
 TRANS_INIT_DONE:
     return rc;
@@ -5983,7 +6069,7 @@ void QCameraParameters::deinit()
     String8 emptyStr;
     QCameraParameters::unflatten(emptyStr);
 
-    if (NULL != m_pCamOpsTbl) {
+    if ((NULL != m_pCamOpsTbl) && (m_pCamOpsTbl->ops != NULL)) {
         m_pCamOpsTbl->ops->unmap_buf(
                              m_pCamOpsTbl->camera_handle,
                              CAM_MAPPING_BUF_TYPE_PARM_BUF);
@@ -5991,7 +6077,6 @@ void QCameraParameters::deinit()
         m_pCamOpsTbl->ops->unmap_buf(
                 m_pCamOpsTbl->camera_handle,
                 CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
-        m_pCamOpsTbl = NULL;
     }
 
     m_pCapability = NULL;
@@ -6009,8 +6094,10 @@ void QCameraParameters::deinit()
     }
 
     m_AdjustFPS = NULL;
-
     m_tempMap.clear();
+    m_pCamOpsTbl = NULL;
+    m_AdjustFPS = NULL;
+    m_pTorch = NULL;
 
     m_bInited = false;
 }
@@ -6783,9 +6870,19 @@ int32_t  QCameraParameters::setISOValue(const char *isoValue)
         if (value != NAME_NOT_FOUND) {
             CDBG_HIGH("%s: Setting ISO value %s", __func__, isoValue);
             updateParamEntry(KEY_QC_ISO_MODE, isoValue);
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ISO, value)) {
+
+            cam_intf_parm_manual_3a_t iso_settings;
+            memset(&iso_settings, 0, sizeof(cam_intf_parm_manual_3a_t));
+            iso_settings.previewOnly = FALSE;
+            iso_settings.value = value;
+            if (getManualCaptureMode() != CAM_MANUAL_CAPTURE_TYPE_OFF) {
+                iso_settings.previewOnly = TRUE;
+            }
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ISO, iso_settings)) {
                 return BAD_VALUE;
             }
+            m_isoValue = value;
             return NO_ERROR;
         }
     }
@@ -6856,11 +6953,41 @@ int32_t  QCameraParameters::setExposureTime(const char *expTimeStr)
                 (expTimeNs <= m_pCapability->exposure_time_range[1])))) {
             CDBG_HIGH("%s, exposure time: %f ms", __func__, expTimeMs);
             updateParamEntry(KEY_QC_EXPOSURE_TIME, expTimeStr);
+
+            cam_intf_parm_manual_3a_t exp_settings;
+            memset(&exp_settings, 0, sizeof(cam_intf_parm_manual_3a_t));
+            if (getManualCaptureMode() != CAM_MANUAL_CAPTURE_TYPE_OFF) {
+                exp_settings.previewOnly = TRUE;
+                if (expTimeMs < QCAMERA_MAX_EXP_TIME_LEVEL1) {
+                    exp_settings.value = expTimeNs;
+                } else {
+                    exp_settings.value =
+                            (int64_t)(QCAMERA_MAX_EXP_TIME_LEVEL1*1000000L);
+                }
+            } else {
+                exp_settings.previewOnly = FALSE;
+                exp_settings.value = expTimeNs;
+            }
+
+            //Based on exposure values we can decide the capture type here
+            if (getManualCaptureMode() != CAM_MANUAL_CAPTURE_TYPE_OFF) {
+                if (expTimeMs < QCAMERA_MAX_EXP_TIME_LEVEL1) {
+                    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_1);
+                } else if (expTimeMs < QCAMERA_MAX_EXP_TIME_LEVEL2) {
+                    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_2);
+                } else if (expTimeMs < QCAMERA_MAX_EXP_TIME_LEVEL4) {
+                    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_3);
+                } else {
+                    setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF);
+                }
+            }
+
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_EXPOSURE_TIME,
-                    (uint64_t)expTimeNs)) {
+                    exp_settings)) {
                 return BAD_VALUE;
             }
             m_expTime = expTimeNs;
+
             return NO_ERROR;
         }
     }
@@ -7191,6 +7318,50 @@ int32_t QCameraParameters::configureLowLight(cam_capture_frame_config_t &frame_c
 }
 
 /*===========================================================================
+ * FUNCTION   : configureManualCapture
+ *
+ * DESCRIPTION: configure manual capture.
+ *
+ * PARAMETERS :
+ *    @frame_config : output configaration structure to fill in.
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::configureManualCapture(cam_capture_frame_config_t &frame_config)
+{
+    int32_t rc = NO_ERROR;
+    uint32_t i = 0;
+
+    CDBG("%s: E",__func__);
+    if (getManualCaptureMode()) {
+        frame_config.num_batch = 1;
+        for (i = 0; i < frame_config.num_batch; i++) {
+            frame_config.configs[i].num_frames = getNumOfSnapshots();
+            frame_config.configs[i].type = CAM_CAPTURE_MANUAL_3A;
+            if (m_expTime != 0) {
+                frame_config.configs[i].manual_3A_mode.exp_mode = CAM_SETTINGS_TYPE_ON;
+                frame_config.configs[i].manual_3A_mode.exp_time = m_expTime;
+            } else {
+                frame_config.configs[i].manual_3A_mode.exp_mode = CAM_SETTINGS_TYPE_AUTO;
+                frame_config.configs[i].manual_3A_mode.exp_time = 0;
+            }
+
+            if (m_isoValue != 0) {
+                frame_config.configs[i].manual_3A_mode.iso_mode = CAM_SETTINGS_TYPE_ON;
+                frame_config.configs[i].manual_3A_mode.iso_value = m_isoValue;
+            } else {
+                frame_config.configs[i].manual_3A_mode.iso_mode = CAM_SETTINGS_TYPE_AUTO;
+                frame_config.configs[i].manual_3A_mode.iso_value = 0;
+            }
+        }
+    }
+    CDBG("%s X: batch cnt = %d", __func__, frame_config.num_batch);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : configFrameCapture
  *
  * DESCRIPTION: configuration for ZSL special captures (FLASH/HDR etc)
@@ -7217,7 +7388,8 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
     }
 
     if (isHDREnabled() || m_bAeBracketingEnabled || m_bAFBracketingOn ||
-          m_bOptiZoomOn || m_bReFocusOn || m_LowLightLevel) {
+          m_bOptiZoomOn || m_bReFocusOn || m_LowLightLevel
+          || getManualCaptureMode()) {
         value = CAM_FLASH_MODE_OFF;
     } else if (isChromaFlashEnabled()) {
         value = CAM_FLASH_MODE_ON;
@@ -7234,6 +7406,13 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
     } else if (m_LowLightLevel) {
         configureLowLight (m_captureFrameConfig);
 
+        //Added reset capture type as a last batch for back-end to restore settings.
+        int32_t batch_count = m_captureFrameConfig.num_batch;
+        m_captureFrameConfig.configs[batch_count].type = CAM_CAPTURE_RESET;
+        m_captureFrameConfig.configs[batch_count].num_frames = 0;
+        m_captureFrameConfig.num_batch++;
+    } else if (getManualCaptureMode() >= CAM_MANUAL_CAPTURE_TYPE_2){
+        rc = configureManualCapture (m_captureFrameConfig);
         //Added reset capture type as a last batch for back-end to restore settings.
         int32_t batch_count = m_captureFrameConfig.num_batch;
         m_captureFrameConfig.configs[batch_count].type = CAM_CAPTURE_RESET;
@@ -12333,8 +12512,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             stream_config_info.num_streams++;
         }
     }
-    if (raw_yuv && !raw_capture && (isZSLMode() ||
-            (getofflineRAW() && isCapture && !getRecordingHintValue()))) {
+
+    if ((!raw_capture) && ((getofflineRAW() && !getRecordingHintValue())
+            || (raw_yuv))) {
         cam_dimension_t max_dim = {0,0};
         updateRAW(max_dim);
         stream_config_info.type[stream_config_info.num_streams] =
@@ -12908,6 +13088,27 @@ int32_t QCameraParameters::getStreamPpMask(cam_stream_type_t stream_type,
 }
 
 /*===========================================================================
+ * FUNCTION   : isMultiPassReprocessing
+ *
+ * DESCRIPTION: Read setprop to enable/disable multipass
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : TRUE  -- If enabled
+ *              FALSE  -- disabled
+ *==========================================================================*/
+bool QCameraParameters::isMultiPassReprocessing()
+{
+    char value[PROPERTY_VALUE_MAX];
+    int multpass = 0;
+
+    property_get("persist.camera.multi_pass", value, "0");
+    multpass = atoi(value);
+
+    return (multpass == 0)? FALSE : TRUE;
+}
+
+/*===========================================================================
  * FUNCTION   : setReprocCount
  *
  * DESCRIPTION: Set total reprocessing pass count
@@ -12919,20 +13120,22 @@ int32_t QCameraParameters::getStreamPpMask(cam_stream_type_t stream_type,
 void QCameraParameters::setReprocCount()
 {
     mTotalPPCount = 1; //Default reprocessing Pass count
-    char value[PROPERTY_VALUE_MAX];
-    int multpass = 0;
 
-    property_get("persist.camera.multi_pass", value, "0");
-    multpass = atoi(value);
+    if (getManualCaptureMode() >=
+            CAM_MANUAL_CAPTURE_TYPE_3) {
+        CDBG ("2 Pass postprocessing enabled for MANUAL Capture mode");
+        mTotalPPCount++;
+        return;
+    }
 
-    if ( multpass == 0 ) {
+    if (!isMultiPassReprocessing()) {
         return;
     }
 
     if ((getZoomLevel() != 0)
             && (getBurstCountForAdvancedCapture()
             == getNumOfSnapshots())) {
-        ALOGW("Zoom Present. Need 2nd pass for post processing");
+        CDBG("2 Pass postprocessing enabled");
         mTotalPPCount++;
     }
 }
@@ -13514,16 +13717,25 @@ int32_t QCameraParameters::setManualCaptureMode(QCameraManualCaptureModes mode)
     count = atoi(value);
 
     if (count) {
-        m_ManualCaptureMode = mode;
+        if (mode == CAM_MANUAL_CAPTURE_TYPE_OFF) {
+            m_ManualCaptureMode = CAM_MANUAL_CAPTURE_TYPE_1;
+        } else {
+            m_ManualCaptureMode = mode;
+        }
+    } else {
+        m_ManualCaptureMode = CAM_MANUAL_CAPTURE_TYPE_OFF;
     }
 
-    if (mode >= CAM_MANUAL_CAPTURE_TYPE_3) {
+    if (m_ManualCaptureMode == CAM_MANUAL_CAPTURE_TYPE_2) {
+        setOfflineRAW(FALSE);
+    } else if (m_ManualCaptureMode >= CAM_MANUAL_CAPTURE_TYPE_3) {
         setOfflineRAW(TRUE);
     } else {
         setOfflineRAW(FALSE);
     }
-
+    setReprocCount();
     CDBG_HIGH("%s: Manual capture mode - %d", __func__, m_ManualCaptureMode);
     return rc;
 }
+
 }; // namespace qcamera
