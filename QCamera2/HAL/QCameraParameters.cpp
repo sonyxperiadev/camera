@@ -6074,9 +6074,11 @@ void QCameraParameters::deinit()
                              m_pCamOpsTbl->camera_handle,
                              CAM_MAPPING_BUF_TYPE_PARM_BUF);
 
-        m_pCamOpsTbl->ops->unmap_buf(
-                m_pCamOpsTbl->camera_handle,
-                CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
+        if (m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+            m_pCamOpsTbl->ops->unmap_buf(
+                    m_pCamOpsTbl->camera_handle,
+                    CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
+        }
     }
 
     m_pCapability = NULL;
