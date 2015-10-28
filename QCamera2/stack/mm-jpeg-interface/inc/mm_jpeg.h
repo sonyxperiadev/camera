@@ -51,6 +51,8 @@
 #define MAX_EXIF_TABLE_ENTRIES 50
 #define MAX_JPEG_SIZE 20000000
 #define MAX_OMX_HANDLES (5)
+// Thumbnail src and dest aspect ratio diffrence tolerance
+#define ASPECT_TOLERANCE 0.001
 
 
 /** mm_jpeg_abort_state_t:
