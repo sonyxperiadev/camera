@@ -2006,8 +2006,8 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 }
                 break;
             case CAM_EVENT_TYPE_CAC_DONE:
-                if (m_parent->isCACEnabled()) {
-                    CDBG("%s: CAC3 DEBUG : Received CAC Done", __func__);
+                if (m_parent->isCACEnabled() || m_parent->mParameters.isOEMFeatEnabled()) {
+                    CDBG("%s: [LONG_SHOT_DBG] : Received CAC Done", __func__);
                     if (m_parent->isLongshotEnabled()
                             && !m_parent->isCaptureShutterEnabled()) {
                         // play shutter sound for longshot
@@ -3259,8 +3259,8 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                 }
                 break;
             case CAM_EVENT_TYPE_CAC_DONE:
-                if (m_parent->isCACEnabled()) {
-                    CDBG("%s: CAC3 DEBUG : Received CAC Done", __func__);
+                if (m_parent->isCACEnabled() || m_parent->mParameters.isOEMFeatEnabled()) {
+                    CDBG("%s: [LONG_SHOT_DBG] : Received CAC Done", __func__);
                     if ((m_parent->isLongshotEnabled())
                             && (!m_parent->isCaptureShutterEnabled())) {
                         // play shutter sound for longshot

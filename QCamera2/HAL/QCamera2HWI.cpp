@@ -6403,6 +6403,9 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     }
     attr.look_back = mParameters.getZSLBackLookCount();
     attr.post_frame_skip = mParameters.getZSLBurstInterval();
+    if (mParameters.isOEMFeatEnabled()) {
+        attr.post_frame_skip++;
+    }
     attr.water_mark = mParameters.getZSLQueueDepth();
     attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
 
@@ -6883,6 +6886,10 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_STILLMORE;
             } else {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_STILLMORE;
+            }
+
+            if (mParameters.isOEMFeatEnabled()) {
+                pp_config.feature_mask |= CAM_OEM_FEATURE_1;
             }
 
             if (mParameters.getCDSMode() != CAM_CDS_MODE_OFF) {
