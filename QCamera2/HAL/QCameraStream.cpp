@@ -683,7 +683,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         mAllocTaskId = mAllocator.scheduleBackgroundTask(&mAllocTask);
         if (mAllocTaskId == 0) {
             ALOGE("%s : Failed to schedule buffer alloction", __func__);
-            rc = UNKNOWN_ERROR;
+            rc = -ENOMEM;
             goto done;
         }
     }
@@ -723,7 +723,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         mMapTaskId = mAllocator.scheduleBackgroundTask(&mMapTask);
         if (mMapTaskId == 0) {
             ALOGE("%s : Failed to schedule buffer alloction", __func__);
-            rc = UNKNOWN_ERROR;
+            rc = -ENOMEM;
             goto err1;
         }
     }
