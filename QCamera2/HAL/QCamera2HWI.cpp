@@ -7961,7 +7961,7 @@ QCameraChannel *QCamera2HardwareInterface::getChannelByHandle(uint32_t channelHa
  * DESCRIPTION: decides if needPreviewFDCallback
  *
  * PARAMETERS :
- *   @fd_data : number of faces
+ *   @num_faces : number of faces
  *
  * RETURN     : bool type of status
  *              true  -- success
@@ -7982,23 +7982,24 @@ bool QCamera2HardwareInterface::needPreviewFDCallback(uint8_t num_faces)
  * DESCRIPTION: process face detection reuslt
  *
  * PARAMETERS :
- *   @fd_data : ptr to face detection result struct
+ *   @faces_data : ptr to face processing result struct
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection_data_t *fd_data)
+int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *faces_data)
 {
     if (!mParameters.isFaceDetectionEnabled()) {
         LOGH("FaceDetection not enabled, no ops here");
         return NO_ERROR;
     }
 
-    qcamera_face_detect_type_t fd_type = fd_data->fd_type;
+    qcamera_face_detect_type_t fd_type = faces_data->detection_data.fd_type;
+    cam_face_detection_data_t *detect_data = &(faces_data->detection_data);
     if ((NULL == mDataCb) ||
         (fd_type == QCAMERA_FD_PREVIEW && !msgTypeEnabled(CAMERA_MSG_PREVIEW_METADATA)) ||
-        (!needPreviewFDCallback(fd_data->num_faces_detected))
+        (!needPreviewFDCallback(detect_data->num_faces_detected))
 #ifndef VANILLA_HAL
         || (fd_type == QCAMERA_FD_SNAPSHOT && !msgTypeEnabled(CAMERA_MSG_META_DATA))
 #endif
@@ -8007,7 +8008,7 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
         return NO_ERROR;
     }
 
-    if ((fd_type == QCAMERA_FD_PREVIEW) && (fd_data->update_flag == FALSE)) {
+    if ((fd_type == QCAMERA_FD_PREVIEW) && (detect_data->update_flag == FALSE)) {
         // Don't send callback to app if this is skipped by fd at backend
         return NO_ERROR;
     }
@@ -8032,9 +8033,9 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
 #ifndef VANILLA_HAL
         // fd for snapshot frames
         //check if face is detected in this frame
-        if(fd_data->num_faces_detected > 0){
+        if(detect_data->num_faces_detected > 0){
             data_len = sizeof(camera_frame_metadata_t) +
-                         sizeof(camera_face_t) * fd_data->num_faces_detected;
+                    sizeof(camera_face_t) * detect_data->num_faces_detected;
         }else{
             //no face
             data_len = 0;
@@ -8059,7 +8060,7 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
     unsigned char *faceData = NULL;
     if(fd_type == QCAMERA_FD_PREVIEW){
         faceData = pFaceResult;
-        mNumPreviewFaces = fd_data->num_faces_detected;
+        mNumPreviewFaces = detect_data->num_faces_detected;
     }else if(fd_type == QCAMERA_FD_SNAPSHOT){
 #ifndef VANILLA_HAL
         //need fill meta type and meta data len first
@@ -8091,71 +8092,87 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_face_detection
     camera_frame_metadata_t *roiData = (camera_frame_metadata_t * ) faceData;
     camera_face_t *faces = (camera_face_t *) ( faceData + sizeof(camera_frame_metadata_t) );
 
-    roiData->number_of_faces = fd_data->num_faces_detected;
+    roiData->number_of_faces = detect_data->num_faces_detected;
     roiData->faces = faces;
     if (roiData->number_of_faces > 0) {
         for (int i = 0; i < roiData->number_of_faces; i++) {
-            faces[i].id = fd_data->faces[i].face_id;
-            faces[i].score = fd_data->faces[i].score;
+            faces[i].id = detect_data->faces[i].face_id;
+            faces[i].score = detect_data->faces[i].score;
 
             // left
-            faces[i].rect[0] =
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].face_boundary.left, display_dim.width, 2000, -1000);
+            faces[i].rect[0] = MAP_TO_DRIVER_COORDINATE(
+                    detect_data->faces[i].face_boundary.left,
+                    display_dim.width, 2000, -1000);
 
             // top
-            faces[i].rect[1] =
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].face_boundary.top, display_dim.height, 2000, -1000);
+            faces[i].rect[1] = MAP_TO_DRIVER_COORDINATE(
+                    detect_data->faces[i].face_boundary.top,
+                    display_dim.height, 2000, -1000);
 
             // right
             faces[i].rect[2] = faces[i].rect[0] +
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].face_boundary.width, display_dim.width, 2000, 0);
+                    MAP_TO_DRIVER_COORDINATE(
+                    detect_data->faces[i].face_boundary.width,
+                    display_dim.width, 2000, 0);
 
              // bottom
             faces[i].rect[3] = faces[i].rect[1] +
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].face_boundary.height, display_dim.height, 2000, 0);
+                    MAP_TO_DRIVER_COORDINATE(
+                    detect_data->faces[i].face_boundary.height,
+                    display_dim.height, 2000, 0);
 
-            // Center of left eye
-            faces[i].left_eye[0] =
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].left_eye_center.x, display_dim.width, 2000, -1000);
+            if (faces_data->landmark_valid) {
+                // Center of left eye
+                faces[i].left_eye[0] = MAP_TO_DRIVER_COORDINATE(
+                        faces_data->landmark_data.face_landmarks[i].left_eye_center.x,
+                        display_dim.width, 2000, -1000);
+                faces[i].left_eye[1] = MAP_TO_DRIVER_COORDINATE(
+                        faces_data->landmark_data.face_landmarks[i].left_eye_center.y,
+                        display_dim.height, 2000, -1000);
 
-            faces[i].left_eye[1] =
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].left_eye_center.y, display_dim.height, 2000, -1000);
+                // Center of right eye
+                faces[i].right_eye[0] = MAP_TO_DRIVER_COORDINATE(
+                        faces_data->landmark_data.face_landmarks[i].right_eye_center.x,
+                        display_dim.width, 2000, -1000);
+                faces[i].right_eye[1] = MAP_TO_DRIVER_COORDINATE(
+                        faces_data->landmark_data.face_landmarks[i].right_eye_center.y,
+                        display_dim.height, 2000, -1000);
 
-            // Center of right eye
-            faces[i].right_eye[0] =
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].right_eye_center.x, display_dim.width, 2000, -1000);
-
-            faces[i].right_eye[1] =
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].right_eye_center.y, display_dim.height, 2000, -1000);
-
-            // Center of mouth
-            faces[i].mouth[0] =
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].mouth_center.x, display_dim.width, 2000, -1000);
-
-            faces[i].mouth[1] =
-                MAP_TO_DRIVER_COORDINATE(fd_data->faces[i].mouth_center.y, display_dim.height, 2000, -1000);
-
+                // Center of mouth
+                faces[i].mouth[0] = MAP_TO_DRIVER_COORDINATE(
+                        faces_data->landmark_data.face_landmarks[i].mouth_center.x,
+                        display_dim.width, 2000, -1000);
+                faces[i].mouth[1] = MAP_TO_DRIVER_COORDINATE(
+                        faces_data->landmark_data.face_landmarks[i].mouth_center.y,
+                        display_dim.height, 2000, -1000);
+            }
 #ifndef VANILLA_HAL
 #ifdef TARGET_TS_MAKEUP
-            mFaceRect.left = fd_data->faces[i].face_boundary.left;
-            mFaceRect.top = fd_data->faces[i].face_boundary.top;
-            mFaceRect.right = fd_data->faces[i].face_boundary.width+mFaceRect.left;
-            mFaceRect.bottom = fd_data->faces[i].face_boundary.height+mFaceRect.top;
+            mFaceRect.left = detect_data->faces[i].face_boundary.left;
+            mFaceRect.top = detect_data->faces[i].face_boundary.top;
+            mFaceRect.right = detect_data->faces[i].face_boundary.width+mFaceRect.left;
+            mFaceRect.bottom = detect_data->faces[i].face_boundary.height+mFaceRect.top;
 #endif
-            faces[i].smile_degree = fd_data->faces[i].smile_degree;
-            faces[i].smile_score = fd_data->faces[i].smile_confidence;
-            faces[i].blink_detected = fd_data->faces[i].blink_detected;
-            faces[i].face_recognised = fd_data->faces[i].face_recognised;
-            faces[i].gaze_angle = fd_data->faces[i].gaze_angle;
-
-            faces[i].updown_dir = fd_data->faces[i].updown_dir;
-            faces[i].leftright_dir = fd_data->faces[i].leftright_dir;
-            faces[i].roll_dir = fd_data->faces[i].roll_dir;
-
-            faces[i].leye_blink = fd_data->faces[i].left_blink;
-            faces[i].reye_blink = fd_data->faces[i].right_blink;
-            faces[i].left_right_gaze = fd_data->faces[i].left_right_gaze;
-            faces[i].top_bottom_gaze = fd_data->faces[i].top_bottom_gaze;
+            if (faces_data->smile_valid) {
+                faces[i].smile_degree = faces_data->smile_data.smile[i].smile_degree;
+                faces[i].smile_score = faces_data->smile_data.smile[i].smile_confidence;
+            }
+            if (faces_data->blink_valid) {
+                faces[i].blink_detected = faces_data->blink_data.blink[i].blink_detected;
+                faces[i].leye_blink = faces_data->blink_data.blink[i].left_blink;
+                faces[i].reye_blink = faces_data->blink_data.blink[i].right_blink;
+            }
+            if (faces_data->recog_valid) {
+                faces[i].face_recognised = faces_data->recog_data.face_rec[i].face_recognised;
+            }
+            if (faces_data->gaze_valid) {
+                faces[i].gaze_angle = faces_data->gaze_data.gaze[i].gaze_angle;
+                faces[i].updown_dir = faces_data->gaze_data.gaze[i].updown_dir;
+                faces[i].leftright_dir = faces_data->gaze_data.gaze[i].leftright_dir;
+                faces[i].roll_dir = faces_data->gaze_data.gaze[i].roll_dir;
+                faces[i].left_right_gaze = faces_data->gaze_data.gaze[i].left_right_gaze;
+                faces[i].top_bottom_gaze = faces_data->gaze_data.gaze[i].top_bottom_gaze;
+            }
 #endif
 
         }

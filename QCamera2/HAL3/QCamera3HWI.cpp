@@ -4704,19 +4704,7 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         convertToRegions(faceDetectionInfo->faces[i].face_boundary,
                                 faceRectangles+j, -1);
 
-                        // Map the co-ordinate sensor output coordinate system to active
-                        // array coordinate system.
-                        cam_face_detection_info_t& face = faceDetectionInfo->faces[i];
-                        mCropRegionMapper.toActiveArray(face.left_eye_center.x,
-                                face.left_eye_center.y);
-                        mCropRegionMapper.toActiveArray(face.right_eye_center.x,
-                                face.right_eye_center.y);
-                        mCropRegionMapper.toActiveArray(face.mouth_center.x,
-                                face.mouth_center.y);
-
-                        convertLandmarks(faceDetectionInfo->faces[i], faceLandmarks+k);
                         j+= 4;
-                        k+= 6;
                     }
                     if (numFaces <= 0) {
                         memset(faceIds, 0, sizeof(int32_t) * MAX_ROI);
@@ -4731,6 +4719,27 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             faceRectangles, numFaces * 4U);
                     if (fwk_faceDetectMode ==
                             ANDROID_STATISTICS_FACE_DETECT_MODE_FULL) {
+                        IF_META_AVAILABLE(cam_face_landmarks_data_t, landmarks,
+                                CAM_INTF_META_FACE_LANDMARK, metadata) {
+
+                            for (size_t i = 0; i < numFaces; i++) {
+                                // Map the co-ordinate sensor output coordinate system to active
+                                // array coordinate system.
+                                mCropRegionMapper.toActiveArray(
+                                        landmarks->face_landmarks[i].left_eye_center.x,
+                                        landmarks->face_landmarks[i].left_eye_center.y);
+                                mCropRegionMapper.toActiveArray(
+                                        landmarks->face_landmarks[i].right_eye_center.x,
+                                        landmarks->face_landmarks[i].right_eye_center.y);
+                                mCropRegionMapper.toActiveArray(
+                                        landmarks->face_landmarks[i].mouth_center.x,
+                                        landmarks->face_landmarks[i].mouth_center.y);
+
+                                convertLandmarks(landmarks->face_landmarks[i], faceLandmarks+k);
+                                k+= 6;
+                            }
+                        }
+
                         camMetadata.update(ANDROID_STATISTICS_FACE_IDS, faceIds, numFaces);
                         camMetadata.update(ANDROID_STATISTICS_FACE_LANDMARKS,
                                 faceLandmarks, numFaces * 6U);
@@ -5770,19 +5779,21 @@ bool QCamera3HardwareInterface::resetIfNeededROI(cam_area_t* roi,
  * DESCRIPTION: helper method to extract the landmarks from face detection info
  *
  * PARAMETERS :
- *   @face   : cam_rect_t struct to convert
+ *   @landmark_data : input landmark data to be converted
  *   @landmarks : int32_t destination array
  *
  *
  *==========================================================================*/
-void QCamera3HardwareInterface::convertLandmarks(cam_face_detection_info_t face, int32_t *landmarks)
+void QCamera3HardwareInterface::convertLandmarks(
+        cam_face_landmarks_info_t landmark_data,
+        int32_t *landmarks)
 {
-    landmarks[0] = (int32_t)face.left_eye_center.x;
-    landmarks[1] = (int32_t)face.left_eye_center.y;
-    landmarks[2] = (int32_t)face.right_eye_center.x;
-    landmarks[3] = (int32_t)face.right_eye_center.y;
-    landmarks[4] = (int32_t)face.mouth_center.x;
-    landmarks[5] = (int32_t)face.mouth_center.y;
+    landmarks[0] = (int32_t)landmark_data.left_eye_center.x;
+    landmarks[1] = (int32_t)landmark_data.left_eye_center.y;
+    landmarks[2] = (int32_t)landmark_data.right_eye_center.x;
+    landmarks[3] = (int32_t)landmark_data.right_eye_center.y;
+    landmarks[4] = (int32_t)landmark_data.mouth_center.x;
+    landmarks[5] = (int32_t)landmark_data.mouth_center.y;
 }
 
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
