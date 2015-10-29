@@ -728,7 +728,6 @@ private:
     bool checkDeferredWork(uint32_t &job_id);
     int32_t getDefJobStatus(uint32_t &job_id);
 
-    uint32_t mPostviewJob;
     uint32_t mReprocJob;
     uint32_t mJpegJob;
     uint32_t mMetadataAllocJob;

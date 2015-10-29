@@ -240,30 +240,6 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
     }
     return rc;
 }
-/*===========================================================================
- * FUNCTION   : config
- *
- * DESCRIPTION: Configure any deffered channel streams
- *
- * PARAMETERS : None
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCameraChannel::config()
-{
-    int32_t rc = NO_ERROR;
-    for (size_t i = 0; i < mStreams.size(); ++i) {
-        if ( mStreams[i]->isDeffered() ) {
-            rc = mStreams[i]->configStream();
-            if (rc != NO_ERROR) {
-                break;
-            }
-        }
-    }
-    return rc;
-}
 
 /*===========================================================================
  * FUNCTION   : linkStream

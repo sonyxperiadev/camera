@@ -1067,6 +1067,10 @@ int32_t mm_stream_config(mm_stream_t *my_obj,
     rc = mm_stream_sync_info(my_obj);
     if (rc == 0) {
         rc = mm_stream_set_fmt(my_obj);
+        if (rc < 0) {
+            CDBG_ERROR("%s: mm_stream_set_fmt failed %d",
+                    __func__, rc);
+        }
     }
 
     my_obj->map_ops.map_ops = mm_stream_map_buf_ops;
@@ -1175,8 +1179,8 @@ int32_t mm_stream_streamon(mm_stream_t *my_obj)
 
     rc = ioctl(my_obj->fd, VIDIOC_STREAMON, &buf_type);
     if (rc < 0) {
-        CDBG_ERROR("%s: ioctl VIDIOC_STREAMON failed: rc=%d\n",
-                   __func__, rc);
+        CDBG_ERROR("%s: ioctl VIDIOC_STREAMON failed: rc=%d, errno %d",
+                   __func__, rc, errno);
         /* remove fd from data poll thread in case of failure */
         mm_camera_poll_thread_del_poll_fd(&my_obj->ch_obj->poll_thread[0], my_obj->my_hdl, mm_camera_sync_call);
     }
@@ -1616,6 +1620,8 @@ int32_t mm_stream_set_ext_mode(mm_stream_t * my_obj)
     if (rc == 0) {
         /* get server stream id */
         my_obj->server_stream_id = s_parm.parm.capture.extendedmode;
+    } else {
+        CDBG_ERROR("%s: VIDIOC_S_PARM failed %d, errno %d", __func__, rc, errno);
     }
     return rc;
 }
@@ -1753,8 +1759,8 @@ int32_t mm_stream_request_buf(mm_stream_t * my_obj)
     bufreq.memory = V4L2_MEMORY_USERPTR;
     rc = ioctl(my_obj->fd, VIDIOC_REQBUFS, &bufreq);
     if (rc < 0) {
-      CDBG_ERROR("%s: fd=%d, ioctl VIDIOC_REQBUFS failed: rc=%d\n",
-           __func__, my_obj->fd, rc);
+      CDBG_ERROR("%s: fd=%d, ioctl VIDIOC_REQBUFS failed: rc=%d, errno %d",
+           __func__, my_obj->fd, rc, errno);
     }
 
     CDBG("%s :X rc = %d",__func__,rc);
@@ -2183,8 +2189,8 @@ int32_t mm_stream_unreg_buf(mm_stream_t * my_obj)
     bufreq.memory = V4L2_MEMORY_USERPTR;
     rc = ioctl(my_obj->fd, VIDIOC_REQBUFS, &bufreq);
     if (rc < 0) {
-        CDBG_ERROR("%s: fd=%d, VIDIOC_REQBUFS failed, rc=%d\n",
-              __func__, my_obj->fd, rc);
+        CDBG_ERROR("%s: fd=%d, VIDIOC_REQBUFS failed, rc=%d, errno %d",
+              __func__, my_obj->fd, rc, errno);
     }
 
     /* reset buf reference count */
@@ -4163,6 +4169,9 @@ int32_t mm_stream_set_fmt(mm_stream_t *my_obj)
 
     memcpy(fmt.fmt.raw_data, &msm_fmt, sizeof(msm_fmt));
     rc = ioctl(my_obj->fd, VIDIOC_S_FMT, &fmt);
+    if (rc < 0) {
+        CDBG_ERROR("%s: ioctl failed %d, errno %d", __func__, rc, errno);
+    }
     return rc;
 }
 
