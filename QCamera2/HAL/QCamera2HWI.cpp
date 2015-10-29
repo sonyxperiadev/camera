@@ -1237,6 +1237,11 @@ int QCamera2HardwareInterface::prepare_snapshot(struct camera_device *device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+    if (hw->isLongshotEnabled() && hw->mPrepSnapRun == true) {
+        // For longshot mode, we prepare snapshot only once
+        ALOGI("%s: prepare snapshot only once ", __func__);
+        return NO_ERROR;
+    }
     ALOGI("[KPI Perf] %s: E PROFILE_PREPARE_SNAPSHOT camera id %d",
             __func__, hw->getCameraId());
     hw->lockAPI();
@@ -1748,7 +1753,8 @@ int32_t QCamera2HardwareInterface::setMpoComposition(bool enable)
     if ((getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) &&
             !mParameters.isAdvCamFeaturesEnabled() &&
             !mParameters.getRecordingHintValue() &&
-            !mFlashNeeded) {
+            !mFlashNeeded &&
+            !isLongshotEnabled()) {
         m_bMpoEnabled = enable;
         CDBG_HIGH("%s: MpoComposition:%d ", __func__, m_bMpoEnabled);
         return NO_ERROR;
@@ -3867,6 +3873,7 @@ int QCamera2HardwareInterface::takePicture()
             memset(&buf, 0x0, sizeof(buf));
             if ((!mParameters.isAdvCamFeaturesEnabled() &&
                     !mFlashNeeded &&
+                    !isLongshotEnabled() &&
                     getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
                     (getRelatedCamSyncInfo()->sync_control ==
                     CAM_SYNC_RELATED_SENSORS_ON)) {
