@@ -1386,6 +1386,8 @@ int QCamera3HardwareInterface::configureStreams(
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
                 mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_CALLBACK;
                 mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
+                padding_info.width_padding = mSurfaceStridePadding;
+                padding_info.height_padding = CAM_PAD_TO_2;
             break;
             case HAL_PIXEL_FORMAT_BLOB:
                 mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
