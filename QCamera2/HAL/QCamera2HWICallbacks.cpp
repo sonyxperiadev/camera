@@ -667,6 +667,9 @@ void QCamera2HardwareInterface::postproc_channel_cb_routine(mm_camera_super_buf_
     }
     *frame = *recvd_frame;
 
+    if (recvd_frame->num_bufs > 0) {
+        ALOGI("[KPI Perf] %s: frame_idx %d", __func__, recvd_frame->bufs[0]->frame_idx);
+    }
     // Wait on JPEG create session
     pme->waitDeferredWork(pme->mJpegJob);
 
