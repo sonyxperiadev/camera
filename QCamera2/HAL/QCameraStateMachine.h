@@ -63,12 +63,14 @@ typedef enum {
     QCAMERA_SM_EVT_PREVIEW_ENABLED,          // query if preview is running
 
     QCAMERA_SM_EVT_STORE_METADATA_IN_BUFS,   // request to store meta data in video buffers
+    QCAMERA_SM_EVT_PRE_START_RECORDING,      // pre start recording, to prepare for recording
     QCAMERA_SM_EVT_START_RECORDING,          // start recording
     QCAMERA_SM_EVT_STOP_RECORDING,           // stop recording
     QCAMERA_SM_EVT_RECORDING_ENABLED,        // query if recording is running
     QCAMERA_SM_EVT_RELEASE_RECORIDNG_FRAME,  // release recording frame
 
     QCAMERA_SM_EVT_PREPARE_SNAPSHOT,         // prepare snapshot in case LED needs to be flashed
+    QCAMERA_SM_EVT_PRE_TAKE_PICTURE,         // pre take picutre (to restart preview if necessary)
     QCAMERA_SM_EVT_TAKE_PICTURE,             // take picutre (zsl, regualr capture, live snapshot
     QCAMERA_SM_EVT_CANCEL_PICTURE,           // cancel picture
 
@@ -90,6 +92,8 @@ typedef enum {
     QCAMERA_SM_EVT_RESTART_PERVIEW,          // internal preview restart
     QCAMERA_SM_EVT_DELAYED_RESTART,          // preview restart needs delay (dual camera mode)
     QCAMERA_SM_EVT_SEND_COMMAND_RESTART,     // restart after send command (if necessary)
+    QCAMERA_SM_EVT_RESTART_START_PREVIEW,    // preview start as part of restart (dual camera mode)
+    QCAMERA_SM_EVT_RESTART_STOP_PREVIEW,     // preview stop as part of restart (dual camera mode)
     QCAMERA_SM_EVT_MAX
 } qcamera_sm_evt_enum_t;
 
