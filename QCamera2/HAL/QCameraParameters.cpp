@@ -5701,6 +5701,13 @@ int32_t QCameraParameters::initDefaultParameters()
     //Setup dual-camera
     setDcrf();
 
+    // For Aux Camera of dual camera Mode,
+    // by default set no display mode
+    if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
+        set(KEY_QC_NO_DISPLAY_MODE, 1);
+        m_bNoDisplayMode = true;
+    }
+
     return rc;
 }
 
