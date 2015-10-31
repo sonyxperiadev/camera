@@ -82,6 +82,8 @@ typedef enum {
     QCAMERA_SM_EVT_RELEASE,                  // release camera resource
     QCAMERA_SM_EVT_DUMP,                     // dump
     QCAMERA_SM_EVT_REG_FACE_IMAGE,           // register a face image in imaging lib
+
+    QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED,   // query if preview restart needed
     /*******END OF: API EVT*********/
 
     QCAMERA_SM_EVT_EVT_INTERNAL,             // internal evt notify

@@ -871,6 +871,33 @@ int QCamera2HardwareInterface::set_parameters(struct camera_device *device,
     return ret;
 }
 
+int QCamera2HardwareInterface::preview_restart_needed(
+          struct camera_device *device, int &needRestart)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+        reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+    ret = hw->processAPI(QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED, NULL);
+    if (ret == NO_ERROR) {
+        hw->waitAPIResult(QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED, &apiResult);
+        needRestart = apiResult.enabled;
+        ret = apiResult.status;
+    }
+    hw->unlockAPI();
+    CDBG("%s: X camera id %d", __func__, hw->getCameraId());
+
+    return ret;
+}
+
 /*===========================================================================
  * FUNCTION   : commit_parameters_stop_preview
  *
@@ -883,7 +910,8 @@ int QCamera2HardwareInterface::set_parameters(struct camera_device *device,
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCamera2HardwareInterface::commit_parameters_stop_preview(struct camera_device *device)
+int QCamera2HardwareInterface::commit_parameters_stop_preview(
+                     struct camera_device *device, int needRestart)
 {
     ATRACE_CALL();
     int ret = NO_ERROR;
@@ -898,7 +926,7 @@ int QCamera2HardwareInterface::commit_parameters_stop_preview(struct camera_devi
     qcamera_api_result_t apiResult;
 
     if (hw->getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
-        ret = hw->processAPI(QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW, NULL);
+        ret = hw->processAPI(QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW, (void *)(&needRestart));
         if (ret == NO_ERROR) {
             hw->waitAPIResult(QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW, &apiResult);
             ret = apiResult.status;
@@ -926,7 +954,8 @@ int QCamera2HardwareInterface::commit_parameters_stop_preview(struct camera_devi
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCamera2HardwareInterface::commit_parameters_start_preview(struct camera_device *device)
+int QCamera2HardwareInterface::commit_parameters_start_preview(
+                 struct camera_device *device, int needRestart)
 {
     ATRACE_CALL();
     int ret = NO_ERROR;
@@ -941,7 +970,7 @@ int QCamera2HardwareInterface::commit_parameters_start_preview(struct camera_dev
     qcamera_api_result_t apiResult;
 
     if (hw->getRelatedCamSyncInfo()->sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
-        ret = hw->processAPI(QCAMERA_SM_EVT_COMMIT_START_PREVIEW, NULL);
+        ret = hw->processAPI(QCAMERA_SM_EVT_COMMIT_START_PREVIEW, (void *)(&needRestart));
         if (ret == NO_ERROR) {
             hw->waitAPIResult(QCAMERA_SM_EVT_COMMIT_START_PREVIEW, &apiResult);
             ret = apiResult.status;
