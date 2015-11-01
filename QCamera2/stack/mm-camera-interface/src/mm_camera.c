@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -292,14 +292,15 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
 
     do{
         n_try--;
+        errno = 0;
         my_obj->ctrl_fd = open(dev_name, O_RDWR | O_NONBLOCK);
         CDBG("%s:  ctrl_fd = %d, errno == %d", __func__, my_obj->ctrl_fd, errno);
-        if((my_obj->ctrl_fd >= 0) || (errno != EIO) || (n_try <= 0 )) {
-            CDBG("%s:  opened, break out while loop", __func__);
+        if((my_obj->ctrl_fd >= 0) || (errno != EIO && errno != ETIMEDOUT) || (n_try <= 0 )) {
+            CDBG_HIGH("%s:  opened, break out while loop", __func__);
             break;
         }
-        CDBG("%s:failed with I/O error retrying after %d milli-seconds",
-             __func__, sleep_msec);
+        ALOGE("%s:Failed with %s error, retrying after %d milli-seconds",
+             __func__, strerror(errno), sleep_msec);
         usleep(sleep_msec * 1000U);
     }while (n_try > 0);
 
@@ -426,35 +427,6 @@ int32_t mm_camera_close(mm_camera_obj_t *my_obj)
     pthread_mutex_destroy(&my_obj->evt_lock);
     pthread_cond_destroy(&my_obj->evt_cond);
 
-    pthread_mutex_unlock(&my_obj->cam_lock);
-    return 0;
-}
-
-/*===========================================================================
- * FUNCTION   : mm_camera_close_fd
- *
- * DESCRIPTION: close the ctrl_fd and socket fd in case of an error so that
- *              the backend will close
- *              Do NOT close or release any HAL resources since a close_camera
- *              has not been called yet.
- * PARAMETERS :
- *   @my_obj   : ptr to a camera object
- *   @event    : event to be queued
- *
- * RETURN     : int32_t type of status
- *              0  -- success
- *              -1 -- failure
- *==========================================================================*/
-int32_t mm_camera_close_fd(mm_camera_obj_t *my_obj)
-{
-    if(my_obj->ctrl_fd >= 0) {
-        close(my_obj->ctrl_fd);
-        my_obj->ctrl_fd = -1;
-    }
-    if(my_obj->ds_fd >= 0) {
-        mm_camera_socket_close(my_obj->ds_fd);
-        my_obj->ds_fd = -1;
-    }
     pthread_mutex_unlock(&my_obj->cam_lock);
     return 0;
 }

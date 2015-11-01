@@ -39,7 +39,6 @@
 using namespace android;
 
 namespace qcamera {
-#define NUM_BATCH_BUFS   (MAX_INFLIGHT_REQUESTS)
 #define MAX_BATCH_SIZE   32
 
 const char* QCamera3Stream::mStreamNames[] = {
@@ -123,7 +122,7 @@ int32_t QCamera3Stream::put_bufs(
     int32_t rc = NO_ERROR;
     QCamera3Stream *stream = reinterpret_cast<QCamera3Stream *>(user_data);
     if (!stream) {
-        ALOGE("putBufs invalid stream pointer");
+        ALOGE("%s: putBufs invalid stream pointer", __func__);
         return NO_MEMORY;
     }
 
@@ -156,7 +155,7 @@ int32_t QCamera3Stream::invalidate_buf(uint32_t index, void *user_data)
 
     QCamera3Stream *stream = reinterpret_cast<QCamera3Stream *>(user_data);
     if (!stream) {
-        ALOGE("invalid stream pointer");
+        ALOGE("%s: invalid stream pointer", __func__);
         return NO_MEMORY;
     }
     if (stream->mBatchSize) {
@@ -196,7 +195,7 @@ int32_t QCamera3Stream::clean_invalidate_buf(uint32_t index, void *user_data)
 
     QCamera3Stream *stream = reinterpret_cast<QCamera3Stream *>(user_data);
     if (!stream) {
-        ALOGE("invalid stream pointer");
+        ALOGE("%s: invalid stream pointer", __func__);
         return NO_MEMORY;
     }
     if (stream->mBatchSize) {
@@ -251,7 +250,7 @@ QCamera3Stream::QCamera3Stream(uint32_t camHandle,
         mBufDefs(NULL),
         mChannel(channel),
         mBatchSize(0),
-        mNumBatchBufs(NUM_BATCH_BUFS),
+        mNumBatchBufs(0),
         mStreamBatchBufs(NULL),
         mBatchBufDefs(NULL),
         mCurrentBatchBufDef(NULL),
@@ -283,7 +282,7 @@ QCamera3Stream::~QCamera3Stream()
         int rc = mCamOps->unmap_stream_buf(mCamHandle,
                     mChannelHandle, mHandle, CAM_MAPPING_BUF_TYPE_STREAM_INFO, 0, -1);
         if (rc < 0) {
-            ALOGE("Failed to un-map stream info buffer");
+            ALOGE("%s: Failed to un-map stream info buffer", __func__);
         }
         mStreamInfoBuf->deallocate();
         delete mStreamInfoBuf;
@@ -321,6 +320,7 @@ QCamera3Stream::~QCamera3Stream()
 int32_t QCamera3Stream::init(cam_stream_type_t streamType,
                             cam_format_t streamFormat,
                             cam_dimension_t streamDim,
+                            cam_rotation_t streamRotation,
                             cam_stream_reproc_config_t* reprocess_config,
                             uint8_t minNumBuffers,
                             uint32_t postprocess_mask,
@@ -342,13 +342,13 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     }
 
     // allocate and map stream info memory
-    mStreamInfoBuf = new QCamera3HeapMemory();
+    mStreamInfoBuf = new QCamera3HeapMemory(1);
     if (mStreamInfoBuf == NULL) {
         ALOGE("%s: no memory for stream info buf obj", __func__);
         rc = -ENOMEM;
         goto err1;
     }
-    rc = mStreamInfoBuf->allocate(1, sizeof(cam_stream_info_t), false);
+    rc = mStreamInfoBuf->allocate(sizeof(cam_stream_info_t));
     if (rc < 0) {
         ALOGE("%s: no memory for stream info", __func__);
         rc = -ENOMEM;
@@ -364,6 +364,7 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     mStreamInfo->num_bufs = minNumBuffers;
     mStreamInfo->pp_config.feature_mask = postprocess_mask;
     mStreamInfo->is_type = is_type;
+    mStreamInfo->pp_config.rotation = streamRotation;
     CDBG("%s: stream_type is %d, feature_mask is %d",
           __func__, mStreamInfo->stream_type, mStreamInfo->pp_config.feature_mask);
 
@@ -387,12 +388,14 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
         mStreamInfo->streaming_mode = CAM_STREAMING_MODE_BURST;
         //mStreamInfo->num_of_burst = reprocess_config->offline.num_of_bufs;
         mStreamInfo->num_of_burst = 1;
-        ALOGI("%s: num_of_burst is %d", __func__, mStreamInfo->num_of_burst);
     } else if (batchSize) {
         if (batchSize > MAX_BATCH_SIZE) {
             ALOGE("%s: batchSize:%d is very large", __func__, batchSize);
+            rc = BAD_VALUE;
+            goto err4;
         }
         else {
+            mNumBatchBufs = MAX_INFLIGHT_HFR_REQUESTS / batchSize;
             mStreamInfo->streaming_mode = CAM_STREAMING_MODE_BATCH;
             mStreamInfo->user_buf_info.frame_buf_cnt = batchSize;
             mStreamInfo->user_buf_info.size =
@@ -605,7 +608,7 @@ void *QCamera3Stream::dataProcRoutine(void *data)
             CDBG_HIGH("%s: Exit", __func__);
             /* flush data buf queue */
             pme->mDataQ.flush();
-            pme->mFreeBatchBufQ.flush();
+            pme->flushFreeBatchBufQ();
             running = 0;
             break;
         default:
@@ -634,7 +637,13 @@ int32_t QCamera3Stream::bufDone(uint32_t index)
     Mutex::Autolock lock(mLock);
 
     if ((index >= mNumBufs) || (mBufDefs == NULL)) {
+        ALOGE("%s: index; %d, mNumBufs: %d", __func__, index, mNumBufs);
         return BAD_INDEX;
+    }
+    if (mStreamBufs == NULL)
+    {
+        ALOGE("%s: putBufs already called", __func__);
+        return INVALID_OPERATION;
     }
 
     if( NULL == mBufDefs[index].mem_info) {
@@ -756,28 +765,38 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
     mFrameLenOffset = *offset;
     mMemOps = ops_tbl;
 
+    if (mStreamBufs != NULL) {
+       ALOGE("%s: Failed getBufs being called twice in a row without a putBufs call", __func__);
+       return INVALID_OPERATION;
+    }
     mStreamBufs = mChannel->getStreamBufs(mFrameLenOffset.frame_len);
     if (!mStreamBufs) {
         ALOGE("%s: Failed to allocate stream buffers", __func__);
         return NO_MEMORY;
     }
 
-    uint32_t registeredBuffers = mStreamBufs->getCnt();
-    for (uint32_t i = 0; i < registeredBuffers; i++) {
-        ssize_t bufSize = mStreamBufs->getSize(i);
-        if (BAD_INDEX != bufSize) {
-            rc = ops_tbl->map_ops(i, -1, mStreamBufs->getFd(i),
-                    (size_t)bufSize, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
-            if (rc < 0) {
-                ALOGE("%s: map_stream_buf failed: %d", __func__, rc);
-                for (uint32_t j = 0; j < i; j++) {
-                    ops_tbl->unmap_ops(j, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+    for (uint32_t i = 0; i < mNumBufs; i++) {
+        if (mStreamBufs->valid(i)) {
+            ssize_t bufSize = mStreamBufs->getSize(i);
+            if (BAD_INDEX != bufSize) {
+                rc = ops_tbl->map_ops(i, -1, mStreamBufs->getFd(i),
+                        (size_t)bufSize, CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                        ops_tbl->userdata);
+                if (rc < 0) {
+                    ALOGE("%s: map_stream_buf failed: %d", __func__, rc);
+                    for (uint32_t j = 0; j < i; j++) {
+                        if (mStreamBufs->valid(j)) {
+                            ops_tbl->unmap_ops(j, -1,
+                                    CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                                    ops_tbl->userdata);
+                        }
+                    }
+                    return INVALID_OPERATION;
                 }
+            } else {
+                ALOGE("%s: Failed to retrieve buffer size (bad index)", __func__);
                 return INVALID_OPERATION;
             }
-        } else {
-            ALOGE("Failed to retrieve buffer size (bad index)");
-            return INVALID_OPERATION;
         }
     }
 
@@ -785,8 +804,11 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
     regFlags = (uint8_t *)malloc(sizeof(uint8_t) * mNumBufs);
     if (!regFlags) {
         ALOGE("%s: Out of memory", __func__);
-        for (uint32_t i = 0; i < registeredBuffers; i++) {
-            ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+        for (uint32_t i = 0; i < mNumBufs; i++) {
+            if (mStreamBufs->valid(i)) {
+                ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                        ops_tbl->userdata);
+            }
         }
         return NO_MEMORY;
     }
@@ -795,23 +817,31 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
     mBufDefs = (mm_camera_buf_def_t *)malloc(mNumBufs * sizeof(mm_camera_buf_def_t));
     if (mBufDefs == NULL) {
         ALOGE("%s: Failed to allocate mm_camera_buf_def_t %d", __func__, rc);
-        for (uint32_t i = 0; i < registeredBuffers; i++) {
-            ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+        for (uint32_t i = 0; i < mNumBufs; i++) {
+            if (mStreamBufs->valid(i)) {
+                ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                        ops_tbl->userdata);
+            }
         }
         free(regFlags);
         regFlags = NULL;
         return INVALID_OPERATION;
     }
     memset(mBufDefs, 0, mNumBufs * sizeof(mm_camera_buf_def_t));
-    for (uint32_t i = 0; i < registeredBuffers; i++) {
-        mStreamBufs->getBufDef(mFrameLenOffset, mBufDefs[i], i);
+    for (uint32_t i = 0; i < mNumBufs; i++) {
+        if (mStreamBufs->valid(i)) {
+            mStreamBufs->getBufDef(mFrameLenOffset, mBufDefs[i], i);
+        }
     }
 
     rc = mStreamBufs->getRegFlags(regFlags);
     if (rc < 0) {
         ALOGE("%s: getRegFlags failed %d", __func__, rc);
-        for (uint32_t i = 0; i < registeredBuffers; i++) {
-            ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+        for (uint32_t i = 0; i < mNumBufs; i++) {
+            if (mStreamBufs->valid(i)) {
+                ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF,
+                        ops_tbl->userdata);
+            }
         }
         free(mBufDefs);
         mBufDefs = NULL;
@@ -844,7 +874,7 @@ int32_t QCamera3Stream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
     Mutex::Autolock lock(mLock);
 
     for (uint32_t i = 0; i < mNumBufs; i++) {
-        if (NULL != mBufDefs[i].mem_info) {
+        if (mStreamBufs->valid(i) && NULL != mBufDefs[i].mem_info) {
             rc = ops_tbl->unmap_ops(i, -1, CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
             if (rc < 0) {
                 ALOGE("%s: un-map stream buf failed: %d", __func__, rc);
@@ -854,7 +884,15 @@ int32_t QCamera3Stream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
     mBufDefs = NULL; // mBufDefs just keep a ptr to the buffer
                      // mm-camera-interface own the buffer, so no need to free
     memset(&mFrameLenOffset, 0, sizeof(mFrameLenOffset));
+
+    if (mStreamBufs == NULL) {
+        ALOGE("%s: getBuf failed previously, or calling putBufs twice");
+    }
+
     mChannel->putStreamBufs();
+
+    //need to set mStreamBufs to null because putStreamBufs deletes that memory
+    mStreamBufs = NULL;
 
     return rc;
 }
@@ -873,7 +911,11 @@ int32_t QCamera3Stream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
  *==========================================================================*/
 int32_t QCamera3Stream::invalidateBuf(uint32_t index)
 {
-    return mStreamBufs->invalidateCache(index);
+    if (mStreamBufs == NULL) {
+       ALOGE("%s: putBufs already called", __func__);
+       return INVALID_OPERATION;
+    } else
+       return mStreamBufs->invalidateCache(index);
 }
 
 /*===========================================================================
@@ -890,7 +932,11 @@ int32_t QCamera3Stream::invalidateBuf(uint32_t index)
  *==========================================================================*/
 int32_t QCamera3Stream::cleanInvalidateBuf(uint32_t index)
 {
-    return mStreamBufs->cleanInvalidateCache(index);
+    if (mStreamBufs == NULL) {
+        ALOGE("%s: putBufs already called", __func__);
+        return INVALID_OPERATION;
+    } else
+        return mStreamBufs->cleanInvalidateCache(index);
 }
 
 /*===========================================================================
@@ -1077,7 +1123,15 @@ void QCamera3Stream::releaseFrameData(void *data, void *user_data)
     QCamera3Stream *pme = (QCamera3Stream *)user_data;
     mm_camera_super_buf_t *frame = (mm_camera_super_buf_t *)data;
     if (NULL != pme) {
-        pme->bufDone(frame->bufs[0]->buf_idx);
+        if (UNLIKELY(pme->mBatchSize)) {
+            /* For batch mode, the batch buffer is added to empty list */
+            if(!pme->mFreeBatchBufQ.enqueue((void*) frame->bufs[0])) {
+                ALOGE("%s: batchBuf.buf_idx: %d enqueue failed", __func__,
+                        frame->bufs[0]->buf_idx);
+            }
+        } else {
+            pme->bufDone(frame->bufs[0]->buf_idx);
+        }
     }
 }
 
@@ -1117,7 +1171,7 @@ int32_t QCamera3Stream::getBatchBufs(
     mMemOps = ops_tbl;
 
     //Allocate batch containers
-    mStreamBatchBufs = new QCamera3HeapMemory();
+    mStreamBatchBufs = new QCamera3HeapMemory(1);
     if (!mStreamBatchBufs) {
         ALOGE("%s: unable to create batch container memory", __func__);
         return NO_MEMORY;
@@ -1127,9 +1181,8 @@ int32_t QCamera3Stream::getBatchBufs(
     // QCamera3Stream manages that single buffer as multiple batch buffers
     CDBG("%s: Allocating batch container memory. numBatch: %d size: %d",
             __func__, mNumBatchBufs, mStreamInfo->user_buf_info.size);
-    rc = mStreamBatchBufs->allocate(1,
-            mNumBatchBufs * mStreamInfo->user_buf_info.size,
-            false /* queueAll */);
+    rc = mStreamBatchBufs->allocate(
+            mNumBatchBufs * mStreamInfo->user_buf_info.size);
     if (rc < 0) {
         ALOGE("%s: unable to allocate batch container memory", __func__);
         rc = NO_MEMORY;
@@ -1158,7 +1211,7 @@ int32_t QCamera3Stream::getBatchBufs(
                 goto err2;
             }
         } else {
-            ALOGE("Failed to retrieve buffer size (bad index)");
+            ALOGE("%s: Failed to retrieve buffer size (bad index)", __func__);
             return INVALID_OPERATION;
         }
     }
@@ -1398,7 +1451,7 @@ int32_t QCamera3Stream::handleBatchBuffer(mm_camera_super_buf_t *superBuf)
 {
     int32_t rc = NO_ERROR;
     mm_camera_super_buf_t *frame;
-    mm_camera_buf_def_t* batchBuf;
+    mm_camera_buf_def_t batchBuf;
 
     if (LIKELY(!mBatchSize)) {
         ALOGE("%s: Stream: %d not in batch mode, but batch buffer received",
@@ -1414,15 +1467,23 @@ int32_t QCamera3Stream::handleBatchBuffer(mm_camera_super_buf_t *superBuf)
         return BAD_VALUE;
     }
 
-    batchBuf = superBuf->bufs[0];
+    /* Copy the batch buffer to local and queue the batch buffer to  empty queue
+     * to handle the new requests received while callbacks are in progress */
+    batchBuf = *superBuf->bufs[0];
+    if (!mFreeBatchBufQ.enqueue((void*) superBuf->bufs[0])) {
+        ALOGE("%s: batchBuf.buf_idx: %d enqueue failed", __func__,
+                batchBuf.buf_idx);
+        free(superBuf);
+        return NO_MEMORY;
+    }
     CDBG("%s: Received batch buffer: %d bufs_used: %d", __func__,
-            batchBuf->buf_idx, batchBuf->user_buf.bufs_used);
+            batchBuf.buf_idx, batchBuf.user_buf.bufs_used);
     //dummy local bufDef to issue multiple callbacks
     mm_camera_buf_def_t buf;
     memset(&buf, 0, sizeof(mm_camera_buf_def_t));
 
-    for (size_t i = 0; i < batchBuf->user_buf.bufs_used; i++) {
-        int32_t buf_idx = batchBuf->user_buf.buf_idx[i];
+    for (size_t i = 0; i < batchBuf.user_buf.bufs_used; i++) {
+        int32_t buf_idx = batchBuf.user_buf.buf_idx[i];
         buf = mBufDefs[buf_idx];
 
         /* this memory is freed inside dataCB. Should not be freed here */
@@ -1438,15 +1499,31 @@ int32_t QCamera3Stream::handleBatchBuffer(mm_camera_super_buf_t *superBuf)
             mDataCB(frame, this, mUserData);
         }
     }
-    CDBG("%s: batch buffer: %d callbacks done. Add to empty queue", __func__,
-            batchBuf->buf_idx);
-    if (!mFreeBatchBufQ.enqueue((void*) batchBuf)) {
-        ALOGE("%s: batchBuf->buf_idx: %d enqueue failed", __func__,
-                batchBuf->buf_idx);
-    }
+    CDBG("%s: batch buffer: %d callbacks done", __func__,
+            batchBuf.buf_idx);
 
     free(superBuf);
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : flushFreeBatchBufQ
+ *
+ * DESCRIPTION: dequeue all the entries of mFreeBatchBufQ and call flush.
+ *              QCameraQueue::flush calls 'free(node->data)' which should be
+ *              avoided for mFreeBatchBufQ as the entries are not allocated
+ *              during each enqueue
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCamera3Stream::flushFreeBatchBufQ()
+{
+    while (!mFreeBatchBufQ.isEmpty()) {
+        mFreeBatchBufQ.dequeue();
+    }
+    mFreeBatchBufQ.flush();
 }
 
 }; // namespace qcamera

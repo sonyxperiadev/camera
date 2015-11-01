@@ -1370,8 +1370,12 @@ int setISO(mm_camera_test_obj_t *test_obj, cam_iso_mode_type iso)
         goto ERROR;
     }
 
+    cam_intf_parm_manual_3a_t iso_settings;
+    memset(&iso_settings, 0, sizeof(cam_intf_parm_manual_3a_t));
+    iso_settings.previewOnly = FALSE;
+    iso_settings.value = (uint64_t)iso;
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_ISO, iso)) {
+            CAM_INTF_PARM_ISO, iso_settings)) {
         CDBG_ERROR("%s: ISO parameter not added to batch\n", __func__);
         rc = -1;
         goto ERROR;

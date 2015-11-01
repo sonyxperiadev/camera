@@ -41,8 +41,9 @@
 #include <qdMetaData.h>
 #include <utils/Log.h>
 #include <utils/Errors.h>
-#include <ui/Fence.h>
+#include <sync/sync.h>
 #include <gralloc_priv.h>
+#include "util/QCameraFlash.h"
 #include "QCamera3HWI.h"
 #include "QCamera3Mem.h"
 #include "QCamera3Channel.h"
@@ -73,6 +74,9 @@ namespace qcamera {
 #define VIDEO_4K_WIDTH  3840
 #define VIDEO_4K_HEIGHT 2160
 
+#define MAX_EIS_WIDTH 1920
+#define MAX_EIS_HEIGHT 1080
+
 #define MAX_RAW_STREAMS        1
 #define MAX_STALLING_STREAMS   1
 #define MAX_PROCESSED_STREAMS  3
@@ -80,8 +84,9 @@ namespace qcamera {
 #define MIN_FPS_FOR_BATCH_MODE (120)
 #define PREVIEW_FPS_FOR_HFR    (30)
 #define DEFAULT_VIDEO_FPS      (30.0)
-
+#define MAX_HFR_BATCH_SIZE     (8)
 #define REGIONS_TUPLE_COUNT    5
+#define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
 
 #define FLUSH_TIMEOUT 3
 
@@ -94,6 +99,8 @@ namespace qcamera {
                                               CAM_QCOM_FEATURE_SCALE |\
                                               CAM_QCOM_FEATURE_CAC |\
                                               CAM_QCOM_FEATURE_CDS )
+
+#define TIMEOUT_NEVER -1
 
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
@@ -210,6 +217,7 @@ const QCamera3HardwareInterface::QCameraMap<
         camera_metadata_enum_android_statistics_face_detect_mode_t,
         cam_face_detect_mode_t> QCamera3HardwareInterface::FACEDETECT_MODES_MAP[] = {
     { ANDROID_STATISTICS_FACE_DETECT_MODE_OFF,    CAM_FACE_DETECT_MODE_OFF     },
+    { ANDROID_STATISTICS_FACE_DETECT_MODE_SIMPLE, CAM_FACE_DETECT_MODE_SIMPLE  },
     { ANDROID_STATISTICS_FACE_DETECT_MODE_FULL,   CAM_FACE_DETECT_MODE_FULL    }
 };
 
@@ -276,6 +284,18 @@ const QCamera3HardwareInterface::QCameraMap<
     { ANDROID_SENSOR_REFERENCE_ILLUMINANT1_WHITE_FLUORESCENT, CAM_AWB_COLD_FLO},
 };
 
+const QCamera3HardwareInterface::QCameraMap<
+        int32_t, cam_hfr_mode_t> QCamera3HardwareInterface::HFR_MODE_MAP[] = {
+    { 60, CAM_HFR_MODE_60FPS},
+    { 90, CAM_HFR_MODE_90FPS},
+    { 120, CAM_HFR_MODE_120FPS},
+    { 150, CAM_HFR_MODE_150FPS},
+    { 180, CAM_HFR_MODE_180FPS},
+    { 210, CAM_HFR_MODE_210FPS},
+    { 240, CAM_HFR_MODE_240FPS},
+    { 480, CAM_HFR_MODE_480FPS},
+};
+
 camera3_device_ops_t QCamera3HardwareInterface::mCameraOps = {
     initialize:                         QCamera3HardwareInterface::initialize,
     configure_streams:                  QCamera3HardwareInterface::configure_streams,
@@ -302,17 +322,15 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
         const camera_module_callbacks_t *callbacks)
     : mCameraId(cameraId),
       mCameraHandle(NULL),
-      mCameraOpened(false),
       mCameraInitialized(false),
       mCallbackOps(NULL),
-      mInputStream(NULL),
       mMetadataChannel(NULL),
       mPictureChannel(NULL),
       mRawChannel(NULL),
       mSupportChannel(NULL),
       mAnalysisChannel(NULL),
       mRawDumpChannel(NULL),
-      mFirstRequest(false),
+      mDummyBatchChannel(NULL),
       mFirstConfiguration(true),
       mFlush(false),
       mFlushPerf(false),
@@ -327,7 +345,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mMinProcessedFrameDuration(0),
       mMinJpegFrameDuration(0),
       mMinRawFrameDuration(0),
-      m_pPowerModule(NULL),
       mMetaFrameCount(0U),
       mUpdateDebugLevel(false),
       mCallbacks(callbacks),
@@ -335,11 +352,19 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mCacMode(0),
       mBatchSize(0),
       mToBeQueuedVidBufs(0),
-      mHFRVideoFps(DEFAULT_VIDEO_FPS)
+      mHFRVideoFps(DEFAULT_VIDEO_FPS),
+      mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
+      mFirstFrameNumberInBatch(0),
+      mNeedSensorRestart(false),
+      mLdafCalibExist(false),
+      mPowerHintEnabled(false),
+      mLastCustIntentFrmNum(-1),
+      mState(CLOSED)
 {
     getLogLevel();
+    m_perfLock.lock_init();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
-    mCameraDevice.common.version = CAMERA_DEVICE_API_VERSION_3_2;
+    mCameraDevice.common.version = CAMERA_DEVICE_API_VERSION_3_3;
     mCameraDevice.common.close = close_camera_device;
     mCameraDevice.ops = &mCameraOps;
     mCameraDevice.priv = this;
@@ -351,19 +376,14 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     pthread_cond_init(&mBuffersCond, NULL);
 
     pthread_cond_init(&mRequestCond, NULL);
-    mPendingRequest = 0;
+    mPendingLiveRequest = 0;
     mCurrentRequestId = -1;
     pthread_mutex_init(&mMutex, NULL);
 
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         mDefaultMetadata[i] = NULL;
 
-#ifdef HAS_MULTIMEDIA_HINTS
-    if (hw_get_module(POWER_HARDWARE_MODULE_ID, (const hw_module_t **)&m_pPowerModule)) {
-        ALOGE("%s: %s module not found", __func__, POWER_HARDWARE_MODULE_ID);
-    }
-#endif
-
+    // Getting system props of different kinds
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
     property_get("persist.camera.raw.dump", prop, "0");
@@ -371,9 +391,16 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     if (mEnableRawDump)
         CDBG("%s: Raw dump from Camera HAL enabled", __func__);
 
+    memset(&mInputStreamInfo, 0, sizeof(mInputStreamInfo));
+    memset(mLdafCalib, 0, sizeof(mLdafCalib));
+
     memset(prop, 0, sizeof(prop));
     property_get("persist.camera.tnr.preview", prop, "0");
-    m_bTnrEnabled = (uint8_t)atoi(prop);
+    m_bTnrPreview = (uint8_t)atoi(prop);
+
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.tnr.video", prop, "0");
+    m_bTnrVideo = (uint8_t)atoi(prop);
 
     //Load and read GPU library.
     lib_surface_utils = NULL;
@@ -402,9 +429,14 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 QCamera3HardwareInterface::~QCamera3HardwareInterface()
 {
     CDBG("%s: E", __func__);
+
+    /* Turn off current power hint before acquiring perfLock in case they
+     * conflict with each other */
+    disablePowerHint();
+
+    m_perfLock.lock_acq();
+
     /* We need to stop all streams before deleting any stream */
-
-
     if (mRawDumpChannel) {
         mRawDumpChannel->stop();
     }
@@ -413,7 +445,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     //        this stage by the framework
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
-        QCamera3Channel *channel = (*it)->channel;
+        QCamera3ProcessingChannel *channel = (*it)->channel;
         if (channel) {
             channel->stop();
         }
@@ -425,12 +457,9 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         mAnalysisChannel->stop();
     }
 
-    /* Turn off video hint */
-    updatePowerHint(m_bIsVideo, false);
-
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
-        QCamera3Channel *channel = (*it)->channel;
+        QCamera3ProcessingChannel *channel = (*it)->channel;
         if (channel)
             delete channel;
         free (*it);
@@ -447,6 +476,10 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     if (mRawDumpChannel) {
         delete mRawDumpChannel;
         mRawDumpChannel = NULL;
+    }
+    if (mDummyBatchChannel) {
+        delete mDummyBatchChannel;
+        mDummyBatchChannel = NULL;
     }
     mPictureChannel = NULL;
 
@@ -473,16 +506,21 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         deinitParameters();
     }
 
-    if (mCameraOpened)
+    if (mState != CLOSED)
         closeCamera();
 
     mPendingBuffersMap.mPendingBufferList.clear();
-    mPendingRequestsList.clear();
     mPendingReprocessResultList.clear();
-
+    for (pendingRequestIterator i = mPendingRequestsList.begin();
+            i != mPendingRequestsList.end();) {
+        i = erasePendingRequest(i);
+    }
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         if (mDefaultMetadata[i])
             free_camera_metadata(mDefaultMetadata[i]);
+
+    m_perfLock.lock_rel();
+    m_perfLock.lock_deinit();
 
     pthread_cond_destroy(&mRequestCond);
 
@@ -490,6 +528,29 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 
     pthread_mutex_destroy(&mMutex);
     CDBG("%s: X", __func__);
+}
+
+/*===========================================================================
+ * FUNCTION   : erasePendingRequest
+ *
+ * DESCRIPTION: function to erase a desired pending request after freeing any
+ *              allocated memory
+ *
+ * PARAMETERS :
+ *   @i       : iterator pointing to pending request to be erased
+ *
+ * RETURN     : iterator pointing to the next request
+ *==========================================================================*/
+QCamera3HardwareInterface::pendingRequestIterator
+        QCamera3HardwareInterface::erasePendingRequest (pendingRequestIterator i)
+{
+    if (i->input_buffer != NULL) {
+        free(i->input_buffer);
+        i->input_buffer = NULL;
+    }
+    if (i->settings != NULL)
+        free_camera_metadata((camera_metadata_t*)i->settings);
+    return mPendingRequestsList.erase(i);
 }
 
 /*===========================================================================
@@ -513,14 +574,6 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
         switch(evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 ALOGE("%s: Fatal, camera daemon died", __func__);
-                //close the camera backend
-                if (obj->mCameraHandle && obj->mCameraHandle->camera_handle
-                        && obj->mCameraHandle->ops) {
-                    obj->mCameraHandle->ops->error_close_camera(obj->mCameraHandle->camera_handle);
-                } else {
-                    ALOGE("%s: Could not close camera on error because the handle or ops is NULL",
-                            __func__);
-                }
                 camera3_notify_msg_t notify_msg;
                 memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
                 notify_msg.type = CAMERA3_MSG_ERROR;
@@ -563,10 +616,12 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
 int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
 {
     int rc = 0;
-    if (mCameraOpened) {
+    if (mState != CLOSED) {
         *hw_device = NULL;
         return PERMISSION_DENIED;
     }
+
+    m_perfLock.lock_acq();
     ALOGI("[KPI Perf] %s: E PROFILE_OPEN_CAMERA camera id %d",
             __func__, mCameraId);
 
@@ -576,9 +631,13 @@ int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
     } else
         *hw_device = NULL;
 
+    m_perfLock.lock_rel();
     ALOGI("[KPI Perf] %s: X PROFILE_OPEN_CAMERA camera id %d, rc: %d",
             __func__, mCameraId, rc);
 
+    if (rc == NO_ERROR) {
+        mState = OPENED;
+    }
     return rc;
 }
 
@@ -602,17 +661,25 @@ int QCamera3HardwareInterface::openCamera()
         ALOGE("Failure: Camera already opened");
         return ALREADY_EXISTS;
     }
+
+    rc = QCameraFlash::getInstance().reserveFlashForCamera(mCameraId);
+    if (rc < 0) {
+        ALOGE("%s: Failed to reserve flash for camera id: %d",
+                __func__,
+                mCameraId);
+        return UNKNOWN_ERROR;
+    }
+
     rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
     if (rc) {
         ALOGE("camera_open failed. rc = %d, mCameraHandle = %p", rc, mCameraHandle);
         return rc;
     }
+
     if (!mCameraHandle) {
         ALOGE("camera_open failed. mCameraHandle = %p", mCameraHandle);
         return -ENODEV;
     }
-
-    mCameraOpened = true;
 
     rc = mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
             camEvtHandle, (void *)this);
@@ -661,7 +728,6 @@ int QCamera3HardwareInterface::closeCamera()
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
-    mCameraOpened = false;
 
     //Notify display HAL that there is no active camera session
     pthread_mutex_lock(&gCamLock);
@@ -673,6 +739,12 @@ int QCamera3HardwareInterface::closeCamera()
         free(mExifParams.debug_params);
         mExifParams.debug_params = NULL;
     }
+    if (QCameraFlash::getInstance().releaseFlashFromCamera(mCameraId) != 0) {
+        CDBG("%s: Failed to release flash for camera id: %d",
+                __func__,
+                mCameraId);
+    }
+    mState = CLOSED;
 
     return rc;
 }
@@ -696,6 +768,12 @@ int QCamera3HardwareInterface::initialize(
 
     pthread_mutex_lock(&mMutex);
 
+    if (mState != OPENED) {
+        ALOGE("%s: Invalid state %d", __func__, mState);
+        rc = -ENODEV;
+        goto err1;
+    }
+
     rc = initParameters();
     if (rc < 0) {
         ALOGE("%s: initParamters failed %d", __func__, rc);
@@ -705,6 +783,7 @@ int QCamera3HardwareInterface::initialize(
 
     pthread_mutex_unlock(&mMutex);
     mCameraInitialized = true;
+    mState = INITIALIZED;
     return 0;
 
 err1:
@@ -731,6 +810,19 @@ int QCamera3HardwareInterface::validateStreamDimensions(
     int32_t available_jpeg_sizes[MAX_SIZES_CNT * 2];
     size_t count = 0;
 
+    camera3_stream_t *inputStream = NULL;
+    /*
+    * Loop through all streams to find input stream if it exists*
+    */
+    for (size_t i = 0; i< streamList->num_streams; i++) {
+        if (streamList->streams[i]->stream_type == CAMERA3_STREAM_INPUT) {
+            if (inputStream != NULL) {
+                ALOGE("%s: Error, Multiple input streams requested");
+                return -EINVAL;
+            }
+            inputStream = streamList->streams[i];
+        }
+    }
     /*
     * Loop through all streams requested in configuration
     * Check if unsupported sizes have been requested on any of them
@@ -739,6 +831,14 @@ int QCamera3HardwareInterface::validateStreamDimensions(
         bool sizeFound = false;
         size_t jpeg_sizes_cnt = 0;
         camera3_stream_t *newStream = streamList->streams[j];
+
+        uint32_t rotatedHeight = newStream->height;
+        uint32_t rotatedWidth = newStream->width;
+        if ((newStream->rotation == CAMERA3_STREAM_ROTATION_90) ||
+                (newStream->rotation == CAMERA3_STREAM_ROTATION_270)) {
+            rotatedHeight = newStream->width;
+            rotatedWidth = newStream->height;
+        }
 
         /*
         * Sizes are different for each type of stream format check against
@@ -750,8 +850,8 @@ int QCamera3HardwareInterface::validateStreamDimensions(
         case HAL_PIXEL_FORMAT_RAW10:
             count = MIN(gCamCapability[mCameraId]->supported_raw_dim_cnt, MAX_SIZES_CNT);
             for (size_t i = 0; i < count; i++) {
-                if ((gCamCapability[mCameraId]->raw_dim[i].width == (int32_t)newStream->width) &&
-                        (gCamCapability[mCameraId]->raw_dim[i].height == (int32_t)newStream->height)) {
+                if ((gCamCapability[mCameraId]->raw_dim[i].width == (int32_t)rotatedWidth) &&
+                        (gCamCapability[mCameraId]->raw_dim[i].height == (int32_t)rotatedHeight)) {
                     sizeFound = true;
                     break;
                 }
@@ -774,44 +874,42 @@ int QCamera3HardwareInterface::validateStreamDimensions(
 
             /* Verify set size against generated sizes table */
             for (size_t i = 0; i < (jpeg_sizes_cnt / 2); i++) {
-                if (((int32_t)newStream->width == available_jpeg_sizes[i*2]) &&
-                        ((int32_t)newStream->height == available_jpeg_sizes[i*2+1])) {
+                if (((int32_t)rotatedWidth == available_jpeg_sizes[i*2]) &&
+                        ((int32_t)rotatedHeight == available_jpeg_sizes[i*2+1])) {
                     sizeFound = true;
                     break;
                 }
             }
             break;
-
-
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
         case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
         default:
-            /* ZSL stream will be full active array size validate that*/
-            if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL) {
-                if (((int32_t)newStream->width ==
-                            gCamCapability[mCameraId]->active_array_size.width) &&
-                        ((int32_t)newStream->height ==
+            if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
+                    || newStream->stream_type == CAMERA3_STREAM_INPUT
+                    || IS_USAGE_ZSL(newStream->usage)) {
+                if (((int32_t)rotatedWidth ==
+                                gCamCapability[mCameraId]->active_array_size.width) &&
+                                ((int32_t)rotatedHeight ==
                                 gCamCapability[mCameraId]->active_array_size.height)) {
                     sizeFound = true;
+                    break;
                 }
                 /* We could potentially break here to enforce ZSL stream
-                 * set from frameworks always has full active array size
-                 * but it is not clear from spec if framework will always
+                 * set from frameworks always is full active array size
+                 * but it is not clear from the spc if framework will always
                  * follow that, also we have logic to override to full array
-                 * size, so keeping this logic lenient at the moment.
+                 * size, so keeping the logic lenient at the moment
                  */
             }
-
-            /* Non ZSL stream still need to conform to advertised sizes*/
             count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt,
                     MAX_SIZES_CNT);
             for (size_t i = 0; i < count; i++) {
-                if (((int32_t)newStream->width ==
+                if (((int32_t)rotatedWidth ==
                             gCamCapability[mCameraId]->picture_sizes_tbl[i].width) &&
-                        ((int32_t)newStream->height ==
-                                gCamCapability[mCameraId]->picture_sizes_tbl[i].height)) {
+                            ((int32_t)rotatedHeight ==
+                            gCamCapability[mCameraId]->picture_sizes_tbl[i].height)) {
                     sizeFound = true;
-                break;
+                    break;
                 }
             }
             break;
@@ -819,8 +917,12 @@ int QCamera3HardwareInterface::validateStreamDimensions(
 
         /* We error out even if a single stream has unsupported size set */
         if (!sizeFound) {
-            ALOGE("%s: Error: Unsupported size of %d x %d requested for stream type:%d",
-                    __func__, newStream->width, newStream->height, newStream->format);
+            ALOGE("%s: Error: Unsupported size of  %d x %d requested for stream"
+                  "type:%d", __func__, rotatedWidth, rotatedHeight,
+                  newStream->format);
+            ALOGE("%s: Active array size is  %d x %d", __func__,
+                    gCamCapability[mCameraId]->active_array_size.width,
+                    gCamCapability[mCameraId]->active_array_size.height);
             rc = -EINVAL;
             break;
         }
@@ -835,16 +937,31 @@ int QCamera3HardwareInterface::validateStreamDimensions(
  *
  * PARAMETERS :
  *   @stream_list : streams to be configured
+ *   @stream_config_info : the config info for streams to be configured
  *
  * RETURN     : Boolen true/false decision
  *
  *==========================================================================*/
-bool QCamera3HardwareInterface::isSupportChannelNeeded(camera3_stream_configuration_t *streamList)
+bool QCamera3HardwareInterface::isSupportChannelNeeded(
+        camera3_stream_configuration_t *streamList,
+        cam_stream_size_info_t stream_config_info)
 {
     uint32_t i;
+    bool pprocRequested = false;
+    /* Check for conditions where PProc pipeline does not have any streams*/
+    for (i = 0; i < stream_config_info.num_streams; i++) {
+        if (stream_config_info.type[i] != CAM_STREAM_TYPE_ANALYSIS &&
+                stream_config_info.postprocess_mask[i] != CAM_QCOM_FEATURE_NONE) {
+            pprocRequested = true;
+            break;
+        }
+    }
+
+    if (pprocRequested == false )
+        return true;
 
     /* Dummy stream needed if only raw or jpeg streams present */
-    for (i = 0;i < streamList->num_streams;i++) {
+    for (i = 0; i < streamList->num_streams; i++) {
         switch(streamList->streams[i]->format) {
             case HAL_PIXEL_FORMAT_RAW_OPAQUE:
             case HAL_PIXEL_FORMAT_RAW10:
@@ -915,32 +1032,39 @@ int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_d
 }
 
 /*==============================================================================
- * FUNCTION   : updatePowerHint
+ * FUNCTION   : enablePowerHint
  *
- * DESCRIPTION: update power hint based on whether it's video mode or not.
+ * DESCRIPTION: enable single powerhint for preview and different video modes.
  *
  * PARAMETERS :
- *   @bWasVideo : whether video mode before the switch
- *   @bIsVideo  : whether new mode is video or not.
  *
  * RETURN     : NULL
  *
  *==========================================================================*/
-void QCamera3HardwareInterface::updatePowerHint(bool bWasVideo, bool bIsVideo)
+void QCamera3HardwareInterface::enablePowerHint()
 {
-#ifdef HAS_MULTIMEDIA_HINTS
-    if (bWasVideo == bIsVideo)
-        return;
+    if (!mPowerHintEnabled) {
+        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, 1);
+        mPowerHintEnabled = true;
+    }
+}
 
-    if (m_pPowerModule && m_pPowerModule->powerHint) {
-        if (bIsVideo)
-            m_pPowerModule->powerHint(m_pPowerModule,
-                    POWER_HINT_VIDEO_ENCODE, (void *)"state=1");
-        else
-            m_pPowerModule->powerHint(m_pPowerModule,
-                    POWER_HINT_VIDEO_ENCODE, (void *)"state=0");
-     }
-#endif
+/*==============================================================================
+ * FUNCTION   : disablePowerHint
+ *
+ * DESCRIPTION: disable current powerhint.
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : NULL
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::disablePowerHint()
+{
+    if (mPowerHintEnabled) {
+        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, 0);
+        mPowerHintEnabled = false;
+    }
 }
 
 /*==============================================================================
@@ -985,11 +1109,11 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
         if ((m_bIsVideo) && (feature_mask & CAM_QCOM_FEATURE_LLVD)) {
             mStreamConfigInfo.postprocess_mask[stream_idx]
                     |= CAM_QCOM_FEATURE_LLVD;
-            ALOGI("%s: Added LLVD SeeMore to pp feature mask %x", __func__);
+            ALOGI("%s: Added LLVD SeeMore to pp feature mask ", __func__);
         }
         break;
     }
-    deafult:
+    default:
         break;
     }
     CDBG("%s: PP feature mask %x", __func__,
@@ -1048,7 +1172,32 @@ int QCamera3HardwareInterface::configureStreams(
 {
     ATRACE_CALL();
     int rc = 0;
-    bool bWasVideo = m_bIsVideo;
+
+    // Acquire perfLock before configure streams
+    m_perfLock.lock_acq();
+    rc = configureStreamsPerfLocked(streamList);
+    m_perfLock.lock_rel();
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : configureStreamsPerfLocked
+ *
+ * DESCRIPTION: configureStreams while perfLock is held.
+ *
+ * PARAMETERS :
+ *   @stream_list : streams to be configured
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera3HardwareInterface::configureStreamsPerfLocked(
+        camera3_stream_configuration_t *streamList)
+{
+    ATRACE_CALL();
+    int rc = 0;
 
     // Sanity check stream_list
     if (streamList == NULL) {
@@ -1072,11 +1221,14 @@ int QCamera3HardwareInterface::configureStreams(
         return BAD_VALUE;
     }
 
+    mOpMode = streamList->operation_mode;
+    CDBG("%s: mOpMode: %d", __func__, mOpMode);
+
     /* first invalidate all the steams in the mStreamList
      * if they appear again, they will be validated */
     for (List<stream_info_t*>::iterator it = mStreamInfo.begin();
             it != mStreamInfo.end(); it++) {
-        QCamera3Channel *channel = (QCamera3Channel*)(*it)->stream->priv;
+        QCamera3ProcessingChannel *channel = (QCamera3ProcessingChannel*)(*it)->stream->priv;
         channel->stop();
         (*it)->status = INVALID;
     }
@@ -1100,10 +1252,20 @@ int QCamera3HardwareInterface::configureStreams(
 
     pthread_mutex_lock(&mMutex);
 
+    // Check state
+    if ((mState != INITIALIZED) && (mState != CONFIGURED)
+            && (mState != STARTED)) {
+        ALOGE("%s: Wrong state %d", __func__, mState);
+        pthread_mutex_unlock(&mMutex);
+        rc = -ENODEV;
+        return rc;
+    }
+
     /* Check whether we have video stream */
     m_bIs4KVideo = false;
     m_bIsVideo = false;
     m_bEisSupportedSize = false;
+    m_bTnrEnabled = false;
     bool isZsl = false;
     uint32_t videoWidth = 0U;
     uint32_t videoHeight = 0U;
@@ -1112,28 +1274,17 @@ int QCamera3HardwareInterface::configureStreams(
     size_t processedStreamCnt = 0;
     // Number of streams on ISP encoder path
     size_t numStreamsOnEncoder = 0;
-    cam_dimension_t maxViewfinderSize;
+    size_t numYuv888OnEncoder = 0;
+    bool bYuv888OverrideJpeg = false;
+    cam_dimension_t largeYuv888Size = {0, 0};
+    cam_dimension_t maxViewfinderSize = {0, 0};
     bool bJpegExceeds4K = false;
     bool bUseCommonFeatureMask = false;
     uint32_t commonFeatureMask = 0;
-
-    //@todo Remove fullFeatureMask and possibly m_bTnrEnabled once CPP checks
-    //      both feature mask and param for TNR enable.
-    uint32_t fullFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-    if (gCamCapability[mCameraId]->qcom_supported_feature_mask
-            & CAM_QCOM_FEATURE_DSDN) {
-        //Use CPP CDS incase h/w supports it.
-        fullFeatureMask &= ~CAM_QCOM_FEATURE_CDS;
-        fullFeatureMask |= CAM_QCOM_FEATURE_DSDN;
-    }
-    if (m_bTnrEnabled != 0)
-    {
-        fullFeatureMask |= CAM_QCOM_FEATURE_CPP_TNR;
-        // TNR and CDS cannot be enabled at the same time. Unmask CDS feature.
-        fullFeatureMask &= ~CAM_QCOM_FEATURE_CDS;
-        fullFeatureMask &= ~CAM_QCOM_FEATURE_DSDN;
-    }
     maxViewfinderSize = gCamCapability[mCameraId]->max_viewfinder_size;
+    camera3_stream_t *inputStream = NULL;
+    bool isJpeg = false;
+    cam_dimension_t jpegSize = {0, 0};
 
     cam_padding_info_t padding_info = gCamCapability[mCameraId]->padding_info;
 
@@ -1145,6 +1296,8 @@ int QCamera3HardwareInterface::configureStreams(
     uint32_t maxEisWidth = 0;
     uint32_t maxEisHeight = 0;
     int32_t hal_version = CAM_HAL_V3;
+
+    memset(&mInputStreamInfo, 0, sizeof(mInputStreamInfo));
 
     size_t count = IS_TYPE_MAX;
     count = MIN(gCamCapability[mCameraId]->supported_is_types_cnt, count);
@@ -1166,33 +1319,39 @@ int QCamera3HardwareInterface::configureStreams(
     }
 
     if (eisSupported) {
-        maxEisWidth = (uint32_t)
-            ((gCamCapability[mCameraId]->active_array_size.width * 1.0) /
-            (1+ gCamCapability[mCameraId]->supported_is_type_margins[margin_index]));
-         maxEisHeight = (uint32_t)
-            ((gCamCapability[mCameraId]->active_array_size.height * 1.0) /
-            (1+ gCamCapability[mCameraId]->supported_is_type_margins[margin_index]));
+        maxEisWidth = MAX_EIS_WIDTH;
+        maxEisHeight = MAX_EIS_HEIGHT;
     }
 
     /* EIS setprop control */
     char eis_prop[PROPERTY_VALUE_MAX];
     memset(eis_prop, 0, sizeof(eis_prop));
-    property_get("camera.eis.enable", eis_prop, "0");
+    property_get("persist.camera.eis.enable", eis_prop, "0");
     eis_prop_set = (uint8_t)atoi(eis_prop);
 
-    m_bEisEnable = eis_prop_set && (!oisSupported && eisSupported);
+    m_bEisEnable = eis_prop_set && (!oisSupported && eisSupported) &&
+            (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE);
 
     /* stream configurations */
     for (size_t i = 0; i < streamList->num_streams; i++) {
         camera3_stream_t *newStream = streamList->streams[i];
-        ALOGI("%s: stream[%d] type = %d, format = %d, width = %d, height = %d",
+        ALOGI("%s: stream[%d] type = %d, format = %d, width = %d, "
+                "height = %d, rotation = %d, usage = 0x%x",
                 __func__, i, newStream->stream_type, newStream->format,
-                newStream->width, newStream->height);
-        if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL &&
-                newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
+                newStream->width, newStream->height, newStream->rotation,
+                newStream->usage);
+        if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ||
+                newStream->stream_type == CAMERA3_STREAM_INPUT){
             isZsl = true;
         }
+        if (newStream->stream_type == CAMERA3_STREAM_INPUT){
+            inputStream = newStream;
+        }
+
         if (newStream->format == HAL_PIXEL_FORMAT_BLOB) {
+            isJpeg = true;
+            jpegSize.width = newStream->width;
+            jpegSize.height = newStream->height;
             if (newStream->width > VIDEO_4K_WIDTH ||
                     newStream->height > VIDEO_4K_HEIGHT)
                 bJpegExceeds4K = true;
@@ -1201,10 +1360,10 @@ int QCamera3HardwareInterface::configureStreams(
         if ((HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == newStream->format) &&
                 (newStream->usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER)) {
             m_bIsVideo = true;
+            videoWidth = newStream->width;
+            videoHeight = newStream->height;
             if ((VIDEO_4K_WIDTH <= newStream->width) &&
                     (VIDEO_4K_HEIGHT <= newStream->height)) {
-                videoWidth = newStream->width;
-                videoHeight = newStream->height;
                 m_bIs4KVideo = true;
             }
             m_bEisSupportedSize = (newStream->width <= maxEisWidth) &&
@@ -1215,8 +1374,8 @@ int QCamera3HardwareInterface::configureStreams(
             switch (newStream->format) {
             case HAL_PIXEL_FORMAT_BLOB:
                 stallStreamCnt++;
-                if (((int32_t)newStream->width > maxViewfinderSize.width) ||
-                        ((int32_t)newStream->height > maxViewfinderSize.height)) {
+                if (isOnEncoder(maxViewfinderSize, newStream->width,
+                        newStream->height)) {
                     commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
                     numStreamsOnEncoder++;
                 }
@@ -1228,22 +1387,41 @@ int QCamera3HardwareInterface::configureStreams(
                 break;
             case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
                 processedStreamCnt++;
-                if (((int32_t)newStream->width > maxViewfinderSize.width) ||
-                        ((int32_t)newStream->height > maxViewfinderSize.height)) {
-                    if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL) {
+                if (isOnEncoder(maxViewfinderSize, newStream->width,
+                        newStream->height)) {
+                    if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ||
+                            IS_USAGE_ZSL(newStream->usage)) {
                         commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
                     } else {
-                        commonFeatureMask |= fullFeatureMask;
+                        commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                     }
                     numStreamsOnEncoder++;
                 }
                 break;
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
+                processedStreamCnt++;
+                if (isOnEncoder(maxViewfinderSize, newStream->width,
+                        newStream->height)) {
+                    // If Yuv888 size is not greater than 4K, set feature mask
+                    // to SUPERSET so that it support concurrent request on
+                    // YUV and JPEG.
+                    if (newStream->width <= VIDEO_4K_WIDTH &&
+                            newStream->height <= VIDEO_4K_HEIGHT) {
+                        commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                    } else {
+                        commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
+                    }
+                    numStreamsOnEncoder++;
+                    numYuv888OnEncoder++;
+                    largeYuv888Size.width = newStream->width;
+                    largeYuv888Size.height = newStream->height;
+                }
+                break;
             default:
                 processedStreamCnt++;
-                if (((int32_t)newStream->width > maxViewfinderSize.width) ||
-                        ((int32_t)newStream->height > maxViewfinderSize.height)) {
-                    commonFeatureMask |= fullFeatureMask;
+                if (isOnEncoder(maxViewfinderSize, newStream->width,
+                        newStream->height)) {
+                    commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                     numStreamsOnEncoder++;
                 }
                 break;
@@ -1251,6 +1429,18 @@ int QCamera3HardwareInterface::configureStreams(
 
         }
     }
+
+    if (gCamCapability[mCameraId]->position == CAM_POSITION_FRONT ||
+        !m_bIsVideo) {
+        m_bEisEnable = false;
+    }
+
+    /* Logic to enable/disable TNR based on specific config size/etc.*/
+    if ((m_bTnrPreview || m_bTnrVideo) && m_bIsVideo &&
+            ((videoWidth == 1920 && videoHeight == 1080) ||
+            (videoWidth == 1280 && videoHeight == 720)) &&
+            (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE))
+        m_bTnrEnabled = true;
 
     /* Check if num_streams is sane */
     if (stallStreamCnt > MAX_STALLING_STREAMS ||
@@ -1278,6 +1468,7 @@ int QCamera3HardwareInterface::configureStreams(
         CDBG_HIGH("%s: Multiple streams above max viewfinder size, common mask needed",
                 __func__);
     }
+
     /* Check if BLOB size is greater than 4k in 4k recording case */
     if (m_bIs4KVideo && bJpegExceeds4K) {
         ALOGE("%s: HAL doesn't support Blob size greater than 4k in 4k recording",
@@ -1286,35 +1477,52 @@ int QCamera3HardwareInterface::configureStreams(
         return -EINVAL;
     }
 
+    // If jpeg stream is available, and a YUV 888 stream is on Encoder path, and
+    // the YUV stream's size is greater or equal to the JPEG size, set common
+    // postprocess mask to NONE, so that we can take advantage of postproc bypass.
+    if (numYuv888OnEncoder && isOnEncoder(maxViewfinderSize,
+            jpegSize.width, jpegSize.height) &&
+            largeYuv888Size.width > jpegSize.width &&
+            largeYuv888Size.height > jpegSize.height) {
+        bYuv888OverrideJpeg = true;
+    } else if (!isJpeg && numStreamsOnEncoder > 1) {
+        commonFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+    }
+
     rc = validateStreamDimensions(streamList);
+    if (rc == NO_ERROR) {
+        rc = validateStreamRotations(streamList);
+    }
     if (rc != NO_ERROR) {
         ALOGE("%s: Invalid stream configuration requested!", __func__);
         pthread_mutex_unlock(&mMutex);
         return rc;
     }
 
-    camera3_stream_t *inputStream = NULL;
+    camera3_stream_t *zslStream = NULL; //Only use this for size and not actual handle!
     camera3_stream_t *jpegStream = NULL;
     for (size_t i = 0; i < streamList->num_streams; i++) {
         camera3_stream_t *newStream = streamList->streams[i];
-        CDBG_HIGH("%s: newStream type = %d, stream format = %d stream size : %d x %d",
+        CDBG_HIGH("%s: newStream type = %d, stream format = %d "
+                "stream size : %d x %d, stream rotation = %d",
                 __func__, newStream->stream_type, newStream->format,
-                 newStream->width, newStream->height);
+                newStream->width, newStream->height, newStream->rotation);
         //if the stream is in the mStreamList validate it
         bool stream_exists = false;
         for (List<stream_info_t*>::iterator it=mStreamInfo.begin();
                 it != mStreamInfo.end(); it++) {
             if ((*it)->stream == newStream) {
-                QCamera3Channel *channel =
-                    (QCamera3Channel*)(*it)->stream->priv;
+                QCamera3ProcessingChannel *channel =
+                    (QCamera3ProcessingChannel*)(*it)->stream->priv;
                 stream_exists = true;
-                delete channel;
+                if (channel)
+                    delete channel;
                 (*it)->status = VALID;
                 (*it)->stream->priv = NULL;
                 (*it)->channel = NULL;
             }
         }
-        if (!stream_exists) {
+        if (!stream_exists && newStream->stream_type != CAMERA3_STREAM_INPUT) {
             //new stream
             stream_info_t* stream_info;
             stream_info = (stream_info_t* )malloc(sizeof(stream_info_t));
@@ -1329,20 +1537,53 @@ int QCamera3HardwareInterface::configureStreams(
             stream_info->channel = NULL;
             mStreamInfo.push_back(stream_info);
         }
-        if (newStream->stream_type == CAMERA3_STREAM_INPUT
+        /* Covers Opaque ZSL and API1 F/W ZSL */
+        if (IS_USAGE_ZSL(newStream->usage)
                 || newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ) {
-            if (inputStream != NULL) {
-                ALOGE("%s: Multiple input streams requested!", __func__);
+            if (zslStream != NULL) {
+                ALOGE("%s: Multiple input/reprocess streams requested!", __func__);
                 pthread_mutex_unlock(&mMutex);
                 return BAD_VALUE;
             }
-            inputStream = newStream;
+            zslStream = newStream;
+        }
+        /* Covers YUV reprocess */
+        if (inputStream != NULL) {
+            if (newStream->stream_type == CAMERA3_STREAM_OUTPUT
+                    && newStream->format == HAL_PIXEL_FORMAT_YCbCr_420_888
+                    && inputStream->format == HAL_PIXEL_FORMAT_YCbCr_420_888
+                    && inputStream->width == newStream->width
+                    && inputStream->height == newStream->height) {
+                if (zslStream != NULL) {
+                    /* This scenario indicates multiple YUV streams with same size
+                     * as input stream have been requested, since zsl stream handle
+                     * is solely use for the purpose of overriding the size of streams
+                     * which share h/w streams we will just make a guess here as to
+                     * which of the stream is a ZSL stream, this will be refactored
+                     * once we make generic logic for streams sharing encoder output
+                     */
+                    CDBG_HIGH("%s: Warning, Multiple ip/reprocess streams requested!", __func__);
+                }
+                zslStream = newStream;
+            }
         }
         if (newStream->format == HAL_PIXEL_FORMAT_BLOB) {
             jpegStream = newStream;
         }
     }
-    mInputStream = inputStream;
+
+    /* If a zsl stream is set, we know that we have configured at least one input or
+       bidirectional stream */
+    if (NULL != zslStream) {
+        mInputStreamInfo.dim.width = (int32_t)zslStream->width;
+        mInputStreamInfo.dim.height = (int32_t)zslStream->height;
+        mInputStreamInfo.format = zslStream->format;
+        mInputStreamInfo.usage = zslStream->usage;
+        CDBG("%s: Input stream configured! %d x %d, format %d, usage %d",
+                __func__, mInputStreamInfo.dim.width,
+                mInputStreamInfo.dim.height,
+                mInputStreamInfo.format, mInputStreamInfo.usage);
+    }
 
     cleanAndSortStreamInfo();
     if (mMetadataChannel) {
@@ -1357,6 +1598,11 @@ int QCamera3HardwareInterface::configureStreams(
     if (mAnalysisChannel) {
         delete mAnalysisChannel;
         mAnalysisChannel = NULL;
+    }
+
+    if (mDummyBatchChannel) {
+        delete mDummyBatchChannel;
+        mDummyBatchChannel = NULL;
     }
 
     //Create metadata channel and initialize it
@@ -1378,38 +1624,22 @@ int QCamera3HardwareInterface::configureStreams(
         return rc;
     }
 
-    /* Create analysis stream if h/w support is available */
-    if (gCamCapability[mCameraId]->hw_analysis_supported) {
+    // Create analysis stream all the time, even when h/w support is not available
+    {
         mAnalysisChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mCameraHandle->ops,
                 &gCamCapability[mCameraId]->analysis_padding_info,
-                fullFeatureMask,
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
                 CAM_STREAM_TYPE_ANALYSIS,
                 &gCamCapability[mCameraId]->analysis_recommended_res,
                 (gCamCapability[mCameraId]->analysis_recommended_format
                 == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
                 : CAM_FORMAT_YUV_420_NV21),
-                this);
+                this,
+                0); // force buffer count to 0
         if (!mAnalysisChannel) {
             ALOGE("%s: H/W Analysis channel cannot be created", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return -ENOMEM;
-        }
-    }
-
-    if (isSupportChannelNeeded(streamList)) {
-        mSupportChannel = new QCamera3SupportChannel(
-                mCameraHandle->camera_handle,
-                mCameraHandle->ops,
-                &padding_info,
-                fullFeatureMask,
-                CAM_STREAM_TYPE_CALLBACK,
-                &QCamera3SupportChannel::kDim,
-                CAM_FORMAT_YUV_420_NV21,
-                this);
-        if (!mSupportChannel) {
-            ALOGE("%s: dummy channel cannot be created", __func__);
             pthread_mutex_unlock(&mMutex);
             return -ENOMEM;
         }
@@ -1421,65 +1651,117 @@ int QCamera3HardwareInterface::configureStreams(
     for (size_t i = 0; i < streamList->num_streams; i++) {
         camera3_stream_t *newStream = streamList->streams[i];
         uint32_t stream_usage = newStream->usage;
-        mStreamConfigInfo.stream_sizes[i].width = (int32_t)newStream->width;
-        mStreamConfigInfo.stream_sizes[i].height = (int32_t)newStream->height;
-        if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL &&
-            newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED && jpegStream){
-            //for zsl stream the size is jpeg stream size
-            mStreamConfigInfo.stream_sizes[i].width = (int32_t)jpegStream->width;
-            mStreamConfigInfo.stream_sizes[i].height = (int32_t)jpegStream->height;
-            mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
-            mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
+        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width = (int32_t)newStream->width;
+        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height = (int32_t)newStream->height;
+        if ((newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
+                || IS_USAGE_ZSL(newStream->usage)) &&
+            newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
+            mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
+            if (bUseCommonFeatureMask) {
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                        commonFeatureMask;
+            } else {
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                        CAM_QCOM_FEATURE_NONE;
+            }
+
+        } else if(newStream->stream_type == CAMERA3_STREAM_INPUT) {
+                CDBG_HIGH("%s: Input stream configured, reprocess config", __func__);
         } else {
             //for non zsl streams find out the format
             switch (newStream->format) {
             case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED :
             {
-                if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
-                    mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_VIDEO;
-                } else {
-                    mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_PREVIEW;
-                    padding_info.width_padding = mSurfaceStridePadding;
-                    padding_info.height_padding = CAM_PAD_TO_2;
-                }
-                mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
-
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                        CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                 /* add additional features to pp feature mask */
                 addToPPFeatureMask(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED,
                         mStreamConfigInfo.num_streams);
+
+                if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
+                        mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
+                                CAM_STREAM_TYPE_VIDEO;
+                    if (m_bTnrEnabled && m_bTnrVideo) {
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] |=
+                            CAM_QCOM_FEATURE_CPP_TNR;
+                    }
+                } else {
+                        mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
+                            CAM_STREAM_TYPE_PREVIEW;
+                    if (m_bTnrEnabled && m_bTnrPreview) {
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] |=
+                                CAM_QCOM_FEATURE_CPP_TNR;
+                    }
+                    padding_info.width_padding = mSurfaceStridePadding;
+                    padding_info.height_padding = CAM_PAD_TO_2;
+                }
+                if ((newStream->rotation == CAMERA3_STREAM_ROTATION_90) ||
+                        (newStream->rotation == CAMERA3_STREAM_ROTATION_270)) {
+                    mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
+                            newStream->height;
+                    mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
+                            newStream->width;
+                }
             }
             break;
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
-                mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_CALLBACK;
-                mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
+                mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_CALLBACK;
+                if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
+                    if (bUseCommonFeatureMask)
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                                commonFeatureMask;
+                    else
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                                CAM_QCOM_FEATURE_NONE;
+                } else {
+                    mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                            CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                }
             break;
             case HAL_PIXEL_FORMAT_BLOB:
-                mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
+                mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
                 if (m_bIs4KVideo && !isZsl) {
-                    mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
+                    mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                        CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                 } else {
                     if (bUseCommonFeatureMask &&
-                            (((int32_t)newStream->width > maxViewfinderSize.width) ||
-                                    ((int32_t)newStream->height > maxViewfinderSize.height))) {
-                        mStreamConfigInfo.postprocess_mask[i] = commonFeatureMask;
+                            isOnEncoder(maxViewfinderSize, newStream->width,
+                            newStream->height)) {
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = commonFeatureMask;
                     } else {
-                        mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = CAM_QCOM_FEATURE_NONE;
                     }
                 }
-                if (m_bIs4KVideo) {
-                    mStreamConfigInfo.stream_sizes[i].width = (int32_t)videoWidth;
-                    mStreamConfigInfo.stream_sizes[i].height = (int32_t)videoHeight;
+                if (isZsl) {
+                    if (zslStream) {
+                        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
+                                (int32_t)zslStream->width;
+                        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
+                                (int32_t)zslStream->height;
+                    } else {
+                        ALOGE("%s: Error, No ZSL stream identified",__func__);
+                        pthread_mutex_unlock(&mMutex);
+                        return -EINVAL;
+                    }
+                } else if (m_bIs4KVideo) {
+                    mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width = (int32_t)videoWidth;
+                    mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height = (int32_t)videoHeight;
+                } else if (bYuv888OverrideJpeg) {
+                    mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
+                            (int32_t)largeYuv888Size.width;
+                    mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
+                            (int32_t)largeYuv888Size.height;
                 }
                 break;
             case HAL_PIXEL_FORMAT_RAW_OPAQUE:
             case HAL_PIXEL_FORMAT_RAW16:
             case HAL_PIXEL_FORMAT_RAW10:
-                mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_RAW;
+                mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_RAW;
                 isRawStreamRequested = true;
                 break;
             default:
-                mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_DEFAULT;
-                mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
+                mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_DEFAULT;
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = CAM_QCOM_FEATURE_NONE;
                 break;
             }
         }
@@ -1488,67 +1770,111 @@ int QCamera3HardwareInterface::configureStreams(
             //New stream, construct channel
             switch (newStream->stream_type) {
             case CAMERA3_STREAM_INPUT:
-                newStream->usage = GRALLOC_USAGE_HW_CAMERA_READ;
+                newStream->usage |= GRALLOC_USAGE_HW_CAMERA_READ;
+                newStream->usage |= GRALLOC_USAGE_HW_CAMERA_WRITE;//WR for inplace algo's
                 break;
             case CAMERA3_STREAM_BIDIRECTIONAL:
-                newStream->usage = GRALLOC_USAGE_HW_CAMERA_READ |
+                newStream->usage |= GRALLOC_USAGE_HW_CAMERA_READ |
                     GRALLOC_USAGE_HW_CAMERA_WRITE;
                 break;
             case CAMERA3_STREAM_OUTPUT:
                 /* For video encoding stream, set read/write rarely
                  * flag so that they may be set to un-cached */
                 if (newStream->usage & GRALLOC_USAGE_HW_VIDEO_ENCODER)
-                    newStream->usage =
+                    newStream->usage |=
                          (GRALLOC_USAGE_SW_READ_RARELY |
                          GRALLOC_USAGE_SW_WRITE_RARELY |
                          GRALLOC_USAGE_HW_CAMERA_WRITE);
-                else
-                    newStream->usage = GRALLOC_USAGE_HW_CAMERA_WRITE;
+                else if (IS_USAGE_ZSL(newStream->usage))
+                    CDBG("%s: ZSL usage flag skipping", __func__);
+                else if (newStream == zslStream
+                        || newStream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+                    newStream->usage |= GRALLOC_USAGE_HW_CAMERA_ZSL;
+                } else
+                    newStream->usage |= GRALLOC_USAGE_HW_CAMERA_WRITE;
                 break;
             default:
                 ALOGE("%s: Invalid stream_type %d", __func__, newStream->stream_type);
                 break;
             }
 
-            if (newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED &&
-                    newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL &&
-                    jpegStream) {
-                QCamera3Channel *channel = NULL;
-                channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
-                        mCameraHandle->ops, captureResultCb,
-                        &padding_info,
-                        this,
-                        newStream,
-                        (cam_stream_type_t) mStreamConfigInfo.type[i],
-                        mStreamConfigInfo.postprocess_mask[i],
-                        jpegStream->width, jpegStream->height);
-                if (channel == NULL) {
-                    ALOGE("%s: allocation of channel failed", __func__);
-                    pthread_mutex_unlock(&mMutex);
-                    return -ENOMEM;
-                }
-                newStream->max_buffers = channel->getNumBuffers();
-                newStream->priv = channel;
-            } else if (newStream->stream_type == CAMERA3_STREAM_OUTPUT) {
-                QCamera3Channel *channel = NULL;
+            if (newStream->stream_type == CAMERA3_STREAM_OUTPUT ||
+                    newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL) {
+                QCamera3ProcessingChannel *channel = NULL;
                 switch (newStream->format) {
                 case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-                case HAL_PIXEL_FORMAT_YCbCr_420_888:
-                    channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
+                    if ((newStream->usage &
+                            private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) &&
+                            (streamList->operation_mode ==
+                            CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)
+                    ) {
+                        channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
+                                mCameraHandle->ops, captureResultCb,
+                                &gCamCapability[mCameraId]->padding_info,
+                                this,
+                                newStream,
+                                (cam_stream_type_t)
+                                        mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                                mMetadataChannel,
+                                0); //heap buffers are not required for HFR video channel
+                        if (channel == NULL) {
+                            ALOGE("%s: allocation of channel failed", __func__);
+                            pthread_mutex_unlock(&mMutex);
+                            return -ENOMEM;
+                        }
+                        //channel->getNumBuffers() will return 0 here so use
+                        //MAX_INFLIGH_HFR_REQUESTS
+                        newStream->max_buffers = MAX_INFLIGHT_HFR_REQUESTS;
+                        newStream->priv = channel;
+                        ALOGI("%s: num video buffers in HFR mode: %d",
+                                __func__, MAX_INFLIGHT_HFR_REQUESTS);
+                    } else {
+                        /* Copy stream contents in HFR preview only case to create
+                         * dummy batch channel so that sensor streaming is in
+                         * HFR mode */
+                        if (!m_bIsVideo && (streamList->operation_mode ==
+                                CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)) {
+                            mDummyBatchStream = *newStream;
+                        }
+                        channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
+                                mCameraHandle->ops, captureResultCb,
+                                &gCamCapability[mCameraId]->padding_info,
+                                this,
+                                newStream,
+                                (cam_stream_type_t)
+                                        mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                                mMetadataChannel,
+                                MAX_INFLIGHT_REQUESTS);
+                        if (channel == NULL) {
+                            ALOGE("%s: allocation of channel failed", __func__);
+                            pthread_mutex_unlock(&mMutex);
+                            return -ENOMEM;
+                        }
+                        newStream->max_buffers = channel->getNumBuffers();
+                        newStream->priv = channel;
+                    }
+                    break;
+                case HAL_PIXEL_FORMAT_YCbCr_420_888: {
+                    channel = new QCamera3YUVChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
                             &padding_info,
                             this,
                             newStream,
-                            (cam_stream_type_t) mStreamConfigInfo.type[i],
-                            mStreamConfigInfo.postprocess_mask[i]);
+                            (cam_stream_type_t)
+                                    mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                            mMetadataChannel);
                     if (channel == NULL) {
-                        ALOGE("%s: allocation of channel failed", __func__);
+                        ALOGE("%s: allocation of YUV channel failed", __func__);
                         pthread_mutex_unlock(&mMutex);
                         return -ENOMEM;
                     }
                     newStream->max_buffers = channel->getNumBuffers();
                     newStream->priv = channel;
                     break;
+                }
                 case HAL_PIXEL_FORMAT_RAW_OPAQUE:
                 case HAL_PIXEL_FORMAT_RAW16:
                 case HAL_PIXEL_FORMAT_RAW10:
@@ -1557,6 +1883,7 @@ int QCamera3HardwareInterface::configureStreams(
                             mCameraHandle->ops, captureResultCb,
                             &padding_info,
                             this, newStream, CAM_QCOM_FEATURE_NONE,
+                            mMetadataChannel,
                             (newStream->format == HAL_PIXEL_FORMAT_RAW16));
                     if (mRawChannel == NULL) {
                         ALOGE("%s: allocation of raw channel failed", __func__);
@@ -1564,7 +1891,7 @@ int QCamera3HardwareInterface::configureStreams(
                         return -ENOMEM;
                     }
                     newStream->max_buffers = mRawChannel->getNumBuffers();
-                    newStream->priv = (QCamera3Channel*)mRawChannel;
+                    newStream->priv = (QCamera3ProcessingChannel*)mRawChannel;
                     break;
                 case HAL_PIXEL_FORMAT_BLOB:
                     // Max live snapshot inflight buffer is 1. This is to mitigate
@@ -1573,22 +1900,31 @@ int QCamera3HardwareInterface::configureStreams(
                     mPictureChannel = new QCamera3PicChannel(mCameraHandle->camera_handle,
                             mCameraHandle->ops, captureResultCb,
                             &padding_info, this, newStream,
-                            mStreamConfigInfo.postprocess_mask[i],
-                            m_bIs4KVideo, mMetadataChannel,
-                            (m_bIsVideo ? 1 : MAX_INFLIGHT_REQUESTS));
+                            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                            m_bIs4KVideo, isZsl, mMetadataChannel,
+                            (m_bIsVideo ? 1 : MAX_INFLIGHT_BLOB));
                     if (mPictureChannel == NULL) {
                         ALOGE("%s: allocation of channel failed", __func__);
                         pthread_mutex_unlock(&mMutex);
                         return -ENOMEM;
                     }
-                    newStream->priv = (QCamera3Channel*)mPictureChannel;
+                    newStream->priv = (QCamera3ProcessingChannel*)mPictureChannel;
                     newStream->max_buffers = mPictureChannel->getNumBuffers();
+                    mPictureChannel->overrideYuvSize(
+                            mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width,
+                            mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height);
                     break;
 
                 default:
                     ALOGE("%s: not a supported format 0x%x", __func__, newStream->format);
                     break;
                 }
+            } else if (newStream->stream_type == CAMERA3_STREAM_INPUT) {
+                newStream->max_buffers = MAX_INFLIGHT_REPROCESS_REQUESTS;
+            } else {
+                ALOGE("%s: Error, Unknown stream type", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return -EINVAL;
             }
 
             QCamera3Channel *channel = (QCamera3Channel*) newStream->priv;
@@ -1603,7 +1939,7 @@ int QCamera3HardwareInterface::configureStreams(
             for (List<stream_info_t*>::iterator it=mStreamInfo.begin();
                     it != mStreamInfo.end(); it++) {
                 if ((*it)->stream == newStream) {
-                    (*it)->channel = (QCamera3Channel*) newStream->priv;
+                    (*it)->channel = (QCamera3ProcessingChannel*) newStream->priv;
                     break;
                 }
             }
@@ -1612,10 +1948,12 @@ int QCamera3HardwareInterface::configureStreams(
             // Do nothing for now
         }
         padding_info = gCamCapability[mCameraId]->padding_info;
-    }
 
-    if (mPictureChannel && m_bIs4KVideo) {
-        mPictureChannel->overrideYuvSize(videoWidth, videoHeight);
+        /* Do not add entries for input stream in metastream info
+         * since there is no real stream associated with it
+         */
+        if (newStream->stream_type != CAMERA3_STREAM_INPUT)
+            mStreamConfigInfo.num_streams++;
     }
 
     //RAW DUMP channel
@@ -1635,8 +1973,6 @@ int QCamera3HardwareInterface::configureStreams(
     }
 
 
-    mStreamConfigInfo.num_streams = streamList->num_streams;
-
     if (mAnalysisChannel) {
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams] =
                 gCamCapability[mCameraId]->analysis_recommended_res;
@@ -1647,13 +1983,30 @@ int QCamera3HardwareInterface::configureStreams(
         mStreamConfigInfo.num_streams++;
     }
 
+    if (isSupportChannelNeeded(streamList, mStreamConfigInfo)) {
+        mSupportChannel = new QCamera3SupportChannel(
+                mCameraHandle->camera_handle,
+                mCameraHandle->ops,
+                &gCamCapability[mCameraId]->padding_info,
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
+                CAM_STREAM_TYPE_CALLBACK,
+                &QCamera3SupportChannel::kDim,
+                CAM_FORMAT_YUV_420_NV21,
+                this);
+        if (!mSupportChannel) {
+            ALOGE("%s: dummy channel cannot be created", __func__);
+            pthread_mutex_unlock(&mMutex);
+            return -ENOMEM;
+        }
+    }
+
     if (mSupportChannel) {
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams] =
                 QCamera3SupportChannel::kDim;
         mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
                 CAM_STREAM_TYPE_CALLBACK;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
-                fullFeatureMask;
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
         mStreamConfigInfo.num_streams++;
     }
 
@@ -1668,25 +2021,59 @@ int QCamera3HardwareInterface::configureStreams(
                 CAM_QCOM_FEATURE_NONE;
         mStreamConfigInfo.num_streams++;
     }
+    /* In HFR mode, if video stream is not added, create a dummy channel so that
+     * ISP can create a batch mode even for preview only case. This channel is
+     * never 'start'ed (no stream-on), it is only 'initialized'  */
+    if ((mOpMode == CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) &&
+            !m_bIsVideo) {
+        mDummyBatchChannel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
+                mCameraHandle->ops, captureResultCb,
+                &gCamCapability[mCameraId]->padding_info,
+                this,
+                &mDummyBatchStream,
+                CAM_STREAM_TYPE_VIDEO,
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
+                mMetadataChannel);
+        if (NULL == mDummyBatchChannel) {
+            ALOGE("%s: creation of mDummyBatchChannel failed."
+                    "Preview will use non-hfr sensor mode ", __func__);
+        }
+    }
+    if (mDummyBatchChannel) {
+        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
+                mDummyBatchStream.width;
+        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
+                mDummyBatchStream.height;
+        mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
+                CAM_STREAM_TYPE_VIDEO;
+        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        mStreamConfigInfo.num_streams++;
+    }
+
     mStreamConfigInfo.buffer_info.min_buffers = MIN_INFLIGHT_REQUESTS;
     mStreamConfigInfo.buffer_info.max_buffers = MAX_INFLIGHT_REQUESTS;
 
     /* Initialize mPendingRequestInfo and mPendnigBuffersMap */
-    mPendingRequestsList.clear();
+    for (pendingRequestIterator i = mPendingRequestsList.begin();
+            i != mPendingRequestsList.end();) {
+        i = erasePendingRequest(i);
+    }
     mPendingFrameDropList.clear();
     // Initialize/Reset the pending buffers list
     mPendingBuffersMap.num_buffers = 0;
     mPendingBuffersMap.mPendingBufferList.clear();
     mPendingReprocessResultList.clear();
 
-    mFirstRequest = true;
+    mCurJpegMeta.clear();
     //Get min frame duration for this streams configuration
     deriveMinFrameDuration();
 
-    /* Turn on video hint only if video stream is configured */
-    updatePowerHint(bWasVideo, m_bIsVideo);
+    // Update state
+    mState = CONFIGURED;
 
     pthread_mutex_unlock(&mMutex);
+
     return rc;
 }
 
@@ -1714,18 +2101,12 @@ int QCamera3HardwareInterface::validateCaptureRequest(
         return BAD_VALUE;
     }
 
-    if (request->settings == NULL && mFirstRequest) {
+    if ((request->settings == NULL) && (mState == CONFIGURED)) {
         /*settings cannot be null for the first request*/
         return BAD_VALUE;
     }
 
     uint32_t frameNumber = request->frame_number;
-    if (request->input_buffer != NULL &&
-            request->input_buffer->stream != mInputStream) {
-        ALOGE("%s: Request %d: Input buffer not from input stream!",
-                __FUNCTION__, frameNumber);
-        return BAD_VALUE;
-    }
     if (request->num_output_buffers < 1 || request->output_buffers == NULL) {
         ALOGE("%s: Request %d: No output buffers provided!",
                 __FUNCTION__, frameNumber);
@@ -1738,13 +2119,6 @@ int QCamera3HardwareInterface::validateCaptureRequest(
     }
     if (request->input_buffer != NULL) {
         b = request->input_buffer;
-        QCamera3Channel *channel =
-            static_cast<QCamera3Channel*>(b->stream->priv);
-        if (channel == NULL) {
-            ALOGE("%s: Request %d: Buffer %ld: Unconfigured stream!",
-                    __func__, frameNumber, (long)idx);
-            return BAD_VALUE;
-        }
         if (b->status != CAMERA3_BUFFER_STATUS_OK) {
             ALOGE("%s: Request %d: Buffer %ld: Status not OK!",
                     __func__, frameNumber, (long)idx);
@@ -1765,8 +2139,8 @@ int QCamera3HardwareInterface::validateCaptureRequest(
     // Validate all buffers
     b = request->output_buffers;
     do {
-        QCamera3Channel *channel =
-                static_cast<QCamera3Channel*>(b->stream->priv);
+        QCamera3ProcessingChannel *channel =
+                static_cast<QCamera3ProcessingChannel*>(b->stream->priv);
         if (channel == NULL) {
             ALOGE("%s: Request %d: Buffer %ld: Unconfigured stream!",
                     __func__, frameNumber, (long)idx);
@@ -1932,8 +2306,8 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
             CDBG("%s: Delayed reprocess notify %d", __func__,
                     frame_number);
 
-            for (List<PendingRequestInfo>::iterator k = mPendingRequestsList.begin();
-                k != mPendingRequestsList.end(); k++) {
+            for (pendingRequestIterator k = mPendingRequestsList.begin();
+                    k != mPendingRequestsList.end(); k++) {
 
                 if (k->frame_number == j->frame_number) {
                     CDBG("%s: Found reprocess frame number %d in pending reprocess List "
@@ -1950,8 +2324,7 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
                     result.partial_result = PARTIAL_RESULT_COUNT;
                     mCallbackOps->process_capture_result(mCallbackOps, &result);
 
-                    mPendingRequestsList.erase(k);
-                    mPendingRequest--;
+                    erasePendingRequest(k);
                     break;
                 }
             }
@@ -1983,13 +2356,21 @@ void QCamera3HardwareInterface::handleBatchMetadata(
         ALOGE("%s: metadata_buf is NULL", __func__);
         return;
     }
+    /* In batch mode, the metdata will contain the frame number and timestamp of
+     * the last frame in the batch. Eg: a batch containing buffers from request
+     * 5,6,7 and 8 will have frame number and timestamp corresponding to 8.
+     * multiple process_capture_requests => 1 set_param => 1 handleBatchMetata =>
+     * multiple process_capture_results */
     metadata_buffer_t *metadata =
             (metadata_buffer_t *)metadata_buf->bufs[0]->buffer;
-    int32_t frame_number_valid, urgent_frame_number_valid;
-    uint32_t last_frame_number, last_urgent_frame_number;
-    uint32_t frame_number, urgent_frame_number = 0;
+    int32_t frame_number_valid = 0, urgent_frame_number_valid = 0;
+    uint32_t last_frame_number = 0, last_urgent_frame_number = 0;
+    uint32_t first_frame_number = 0, first_urgent_frame_number = 0;
+    uint32_t frame_number = 0, urgent_frame_number = 0;
     int64_t last_frame_capture_time = 0, first_frame_capture_time, capture_time;
     bool invalid_metadata = false;
+    size_t urgentFrameNumDiff = 0, frameNumDiff = 0;
+    size_t loopCount = 1;
 
     int32_t *p_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
@@ -2015,47 +2396,92 @@ void QCamera3HardwareInterface::handleBatchMetadata(
         last_urgent_frame_number = *p_urgent_frame_number;
     }
 
-    // If reported capture_time is 0, skip handling this metadata
-    if (!last_frame_capture_time) {
-        goto done_batch_metadata;
+    /* In batchmode, when no video buffers are requested, set_parms are sent
+     * for every capture_request. The difference between consecutive urgent
+     * frame numbers and frame numbers should be used to interpolate the
+     * corresponding frame numbers and time stamps */
+    pthread_mutex_lock(&mMutex);
+    if (urgent_frame_number_valid) {
+        first_urgent_frame_number =
+                mPendingBatchMap.valueFor(last_urgent_frame_number);
+        urgentFrameNumDiff = last_urgent_frame_number + 1 -
+                first_urgent_frame_number;
+
+        CDBG("%s: urgent_frm: valid: %d frm_num: %d - %d",
+                __func__, urgent_frame_number_valid,
+                first_urgent_frame_number, last_urgent_frame_number);
     }
 
-    for (size_t i = 0; i < mBatchSize; i++) {
+    if (frame_number_valid) {
+        first_frame_number = mPendingBatchMap.valueFor(last_frame_number);
+        frameNumDiff = last_frame_number + 1 -
+                first_frame_number;
+        mPendingBatchMap.removeItem(last_frame_number);
+
+        CDBG("%s:        frm: valid: %d frm_num: %d - %d",
+                __func__, frame_number_valid,
+                first_frame_number, last_frame_number);
+
+    }
+    pthread_mutex_unlock(&mMutex);
+
+    if (urgent_frame_number_valid || frame_number_valid) {
+        loopCount = MAX(urgentFrameNumDiff, frameNumDiff);
+        if (urgentFrameNumDiff > MAX_HFR_BATCH_SIZE)
+            ALOGE("%s: urgentFrameNumDiff: %d urgentFrameNum: %d",
+                    __func__, urgentFrameNumDiff, last_urgent_frame_number);
+        if (frameNumDiff > MAX_HFR_BATCH_SIZE)
+            ALOGE("%s: frameNumDiff: %d frameNum: %d",
+                    __func__, frameNumDiff, last_frame_number);
+    }
+
+    for (size_t i = 0; i < loopCount; i++) {
         /* handleMetadataWithLock is called even for invalid_metadata for
          * pipeline depth calculation */
         if (!invalid_metadata) {
             /* Infer frame number. Batch metadata contains frame number of the
              * last frame */
             if (urgent_frame_number_valid) {
-                urgent_frame_number =
-                        last_urgent_frame_number + 1 - mBatchSize + i;
-                CDBG("%s: last urgent frame_number in batch: %d, "
-                        "inferred urgent frame_number: %d",
-                        __func__, last_urgent_frame_number, urgent_frame_number);
-                ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
-                        CAM_INTF_META_URGENT_FRAME_NUMBER, urgent_frame_number);
+                if (i < urgentFrameNumDiff) {
+                    urgent_frame_number =
+                            first_urgent_frame_number + i;
+                    CDBG("%s: inferred urgent frame_number: %d",
+                            __func__, urgent_frame_number);
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                            CAM_INTF_META_URGENT_FRAME_NUMBER, urgent_frame_number);
+                } else {
+                    /* This is to handle when urgentFrameNumDiff < frameNumDiff */
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                            CAM_INTF_META_URGENT_FRAME_NUMBER_VALID, 0);
+                }
             }
 
             /* Infer frame number. Batch metadata contains frame number of the
              * last frame */
             if (frame_number_valid) {
-                frame_number = last_frame_number + 1 - mBatchSize + i;
-                CDBG("%s: last frame_number in batch: %d, "
-                        "inferred frame_number: %d",
-                        __func__, last_frame_number, frame_number);
-                ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
-                        CAM_INTF_META_FRAME_NUMBER, frame_number);
+                if (i < frameNumDiff) {
+                    frame_number = first_frame_number + i;
+                    CDBG("%s: inferred frame_number: %d", __func__, frame_number);
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                            CAM_INTF_META_FRAME_NUMBER, frame_number);
+                } else {
+                    /* This is to handle when urgentFrameNumDiff > frameNumDiff */
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                             CAM_INTF_META_FRAME_NUMBER_VALID, 0);
+                }
             }
 
-            //Infer timestamp
-            first_frame_capture_time = last_frame_capture_time -
-                    (((mBatchSize - 1) * NSEC_PER_SEC) / mHFRVideoFps);
-            capture_time =
-                    first_frame_capture_time + (i * NSEC_PER_SEC / mHFRVideoFps);
-            ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
-                    CAM_INTF_META_SENSOR_TIMESTAMP, capture_time);
-            CDBG("%s: batch capture_time: %lld, capture_time: %lld",
-                    __func__, last_frame_capture_time, capture_time);
+            if (last_frame_capture_time) {
+                //Infer timestamp
+                first_frame_capture_time = last_frame_capture_time -
+                        (((loopCount - 1) * NSEC_PER_SEC) / mHFRVideoFps);
+                capture_time =
+                        first_frame_capture_time + (i * NSEC_PER_SEC / mHFRVideoFps);
+                ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
+                        CAM_INTF_META_SENSOR_TIMESTAMP, capture_time);
+                CDBG("%s: batch capture_time: %lld, capture_time: %lld",
+                        __func__, last_frame_capture_time, capture_time);
+            }
         }
         pthread_mutex_lock(&mMutex);
         handleMetadataWithLock(metadata_buf,
@@ -2140,13 +2566,13 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
         //Recieved an urgent Frame Number, handle it
         //using partial results
-        for (List<PendingRequestInfo>::iterator i =
-            mPendingRequestsList.begin(); i != mPendingRequestsList.end(); i++) {
+        for (pendingRequestIterator i =
+                mPendingRequestsList.begin(); i != mPendingRequestsList.end(); i++) {
             CDBG("%s: Iterator Frame = %d urgent frame = %d",
                 __func__, i->frame_number, urgent_frame_number);
 
-            if (i->frame_number < urgent_frame_number &&
-                i->partial_result_cnt == 0) {
+            if ((!i->input_buffer) && (i->frame_number < urgent_frame_number) &&
+                (i->partial_result_cnt == 0)) {
                 ALOGE("%s: Error: HAL missed urgent metadata for frame number %d",
                     __func__, i->frame_number);
             }
@@ -2185,20 +2611,19 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         }
         goto done_metadata;
     }
-    CDBG("%s: valid frame_number = %u, capture_time = %lld", __func__,
+    CDBG_HIGH("%s: valid frame_number = %u, capture_time = %lld", __func__,
             frame_number, capture_time);
 
-    for (List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
-        i != mPendingRequestsList.end() && i->frame_number <= frame_number;) {
+    for (pendingRequestIterator i = mPendingRequestsList.begin();
+            i != mPendingRequestsList.end() && i->frame_number <= frame_number;) {
+        // Flush out all entries with less or equal frame numbers.
+
         camera3_capture_result_t result;
         memset(&result, 0, sizeof(camera3_capture_result_t));
 
         CDBG("%s: frame_number in the list is %u", __func__, i->frame_number);
         i->partial_result_cnt++;
         result.partial_result = i->partial_result_cnt;
-
-        // Flush out all entries with less or equal frame numbers.
-        mPendingRequest--;
 
         // Check whether any stream buffer corresponding to this is dropped or not
         // If dropped, then send the ERROR_BUFFER for the corresponding stream
@@ -2210,19 +2635,19 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
                     j != i->buffers.end(); j++) {
                if (j->stream->format != HAL_PIXEL_FORMAT_BLOB) {
-                   QCamera3Channel *channel = (QCamera3Channel *)j->stream->priv;
+                   QCamera3ProcessingChannel *channel = (QCamera3ProcessingChannel *)j->stream->priv;
                    uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
                    for (uint32_t k = 0; k < p_cam_frame_drop->cam_stream_ID.num_streams; k++) {
                        if (streamID == p_cam_frame_drop->cam_stream_ID.streamID[k]) {
                            // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
-                           CDBG("%s: Start of reporting error frame#=%u, streamID=%u",
+                           ALOGW("%s: Start of reporting error frame#=%u, streamID=%u",
                                    __func__, i->frame_number, streamID);
                            notify_msg.type = CAMERA3_MSG_ERROR;
                            notify_msg.message.error.frame_number = i->frame_number;
                            notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER ;
                            notify_msg.message.error.error_stream = j->stream;
                            mCallbackOps->notify(mCallbackOps, &notify_msg);
-                           CDBG("%s: End of reporting error frame#=%u, streamID=%u",
+                           ALOGW("%s: End of reporting error frame#=%u, streamID=%u",
                                   __func__, i->frame_number, streamID);
                            PendingFrameDropInfo PendingFrameDrop;
                            PendingFrameDrop.frame_number=i->frame_number;
@@ -2231,6 +2656,9 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                            mPendingFrameDropList.push_back(PendingFrameDrop);
                       }
                    }
+               } else {
+                   ALOGE("%s: JPEG buffer dropped for frame number %d",
+                           __func__, i->frame_number);
                }
             }
         }
@@ -2239,27 +2667,56 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
         // Send empty metadata with already filled buffers for dropped metadata
         // and send valid metadata with already filled buffers for current metadata
+        /* we could hit this case when we either
+         * 1. have a pending reprocess request or
+         * 2. miss a metadata buffer callback */
         if (i->frame_number < frame_number) {
-            /* Clear notify_msg structure */
-            camera3_notify_msg_t notify_msg;
-            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+            if (i->input_buffer) {
+                /* Clear notify_msg structure */
+                camera3_notify_msg_t notify_msg;
+                memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+                notify_msg.type = CAMERA3_MSG_SHUTTER;
+                notify_msg.message.shutter.frame_number = i->frame_number;
 
-            notify_msg.type = CAMERA3_MSG_SHUTTER;
-            notify_msg.message.shutter.frame_number = i->frame_number;
-            notify_msg.message.shutter.timestamp = (uint64_t)capture_time -
-                    (frame_number - i->frame_number) * NSEC_PER_33MSEC;
-            mCallbackOps->notify(mCallbackOps, &notify_msg);
-            i->timestamp = (nsecs_t)notify_msg.message.shutter.timestamp;
-            CDBG("%s: Support notification !!!! notify frame_number = %u, capture_time = %llu",
-                    __func__, i->frame_number, notify_msg.message.shutter.timestamp);
+                i->partial_result_cnt++; //input request will not have urgent metadata
+                CameraMetadata settings;
+                if(i->settings) {
+                    settings = i->settings;
+                    if (settings.exists(ANDROID_SENSOR_TIMESTAMP)) {
+                        nsecs_t input_capture_time =
+                                settings.find(ANDROID_SENSOR_TIMESTAMP).data.i64[0];
+                        notify_msg.message.shutter.timestamp = (uint64_t)input_capture_time;
+                    } else {
+                        ALOGE("%s: No timestamp in input settings! Using current one.",
+                                __func__);
+                    }
+                } else {
+                    ALOGE("%s: Input settings missing!", __func__);
+                }
+                result.result = settings.release();
+                result.partial_result = i->partial_result_cnt;
+                CDBG("%s: Input request metadata notify frame_number = %u, capture_time = %llu",
+                       __func__, i->frame_number, notify_msg.message.shutter.timestamp);
+                mCallbackOps->notify(mCallbackOps, &notify_msg);
+                i->timestamp = (nsecs_t)notify_msg.message.shutter.timestamp;
+                CDBG("%s: Support notification !!!! notify frame_number = %u, capture_time = %llu",
+                        __func__, i->frame_number, notify_msg.message.shutter.timestamp);
 
-            CameraMetadata dummyMetadata;
-            dummyMetadata.update(ANDROID_SENSOR_TIMESTAMP,
-                    &i->timestamp, 1);
-            dummyMetadata.update(ANDROID_REQUEST_ID,
-                    &(i->request_id), 1);
-            result.result = dummyMetadata.release();
+            } else {
+                ALOGE("%s: Fatal: Missing metadata buffer for frame number %d", __func__, i->frame_number);
+                if (free_and_bufdone_meta_buf) {
+                    mMetadataChannel->bufDone(metadata_buf);
+                    free(metadata_buf);
+                }
+                camera3_notify_msg_t notify_msg;
+                memset(&notify_msg, 0, sizeof(notify_msg));
+                notify_msg.type = CAMERA3_MSG_ERROR;
+                notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_DEVICE;
+                mCallbackOps->notify(mCallbackOps, &notify_msg);
+                goto done_metadata;
+            }
         } else {
+            mPendingLiveRequest--;
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
@@ -2272,9 +2729,25 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
             i->timestamp = capture_time;
 
+            // Find channel requiring metadata, meaning internal offline postprocess
+            // is needed.
+            //TODO: for now, we don't support two streams requiring metadata at the same time.
+            // (because we are not making copies, and metadata buffer is not reference counted.
+            bool internalPproc = false;
+            for (pendingBufferIterator iter = i->buffers.begin();
+                    iter != i->buffers.end(); iter++) {
+                if (iter->need_metadata) {
+                    internalPproc = true;
+                    QCamera3ProcessingChannel *channel =
+                            (QCamera3ProcessingChannel *)iter->stream->priv;
+                    channel->queueReprocMetadata(metadata_buf);
+                    break;
+                }
+            }
+
             result.result = translateFromHalMetadata(metadata,
                     i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
-                    i->capture_intent, i->fwkCacMode);
+                    i->capture_intent, internalPproc, i->fwkCacMode);
 
             saveExifParams(metadata);
 
@@ -2293,8 +2766,10 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                                frame_number);
                     }
                 }
-                mPictureChannel->queueReprocMetadata(metadata_buf);
-            } else {
+            }
+
+            if (!internalPproc) {
+                CDBG("%s: couldn't find need_metadata for this metadata", __func__);
                 // Return metadata buffer
                 if (free_and_bufdone_meta_buf) {
                     mMetadataChannel->bufDone(metadata_buf);
@@ -2306,6 +2781,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             ALOGE("%s: metadata is NULL", __func__);
         }
         result.frame_number = i->frame_number;
+        result.input_buffer = i->input_buffer;
         result.num_output_buffers = 0;
         result.output_buffers = NULL;
         for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
@@ -2333,7 +2809,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                         uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
                         if((m->stream_ID == streamID) && (m->frame_number==frame_number)) {
                             j->buffer->status=CAMERA3_BUFFER_STATUS_ERROR;
-                            CDBG("%s: Stream STATUS_ERROR frame_number=%u, streamID=%u",
+                            ALOGW("%s: Stream STATUS_ERROR frame_number=%u, streamID=%u",
                                   __func__, frame_number, streamID);
                             m = mPendingFrameDropList.erase(m);
                             break;
@@ -2360,18 +2836,18 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             }
             result.output_buffers = result_buffers;
             mCallbackOps->process_capture_result(mCallbackOps, &result);
-            CDBG("%s: meta frame_number = %u, capture_time = %lld",
-                    __func__, result.frame_number, i->timestamp);
+            CDBG("%s %d: meta frame_number = %u, capture_time = %lld",
+                    __func__, __LINE__, result.frame_number, i->timestamp);
             free_camera_metadata((camera_metadata_t *)result.result);
             delete[] result_buffers;
         } else {
             mCallbackOps->process_capture_result(mCallbackOps, &result);
-            CDBG("%s: meta frame_number = %u, capture_time = %lld",
-                        __func__, result.frame_number, i->timestamp);
+            CDBG("%s %d: meta frame_number = %u, capture_time = %lld",
+                        __func__, __LINE__, result.frame_number, i->timestamp);
             free_camera_metadata((camera_metadata_t *)result.result);
         }
         // erase the element from the list
-        i = mPendingRequestsList.erase(i);
+        i = erasePendingRequest(i);
 
         if (!mPendingReprocessResultList.empty()) {
             handlePendingReprocResults(frame_number + 1);
@@ -2379,13 +2855,52 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     }
 
 done_metadata:
-    for (List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
-              i != mPendingRequestsList.end() ;i++) {
+    for (pendingRequestIterator i = mPendingRequestsList.begin();
+            i != mPendingRequestsList.end() ;i++) {
         i->pipeline_depth++;
     }
+    CDBG("%s: mPendingLiveRequest = %d", __func__, mPendingLiveRequest);
     unblockRequestIfNecessary();
 }
 
+/*===========================================================================
+ * FUNCTION   : hdrPlusPerfLock
+ *
+ * DESCRIPTION: perf lock for HDR+ using custom intent
+ *
+ * PARAMETERS : @metadata_buf: Metadata super_buf pointer
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::hdrPlusPerfLock(
+        mm_camera_super_buf_t *metadata_buf)
+{
+    if (NULL == metadata_buf) {
+        ALOGE("%s: metadata_buf is NULL", __func__);
+        return;
+    }
+    metadata_buffer_t *metadata =
+            (metadata_buffer_t *)metadata_buf->bufs[0]->buffer;
+    int32_t *p_frame_number_valid =
+            POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
+    uint32_t *p_frame_number =
+            POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
+
+    //acquire perf lock for 5 sec after the last HDR frame is captured
+    if (*p_frame_number_valid) {
+        if (mLastCustIntentFrmNum == (int32_t)*p_frame_number) {
+            m_perfLock.lock_acq_timed(HDR_PLUS_PERF_TIME_OUT);
+        }
+    }
+
+    //release lock after perf lock timer is expired. If lock is already released,
+    //isTimerReset returns false
+    if (m_perfLock.isTimerReset()) {
+        mLastCustIntentFrmNum = -1;
+        m_perfLock.lock_rel_timed();
+    }
+}
 /*===========================================================================
  * FUNCTION   : handleBufferWithLock
  *
@@ -2427,13 +2942,13 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     // If the frame number doesn't exist in the pending request list,
     // directly send the buffer to the frameworks, and update pending buffers map
     // Otherwise, book-keep the buffer.
-    List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
+    pendingRequestIterator i = mPendingRequestsList.begin();
     while (i != mPendingRequestsList.end() && i->frame_number != frame_number){
         i++;
     }
     if (i == mPendingRequestsList.end()) {
         // Verify all pending requests frame_numbers are greater
-        for (List<PendingRequestInfo>::iterator j = mPendingRequestsList.begin();
+        for (pendingRequestIterator j = mPendingRequestsList.begin();
                 j != mPendingRequestsList.end(); j++) {
             if (j->frame_number < frame_number) {
                 ALOGE("%s: Error: pending frame number %d is smaller than %d",
@@ -2459,7 +2974,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
             }
         }
         result.output_buffers = buffer;
-        CDBG("%s: result frame_number = %d, buffer = %p",
+        CDBG_HIGH("%s: result frame_number = %d, buffer = %p",
                 __func__, frame_number, buffer->buffer);
 
         for (List<PendingBufferInfo>::iterator k =
@@ -2500,10 +3015,12 @@ void QCamera3HardwareInterface::handleBufferWithLock(
             notify_msg.message.shutter.frame_number = frame_number;
             notify_msg.message.shutter.timestamp = (uint64_t)capture_time;
 
-            sp<Fence> releaseFence = new Fence(i->input_buffer->release_fence);
-            int32_t rc = releaseFence->wait(Fence::TIMEOUT_NEVER);
-            if (rc != OK) {
-                ALOGE("%s: input buffer fence wait failed %d", __func__, rc);
+            if (i->input_buffer->release_fence != -1) {
+               int32_t rc = sync_wait(i->input_buffer->release_fence, TIMEOUT_NEVER);
+               close(i->input_buffer->release_fence);
+               if (rc != OK) {
+               ALOGE("%s: input buffer sync wait failed %d", __func__, rc);
+               }
             }
 
             for (List<PendingBufferInfo>::iterator k =
@@ -2522,7 +3039,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
                 __func__, mPendingBuffersMap.num_buffers);
 
             bool notifyNow = true;
-            for (List<PendingRequestInfo>::iterator j = mPendingRequestsList.begin();
+            for (pendingRequestIterator j = mPendingRequestsList.begin();
                     j != mPendingRequestsList.end(); j++) {
                 if (j->frame_number < frame_number) {
                     notifyNow = false;
@@ -2543,8 +3060,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
                 mCallbackOps->notify(mCallbackOps, &notify_msg);
                 mCallbackOps->process_capture_result(mCallbackOps, &result);
                 CDBG("%s: Notify reprocess now %d!", __func__, frame_number);
-                i = mPendingRequestsList.erase(i);
-                mPendingRequest--;
+                i = erasePendingRequest(i);
             } else {
                 // Cache reprocess result for later
                 PendingReprocessResult pendingResult;
@@ -2565,7 +3081,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
                         j->buffer = (camera3_stream_buffer_t *)malloc(
                             sizeof(camera3_stream_buffer_t));
                         *(j->buffer) = *buffer;
-                        CDBG("%s: cache buffer %p at result frame_number %d",
+                        CDBG_HIGH("%s: cache buffer %p at result frame_number %d",
                             __func__, buffer, frame_number);
                     }
                 }
@@ -2591,6 +3107,7 @@ void QCamera3HardwareInterface::unblockRequestIfNecessary()
    pthread_cond_signal(&mRequestCond);
 }
 
+
 /*===========================================================================
  * FUNCTION   : processCaptureRequest
  *
@@ -2609,8 +3126,19 @@ int QCamera3HardwareInterface::processCaptureRequest(
     int rc = NO_ERROR;
     int32_t request_id;
     CameraMetadata meta;
+    uint32_t minInFlightRequests = MIN_INFLIGHT_REQUESTS;
+    uint32_t maxInFlightRequests = MAX_INFLIGHT_REQUESTS;
+    bool isVidBufRequested = false;
+    camera3_stream_buffer_t *pInputBuffer = NULL;
 
     pthread_mutex_lock(&mMutex);
+
+    // Validate current state
+    if ((mState != CONFIGURED) && (mState != STARTED)) {
+        ALOGE("%s: Wrong state %d", __func__, mState);
+        pthread_mutex_unlock(&mMutex);
+        return -ENODEV;
+    }
 
     rc = validateCaptureRequest(request);
     if (rc != NO_ERROR) {
@@ -2623,7 +3151,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
     // For first capture request, send capture intent, and
     // stream on all streams
-    if (mFirstRequest) {
+    if (mState == CONFIGURED) {
         // send an unconfigure to the backend so that the isp
         // resources are deallocated
         if (!mFirstConfiguration) {
@@ -2647,11 +3175,11 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 return rc;
             }
         }
-
+        m_perfLock.lock_acq();
         /* get eis information for stream configuration */
         cam_is_type_t is_type;
         char is_type_value[PROPERTY_VALUE_MAX];
-        property_get("camera.is_type", is_type_value, "0");
+        property_get("persist.camera.is_type", is_type_value, "0");
         is_type = static_cast<cam_is_type_t>(atoi(is_type_value));
 
         if (meta.exists(ANDROID_CONTROL_CAPTURE_INTENT)) {
@@ -2665,9 +3193,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         }
 
         //If EIS is enabled, turn it on for video
-        bool setEis = m_bEisEnable && m_bEisSupportedSize &&
-            ((mCaptureIntent ==  CAMERA3_TEMPLATE_VIDEO_RECORD) ||
-             (mCaptureIntent == CAMERA3_TEMPLATE_VIDEO_SNAPSHOT));
+        bool setEis = m_bEisEnable && m_bEisSupportedSize;
         int32_t vsMode;
         vsMode = (setEis)? DIS_ENABLE: DIS_DISABLE;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_DIS_ENABLE, vsMode)) {
@@ -2676,15 +3202,12 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         //IS type will be 0 unless EIS is supported. If EIS is supported
         //it could either be 1 or 4 depending on the stream and video size
-        if (setEis){
+        if (setEis) {
             if (!m_bEisSupportedSize) {
                 is_type = IS_TYPE_DIS;
             } else {
                 is_type = IS_TYPE_EIS_2_0;
             }
-        }
-
-        if (mCaptureIntent == CAMERA3_TEMPLATE_VIDEO_RECORD) {
             mStreamConfigInfo.is_type = is_type;
         } else {
             mStreamConfigInfo.is_type = IS_TYPE_NONE;
@@ -2695,11 +3218,22 @@ int QCamera3HardwareInterface::processCaptureRequest(
         int32_t tintless_value = 1;
         ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_PARM_TINTLESS, tintless_value);
+        //Disable CDS for HFR mode or if DIS/EIS is on.
+        //CDS is a session parameter in the backend/ISP, so need to be set/reset
+        //after every configure_stream
+        if((CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE == mOpMode) ||
+                (m_bIsVideo)) {
+            int32_t cds = CAM_CDS_MODE_OFF;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                    CAM_INTF_PARM_CDS_MODE, cds))
+                ALOGE("%s: Failed to disable CDS for HFR mode", __func__);
 
+        }
         setMobicat();
 
         /* Set fps and hfr mode while sending meta stream info so that sensor
          * can configure appropriate streaming mode */
+        mHFRVideoFps = DEFAULT_VIDEO_FPS;
         if (meta.exists(ANDROID_CONTROL_AE_TARGET_FPS_RANGE)) {
             rc = setHalFpsRange(meta, mParameters);
             if (rc != NO_ERROR) {
@@ -2719,6 +3253,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         /*set the capture intent, hal version, tintless, stream info,
          *and disenable parameters to the backend*/
+        CDBG("%s: set_parms META_STREAM_INFO ", __func__ );
         rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
         if (rc < 0) {
@@ -2731,7 +3266,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         if (rc != NO_ERROR) {
             ALOGE("%s: Failed to get sensor output size", __func__);
             pthread_mutex_unlock(&mMutex);
-            return rc;
+            goto error_exit;
         }
 
         mCropRegionMapper.update(gCamCapability[mCameraId]->active_array_size.width,
@@ -2752,7 +3287,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 if (NO_ERROR != rc) {
                     ALOGE("%s : Channel init failed %d", __func__, rc);
                     pthread_mutex_unlock(&mMutex);
-                    return rc;
+                    goto error_exit;
                 }
             }
         }
@@ -2761,16 +3296,19 @@ int QCamera3HardwareInterface::processCaptureRequest(
             const camera3_stream_buffer_t& output = request->output_buffers[i];
             QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
             /*for livesnapshot stream is_type will be DIS*/
-            if (setEis && output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
-                rc = channel->registerBuffer(output.buffer, IS_TYPE_DIS);
-            } else {
+            if ((((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) ||
+               ((1U << CAM_STREAM_TYPE_PREVIEW) == channel->getStreamTypeMask())) &&
+               setEis)
                 rc = channel->registerBuffer(output.buffer, is_type);
-            }
+            else
+                rc = channel->registerBuffer(output.buffer, IS_TYPE_NONE);
+
             if (rc < 0) {
                 ALOGE("%s: registerBuffer failed",
                         __func__);
                 pthread_mutex_unlock(&mMutex);
-                return -ENODEV;
+                rc = -ENODEV;
+                goto error_exit;
             }
         }
 
@@ -2778,40 +3316,56 @@ int QCamera3HardwareInterface::processCaptureRequest(
         for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
             it != mStreamInfo.end(); it++) {
             QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-            if (setEis && (*it)->stream->format == HAL_PIXEL_FORMAT_BLOB) {
-                rc = channel->initialize(IS_TYPE_DIS);
-            } else {
+            if ((((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) ||
+               ((1U << CAM_STREAM_TYPE_PREVIEW) == channel->getStreamTypeMask())) &&
+               setEis)
                 rc = channel->initialize(is_type);
+            else {
+                rc = channel->initialize(IS_TYPE_NONE);
             }
             if (NO_ERROR != rc) {
                 ALOGE("%s : Channel initialization failed %d", __func__, rc);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
 
         if (mRawDumpChannel) {
-            rc = mRawDumpChannel->initialize(is_type);
+            rc = mRawDumpChannel->initialize(IS_TYPE_NONE);
             if (rc != NO_ERROR) {
                 ALOGE("%s: Error: Raw Dump Channel init failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
         if (mSupportChannel) {
-            rc = mSupportChannel->initialize(is_type);
+            rc = mSupportChannel->initialize(IS_TYPE_NONE);
             if (rc < 0) {
                 ALOGE("%s: Support channel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
         if (mAnalysisChannel) {
-            rc = mAnalysisChannel->initialize(is_type);
+            rc = mAnalysisChannel->initialize(IS_TYPE_NONE);
             if (rc < 0) {
                 ALOGE("%s: Analysis channel initialization failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
+            }
+        }
+        if (mDummyBatchChannel) {
+            rc = mDummyBatchChannel->setBatchSize(mBatchSize);
+            if (rc < 0) {
+                ALOGE("%s: mDummyBatchChannel setBatchSize failed", __func__);
+                pthread_mutex_unlock(&mMutex);
+                goto error_exit;
+            }
+            rc = mDummyBatchChannel->initialize(is_type);
+            if (rc < 0) {
+                ALOGE("%s: mDummyBatchChannel initialization failed", __func__);
+                pthread_mutex_unlock(&mMutex);
+                goto error_exit;
             }
         }
 
@@ -2821,7 +3375,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         if (rc < 0) {
             ALOGE("%s: META channel start failed", __func__);
             pthread_mutex_unlock(&mMutex);
-            return rc;
+            goto error_exit;
         }
 
         if (mAnalysisChannel) {
@@ -2830,7 +3384,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 ALOGE("%s: Analysis channel start failed", __func__);
                 mMetadataChannel->stop();
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
 
@@ -2845,19 +3399,19 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     mAnalysisChannel->stop();
                 }
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
         for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
             it != mStreamInfo.end(); it++) {
             QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-            CDBG_HIGH("%s: Start Channel mask=%d",
+            CDBG_HIGH("%s: Start Processing Channel mask=%d",
                     __func__, channel->getStreamTypeMask());
             rc = channel->start();
             if (rc < 0) {
                 ALOGE("%s: channel start failed", __func__);
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
 
@@ -2870,7 +3424,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                       it != mStreamInfo.end(); it++) {
                     QCamera3Channel *channel =
                         (QCamera3Channel *)(*it)->stream->priv;
-                    ALOGE("%s: Stopping Regular Channel mask=%d", __func__,
+                    ALOGE("%s: Stopping Processing Channel mask=%d", __func__,
                         channel->getStreamTypeMask());
                     channel->stop();
                 }
@@ -2881,13 +3435,19 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 }
                 mMetadataChannel->stop();
                 pthread_mutex_unlock(&mMutex);
-                return rc;
+                goto error_exit;
             }
         }
+        goto no_error;
+error_exit:
+        m_perfLock.lock_rel();
+        return rc;
+no_error:
+        m_perfLock.lock_rel();
         mWokenUpByDaemon = false;
-        mPendingRequest = 0;
+        mPendingLiveRequest = 0;
         mFirstConfiguration = false;
-        mBatchStreamID.num_streams = 0;
+        enablePowerHint();
     }
 
     uint32_t frameNumber = request->frame_number;
@@ -2904,7 +3464,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         request_id = meta.find(ANDROID_REQUEST_ID).data.i32[0];
         mCurrentRequestId = request_id;
         CDBG("%s: Received request with id: %d",__func__, request_id);
-    } else if (mFirstRequest || mCurrentRequestId == -1){
+    } else if (mState == CONFIGURED || mCurrentRequestId == -1){
         ALOGE("%s: Unable to find request id field, \
                 & no previous id available", __func__);
         pthread_mutex_unlock(&mMutex);
@@ -2914,7 +3474,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         request_id = mCurrentRequestId;
     }
 
-    CDBG("%s: %d, num_output_buffers = %d input_buffer = %p frame_number = %d",
+    CDBG_HIGH("%s: %d, num_output_buffers = %d input_buffer = %p frame_number = %d",
                                     __func__, __LINE__,
                                     request->num_output_buffers,
                                     request->input_buffer,
@@ -2926,7 +3486,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         const camera3_stream_buffer_t& output = request->output_buffers[i];
         QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
-        sp<Fence> acquireFence = new Fence(output.acquire_fence);
 
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
             //Call function to store local copy of jpeg data for encode params.
@@ -2934,16 +3493,23 @@ int QCamera3HardwareInterface::processCaptureRequest(
             snapshotStreamId = channel->getStreamID(channel->getStreamTypeMask());
         }
 
-        rc = acquireFence->wait(Fence::TIMEOUT_NEVER);
-        if (rc != OK) {
-            ALOGE("%s: fence wait failed %d", __func__, rc);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
+        if (output.acquire_fence != -1) {
+           rc = sync_wait(output.acquire_fence, TIMEOUT_NEVER);
+           close(output.acquire_fence);
+           if (rc != OK) {
+              ALOGE("%s: sync wait failed %d", __func__, rc);
+              pthread_mutex_unlock(&mMutex);
+              return rc;
+           }
         }
 
         streamID.streamID[streamID.num_streams] =
             channel->getStreamID(channel->getStreamTypeMask());
         streamID.num_streams++;
+
+        if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
+            isVidBufRequested = true;
+        }
     }
 
     if (blob_request) {
@@ -2957,41 +3523,92 @@ int QCamera3HardwareInterface::processCaptureRequest(
     }
 
     if(request->input_buffer == NULL) {
-        //TODO: reduce the set_params traffic to batchSize()
-       rc = setFrameParameters(request, streamID, blob_request, snapshotStreamId);
-        if (rc < 0) {
-            ALOGE("%s: fail to set frame parameters", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
+        /* Parse the settings:
+         * - For every request in NORMAL MODE
+         * - For every request in HFR mode during preview only case
+         * - For first request of every batch in HFR mode during video
+         * recording. In batchmode the same settings except frame number is
+         * repeated in each request of the batch.
+         */
+        if (!mBatchSize ||
+           (mBatchSize && !isVidBufRequested) ||
+           (mBatchSize && isVidBufRequested && !mToBeQueuedVidBufs)) {
+            rc = setFrameParameters(request, streamID, blob_request, snapshotStreamId);
+            if (rc < 0) {
+                ALOGE("%s: fail to set frame parameters", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
         }
+        /* For batchMode HFR, setFrameParameters is not called for every
+         * request. But only frame number of the latest request is parsed.
+         * Keep track of first and last frame numbers in a batch so that
+         * metadata for the frame numbers of batch can be duplicated in
+         * handleBatchMetadta */
         if (mBatchSize) {
-            rc = setBatchMetaStreamID(streamID);
+            if (!mToBeQueuedVidBufs) {
+                //start of the batch
+                mFirstFrameNumberInBatch = request->frame_number;
+            }
+            if(ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                CAM_INTF_META_FRAME_NUMBER, request->frame_number)) {
+                ALOGE("%s: Failed to set the frame number in the parameters", __func__);
+                return BAD_VALUE;
+            }
+        }
+        if (mNeedSensorRestart) {
+            /* Unlock the mutex as restartSensor waits on the channels to be
+             * stopped, which in turn calls stream callback functions -
+             * handleBufferWithLock and handleMetadataWithLock */
+            pthread_mutex_unlock(&mMutex);
+            rc = dynamicUpdateMetaStreamInfo();
+            if (rc != NO_ERROR) {
+                ALOGE("%s: Restarting the sensor failed", __func__);
+                return BAD_VALUE;
+            }
+            mNeedSensorRestart = false;
+            pthread_mutex_lock(&mMutex);
         }
     } else {
-        sp<Fence> acquireFence = new Fence(request->input_buffer->acquire_fence);
 
-        rc = acquireFence->wait(Fence::TIMEOUT_NEVER);
-        if (rc != OK) {
-            ALOGE("%s: input buffer fence wait failed %d", __func__, rc);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
+        if (request->input_buffer->acquire_fence != -1) {
+           rc = sync_wait(request->input_buffer->acquire_fence, TIMEOUT_NEVER);
+           close(request->input_buffer->acquire_fence);
+           if (rc != OK) {
+              ALOGE("%s: input buffer sync wait failed %d", __func__, rc);
+              pthread_mutex_unlock(&mMutex);
+              return rc;
+           }
         }
     }
 
+    if (mCaptureIntent == ANDROID_CONTROL_CAPTURE_INTENT_CUSTOM) {
+        mLastCustIntentFrmNum = frameNumber;
+    }
     /* Update pending request list and pending buffers map */
     PendingRequestInfo pendingRequest;
+    pendingRequestIterator latestRequest;
     pendingRequest.frame_number = frameNumber;
     pendingRequest.num_buffers = request->num_output_buffers;
     pendingRequest.request_id = request_id;
     pendingRequest.blob_request = blob_request;
     pendingRequest.timestamp = 0;
     pendingRequest.bUrgentReceived = 0;
+    if (request->input_buffer) {
+        pendingRequest.input_buffer =
+                (camera3_stream_buffer_t*)malloc(sizeof(camera3_stream_buffer_t));
+        *(pendingRequest.input_buffer) = *(request->input_buffer);
+        pInputBuffer = pendingRequest.input_buffer;
+    } else {
+       pendingRequest.input_buffer = NULL;
+       pInputBuffer = NULL;
+    }
 
-    pendingRequest.input_buffer = request->input_buffer;
-    pendingRequest.settings = request->settings;
     pendingRequest.pipeline_depth = 0;
     pendingRequest.partial_result_cnt = 0;
-    extractJpegMetadata(pendingRequest.jpegMetadata, request);
+    extractJpegMetadata(mCurJpegMeta, request);
+    pendingRequest.jpegMetadata = mCurJpegMeta;
+    pendingRequest.settings = saveRequestSettings(mCurJpegMeta, request);
 
     //extract capture intent
     if (meta.exists(ANDROID_CONTROL_CAPTURE_INTENT)) {
@@ -3009,6 +3626,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         RequestedBufferInfo requestedBuf;
+        memset(&requestedBuf, 0, sizeof(requestedBuf));
         requestedBuf.stream = request->output_buffers[i].stream;
         requestedBuf.buffer = NULL;
         pendingRequest.buffers.push_back(requestedBuf);
@@ -3025,12 +3643,9 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 __func__, frameNumber, bufferInfo.buffer,
                 channel->getStreamTypeMask(), bufferInfo.stream->format);
     }
-    CDBG("%s: mPendingBuffersMap.num_buffers = %d",
-          __func__, mPendingBuffersMap.num_buffers);
-
-    mPendingRequestsList.push_back(pendingRequest);
-
-    if (mFlush) {
+    latestRequest = mPendingRequestsList.insert(
+            mPendingRequestsList.end(), pendingRequest);
+    if(mFlush) {
         pthread_mutex_unlock(&mMutex);
         return NO_ERROR;
     }
@@ -3038,7 +3653,18 @@ int QCamera3HardwareInterface::processCaptureRequest(
     // Notify metadata channel we receive a request
     mMetadataChannel->request(NULL, frameNumber);
 
+    if(request->input_buffer != NULL){
+        rc = setReprocParameters(request, &mReprocMeta, snapshotStreamId);
+        if (NO_ERROR != rc) {
+            ALOGE("%s: fail to set reproc parameters", __func__);
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
+    }
+
     // Call request on other streams
+    uint32_t streams_need_metadata = 0;
+    pendingBufferIterator pendingBufferIter = latestRequest->buffers.begin();
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         const camera3_stream_buffer_t& output = request->output_buffers[i];
         QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
@@ -3049,74 +3675,91 @@ int QCamera3HardwareInterface::processCaptureRequest(
         }
 
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
-            QCamera3RegularChannel* inputChannel = NULL;
             CDBG("%s: snapshot request with output buffer %p, input buffer %p, frame_number %d",
                      __func__, output.buffer, request->input_buffer, frameNumber);
             if(request->input_buffer != NULL){
-
-                //Try to get the internal format
-                inputChannel = (QCamera3RegularChannel*)
-                    request->input_buffer->stream->priv;
-                if(inputChannel == NULL ){
-                    ALOGE("%s: failed to get input channel handle", __func__);
-                    pthread_mutex_unlock(&mMutex);
-                    return NO_INIT;
-                }
-                rc = setReprocParameters(request, &mRreprocMeta, snapshotStreamId);
-                if (NO_ERROR == rc) {
-                    rc = channel->request(output.buffer, frameNumber,
-                            request->input_buffer, &mRreprocMeta);
-                    if (rc < 0) {
-                        ALOGE("%s: Fail to request on picture channel", __func__);
-                        pthread_mutex_unlock(&mMutex);
-                        return rc;
-                    }
-                } else {
-                    ALOGE("%s: fail to set reproc parameters", __func__);
+                rc = channel->request(output.buffer, frameNumber,
+                        pInputBuffer, &mReprocMeta);
+                if (rc < 0) {
+                    ALOGE("%s: Fail to request on picture channel", __func__);
                     pthread_mutex_unlock(&mMutex);
                     return rc;
                 }
-            } else{
-                 if (!request->settings) {
-                   rc = channel->request(output.buffer, frameNumber,
-                               NULL, mPrevParameters);
-                 } else {
+            } else {
+                CDBG("%s: %d, snapshot request with buffer %p, frame_number %d", __func__,
+                        __LINE__, output.buffer, frameNumber);
+                if (!request->settings) {
                     rc = channel->request(output.buffer, frameNumber,
-                               NULL, mParameters);
-                 }
+                            NULL, mPrevParameters);
+                } else {
+                    rc = channel->request(output.buffer, frameNumber,
+                            NULL, mParameters);
+                }
+                if (rc < 0) {
+                    ALOGE("%s: Fail to request on picture channel", __func__);
+                    pthread_mutex_unlock(&mMutex);
+                    return rc;
+                }
+                pendingBufferIter->need_metadata = true;
+                streams_need_metadata++;
             }
+        } else if (output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+            bool needMetadata = false;
+            QCamera3YUVChannel *yuvChannel = (QCamera3YUVChannel *)channel;
+            rc = yuvChannel->request(output.buffer, frameNumber,
+                    pInputBuffer,
+                    (pInputBuffer ? &mReprocMeta : mParameters), needMetadata);
+            if (rc < 0) {
+                ALOGE("%s: Fail to request on YUV channel", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
+            pendingBufferIter->need_metadata = needMetadata;
+            if (needMetadata)
+                streams_need_metadata += 1;
+            CDBG("%s: calling YUV channel request, need_metadata is %d",
+                    __func__, needMetadata);
         } else {
             CDBG("%s: %d, request with buffer %p, frame_number %d", __func__,
                 __LINE__, output.buffer, frameNumber);
-           rc = channel->request(output.buffer, frameNumber);
-           if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())
-                && mBatchSize) {
-               mToBeQueuedVidBufs++;
-               if (mToBeQueuedVidBufs == mBatchSize) {
-                   channel->queueBatchBuf();
-               }
-           }
+            rc = channel->request(output.buffer, frameNumber);
+            if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())
+                    && mBatchSize) {
+                mToBeQueuedVidBufs++;
+                if (mToBeQueuedVidBufs == mBatchSize) {
+                    channel->queueBatchBuf();
+                }
+            }
+            if (rc < 0) {
+                ALOGE("%s: request failed", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
         }
-        if (rc < 0)
-            ALOGE("%s: request failed", __func__);
+        pendingBufferIter++;
+    }
+
+    //If 2 streams have need_metadata set to true, fail the request, unless
+    //we copy/reference count the metadata buffer
+    if (streams_need_metadata > 1) {
+        ALOGE("%s: not supporting request in which two streams requires"
+                " 2 HAL metadata for reprocessing", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return -EINVAL;
     }
 
     if(request->input_buffer == NULL) {
-        /*set the parameters to backend*/
-        //For batch mode, set_params called once per batch, for non-batch this
-        //condition is always true as mToBeQueuedVidBufs = mBatchSize = 0
-        if (mToBeQueuedVidBufs == mBatchSize) {
-            if(mBatchSize) {
-                /* generate parameters for the batch */
-                rc = setFrameParameters(request, mBatchStreamID, blob_request,
-                        snapshotStreamId);
-                if (rc < 0) {
-                    ALOGE("%s: fail to set batch frame parameters", __func__);
-                    pthread_mutex_unlock(&mMutex);
-                    return rc;
-                }
-            }
-
+        /* Set the parameters to backend:
+         * - For every request in NORMAL MODE
+         * - For every request in HFR mode during preview only case
+         * - Once every batch in HFR mode during video recording
+         */
+        if (!mBatchSize ||
+           (mBatchSize && !isVidBufRequested) ||
+           (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize))) {
+            CDBG("%s: set_parms  batchSz: %d IsVidBufReq: %d vidBufTobeQd: %d ",
+                    __func__, mBatchSize, isVidBufRequested,
+                    mToBeQueuedVidBufs);
             rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
             if (rc < 0) {
@@ -3124,10 +3767,14 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
             /* reset to zero coz, the batch is queued */
             mToBeQueuedVidBufs = 0;
+            mPendingBatchMap.add(frameNumber, mFirstFrameNumberInBatch);
         }
+        mPendingLiveRequest++;
     }
 
-    mFirstRequest = false;
+    CDBG("%s: mPendingLiveRequest = %d", __func__, mPendingLiveRequest);
+
+    mState = STARTED;
     // Added a timed condition wait
     struct timespec ts;
     uint8_t isValidTimeout = 1;
@@ -3141,9 +3788,12 @@ int QCamera3HardwareInterface::processCaptureRequest(
       ts.tv_sec += 5;
     }
     //Block on conditional variable
-
-    mPendingRequest++;
-    while (mPendingRequest >= MIN_INFLIGHT_REQUESTS) {
+    if (mBatchSize) {
+        /* For HFR, more buffers are dequeued upfront to improve the performance */
+        minInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
+        maxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
+    }
+    while ((mPendingLiveRequest >= minInFlightRequests) && !pInputBuffer) {
         if (!isValidTimeout) {
             CDBG("%s: Blocking on conditional wait", __func__);
             pthread_cond_wait(&mRequestCond, &mMutex);
@@ -3160,7 +3810,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         CDBG("%s: Unblocked", __func__);
         if (mWokenUpByDaemon) {
             mWokenUpByDaemon = false;
-            if (mPendingRequest < MAX_INFLIGHT_REQUESTS)
+            if (mPendingLiveRequest < maxInFlightRequests)
                 break;
         }
     }
@@ -3189,8 +3839,8 @@ void QCamera3HardwareInterface::dump(int fd)
     dprintf(fd, "-------+-------------------+-------------+----------+---------------------\n");
     dprintf(fd, " Frame | Number of Buffers |   Req Id:   | Blob Req | Input buffer present\n");
     dprintf(fd, "-------+-------------------+-------------+----------+---------------------\n");
-    for(List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
-        i != mPendingRequestsList.end(); i++) {
+    for(pendingRequestIterator i = mPendingRequestsList.begin();
+            i != mPendingRequestsList.end(); i++) {
         dprintf(fd, " %5d | %17d | %11d | %8d | %p \n",
         i->frame_number, i->num_buffers, i->request_id, i->blob_request,
         i->input_buffer);
@@ -3242,235 +3892,46 @@ void QCamera3HardwareInterface::dump(int fd)
 int QCamera3HardwareInterface::flush()
 {
     KPI_ATRACE_CALL();
-    unsigned int frameNum = 0;
-    camera3_capture_result_t result;
-    camera3_stream_buffer_t *pStream_Buf = NULL;
-    FlushMap flushMap;
+    int32_t rc = NO_ERROR;
 
     CDBG("%s: Unblocking Process Capture Request", __func__);
     pthread_mutex_lock(&mMutex);
+    if (mState != STARTED) {
+        ALOGI("%s: Flush returned during state %d", __func__, mState);
+        pthread_mutex_unlock(&mMutex);
+        return 0;
+    }
     mFlush = true;
     pthread_mutex_unlock(&mMutex);
 
-    memset(&result, 0, sizeof(camera3_capture_result_t));
-
-    // Stop the Streams/Channels
-    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
-        it != mStreamInfo.end(); it++) {
-        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-        channel->stop();
-        (*it)->status = INVALID;
-    }
-
-    if (mSupportChannel) {
-        mSupportChannel->stop();
-    }
-    if (mAnalysisChannel) {
-        mAnalysisChannel->stop();
-    }
-    if (mRawDumpChannel) {
-        mRawDumpChannel->stop();
-    }
-    if (mMetadataChannel) {
-        /* If content of mStreamInfo is not 0, there is metadata stream */
-        mMetadataChannel->stop();
+    rc = stopAllChannels();
+    if (rc < 0) {
+        ALOGE("%s: stopAllChannels failed", __func__);
+        return rc;
     }
 
     // Mutex Lock
     pthread_mutex_lock(&mMutex);
 
     // Unblock process_capture_request
-    mPendingRequest = 0;
+    mPendingLiveRequest = 0;
     pthread_cond_signal(&mRequestCond);
 
-    List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
-    frameNum = i->frame_number;
-    CDBG("%s: Oldest frame num on  mPendingRequestsList = %d",
-      __func__, frameNum);
-
-    // Go through the pending buffers and group them depending
-    // on frame number
-    for (List<PendingBufferInfo>::iterator k =
-            mPendingBuffersMap.mPendingBufferList.begin();
-            k != mPendingBuffersMap.mPendingBufferList.end();) {
-
-        if (k->frame_number < frameNum) {
-            ssize_t idx = flushMap.indexOfKey(k->frame_number);
-            if (idx == NAME_NOT_FOUND) {
-                Vector<PendingBufferInfo> pending;
-                pending.add(*k);
-                flushMap.add(k->frame_number, pending);
-            } else {
-                Vector<PendingBufferInfo> &pending =
-                        flushMap.editValueFor(k->frame_number);
-                pending.add(*k);
-            }
-
-            mPendingBuffersMap.num_buffers--;
-            k = mPendingBuffersMap.mPendingBufferList.erase(k);
-        } else {
-            k++;
-        }
+    rc = notifyErrorForPendingRequests();
+    if (rc < 0) {
+        ALOGE("%s: notifyErrorForPendingRequests failed", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return rc;
     }
-
-    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
-        uint32_t frame_number = flushMap.keyAt(iFlush);
-        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
-
-        // Send Error notify to frameworks for each buffer for which
-        // metadata buffer is already sent
-        CDBG("%s: Sending ERROR BUFFER for frame %d number of buffer %d",
-          __func__, frame_number, pending.size());
-
-        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
-        if (NULL == pStream_Buf) {
-            ALOGE("%s: No memory for pending buffers array", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return NO_MEMORY;
-        }
-        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
-
-        for (size_t j = 0; j < pending.size(); j++) {
-            const PendingBufferInfo &info = pending.itemAt(j);
-            camera3_notify_msg_t notify_msg;
-            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-            notify_msg.type = CAMERA3_MSG_ERROR;
-            notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER;
-            notify_msg.message.error.error_stream = info.stream;
-            notify_msg.message.error.frame_number = frame_number;
-            pStream_Buf[j].acquire_fence = -1;
-            pStream_Buf[j].release_fence = -1;
-            pStream_Buf[j].buffer = info.buffer;
-            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
-            pStream_Buf[j].stream = info.stream;
-            mCallbackOps->notify(mCallbackOps, &notify_msg);
-            CDBG("%s: notify frame_number = %d stream %p", __func__,
-                    frame_number, info.stream);
-        }
-
-        result.result = NULL;
-        result.frame_number = frame_number;
-        result.num_output_buffers = (uint32_t)pending.size();
-        result.output_buffers = pStream_Buf;
-        mCallbackOps->process_capture_result(mCallbackOps, &result);
-
-        delete [] pStream_Buf;
-    }
-
-    CDBG("%s:Sending ERROR REQUEST for all pending requests", __func__);
-
-    flushMap.clear();
-    for (List<PendingBufferInfo>::iterator k =
-            mPendingBuffersMap.mPendingBufferList.begin();
-            k != mPendingBuffersMap.mPendingBufferList.end();) {
-        ssize_t idx = flushMap.indexOfKey(k->frame_number);
-        if (idx == NAME_NOT_FOUND) {
-            Vector<PendingBufferInfo> pending;
-            pending.add(*k);
-            flushMap.add(k->frame_number, pending);
-        } else {
-            Vector<PendingBufferInfo> &pending =
-                    flushMap.editValueFor(k->frame_number);
-            pending.add(*k);
-        }
-
-        mPendingBuffersMap.num_buffers--;
-        k = mPendingBuffersMap.mPendingBufferList.erase(k);
-    }
-
-    // Go through the pending requests info and send error request to framework
-    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
-        uint32_t frame_number = flushMap.keyAt(iFlush);
-        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
-        CDBG("%s:Sending ERROR REQUEST for frame %d",
-              __func__, frame_number);
-
-        // Send shutter notify to frameworks
-        camera3_notify_msg_t notify_msg;
-        memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-        notify_msg.type = CAMERA3_MSG_ERROR;
-        notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_REQUEST;
-        notify_msg.message.error.error_stream = NULL;
-        notify_msg.message.error.frame_number = frame_number;
-        mCallbackOps->notify(mCallbackOps, &notify_msg);
-
-        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
-        if (NULL == pStream_Buf) {
-            ALOGE("%s: No memory for pending buffers array", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return NO_MEMORY;
-        }
-        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
-
-        for (size_t j = 0; j < pending.size(); j++) {
-            const PendingBufferInfo &info = pending.itemAt(j);
-            pStream_Buf[j].acquire_fence = -1;
-            pStream_Buf[j].release_fence = -1;
-            pStream_Buf[j].buffer = info.buffer;
-            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
-            pStream_Buf[j].stream = info.stream;
-        }
-
-        result.num_output_buffers = (uint32_t)pending.size();
-        result.output_buffers = pStream_Buf;
-        result.result = NULL;
-        result.frame_number = frame_number;
-        mCallbackOps->process_capture_result(mCallbackOps, &result);
-        delete [] pStream_Buf;
-    }
-
-    /* Reset pending buffer list and requests list */
-    mPendingRequestsList.clear();
-    /* Reset pending frame Drop list and requests list */
-    mPendingFrameDropList.clear();
-
-    flushMap.clear();
-    mPendingBuffersMap.num_buffers = 0;
-    mPendingBuffersMap.mPendingBufferList.clear();
-    mPendingReprocessResultList.clear();
-    CDBG("%s: Cleared all the pending buffers ", __func__);
 
     mFlush = false;
 
     // Start the Streams/Channels
-    int rc = NO_ERROR;
-    if (mMetadataChannel) {
-        /* If content of mStreamInfo is not 0, there is metadata stream */
-        rc = mMetadataChannel->start();
-        if (rc < 0) {
-            ALOGE("%s: META channel start failed", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
-    }
-    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
-        it != mStreamInfo.end(); it++) {
-        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-        rc = channel->start();
-        if (rc < 0) {
-            ALOGE("%s: channel start failed", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
-    }
-    if (mAnalysisChannel) {
-        mAnalysisChannel->start();
-    }
-    if (mSupportChannel) {
-        rc = mSupportChannel->start();
-        if (rc < 0) {
-            ALOGE("%s: Support channel start failed", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
-    }
-    if (mRawDumpChannel) {
-        rc = mRawDumpChannel->start();
-        if (rc < 0) {
-            ALOGE("%s: RAW dump channel start failed", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
+    rc = startAllChannels();
+    if (rc < 0) {
+        ALOGE("%s: startAllChannels failed", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return rc;
     }
 
     pthread_mutex_unlock(&mMutex);
@@ -3575,153 +4036,15 @@ int QCamera3HardwareInterface::flushPerf()
     }
 
     /* notify the frameworks and send errored results */
-    List<PendingRequestInfo>::iterator i = mPendingRequestsList.begin();
-    frameNum = i->frame_number;
-    CDBG("%s: Oldest frame num on  mPendingRequestsList = %d",
-      __func__, frameNum);
-
-    // Go through the pending buffers and group them depending
-    // on frame number
-    for (List<PendingBufferInfo>::iterator k =
-            mPendingBuffersMap.mPendingBufferList.begin();
-            k != mPendingBuffersMap.mPendingBufferList.end();) {
-
-        if (k->frame_number < frameNum) {
-            ssize_t idx = flushMap.indexOfKey(k->frame_number);
-            if (idx == NAME_NOT_FOUND) {
-                Vector<PendingBufferInfo> pending;
-                pending.add(*k);
-                flushMap.add(k->frame_number, pending);
-            } else {
-                Vector<PendingBufferInfo> &pending =
-                        flushMap.editValueFor(k->frame_number);
-                pending.add(*k);
-            }
-            k = mPendingBuffersMap.mPendingBufferList.erase(k);
-        } else {
-            k++;
-        }
+    rc = notifyErrorForPendingRequests();
+    if (rc < 0) {
+        ALOGE("%s: notifyErrorForPendingRequests failed", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return rc;
     }
-
-    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
-        camera3_capture_result_t result;
-        uint32_t frame_number = flushMap.keyAt(iFlush);
-        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
-
-        // Send Error notify to frameworks for each buffer for which
-        // metadata buffer is already sent
-        CDBG("%s: Sending ERROR BUFFER for frame %d number of buffer %d",
-          __func__, frame_number, pending.size());
-
-        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
-        if (NULL == pStream_Buf) {
-            ALOGE("%s: No memory for pending buffers array", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return NO_MEMORY;
-        }
-        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
-
-        for (size_t j = 0; j < pending.size(); j++) {
-            const PendingBufferInfo &info = pending.itemAt(j);
-            camera3_notify_msg_t notify_msg;
-            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-            notify_msg.type = CAMERA3_MSG_ERROR;
-            notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER;
-            notify_msg.message.error.error_stream = info.stream;
-            notify_msg.message.error.frame_number = frame_number;
-            pStream_Buf[j].acquire_fence = -1;
-            pStream_Buf[j].release_fence = -1;
-            pStream_Buf[j].buffer = info.buffer;
-            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
-            pStream_Buf[j].stream = info.stream;
-            mCallbackOps->notify(mCallbackOps, &notify_msg);
-            CDBG("%s: notify frame_number = %d stream %p", __func__,
-                    frame_number, info.stream);
-        }
-
-        result.result = NULL;
-        result.frame_number = frame_number;
-        result.num_output_buffers = (uint32_t)pending.size();
-        result.output_buffers = pStream_Buf;
-        mCallbackOps->process_capture_result(mCallbackOps, &result);
-
-        delete [] pStream_Buf;
-    }
-
-    CDBG("%s:Sending ERROR REQUEST for all pending requests", __func__);
-
-    flushMap.clear();
-    for (List<PendingBufferInfo>::iterator k =
-            mPendingBuffersMap.mPendingBufferList.begin();
-            k != mPendingBuffersMap.mPendingBufferList.end();) {
-        ssize_t idx = flushMap.indexOfKey(k->frame_number);
-        if (idx == NAME_NOT_FOUND) {
-            Vector<PendingBufferInfo> pending;
-            pending.add(*k);
-            flushMap.add(k->frame_number, pending);
-        } else {
-            Vector<PendingBufferInfo> &pending =
-                    flushMap.editValueFor(k->frame_number);
-            pending.add(*k);
-        }
-        k = mPendingBuffersMap.mPendingBufferList.erase(k);
-    }
-
-    // Go through the pending requests info and send error request to framework
-    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
-        camera3_capture_result_t result;
-        uint32_t frame_number = flushMap.keyAt(iFlush);
-        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
-        CDBG("%s:Sending ERROR REQUEST for frame %d",
-              __func__, frame_number);
-
-        // Send shutter notify to frameworks
-        camera3_notify_msg_t notify_msg;
-        memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-        notify_msg.type = CAMERA3_MSG_ERROR;
-        notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_REQUEST;
-        notify_msg.message.error.error_stream = NULL;
-        notify_msg.message.error.frame_number = frame_number;
-        mCallbackOps->notify(mCallbackOps, &notify_msg);
-
-        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
-        if (NULL == pStream_Buf) {
-            ALOGE("%s: No memory for pending buffers array", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return NO_MEMORY;
-        }
-        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
-
-        for (size_t j = 0; j < pending.size(); j++) {
-            const PendingBufferInfo &info = pending.itemAt(j);
-            pStream_Buf[j].acquire_fence = -1;
-            pStream_Buf[j].release_fence = -1;
-            pStream_Buf[j].buffer = info.buffer;
-            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
-            pStream_Buf[j].stream = info.stream;
-        }
-
-        result.num_output_buffers = (uint32_t)pending.size();
-        result.output_buffers = pStream_Buf;
-        result.result = NULL;
-        result.frame_number = frame_number;
-        mCallbackOps->process_capture_result(mCallbackOps, &result);
-        delete [] pStream_Buf;
-    }
-
-    /* Reset pending buffer list and requests list */
-    mPendingRequestsList.clear();
-    /* Reset pending frame Drop list and requests list */
-    mPendingFrameDropList.clear();
-
-    flushMap.clear();
-    mPendingBuffersMap.num_buffers = 0;
-    mPendingBuffersMap.mPendingBufferList.clear();
-    mPendingReprocessResultList.clear();
-    CDBG("%s: Cleared all the pending buffers ", __func__);
 
     //unblock process_capture_request
-    mPendingRequest = 0;
+    mPendingLiveRequest = 0;
     unblockRequestIfNecessary();
 
     mFlushPerf = false;
@@ -3750,6 +4073,7 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
             handleBatchMetadata(metadata_buf,
                     true /* free_and_bufdone_meta_buf */);
         } else { /* mBatchSize = 0 */
+            hdrPlusPerfLock(metadata_buf);
             pthread_mutex_lock(&mMutex);
             handleMetadataWithLock(metadata_buf,
                     true /* free_and_bufdone_meta_buf */);
@@ -3761,6 +4085,54 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
         pthread_mutex_unlock(&mMutex);
     }
     return;
+}
+
+/*===========================================================================
+ * FUNCTION   : getReprocessibleOutputStreamId
+ *
+ * DESCRIPTION: Get source output stream id for the input reprocess stream
+ *              based on size and format, which would be the largest
+ *              output stream if an input stream exists.
+ *
+ * PARAMETERS :
+ *   @id      : return the stream id if found
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::getReprocessibleOutputStreamId(uint32_t &id)
+{
+    stream_info_t* stream = NULL;
+
+    /* check if any output or bidirectional stream with the same size and format
+       and return that stream */
+    if ((mInputStreamInfo.dim.width > 0) &&
+            (mInputStreamInfo.dim.height > 0)) {
+        for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+                it != mStreamInfo.end(); it++) {
+
+            camera3_stream_t *stream = (*it)->stream;
+            if ((stream->width == (uint32_t)mInputStreamInfo.dim.width) &&
+                    (stream->height == (uint32_t)mInputStreamInfo.dim.height) &&
+                    (stream->format == mInputStreamInfo.format)) {
+                // Usage flag for an input stream and the source output stream
+                // may be different.
+                CDBG("%s: Found reprocessible output stream! %p", __func__, *it);
+                CDBG("%s: input stream usage 0x%x, current stream usage 0x%x",
+                        __func__, stream->usage, mInputStreamInfo.usage);
+
+                QCamera3Channel *channel = (QCamera3Channel *)stream->priv;
+                if (channel != NULL && channel->mStreams[0]) {
+                    id = channel->mStreams[0]->getMyServerID();
+                    return NO_ERROR;
+                }
+            }
+        }
+    } else {
+        CDBG("%s: No input stream, so no reprocessible output stream", __func__);
+    }
+    return NAME_NOT_FOUND;
 }
 
 /*===========================================================================
@@ -3858,6 +4230,7 @@ template <class mapType> cam_cds_mode_type_t lookupProp(const mapType *arr,
  *   @timestamp: metadata buffer timestamp
  *   @request_id: request id
  *   @jpegMetadata: additional jpeg metadata
+ *   @pprocDone: whether internal offline postprocsesing is done
  *
  * RETURN     : camera_metadata_t*
  *              metadata in a format specified by fwk
@@ -3870,6 +4243,7 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                  const CameraMetadata& jpegMetadata,
                                  uint8_t pipeline_depth,
                                  uint8_t capture_intent,
+                                 bool pprocDone,
                                  uint8_t fwk_cacMode)
 {
     CameraMetadata camMetadata;
@@ -3902,31 +4276,16 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, expCompensation, 1);
     }
 
-    /* HFR and BEST_MODE need to be both available to derive SCENE_MODE
-     * Framework sets scenemode to indicate HFR and hence corresponding
-     * translatation is required from hfr mode to scenemode */
-    int32_t hfrMode = CAM_HFR_MODE_OFF;
-    uint32_t sceneMode = CAM_SCENE_MODE_OFF;
-
-    IF_META_AVAILABLE(int32_t, pHfrMode, CAM_INTF_PARM_HFR, metadata) {
-        hfrMode = *pHfrMode;
-    }
-    IF_META_AVAILABLE(uint32_t, pBestshotMode, CAM_INTF_PARM_BESTSHOT_MODE, metadata) {
-        uint8_t fwkSceneMode;
-        sceneMode = *pBestshotMode;
-
-        if ((hfrMode != CAM_HFR_MODE_OFF) && (hfrMode < CAM_HFR_MODE_MAX))
-            fwkSceneMode = ANDROID_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO;
-        else {
-            fwkSceneMode =
-                    (uint8_t)lookupFwkName(SCENE_MODES_MAP,
-                    sizeof(SCENE_MODES_MAP)/
-                    sizeof(SCENE_MODES_MAP[0]), sceneMode);
+    IF_META_AVAILABLE(uint32_t, sceneMode, CAM_INTF_PARM_BESTSHOT_MODE, metadata) {
+        int val = (uint8_t)lookupFwkName(SCENE_MODES_MAP,
+                METADATA_MAP_SIZE(SCENE_MODES_MAP),
+                *sceneMode);
+        if (NAME_NOT_FOUND != val) {
+            uint8_t fwkSceneMode = (uint8_t)val;
+            camMetadata.update(ANDROID_CONTROL_SCENE_MODE, &fwkSceneMode, 1);
+            CDBG("%s: urgent Metadata : ANDROID_CONTROL_SCENE_MODE: %d",
+                    __func__, fwkSceneMode);
         }
-        camMetadata.update(ANDROID_CONTROL_SCENE_MODE,
-                &fwkSceneMode, 1);
-        CDBG("%s: urgent Metadata : ANDROID_CONTROL_SCENE_MODE: %d",
-                __func__, fwkSceneMode);
     }
 
     IF_META_AVAILABLE(uint32_t, ae_lock, CAM_INTF_PARM_AEC_LOCK, metadata) {
@@ -3939,52 +4298,6 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_CONTROL_AWB_LOCK, &fwk_awb_lock, 1);
     }
 
-    IF_META_AVAILABLE(cam_face_detection_data_t, faceDetectionInfo,
-            CAM_INTF_META_FACE_DETECTION, metadata) {
-        uint8_t numFaces = MIN(faceDetectionInfo->num_faces_detected, MAX_ROI);
-        int32_t faceIds[MAX_ROI];
-        uint8_t faceScores[MAX_ROI];
-        int32_t faceRectangles[MAX_ROI * 4];
-        int32_t faceLandmarks[MAX_ROI * 6];
-        size_t j = 0, k = 0;
-        for (size_t i = 0; i < numFaces; i++) {
-            faceIds[i] = faceDetectionInfo->faces[i].face_id;
-            faceScores[i] = (uint8_t)faceDetectionInfo->faces[i].score;
-            // Adjust crop region from sensor output coordinate system to active
-            // array coordinate system.
-            cam_rect_t& rect = faceDetectionInfo->faces[i].face_boundary;
-            mCropRegionMapper.toActiveArray(rect.left, rect.top,
-                    rect.width, rect.height);
-
-            convertToRegions(faceDetectionInfo->faces[i].face_boundary,
-                faceRectangles+j, -1);
-
-            // Map the co-ordinate sensor output coordinate system to active
-            // array coordinate system.
-            cam_face_detection_info_t& face = faceDetectionInfo->faces[i];
-            mCropRegionMapper.toActiveArray(face.left_eye_center.x,
-                    face.left_eye_center.y);
-            mCropRegionMapper.toActiveArray(face.right_eye_center.x,
-                    face.right_eye_center.y);
-            mCropRegionMapper.toActiveArray(face.mouth_center.x,
-                    face.mouth_center.y);
-
-            convertLandmarks(faceDetectionInfo->faces[i], faceLandmarks+k);
-            j+= 4;
-            k+= 6;
-        }
-        if (numFaces <= 0) {
-            memset(faceIds, 0, sizeof(int32_t) * MAX_ROI);
-            memset(faceScores, 0, sizeof(uint8_t) * MAX_ROI);
-            memset(faceRectangles, 0, sizeof(int32_t) * MAX_ROI * 4);
-            memset(faceLandmarks, 0, sizeof(int32_t) * MAX_ROI * 6);
-        }
-        camMetadata.update(ANDROID_STATISTICS_FACE_IDS, faceIds, numFaces);
-        camMetadata.update(ANDROID_STATISTICS_FACE_SCORES, faceScores, numFaces);
-        camMetadata.update(ANDROID_STATISTICS_FACE_RECTANGLES, faceRectangles, numFaces * 4U);
-        camMetadata.update(ANDROID_STATISTICS_FACE_LANDMARKS, faceLandmarks, numFaces * 6U);
-    }
-
     IF_META_AVAILABLE(uint32_t, color_correct_mode, CAM_INTF_META_COLOR_CORRECT_MODE, metadata) {
         uint8_t fwk_color_correct_mode = (uint8_t) *color_correct_mode;
         camMetadata.update(ANDROID_COLOR_CORRECTION_MODE, &fwk_color_correct_mode, 1);
@@ -3994,7 +4307,6 @@ QCamera3HardwareInterface::translateFromHalMetadata(
             CAM_INTF_META_EDGE_MODE, metadata) {
         uint8_t edgeStrength = (uint8_t) edgeApplication->sharpness;
         camMetadata.update(ANDROID_EDGE_MODE, &(edgeApplication->edge_mode), 1);
-        camMetadata.update(ANDROID_EDGE_STRENGTH, &edgeStrength, 1);
     }
 
     IF_META_AVAILABLE(uint32_t, flashPower, CAM_INTF_META_FLASH_POWER, metadata) {
@@ -4055,9 +4367,47 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_NOISE_REDUCTION_MODE, &fwk_noiseRedMode, 1);
     }
 
-    IF_META_AVAILABLE(uint32_t, noiseRedStrength, CAM_INTF_META_NOISE_REDUCTION_STRENGTH, metadata) {
-        uint8_t fwk_noiseRedStrength = (uint8_t) *noiseRedStrength;
-        camMetadata.update(ANDROID_NOISE_REDUCTION_STRENGTH, &fwk_noiseRedStrength, 1);
+    IF_META_AVAILABLE(float, effectiveExposureFactor, CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR, metadata) {
+        camMetadata.update(ANDROID_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR, effectiveExposureFactor, 1);
+    }
+
+    IF_META_AVAILABLE(cam_black_level_metadata_t, blackLevelSourcePattern,
+        CAM_INTF_META_BLACK_LEVEL_SOURCE_PATTERN, metadata) {
+
+        CDBG("%s: dynamicblackLevel = %f %f %f %f", __func__,
+          blackLevelSourcePattern->cam_black_level[0],
+          blackLevelSourcePattern->cam_black_level[1],
+          blackLevelSourcePattern->cam_black_level[2],
+          blackLevelSourcePattern->cam_black_level[3]);
+    }
+
+    IF_META_AVAILABLE(cam_black_level_metadata_t, blackLevelAppliedPattern,
+        CAM_INTF_META_BLACK_LEVEL_APPLIED_PATTERN, metadata) {
+        float fwk_blackLevelInd[4];
+
+        fwk_blackLevelInd[0] = blackLevelAppliedPattern->cam_black_level[0];
+        fwk_blackLevelInd[1] = blackLevelAppliedPattern->cam_black_level[1];
+        fwk_blackLevelInd[2] = blackLevelAppliedPattern->cam_black_level[2];
+        fwk_blackLevelInd[3] = blackLevelAppliedPattern->cam_black_level[3];
+
+        CDBG("%s: applied dynamicblackLevel = %f %f %f %f", __func__,
+          blackLevelAppliedPattern->cam_black_level[0],
+          blackLevelAppliedPattern->cam_black_level[1],
+          blackLevelAppliedPattern->cam_black_level[2],
+          blackLevelAppliedPattern->cam_black_level[3]);
+        camMetadata.update(QCAMERA3_SENSOR_DYNAMIC_BLACK_LEVEL_PATTERN, fwk_blackLevelInd, 4);
+        camMetadata.update(NEXUS_EXPERIMENTAL_2015_SENSOR_DYNAMIC_BLACK_LEVEL, fwk_blackLevelInd, 4);
+    }
+
+
+    if (gCamCapability[mCameraId]->optical_black_region_count != 0 &&
+        gCamCapability[mCameraId]->optical_black_region_count <= MAX_OPTICAL_BLACK_REGIONS) {
+        int32_t opticalBlackRegions[MAX_OPTICAL_BLACK_REGIONS * 4];
+        for (size_t i = 0; i < gCamCapability[mCameraId]->optical_black_region_count * 4; i++) {
+            opticalBlackRegions[i] = gCamCapability[mCameraId]->optical_black_regions[i];
+        }
+        camMetadata.update(NEXUS_EXPERIMENTAL_2015_SENSOR_INFO_OPTICALLY_SHIELDED_REGIONS,
+                opticalBlackRegions, gCamCapability[mCameraId]->optical_black_region_count * 4);
     }
 
     IF_META_AVAILABLE(cam_crop_region_t, hScalerCropRegion,
@@ -4123,6 +4473,62 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         if (NAME_NOT_FOUND != val) {
             uint8_t fwk_faceDetectMode = (uint8_t)val;
             camMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &fwk_faceDetectMode, 1);
+
+            if (fwk_faceDetectMode != ANDROID_STATISTICS_FACE_DETECT_MODE_OFF) {
+                IF_META_AVAILABLE(cam_face_detection_data_t, faceDetectionInfo,
+                        CAM_INTF_META_FACE_DETECTION, metadata) {
+                    uint8_t numFaces = MIN(
+                            faceDetectionInfo->num_faces_detected, MAX_ROI);
+                    int32_t faceIds[MAX_ROI];
+                    uint8_t faceScores[MAX_ROI];
+                    int32_t faceRectangles[MAX_ROI * 4];
+                    int32_t faceLandmarks[MAX_ROI * 6];
+                    size_t j = 0, k = 0;
+
+                    for (size_t i = 0; i < numFaces; i++) {
+                        faceScores[i] = (uint8_t)faceDetectionInfo->faces[i].score;
+                        // Adjust crop region from sensor output coordinate system to active
+                        // array coordinate system.
+                        cam_rect_t& rect = faceDetectionInfo->faces[i].face_boundary;
+                        mCropRegionMapper.toActiveArray(rect.left, rect.top,
+                                rect.width, rect.height);
+
+                        convertToRegions(faceDetectionInfo->faces[i].face_boundary,
+                                faceRectangles+j, -1);
+
+                        // Map the co-ordinate sensor output coordinate system to active
+                        // array coordinate system.
+                        cam_face_detection_info_t& face = faceDetectionInfo->faces[i];
+                        mCropRegionMapper.toActiveArray(face.left_eye_center.x,
+                                face.left_eye_center.y);
+                        mCropRegionMapper.toActiveArray(face.right_eye_center.x,
+                                face.right_eye_center.y);
+                        mCropRegionMapper.toActiveArray(face.mouth_center.x,
+                                face.mouth_center.y);
+
+                        convertLandmarks(faceDetectionInfo->faces[i], faceLandmarks+k);
+                        j+= 4;
+                        k+= 6;
+                    }
+                    if (numFaces <= 0) {
+                        memset(faceIds, 0, sizeof(int32_t) * MAX_ROI);
+                        memset(faceScores, 0, sizeof(uint8_t) * MAX_ROI);
+                        memset(faceRectangles, 0, sizeof(int32_t) * MAX_ROI * 4);
+                        memset(faceLandmarks, 0, sizeof(int32_t) * MAX_ROI * 6);
+                    }
+
+                    camMetadata.update(ANDROID_STATISTICS_FACE_SCORES, faceScores,
+                            numFaces);
+                    camMetadata.update(ANDROID_STATISTICS_FACE_RECTANGLES,
+                            faceRectangles, numFaces * 4U);
+                    if (fwk_faceDetectMode ==
+                            ANDROID_STATISTICS_FACE_DETECT_MODE_FULL) {
+                        camMetadata.update(ANDROID_STATISTICS_FACE_IDS, faceIds, numFaces);
+                        camMetadata.update(ANDROID_STATISTICS_FACE_LANDMARKS,
+                                faceLandmarks, numFaces * 6U);
+                   }
+                }
+            }
         }
     }
 
@@ -4405,6 +4811,25 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                 hAeRegions->rect.height);
     }
 
+    IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metadata) {
+        uint8_t fwk_afState = (uint8_t) *afState;
+        camMetadata.update(ANDROID_CONTROL_AF_STATE, &fwk_afState, 1);
+        CDBG("%s: urgent Metadata : ANDROID_CONTROL_AF_STATE %u", __func__, *afState);
+    }
+
+    IF_META_AVAILABLE(float, focusDistance, CAM_INTF_META_LENS_FOCUS_DISTANCE, metadata) {
+        camMetadata.update(ANDROID_LENS_FOCUS_DISTANCE , focusDistance, 1);
+    }
+
+    IF_META_AVAILABLE(float, focusRange, CAM_INTF_META_LENS_FOCUS_RANGE, metadata) {
+        camMetadata.update(ANDROID_LENS_FOCUS_RANGE , focusRange, 2);
+    }
+
+    IF_META_AVAILABLE(cam_af_lens_state_t, lensState, CAM_INTF_META_LENS_STATE, metadata) {
+        uint8_t fwk_lensState = *lensState;
+        camMetadata.update(ANDROID_LENS_STATE , &fwk_lensState, 1);
+    }
+
     IF_META_AVAILABLE(cam_area_t, hAfRegions, CAM_INTF_META_AF_ROI, metadata) {
         /*af regions*/
         int32_t afRegions[REGIONS_TUPLE_COUNT];
@@ -4475,95 +4900,71 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     // Reprocess crop data
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, metadata) {
         uint8_t cnt = crop_data->num_of_streams;
-        if ((0 < cnt) && (cnt < MAX_NUM_STREAMS)) {
-            int rc = NO_ERROR;
-            int32_t *crop = new int32_t[cnt*4];
-            if (NULL == crop) {
-                rc = NO_MEMORY;
-            }
-
-            int32_t *crop_stream_ids = new int32_t[cnt];
-            if (NULL == crop_stream_ids) {
-                rc = NO_MEMORY;
-            }
-
-            Vector<int32_t> roi_map;
-
-            if (NO_ERROR == rc) {
-                int32_t steams_found = 0;
-                for (size_t i = 0; i < cnt; i++) {
-                    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
-                        it != mStreamInfo.end(); it++) {
-                        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-                        if (NULL != channel) {
-                            if (crop_data->crop_info[i].stream_id ==
-                                    channel->mStreams[0]->getMyServerID()) {
-                                crop[steams_found*4] = crop_data->crop_info[i].crop.left;
-                                crop[steams_found*4 + 1] = crop_data->crop_info[i].crop.top;
-                                crop[steams_found*4 + 2] = crop_data->crop_info[i].crop.width;
-                                crop[steams_found*4 + 3] = crop_data->crop_info[i].crop.height;
-                                // In a more general case we may want to generate
-                                // unique id depending on width, height, stream, private
-                                // data etc.
-#ifdef __LP64__
-                                // Using XORed value of lower and upper halves as ID
-                                crop_stream_ids[steams_found] = (int32_t)
-                                        ((((int64_t)(*it)->stream) & 0x0000FFFF) ^
-                                                (((int64_t)(*it)->stream) >> 0x20 & 0x0000FFFF));
-#else
-                                // FIXME: Although using data address as ID doesn't guarantee
-                                // that all IDs will be unique, we are keeping existing nostrum
-                                // for now till found better solution.
-                                crop_stream_ids[steams_found] = (int32_t)(*it)->stream;
-#endif
-                                steams_found++;
-                                roi_map.add(crop_data->crop_info[i].roi_map.left);
-                                roi_map.add(crop_data->crop_info[i].roi_map.top);
-                                roi_map.add(crop_data->crop_info[i].roi_map.width);
-                                roi_map.add(crop_data->crop_info[i].roi_map.height);
-                                CDBG("%s: Adding reprocess crop data for stream %p %dx%d, %dx%d",
-                                        __func__,
-                                        (*it)->stream,
-                                        crop_data->crop_info[i].crop.left,
-                                        crop_data->crop_info[i].crop.top,
-                                        crop_data->crop_info[i].crop.width,
-                                        crop_data->crop_info[i].crop.height);
-                                CDBG("%s: Adding reprocess crop roi map for stream %p %dx%d, %dx%d",
-                                        __func__,
-                                        (*it)->stream,
-                                        crop_data->crop_info[i].roi_map.left,
-                                        crop_data->crop_info[i].roi_map.top,
-                                        crop_data->crop_info[i].roi_map.width,
-                                        crop_data->crop_info[i].roi_map.height);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                camMetadata.update(QCAMERA3_CROP_COUNT_REPROCESS,
-                        &steams_found, 1);
-                camMetadata.update(QCAMERA3_CROP_REPROCESS,
-                        crop, (size_t)(steams_found * 4));
-                camMetadata.update(QCAMERA3_CROP_STREAM_ID_REPROCESS,
-                        crop_stream_ids, (size_t)steams_found);
-                if (roi_map.array()) {
-                    camMetadata.update(QCAMERA3_CROP_ROI_MAP_REPROCESS,
-                            roi_map.array(), roi_map.size());
-                }
-            }
-
-            if (crop) {
-                delete [] crop;
-            }
-            if (crop_stream_ids) {
-                delete [] crop_stream_ids;
-            }
-        } else {
+        if ( (0 >= cnt) || (cnt > MAX_NUM_STREAMS)) {
             // mm-qcamera-daemon only posts crop_data for streams
             // not linked to pproc. So no valid crop metadata is not
             // necessarily an error case.
             CDBG("%s: No valid crop metadata entries", __func__);
+        } else {
+            uint32_t reproc_stream_id;
+            if ( NO_ERROR != getReprocessibleOutputStreamId(reproc_stream_id)) {
+                CDBG("%s: No reprocessible stream found, ignore crop data", __func__);
+            } else {
+                int rc = NO_ERROR;
+                Vector<int32_t> roi_map;
+                int32_t *crop = new int32_t[cnt*4];
+                if (NULL == crop) {
+                   rc = NO_MEMORY;
+                }
+                if (NO_ERROR == rc) {
+                    int32_t streams_found = 0;
+                    for (size_t i = 0; i < cnt; i++) {
+                        if (crop_data->crop_info[i].stream_id == reproc_stream_id) {
+                            if (pprocDone) {
+                                // HAL already does internal reprocessing,
+                                // either via reprocessing before JPEG encoding,
+                                // or offline postprocessing for pproc bypass case.
+                                crop[0] = 0;
+                                crop[1] = 0;
+                                crop[2] = mInputStreamInfo.dim.width;
+                                crop[3] = mInputStreamInfo.dim.height;
+                            } else {
+                                crop[0] = crop_data->crop_info[i].crop.left;
+                                crop[1] = crop_data->crop_info[i].crop.top;
+                                crop[2] = crop_data->crop_info[i].crop.width;
+                                crop[3] = crop_data->crop_info[i].crop.height;
+                            }
+                            roi_map.add(crop_data->crop_info[i].roi_map.left);
+                            roi_map.add(crop_data->crop_info[i].roi_map.top);
+                            roi_map.add(crop_data->crop_info[i].roi_map.width);
+                            roi_map.add(crop_data->crop_info[i].roi_map.height);
+                            streams_found++;
+                            CDBG("%s: Adding reprocess crop data for stream %dx%d, %dx%d",
+                                    __func__,
+                                    crop[0], crop[1], crop[2], crop[3]);
+                            CDBG("%s: Adding reprocess crop roi map for stream %dx%d, %dx%d",
+                                    __func__,
+                                    crop_data->crop_info[i].roi_map.left,
+                                    crop_data->crop_info[i].roi_map.top,
+                                    crop_data->crop_info[i].roi_map.width,
+                                    crop_data->crop_info[i].roi_map.height);
+                            break;
+
+                       }
+                    }
+                    camMetadata.update(QCAMERA3_CROP_COUNT_REPROCESS,
+                            &streams_found, 1);
+                    camMetadata.update(QCAMERA3_CROP_REPROCESS,
+                            crop, (size_t)(streams_found * 4));
+                    if (roi_map.array()) {
+                        camMetadata.update(QCAMERA3_CROP_ROI_MAP_REPROCESS,
+                                roi_map.array(), roi_map.size());
+                    }
+               }
+               if (crop) {
+                   delete [] crop;
+               }
+            }
         }
     }
 
@@ -4588,6 +4989,47 @@ QCamera3HardwareInterface::translateFromHalMetadata(
             } else {
                 ALOGE("%s: Invalid CAC camera parameter: %d", __func__, *cacMode);
             }
+        }
+    }
+
+    // Post blob of cam_cds_data through vendor tag.
+    IF_META_AVAILABLE(cam_cds_data_t, cdsInfo, CAM_INTF_META_CDS_DATA, metadata) {
+        uint8_t cnt = cdsInfo->num_of_streams;
+        cam_cds_data_t cdsDataOverride;
+        memset(&cdsDataOverride, 0, sizeof(cdsDataOverride));
+        cdsDataOverride.session_cds_enable = cdsInfo->session_cds_enable;
+        cdsDataOverride.num_of_streams = 1;
+        if ((0 < cnt) && (cnt <= MAX_NUM_STREAMS)) {
+            uint32_t reproc_stream_id;
+            if ( NO_ERROR != getReprocessibleOutputStreamId(reproc_stream_id)) {
+                CDBG("%s: No reprocessible stream found, ignore cds data", __func__);
+            } else {
+                for (size_t i = 0; i < cnt; i++) {
+                    if (cdsInfo->cds_info[i].stream_id ==
+                            reproc_stream_id) {
+                        cdsDataOverride.cds_info[0].cds_enable =
+                                cdsInfo->cds_info[i].cds_enable;
+                        break;
+                    }
+                }
+            }
+        } else {
+            CDBG("%s: Invalid stream count %d in CDS_DATA", __func__, cnt);
+        }
+        camMetadata.update(QCAMERA3_CDS_INFO,
+                (uint8_t *)&cdsDataOverride,
+                sizeof(cam_cds_data_t));
+    }
+
+    // Ldaf calibration data
+    if (!mLdafCalibExist) {
+        IF_META_AVAILABLE(uint32_t, ldafCalib,
+                CAM_INTF_META_LDAF_EXIF, metadata) {
+            mLdafCalibExist = true;
+            mLdafCalib[0] = ldafCalib[0];
+            mLdafCalib[1] = ldafCalib[1];
+            CDBG("%s: ldafCalib[0] is %d, ldafCalib[1] is %d", __func__,
+                    ldafCalib[0], ldafCalib[1]);
         }
     }
 
@@ -4679,19 +5121,6 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
     CameraMetadata camMetadata;
     camera_metadata_t *resultMetadata;
 
-    IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metadata) {
-        uint8_t fwk_afState = (uint8_t) *afState;
-        camMetadata.update(ANDROID_CONTROL_AF_STATE, &fwk_afState, 1);
-        CDBG("%s: urgent Metadata : ANDROID_CONTROL_AF_STATE %u", __func__, *afState);
-    }
-
-    IF_META_AVAILABLE(float, focusDistance, CAM_INTF_META_LENS_FOCUS_DISTANCE, metadata) {
-        camMetadata.update(ANDROID_LENS_FOCUS_DISTANCE , focusDistance, 1);
-    }
-
-    IF_META_AVAILABLE(float, focusRange, CAM_INTF_META_LENS_FOCUS_RANGE, metadata) {
-        camMetadata.update(ANDROID_LENS_FOCUS_RANGE , focusRange, 2);
-    }
 
     IF_META_AVAILABLE(uint32_t, whiteBalanceState, CAM_INTF_META_AWB_STATE, metadata) {
         uint8_t fwk_whiteBalanceState = (uint8_t) *whiteBalanceState;
@@ -4786,11 +5215,6 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
         ALOGE("%s: Not enough info to deduce ANDROID_CONTROL_AE_MODE redeye:%d, "
               "flashMode:%d, aeMode:%u!!!",
                 __func__, redeye, flashMode, aeMode);
-    }
-
-    IF_META_AVAILABLE(cam_af_lens_state_t, lensState, CAM_INTF_META_LENS_STATE, metadata) {
-        uint8_t fwk_lensState = *lensState;
-        camMetadata.update(ANDROID_LENS_STATE , &fwk_lensState, 1);
     }
 
     resultMetadata = camMetadata.release();
@@ -5008,10 +5432,26 @@ void QCamera3HardwareInterface::extractJpegMetadata(
                 frame_settings.find(ANDROID_JPEG_THUMBNAIL_QUALITY).data.u8,
                 frame_settings.find(ANDROID_JPEG_THUMBNAIL_QUALITY).count);
 
-    if (frame_settings.exists(ANDROID_JPEG_THUMBNAIL_SIZE))
-        jpegMetadata.update(ANDROID_JPEG_THUMBNAIL_SIZE,
-                frame_settings.find(ANDROID_JPEG_THUMBNAIL_SIZE).data.i32,
+    if (frame_settings.exists(ANDROID_JPEG_THUMBNAIL_SIZE)) {
+        int32_t thumbnail_size[2];
+        thumbnail_size[0] = frame_settings.find(ANDROID_JPEG_THUMBNAIL_SIZE).data.i32[0];
+        thumbnail_size[1] = frame_settings.find(ANDROID_JPEG_THUMBNAIL_SIZE).data.i32[1];
+        if (frame_settings.exists(ANDROID_JPEG_ORIENTATION)) {
+            int32_t orientation =
+                  frame_settings.find(ANDROID_JPEG_ORIENTATION).data.i32[0];
+            if ((orientation == 90) || (orientation == 270)) {
+               //swap thumbnail dimensions for rotations 90 and 270 in jpeg metadata.
+               int32_t temp;
+               temp = thumbnail_size[0];
+               thumbnail_size[0] = thumbnail_size[1];
+               thumbnail_size[1] = temp;
+            }
+         }
+         jpegMetadata.update(ANDROID_JPEG_THUMBNAIL_SIZE,
+                thumbnail_size,
                 frame_settings.find(ANDROID_JPEG_THUMBNAIL_SIZE).count);
+    }
+
 }
 
 /*===========================================================================
@@ -5172,13 +5612,13 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
         goto open_failed;
     }
 
-    capabilityHeap = new QCamera3HeapMemory();
+    capabilityHeap = new QCamera3HeapMemory(1);
     if (capabilityHeap == NULL) {
         ALOGE("%s: creation of capabilityHeap failed", __func__);
         goto heap_creation_failed;
     }
     /* Allocate memory for capability buffer */
-    rc = capabilityHeap->allocate(1, sizeof(cam_capability_t), false);
+    rc = capabilityHeap->allocate(sizeof(cam_capability_t));
     if(rc != OK) {
         ALOGE("%s: No memory for cappability", __func__);
         goto allocate_failed;
@@ -5226,6 +5666,27 @@ open_failed:
     return rc;
 }
 
+/*==========================================================================
+ * FUNCTION   : get3Aversion
+ *
+ * DESCRIPTION: get the Q3A S/W version
+ *
+ * PARAMETERS :
+ *  @sw_version: Reference of Q3A structure which will hold version info upon
+ *               return
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::get3AVersion(cam_q3a_version_t &sw_version)
+{
+    if(gCamCapability[mCameraId])
+        sw_version = gCamCapability[mCameraId]->q3a_version;
+    else
+        ALOGE("%s:Capability structure NULL!", __func__);
+}
+
+
 /*===========================================================================
  * FUNCTION   : initParameters
  *
@@ -5242,8 +5703,8 @@ int QCamera3HardwareInterface::initParameters()
     int rc = 0;
 
     //Allocate Set Param Buffer
-    mParamHeap = new QCamera3HeapMemory();
-    rc = mParamHeap->allocate(1, sizeof(metadata_buffer_t), false);
+    mParamHeap = new QCamera3HeapMemory(1);
+    rc = mParamHeap->allocate(sizeof(metadata_buffer_t));
     if(rc != OK) {
         rc = NO_MEMORY;
         ALOGE("Failed to allocate SETPARM Heap memory");
@@ -5376,6 +5837,74 @@ cam_dimension_t QCamera3HardwareInterface::calcMaxJpegDim()
     return max_jpeg_dim;
 }
 
+/*===========================================================================
+ * FUNCTION   : addStreamConfig
+ *
+ * DESCRIPTION: adds the stream configuration to the array
+ *
+ * PARAMETERS :
+ * @available_stream_configs : pointer to stream configuration array
+ * @scalar_format            : scalar format
+ * @dim                      : configuration dimension
+ * @config_type              : input or output configuration type
+ *
+ * RETURN     : NONE
+ *==========================================================================*/
+void QCamera3HardwareInterface::addStreamConfig(Vector<int32_t> &available_stream_configs,
+        int32_t scalar_format, const cam_dimension_t &dim, int32_t config_type)
+{
+    available_stream_configs.add(scalar_format);
+    available_stream_configs.add(dim.width);
+    available_stream_configs.add(dim.height);
+    available_stream_configs.add(config_type);
+}
+
+/*===========================================================================
+ * FUNCTION   : suppportBurstCapture
+ *
+ * DESCRIPTION: Whether a particular camera supports BURST_CAPTURE
+ *
+ * PARAMETERS :
+ *   @cameraId  : camera Id
+ *
+ * RETURN     : true if camera supports BURST_CAPTURE
+ *              false otherwise
+ *==========================================================================*/
+bool QCamera3HardwareInterface::supportBurstCapture(uint32_t cameraId)
+{
+    const int64_t highResDurationBound = 50000000; // 50 ms, 20 fps
+    const int64_t fullResDurationBound = 100000000; // 100 ms, 10 fps
+    const int32_t highResWidth = 3264;
+    const int32_t highResHeight = 2448;
+
+    if (gCamCapability[cameraId]->picture_min_duration[0] > fullResDurationBound) {
+        // Maximum resolution images cannot be captured at >= 10fps
+        // -> not supporting BURST_CAPTURE
+        return false;
+    }
+
+    if (gCamCapability[cameraId]->picture_min_duration[0] <= highResDurationBound) {
+        // Maximum resolution images can be captured at >= 20fps
+        // --> supporting BURST_CAPTURE
+        return true;
+    }
+
+    // Find the smallest highRes resolution, or largest resolution if there is none
+    size_t totalCnt = MIN(gCamCapability[cameraId]->picture_sizes_tbl_cnt,
+            MAX_SIZES_CNT);
+    size_t highRes = 0;
+    while ((highRes + 1 < totalCnt) &&
+            (gCamCapability[cameraId]->picture_sizes_tbl[highRes+1].width *
+            gCamCapability[cameraId]->picture_sizes_tbl[highRes+1].height >=
+            highResWidth * highResHeight)) {
+        highRes++;
+    }
+    if (gCamCapability[cameraId]->picture_min_duration[highRes] <= highResDurationBound) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
 /*===========================================================================
  * FUNCTION   : initStaticMetadata
@@ -5395,13 +5924,17 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     CameraMetadata staticInfo;
     size_t count = 0;
     bool limitedDevice = false;
-    int64_t m_MinDurationBoundNs = 50000000; // 50 ms, 20 fps
+    char prop[PROPERTY_VALUE_MAX];
+    bool supportBurst = false;
+
+    supportBurst = supportBurstCapture(cameraId);
+
     /* If sensor is YUV sensor (no raw support) or if per-frame control is not
      * guaranteed or if min fps of max resolution is less than 20 fps, its
      * advertised as limited device*/
     limitedDevice = gCamCapability[cameraId]->no_per_frame_control_support ||
             (CAM_SENSOR_YUV == gCamCapability[cameraId]->sensor_type.sens_type) ||
-            (gCamCapability[cameraId]->picture_min_duration[0] > m_MinDurationBoundNs);
+            !supportBurst;
 
     uint8_t supportedHwLvl = limitedDevice ?
             ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED :
@@ -5424,24 +5957,21 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       1);
 
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_APERTURES,
-                      gCamCapability[cameraId]->apertures,
-                      gCamCapability[cameraId]->apertures_count);
+            gCamCapability[cameraId]->apertures,
+            MIN(CAM_APERTURES_MAX, gCamCapability[cameraId]->apertures_count));
 
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_FILTER_DENSITIES,
-                gCamCapability[cameraId]->filter_densities,
-                gCamCapability[cameraId]->filter_densities_count);
+            gCamCapability[cameraId]->filter_densities,
+            MIN(CAM_FILTER_DENSITIES_MAX, gCamCapability[cameraId]->filter_densities_count));
 
 
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,
-                      (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
-                      gCamCapability[cameraId]->optical_stab_modes_count);
+            (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
+            MIN((size_t)CAM_OPT_STAB_MAX, gCamCapability[cameraId]->optical_stab_modes_count));
 
-    staticInfo.update(ANDROID_LENS_POSITION,
-                      gCamCapability[cameraId]->lens_position,
-                      sizeof(gCamCapability[cameraId]->lens_position)/ sizeof(float));
-
-    int32_t lens_shading_map_size[] = {gCamCapability[cameraId]->lens_shading_map_size.width,
-            gCamCapability[cameraId]->lens_shading_map_size.height};
+    int32_t lens_shading_map_size[] = {
+            MIN(CAM_MAX_SHADING_MAP_WIDTH, gCamCapability[cameraId]->lens_shading_map_size.width),
+            MIN(CAM_MAX_SHADING_MAP_HEIGHT, gCamCapability[cameraId]->lens_shading_map_size.height)};
     staticInfo.update(ANDROID_LENS_INFO_SHADING_MAP_SIZE,
                       lens_shading_map_size,
                       sizeof(lens_shading_map_size)/sizeof(int32_t));
@@ -5470,11 +6000,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       pixel_array_size, sizeof(pixel_array_size)/sizeof(pixel_array_size[0]));
 
     int32_t active_array_size[] = {gCamCapability[cameraId]->active_array_size.left,
-                                                gCamCapability[cameraId]->active_array_size.top,
-                                                gCamCapability[cameraId]->active_array_size.width,
-                                                gCamCapability[cameraId]->active_array_size.height};
+            gCamCapability[cameraId]->active_array_size.top,
+            gCamCapability[cameraId]->active_array_size.width,
+            gCamCapability[cameraId]->active_array_size.height};
     staticInfo.update(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE,
-                      active_array_size, sizeof(active_array_size)/sizeof(active_array_size[0]));
+            active_array_size, sizeof(active_array_size)/sizeof(active_array_size[0]));
 
     staticInfo.update(ANDROID_SENSOR_INFO_WHITE_LEVEL,
             &gCamCapability[cameraId]->white_level, 1);
@@ -5483,26 +6013,23 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             gCamCapability[cameraId]->black_level_pattern, BLACK_LEVEL_PATTERN_CNT);
 
     staticInfo.update(ANDROID_FLASH_INFO_CHARGE_DURATION,
-                      &gCamCapability[cameraId]->flash_charge_duration, 1);
+            &gCamCapability[cameraId]->flash_charge_duration, 1);
 
     staticInfo.update(ANDROID_TONEMAP_MAX_CURVE_POINTS,
-                      &gCamCapability[cameraId]->max_tone_map_curve_points, 1);
-
-    int32_t maxFaces = gCamCapability[cameraId]->max_num_roi;
-    staticInfo.update(ANDROID_STATISTICS_INFO_MAX_FACE_COUNT,
-                      (int32_t *)&maxFaces, 1);
+            &gCamCapability[cameraId]->max_tone_map_curve_points, 1);
 
     uint8_t timestampSource = ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN;
     staticInfo.update(ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE,
             &timestampSource, 1);
 
     staticInfo.update(ANDROID_STATISTICS_INFO_HISTOGRAM_BUCKET_COUNT,
-                      &gCamCapability[cameraId]->histogram_size, 1);
+            &gCamCapability[cameraId]->histogram_size, 1);
 
     staticInfo.update(ANDROID_STATISTICS_INFO_MAX_HISTOGRAM_COUNT,
             &gCamCapability[cameraId]->max_histogram_count, 1);
 
-    int32_t sharpness_map_size[] = {gCamCapability[cameraId]->sharpness_map_size.width,
+    int32_t sharpness_map_size[] = {
+            gCamCapability[cameraId]->sharpness_map_size.width,
             gCamCapability[cameraId]->sharpness_map_size.height};
 
     staticInfo.update(ANDROID_STATISTICS_INFO_SHARPNESS_MAP_SIZE,
@@ -5559,7 +6086,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_SCALER_AVAILABLE_MAX_DIGITAL_ZOOM,
             &maxZoom, 1);
 
-    uint8_t croppingType = ANDROID_SCALER_CROPPING_TYPE_FREEFORM;
+    uint8_t croppingType = ANDROID_SCALER_CROPPING_TYPE_CENTER_ONLY;
     staticInfo.update(ANDROID_SCALER_CROPPING_TYPE, &croppingType, 1);
 
     int32_t max3aRegions[3] = {/*AE*/1,/*AWB*/ 0,/*AF*/ 1};
@@ -5568,15 +6095,35 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_CONTROL_MAX_REGIONS,
             max3aRegions, 3);
 
-    uint8_t availableFaceDetectModes[] = {
-            ANDROID_STATISTICS_FACE_DETECT_MODE_OFF,
-            ANDROID_STATISTICS_FACE_DETECT_MODE_FULL };
-    staticInfo.update(ANDROID_STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES,
-            availableFaceDetectModes,
-            sizeof(availableFaceDetectModes)/sizeof(availableFaceDetectModes[0]));
+    /* 0: OFF, 1: OFF+SIMPLE, 2: OFF+FULL, 3: OFF+SIMPLE+FULL */
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.facedetect", prop, "1");
+    uint8_t supportedFaceDetectMode = (uint8_t)atoi(prop);
+    CDBG("%s: Support face detection mode: %d",
+            __func__, supportedFaceDetectMode);
 
-    int32_t exposureCompensationRange[] = {gCamCapability[cameraId]->exposure_compensation_min,
-                                           gCamCapability[cameraId]->exposure_compensation_max};
+    int32_t maxFaces = gCamCapability[cameraId]->max_num_roi;
+    Vector<uint8_t> availableFaceDetectModes;
+    availableFaceDetectModes.add(ANDROID_STATISTICS_FACE_DETECT_MODE_OFF);
+    if (supportedFaceDetectMode == 1) {
+        availableFaceDetectModes.add(ANDROID_STATISTICS_FACE_DETECT_MODE_SIMPLE);
+    } else if (supportedFaceDetectMode == 2) {
+        availableFaceDetectModes.add(ANDROID_STATISTICS_FACE_DETECT_MODE_FULL);
+    } else if (supportedFaceDetectMode == 3) {
+        availableFaceDetectModes.add(ANDROID_STATISTICS_FACE_DETECT_MODE_SIMPLE);
+        availableFaceDetectModes.add(ANDROID_STATISTICS_FACE_DETECT_MODE_FULL);
+    } else {
+        maxFaces = 0;
+    }
+    staticInfo.update(ANDROID_STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES,
+            availableFaceDetectModes.array(),
+            availableFaceDetectModes.size());
+    staticInfo.update(ANDROID_STATISTICS_INFO_MAX_FACE_COUNT,
+            (int32_t *)&maxFaces, 1);
+
+    int32_t exposureCompensationRange[] = {
+            gCamCapability[cameraId]->exposure_compensation_min,
+            gCamCapability[cameraId]->exposure_compensation_max};
     staticInfo.update(ANDROID_CONTROL_AE_COMPENSATION_RANGE,
             exposureCompensationRange,
             sizeof(exposureCompensationRange)/sizeof(int32_t));
@@ -5596,52 +6143,63 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             count * 2, MAX_SIZES_CNT * 2, gCamCapability[cameraId]->active_array_size,
             gCamCapability[cameraId]->max_downscale_factor);
     /*android.scaler.availableStreamConfigurations*/
-    size_t max_stream_configs_size = count * scalar_formats_count * 4;
-    int32_t available_stream_configs[max_stream_configs_size];
-    size_t idx = 0;
+    Vector<int32_t> available_stream_configs;
+    cam_dimension_t active_array_dim;
+    active_array_dim.width = gCamCapability[cameraId]->active_array_size.width;
+    active_array_dim.height = gCamCapability[cameraId]->active_array_size.height;
+    /* Add input/output stream configurations for each scalar formats*/
     for (size_t j = 0; j < scalar_formats_count; j++) {
         switch (scalar_formats[j]) {
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW16:
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW_OPAQUE:
         case HAL_PIXEL_FORMAT_RAW10:
-            for (size_t i = 0; i < gCamCapability[cameraId]->supported_raw_dim_cnt; i++) {
-                available_stream_configs[idx] = scalar_formats[j];
-                available_stream_configs[idx+1] =
-                    gCamCapability[cameraId]->raw_dim[i].width;
-                available_stream_configs[idx+2] =
-                    gCamCapability[cameraId]->raw_dim[i].height;
-                available_stream_configs[idx+3] =
-                    ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
-                idx+=4;
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->supported_raw_dim_cnt); i++) {
+                addStreamConfig(available_stream_configs, scalar_formats[j],
+                        gCamCapability[cameraId]->raw_dim[i],
+                        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
             }
             break;
         case HAL_PIXEL_FORMAT_BLOB:
+            cam_dimension_t jpeg_size;
             for (size_t i = 0; i < jpeg_sizes_cnt/2; i++) {
-                available_stream_configs[idx] = scalar_formats[j];
-                available_stream_configs[idx+1] = available_jpeg_sizes[i*2];
-                available_stream_configs[idx+2] = available_jpeg_sizes[i*2+1];
-                available_stream_configs[idx+3] = ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
-                idx+=4;
+                jpeg_size.width  = available_jpeg_sizes[i*2];
+                jpeg_size.height = available_jpeg_sizes[i*2+1];
+                addStreamConfig(available_stream_configs, scalar_formats[j],
+                        jpeg_size,
+                        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
             }
             break;
+        case HAL_PIXEL_FORMAT_YCbCr_420_888:
+        case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
         default:
-            for (size_t i = 0; i < gCamCapability[cameraId]->picture_sizes_tbl_cnt; i++) {
-                available_stream_configs[idx] = scalar_formats[j];
-                available_stream_configs[idx+1] =
-                    gCamCapability[cameraId]->picture_sizes_tbl[i].width;
-                available_stream_configs[idx+2] =
-                    gCamCapability[cameraId]->picture_sizes_tbl[i].height;
-                available_stream_configs[idx+3] =
-                    ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
-                idx+=4;
+            cam_dimension_t largest_picture_size;
+            memset(&largest_picture_size, 0, sizeof(cam_dimension_t));
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
+                addStreamConfig(available_stream_configs, scalar_formats[j],
+                        gCamCapability[cameraId]->picture_sizes_tbl[i],
+                        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
+                /* Book keep largest */
+                if (gCamCapability[cameraId]->picture_sizes_tbl[i].width
+                        >= largest_picture_size.width &&
+                        gCamCapability[cameraId]->picture_sizes_tbl[i].height
+                        >= largest_picture_size.height)
+                    largest_picture_size = gCamCapability[cameraId]->picture_sizes_tbl[i];
             }
-
-
+            /*For below 2 formats we also support i/p streams for reprocessing advertise those*/
+            if (scalar_formats[j] == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED ||
+                    scalar_formats[j] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+                 addStreamConfig(available_stream_configs, scalar_formats[j],
+                         largest_picture_size,
+                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
+            }
             break;
         }
     }
+
     staticInfo.update(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS,
-                      available_stream_configs, idx);
+                      available_stream_configs.array(), available_stream_configs.size());
     static const uint8_t hotpixelMode = ANDROID_HOT_PIXEL_MODE_FAST;
     staticInfo.update(ANDROID_HOT_PIXEL_MODE, &hotpixelMode, 1);
 
@@ -5649,40 +6207,33 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_STATISTICS_HOT_PIXEL_MAP_MODE, &hotPixelMapMode, 1);
 
     /* android.scaler.availableMinFrameDurations */
-    int64_t available_min_durations[max_stream_configs_size];
-    idx = 0;
+    Vector<int64_t> available_min_durations;
     for (size_t j = 0; j < scalar_formats_count; j++) {
         switch (scalar_formats[j]) {
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW16:
         case ANDROID_SCALER_AVAILABLE_FORMATS_RAW_OPAQUE:
         case HAL_PIXEL_FORMAT_RAW10:
-            for (size_t i = 0; i < gCamCapability[cameraId]->supported_raw_dim_cnt; i++) {
-                available_min_durations[idx] = scalar_formats[j];
-                available_min_durations[idx+1] =
-                    gCamCapability[cameraId]->raw_dim[i].width;
-                available_min_durations[idx+2] =
-                    gCamCapability[cameraId]->raw_dim[i].height;
-                available_min_durations[idx+3] =
-                    gCamCapability[cameraId]->raw_min_duration[i];
-                idx+=4;
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->supported_raw_dim_cnt); i++) {
+                available_min_durations.add(scalar_formats[j]);
+                available_min_durations.add(gCamCapability[cameraId]->raw_dim[i].width);
+                available_min_durations.add(gCamCapability[cameraId]->raw_dim[i].height);
+                available_min_durations.add(gCamCapability[cameraId]->raw_min_duration[i]);
             }
             break;
         default:
-            for (size_t i = 0; i < gCamCapability[cameraId]->picture_sizes_tbl_cnt; i++) {
-                available_min_durations[idx] = scalar_formats[j];
-                available_min_durations[idx+1] =
-                    gCamCapability[cameraId]->picture_sizes_tbl[i].width;
-                available_min_durations[idx+2] =
-                    gCamCapability[cameraId]->picture_sizes_tbl[i].height;
-                available_min_durations[idx+3] =
-                    gCamCapability[cameraId]->picture_min_duration[i];
-                idx+=4;
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
+                available_min_durations.add(scalar_formats[j]);
+                available_min_durations.add(gCamCapability[cameraId]->picture_sizes_tbl[i].width);
+                available_min_durations.add(gCamCapability[cameraId]->picture_sizes_tbl[i].height);
+                available_min_durations.add(gCamCapability[cameraId]->picture_min_duration[i]);
             }
             break;
         }
     }
     staticInfo.update(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS,
-                      &available_min_durations[0], idx);
+                      available_min_durations.array(), available_min_durations.size());
 
     Vector<int32_t> available_hfr_configs;
     for (size_t i = 0; i < gCamCapability[cameraId]->hfr_tbl_cnt; i++) {
@@ -5718,22 +6269,42 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             break;
         }
 
-        if (fps > 0) {
-            /* (width, height, fps_min, fps_max) */
-            available_hfr_configs.add(gCamCapability[cameraId]->hfr_tbl[i].dim.width);
-            available_hfr_configs.add(gCamCapability[cameraId]->hfr_tbl[i].dim.height);
+        /* Advertise only MIN_FPS_FOR_BATCH_MODE or above as HIGH_SPEED_CONFIGS */
+        if (fps >= MIN_FPS_FOR_BATCH_MODE) {
+            /* For each HFR frame rate, need to advertise one variable fps range
+             * and one fixed fps range. Eg: for 120 FPS, advertise [30, 120] and
+             * [120, 120]. While camcorder preview alone is running [30, 120] is
+             * set by the app. When video recording is started, [120, 120] is
+             * set. This way sensor configuration does not change when recording
+             * is started */
+
+            /* (width, height, fps_min, fps_max, batch_size_max) */
+            available_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim.width);
+            available_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim.height);
+            available_hfr_configs.add(PREVIEW_FPS_FOR_HFR);
+            available_hfr_configs.add(fps);
+            available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
+
+            /* (width, height, fps_min, fps_max, batch_size_max) */
+            available_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim.width);
+            available_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim.height);
             available_hfr_configs.add(fps);
             available_hfr_configs.add(fps);
+            available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
        }
     }
     //Advertise HFR capability only if the property is set
-    char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.hal3hfr.enable", prop, "0");
+    property_get("persist.camera.hal3hfr.enable", prop, "1");
     uint8_t hfrEnable = (uint8_t)atoi(prop);
 
     if(hfrEnable && available_hfr_configs.array()) {
-        staticInfo.update(ANDROID_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS,
+        staticInfo.update(
+                ANDROID_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS,
                 available_hfr_configs.array(), available_hfr_configs.size());
     }
 
@@ -5757,10 +6328,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       avail_effects,
                       size);
 
-    /* '+1' for HighSpeedVideo scenemode. Backend does not have a High speed
-        video scene mode. If HFR is supported, add HSV scenemode */
-    uint8_t avail_scene_modes[CAM_SCENE_MODE_MAX + 1];
-    uint8_t supported_indexes[CAM_SCENE_MODE_MAX + 1];
+    uint8_t avail_scene_modes[CAM_SCENE_MODE_MAX];
+    uint8_t supported_indexes[CAM_SCENE_MODE_MAX];
     size_t supported_scene_modes_cnt = 0;
     count = CAM_SCENE_MODE_MAX;
     count = MIN(gCamCapability[cameraId]->supported_scene_modes_cnt, count);
@@ -5777,7 +6346,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             }
         }
     }
-    uint8_t scene_mode_overrides[(CAM_SCENE_MODE_MAX + 1) * 3];
+    staticInfo.update(ANDROID_CONTROL_AVAILABLE_SCENE_MODES,
+                      avail_scene_modes,
+                      supported_scene_modes_cnt);
+
+    uint8_t scene_mode_overrides[CAM_SCENE_MODE_MAX  * 3];
     makeOverridesList(gCamCapability[cameraId]->scene_mode_overrides,
                       supported_scene_modes_cnt,
                       CAM_SCENE_MODE_MAX,
@@ -5785,28 +6358,20 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       supported_indexes,
                       cameraId);
 
-    if (hfrEnable && gCamCapability[cameraId]->hfr_tbl_cnt > 0) {
-        avail_scene_modes[supported_scene_modes_cnt] =
-                ANDROID_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO;
-        scene_mode_overrides[3 * supported_scene_modes_cnt] =
-                ANDROID_CONTROL_AE_MODE_ON;
-        scene_mode_overrides[3 * supported_scene_modes_cnt + 1] =
-                ANDROID_CONTROL_AWB_MODE_AUTO;
-        scene_mode_overrides[3 * supported_scene_modes_cnt + 2] =
-                ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO;
-        supported_scene_modes_cnt++;
-    }
-
     if (supported_scene_modes_cnt == 0) {
         supported_scene_modes_cnt = 1;
         avail_scene_modes[0] = ANDROID_CONTROL_SCENE_MODE_DISABLED;
     }
 
-    staticInfo.update(ANDROID_CONTROL_AVAILABLE_SCENE_MODES,
-                      avail_scene_modes,
-                      supported_scene_modes_cnt);
     staticInfo.update(ANDROID_CONTROL_SCENE_MODE_OVERRIDES,
             scene_mode_overrides, supported_scene_modes_cnt * 3);
+
+    uint8_t available_control_modes[] = {ANDROID_CONTROL_MODE_OFF,
+                                         ANDROID_CONTROL_MODE_AUTO,
+                                         ANDROID_CONTROL_MODE_USE_SCENE_MODE};
+    staticInfo.update(ANDROID_CONTROL_AVAILABLE_MODES,
+            available_control_modes,
+            3);
 
     uint8_t avail_antibanding_modes[CAM_ANTIBANDING_MODE_MAX];
     size = 0;
@@ -5905,7 +6470,6 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     if (flashAvailable) {
         avail_ae_modes.add(ANDROID_CONTROL_AE_MODE_ON_AUTO_FLASH);
         avail_ae_modes.add(ANDROID_CONTROL_AE_MODE_ON_ALWAYS_FLASH);
-        avail_ae_modes.add(ANDROID_CONTROL_AE_MODE_ON_AUTO_FLASH_REDEYE);
     }
     staticInfo.update(ANDROID_CONTROL_AE_AVAILABLE_MODES,
                       avail_ae_modes.array(),
@@ -5974,16 +6538,24 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       &partial_result_count,
                        1);
 
+    int32_t max_stall_duration = MAX_REPROCESS_STALL;
+    staticInfo.update(ANDROID_REPROCESS_MAX_CAPTURE_STALL, &max_stall_duration, 1);
+
     Vector<uint8_t> available_capabilities;
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_MANUAL_POST_PROCESSING);
     available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_READ_SENSOR_SETTINGS);
-    /* Adding this check for advertising burst capabilities only where min fps for max
-     * resolution is >= 20 to fix CTS issue */
-    if (gCamCapability[cameraId]->picture_min_duration[0] <= m_MinDurationBoundNs) {
+    if (supportBurst) {
         available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BURST_CAPTURE);
     }
+    available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_PRIVATE_REPROCESSING);
+    available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING);
+    if (hfrEnable && available_hfr_configs.array()) {
+        available_capabilities.add(
+                ANDROID_REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO);
+    }
+
     if (CAM_SENSOR_YUV != gCamCapability[cameraId]->sensor_type.sens_type) {
         available_capabilities.add(ANDROID_REQUEST_AVAILABLE_CAPABILITIES_RAW);
     }
@@ -5991,46 +6563,79 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             available_capabilities.array(),
             available_capabilities.size());
 
-    int32_t max_input_streams = 0;
+    //aeLockAvailable to be set to true if capabilities has MANUAL_SENSOR or BURST_CAPTURE
+    //Assumption is that all bayer cameras support MANUAL_SENSOR.
+    uint8_t aeLockAvailable = (gCamCapability[cameraId]->sensor_type.sens_type == CAM_SENSOR_RAW) ?
+            ANDROID_CONTROL_AE_LOCK_AVAILABLE_TRUE : ANDROID_CONTROL_AE_LOCK_AVAILABLE_FALSE;
+
+    staticInfo.update(ANDROID_CONTROL_AE_LOCK_AVAILABLE,
+            &aeLockAvailable, 1);
+
+    //awbLockAvailable to be set to true if capabilities has MANUAL_POST_PROCESSING or
+    //BURST_CAPTURE. Assumption is that all bayer cameras support MANUAL_POST_PROCESSING.
+    uint8_t awbLockAvailable = (gCamCapability[cameraId]->sensor_type.sens_type == CAM_SENSOR_RAW) ?
+            ANDROID_CONTROL_AWB_LOCK_AVAILABLE_TRUE : ANDROID_CONTROL_AWB_LOCK_AVAILABLE_FALSE;
+
+    staticInfo.update(ANDROID_CONTROL_AWB_LOCK_AVAILABLE,
+            &awbLockAvailable, 1);
+
+    int32_t max_input_streams = 1;
     staticInfo.update(ANDROID_REQUEST_MAX_NUM_INPUT_STREAMS,
                       &max_input_streams,
                       1);
 
-    int32_t io_format_map[] = {};
+    /* format of the map is : input format, num_output_formats, outputFormat1,..,outputFormatN */
+    int32_t io_format_map[] = {HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 2,
+            HAL_PIXEL_FORMAT_BLOB, HAL_PIXEL_FORMAT_YCbCr_420_888,
+            HAL_PIXEL_FORMAT_YCbCr_420_888, 2, HAL_PIXEL_FORMAT_BLOB,
+            HAL_PIXEL_FORMAT_YCbCr_420_888};
     staticInfo.update(ANDROID_SCALER_AVAILABLE_INPUT_OUTPUT_FORMATS_MAP,
-                      io_format_map, 0);
+                      io_format_map, sizeof(io_format_map)/sizeof(io_format_map[0]));
 
     int32_t max_latency = ANDROID_SYNC_MAX_LATENCY_PER_FRAME_CONTROL;
     staticInfo.update(ANDROID_SYNC_MAX_LATENCY,
                       &max_latency,
                       1);
 
-    float optical_axis_angle[2];
-    optical_axis_angle[0] = 0; //need to verify
-    optical_axis_angle[1] = 0; //need to verify
-    staticInfo.update(ANDROID_LENS_OPTICAL_AXIS_ANGLE,
-                      optical_axis_angle,
-                      2);
-
-    uint8_t available_hot_pixel_modes[] = {ANDROID_HOT_PIXEL_MODE_FAST};
+    uint8_t available_hot_pixel_modes[] = {ANDROID_HOT_PIXEL_MODE_FAST,
+                                           ANDROID_HOT_PIXEL_MODE_HIGH_QUALITY};
     staticInfo.update(ANDROID_HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES,
             available_hot_pixel_modes,
             sizeof(available_hot_pixel_modes)/sizeof(available_hot_pixel_modes[0]));
 
+    uint8_t available_shading_modes[] = {ANDROID_SHADING_MODE_OFF,
+                                         ANDROID_SHADING_MODE_FAST,
+                                         ANDROID_SHADING_MODE_HIGH_QUALITY};
+    staticInfo.update(ANDROID_SHADING_AVAILABLE_MODES,
+                      available_shading_modes,
+                      3);
+
+    uint8_t available_lens_shading_map_modes[] = {ANDROID_STATISTICS_LENS_SHADING_MAP_MODE_OFF,
+                                                  ANDROID_STATISTICS_LENS_SHADING_MAP_MODE_ON};
+    staticInfo.update(ANDROID_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES,
+                      available_lens_shading_map_modes,
+                      2);
+
     uint8_t available_edge_modes[] = {ANDROID_EDGE_MODE_OFF,
-                                      ANDROID_EDGE_MODE_FAST};
+                                      ANDROID_EDGE_MODE_FAST,
+                                      ANDROID_EDGE_MODE_HIGH_QUALITY,
+                                      ANDROID_EDGE_MODE_ZERO_SHUTTER_LAG};
     staticInfo.update(ANDROID_EDGE_AVAILABLE_EDGE_MODES,
             available_edge_modes,
             sizeof(available_edge_modes)/sizeof(available_edge_modes[0]));
 
     uint8_t available_noise_red_modes[] = {ANDROID_NOISE_REDUCTION_MODE_OFF,
-                                           ANDROID_NOISE_REDUCTION_MODE_FAST};
+                                           ANDROID_NOISE_REDUCTION_MODE_FAST,
+                                           ANDROID_NOISE_REDUCTION_MODE_HIGH_QUALITY,
+                                           ANDROID_NOISE_REDUCTION_MODE_MINIMAL,
+                                           ANDROID_NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG};
     staticInfo.update(ANDROID_NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES,
             available_noise_red_modes,
             sizeof(available_noise_red_modes)/sizeof(available_noise_red_modes[0]));
 
     uint8_t available_tonemap_modes[] = {ANDROID_TONEMAP_MODE_CONTRAST_CURVE,
-                                         ANDROID_TONEMAP_MODE_FAST};
+                                         ANDROID_TONEMAP_MODE_FAST,
+                                         ANDROID_TONEMAP_MODE_HIGH_QUALITY};
     staticInfo.update(ANDROID_TONEMAP_AVAILABLE_TONE_MAP_MODES,
             available_tonemap_modes,
             sizeof(available_tonemap_modes)/sizeof(available_tonemap_modes[0]));
@@ -6089,7 +6694,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_CONTROL_AWB_MODE, ANDROID_CONTROL_CAPTURE_INTENT,
        ANDROID_CONTROL_EFFECT_MODE, ANDROID_CONTROL_MODE,
        ANDROID_CONTROL_SCENE_MODE, ANDROID_CONTROL_VIDEO_STABILIZATION_MODE,
-       ANDROID_DEMOSAIC_MODE, ANDROID_EDGE_MODE, ANDROID_EDGE_STRENGTH,
+       ANDROID_DEMOSAIC_MODE, ANDROID_EDGE_MODE,
        ANDROID_FLASH_FIRING_POWER, ANDROID_FLASH_FIRING_TIME, ANDROID_FLASH_MODE,
        ANDROID_JPEG_GPS_COORDINATES,
        ANDROID_JPEG_GPS_PROCESSING_METHOD, ANDROID_JPEG_GPS_TIMESTAMP,
@@ -6097,12 +6702,12 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_JPEG_THUMBNAIL_SIZE, ANDROID_LENS_APERTURE, ANDROID_LENS_FILTER_DENSITY,
        ANDROID_LENS_FOCAL_LENGTH, ANDROID_LENS_FOCUS_DISTANCE,
        ANDROID_LENS_OPTICAL_STABILIZATION_MODE, ANDROID_NOISE_REDUCTION_MODE,
-       ANDROID_NOISE_REDUCTION_STRENGTH, ANDROID_REQUEST_ID, ANDROID_REQUEST_TYPE,
+       ANDROID_REQUEST_ID, ANDROID_REQUEST_TYPE,
        ANDROID_SCALER_CROP_REGION, ANDROID_SENSOR_EXPOSURE_TIME,
        ANDROID_SENSOR_FRAME_DURATION, ANDROID_HOT_PIXEL_MODE,
        ANDROID_STATISTICS_HOT_PIXEL_MAP_MODE,
        ANDROID_SENSOR_SENSITIVITY, ANDROID_SHADING_MODE,
-       ANDROID_SHADING_STRENGTH, ANDROID_STATISTICS_FACE_DETECT_MODE,
+       ANDROID_STATISTICS_FACE_DETECT_MODE,
        ANDROID_STATISTICS_HISTOGRAM_MODE, ANDROID_STATISTICS_SHARPNESS_MAP_MODE,
        ANDROID_STATISTICS_LENS_SHADING_MAP_MODE, ANDROID_TONEMAP_CURVE_BLUE,
        ANDROID_TONEMAP_CURVE_GREEN, ANDROID_TONEMAP_CURVE_RED, ANDROID_TONEMAP_MODE,
@@ -6115,6 +6720,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     if (gCamCapability[cameraId]->supported_focus_modes_cnt > 1) {
         available_request_keys.add(ANDROID_CONTROL_AF_REGIONS);
     }
+
     staticInfo.update(ANDROID_REQUEST_AVAILABLE_REQUEST_KEYS,
             available_request_keys.array(), available_request_keys.size());
 
@@ -6138,8 +6744,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_STATISTICS_FACE_DETECT_MODE, ANDROID_STATISTICS_HISTOGRAM_MODE,
        ANDROID_STATISTICS_SHARPNESS_MAP, ANDROID_STATISTICS_SHARPNESS_MAP_MODE,
        ANDROID_STATISTICS_PREDICTED_COLOR_GAINS, ANDROID_STATISTICS_PREDICTED_COLOR_TRANSFORM,
-       ANDROID_STATISTICS_SCENE_FLICKER, ANDROID_STATISTICS_FACE_IDS,
-       ANDROID_STATISTICS_FACE_LANDMARKS, ANDROID_STATISTICS_FACE_RECTANGLES,
+       ANDROID_STATISTICS_SCENE_FLICKER, ANDROID_STATISTICS_FACE_RECTANGLES,
        ANDROID_STATISTICS_FACE_SCORES};
     size_t result_keys_cnt =
             sizeof(result_keys_basic)/sizeof(result_keys_basic[0]);
@@ -6152,6 +6757,14 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     if (CAM_SENSOR_RAW == gCamCapability[cameraId]->sensor_type.sens_type) {
         available_result_keys.add(ANDROID_SENSOR_NOISE_PROFILE);
         available_result_keys.add(ANDROID_SENSOR_GREEN_SPLIT);
+    }
+    if (supportedFaceDetectMode == 1) {
+        available_result_keys.add(ANDROID_STATISTICS_FACE_RECTANGLES);
+        available_result_keys.add(ANDROID_STATISTICS_FACE_SCORES);
+    } else if ((supportedFaceDetectMode == 2) ||
+            (supportedFaceDetectMode == 3)) {
+        available_result_keys.add(ANDROID_STATISTICS_FACE_IDS);
+        available_result_keys.add(ANDROID_STATISTICS_FACE_LANDMARKS);
     }
     staticInfo.update(ANDROID_REQUEST_AVAILABLE_RESULT_KEYS,
             available_result_keys.array(), available_result_keys.size());
@@ -6175,7 +6788,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,
        ANDROID_LENS_INFO_HYPERFOCAL_DISTANCE, ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE,
        ANDROID_LENS_INFO_SHADING_MAP_SIZE, ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION,
-       ANDROID_LENS_FACING, ANDROID_LENS_OPTICAL_AXIS_ANGLE,ANDROID_LENS_POSITION,
+       ANDROID_LENS_FACING,
        ANDROID_REQUEST_MAX_NUM_OUTPUT_STREAMS, ANDROID_REQUEST_MAX_NUM_INPUT_STREAMS,
        ANDROID_REQUEST_PIPELINE_MAX_DEPTH, ANDROID_REQUEST_AVAILABLE_CAPABILITIES,
        ANDROID_REQUEST_AVAILABLE_REQUEST_KEYS, ANDROID_REQUEST_AVAILABLE_RESULT_KEYS,
@@ -6204,7 +6817,13 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES,
        ANDROID_TONEMAP_AVAILABLE_TONE_MAP_MODES,
        ANDROID_STATISTICS_INFO_AVAILABLE_HOT_PIXEL_MAP_MODES,
-       ANDROID_TONEMAP_MAX_CURVE_POINTS, ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL };
+       ANDROID_TONEMAP_MAX_CURVE_POINTS,
+       ANDROID_CONTROL_AVAILABLE_MODES,
+       ANDROID_CONTROL_AE_LOCK_AVAILABLE,
+       ANDROID_CONTROL_AWB_LOCK_AVAILABLE,
+       ANDROID_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES,
+       ANDROID_SHADING_AVAILABLE_MODES,
+       ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL };
     staticInfo.update(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS,
                       available_characteristics_keys,
                       sizeof(available_characteristics_keys)/sizeof(int32_t));
@@ -6214,34 +6833,30 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     int32_t stall_formats[] = {HAL_PIXEL_FORMAT_BLOB, ANDROID_SCALER_AVAILABLE_FORMATS_RAW16};
     size_t stall_formats_count = sizeof(stall_formats)/sizeof(int32_t);
 
-    count = MIN(gCamCapability[cameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
-    size_t raw_count = MIN(gCamCapability[cameraId]->supported_raw_dim_cnt,
-            MAX_SIZES_CNT);
-    size_t available_stall_size = count * 4;
-    int64_t available_stall_durations[available_stall_size];
-    idx = 0;
+    Vector<int64_t> available_stall_durations;
     for (uint32_t j = 0; j < stall_formats_count; j++) {
-       if (stall_formats[j] == HAL_PIXEL_FORMAT_BLOB) {
-          for (uint32_t i = 0; i < count; i++) {
-             available_stall_durations[idx]   = stall_formats[j];
-             available_stall_durations[idx+1] = gCamCapability[cameraId]->picture_sizes_tbl[i].width;
-             available_stall_durations[idx+2] = gCamCapability[cameraId]->picture_sizes_tbl[i].height;
-             available_stall_durations[idx+3] = gCamCapability[cameraId]->jpeg_stall_durations[i];
-             idx+=4;
+        if (stall_formats[j] == HAL_PIXEL_FORMAT_BLOB) {
+            for (uint32_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
+                available_stall_durations.add(stall_formats[j]);
+                available_stall_durations.add(gCamCapability[cameraId]->picture_sizes_tbl[i].width);
+                available_stall_durations.add(gCamCapability[cameraId]->picture_sizes_tbl[i].height);
+                available_stall_durations.add(gCamCapability[cameraId]->jpeg_stall_durations[i]);
           }
-       } else {
-          for (uint32_t i = 0; i < raw_count; i++) {
-             available_stall_durations[idx]   = stall_formats[j];
-             available_stall_durations[idx+1] = gCamCapability[cameraId]->raw_dim[i].width;
-             available_stall_durations[idx+2] = gCamCapability[cameraId]->raw_dim[i].height;
-             available_stall_durations[idx+3] = gCamCapability[cameraId]->raw16_stall_durations[i];
-             idx+=4;
-          }
-       }
+        } else {
+            for (uint32_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->supported_raw_dim_cnt); i++) {
+                available_stall_durations.add(stall_formats[j]);
+                available_stall_durations.add(gCamCapability[cameraId]->raw_dim[i].width);
+                available_stall_durations.add(gCamCapability[cameraId]->raw_dim[i].height);
+                available_stall_durations.add(gCamCapability[cameraId]->raw16_stall_durations[i]);
+            }
+        }
     }
     staticInfo.update(ANDROID_SCALER_AVAILABLE_STALL_DURATIONS,
-                      available_stall_durations,
-                      idx);
+                      available_stall_durations.array(),
+                      available_stall_durations.size());
+
     //QCAMERA3_OPAQUE_RAW
     uint8_t raw_format = QCAMERA3_OPAQUE_RAW_FORMAT_LEGACY;
     cam_format_t fmt = CAM_FORMAT_BAYER_QCOM_RAW_10BPP_GBRG;
@@ -6271,17 +6886,18 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     }
     staticInfo.update(QCAMERA3_OPAQUE_RAW_FORMAT, &raw_format, 1);
 
-    int32_t strides[3*raw_count];
-    for (size_t i = 0; i < raw_count; i++) {
+    Vector<int32_t> strides;
+    for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+            gCamCapability[cameraId]->supported_raw_dim_cnt); i++) {
         cam_stream_buf_plane_info_t buf_planes;
-        strides[i*3] = gCamCapability[cameraId]->raw_dim[i].width;
-        strides[i*3+1] = gCamCapability[cameraId]->raw_dim[i].height;
+        strides.add(gCamCapability[cameraId]->raw_dim[i].width);
+        strides.add(gCamCapability[cameraId]->raw_dim[i].height);
         mm_stream_calc_offset_raw(fmt, &gCamCapability[cameraId]->raw_dim[i],
             &gCamCapability[cameraId]->padding_info, &buf_planes);
-        strides[i*3+2] = buf_planes.plane_info.mp[0].stride;
+        strides.add(buf_planes.plane_info.mp[0].stride);
     }
-    staticInfo.update(QCAMERA3_OPAQUE_RAW_STRIDES, strides,
-            3*raw_count);
+    staticInfo.update(QCAMERA3_OPAQUE_RAW_STRIDES, strides.array(),
+            strides.size());
 
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
@@ -6486,8 +7102,11 @@ double QCamera3HardwareInterface::computeNoiseModelEntryS(int32_t sens) {
  *
  *==========================================================================*/
 double QCamera3HardwareInterface::computeNoiseModelEntryO(int32_t sens) {
-    double o = gCamCapability[mCameraId]->gradient_O * sens +
-            gCamCapability[mCameraId]->offset_O;
+    int32_t max_analog_sens = gCamCapability[mCameraId]->max_analog_sensitivity;
+    double digital_gain = (1.0 * sens / max_analog_sens) < 1.0 ?
+            1.0 : (1.0 * sens / max_analog_sens);
+    double o = gCamCapability[mCameraId]->gradient_O * sens * sens +
+            gCamCapability[mCameraId]->offset_O * digital_gain * digital_gain;
     return ((o < 0.0) ? 0.0 : o);
 }
 
@@ -6581,11 +7200,31 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
 
 
     info->orientation = (int)gCamCapability[cameraId]->sensor_mount_angle;
-    info->device_version = CAMERA_DEVICE_API_VERSION_3_2;
+    info->device_version = CAMERA_DEVICE_API_VERSION_3_3;
     info->static_camera_characteristics = gStaticMetadata[cameraId];
 
-    pthread_mutex_unlock(&gCamLock);
+    //For now assume both cameras can operate independently.
+    info->conflicting_devices = NULL;
+    info->conflicting_devices_length = 0;
 
+    //resource cost is 100 * MIN(1.0, m/M),
+    //where m is throughput requirement with maximum stream configuration
+    //and M is CPP maximum throughput.
+    float max_fps = 0.0;
+    for (uint32_t i = 0;
+            i < gCamCapability[cameraId]->fps_ranges_tbl_cnt; i++) {
+        if (max_fps < gCamCapability[cameraId]->fps_ranges_tbl[i].max_fps)
+            max_fps = gCamCapability[cameraId]->fps_ranges_tbl[i].max_fps;
+    }
+    float ratio = 1.0 * MAX_PROCESSED_STREAMS *
+            gCamCapability[cameraId]->active_array_size.width *
+            gCamCapability[cameraId]->active_array_size.height * max_fps /
+            gCamCapability[cameraId]->max_pixel_bandwidth;
+    info->resource_cost = 100 * MIN(1.0, ratio);
+    ALOGI("%s: camera %d resource cost is %d", __func__, cameraId,
+            info->resource_cost);
+
+    pthread_mutex_unlock(&gCamLock);
     return rc;
 }
 
@@ -6632,6 +7271,9 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     uint8_t vsMode;
     uint8_t optStabMode;
     uint8_t cacMode;
+    uint8_t edge_mode;
+    uint8_t noise_red_mode;
+    uint8_t tonemap_mode;
     bool highQualityModeEntryAvailable = FALSE;
     bool fastModeEntryAvailable = FALSE;
     vsMode = ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF;
@@ -6640,11 +7282,18 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_PREVIEW;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
+        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
+        edge_mode = ANDROID_EDGE_MODE_FAST;
+        noise_red_mode = ANDROID_NOISE_REDUCTION_MODE_FAST;
+        tonemap_mode = ANDROID_TONEMAP_MODE_FAST;
         break;
       case CAMERA3_TEMPLATE_STILL_CAPTURE:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_STILL_CAPTURE;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
+        edge_mode = ANDROID_EDGE_MODE_HIGH_QUALITY;
+        noise_red_mode = ANDROID_NOISE_REDUCTION_MODE_HIGH_QUALITY;
+        tonemap_mode = ANDROID_TONEMAP_MODE_HIGH_QUALITY;
         cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_OFF;
         // Order of priority for default CAC is HIGH Quality -> FAST -> OFF
         for (size_t i = 0; i < gCamCapability[mCameraId]->aberration_modes_count; i++) {
@@ -6661,12 +7310,15 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         } else if (fastModeEntryAvailable) {
             cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
         }
-        settings.update(ANDROID_COLOR_CORRECTION_ABERRATION_MODE, &cacMode, 1);
         break;
       case CAMERA3_TEMPLATE_VIDEO_RECORD:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_VIDEO_RECORD;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
+        edge_mode = ANDROID_EDGE_MODE_FAST;
+        noise_red_mode = ANDROID_NOISE_REDUCTION_MODE_FAST;
+        tonemap_mode = ANDROID_TONEMAP_MODE_FAST;
         if (forceVideoOis)
             optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
         break;
@@ -6674,6 +7326,10 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_VIDEO_SNAPSHOT;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
+        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
+        edge_mode = ANDROID_EDGE_MODE_FAST;
+        noise_red_mode = ANDROID_NOISE_REDUCTION_MODE_FAST;
+        tonemap_mode = ANDROID_TONEMAP_MODE_FAST;
         if (forceVideoOis)
             optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
         break;
@@ -6681,17 +7337,30 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_ZERO_SHUTTER_LAG;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
+        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
+        edge_mode = ANDROID_EDGE_MODE_ZERO_SHUTTER_LAG;
+        noise_red_mode = ANDROID_NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG;
+        tonemap_mode = ANDROID_TONEMAP_MODE_FAST;
         break;
       case CAMERA3_TEMPLATE_MANUAL:
+        edge_mode = ANDROID_EDGE_MODE_FAST;
+        noise_red_mode = ANDROID_NOISE_REDUCTION_MODE_FAST;
+        tonemap_mode = ANDROID_TONEMAP_MODE_FAST;
+        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_MANUAL;
         focusMode = ANDROID_CONTROL_AF_MODE_OFF;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
         break;
       default:
+        edge_mode = ANDROID_EDGE_MODE_FAST;
+        noise_red_mode = ANDROID_NOISE_REDUCTION_MODE_FAST;
+        tonemap_mode = ANDROID_TONEMAP_MODE_FAST;
+        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_CUSTOM;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
         break;
     }
+    settings.update(ANDROID_COLOR_CORRECTION_ABERRATION_MODE, &cacMode, 1);
     settings.update(ANDROID_CONTROL_CAPTURE_INTENT, &controlIntent, 1);
     settings.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &vsMode, 1);
     if (gCamCapability[mCameraId]->supported_focus_modes_cnt == 1) {
@@ -6765,7 +7434,8 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     static const int32_t testpatternMode = ANDROID_SENSOR_TEST_PATTERN_MODE_OFF;
     settings.update(ANDROID_SENSOR_TEST_PATTERN_MODE, &testpatternMode, 1);
 
-    static const uint8_t faceDetectMode = ANDROID_STATISTICS_FACE_DETECT_MODE_FULL;
+    /* face detection (default to OFF) */
+    static const uint8_t faceDetectMode = ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
     settings.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode, 1);
 
     static const uint8_t histogramMode = ANDROID_STATISTICS_HISTOGRAM_MODE_OFF;
@@ -6796,11 +7466,9 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     settings.update(ANDROID_SENSOR_SENSITIVITY, &default_sensitivity, 1);
 
     /*edge mode*/
-    static const uint8_t edge_mode = ANDROID_EDGE_MODE_FAST;
     settings.update(ANDROID_EDGE_MODE, &edge_mode, 1);
 
     /*noise reduction mode*/
-    static const uint8_t noise_red_mode = ANDROID_NOISE_REDUCTION_MODE_FAST;
     settings.update(ANDROID_NOISE_REDUCTION_MODE, &noise_red_mode, 1);
 
     /*color correction mode*/
@@ -6808,11 +7476,7 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     settings.update(ANDROID_COLOR_CORRECTION_MODE, &color_correct_mode, 1);
 
     /*transform matrix mode*/
-    static const uint8_t tonemap_mode = ANDROID_TONEMAP_MODE_FAST;
     settings.update(ANDROID_TONEMAP_MODE, &tonemap_mode, 1);
-
-    uint8_t edge_strength = (uint8_t)gCamCapability[mCameraId]->sharpness_ctrl.def_value;
-    settings.update(ANDROID_EDGE_STRENGTH, &edge_strength, 1);
 
     int32_t scaler_crop_region[4];
     scaler_crop_region[0] = 0;
@@ -6885,10 +7549,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     uint8_t blacklevel_lock = ANDROID_BLACK_LEVEL_LOCK_OFF;
     settings.update(ANDROID_BLACK_LEVEL_LOCK, &blacklevel_lock, 1);
 
-    /* face detect mode */
-    uint8_t facedetect_mode = ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
-    settings.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &facedetect_mode, 1);
-
     /* lens shading map mode */
     uint8_t shadingmap_mode = ANDROID_STATISTICS_LENS_SHADING_MAP_MODE_OFF;
     if (CAM_SENSOR_RAW == gCamCapability[mCameraId]->sensor_type.sens_type) {
@@ -6917,12 +7577,35 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         settings.update(ANDROID_COLOR_CORRECTION_MODE, &manualColorCorrectMode, 1);
     }
 
-    /* TNR default */
-    uint8_t tnr_enable       = m_bTnrEnabled;
-    int32_t tnr_process_type = (int32_t)getTemporalDenoiseProcessPlate();
-    settings.update(QCAMERA3_TEMPORAL_DENOISE_ENABLE, &tnr_enable, 1);
-    settings.update(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE, &tnr_process_type, 1);
-    CDBG("%s: default TNR enable %d, process plate %d", __func__, tnr_enable, tnr_process_type);
+
+    /* TNR
+     * We'll use this location to determine which modes TNR will be set.
+     * We will enable TNR to be on if either of the Preview/Video stream requires TNR
+     * This is not to be confused with linking on a per stream basis that decision
+     * is still on per-session basis and will be handled as part of config stream
+     */
+    uint8_t tnr_enable = 0;
+
+    if (m_bTnrPreview || m_bTnrVideo) {
+
+        switch (type) {
+            case CAMERA3_TEMPLATE_VIDEO_RECORD:
+            case CAMERA3_TEMPLATE_VIDEO_SNAPSHOT:
+                    tnr_enable = 1;
+                    break;
+
+            default:
+                    tnr_enable = 0;
+                    break;
+        }
+
+        int32_t tnr_process_type = (int32_t)getTemporalDenoiseProcessPlate();
+        settings.update(QCAMERA3_TEMPORAL_DENOISE_ENABLE, &tnr_enable, 1);
+        settings.update(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE, &tnr_process_type, 1);
+
+        CDBG("%s: TNR:%d with process plate %d for template:%d",
+                            __func__, tnr_enable, tnr_process_type, type);
+    }
 
     /* CDS default */
     char prop[PROPERTY_VALUE_MAX];
@@ -6933,12 +7616,11 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     if (CAM_CDS_MODE_MAX == cds_mode) {
         cds_mode = CAM_CDS_MODE_AUTO;
     }
-    //@note: force cds mode to be OFF when TNR is enabled.
-    if (m_bTnrEnabled == true) {
-        CDBG_HIGH("%s: default CDS mode %d is forced to be OFF because TNR is enabled.",
-                __func__, cds_mode);
+
+    /* Disabling CDS in templates which have TNR enabled*/
+    if (tnr_enable)
         cds_mode = CAM_CDS_MODE_OFF;
-    }
+
     int32_t mode = cds_mode;
     settings.update(QCAMERA3_CDS_MODE, &mode, 1);
     mDefaultMetadata[type] = settings.release();
@@ -7056,79 +7738,116 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
     CameraMetadata frame_settings;
     frame_settings = request->settings;
     if (frame_settings.exists(QCAMERA3_CROP_COUNT_REPROCESS) &&
-            frame_settings.exists(QCAMERA3_CROP_REPROCESS) &&
-            frame_settings.exists(QCAMERA3_CROP_STREAM_ID_REPROCESS)) {
+            frame_settings.exists(QCAMERA3_CROP_REPROCESS)) {
         int32_t *crop_count =
                 frame_settings.find(QCAMERA3_CROP_COUNT_REPROCESS).data.i32;
         int32_t *crop_data =
                 frame_settings.find(QCAMERA3_CROP_REPROCESS).data.i32;
-        int32_t *crop_stream_ids =
-                frame_settings.find(QCAMERA3_CROP_STREAM_ID_REPROCESS).data.i32;
         int32_t *roi_map =
                 frame_settings.find(QCAMERA3_CROP_ROI_MAP_REPROCESS).data.i32;
         if ((0 < *crop_count) && (*crop_count < MAX_NUM_STREAMS)) {
-            bool found = false;
-            int32_t i;
-            for (i = 0; i < *crop_count; i++) {
-#ifdef __LP64__
-                int32_t id = (int32_t)
-                        ((((int64_t)request->input_buffer->stream) & 0x0000FFFF) ^
-                                (((int64_t)request->input_buffer->stream) >> 0x20 & 0x0000FFFF));
-#else
-                int32_t id = (int32_t) request->input_buffer->stream;
-#endif
-                if (crop_stream_ids[i] == id) {
-                    found = true;
-                    break;
-                }
+            cam_crop_data_t crop_meta;
+            memset(&crop_meta, 0, sizeof(cam_crop_data_t));
+            crop_meta.num_of_streams = 1;
+            crop_meta.crop_info[0].crop.left   = crop_data[0];
+            crop_meta.crop_info[0].crop.top    = crop_data[1];
+            crop_meta.crop_info[0].crop.width  = crop_data[2];
+            crop_meta.crop_info[0].crop.height = crop_data[3];
+
+            crop_meta.crop_info[0].roi_map.left =
+                    roi_map[0];
+            crop_meta.crop_info[0].roi_map.top =
+                    roi_map[1];
+            crop_meta.crop_info[0].roi_map.width =
+                    roi_map[2];
+            crop_meta.crop_info[0].roi_map.height =
+                    roi_map[3];
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_CROP_DATA, crop_meta)) {
+                rc = BAD_VALUE;
             }
-
-            if (found) {
-                cam_crop_data_t crop_meta;
-                size_t roi_map_idx = i*4;
-                size_t crop_info_idx = i*4;
-                memset(&crop_meta, 0, sizeof(cam_crop_data_t));
-                crop_meta.num_of_streams = 1;
-                crop_meta.crop_info[0].crop.left   = crop_data[crop_info_idx++];
-                crop_meta.crop_info[0].crop.top    = crop_data[crop_info_idx++];
-                crop_meta.crop_info[0].crop.width  = crop_data[crop_info_idx++];
-                crop_meta.crop_info[0].crop.height = crop_data[crop_info_idx++];
-
-                crop_meta.crop_info[0].roi_map.left =
-                        roi_map[roi_map_idx++];
-                crop_meta.crop_info[0].roi_map.top =
-                        roi_map[roi_map_idx++];
-                crop_meta.crop_info[0].roi_map.width =
-                        roi_map[roi_map_idx++];
-                crop_meta.crop_info[0].roi_map.height =
-                        roi_map[roi_map_idx++];
-
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_CROP_DATA, crop_meta)) {
-                    rc = BAD_VALUE;
-                }
-                CDBG("%s: Found reprocess crop data for stream %p %dx%d, %dx%d",
-                        __func__,
-                        request->input_buffer->stream,
-                        crop_meta.crop_info[0].crop.left,
-                        crop_meta.crop_info[0].crop.top,
-                        crop_meta.crop_info[0].crop.width,
-                        crop_meta.crop_info[0].crop.height);
-                CDBG("%s: Found reprocess roi map data for stream %p %dx%d, %dx%d",
-                        __func__,
-                        request->input_buffer->stream,
-                        crop_meta.crop_info[0].roi_map.left,
-                        crop_meta.crop_info[0].roi_map.top,
-                        crop_meta.crop_info[0].roi_map.width,
-                        crop_meta.crop_info[0].roi_map.height);
+            CDBG("%s: Found reprocess crop data for stream %p %dx%d, %dx%d",
+                    __func__,
+                    request->input_buffer->stream,
+                    crop_meta.crop_info[0].crop.left,
+                    crop_meta.crop_info[0].crop.top,
+                    crop_meta.crop_info[0].crop.width,
+                    crop_meta.crop_info[0].crop.height);
+            CDBG("%s: Found reprocess roi map data for stream %p %dx%d, %dx%d",
+                    __func__,
+                    request->input_buffer->stream,
+                    crop_meta.crop_info[0].roi_map.left,
+                    crop_meta.crop_info[0].roi_map.top,
+                    crop_meta.crop_info[0].roi_map.width,
+                    crop_meta.crop_info[0].roi_map.height);
             } else {
-                ALOGE("%s: No matching reprocess input stream found!", __func__);
+                ALOGE("%s: Invalid reprocess crop count %d!", __func__, *crop_count);
+            }
+    } else {
+        ALOGE("%s: No crop data from matching output stream", __func__);
+    }
+
+    /* These settings are not needed for regular requests so handle them specially for
+       reprocess requests; information needed for EXIF tags */
+    if (frame_settings.exists(ANDROID_FLASH_MODE)) {
+        int val = lookupHalName(FLASH_MODES_MAP, METADATA_MAP_SIZE(FLASH_MODES_MAP),
+                    (int)frame_settings.find(ANDROID_FLASH_MODE).data.u8[0]);
+        if (NAME_NOT_FOUND != val) {
+            uint32_t flashMode = (uint32_t)val;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_FLASH_MODE, flashMode)) {
+                rc = BAD_VALUE;
             }
         } else {
-            ALOGE("%s: Invalid reprocess crop count %d!", __func__, *crop_count);
+            ALOGE("%s: Could not map fwk flash mode %d to correct hal flash mode", __func__,
+                    frame_settings.find(ANDROID_FLASH_MODE).data.u8[0]);
         }
+    } else {
+        CDBG_HIGH("%s: No flash mode in reprocess settings", __func__);
+    }
+
+    if (frame_settings.exists(ANDROID_FLASH_STATE)) {
+        int32_t flashState = (int32_t)frame_settings.find(ANDROID_FLASH_STATE).data.u8[0];
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_FLASH_STATE, flashState)) {
+            rc = BAD_VALUE;
+        }
+    } else {
+        CDBG_HIGH("%s: No flash state in reprocess settings", __func__);
     }
 
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : saveRequestSettings
+ *
+ * DESCRIPTION: Add any settings that might have changed to the request settings
+ *              and save the settings to be applied on the frame
+ *
+ * PARAMETERS :
+ *   @jpegMetadata : the extracted and/or modified jpeg metadata
+ *   @request      : request with initial settings
+ *
+ * RETURN     :
+ * camera_metadata_t* : pointer to the saved request settings
+ *==========================================================================*/
+camera_metadata_t* QCamera3HardwareInterface::saveRequestSettings(
+        const CameraMetadata &jpegMetadata,
+        camera3_capture_request_t *request)
+{
+    camera_metadata_t *resultMetadata;
+    CameraMetadata camMetadata;
+    camMetadata = request->settings;
+
+    if (jpegMetadata.exists(ANDROID_JPEG_THUMBNAIL_SIZE)) {
+        int32_t thumbnail_size[2];
+        thumbnail_size[0] = jpegMetadata.find(ANDROID_JPEG_THUMBNAIL_SIZE).data.i32[0];
+        thumbnail_size[1] = jpegMetadata.find(ANDROID_JPEG_THUMBNAIL_SIZE).data.i32[1];
+        camMetadata.update(ANDROID_JPEG_THUMBNAIL_SIZE, thumbnail_size,
+                jpegMetadata.find(ANDROID_JPEG_THUMBNAIL_SIZE).count);
+    }
+
+    resultMetadata = camMetadata.release();
+    return resultMetadata;
 }
 
 /*===========================================================================
@@ -7156,8 +7875,83 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
             settings.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
     fps_range.video_min_fps = fps_range.min_fps;
     fps_range.video_max_fps = fps_range.max_fps;
+
+    CDBG("%s: aeTargetFpsRange fps: [%f %f]", __func__,
+            fps_range.min_fps, fps_range.max_fps);
+    /* In CONSTRAINED_HFR_MODE, sensor_fps is derived from aeTargetFpsRange as
+     * follows:
+     * ---------------------------------------------------------------|
+     *      Video stream is absent in configure_streams               |
+     *    (Camcorder preview before the first video record            |
+     * ---------------------------------------------------------------|
+     * vid_buf_requested | aeTgtFpsRng | snsrFpsMode | sensorFpsRange |
+     *                   |             |             | vid_min/max_fps|
+     * ---------------------------------------------------------------|
+     *        NO         |  [ 30, 240] |     240     |  [240, 240]    |
+     *                   |-------------|-------------|----------------|
+     *                   |  [240, 240] |     240     |  [240, 240]    |
+     * ---------------------------------------------------------------|
+     *     Video stream is present in configure_streams               |
+     * ---------------------------------------------------------------|
+     * vid_buf_requested | aeTgtFpsRng | snsrFpsMode | sensorFpsRange |
+     *                   |             |             | vid_min/max_fps|
+     * ---------------------------------------------------------------|
+     *        NO         |  [ 30, 240] |     240     |  [240, 240]    |
+     * (camcorder prev   |-------------|-------------|----------------|
+     *  after video rec  |  [240, 240] |     240     |  [240, 240]    |
+     *  is stopped)      |             |             |                |
+     * ---------------------------------------------------------------|
+     *       YES         |  [ 30, 240] |     240     |  [240, 240]    |
+     *                   |-------------|-------------|----------------|
+     *                   |  [240, 240] |     240     |  [240, 240]    |
+     * ---------------------------------------------------------------|
+     * When Video stream is absent in configure_streams,
+     * preview fps = sensor_fps / batchsize
+     * Eg: for 240fps at batchSize 4, preview = 60fps
+     *     for 120fps at batchSize 4, preview = 30fps
+     *
+     * When video stream is present in configure_streams, preview fps is as per
+     * the ratio of preview buffers to video buffers requested in process
+     * capture request
+     */
+    mBatchSize = 0;
+    if (CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE == mOpMode) {
+        fps_range.min_fps = fps_range.video_max_fps;
+        fps_range.video_min_fps = fps_range.video_max_fps;
+        int val = lookupHalName(HFR_MODE_MAP, METADATA_MAP_SIZE(HFR_MODE_MAP),
+                fps_range.max_fps);
+        if (NAME_NOT_FOUND != val) {
+            cam_hfr_mode_t hfrMode = (cam_hfr_mode_t)val;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, hfrMode)) {
+                return BAD_VALUE;
+            }
+
+            if (fps_range.max_fps >= MIN_FPS_FOR_BATCH_MODE) {
+                /* If batchmode is currently in progress and the fps changes,
+                 * set the flag to restart the sensor */
+                if((mHFRVideoFps >= MIN_FPS_FOR_BATCH_MODE) &&
+                        (mHFRVideoFps != fps_range.max_fps)) {
+                    mNeedSensorRestart = true;
+                }
+                mHFRVideoFps = fps_range.max_fps;
+                mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
+                if (mBatchSize > MAX_HFR_BATCH_SIZE) {
+                    mBatchSize = MAX_HFR_BATCH_SIZE;
+                }
+             }
+            CDBG("%s: hfrMode: %d batchSize: %d", __func__, hfrMode, mBatchSize);
+
+         }
+    } else {
+        /* HFR mode is session param in backend/ISP. This should be reset when
+         * in non-HFR mode  */
+        cam_hfr_mode_t hfrMode = CAM_HFR_MODE_OFF;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, hfrMode)) {
+            return BAD_VALUE;
+        }
+    }
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
-        rc = BAD_VALUE;
+        return BAD_VALUE;
     }
     CDBG("%s: fps: [%f %f] vid_fps: [%f %f]", __func__, fps_range.min_fps,
             fps_range.max_fps, fps_range.video_min_fps, fps_range.video_max_fps);
@@ -7227,7 +8021,6 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 fwk_aeMode);
         if (NAME_NOT_FOUND != val) {
             int32_t flashMode = (int32_t)val;
-            ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_LED_MODE, flashMode);
             ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_LED_MODE, flashMode);
         }
 
@@ -7243,7 +8036,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 fwk_whiteLevel);
         if (NAME_NOT_FOUND != val) {
             uint8_t whiteLevel = (uint8_t)val;
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_WHITE_BALANCE, whiteLevel)) {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_WHITE_BALANCE, whiteLevel)) {
                 rc = BAD_VALUE;
             }
         }
@@ -7302,7 +8095,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
         if (NAME_NOT_FOUND != val) {
             uint8_t focusMode = (uint8_t)val;
             CDBG("%s: set focus mode %d", __func__, focusMode);
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_FOCUS_MODE, focusMode)) {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_FOCUS_MODE, focusMode)) {
                 rc = BAD_VALUE;
             }
         }
@@ -7310,7 +8103,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_LENS_FOCUS_DISTANCE)) {
         float focalDistance = frame_settings.find(ANDROID_LENS_FOCUS_DISTANCE).data.f[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_LENS_FOCUS_DISTANCE,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_FOCUS_DISTANCE,
                 focalDistance)) {
             rc = BAD_VALUE;
         }
@@ -7323,7 +8116,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 METADATA_MAP_SIZE(ANTIBANDING_MODES_MAP), fwk_antibandingMode);
         if (NAME_NOT_FOUND != val) {
             uint32_t hal_antibandingMode = (uint32_t)val;
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_ANTIBANDING,
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ANTIBANDING,
                     hal_antibandingMode)) {
                 rc = BAD_VALUE;
             }
@@ -7358,7 +8151,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_CONTROL_AWB_LOCK)) {
         uint8_t awbLock = frame_settings.find(ANDROID_CONTROL_AWB_LOCK).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_AWB_LOCK, awbLock)) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_AWB_LOCK, awbLock)) {
             rc = BAD_VALUE;
         }
     }
@@ -7369,7 +8162,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 fwk_effectMode);
         if (NAME_NOT_FOUND != val) {
             uint8_t effectMode = (uint8_t)val;
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_EFFECT, effectMode)) {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_EFFECT, effectMode)) {
                 rc = BAD_VALUE;
             }
         }
@@ -7377,7 +8170,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_COLOR_CORRECTION_MODE)) {
         uint8_t colorCorrectMode = frame_settings.find(ANDROID_COLOR_CORRECTION_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_COLOR_CORRECT_MODE,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_COLOR_CORRECT_MODE,
                 colorCorrectMode)) {
             rc = BAD_VALUE;
         }
@@ -7389,7 +8182,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
             colorCorrectGains.gains[i] =
                     frame_settings.find(ANDROID_COLOR_CORRECTION_GAINS).data.f[i];
         }
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_COLOR_CORRECT_GAINS,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_COLOR_CORRECT_GAINS,
                 colorCorrectGains)) {
             rc = BAD_VALUE;
         }
@@ -7449,23 +8242,17 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_DEMOSAIC_MODE)) {
         int32_t demosaic = frame_settings.find(ANDROID_DEMOSAIC_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_DEMOSAIC, demosaic)) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_DEMOSAIC, demosaic)) {
             rc = BAD_VALUE;
         }
     }
-
     if (frame_settings.exists(ANDROID_EDGE_MODE)) {
         cam_edge_application_t edge_application;
         edge_application.edge_mode = frame_settings.find(ANDROID_EDGE_MODE).data.u8[0];
         if (edge_application.edge_mode == CAM_EDGE_MODE_OFF) {
             edge_application.sharpness = 0;
         } else {
-            if (frame_settings.exists(ANDROID_EDGE_STRENGTH)) {
-                uint8_t edgeStrength = frame_settings.find(ANDROID_EDGE_STRENGTH).data.u8[0];
-                edge_application.sharpness = (int32_t)edgeStrength;
-            } else {
-                edge_application.sharpness = gCamCapability[mCameraId]->sharpness_ctrl.def_value; //default
-            }
+            edge_application.sharpness = gCamCapability[mCameraId]->sharpness_ctrl.def_value; //default
         }
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_EDGE_MODE, edge_application)) {
             rc = BAD_VALUE;
@@ -7490,7 +8277,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
             // To check: CAM_INTF_META_FLASH_MODE usage
             if (NAME_NOT_FOUND != val) {
                 uint8_t flashMode = (uint8_t)val;
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_LED_MODE, flashMode)) {
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_LED_MODE, flashMode)) {
                     rc = BAD_VALUE;
                 }
             }
@@ -7499,7 +8286,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_FLASH_FIRING_POWER)) {
         uint8_t flashPower = frame_settings.find(ANDROID_FLASH_FIRING_POWER).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_FLASH_POWER, flashPower)) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_FLASH_POWER, flashPower)) {
             rc = BAD_VALUE;
         }
     }
@@ -7522,7 +8309,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_LENS_APERTURE)) {
         float lensAperture = frame_settings.find( ANDROID_LENS_APERTURE).data.f[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_LENS_APERTURE,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_APERTURE,
                 lensAperture)) {
             rc = BAD_VALUE;
         }
@@ -7530,7 +8317,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_LENS_FILTER_DENSITY)) {
         float filterDensity = frame_settings.find(ANDROID_LENS_FILTER_DENSITY).data.f[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_LENS_FILTERDENSITY,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_FILTERDENSITY,
                 filterDensity)) {
             rc = BAD_VALUE;
         }
@@ -7538,7 +8325,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_LENS_FOCAL_LENGTH)) {
         float focalLength = frame_settings.find(ANDROID_LENS_FOCAL_LENGTH).data.f[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_LENS_FOCAL_LENGTH, focalLength)) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_FOCAL_LENGTH, focalLength)) {
             rc = BAD_VALUE;
         }
     }
@@ -7546,24 +8333,24 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_LENS_OPTICAL_STABILIZATION_MODE)) {
         uint8_t optStabMode =
                 frame_settings.find(ANDROID_LENS_OPTICAL_STABILIZATION_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_LENS_OPT_STAB_MODE, optStabMode)) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_OPT_STAB_MODE, optStabMode)) {
             rc = BAD_VALUE;
         }
     }
 
     if (frame_settings.exists(ANDROID_NOISE_REDUCTION_MODE)) {
         uint8_t noiseRedMode = frame_settings.find(ANDROID_NOISE_REDUCTION_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_NOISE_REDUCTION_MODE,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_NOISE_REDUCTION_MODE,
                 noiseRedMode)) {
             rc = BAD_VALUE;
         }
     }
 
-    if (frame_settings.exists(ANDROID_NOISE_REDUCTION_STRENGTH)) {
-        uint8_t noiseRedStrength =
-                frame_settings.find(ANDROID_NOISE_REDUCTION_STRENGTH).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_NOISE_REDUCTION_STRENGTH,
-                noiseRedStrength)) {
+    if (frame_settings.exists(ANDROID_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR)) {
+        float reprocessEffectiveExposureFactor =
+            frame_settings.find(ANDROID_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR).data.f[0];
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,
+                reprocessEffectiveExposureFactor)) {
             rc = BAD_VALUE;
         }
     }
@@ -7626,28 +8413,21 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_SHADING_MODE)) {
         uint8_t shadingMode = frame_settings.find(ANDROID_SHADING_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_SHADING_MODE, shadingMode)) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SHADING_MODE, shadingMode)) {
             rc = BAD_VALUE;
         }
     }
-
-    if (frame_settings.exists(ANDROID_SHADING_STRENGTH)) {
-        uint8_t shadingStrength = frame_settings.find(ANDROID_SHADING_STRENGTH).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_SHADING_STRENGTH,
-                shadingStrength)) {
-            rc = BAD_VALUE;
-        }
-    }
-
 
     if (frame_settings.exists(ANDROID_STATISTICS_FACE_DETECT_MODE)) {
         uint8_t fwk_facedetectMode =
                 frame_settings.find(ANDROID_STATISTICS_FACE_DETECT_MODE).data.u8[0];
+
         int val = lookupHalName(FACEDETECT_MODES_MAP, METADATA_MAP_SIZE(FACEDETECT_MODES_MAP),
                 fwk_facedetectMode);
+
         if (NAME_NOT_FOUND != val) {
             uint8_t facedetectMode = (uint8_t)val;
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STATS_FACEDETECT_MODE,
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_STATS_FACEDETECT_MODE,
                     facedetectMode)) {
                 rc = BAD_VALUE;
             }
@@ -7657,7 +8437,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_STATISTICS_HISTOGRAM_MODE)) {
         uint8_t histogramMode =
                 frame_settings.find(ANDROID_STATISTICS_HISTOGRAM_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STATS_HISTOGRAM_MODE,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_STATS_HISTOGRAM_MODE,
                 histogramMode)) {
             rc = BAD_VALUE;
         }
@@ -7666,7 +8446,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_STATISTICS_SHARPNESS_MAP_MODE)) {
         uint8_t sharpnessMapMode =
                 frame_settings.find(ANDROID_STATISTICS_SHARPNESS_MAP_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STATS_SHARPNESS_MAP_MODE,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_STATS_SHARPNESS_MAP_MODE,
                 sharpnessMapMode)) {
             rc = BAD_VALUE;
         }
@@ -7675,7 +8455,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_TONEMAP_MODE)) {
         uint8_t tonemapMode =
                 frame_settings.find(ANDROID_TONEMAP_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_TONEMAP_MODE, tonemapMode)) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_TONEMAP_MODE, tonemapMode)) {
             rc = BAD_VALUE;
         }
     }
@@ -7737,7 +8517,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_CONTROL_CAPTURE_INTENT)) {
         uint8_t captureIntent = frame_settings.find(ANDROID_CONTROL_CAPTURE_INTENT).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_CAPTURE_INTENT,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_CAPTURE_INTENT,
                 captureIntent)) {
             rc = BAD_VALUE;
         }
@@ -7745,7 +8525,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_BLACK_LEVEL_LOCK)) {
         uint8_t blackLevelLock = frame_settings.find(ANDROID_BLACK_LEVEL_LOCK).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_BLACK_LEVEL_LOCK,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_BLACK_LEVEL_LOCK,
                 blackLevelLock)) {
             rc = BAD_VALUE;
         }
@@ -7754,7 +8534,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_STATISTICS_LENS_SHADING_MAP_MODE)) {
         uint8_t lensShadingMapMode =
                 frame_settings.find(ANDROID_STATISTICS_LENS_SHADING_MAP_MODE).data.u8[0];
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_LENS_SHADING_MAP_MODE,
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_SHADING_MAP_MODE,
                 lensShadingMapMode)) {
             rc = BAD_VALUE;
         }
@@ -7794,13 +8574,15 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    // CDS
-    if (frame_settings.exists(QCAMERA3_CDS_MODE)) {
-        int32_t *cds = frame_settings.find(QCAMERA3_CDS_MODE).data.i32;
-        if ((CAM_CDS_MODE_MAX <= (*cds)) || (0 > (*cds))) {
-            ALOGE("%s: Invalid CDS mode %d!", __func__, *cds);
+    // CDS for non-HFR non-video mode
+    if ((mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) &&
+            !(m_bIsVideo) && frame_settings.exists(QCAMERA3_CDS_MODE)) {
+        int32_t *fwk_cds = frame_settings.find(QCAMERA3_CDS_MODE).data.i32;
+        if ((CAM_CDS_MODE_MAX <= *fwk_cds) || (0 > *fwk_cds)) {
+            ALOGE("%s: Invalid CDS mode %d!", __func__, *fwk_cds);
         } else {
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_CDS_MODE, *cds)) {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                    CAM_INTF_PARM_CDS_MODE, *fwk_cds)) {
                 rc = BAD_VALUE;
             }
         }
@@ -7809,12 +8591,13 @@ int QCamera3HardwareInterface::translateToHalMetadata
     // TNR
     if (frame_settings.exists(QCAMERA3_TEMPORAL_DENOISE_ENABLE) &&
         frame_settings.exists(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE)) {
+        uint8_t b_TnrRequested = 0;
         cam_denoise_param_t tnr;
         tnr.denoise_enable = frame_settings.find(QCAMERA3_TEMPORAL_DENOISE_ENABLE).data.u8[0];
         tnr.process_plates =
             (cam_denoise_process_type_t)frame_settings.find(
             QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE).data.i32[0];
-
+        b_TnrRequested = tnr.denoise_enable;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_TEMPORAL_DENOISE, tnr)) {
             rc = BAD_VALUE;
         }
@@ -7950,10 +8733,29 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
+    if (frame_settings.exists(QCAMERA3_USE_AV_TIMER)) {
+        uint8_t* use_av_timer =
+                frame_settings.find(QCAMERA3_USE_AV_TIMER).data.u8;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_USE_AV_TIMER, *use_av_timer)) {
+            rc = BAD_VALUE;
+        }
+    }
+
     // EV step
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_EV_STEP,
             gCamCapability[mCameraId]->exp_compensation_step)) {
         rc = BAD_VALUE;
+    }
+
+    // CDS info
+    if (frame_settings.exists(QCAMERA3_CDS_INFO)) {
+        cam_cds_data_t *cdsData = (cam_cds_data_t *)
+                frame_settings.find(QCAMERA3_CDS_INFO).data.u8;
+
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                CAM_INTF_META_CDS_DATA, *cdsData)) {
+            rc = BAD_VALUE;
+        }
     }
 
     return rc;
@@ -8181,6 +8983,7 @@ int QCamera3HardwareInterface::close_camera_device(struct hw_device_t* device)
         ALOGE("NULL camera device");
         return BAD_VALUE;
     }
+
     ALOGI("[KPI Perf] %s: E camera id %d",__func__, hw->mCameraId);
     delete hw;
     ALOGI("[KPI Perf] %s: X",__func__);
@@ -8263,85 +9066,36 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
         const CameraMetadata &frame_settings, uint8_t metaMode,
         metadata_buffer_t *hal_metadata)
 {
-    int32_t sceneMode, hfrMode;
     int32_t rc = NO_ERROR;
 
     if (metaMode == ANDROID_CONTROL_MODE_USE_SCENE_MODE) {
-        camera_metadata_ro_entry entry = frame_settings.find(ANDROID_CONTROL_SCENE_MODE);
+        camera_metadata_ro_entry entry =
+                frame_settings.find(ANDROID_CONTROL_SCENE_MODE);
         if (0 == entry.count)
             return rc;
 
         uint8_t fwk_sceneMode = entry.data.u8[0];
 
-        if (fwk_sceneMode != ANDROID_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO) {
-            sceneMode = lookupHalName(SCENE_MODES_MAP,
-                    sizeof(SCENE_MODES_MAP)/sizeof(SCENE_MODES_MAP[0]),
-                    fwk_sceneMode);
-            hfrMode = CAM_HFR_MODE_OFF;
-        } else {
-            if (!frame_settings.exists(ANDROID_CONTROL_AE_TARGET_FPS_RANGE)) {
-                CDBG("%s: No valid TARGET_FPS_RANGE in setting.", __func__);
-                return rc;
-            }
-            int32_t min_fps =
-                frame_settings.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[0];
-            int32_t max_fps =
-                frame_settings.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
-            if (min_fps != max_fps) {
-                ALOGE("%s: for HIGH_SPEED_VIDEO, min_fps and max_fps should be same",
-                        __func__);
-                return BAD_VALUE;
-            }
-            switch (max_fps) {
-            case 60:
-                hfrMode = CAM_HFR_MODE_60FPS;
-                break;
-            case 90:
-                hfrMode = CAM_HFR_MODE_90FPS;
-                break;
-            case 120:
-                hfrMode = CAM_HFR_MODE_120FPS;
-                break;
-            case 150:
-                hfrMode = CAM_HFR_MODE_150FPS;
-                break;
-            case 180:
-                hfrMode = CAM_HFR_MODE_180FPS;
-                break;
-            case 210:
-                hfrMode = CAM_HFR_MODE_210FPS;
-                break;
-            case 240:
-                hfrMode = CAM_HFR_MODE_240FPS;
-                break;
-            case 480:
-                hfrMode = CAM_HFR_MODE_480FPS;
-                break;
-            default:
-                hfrMode = CAM_HFR_MODE_OFF;
-                break;
-            }
-            sceneMode = CAM_SCENE_MODE_OFF;
-            if (max_fps >= MIN_FPS_FOR_BATCH_MODE) {
-                mHFRVideoFps = max_fps;
-                mBatchSize = mHFRVideoFps / PREVIEW_FPS_FOR_HFR;
+        int val = lookupHalName(SCENE_MODES_MAP,
+                sizeof(SCENE_MODES_MAP)/sizeof(SCENE_MODES_MAP[0]),
+                fwk_sceneMode);
+        if (NAME_NOT_FOUND != val) {
+            uint8_t sceneMode = (uint8_t)val;
+            CDBG("%s: sceneMode: %d", __func__, sceneMode);
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                    CAM_INTF_PARM_BESTSHOT_MODE, sceneMode)) {
+                rc = BAD_VALUE;
             }
         }
-    } else {
-       sceneMode = CAM_SCENE_MODE_OFF;
-       hfrMode = CAM_HFR_MODE_OFF;
+    } else if ((ANDROID_CONTROL_MODE_OFF == metaMode) ||
+            (ANDROID_CONTROL_MODE_AUTO == metaMode)) {
+        uint8_t sceneMode = CAM_SCENE_MODE_OFF;
+        CDBG("%s: sceneMode: %d", __func__, sceneMode);
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                CAM_INTF_PARM_BESTSHOT_MODE, sceneMode)) {
+            rc = BAD_VALUE;
+        }
     }
-
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR,
-            hfrMode)) {
-        rc = BAD_VALUE;
-    }
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_BESTSHOT_MODE,
-            sceneMode)) {
-        rc = BAD_VALUE;
-    }
-    CDBG("%s: sceneMode: %d hfrMode: %d", __func__, sceneMode, hfrMode);
-
     return rc;
 }
 
@@ -8420,19 +9174,19 @@ bool QCamera3HardwareInterface::needJpegRotation()
  *
  * PARAMETERS :
  *   @config  : reprocess configuration
+ *   @inputChHandle : pointer to the input (source) channel
  *
  *
  * RETURN     : Ptr to the newly created channel obj. NULL if failed.
  *==========================================================================*/
 QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
-        const reprocess_config_t &config, QCamera3PicChannel *picChHandle,
-        metadata_buffer_t *metadata)
+        const reprocess_config_t &config, QCamera3ProcessingChannel *inputChHandle)
 {
     int32_t rc = NO_ERROR;
     QCamera3ReprocessChannel *pChannel = NULL;
 
     pChannel = new QCamera3ReprocessChannel(mCameraHandle->camera_handle,
-            mCameraHandle->ops, NULL, config.padding, CAM_QCOM_FEATURE_NONE, this, picChHandle);
+            mCameraHandle->ops, NULL, config.padding, CAM_QCOM_FEATURE_NONE, this, inputChHandle);
     if (NULL == pChannel) {
         ALOGE("%s: no mem for reprocess channel", __func__);
         return NULL;
@@ -8560,38 +9314,455 @@ void QCamera3HardwareInterface::getLogLevel()
 }
 
 /*===========================================================================
-* FUNCTION   : setBatchMetaStreamID
+ * FUNCTION   : validateStreamRotations
+ *
+ * DESCRIPTION: Check if the rotations requested are supported
+ *
+ * PARAMETERS :
+ *   @stream_list : streams to be configured
+ *
+ * RETURN     : NO_ERROR on success
+ *              -EINVAL on failure
+ *
+ *==========================================================================*/
+int QCamera3HardwareInterface::validateStreamRotations(
+        camera3_stream_configuration_t *streamList)
+{
+    int rc = NO_ERROR;
+
+    /*
+    * Loop through all streams requested in configuration
+    * Check if unsupported rotations have been requested on any of them
+    */
+    for (size_t j = 0; j < streamList->num_streams; j++){
+        camera3_stream_t *newStream = streamList->streams[j];
+
+        bool isRotated = (newStream->rotation != CAMERA3_STREAM_ROTATION_0);
+        bool isImplDef = (newStream->format ==
+                HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED);
+        bool isZsl = (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL &&
+                isImplDef);
+
+        if (isRotated && (!isImplDef || isZsl)) {
+            ALOGE("%s: Error: Unsupported rotation of %d requested for stream"
+                    "type:%d and stream format:%d", __func__,
+                    newStream->rotation, newStream->stream_type,
+                    newStream->format);
+            rc = -EINVAL;
+            break;
+        }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+* FUNCTION   : getFlashInfo
 *
-* DESCRIPTION: Updates batchmetaStreamID structure with given per-frame streamID
-*              structure
+* DESCRIPTION: Retrieve information about whether the device has a flash.
 *
 * PARAMETERS :
-*   @streamID: Per-frame streamID
+*   @cameraId  : Camera id to query
+*   @hasFlash  : Boolean indicating whether there is a flash device
+*                associated with given camera
+*   @flashNode : If a flash device exists, this will be its device node.
 *
 * RETURN     :
-*              NO_ERROR  -- success
-*              none-zero failure code
+*   None
 *==========================================================================*/
-int32_t QCamera3HardwareInterface::setBatchMetaStreamID(
-        cam_stream_ID_t &streamID)
+void QCamera3HardwareInterface::getFlashInfo(const int cameraId,
+        bool& hasFlash,
+        char (&flashNode)[QCAMERA_MAX_FILEPATH_LENGTH])
+{
+    cam_capability_t* camCapability = gCamCapability[cameraId];
+    if (NULL == camCapability) {
+        hasFlash = false;
+        flashNode[0] = '\0';
+    } else {
+        hasFlash = camCapability->flash_available;
+        strlcpy(flashNode,
+                (char*)camCapability->flash_dev_name,
+                QCAMERA_MAX_FILEPATH_LENGTH);
+    }
+}
+
+/*===========================================================================
+* FUNCTION   : getEepromVersionInfo
+*
+* DESCRIPTION: Retrieve version info of the sensor EEPROM data
+*
+* PARAMETERS : None
+*
+* RETURN     : string describing EEPROM version
+*              "\0" if no such info available
+*==========================================================================*/
+const char *QCamera3HardwareInterface::getEepromVersionInfo()
+{
+    return (const char *)&gCamCapability[mCameraId]->eeprom_version_info[0];
+}
+
+/*===========================================================================
+* FUNCTION   : getLdafCalib
+*
+* DESCRIPTION: Retrieve Laser AF calibration data
+*
+* PARAMETERS : None
+*
+* RETURN     : Two uint32_t describing laser AF calibration data
+*              NULL if none is available.
+*==========================================================================*/
+const uint32_t *QCamera3HardwareInterface::getLdafCalib()
+{
+    if (mLdafCalibExist) {
+        return &mLdafCalib[0];
+    } else {
+        return NULL;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : dynamicUpdateMetaStreamInfo
+ *
+ * DESCRIPTION: This function:
+ *             (1) stops all the channels
+ *             (2) returns error on pending requests and buffers
+ *             (3) sends metastream_info in setparams
+ *             (4) starts all channels
+ *             This is useful when sensor has to be restarted to apply any
+ *             settings such as frame rate from a different sensor mode
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : NO_ERROR on success
+ *              Error codes on failure
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::dynamicUpdateMetaStreamInfo()
+{
+    ATRACE_CALL();
+    int rc = NO_ERROR;
+
+    CDBG("%s: E", __func__);
+
+    rc = stopAllChannels();
+    if (rc < 0) {
+        ALOGE("%s: stopAllChannels failed", __func__);
+        return rc;
+    }
+
+    rc = notifyErrorForPendingRequests();
+    if (rc < 0) {
+        ALOGE("%s: notifyErrorForPendingRequests failed", __func__);
+        return rc;
+    }
+
+    /* Send meta stream info once again so that ISP can start */
+    ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+            CAM_INTF_META_STREAM_INFO, mStreamConfigInfo);
+    CDBG("%s: set_parms META_STREAM_INFO with new settings ", __func__ );
+    rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
+            mParameters);
+    if (rc < 0) {
+        ALOGE("%s: set Metastreaminfo failed. Sensor mode does not change",
+                __func__);
+    }
+
+    rc = startAllChannels();
+    if (rc < 0) {
+        ALOGE("%s: startAllChannels failed", __func__);
+        return rc;
+    }
+
+    CDBG("%s:%d X", __func__, __LINE__);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : stopAllChannels
+ *
+ * DESCRIPTION: This function stops (equivalent to stream-off) all channels
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : NO_ERROR on success
+ *              Error codes on failure
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::stopAllChannels()
 {
     int32_t rc = NO_ERROR;
 
-    for(size_t i = 0; i < streamID.num_streams; i++) {
-        bool streamIdPresent = false;
-        for(size_t j = 0; j < mBatchStreamID.num_streams; j++) {
-            if (mBatchStreamID.streamID[j] == streamID.streamID[i]) {
-                streamIdPresent = true;
-            }
+    // Stop the Streams/Channels
+    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+        it != mStreamInfo.end(); it++) {
+        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
+        if (channel) {
+            channel->stop();
         }
-        /* If streamId is not already present in the batchStreamID, add the
-         * entry */
-        if (!streamIdPresent) {
-            mBatchStreamID.streamID[mBatchStreamID.num_streams++] =
-                    streamID.streamID[i];
+        (*it)->status = INVALID;
+    }
+
+    if (mSupportChannel) {
+        mSupportChannel->stop();
+    }
+    if (mAnalysisChannel) {
+        mAnalysisChannel->stop();
+    }
+    if (mRawDumpChannel) {
+        mRawDumpChannel->stop();
+    }
+    if (mMetadataChannel) {
+        /* If content of mStreamInfo is not 0, there is metadata stream */
+        mMetadataChannel->stop();
+    }
+
+    CDBG("%s:%d All channels stopped", __func__, __LINE__);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : startAllChannels
+ *
+ * DESCRIPTION: This function starts (equivalent to stream-on) all channels
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : NO_ERROR on success
+ *              Error codes on failure
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::startAllChannels()
+{
+    int32_t rc = NO_ERROR;
+
+    CDBG("%s: Start all channels ", __func__);
+    // Start the Streams/Channels
+    if (mMetadataChannel) {
+        /* If content of mStreamInfo is not 0, there is metadata stream */
+        rc = mMetadataChannel->start();
+        if (rc < 0) {
+            ALOGE("%s: META channel start failed", __func__);
+            return rc;
         }
     }
+    for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+        it != mStreamInfo.end(); it++) {
+        QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
+        if (channel) {
+            rc = channel->start();
+            if (rc < 0) {
+                ALOGE("%s: channel start failed", __func__);
+                return rc;
+            }
+        }
+    }
+    if (mAnalysisChannel) {
+        mAnalysisChannel->start();
+    }
+    if (mSupportChannel) {
+        rc = mSupportChannel->start();
+        if (rc < 0) {
+            ALOGE("%s: Support channel start failed", __func__);
+            return rc;
+        }
+    }
+    if (mRawDumpChannel) {
+        rc = mRawDumpChannel->start();
+        if (rc < 0) {
+            ALOGE("%s: RAW dump channel start failed", __func__);
+            return rc;
+        }
+    }
+
+    CDBG("%s:%d All channels started", __func__, __LINE__);
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : notifyErrorForPendingRequests
+ *
+ * DESCRIPTION: This function sends error for all the pending requests/buffers
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : Error codes
+ *              NO_ERROR on success
+ *
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::notifyErrorForPendingRequests()
+{
+    int32_t rc = NO_ERROR;
+    unsigned int frameNum = 0;
+    camera3_capture_result_t result;
+    camera3_stream_buffer_t *pStream_Buf = NULL;
+    FlushMap flushMap;
+
+    memset(&result, 0, sizeof(camera3_capture_result_t));
+
+    if (mPendingRequestsList.size() > 0) {
+        pendingRequestIterator i = mPendingRequestsList.begin();
+        frameNum = i->frame_number;
+    } else {
+        /* There might still be pending buffers even though there are
+         no pending requests. Setting the frameNum to MAX so that
+         all the buffers with smaller frame numbers are returned */
+        frameNum = UINT_MAX;
+    }
+
+    CDBG_HIGH("%s: Oldest frame num on  mPendingRequestsList = %d",
+      __func__, frameNum);
+
+    // Go through the pending buffers and group them depending
+    // on frame number
+    for (List<PendingBufferInfo>::iterator k =
+            mPendingBuffersMap.mPendingBufferList.begin();
+            k != mPendingBuffersMap.mPendingBufferList.end();) {
+
+        if (k->frame_number < frameNum) {
+            ssize_t idx = flushMap.indexOfKey(k->frame_number);
+            if (idx == NAME_NOT_FOUND) {
+                Vector<PendingBufferInfo> pending;
+                pending.add(*k);
+                flushMap.add(k->frame_number, pending);
+            } else {
+                Vector<PendingBufferInfo> &pending =
+                        flushMap.editValueFor(k->frame_number);
+                pending.add(*k);
+            }
+
+            mPendingBuffersMap.num_buffers--;
+            k = mPendingBuffersMap.mPendingBufferList.erase(k);
+        } else {
+            k++;
+        }
+    }
+
+    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
+        uint32_t frame_number = flushMap.keyAt(iFlush);
+        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
+
+        // Send Error notify to frameworks for each buffer for which
+        // metadata buffer is already sent
+        CDBG_HIGH("%s: Sending ERROR BUFFER for frame %d number of buffer %d",
+          __func__, frame_number, pending.size());
+
+        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
+        if (NULL == pStream_Buf) {
+            ALOGE("%s: No memory for pending buffers array", __func__);
+            return NO_MEMORY;
+        }
+        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
+
+        for (size_t j = 0; j < pending.size(); j++) {
+            const PendingBufferInfo &info = pending.itemAt(j);
+            camera3_notify_msg_t notify_msg;
+            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+            notify_msg.type = CAMERA3_MSG_ERROR;
+            notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER;
+            notify_msg.message.error.error_stream = info.stream;
+            notify_msg.message.error.frame_number = frame_number;
+            pStream_Buf[j].acquire_fence = -1;
+            pStream_Buf[j].release_fence = -1;
+            pStream_Buf[j].buffer = info.buffer;
+            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
+            pStream_Buf[j].stream = info.stream;
+            mCallbackOps->notify(mCallbackOps, &notify_msg);
+            CDBG_HIGH("%s: notify frame_number = %d stream %p", __func__,
+                    frame_number, info.stream);
+        }
+
+        result.result = NULL;
+        result.frame_number = frame_number;
+        result.num_output_buffers = (uint32_t)pending.size();
+        result.output_buffers = pStream_Buf;
+        mCallbackOps->process_capture_result(mCallbackOps, &result);
+
+        delete [] pStream_Buf;
+    }
+
+    CDBG_HIGH("%s:Sending ERROR REQUEST for all pending requests", __func__);
+
+    flushMap.clear();
+    for (List<PendingBufferInfo>::iterator k =
+            mPendingBuffersMap.mPendingBufferList.begin();
+            k != mPendingBuffersMap.mPendingBufferList.end();) {
+        ssize_t idx = flushMap.indexOfKey(k->frame_number);
+        if (idx == NAME_NOT_FOUND) {
+            Vector<PendingBufferInfo> pending;
+            pending.add(*k);
+            flushMap.add(k->frame_number, pending);
+        } else {
+            Vector<PendingBufferInfo> &pending =
+                    flushMap.editValueFor(k->frame_number);
+            pending.add(*k);
+        }
+
+        mPendingBuffersMap.num_buffers--;
+        k = mPendingBuffersMap.mPendingBufferList.erase(k);
+    }
+
+    pendingRequestIterator i = mPendingRequestsList.begin(); //make sure i is at the beginning
+
+    // Go through the pending requests info and send error request to framework
+    for (size_t iFlush = 0; iFlush < flushMap.size(); iFlush++) {
+        uint32_t frame_number = flushMap.keyAt(iFlush);
+        const Vector<PendingBufferInfo> &pending = flushMap.valueAt(iFlush);
+        CDBG_HIGH("%s:Sending ERROR REQUEST for frame %d",
+              __func__, frame_number);
+
+        // Send shutter notify to frameworks
+        camera3_notify_msg_t notify_msg;
+        memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+        notify_msg.type = CAMERA3_MSG_ERROR;
+        notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_REQUEST;
+        notify_msg.message.error.error_stream = NULL;
+        notify_msg.message.error.frame_number = frame_number;
+        mCallbackOps->notify(mCallbackOps, &notify_msg);
+
+        pStream_Buf = new camera3_stream_buffer_t[pending.size()];
+        if (NULL == pStream_Buf) {
+            ALOGE("%s: No memory for pending buffers array", __func__);
+            return NO_MEMORY;
+        }
+        memset(pStream_Buf, 0, sizeof(camera3_stream_buffer_t)*pending.size());
+
+        for (size_t j = 0; j < pending.size(); j++) {
+            const PendingBufferInfo &info = pending.itemAt(j);
+            pStream_Buf[j].acquire_fence = -1;
+            pStream_Buf[j].release_fence = -1;
+            pStream_Buf[j].buffer = info.buffer;
+            pStream_Buf[j].status = CAMERA3_BUFFER_STATUS_ERROR;
+            pStream_Buf[j].stream = info.stream;
+        }
+
+        result.input_buffer = i->input_buffer;
+        result.num_output_buffers = (uint32_t)pending.size();
+        result.output_buffers = pStream_Buf;
+        result.result = NULL;
+        result.frame_number = frame_number;
+        mCallbackOps->process_capture_result(mCallbackOps, &result);
+        delete [] pStream_Buf;
+        i = erasePendingRequest(i);
+    }
+
+    /* Reset pending frame Drop list and requests list */
+    mPendingFrameDropList.clear();
+
+    flushMap.clear();
+    mPendingBuffersMap.num_buffers = 0;
+    mPendingBuffersMap.mPendingBufferList.clear();
+    mPendingReprocessResultList.clear();
+    CDBG_HIGH("%s: Cleared all the pending buffers ", __func__);
+
+    return rc;
+}
+
+bool QCamera3HardwareInterface::isOnEncoder(
+        const cam_dimension_t max_viewfinder_size,
+        uint32_t width, uint32_t height)
+{
+    return (width > (uint32_t)max_viewfinder_size.width ||
+            height > (uint32_t)max_viewfinder_size.height);
 }
 
 }; //end namespace qcamera

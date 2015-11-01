@@ -31,7 +31,6 @@
 #define __QCAMERA2HARDWAREINTERFACE_H__
 
 #include <hardware/camera.h>
-#include <hardware/power.h>
 #include <utils/Log.h>
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
@@ -47,6 +46,7 @@
 #include "QCameraPostProc.h"
 #include "QCameraThermalAdapter.h"
 #include "QCameraMem.h"
+#include "QCameraPerf.h"
 
 #ifdef TARGET_TS_MAKEUP
 #include "ts_makeup_engine.h"
@@ -212,7 +212,6 @@ private:
     QCameraCmdThread mProcTh;
     bool             mActive;
 };
-
 class QCamera2HardwareInterface : public QCameraAllocator,
                                   public QCameraThermalCallback,
                                   public QCameraAdjustFPS,
@@ -536,6 +535,8 @@ private:
                                         void *userdata);
     static void snapshot_channel_cb_routine(mm_camera_super_buf_t *frame,
            void *userdata);
+    static void raw_channel_cb_routine(mm_camera_super_buf_t *frame,
+            void *userdata);
     static void raw_stream_cb_routine(mm_camera_super_buf_t *frame,
                                       QCameraStream *stream,
                                       void *userdata);
@@ -561,6 +562,9 @@ private:
                                    void *cookie,
                                    int32_t cbStatus);
     static void getLogLevel();
+
+    int32_t startRAWChannel(QCameraChannel *pChannel);
+    int32_t stopRAWChannel();
 
 private:
     camera_device_t   mCameraDevice;
@@ -590,6 +594,7 @@ private:
     QCameraPostProcessor m_postprocessor; // post processor
     QCameraThermalAdapter &m_thermalAdapter;
     QCameraCbNotifier m_cbNotifier;
+    QCameraPerfLock m_perfLock;
     pthread_mutex_t m_lock;
     pthread_cond_t m_cond;
     api_result_list *m_apiResultList;
@@ -611,8 +616,6 @@ private:
     // Signifies AEC locked during zsl snapshots
     bool m_bLedAfAecLock;
     cam_af_state_t m_currentFocusState;
-
-    power_module_t *m_pPowerModule;   // power module
 
     uint32_t mDumpFrmCnt;  // frame dump count
     uint32_t mDumpSkipCnt; // frame skip count

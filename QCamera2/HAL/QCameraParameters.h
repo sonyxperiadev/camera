@@ -46,6 +46,10 @@ static const char ExifUndefinedPrefix[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 
 #define CAMERA_MIN_BATCH_COUNT           4
 
+#define QCAMERA_MAX_EXP_TIME_LEVEL1      100
+#define QCAMERA_MAX_EXP_TIME_LEVEL2      500
+#define QCAMERA_MAX_EXP_TIME_LEVEL3      1000
+#define QCAMERA_MAX_EXP_TIME_LEVEL4      10000
 typedef cam_manual_capture_type QCameraManualCaptureModes;
 
 class QCameraTorchInterface
@@ -796,6 +800,7 @@ public:
     int32_t configureAEBracketing(cam_capture_frame_config_t &frame_config);
     int32_t configureHDRBracketing(cam_capture_frame_config_t &frame_config);
     int32_t configureLowLight(cam_capture_frame_config_t &frame_config);
+    int32_t configureManualCapture(cam_capture_frame_config_t &frame_config);
     int32_t configFrameCapture(bool commitSettings);
     int32_t resetFrameCapture(bool commitSettings);
     cam_still_more_t getStillMoreSettings() {return m_stillmore_config;};
@@ -806,6 +811,7 @@ public:
 
     int32_t getZoomLevel(){return mZoomLevel;};
     int32_t getParmZoomLevel(){return mParmZoomLevel;};
+    bool isMultiPassReprocessing();
     int8_t  getReprocCount(){return mTotalPPCount;};
     int8_t  getCurPPCount(){return mCurPPCount;};
     void    setReprocCount();
@@ -849,6 +855,8 @@ public:
     int32_t bundleRelatedCameras(bool sync, uint32_t sessionid);
     bool isFDInVideoEnabled();
     bool isOEMFeatEnabled() { return m_bOEMFeatEnabled; }
+    int32_t setZslMode(bool value);
+    int32_t updateZSLModeValue(bool value);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1160,9 +1168,10 @@ private:
     bool m_LLCaptureEnabled;
     cam_low_light_mode_t m_LowLightLevel;
     bool m_bLtmForSeeMoreEnabled;
-    QCameraManualCaptureModes m_ManualCaptureMode;
     int64_t m_expTime;
     bool m_bOEMFeatEnabled;
+    int32_t m_isoValue;
+    QCameraManualCaptureModes m_ManualCaptureMode;
 };
 
 }; // namespace qcamera

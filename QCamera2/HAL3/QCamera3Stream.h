@@ -34,6 +34,7 @@
 #include "utils/Mutex.h"
 #include "QCameraCmdThread.h"
 #include "QCamera3Mem.h"
+#include "QCamera3StreamMem.h"
 
 extern "C" {
 #include <mm_camera_interface.h>
@@ -60,6 +61,7 @@ public:
     virtual int32_t init(cam_stream_type_t streamType,
                          cam_format_t streamFormat,
                          cam_dimension_t streamDim,
+                         cam_rotation_t streamRotation,
                          cam_stream_reproc_config_t* reprocess_config,
                          uint8_t minStreamBufNum,
                          uint32_t postprocess_mask,
@@ -81,13 +83,14 @@ public:
     int32_t getFrameOffset(cam_frame_len_offset_t &offset);
     int32_t getFrameDimension(cam_dimension_t &dim);
     int32_t getFormat(cam_format_t &fmt);
-    QCamera3Memory *getStreamBufs() {return mStreamBufs;};
+    QCamera3StreamMem *getStreamBufs() {return mStreamBufs;};
     uint32_t getMyServerID();
 
     int32_t mapBuf(uint8_t buf_type, uint32_t buf_idx,
             int32_t plane_idx, int fd, size_t size);
     int32_t unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plane_idx);
     int32_t setParameter(cam_stream_parm_buffer_t &param);
+    cam_stream_info_t* getStreamInfo() const {return mStreamInfo; };
 
     static void releaseFrameData(void *data, void *user_data);
 
@@ -107,7 +110,7 @@ private:
     QCameraCmdThread mProcTh; // thread for dataCB
 
     QCamera3HeapMemory *mStreamInfoBuf;
-    QCamera3Memory *mStreamBufs;
+    QCamera3StreamMem *mStreamBufs;
     mm_camera_buf_def_t *mBufDefs;
     cam_frame_len_offset_t mFrameLenOffset;
     cam_padding_info_t mPaddingInfo;
@@ -156,6 +159,7 @@ private:
     int32_t handleBatchBuffer(mm_camera_super_buf_t *superBuf);
 
     static const char* mStreamNames[CAM_STREAM_TYPE_MAX];
+    void flushFreeBatchBufQ();
 };
 
 }; // namespace qcamera

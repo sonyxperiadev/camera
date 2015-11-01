@@ -30,6 +30,7 @@
 #ifndef __QCAMERA_INTF_H__
 #define __QCAMERA_INTF_H__
 
+#include <string.h>
 #include <media/msmb_isp.h>
 #include "cam_types.h"
 
@@ -229,8 +230,6 @@ typedef struct{
     uint8_t optical_stab_modes_count;
 
     cam_dimension_t lens_shading_map_size;
-    float lens_shading_map[3 * CAM_MAX_MAP_WIDTH *
-              CAM_MAX_MAP_HEIGHT];
 
     cam_dimension_t geo_correction_map_size;
     float geo_correction_map[2 * 3 * CAM_MAX_MAP_WIDTH *
@@ -836,8 +835,8 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_CONTRAST,                     int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_SATURATION,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_BRIGHTNESS,                   int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_ISO,                          int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_EXPOSURE_TIME,                uint64_t,                    1);
+    INCLUDE(CAM_INTF_PARM_ISO,                          cam_intf_parm_manual_3a_t,   1);
+    INCLUDE(CAM_INTF_PARM_EXPOSURE_TIME,                cam_intf_parm_manual_3a_t,   1);
     INCLUDE(CAM_INTF_PARM_ZOOM,                         int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ROLLOFF,                      int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_MODE,                         int32_t,                     1);
@@ -919,13 +918,14 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_CUSTOM,                       custom_parm_buffer_t,        1);
     INCLUDE(CAM_INTF_PARM_FLIP,                         int32_t,                     1);
     INCLUDE(CAM_INTF_META_USE_AV_TIMER,                 uint8_t,                     1);
+    INCLUDE(CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,    float,                       1);
     INCLUDE(CAM_INTF_META_LDAF_EXIF,                    uint32_t,                    2);
     INCLUDE(CAM_INTF_META_BLACK_LEVEL_SOURCE_PATTERN,   cam_black_level_metadata_t,  1);
     INCLUDE(CAM_INTF_META_BLACK_LEVEL_APPLIED_PATTERN,  cam_black_level_metadata_t,  1);
     INCLUDE(CAM_INTF_META_LOW_LIGHT,                    cam_low_light_mode_t,        1);
+    INCLUDE(CAM_INTF_META_IMG_DYN_FEAT,                 cam_dyn_img_data_t,          1);
     INCLUDE(CAM_INTF_PARM_MANUAL_CAPTURE_TYPE,          cam_manual_capture_type,     1);
     INCLUDE(CAM_INTF_AF_STATE_TRANSITION,               uint8_t,                     1);
-    INCLUDE(CAM_INTF_META_IMG_DYN_FEAT,                 cam_dyn_img_data_t,          1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
