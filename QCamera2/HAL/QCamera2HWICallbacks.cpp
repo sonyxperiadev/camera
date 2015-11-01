@@ -1943,8 +1943,32 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
     }
 
     IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, pMetaData) {
-        if ((pme->m_currentFocusState != (*afState)) ||
-                (pme->mActiveAF && (pme->m_currentFocusState != CAM_AF_STATE_ACTIVE_SCAN))) {
+        uint8_t forceAFUpdate = FALSE;
+        //1. Earlier HAL used to rely on AF done flags set in metadata to generate callbacks to
+        //upper layers. But in scenarios where metadata drops especially which contain important
+        //AF information, APP will wait indefinitely for focus result resulting in capture hang.
+        //2. HAL can check for AF state transitions to generate AF state callbacks to upper layers.
+        //This will help overcome metadata drop issue with the earlier approach.
+        //3. But sometimes AF state transitions can happen so fast within same metadata due to
+        //which HAL will receive only the final AF state. HAL may perceive this as no change in AF
+        //state depending on the state transitions happened (for example state A -> B -> A).
+        //4. To overcome the drawbacks of both the approaches, we go for a hybrid model in which
+        //we check state transition at both HAL level and AF module level. We rely on
+        //'state transition' meta field set by AF module for the state transition detected by it.
+        IF_META_AVAILABLE(uint8_t, stateChange, CAM_INTF_AF_STATE_TRANSITION, pMetaData) {
+            forceAFUpdate = *stateChange;
+        }
+        //This is a special scenario in which when scene modes like landscape are selected, AF mode
+        //gets changed to INFINITY at backend, but HAL will not be aware of it. Also, AF state in
+        //such cases will be set to CAM_AF_STATE_INACTIVE by backend. So, detect the AF mode
+        //change here and trigger AF callback @ processAutoFocusEvent().
+        IF_META_AVAILABLE(uint32_t, afFocusMode, CAM_INTF_PARM_FOCUS_MODE, pMetaData) {
+            if (((cam_focus_mode_type)(*afFocusMode) == CAM_FOCUS_MODE_INFINITY) &&
+                    pme->mActiveAF){
+                forceAFUpdate = TRUE;
+            }
+        }
+        if ((pme->m_currentFocusState != (*afState)) || forceAFUpdate) {
             pme->m_currentFocusState = (cam_af_state_t)(*afState);
             qcamera_sm_internal_evt_payload_t *payload = (qcamera_sm_internal_evt_payload_t *)
                     malloc(sizeof(qcamera_sm_internal_evt_payload_t));
