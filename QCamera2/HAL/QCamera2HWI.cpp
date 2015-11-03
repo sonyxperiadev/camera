@@ -1456,14 +1456,15 @@ int QCamera2HardwareInterface::openCamera()
 
         mMetadataAllocJob = queueDeferredWork(CMD_DEF_METADATA_ALLOC, args);
         if (mMetadataAllocJob == 0) {
-            ALOGE("%s: Failed to allocate param buffer", __func__);
+            ALOGE("%s: Failed to allocate metadata buffer", __func__);
             rc = -ENOMEM;
             goto error_exit1;
         }
 
         rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
         if (rc) {
-            ALOGE("camera_open failed. rc = %d, mCameraHandle = %p", rc, mCameraHandle);
+            ALOGE("%s: camera_open failed. rc = %d, mCameraHandle = %p",
+                    __func__, rc, mCameraHandle);
             goto error_exit2;
         }
 
@@ -1471,16 +1472,17 @@ int QCamera2HardwareInterface::openCamera()
                 camEvtHandle,
                 (void *) this);
     } else {
-        CDBG_HIGH("%s: Capabilities are not initialized. Initializing them now.", __func__);
+        CDBG_HIGH("%s: Capabilities not inited, initializing now.", __func__);
 
         rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
         if (rc) {
-            ALOGE("camera_open failed. rc = %d, mCameraHandle = %p", rc, mCameraHandle);
+            ALOGE("%s camera_open failed. rc = %d, mCameraHandle = %p",
+                    __func__, rc, mCameraHandle);
             goto error_exit2;
         }
 
         if(NO_ERROR != initCapabilities(mCameraId,mCameraHandle)) {
-            ALOGE("initCapabilities failed.");
+            ALOGE("%s: initCapabilities failed.", __func__);
             rc = UNKNOWN_ERROR;
             goto error_exit3;
         }
@@ -8732,6 +8734,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
 
         // we got notified about new cmd avail in cmd queue
         camera_cmd_type_t cmd = cmdThread->getCmd();
+        CDBG("%s cmd: %d", __func__, cmd);
         switch (cmd) {
         case CAMERA_CMD_TYPE_START_DATA_PROC:
             CDBG_HIGH("%s: start data proc", __func__);
@@ -8794,6 +8797,14 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                     break;
                 case CMD_DEF_PPROC_START:
                     {
+                        int32_t ret = pme->getDefJobStatus(pme->mInitPProcJob);
+                        if (ret != NO_ERROR) {
+                            job_status = ret;
+                            ALOGE("%s: PPROC Start failed", __func__);
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
+                            break;
+                        }
                         QCameraChannel * pChannel = dw->args.pprocArgs;
                         assert(pChannel);
 
@@ -8807,6 +8818,14 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                     break;
                 case CMD_DEF_METADATA_ALLOC:
                     {
+                        int32_t ret = pme->getDefJobStatus(pme->mParamAllocJob);
+                        if (ret != NO_ERROR) {
+                            job_status = ret;
+                            ALOGE("%s: Metadata alloc failed", __func__);
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
+                            break;
+                        }
                         pme->mMetadataMem = new QCameraMetadataStreamMemory(
                                 QCAMERA_ION_USE_CACHE);
 
@@ -8934,12 +8953,27 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                     break;
                 case CMD_DEF_PARAM_ALLOC:
                     {
-                        pme->mParameters.allocate();
+                        int32_t rc = pme->mParameters.allocate();
+                        // notify routine would not be initialized by this time.
+                        // So, just update error job status
+                        if (rc != NO_ERROR) {
+                            job_status = rc;
+                            ALOGE("%s: Param allocation failed", __func__);
+                            break;
+                        }
                     }
                     break;
                 case CMD_DEF_PARAM_INIT:
                     {
-                        int32_t rc = NO_ERROR;
+                        int32_t rc = pme->getDefJobStatus(pme->mParamAllocJob);
+                        if (rc != NO_ERROR) {
+                            job_status = rc;
+                            ALOGE("%s: Param init failed", __func__);
+                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                    CAMERA_ERROR_UNKNOWN, 0);
+                            break;
+                        }
+
                         uint32_t camId = pme->mCameraId;
                         cam_capability_t * cap = gCamCapability[camId];
 
@@ -9229,6 +9263,8 @@ uint32_t QCamera2HardwareInterface::dequeueDeferredWork(DefWork* dw, int32_t job
         if (mDefOngoingJobs[i].mDefJobId == dw->id) {
             if (jobStatus != NO_ERROR) {
                 mDefOngoingJobs[i].mDefJobStatus = jobStatus;
+                CDBG_HIGH("%s: updating job status %d for id %d",
+                        __func__, jobStatus, dw->id);
             } else {
                 mDefOngoingJobs[i].mDefJobId = 0;
                 mDefOngoingJobs[i].mDefJobStatus = 0;
