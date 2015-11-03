@@ -57,12 +57,12 @@ class QCamera3Channel
 {
 public:
     QCamera3Channel(uint32_t cam_handle,
+                   uint32_t channel_handle,
                    mm_camera_ops_t *cam_ops,
                    channel_cb_routine cb_routine,
                    cam_padding_info_t *paddingInfo,
                    uint32_t postprocess_mask,
                    void *userData, uint32_t numBuffers);
-    QCamera3Channel();
     virtual ~QCamera3Channel();
 
     virtual int32_t start();
@@ -71,6 +71,7 @@ public:
     virtual int32_t queueBatchBuf();
     virtual int32_t setPerFrameMapUnmap(bool enable);
     int32_t bufDone(mm_camera_super_buf_t *recvd_frame);
+    int32_t setBundleInfo(const cam_bundle_config_t &bundleInfo);
 
     virtual uint32_t getStreamTypeMask();
     uint32_t getStreamID(uint32_t streamMask);
@@ -109,8 +110,6 @@ public:
     uint32_t m_numStreams;
 protected:
 
-    virtual int32_t init(mm_camera_channel_attr_t *attr,
-                         mm_camera_buf_notify_t dataCB);
     int32_t addStream(cam_stream_type_t streamType,
                       cam_format_t streamFormat,
                       cam_dimension_t streamDim,
@@ -153,6 +152,7 @@ class QCamera3ProcessingChannel : public QCamera3Channel
 {
 public:
    QCamera3ProcessingChannel(uint32_t cam_handle,
+           uint32_t channel_handle,
            mm_camera_ops_t *cam_ops,
            channel_cb_routine cb_routine,
            cam_padding_info_t *paddingInfo,
@@ -246,6 +246,7 @@ class QCamera3RegularChannel : public QCamera3ProcessingChannel
 {
 public:
     QCamera3RegularChannel(uint32_t cam_handle,
+                    uint32_t channel_handle,
                     mm_camera_ops_t *cam_ops,
                     channel_cb_routine cb_routine,
                     cam_padding_info_t *paddingInfo,
@@ -258,7 +259,6 @@ public:
 
     virtual ~QCamera3RegularChannel();
 
-    virtual int32_t start();
     virtual int32_t setBatchSize(uint32_t batchSize);
     virtual uint32_t getStreamTypeMask();
     virtual int32_t queueBatchBuf();
@@ -278,6 +278,7 @@ class QCamera3MetadataChannel : public QCamera3Channel
 {
 public:
     QCamera3MetadataChannel(uint32_t cam_handle,
+                    uint32_t channel_handle,
                     mm_camera_ops_t *cam_ops,
                     channel_cb_routine cb_routine,
                     cam_padding_info_t *paddingInfo,
@@ -307,6 +308,7 @@ class QCamera3RawChannel : public QCamera3RegularChannel
 {
 public:
     QCamera3RawChannel(uint32_t cam_handle,
+                    uint32_t channel_handle,
                     mm_camera_ops_t *cam_ops,
                     channel_cb_routine cb_routine,
                     cam_padding_info_t *paddingInfo,
@@ -343,6 +345,7 @@ class QCamera3RawDumpChannel : public QCamera3Channel
 {
 public:
     QCamera3RawDumpChannel(uint32_t cam_handle,
+                    uint32_t channel_handle,
                     mm_camera_ops_t *cam_ops,
                     cam_dimension_t rawDumpSize,
                     cam_padding_info_t *paddingInfo,
@@ -374,6 +377,7 @@ class QCamera3YUVChannel : public QCamera3ProcessingChannel
 {
 public:
     QCamera3YUVChannel(uint32_t cam_handle,
+            uint32_t channel_handle,
             mm_camera_ops_t *cam_ops,
             channel_cb_routine cb_routine,
             cam_padding_info_t *paddingInfo,
@@ -389,7 +393,6 @@ public:
             camera3_stream_buffer_t* pInputBuffer,
             metadata_buffer_t* metadata, bool &needMetadata);
     virtual reprocess_type_t getReprocessType();
-    virtual int32_t start();
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
     virtual void reprocessCbRoutine(buffer_handle_t *resultBuffer,
@@ -432,6 +435,7 @@ class QCamera3PicChannel : public QCamera3ProcessingChannel
 {
 public:
     QCamera3PicChannel(uint32_t cam_handle,
+            uint32_t channel_handle,
             mm_camera_ops_t *cam_ops,
             channel_cb_routine cb_routine,
             cam_padding_info_t *paddingInfo,
@@ -490,6 +494,7 @@ class QCamera3ReprocessChannel : public QCamera3Channel
 {
 public:
     QCamera3ReprocessChannel(uint32_t cam_handle,
+                            uint32_t channel_handle,
                             mm_camera_ops_t *cam_ops,
                             channel_cb_routine cb_routine,
                             cam_padding_info_t *paddingInfo,
@@ -498,6 +503,8 @@ public:
     QCamera3ReprocessChannel();
     virtual ~QCamera3ReprocessChannel();
     // offline reprocess
+    virtual int32_t start();
+    virtual int32_t stop();
     int32_t doReprocessOffline(qcamera_fwk_input_pp_data_t *frame);
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val,
                         mm_camera_super_buf_t *meta_buf);
@@ -510,7 +517,6 @@ public:
     virtual void putStreamBufs();
     virtual int32_t initialize(cam_is_type_t isType);
     int32_t unmapOfflineBuffers(bool all);
-    virtual int32_t stop();
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream);
     static void dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
@@ -551,6 +557,7 @@ class QCamera3SupportChannel : public QCamera3Channel
 {
 public:
     QCamera3SupportChannel(uint32_t cam_handle,
+                    uint32_t channel_handle,
                     mm_camera_ops_t *cam_ops,
                     cam_padding_info_t *paddingInfo,
                     uint32_t postprocess_mask,
