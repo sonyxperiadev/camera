@@ -599,7 +599,8 @@ int32_t mm_camera_query_capability(mm_camera_obj_t *my_obj)
     memset(&cap, 0, sizeof(cap));
     rc = ioctl(my_obj->ctrl_fd, VIDIOC_QUERYCAP, &cap);
     if (rc != 0) {
-        CDBG_ERROR("%s: cannot get camera capabilities, rc = %d\n", __func__, rc);
+        CDBG_ERROR("%s: cannot get camera capabilities, rc = %d, errno %d",
+                __func__, rc, errno);
     }
 
     pthread_mutex_unlock(&my_obj->cam_lock);
@@ -1694,7 +1695,8 @@ int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
         /* unsubscribe */
         rc = ioctl(my_obj->ctrl_fd, VIDIOC_UNSUBSCRIBE_EVENT, &sub);
         if (rc < 0) {
-            CDBG_ERROR("%s: unsubscribe event rc = %d", __func__, rc);
+            CDBG_ERROR("%s: unsubscribe event rc = %d, errno %d",
+                    __func__, rc, errno);
             return rc;
         }
         /* remove evt fd from the polling thraed when unreg the last event */
@@ -1704,7 +1706,8 @@ int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
     } else {
         rc = ioctl(my_obj->ctrl_fd, VIDIOC_SUBSCRIBE_EVENT, &sub);
         if (rc < 0) {
-            CDBG_ERROR("%s: subscribe event rc = %d", __func__, rc);
+            CDBG_ERROR("%s: subscribe event rc = %d, errno %d",
+            __func__, rc, errno);
             return rc;
         }
         /* add evt fd to polling thread when subscribe the first event */
@@ -1735,7 +1738,7 @@ void mm_camera_util_wait_for_event(mm_camera_obj_t *my_obj,
                                    uint32_t evt_mask,
                                    uint32_t *status)
 {
-    int rc = 0;
+    int32_t rc = 0;
     struct timespec ts;
 
     pthread_mutex_lock(&my_obj->evt_lock);
@@ -1743,12 +1746,17 @@ void mm_camera_util_wait_for_event(mm_camera_obj_t *my_obj,
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += WAIT_TIMEOUT;
         rc = pthread_cond_timedwait(&my_obj->evt_cond, &my_obj->evt_lock, &ts);
-        if (rc == ETIMEDOUT) {
-            ALOGE("%s pthread_cond_timedwait success\n", __func__);
+        if (rc) {
+            ALOGE("%s: pthread_cond_timedwait of evt_mask 0x%x failed %d",
+                    __func__, evt_mask, rc);
             break;
         }
     }
-    *status = my_obj->evt_rcvd.status;
+    if (!rc) {
+        *status = my_obj->evt_rcvd.status;
+    } else {
+        *status = MSM_CAMERA_STATUS_FAIL;
+    }
     /* reset local storage for recieved event for next event */
     memset(&my_obj->evt_rcvd, 0, sizeof(mm_camera_event_t));
     pthread_mutex_unlock(&my_obj->evt_lock);
@@ -1972,7 +1980,9 @@ int32_t mm_camera_util_s_ctrl(int32_t fd,  uint32_t id, int32_t *value)
 
     CDBG("%s: fd=%d, S_CTRL, id=0x%x, value = %p, rc = %d\n",
          __func__, fd, id, value, rc);
-    if (value != NULL) {
+    if (rc < 0) {
+        CDBG_ERROR("%s: ioctl failed %d, errno %d", __func__, rc, errno);
+    } else if (value != NULL) {
         *value = control.value;
     }
     return (rc >= 0)? 0 : -1;
