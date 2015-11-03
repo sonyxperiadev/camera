@@ -1072,6 +1072,53 @@ int QCamera2HardwareInterface::send_command(struct camera_device *device,
 }
 
 /*===========================================================================
+ * FUNCTION   : send_command_restart
+ *
+ * DESCRIPTION: restart if necessary after a send_command
+ *
+ * PARAMETERS :
+ *   @device  : ptr to camera device struct
+ *   @cmd     : cmd to be executed
+ *   @arg1    : ptr to optional argument1
+ *   @arg2    : ptr to optional argument2
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::send_command_restart(struct camera_device *device,
+        int32_t cmd,
+        int32_t arg1,
+        int32_t arg2)
+{
+    ATRACE_CALL();
+    int ret = NO_ERROR;
+    QCamera2HardwareInterface *hw =
+            reinterpret_cast<QCamera2HardwareInterface *>(device->priv);
+    if (!hw) {
+        ALOGE("NULL camera device");
+        return BAD_VALUE;
+    }
+
+    qcamera_sm_evt_command_payload_t payload;
+    memset(&payload, 0, sizeof(qcamera_sm_evt_command_payload_t));
+    payload.cmd = cmd;
+    payload.arg1 = arg1;
+    payload.arg2 = arg2;
+    hw->lockAPI();
+    qcamera_api_result_t apiResult;
+    ret = hw->processAPI(QCAMERA_SM_EVT_SEND_COMMAND_RESTART, (void *)&payload);
+    if (ret == NO_ERROR) {
+        hw->waitAPIResult(QCAMERA_SM_EVT_SEND_COMMAND_RESTART, &apiResult);
+        ret = apiResult.status;
+    }
+    hw->unlockAPI();
+    CDBG("%s: E camera id %d", __func__, hw->getCameraId());
+
+    return ret;
+}
+
+/*===========================================================================
  * FUNCTION   : release
  *
  * DESCRIPTION: release camera resource
@@ -4840,14 +4887,14 @@ int QCamera2HardwareInterface::putParameters(char *parms)
  *              none-zero failure code
  *==========================================================================*/
 int QCamera2HardwareInterface::sendCommand(int32_t command,
-        int32_t &arg1, int32_t &/*arg2*/)
+        int32_t &arg1, int32_t &arg2)
 {
     int rc = NO_ERROR;
 
     switch (command) {
 #ifndef VANILLA_HAL
     case CAMERA_CMD_LONGSHOT_ON:
-        arg1 = 0;
+        arg1 = arg2 = 0;
         // Longshot can only be enabled when image capture
         // is not active.
         if ( !m_stateMachine.isCaptureRunning() ) {
@@ -4881,6 +4928,10 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
                             // We restart here, to reset the FPS and no
                             // of buffers as per the requirement of longshot usecase.
                             arg1 = QCAMERA_SM_EVT_RESTART_PERVIEW;
+                            if (getRelatedCamSyncInfo()->sync_control ==
+                                    CAM_SYNC_RELATED_SENSORS_ON) {
+                                arg2 = QCAMERA_SM_EVT_DELAYED_RESTART;
+                            }
                         }
                     }
                 }
