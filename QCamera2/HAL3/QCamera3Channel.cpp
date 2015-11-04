@@ -661,7 +661,8 @@ QCamera3ProcessingChannel::QCamera3ProcessingChannel(uint32_t cam_handle,
             m_pMetaChannel(metadataChannel),
             mMetaFrame(NULL),
             mOfflineMemory(0),
-            mOfflineMetaMemory(numBuffers, false)
+            mOfflineMetaMemory(numBuffers + (MAX_REPROCESS_PIPELINE_STAGES - 1),
+                    false)
 {
     char prop[PROPERTY_VALUE_MAX];
     property_get("persist.debug.sf.showfps", prop, "0");
@@ -885,7 +886,8 @@ int32_t QCamera3ProcessingChannel::initialize(cam_is_type_t isType)
     if (rc == NO_ERROR) {
         Mutex::Autolock lock(mFreeOfflineMetaBuffersLock);
         mFreeOfflineMetaBuffersList.clear();
-        for (uint32_t i = 0; i < mNumBuffers; i++) {
+        for (uint32_t i = 0; i < mNumBuffers + (MAX_REPROCESS_PIPELINE_STAGES - 1);
+                i++) {
             mFreeOfflineMetaBuffersList.push_back(i);
         }
     } else {
@@ -1011,7 +1013,8 @@ int32_t QCamera3ProcessingChannel::setFwkInputPPData(qcamera_fwk_input_pp_data_t
 
         metaBufIdx = *(mFreeOfflineMetaBuffersList.begin());
         mFreeOfflineMetaBuffersList.erase(mFreeOfflineMetaBuffersList.begin());
-        CDBG("%s: erasing %d", __func__, metaBufIdx);
+        CDBG("%s: erasing %d, mFreeOfflineMetaBuffersList.size %d", __func__, metaBufIdx,
+                mFreeOfflineMetaBuffersList.size());
     }
 
     mOfflineMetaMemory.markFrameNumber(metaBufIdx, frameNumber);
@@ -3500,7 +3503,8 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
      * ch_hdl->getNumBuffers() + 1 */
     QCamera3Channel(cam_handle, channel_handle, cam_ops, cb_routine, paddingInfo,
                     postprocess_mask, userData,
-                    ((QCamera3ProcessingChannel *)ch_hdl)->getNumBuffers() + 1),
+                    ((QCamera3ProcessingChannel *)ch_hdl)->getNumBuffers()
+                              + (MAX_REPROCESS_PIPELINE_STAGES - 1)),
     inputChHandle(ch_hdl),
     mOfflineBuffersIndex(-1),
     mFrameLen(0),
