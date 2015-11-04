@@ -743,28 +743,14 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
         return;
     }
 
-#if WINDOW_TIMESTAMP
-    frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
     if(pme->m_bPreviewStarted) {
-        cam_fps_range_t fpsRange = pme->mParameters.getFpsRange();
-        nsecs_t previewRate = 0;
-        ALOGI("[KPI Perf] %s : PROFILE_FIRST_PREVIEW_FRAME fps = %d", __func__, fpsRange.min_fps);
-        pme->m_bPreviewStarted = false ;
-        if (fpsRange.min_fps != 0) {
-            previewRate = (nsecs_t)(((int)(1000/fpsRange.min_fps) * 1000) * 1000000LL);
-        }
-        mPreviewTimestamp = frameTime + previewRate;
-    } else {
-        nsecs_t diff = (nsecs_t)(frameTime - stream->mStreamTimestamp);
-        if (diff >= 0) {
-            mPreviewTimestamp = frameTime + diff;
-        } else {
-            ALOGE ("%s: Issue in frame timestamp", __func__);
-            mPreviewTimestamp = frameTime;
-        }
+        ALOGI("[KPI Perf] %s : PROFILE_FIRST_PREVIEW_FRAME", __func__);
+        pme->m_bPreviewStarted = false;
     }
+    frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
+    // Calculate the future presentation time stamp for displaying frames at regular interval
+    mPreviewTimestamp = pme->mCameraDisplay.computePresentationTimeStamp(frameTime);
     stream->mStreamTimestamp = frameTime;
-#endif
     memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
 
     // Enqueue  buffer to gralloc.
