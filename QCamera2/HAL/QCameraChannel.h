@@ -59,6 +59,7 @@ public:
     virtual int32_t start();
     virtual int32_t stop();
     virtual int32_t bufDone(mm_camera_super_buf_t *recvd_frame);
+    virtual int32_t bufDone(mm_camera_super_buf_t *recvd_frame, uint32_t stream_id);
     virtual int32_t processZoomDone(preview_stream_ops_t *previewWindow,
                                     cam_crop_data_t &crop_info);
     QCameraStream *getStreamByHandle(uint32_t streamHandle);
@@ -141,7 +142,7 @@ public:
              mm_camera_buf_def_t *meta_buf, QCameraParameters &param);
 
     int32_t doReprocessOffline(mm_camera_buf_def_t *frame,
-             mm_camera_buf_def_t *meta_buf, QCameraStream *pStream);
+             mm_camera_buf_def_t *meta_buf, QCameraStream *pStream = NULL);
 
     int32_t stop();
     QCameraChannel *getSrcChannel(){return m_pSrcChannel;};
