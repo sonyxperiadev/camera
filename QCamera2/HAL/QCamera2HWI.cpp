@@ -9133,10 +9133,7 @@ bool QCamera2HardwareInterface::checkDeferredWork(uint32_t &job_id)
 {
     for (uint32_t i = 0; i < MAX_ONGOING_JOBS; i++) {
         if (mDefOngoingJobs[i].mDefJobId == job_id) {
-            if (-1 == mDefOngoingJobs[i].mDefJobStatus)
-                return false;
-            else
-                return true;
+            return (NO_ERROR == mDefOngoingJobs[i].mDefJobStatus);
         }
     }
     return false;
