@@ -13125,9 +13125,8 @@ void QCameraParameters::setReprocCount()
 
     if (getManualCaptureMode() >=
             CAM_MANUAL_CAPTURE_TYPE_3) {
-        CDBG ("2 Pass postprocessing enabled for MANUAL Capture mode");
+        CDBG ("Additional post processing enabled for manual capture");
         mTotalPPCount++;
-        return;
     }
 
     if (!isMultiPassReprocessing()) {

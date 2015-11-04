@@ -113,8 +113,6 @@ QCameraPostProcessor::~QCameraPostProcessor()
             pChannel->stop();
             delete pChannel;
             pChannel = NULL;
-            m_parent->mParameters.setCurPPCount((int8_t)
-                    (m_parent->mParameters.getCurPPCount() - 1));
         }
     }
     mPPChannelCount = 0;
@@ -244,30 +242,27 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
                 pChannel->stop();
                 delete pChannel;
                 pChannel = NULL;
-                m_parent->mParameters.setCurPPCount((int8_t)
-                        (m_parent->mParameters.getCurPPCount() - 1));
             }
         }
+        mPPChannelCount = 0;
 
         m_bufCountPPQ = 0;
         if (!m_parent->isLongshotEnabled()) {
             m_parent->mParameters.setReprocCount();
         }
 
-        if (m_parent->mParameters.getManualCaptureMode()
-                < CAM_MANUAL_CAPTURE_TYPE_3) {
-            mPPChannelCount = m_parent->mParameters.getReprocCount();
+        if (m_parent->mParameters.getManualCaptureMode() >=
+                CAM_MANUAL_CAPTURE_TYPE_3) {
+            mPPChannelCount = m_parent->mParameters.getReprocCount() - 1;
         } else {
-            mPPChannelCount = 1;
+            mPPChannelCount = m_parent->mParameters.getReprocCount();
         }
-        m_parent->mParameters.setCurPPCount(0);
 
         CDBG("%s : %d: mPPChannelCount = %d", __func__, __LINE__, mPPChannelCount);
 
         // Create all reproc channels and start channel
         for (int8_t i = 0; i < mPPChannelCount; i++) {
-            m_parent->mParameters.setCurPPCount((int8_t) (i + 1));
-            mPPChannels[i] = m_parent->addReprocChannel(pInputChannel);
+            mPPChannels[i] = m_parent->addReprocChannel(pInputChannel, i);
             if (mPPChannels[i] == NULL) {
                 ALOGE("%s: cannot add multi reprocess channel i = %d", __func__, i);
                 return UNKNOWN_ERROR;
@@ -327,12 +322,9 @@ int32_t QCameraPostProcessor::stop()
             pChannel->stop();
             delete pChannel;
             pChannel = NULL;
-            m_parent->mParameters.setCurPPCount((int8_t)
-                    (m_parent->mParameters.getCurPPCount() - 1));
         }
     }
     mPPChannelCount = 0;
-    m_parent->mParameters.setCurPPCount(0);
     m_PPindex = 0;
     m_InputMetadata.clear();
 
@@ -942,6 +934,7 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
         pp_request_job->src_frame = frame;
         pp_request_job->src_reproc_frame = frame;
         pp_request_job->reprocCount = 0;
+        pp_request_job->ppChannelIndex = 0;
 
         if ((NULL != frame) &&
                 (0 < frame->num_bufs)
@@ -1332,6 +1325,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
     m_parent->mCACDoneReceived = FALSE;
 
     int8_t mCurReprocCount = job->reprocCount;
+    int8_t mCurChannelIndex = job->ppChannelIndex;
     if ( mCurReprocCount > 1 ) {
         //In case of pp 2nd pass, we can release input of 2nd pass
         releaseSuperBuf(job->src_frame);
@@ -1339,12 +1333,20 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         job->src_frame = NULL;
     }
 
-    CDBG("%s: mCurReprocCount = %d mTotalNumReproc = %d",
-            __func__, mCurReprocCount, m_parent->mParameters.getReprocCount());
+    CDBG("%s: mCurReprocCount = %d mCurChannelIndex = %d mTotalNumReproc = %d",
+            __func__, mCurReprocCount, mCurChannelIndex,
+            m_parent->mParameters.getReprocCount());
     if (mCurReprocCount < m_parent->mParameters.getReprocCount()) {
         //More pp pass needed. Push frame back to pp queue.
         qcamera_pp_data_t *pp_request_job = job;
         pp_request_job->src_frame = frame;
+
+        if ((mPPChannels[mCurChannelIndex]->getReprocCount()
+                == mCurReprocCount) &&
+                (mPPChannels[mCurChannelIndex + 1] != NULL)) {
+            pp_request_job->ppChannelIndex++;
+        }
+
         // enqueu to post proc input queue
         if (m_inputPPQ.enqueue((void *)pp_request_job)) {
             triggerEvent = validatePostProcess(frame);
@@ -3025,17 +3027,13 @@ int32_t QCameraPostProcessor::doReprocess()
     mm_camera_super_buf_t *src_frame = ppreq_job->src_frame;
     mm_camera_super_buf_t *src_reproc_frame = ppreq_job->src_reproc_frame;
     int8_t mCurReprocCount = ppreq_job->reprocCount;
-    int8_t mCurChannelIdx = 0;
+    int8_t mCurChannelIdx = ppreq_job->ppChannelIndex;
 
-    if (m_parent->mParameters.getReprocCount() == mPPChannelCount) {
-        mCurChannelIdx = mCurReprocCount;
-    }
+    CDBG("%s: frame = %p src_frame = %p mCurReprocCount = %d mCurChannelIdx = %d",__func__,
+            src_frame,src_reproc_frame,mCurReprocCount, mCurChannelIdx);
 
-    CDBG("%s: frame = %p src_frame = %p mCurReprocCount = %d mPPChannelCount = %d",__func__,
-            src_frame,src_reproc_frame,mCurReprocCount, mPPChannelCount);
-
-    if (m_parent->mParameters.getManualCaptureMode() >=
-            CAM_MANUAL_CAPTURE_TYPE_3) {
+    if ((m_parent->mParameters.getManualCaptureMode() >=
+            CAM_MANUAL_CAPTURE_TYPE_3)  && (mCurChannelIdx == 0)) {
         ppInputFrame = src_reproc_frame;
     } else {
         ppInputFrame = src_frame;

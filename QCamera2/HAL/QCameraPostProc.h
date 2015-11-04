@@ -69,6 +69,7 @@ typedef struct {
 typedef struct {
     uint32_t jobId;                  // job ID
     int8_t reprocCount;              //Current pass count
+    int8_t ppChannelIndex;           //Reprocess channel object index
     mm_camera_super_buf_t *src_frame;// source frame
     bool reproc_frame_release;       // false release original buffer
                                      // true don't release it
@@ -141,7 +142,12 @@ public:
     int32_t setJpegHandle(mm_jpeg_ops_t *pJpegHandle,
             mm_jpeg_mpo_ops_t* pJpegMpoHandle, uint32_t clientHandle);
     int32_t createJpegSession(QCameraChannel *pSrcChannel);
+
+    int8_t getPPChannelCount() {return mPPChannelCount;};
+    mm_camera_buf_def_t *getOfflinePPInputBuffer(
+            mm_camera_super_buf_t *src_frame);
     QCameraMemory *mOfflineDataBufs;
+
 private:
     int32_t sendDataNotify(int32_t msg_type,
             camera_memory_t *data,
@@ -192,10 +198,6 @@ private:
 
     int32_t doReprocess();
     int32_t stopCapture();
-
-    mm_camera_buf_def_t *getOfflinePPInputBuffer(
-            mm_camera_super_buf_t *src_frame);
-
 private:
     QCamera2HardwareInterface *m_parent;
     jpeg_encode_callback_t     mJpegCB;

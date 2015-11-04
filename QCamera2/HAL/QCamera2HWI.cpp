@@ -6833,19 +6833,21 @@ int32_t QCamera2HardwareInterface::addAnalysisChannel()
  *
  * PARAMETERS :
  * @pp config:  pp config structure pointer,
- * @curCount:  current pp pass count
+ * @curIndex:  current pp channel index
+ * @multipass: Flag if multipass prcessing enabled.
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_config, int curCount)
+int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_config,
+        int8_t curIndex, bool multipass)
 {
     int32_t rc = NO_ERROR;
 
-    if ( curCount != mParameters.getReprocCount() ) {
-        ALOGW("%s : Multi pass enabled. Total Pass = %d, cur Pass = %d", __func__,
-                mParameters.getReprocCount(), curCount);
+    if (multipass) {
+        ALOGW("%s : Multi pass enabled. Total Pass = %d, cur index = %d", __func__,
+                mParameters.getReprocCount(), curIndex);
     }
 
     CDBG_HIGH("%s: Supported pproc feature mask = %x", __func__,
@@ -6855,11 +6857,11 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
     uint32_t rotation = mParameters.getJpegRotation();
     int32_t effect = mParameters.getEffectValue();
 
-    pp_config.cur_reproc_count = curCount;
+    pp_config.cur_reproc_count = curIndex + 1;
     pp_config.total_reproc_count = mParameters.getReprocCount();
 
-    switch(curCount) {
-        case 1:
+    switch(curIndex) {
+        case 0:
             //Configure feature mask for first pass of reprocessing
             //check if any effects are enabled
             if ((CAM_EFFECT_MODE_OFF != effect) &&
@@ -6983,9 +6985,8 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                 }
             }
 
-            if ((curCount != mParameters.getReprocCount())
-                    && (!(mParameters.getManualCaptureMode() >=
-                    CAM_MANUAL_CAPTURE_TYPE_3))) {
+            if ((multipass) &&
+                    (m_postprocessor.getPPChannelCount() > 1)) {
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_PP_PASS_2;
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_ROTATION;
                 pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CDS;
@@ -7008,7 +7009,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
 
             break;
 
-        case 2:
+        case 1:
             //Configure feature mask for second pass of reprocessing
             pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_PASS_2;
             if ((feature_mask & CAM_QCOM_FEATURE_ROTATION) && (rotation > 0)) {
@@ -7030,11 +7031,13 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
                     pp_config.feature_mask |= CAM_QCOM_FEATURE_CDS;
                 }
             }
+            pp_config.feature_mask &= ~CAM_QCOM_FEATURE_RAW_PROCESSING;
+            pp_config.feature_mask &= ~CAM_QCOM_FEATURE_METADATA_PROCESSING;
             break;
 
     }
     CDBG_HIGH("%s: pproc feature mask set = %x pass count = %d",
-            __func__, pp_config.feature_mask,curCount);
+            __func__, pp_config.feature_mask, curIndex);
     return rc;
 }
 
@@ -7046,11 +7049,12 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
  *
  * PARAMETERS :
  *   @pInputChannel : ptr to input channel whose frames will be post-processed
+ *   @cur_channel_index : Current channel index in multipass
  *
  * RETURN     : Ptr to the newly created channel obj. NULL if failed.
  *==========================================================================*/
 QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
-                                                      QCameraChannel *pInputChannel)
+        QCameraChannel *pInputChannel, int8_t cur_channel_index)
 {
     int32_t rc = NO_ERROR;
     QCameraReprocessChannel *pChannel = NULL;
@@ -7086,7 +7090,8 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
     cam_pp_feature_config_t pp_config;
     memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
 
-    rc = getPPConfig(pp_config, mParameters.getCurPPCount());
+    rc = getPPConfig(pp_config, cur_channel_index,
+            ((mParameters.getReprocCount() > 1) ? TRUE : FALSE));
     if (rc != NO_ERROR){
         ALOGE("%s: Error while creating PP config",__func__);
         delete pChannel;
@@ -7118,6 +7123,13 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
     if (mParameters.getManualCaptureMode() >= CAM_MANUAL_CAPTURE_TYPE_3) {
         minStreamBufNum += mParameters.getReprocCount() - 1;
         burst_cnt = mParameters.getReprocCount();
+        if (cur_channel_index == 0) {
+            pChannel->setReprocCount(2);
+        } else {
+            pChannel->setReprocCount(1);
+        }
+    } else {
+        pChannel->setReprocCount(1);
     }
 
     // Add non inplace image lib buffers only when ppproc is present,
@@ -8280,7 +8292,7 @@ bool QCamera2HardwareInterface::needReprocess()
 
     //Decide whether to do reprocess or not based on
     //ppconfig obtained in the first pass.
-    getPPConfig(pp_config, 1);
+    getPPConfig(pp_config);
 
     if (pp_config.feature_mask > 0) {
         needReprocess = true;
