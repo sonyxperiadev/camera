@@ -331,6 +331,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mAnalysisChannel(NULL),
       mRawDumpChannel(NULL),
       mDummyBatchChannel(NULL),
+      mChannelHandle(0),
       mFirstConfiguration(true),
       mFlush(false),
       mFlushPerf(false),
@@ -456,6 +457,14 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     if (mAnalysisChannel) {
         mAnalysisChannel->stop();
     }
+    if (mMetadataChannel) {
+        mMetadataChannel->stop();
+    }
+    if (mChannelHandle) {
+        mCameraHandle->ops->stop_channel(mCameraHandle->camera_handle,
+                mChannelHandle);
+        ALOGI("%s: stopping channel %d", __func__, mChannelHandle);
+    }
 
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
@@ -483,13 +492,13 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     }
     mPictureChannel = NULL;
 
+    if (mMetadataChannel) {
+        delete mMetadataChannel;
+        mMetadataChannel = NULL;
+    }
+
     /* Clean up all channels */
     if (mCameraInitialized) {
-        if (mMetadataChannel) {
-            mMetadataChannel->stop();
-            delete mMetadataChannel;
-            mMetadataChannel = NULL;
-        }
         if(!mFirstConfiguration){
             //send the last unconfigure
             cam_stream_size_info_t stream_config_info;
@@ -504,6 +513,13 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
             }
         }
         deinitParameters();
+    }
+
+    if (mChannelHandle) {
+        mCameraHandle->ops->delete_channel(mCameraHandle->camera_handle,
+                mChannelHandle);
+        ALOGE("%s: deleting channel %d", __func__, mChannelHandle);
+        mChannelHandle = 0;
     }
 
     if (mState != CLOSED)
@@ -797,6 +813,15 @@ int QCamera3HardwareInterface::initialize(
        goto err1;
     }
     mCallbackOps = callback_ops;
+
+    mChannelHandle = mCameraHandle->ops->add_channel(
+            mCameraHandle->camera_handle, NULL, NULL, this);
+    if (mChannelHandle == 0) {
+        ALOGE("%s: add_channel failed", __func__);
+        rc = -ENOMEM;
+        pthread_mutex_unlock(&mMutex);
+        return rc;
+    }
 
     pthread_mutex_unlock(&mMutex);
     mCameraInitialized = true;
@@ -1266,6 +1291,11 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         /* If content of mStreamInfo is not 0, there is metadata stream */
         mMetadataChannel->stop();
     }
+    if (mChannelHandle) {
+        mCameraHandle->ops->stop_channel(mCameraHandle->camera_handle,
+                mChannelHandle);
+        ALOGI("%s: stopping channel %d", __func__, mChannelHandle);
+    }
 
     pthread_mutex_lock(&mMutex);
 
@@ -1624,7 +1654,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
     //Create metadata channel and initialize it
     mMetadataChannel = new QCamera3MetadataChannel(mCameraHandle->camera_handle,
-                    mCameraHandle->ops, captureResultCb,
+                    mChannelHandle, mCameraHandle->ops, captureResultCb,
                     &padding_info, CAM_QCOM_FEATURE_NONE, this);
     if (mMetadataChannel == NULL) {
         ALOGE("%s: failed to allocate metadata channel", __func__);
@@ -1645,6 +1675,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     {
         mAnalysisChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
+                mChannelHandle,
                 mCameraHandle->ops,
                 &gCamCapability[mCameraId]->analysis_padding_info,
                 CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
@@ -1826,7 +1857,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)
                     ) {
                         channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
-                                mCameraHandle->ops, captureResultCb,
+                                mChannelHandle, mCameraHandle->ops, captureResultCb,
                                 &gCamCapability[mCameraId]->padding_info,
                                 this,
                                 newStream,
@@ -1855,7 +1886,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             mDummyBatchStream = *newStream;
                         }
                         channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
-                                mCameraHandle->ops, captureResultCb,
+                                mChannelHandle, mCameraHandle->ops, captureResultCb,
                                 &gCamCapability[mCameraId]->padding_info,
                                 this,
                                 newStream,
@@ -1875,6 +1906,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     break;
                 case HAL_PIXEL_FORMAT_YCbCr_420_888: {
                     channel = new QCamera3YUVChannel(mCameraHandle->camera_handle,
+                            mChannelHandle,
                             mCameraHandle->ops, captureResultCb,
                             &padding_info,
                             this,
@@ -1896,7 +1928,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 case HAL_PIXEL_FORMAT_RAW16:
                 case HAL_PIXEL_FORMAT_RAW10:
                     mRawChannel = new QCamera3RawChannel(
-                            mCameraHandle->camera_handle,
+                            mCameraHandle->camera_handle, mChannelHandle,
                             mCameraHandle->ops, captureResultCb,
                             &padding_info,
                             this, newStream, CAM_QCOM_FEATURE_NONE,
@@ -1914,7 +1946,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     // Max live snapshot inflight buffer is 1. This is to mitigate
                     // frame drop issues for video snapshot. The more buffers being
                     // allocated, the more frame drops there are.
-                    mPictureChannel = new QCamera3PicChannel(mCameraHandle->camera_handle,
+                    mPictureChannel = new QCamera3PicChannel(
+                            mCameraHandle->camera_handle, mChannelHandle,
                             mCameraHandle->ops, captureResultCb,
                             &padding_info, this, newStream,
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
@@ -1978,6 +2011,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         cam_dimension_t rawDumpSize;
         rawDumpSize = getMaxRawSize(mCameraId);
         mRawDumpChannel = new QCamera3RawDumpChannel(mCameraHandle->camera_handle,
+                                  mChannelHandle,
                                   mCameraHandle->ops,
                                   rawDumpSize,
                                   &padding_info,
@@ -1996,13 +2030,14 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
                 CAM_STREAM_TYPE_ANALYSIS;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
-                CAM_QCOM_FEATURE_FACE_DETECTION;
+                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
         mStreamConfigInfo.num_streams++;
     }
 
     if (isSupportChannelNeeded(streamList, mStreamConfigInfo)) {
         mSupportChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
+                mChannelHandle,
                 mCameraHandle->ops,
                 &gCamCapability[mCameraId]->padding_info,
                 CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
@@ -2044,6 +2079,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     if ((mOpMode == CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) &&
             !m_bIsVideo) {
         mDummyBatchChannel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
+                mChannelHandle,
                 mCameraHandle->ops, captureResultCb,
                 &gCamCapability[mCameraId]->padding_info,
                 this,
@@ -3309,26 +3345,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
 
-        for (size_t i = 0; i < request->num_output_buffers; i++) {
-            const camera3_stream_buffer_t& output = request->output_buffers[i];
-            QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
-            /*for livesnapshot stream is_type will be DIS*/
-            if ((((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) ||
-               ((1U << CAM_STREAM_TYPE_PREVIEW) == channel->getStreamTypeMask())) &&
-               setEis)
-                rc = channel->registerBuffer(output.buffer, is_type);
-            else
-                rc = channel->registerBuffer(output.buffer, IS_TYPE_NONE);
-
-            if (rc < 0) {
-                ALOGE("%s: registerBuffer failed",
-                        __func__);
-                pthread_mutex_unlock(&mMutex);
-                rc = -ENODEV;
-                goto error_exit;
-            }
-        }
-
         //First initialize all streams
         for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
             it != mStreamInfo.end(); it++) {
@@ -3384,6 +3400,14 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 pthread_mutex_unlock(&mMutex);
                 goto error_exit;
             }
+        }
+
+        // Set bundle info
+        rc = setBundleInfo();
+        if (rc < 0) {
+            ALOGE("%s: setBundleInfo failed %d", __func__, rc);
+            pthread_mutex_unlock(&mMutex);
+            goto error_exit;
         }
 
         //Then start them.
@@ -3455,12 +3479,26 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 goto error_exit;
             }
         }
+
+        if (mChannelHandle) {
+
+            rc = mCameraHandle->ops->start_channel(mCameraHandle->camera_handle,
+                    mChannelHandle);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: start_channel failed %d", __func__, rc);
+                pthread_mutex_unlock(&mMutex);
+                goto error_exit;
+            }
+        }
+
+
         goto no_error;
 error_exit:
         m_perfLock.lock_rel();
         return rc;
 no_error:
         m_perfLock.lock_rel();
+
         mWokenUpByDaemon = false;
         mPendingLiveRequest = 0;
         mFirstConfiguration = false;
@@ -3926,6 +3964,17 @@ int QCamera3HardwareInterface::flush()
         ALOGE("%s: stopAllChannels failed", __func__);
         return rc;
     }
+    if (mChannelHandle) {
+        mCameraHandle->ops->stop_channel(mCameraHandle->camera_handle,
+                mChannelHandle);
+    }
+
+    // Reset bundle info
+    rc = setBundleInfo();
+    if (rc < 0) {
+        ALOGE("%s: setBundleInfo failed %d", __func__, rc);
+        return rc;
+    }
 
     // Mutex Lock
     pthread_mutex_lock(&mMutex);
@@ -3949,6 +3998,16 @@ int QCamera3HardwareInterface::flush()
         ALOGE("%s: startAllChannels failed", __func__);
         pthread_mutex_unlock(&mMutex);
         return rc;
+    }
+
+    if (mChannelHandle) {
+        mCameraHandle->ops->start_channel(mCameraHandle->camera_handle,
+                    mChannelHandle);
+        if (rc < 0) {
+            ALOGE("%s: start_channel failed", __func__);
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
     }
 
     pthread_mutex_unlock(&mMutex);
@@ -9203,7 +9262,8 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
     QCamera3ReprocessChannel *pChannel = NULL;
 
     pChannel = new QCamera3ReprocessChannel(mCameraHandle->camera_handle,
-            mCameraHandle->ops, NULL, config.padding, CAM_QCOM_FEATURE_NONE, this, inputChHandle);
+            mChannelHandle, mCameraHandle->ops, NULL, config.padding,
+            CAM_QCOM_FEATURE_NONE, this, inputChHandle);
     if (NULL == pChannel) {
         ALOGE("%s: no mem for reprocess channel", __func__);
         return NULL;
@@ -9780,6 +9840,48 @@ bool QCamera3HardwareInterface::isOnEncoder(
 {
     return (width > (uint32_t)max_viewfinder_size.width ||
             height > (uint32_t)max_viewfinder_size.height);
+}
+
+/*===========================================================================
+ * FUNCTION   : setBundleInfo
+ *
+ * DESCRIPTION: Set bundle info for all streams that are bundle.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : NO_ERROR on success
+ *              Error codes on failure
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::setBundleInfo()
+{
+    int32_t rc = NO_ERROR;
+
+    if (mChannelHandle) {
+        cam_bundle_config_t bundleInfo;
+        memset(&bundleInfo, 0, sizeof(bundleInfo));
+        rc = mCameraHandle->ops->get_bundle_info(
+                mCameraHandle->camera_handle, mChannelHandle, &bundleInfo);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: get_bundle_info failed", __func__);
+            return rc;
+        }
+        if (mAnalysisChannel) {
+            mAnalysisChannel->setBundleInfo(bundleInfo);
+        }
+        if (mSupportChannel) {
+            mSupportChannel->setBundleInfo(bundleInfo);
+        }
+        for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+                it != mStreamInfo.end(); it++) {
+            QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
+            channel->setBundleInfo(bundleInfo);
+        }
+        if (mRawDumpChannel) {
+            mRawDumpChannel->setBundleInfo(bundleInfo);
+        }
+    }
+
+    return rc;
 }
 
 }; //end namespace qcamera
