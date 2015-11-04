@@ -5939,6 +5939,9 @@ int32_t QCameraParameters::allocate()
     rc = m_pParamHeap->allocate(1, sizeof(parm_buffer_t), NON_SECURE);
     if(rc != OK) {
         rc = NO_MEMORY;
+        ALOGE("%s: Error!! Param buffers have not been allocated", __func__);
+        delete m_pParamHeap;
+        m_pParamHeap = NULL;
     }
 
     return rc;
