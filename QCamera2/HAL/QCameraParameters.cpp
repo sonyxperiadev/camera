@@ -4884,6 +4884,71 @@ int32_t QCameraParameters::setLongshotParam(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : checkFeatureConcurrency
+ *
+ * DESCRIPTION: check if there is a feature concurrency issue with advanced
+ *              camera features
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::checkFeatureConcurrency()
+{
+    int32_t rc = NO_ERROR;
+    uint32_t advancedFeatEnableBit = 0;
+
+    if (isStillMoreEnabled()) {
+        advancedFeatEnableBit |= CAM_QCOM_FEATURE_STILLMORE;
+    }
+    if (isHDREnabled()) {
+        advancedFeatEnableBit |= CAM_QCOM_FEATURE_HDR;
+    }
+    if (isChromaFlashEnabled()) {
+        advancedFeatEnableBit |= CAM_QCOM_FEATURE_CHROMA_FLASH;
+    }
+    if (isUbiFocusEnabled()) {
+        advancedFeatEnableBit |= CAM_QCOM_FEATURE_UBIFOCUS;
+    }
+    if (isTruePortraitEnabled()) {
+        advancedFeatEnableBit |= CAM_QCOM_FEATURE_TRUEPORTRAIT;
+    }
+    if (isOptiZoomEnabled()) {
+        advancedFeatEnableBit |= CAM_QCOM_FEATURE_OPTIZOOM;
+    }
+    if (isUbiRefocus()) {
+        advancedFeatEnableBit |= CAM_QCOM_FEATURE_REFOCUS;
+    }
+
+    if(m_bRecordingHint_new) {
+        advancedFeatEnableBit &= ~CAM_QCOM_FEATURE_STILLMORE;
+
+        if (advancedFeatEnableBit) {
+            ALOGE("%s:%d] Failed recording mode bit 0x%x", __func__, __LINE__,
+                    advancedFeatEnableBit);
+            rc = BAD_TYPE;
+        }
+    } else if (m_bZslMode_new) {
+        /* ZSL mode check if 2 bits are set */
+        if (advancedFeatEnableBit & (advancedFeatEnableBit - 1)) {
+            ALOGE("%s:%d] Failed ZSL mode bit 0x%x", __func__, __LINE__, advancedFeatEnableBit);
+            rc = BAD_TYPE;
+        }
+    } else { /* non-ZSL mode */
+        advancedFeatEnableBit &= ~CAM_QCOM_FEATURE_HDR;
+
+        /* non-ZSL mode check if 1 bit is set */
+        if (advancedFeatEnableBit) {
+            ALOGE("%s:%d] Failed non-ZSL mode bit 0x%x", __func__, __LINE__, advancedFeatEnableBit);
+            rc = BAD_TYPE;
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : updateParameters
  *
  * DESCRIPTION: update parameters from user setting
