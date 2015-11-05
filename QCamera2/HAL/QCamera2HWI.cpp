@@ -8785,7 +8785,9 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                     break;
                 case CMD_DEF_PARAM_ALLOC:
                     {
+                        pthread_mutex_lock(&pme->m_parm_lock);
                         pme->mParameters.allocate();
+                        pthread_mutex_unlock(&pme->m_parm_lock);
                     }
                     break;
                 case CMD_DEF_PARAM_INIT:
@@ -8806,6 +8808,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         // time for jpeg_open and calibration data is a
                         // get param for now, so params needs to be initialized
                         // before postproc init
+                        pthread_mutex_lock(&pme->m_parm_lock);
                         rc = pme->mParameters.init(cap,
                                 pme->mCameraHandle,
                                 pme,
@@ -8825,6 +8828,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                                 pme->mRelCamCalibData.calibration_format_version,
                                 rc);
                         if (rc != 0) {
+                            pthread_mutex_unlock(&pme->m_parm_lock);
                             job_status = UNKNOWN_ERROR;
                             ALOGE("getRelatedCamCalibration failed");
                             pme->sendEvtNotify(CAMERA_MSG_ERROR,
@@ -8834,6 +8838,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
 
                         pme->mParameters.setMinPpMask(
                             cap->qcom_supported_feature_mask);
+                        pthread_mutex_unlock(&pme->m_parm_lock);
 
                         pme->mExifParams.debug_params =
                                 (mm_jpeg_debug_exif_params_t *)
