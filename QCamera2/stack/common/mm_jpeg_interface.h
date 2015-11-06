@@ -31,6 +31,7 @@
 #define MM_JPEG_INTERFACE_H_
 #include "QOMX_JpegExtensions.h"
 #include "cam_intf.h"
+#include <stdbool.h>
 
 #define MM_JPEG_MAX_PLANES 3
 #define MM_JPEG_MAX_BUF CAM_MAX_NUM_BUFS_PER_STREAM
@@ -199,6 +200,9 @@ typedef struct {
 
   /* release memory function ptr */
   int (*put_memory)( omx_jpeg_ouput_buf_t *p_out_buf);
+
+  /* Flag to indicate whether to generate thumbnail from postview */
+  bool thumb_from_postview;
 } mm_jpeg_encode_params_t;
 
 typedef struct {
