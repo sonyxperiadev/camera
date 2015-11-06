@@ -304,7 +304,7 @@ OMX_ERRORTYPE mm_jpeg_session_create(mm_jpeg_job_session_t* p_session)
 
   p_session->thumb_from_main = 0;
 #ifdef MM_JPEG_USE_PIPELINE
-  p_session->thumb_from_main = 1;
+  p_session->thumb_from_main = !p_session->params.thumb_from_postview;
   omx_lib = "OMX.qcom.image.jpeg.encoder_pipeline";
 #endif
 
@@ -389,7 +389,7 @@ void mm_jpeg_session_destroy(mm_jpeg_job_session_t* p_session)
     mm_jpeg_session_destroy(p_session->next_session);
   }
 
-  CDBG_HIGH("%s:%d] Session destroy successful. X", __func__, __LINE__);
+  CDBG("%s:%d] Session destroy successful. X", __func__, __LINE__);
 }
 
 
@@ -434,7 +434,7 @@ OMX_ERRORTYPE mm_jpeg_session_config_main_buffer_offset(
     return rc;
   }
 
-  CDBG_HIGH("%s:%d] yOffset = %d, cbcrOffset = (%d %d), totalSize = %zd,"
+  CDBG("%s:%d] yOffset = %d, cbcrOffset = (%d %d), totalSize = %zd,"
     "cbcrStartOffset = (%d %d)", __func__, __LINE__,
     (int)frame_info.yOffset,
     (int)frame_info.cbcrOffset[0],
@@ -755,7 +755,7 @@ OMX_ERRORTYPE mm_jpeg_meta_enc_key(
   lKey.keyLen = p_session->meta_enc_keylen;
 
   if ((!lKey.metaKey) || (!lKey.keyLen)){
-    CDBG_ERROR("%s:%d] Key is invalid", __func__, __LINE__);
+    CDBG("%s:%d] Key is invalid", __func__, __LINE__);
     return OMX_ErrorNone;
   }
 
@@ -1259,7 +1259,7 @@ OMX_ERRORTYPE mm_jpeg_session_config_main(mm_jpeg_job_session_t *p_session)
   OMX_ERRORTYPE rc = OMX_ErrorNone;
 
   /* config port */
-  CDBG_HIGH("%s:%d] config port", __func__, __LINE__);
+  CDBG("%s:%d] config port", __func__, __LINE__);
   rc = mm_jpeg_session_config_ports(p_session);
   if (OMX_ErrorNone != rc) {
     CDBG_ERROR("%s: config port failed", __func__);
@@ -2295,7 +2295,7 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
   /* check if valid session */
   session_idx = GET_SESSION_IDX(p_jobparams->session_id);
   client_idx = GET_CLIENT_IDX(p_jobparams->session_id);
-  CDBG_HIGH("%s:%d] session_idx %d client idx %d", __func__, __LINE__,
+  CDBG("%s:%d] session_idx %d client idx %d", __func__, __LINE__,
     session_idx, client_idx);
 
   if ((session_idx >= MM_JPEG_MAX_SESSION) ||
@@ -2320,13 +2320,13 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
 
     if (p_session->work_buffer.addr) {
       work_bufs_need--;
-      CDBG_HIGH("%s:%d] HAL passed the work buffer of size = %d; don't alloc internally",
+      CDBG("%s:%d] HAL passed the work buffer of size = %d; don't alloc internally",
           __func__, __LINE__, p_session->work_buffer.size);
     } else {
       p_session->work_buffer = my_obj->ionBuffer[0];
     }
 
-    CDBG_HIGH("%s:%d] >>>> Work bufs need %d, %d", __func__, __LINE__,
+    CDBG("%s:%d] >>>> Work bufs need %d, %d", __func__, __LINE__,
       work_bufs_need, my_obj->work_buf_cnt);
     if (work_bufs_need) {
       work_buf_size = CEILING64(my_obj->max_pic_w) *
@@ -2386,7 +2386,9 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
       cam_sem_post(&my_obj->job_mgr.job_sem);
   }
 
-  CDBG_HIGH("%s:%d] job_id %d X", __func__, __LINE__, *job_id);
+  CDBG_HIGH("%s:%d] session_idx %u client_idx %u job_id %d X",
+    __func__, __LINE__,
+    session_idx, client_idx, *job_id);
 
   return rc;
 }
@@ -2536,7 +2538,7 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
     if (work_bufs_need > MM_JPEG_CONCURRENT_SESSIONS_COUNT) {
       work_bufs_need = MM_JPEG_CONCURRENT_SESSIONS_COUNT;
     }
-    CDBG_HIGH("%s:%d] >>>> Work bufs need %d", __func__, __LINE__, work_bufs_need);
+    CDBG("%s:%d] >>>> Work bufs need %d", __func__, __LINE__, work_bufs_need);
     work_buf_size = CEILING64(my_obj->max_pic_w) *
       CEILING64(my_obj->max_pic_h) * 3 / 2;
     rc = mm_jpeg_alloc_workbuffer(my_obj, work_bufs_need, work_buf_size);
@@ -2607,6 +2609,8 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
 
     p_session->jpeg_obj = (void*)my_obj; /* save a ptr to jpeg_obj */
 
+    /*copy the params*/
+    p_session->params = *p_params;
     ret = mm_jpeg_session_create(p_session);
     if (OMX_ErrorNone != ret) {
       p_session->active = OMX_FALSE;
@@ -2621,8 +2625,6 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
       *p_session_id = session_id;
     }
 
-    /*copy the params*/
-    p_session->params = *p_params;
     if (p_session->thumb_from_main) {
       memcpy(p_session->params.src_thumb_buf, p_session->params.src_main_buf,
         sizeof(p_session->params.src_thumb_buf));
@@ -2658,7 +2660,8 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
     }
     p_session->num_omx_sessions = num_omx_sessions;
 
-    CDBG_HIGH("%s:%d] session id %x", __func__, __LINE__, session_id);
+    CDBG_HIGH("%s:%d] session id %x thumb_from_main %d", __func__, __LINE__,
+      session_id, p_session->thumb_from_main);
   }
 
   // Queue the output buf indexes
@@ -2695,7 +2698,7 @@ static int32_t mm_jpegenc_destroy_job(mm_jpeg_job_session_t *p_session)
   mm_jpeg_encode_job_t *p_jobparams = &p_session->encode_job;
   int i = 0, rc = 0;
 
-  CDBG_HIGH("%s:%d] Exif entry count %d %d", __func__, __LINE__,
+  CDBG("%s:%d] Exif entry count %d %d", __func__, __LINE__,
     (int)p_jobparams->exif_info.numOfEntries,
     (int)p_session->exif_count_local);
   for (i = 0; i < p_session->exif_count_local; i++) {
@@ -2785,7 +2788,7 @@ int32_t mm_jpeg_destroy_session(mm_jpeg_obj *my_obj,
   pthread_mutex_lock(&my_obj->job_lock);
 
   /* abort job if in todo queue */
-  CDBG_HIGH("%s:%d] abort todo jobs", __func__, __LINE__);
+  CDBG("%s:%d] abort todo jobs", __func__, __LINE__);
   node = mm_jpeg_queue_remove_job_by_session_id(&my_obj->job_mgr.job_queue, session_id);
   while (NULL != node) {
     free(node);
@@ -2793,7 +2796,7 @@ int32_t mm_jpeg_destroy_session(mm_jpeg_obj *my_obj,
   }
 
   /* abort job if in ongoing queue */
-  CDBG_HIGH("%s:%d] abort ongoing jobs", __func__, __LINE__);
+  CDBG("%s:%d] abort ongoing jobs", __func__, __LINE__);
   node = mm_jpeg_queue_remove_job_by_session_id(&my_obj->ongoing_job_q, session_id);
   while (NULL != node) {
     free(node);
@@ -3202,7 +3205,7 @@ mm_jpeg_job_q_node_t* mm_jpeg_queue_remove_job_by_job_id(
     }
 
     if (data && (lq_job_id == job_id)) {
-      CDBG_HIGH("%s:%d] found matching job id", __func__, __LINE__);
+      CDBG("%s:%d] found matching job id", __func__, __LINE__);
       job_node = data;
       cam_list_del_node(&node->list);
       queue->size--;
