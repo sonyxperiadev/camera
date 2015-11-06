@@ -39,6 +39,8 @@
 #include "QCamera3Channel.h"
 #include "QCamera3Stream.h"
 
+#define ENABLE_MODEL_INFO_EXIF
+
 namespace qcamera {
 
 static const char ExifAsciiPrefix[] =
