@@ -1935,8 +1935,9 @@ int QCamera2HardwareInterface::prepareTorchCamera()
 {
     int rc = NO_ERROR;
 
-    if ( ( !m_stateMachine.isPreviewRunning() ) &&
-            !m_stateMachine.isPreviewReady() &&
+    if ((!m_stateMachine.isPreviewRunning()) &&
+            (!m_stateMachine.isPreviewReady()) &&
+            (!m_stateMachine.isCaptureRunning()) &&
             ( m_channels[QCAMERA_CH_TYPE_PREVIEW] == NULL ) ) {
         rc = addChannel(QCAMERA_CH_TYPE_PREVIEW);
     }
@@ -4029,36 +4030,21 @@ int QCamera2HardwareInterface::takePicture()
 
         // start snapshot
         if (mParameters.isJpegPictureFormat() ||
-            mParameters.isNV16PictureFormat() ||
-            mParameters.isNV21PictureFormat()) {
+                mParameters.isNV16PictureFormat() ||
+                mParameters.isNV21PictureFormat()) {
 
-            if (!isLongshotEnabled()) {
+            //STOP Preview for Non ZSL use case
+            stopPreview();
 
-                // normal capture case
-                // need to stop preview channel
-                stopPreview();
-
-                rc = declareSnapshotStreams();
-                if (NO_ERROR != rc) {
-                    return rc;
-                }
-
-                rc = addCaptureChannel();
-            } else {
-                // normal capture case
-                // need to stop preview channel
-                stopPreview();
-
-                rc = declareSnapshotStreams();
-                if (NO_ERROR != rc) {
-                    return rc;
-                }
-
-                rc = addCaptureChannel();
+            //Config CAPTURE channels
+            rc = declareSnapshotStreams();
+            if (NO_ERROR != rc) {
+                return rc;
             }
 
+            rc = addCaptureChannel();
             if ((rc == NO_ERROR) &&
-                (NULL != m_channels[QCAMERA_CH_TYPE_CAPTURE])) {
+                    (NULL != m_channels[QCAMERA_CH_TYPE_CAPTURE])) {
 
                 if (!mParameters.getofflineRAW()) {
                     rc = configureOnlineRotation(
