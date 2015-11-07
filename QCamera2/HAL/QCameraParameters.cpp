@@ -4759,6 +4759,13 @@ int32_t QCameraParameters::checkFeatureConcurrency()
         advancedFeatEnableBit |= CAM_QCOM_FEATURE_REFOCUS;
     }
 
+    if (m_bLongshotEnabled && advancedFeatEnableBit) {
+        ALOGE("%s:%d] Failed Longshot mode bit 0x%x", __func__, __LINE__,
+                    advancedFeatEnableBit);
+        rc = BAD_TYPE;
+        return rc;
+    }
+
     if(m_bRecordingHint_new) {
         advancedFeatEnableBit &= ~CAM_QCOM_FEATURE_STILLMORE;
 

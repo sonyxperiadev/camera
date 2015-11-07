@@ -973,11 +973,15 @@ int32_t QCameraStream::processZoomDone(preview_stream_ops_t *previewWindow,
 int32_t QCameraStream::processDataNotify(mm_camera_super_buf_t *frame)
 {
     CDBG("%s:\n", __func__);
+
     if (mDataQ.enqueue((void *)frame)) {
         return mProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
     } else {
-        CDBG_HIGH("%s: Stream thread is not active, no ops here", __func__);
-        bufDone(frame->bufs[0]->buf_idx);
+        if (!m_bActive) {
+            CDBG_HIGH("%s: Stream thread is not active, no ops here %d", __func__, getMyType());
+        } else {
+            bufDone(frame->bufs[0]->buf_idx);
+        }
         free(frame);
         return NO_ERROR;
     }
