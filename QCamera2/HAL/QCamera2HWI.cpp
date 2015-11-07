@@ -1240,7 +1240,6 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mPFps(0),
       m_bIntJpegEvtPending(false),
       m_bIntRawEvtPending(false),
-      mPostviewJob(0),
       mReprocJob(0),
       mJpegJob(0),
       mMetadataAllocJob(0),
@@ -1446,6 +1445,10 @@ int QCamera2HardwareInterface::openCamera()
     DeferWorkArgs args;
     memset(&args, 0, sizeof(args));
     mParamAllocJob = queueDeferredWork(CMD_DEF_PARAM_ALLOC, args);
+    if (mParamAllocJob == 0) {
+        ALOGE("%s: Failed queueing PARAM_ALLOC job", __func__);
+        return -ENOMEM;
+    }
 
     if (gCamCapability[mCameraId] != NULL) {
         // allocate metadata buffers
@@ -1464,13 +1467,15 @@ int QCamera2HardwareInterface::openCamera()
 
         mMetadataAllocJob = queueDeferredWork(CMD_DEF_METADATA_ALLOC, args);
         if (mMetadataAllocJob == 0) {
-            CDBG_HIGH("%s: Failed to allocate param buffer", __func__);
+            ALOGE("%s: Failed to allocate param buffer", __func__);
+            rc = -ENOMEM;
+            goto error_exit1;
         }
 
         rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
         if (rc) {
             ALOGE("camera_open failed. rc = %d, mCameraHandle = %p", rc, mCameraHandle);
-            return rc;
+            goto error_exit2;
         }
 
         mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
@@ -1482,13 +1487,13 @@ int QCamera2HardwareInterface::openCamera()
         rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
         if (rc) {
             ALOGE("camera_open failed. rc = %d, mCameraHandle = %p", rc, mCameraHandle);
-            return rc;
+            goto error_exit2;
         }
 
         if(NO_ERROR != initCapabilities(mCameraId,mCameraHandle)) {
             ALOGE("initCapabilities failed.");
             rc = UNKNOWN_ERROR;
-            goto error_exit;
+            goto error_exit3;
         }
 
         mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
@@ -1505,6 +1510,11 @@ int QCamera2HardwareInterface::openCamera()
     // this task.
     memset(&args, 0, sizeof(args));
     mParamInitJob = queueDeferredWork(CMD_DEF_PARAM_INIT, args);
+    if (mParamInitJob == 0) {
+        ALOGE("%s: Failed queuing PARAM_INIT job", __func__);
+        rc = -ENOMEM;
+        goto error_exit3;
+    }
 
     mCameraOpened = true;
 
@@ -1516,12 +1526,17 @@ int QCamera2HardwareInterface::openCamera()
     pthread_mutex_unlock(&gCamLock);
 
     return NO_ERROR;
-error_exit:
+
+error_exit3:
     if(mJpegClientHandle) {
         deinitJpegHandle();
     }
     mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
+error_exit2:
+    waitDeferredWork(mMetadataAllocJob);
+error_exit1:
+    waitDeferredWork(mParamAllocJob);
     return rc;
 
 }
@@ -2996,7 +3011,7 @@ int QCamera2HardwareInterface::startPreview()
         if (mInitPProcJob == 0) {
             ALOGE("%s: Unable to initialize postprocessor, mCameraHandle = %p",
                     __func__, mCameraHandle);
-            rc = UNKNOWN_ERROR;
+            rc = -ENOMEM;
         }
     }
 
@@ -3841,14 +3856,14 @@ int QCamera2HardwareInterface::takePicture()
                     args);
             if (mReprocJob == 0) {
                 ALOGE("%s: Failure: Unable to start pproc", __func__);
-                return UNKNOWN_ERROR;
+                return -ENOMEM;
             }
             // Create JPEG session
             mJpegJob = queueDeferredWork(CMD_DEF_CREATE_JPEG_SESSION,
                     args);
             if (mJpegJob == 0) {
                 ALOGE("%s: Failure: Unable to create jpeg session", __func__);
-                return UNKNOWN_ERROR;
+                return -ENOMEM;
             }
 
             if (mAdvancedCaptureConfigured) {
@@ -3978,12 +3993,16 @@ int QCamera2HardwareInterface::takePicture()
                         args);
                 if (mReprocJob == 0) {
                     ALOGE("%s: Failure: Unable to start pproc", __func__);
-                    return UNKNOWN_ERROR;
+                    return -ENOMEM;
                 }
 
                 // Create JPEG session
                 mJpegJob = queueDeferredWork(CMD_DEF_CREATE_JPEG_SESSION,
                         args);
+                if (mJpegJob == 0) {
+                    ALOGE("%s: Failed to queue CREATE_JPEG_SESSION", __func__);
+                    return -ENOMEM;
+                }
 
                 // start catpure channel
                 rc =  m_channels[QCAMERA_CH_TYPE_CAPTURE]->start();
@@ -8898,9 +8917,13 @@ uint32_t QCamera2HardwareInterface::queueDeferredWork(DeferredWorkCmd cmd,
                                                       DeferWorkArgs args)
 {
     Mutex::Autolock l(mDefLock);
-    for (uint32_t i = 0; i < MAX_ONGOING_JOBS; ++i) {
+    for (int32_t i = 0; i < MAX_ONGOING_JOBS; ++i) {
         if (mDefOngoingJobs[i].mDefJobId == 0) {
             DefWork *dw = new DefWork(cmd, sNextJobId, args);
+            if (!dw) {
+                ALOGE("%s: out of memory.", __func__);
+                return 0;
+            }
             if (mCmdQueue.enqueue(dw)) {
                 mDefOngoingJobs[i].mDefJobId = sNextJobId++;
                 mDefOngoingJobs[i].mDefJobStatus = 0;
@@ -9161,7 +9184,7 @@ int32_t QCamera2HardwareInterface::waitDeferredWork(uint32_t &job_id)
     Mutex::Autolock l(mDefLock);
 
     if (job_id == 0) {
-        ALOGE("%s: Invalid job id %d", __func__, job_id);
+        ALOGI("%s: Invalid job id %d", __func__, job_id);
         return NO_ERROR;
     }
 
