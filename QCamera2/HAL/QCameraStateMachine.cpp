@@ -433,7 +433,11 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             rc = m_parent->waitDeferredWork(m_parent->mParamInitJob);
             if (NO_ERROR != rc) {
                 ALOGE("%s:%d Param init deferred work failed", __func__, __LINE__);
-                result.params = NULL;
+                char* nullParams = (char *)malloc(1);
+                if (nullParams) {
+                    memset(nullParams, 0, 1);
+                }
+                result.params = nullParams;
             } else {
                 result.params = m_parent->getParameters();
             }
