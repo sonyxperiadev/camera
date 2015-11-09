@@ -5598,6 +5598,8 @@ int32_t QCameraParameters::initDefaultParameters()
         set(KEY_QC_ZSL, VALUE_ON);
         m_bForceZslMode = true;
         m_bZslMode = true;
+        int32_t value = m_bForceZslMode;
+        ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value);
     }
     m_bZslMode_new = m_bZslMode;
 
