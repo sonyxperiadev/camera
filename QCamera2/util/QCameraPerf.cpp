@@ -210,11 +210,27 @@ bool QCameraPerfLock::isTimerReset()
     if (mPerfLockEnable && mTimerSet) {
         nsecs_t timeDiff = systemTime() - mStartTimeofLock;
         if (ns2ms(timeDiff) > (uint32_t)mPerfLockTimeout) {
-            mTimerSet = 0;
+            resetTimer();
             return true;
         }
     }
     return false;
+}
+
+/*===========================================================================
+ * FUNCTION   : resetTimer
+ *
+ * DESCRIPTION: Reset the timer used in timed perf lock
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : void
+ *
+ *==========================================================================*/
+void QCameraPerfLock::resetTimer()
+{
+    mPerfLockTimeout = 0;
+    mTimerSet = 0;
 }
 
 /*===========================================================================
@@ -375,6 +391,7 @@ int32_t QCameraPerfLock::lock_rel_timed()
                 ALOGE("%s: failed to release lock", __func__);
             }
             mPerfLockHandleTimed = -1;
+            resetTimer();
         }
 
         if ((mCurrentPowerHintEnable == 1) && (mTimerSet == 0)) {
@@ -418,7 +435,7 @@ int32_t QCameraPerfLock::lock_rel()
             mPerfLockHandle = -1;
         }
 
-        if ((mCurrentPowerHintEnable == 1) && (mTimerSet == 0)) {
+        if (mCurrentPowerHintEnable == 1) {
             powerHintInternal(mCurrentPowerHint, mCurrentPowerHintEnable);
         }
         CDBG("%s X", __func__);
