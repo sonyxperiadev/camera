@@ -3096,7 +3096,7 @@ int QCamera2HardwareInterface::startRecording()
     int32_t rc = NO_ERROR;
     CDBG_HIGH("%s: E", __func__);
     if (mParameters.getRecordingHintValue() == false) {
-        ALOGE("%s: start recording when hint is false, stop preview first", __func__);
+        ALOGI("%s: start recording when hint is false, stop preview first", __func__);
         stopPreview();
 
         // Set recording hint to TRUE
@@ -8460,6 +8460,8 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
 
     char gpsProcessingMethod[EXIF_ASCII_PREFIX_SIZE + GPS_PROCESSING_METHOD_SIZE];
     uint32_t count = 0;
+
+    /*gps data might not be available */
     rc = mParameters.getExifGpsProcessingMethod(gpsProcessingMethod, count);
     if(rc == NO_ERROR) {
         exif->addEntry(EXIFTAGID_GPS_PROCESSINGMETHOD,
@@ -8467,7 +8469,7 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
                        count,
                        (void *)gpsProcessingMethod);
     } else {
-        ALOGE("%s: getExifGpsProcessingMethod failed", __func__);
+        ALOGW("%s: getExifGpsProcessingMethod failed", __func__);
     }
 
     rat_t latitude[3];
@@ -8483,7 +8485,7 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
                        2,
                        (void *)latRef);
     } else {
-        ALOGE("%s: getExifLatitude failed", __func__);
+        ALOGW("%s: getExifLatitude failed", __func__);
     }
 
     rat_t longitude[3];
@@ -8500,7 +8502,7 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
                        2,
                        (void *)lonRef);
     } else {
-        ALOGE("%s: getExifLongitude failed", __func__);
+        ALOGW("%s: getExifLongitude failed", __func__);
     }
 
     rat_t altitude;
@@ -8517,7 +8519,7 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
                        1,
                        (void *)&altRef);
     } else {
-        ALOGE("%s: getExifAltitude failed", __func__);
+        ALOGW("%s: getExifAltitude failed", __func__);
     }
 
     char gpsDateStamp[20];
@@ -8534,7 +8536,7 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
                        3,
                        (void *)gpsTimeStamp);
     } else {
-        ALOGE("%s: getExifGpsDataTimeStamp failed", __func__);
+        ALOGW("%s: getExifGpsDataTimeStamp failed", __func__);
     }
 
 #ifdef ENABLE_MODEL_INFO_EXIF

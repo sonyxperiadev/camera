@@ -836,7 +836,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     pme->TsMakeupProcess_Preview(frame,stream);
 #endif
     if (!pme->needProcessPreviewFrame()) {
-        ALOGE("%s: preview is not running, no need to process", __func__);
+        ALOGI("%s: preview is not running, no need to process", __func__);
         stream->bufDone(frame->buf_idx);
         free(super_frame);
         return;
