@@ -854,6 +854,7 @@ QCameraParameters::QCameraParameters()
       m_bSensorHDREnabled(false),
       m_bRdiMode(false),
       m_bDisplayFrame(true),
+      m_bPreviewCallbackNeeded(true),
       m_bSecureMode(false),
       m_bAeBracketingEnabled(false),
       mFlashValue(CAM_FLASH_MODE_OFF),

@@ -757,6 +757,8 @@ public:
     void updateAEInfo(cam_3a_params_t &ae_params);
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
+    bool isPreviewCallbackNeeded() { return m_bPreviewCallbackNeeded; };
+    int32_t setPreviewCallbackNeeded(bool enabled) {m_bPreviewCallbackNeeded=enabled; return 0;};
     bool isAdvCamFeaturesEnabled() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || m_bOptiZoomOn || isHDREnabled() ||
             isAEBracketEnabled() || isStillMoreEnabled() || isUbiRefocus();}
@@ -1091,6 +1093,7 @@ private:
     bool m_bRdiMode;                // if RDI mode
     bool m_bUbiRefocus;
     bool m_bDisplayFrame;
+    bool m_bPreviewCallbackNeeded;
     bool m_bSecureMode;
     bool m_bAeBracketingEnabled;
     int32_t mFlashValue;
