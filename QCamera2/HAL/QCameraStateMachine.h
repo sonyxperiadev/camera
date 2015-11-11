@@ -197,6 +197,8 @@ public:
 
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
+    bool isPreviewCallbackNeeded() { return m_bPreviewCallbackNeeded; };
+    int32_t setPreviewCallbackNeeded(bool enabled) {m_bPreviewCallbackNeeded=enabled; return 0;};
 private:
     typedef enum {
         QCAMERA_SM_STATE_PREVIEW_STOPPED,          // preview is stopped
@@ -252,6 +254,7 @@ private:
     bool m_RestoreZSL;
 
     bool m_bDisplayFrame;
+    bool m_bPreviewCallbackNeeded;
 };
 
 }; // namespace qcamera

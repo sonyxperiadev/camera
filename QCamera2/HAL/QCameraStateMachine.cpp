@@ -125,6 +125,7 @@ QCameraStateMachine::QCameraStateMachine(QCamera2HardwareInterface *ctrl) :
     m_RestoreZSL = TRUE;
 
     m_bDisplayFrame = TRUE;
+    m_bPreviewCallbackNeeded = TRUE;
 }
 
 /*===========================================================================

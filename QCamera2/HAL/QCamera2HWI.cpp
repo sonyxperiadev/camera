@@ -450,6 +450,11 @@ int QCamera2HardwareInterface::preview_enabled(struct camera_device *device)
         hw->waitAPIResult(QCAMERA_SM_EVT_PREVIEW_ENABLED, &apiResult);
         ret = apiResult.enabled;
     }
+
+    //if preview enabled, can enable preview callback send
+    if(apiResult.enabled) {
+        hw->m_stateMachine.setPreviewCallbackNeeded(true);
+    }
     hw->unlockAPI();
     CDBG("%s: X camera id %d", __func__, hw->getCameraId());
 
@@ -3253,6 +3258,7 @@ int QCamera2HardwareInterface::startPreview()
     }
 
     updatePostPreviewParameters();
+    m_stateMachine.setPreviewCallbackNeeded(true);
 
     // if job id is non-zero, that means the postproc init job is already
     // pending or complete
@@ -4483,6 +4489,9 @@ int QCamera2HardwareInterface::takePicture()
             }
         }
     }
+
+    //When take picture, stop sending preview callbacks to APP
+    m_stateMachine.setPreviewCallbackNeeded(false);
     CDBG_HIGH("%s: X", __func__);
     return rc;
 }
@@ -8892,6 +8901,24 @@ bool QCamera2HardwareInterface::needProcessPreviewFrame()
 {
     return m_stateMachine.isPreviewRunning()
             && m_stateMachine.isDisplayFrameNeeded();
+};
+
+/*===========================================================================
+ * FUNCTION   : needSendPreviewCallback
+ *
+ * DESCRIPTION: returns whether preview frame need to callback to APP
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : true - need preview frame callbck
+ *              false - not send preview frame callback
+ *==========================================================================*/
+bool QCamera2HardwareInterface::needSendPreviewCallback()
+{
+    return m_stateMachine.isPreviewRunning()
+            && (mDataCb != NULL)
+            && (msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0)
+            && m_stateMachine.isPreviewCallbackNeeded();
 };
 
 /*===========================================================================
