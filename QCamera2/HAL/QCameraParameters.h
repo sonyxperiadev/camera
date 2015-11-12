@@ -793,6 +793,8 @@ public:
             {m_stillmore_config = stillmore_config;};
     cam_still_more_t getStillMoreCapability()
             {return m_pCapability->stillmore_settings_need;};
+    cam_dyn_img_data_t getDynamicImgData() { return m_DynamicImgData; }
+    void setDynamicImgData(cam_dyn_img_data_t d) { m_DynamicImgData = d; }
 
     int32_t getZoomLevel(){return mZoomLevel;};
     int32_t getParmZoomLevel(){return mParmZoomLevel;};
@@ -1139,6 +1141,7 @@ private:
     bool m_LLCaptureEnabled;
     cam_low_light_mode_t m_LowLightLevel;
     bool m_bLtmForSeeMoreEnabled;
+    cam_dyn_img_data_t m_DynamicImgData;
 };
 
 }; // namespace qcamera
