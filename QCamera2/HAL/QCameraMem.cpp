@@ -40,7 +40,6 @@
 
 #include "QCamera2HWI.h"
 #include "QCameraMem.h"
-#include "QCameraParameters.h"
 
 extern "C" {
 #include <mm_camera_interface.h>

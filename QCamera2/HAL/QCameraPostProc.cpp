@@ -32,6 +32,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <utils/Errors.h>
+#include <cutils/properties.h>
 
 #include "QCamera2HWI.h"
 #include "QCameraPostProc.h"
@@ -3108,14 +3109,6 @@ int32_t QCameraPostProcessor::setYUVFrameInfo(mm_camera_super_buf_t *recvd_frame
 
                 int cbcr_offset = (int32_t)frame_offset.mp[0].len -
                         frame_dim.width * frame_dim.height;
-                m_parent->mParameters.set("snapshot-framelen", (int)frame_offset.frame_len);
-                m_parent->mParameters.set("snapshot-yoff", (int)frame_offset.mp[0].offset);
-                m_parent->mParameters.set("snapshot-cbcroff", cbcr_offset);
-                if (fmt_string != NULL) {
-                    m_parent->mParameters.set("snapshot-format", fmt_string);
-                } else {
-                    m_parent->mParameters.set("snapshot-format", "");
-                }
 
                 CDBG_HIGH("%s: frame width=%d, height=%d, yoff=%d, cbcroff=%d, fmt_string=%s", __func__,
                         frame_dim.width, frame_dim.height, frame_offset.mp[0].offset, cbcr_offset, fmt_string);
