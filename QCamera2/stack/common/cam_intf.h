@@ -101,6 +101,13 @@ typedef struct{
     size_t supported_white_balances_cnt;
     cam_wb_mode_type supported_white_balances[CAM_WB_MODE_MAX];
 
+    /* Capability list of supported insensor HDR types
+     * Backend is expected to fill in all the supported types and set appropriate
+     * count, see cam_sensor_hdr_type_t for valid types
+    */
+    size_t supported_sensor_hdr_types_cnt;
+    cam_sensor_hdr_type_t supported_sensor_hdr_types[CAM_SENSOR_HDR_MAX];
+
     /* supported manual wb cct */
     int32_t min_wb_cct;
     int32_t max_wb_cct;
@@ -157,6 +164,9 @@ typedef struct{
 
     size_t hfr_tbl_cnt;                                     /* table size for HFR */
     cam_hfr_info_t hfr_tbl[CAM_HFR_MODE_MAX];               /* HFR table */
+
+    size_t zzhdr_sizes_tbl_cnt;                             /* Number of resolutions in zzHDR mode*/
+    cam_dimension_t zzhdr_sizes_tbl[MAX_SIZES_CNT];         /* Table for ZZHDR supported sizes */
 
     /* supported preview formats */
     size_t supported_preview_fmt_cnt;
