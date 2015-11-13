@@ -2218,7 +2218,7 @@ int32_t mm_stream_unreg_buf(mm_stream_t * my_obj)
  *==========================================================================*/
 uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt)
 {
-    uint32_t val;
+    uint32_t val = 0;
     switch(fmt) {
     case CAM_FORMAT_YUV_420_NV12:
     case CAM_FORMAT_YUV_420_NV12_VENUS:
@@ -2273,6 +2273,16 @@ uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt)
         break;
     case CAM_FORMAT_YUV_422_NV16:
         val= V4L2_PIX_FMT_NV16;
+        break;
+    case CAM_FORMAT_Y_ONLY:
+        val= V4L2_PIX_FMT_GREY;
+        break;
+    case CAM_FORMAT_MAX:
+        /* CAM_STREAM_TYPE_DEFAULT,
+         * CAM_STREAM_TYPE_OFFLINE_PROC,
+         * and CAM_STREAM_TYPE_METADATA
+         * set fmt to CAM_FORMAT_MAX*/
+        val = 0;
         break;
     default:
         val = 0;
