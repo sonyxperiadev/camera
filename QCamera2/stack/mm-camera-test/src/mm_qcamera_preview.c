@@ -635,6 +635,30 @@ mm_camera_stream_t * mm_app_add_raw_stream(mm_camera_test_obj_t *test_obj,
     mm_camera_stream_t *stream = NULL;
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
 
+    cam_stream_size_info_t abc ;
+    memset (&abc , 0, sizeof (cam_stream_size_info_t));
+
+    abc.num_streams = 1;
+    abc.postprocess_mask[0] = 0;
+
+    if ( test_obj->buffer_width == 0 || test_obj->buffer_height == 0 ) {
+        abc.stream_sizes[0].width = DEFAULT_SNAPSHOT_WIDTH;
+        abc.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+    } else {
+        abc.stream_sizes[0].width = (int32_t)test_obj->buffer_width;
+        abc.stream_sizes[0].height = (int32_t)test_obj->buffer_height;
+    }
+    abc.type[0] = CAM_STREAM_TYPE_RAW;
+
+    abc.buffer_info.min_buffers = num_bufs;
+    abc.buffer_info.max_buffers = num_bufs;
+    abc.is_type = IS_TYPE_NONE;
+
+    rc = setmetainfoCommand(test_obj, &abc);
+    if (rc != MM_CAMERA_OK) {
+       CDBG_ERROR("%s: meta info command failed\n", __func__);
+    }
+
     stream = mm_app_add_stream(test_obj, channel);
     if (NULL == stream) {
         CDBG_ERROR("%s: add stream failed\n", __func__);

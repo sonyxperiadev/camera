@@ -575,6 +575,8 @@ int mm_app_stop_capture_raw(mm_camera_test_obj_t *test_obj)
     int rc = MM_CAMERA_OK;
     mm_camera_channel_t *ch = NULL;
     int i;
+    cam_stream_size_info_t abc ;
+    memset (&abc , 0, sizeof (cam_stream_size_info_t));
 
     ch = mm_app_get_channel_by_type(test_obj, MM_CHANNEL_TYPE_CAPTURE);
 
@@ -586,7 +588,10 @@ int mm_app_stop_capture_raw(mm_camera_test_obj_t *test_obj)
     for ( i = 0 ; i < ch->num_streams ; i++ ) {
         mm_app_del_stream(test_obj, ch, &ch->streams[i]);
     }
-
+    rc = setmetainfoCommand(test_obj, &abc);
+    if (rc != MM_CAMERA_OK) {
+       CDBG_ERROR("%s: meta info command failed\n", __func__);
+    }
     mm_app_del_channel(test_obj, ch);
 
     return rc;
