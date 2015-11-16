@@ -328,7 +328,8 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mDefferedAllocation(deffered),
         wait_for_cond(false),
         mAllocTaskId(0),
-        mMapTaskId(0)
+        mMapTaskId(0),
+        mSyncCBEnabled(false)
 {
     mMemVtbl.user_data = this;
     if ( !deffered ) {
@@ -1007,7 +1008,7 @@ void QCameraStream::dataNotifySYNCCB(mm_camera_super_buf_t *recvd_frame,
         ALOGE("%s: Not a valid stream to handle buf", __func__);
         return;
     }
-    if (stream->mSYNCDataCB != NULL)
+    if ((stream->mSyncCBEnabled) && (stream->mSYNCDataCB != NULL))
         stream->mSYNCDataCB(recvd_frame, stream, stream->mUserData);
     return;
 }
@@ -2589,11 +2590,17 @@ int32_t QCameraStream::configStream()
  *==========================================================================*/
 int32_t QCameraStream::setSyncDataCB(stream_cb_routine data_cb)
 {
+    int32_t rc = NO_ERROR;
+
     if (mCamOps != NULL) {
         mSYNCDataCB = data_cb;
-        return mCamOps->register_stream_buf_cb(mCamHandle,
+        rc = mCamOps->register_stream_buf_cb(mCamHandle,
                 mChannelHandle, mHandle, dataNotifySYNCCB, MM_CAMERA_STREAM_CB_TYPE_SYNC,
                 this);
+        if (rc == NO_ERROR) {
+            mSyncCBEnabled = TRUE;
+            return rc;
+        }
     }
     ALOGE("%s: Interface handle is NULL", __func__);
     return UNKNOWN_ERROR;

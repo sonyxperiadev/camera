@@ -855,9 +855,24 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
        pme->m_bPreviewStarted = false ;
     }
 
-    pthread_mutex_lock(&pme->mGrallocLock);
-    dequeueCnt = pme->mEnqueuedBuffers;
-    pthread_mutex_unlock(&pme->mGrallocLock);
+    if (!stream->isSyncCBEnabled()) {
+        CDBG("%s : Enqueue Buffer to display %d",
+                __func__, idx);
+        err = memory->enqueueBuffer(idx);
+
+        if (err == NO_ERROR) {
+            pthread_mutex_lock(&pme->mGrallocLock);
+            pme->mEnqueuedBuffers++;
+            dequeueCnt = pme->mEnqueuedBuffers;
+            pthread_mutex_unlock(&pme->mGrallocLock);
+        } else {
+            ALOGE ("%s: Enqueue Buffer failed", __func__);
+        }
+    } else {
+        pthread_mutex_lock(&pme->mGrallocLock);
+        dequeueCnt = pme->mEnqueuedBuffers;
+        pthread_mutex_unlock(&pme->mGrallocLock);
+    }
 
     // Display the buffer.
     CDBG("%p displayBuffer %d E", pme, idx);
