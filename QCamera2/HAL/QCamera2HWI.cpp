@@ -3699,21 +3699,33 @@ int32_t QCamera2HardwareInterface::configureStillMore()
     /* Disable Tintless */
     mParameters.setTintless(false);
 
-    /* Configure burst count based on user input */
-    char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.imglib.stillmore", prop, "0");
-    burst_cnt = (uint32_t)atoi(prop);
+    /* Initialize burst count from capability */
+    stillmore_cap = mParameters.getStillMoreCapability();
+    burst_cnt = stillmore_cap.max_burst_count;
 
-    /* In the case of liveshot, burst should be 1 */
+    /* Reconfigure burst count from dynamic scene data */
+    cam_dyn_img_data_t dynamic_img_data = mParameters.getDynamicImgData();
+    if (dynamic_img_data.input_count >= stillmore_cap.min_burst_count &&
+            dynamic_img_data.input_count <= stillmore_cap.max_burst_count) {
+        burst_cnt = dynamic_img_data.input_count;
+    }
+
+    /* Reconfigure burst count in the case of liveshot */
     if (mParameters.isSeeMoreEnabled()) {
         burst_cnt = 1;
     }
 
-    /* Validate burst count */
-    stillmore_cap = mParameters.getStillMoreCapability();
-    if ((burst_cnt < stillmore_cap.min_burst_count) ||
-            (burst_cnt > stillmore_cap.max_burst_count)) {
-        burst_cnt = stillmore_cap.max_burst_count;
+    /* Reconfigure burst count from user input */
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.imglib.stillmore", prop, "0");
+    uint8_t burst_setprop = (uint32_t)atoi(prop);
+    if (burst_setprop != 0)  {
+       if ((burst_setprop < stillmore_cap.min_burst_count) ||
+               (burst_setprop > stillmore_cap.max_burst_count)) {
+           burst_cnt = stillmore_cap.max_burst_count;
+       } else {
+           burst_cnt = burst_setprop;
+       }
     }
 
     memset(&stillmore_config, 0, sizeof(cam_still_more_t));

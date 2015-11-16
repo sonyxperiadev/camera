@@ -1838,6 +1838,15 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
 
     ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData, CAM_INTF_PARM_ROTATION, rotation_info);
 
+    // Imglib Dynamic Scene Data
+    cam_dyn_img_data_t dyn_img_data = mParameters.getDynamicImgData();
+    if (mParameters.isStillMoreEnabled()) {
+        cam_still_more_t stillmore_cap = mParameters.getStillMoreSettings();
+        dyn_img_data.input_count = stillmore_cap.burst_count;
+    }
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
+            CAM_INTF_META_IMG_DYN_FEAT, dyn_img_data);
+
     //CPP CDS
     int32_t prmCDSMode = mParameters.getCDSMode();
     ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
@@ -2249,6 +2258,11 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
                 CAM_INTF_META_LOW_LIGHT, pMetaData) {
             pme->mParameters.setLowLightLevel(*low_light_level);
         }
+    }
+
+    IF_META_AVAILABLE(cam_dyn_img_data_t, dyn_img_data,
+            CAM_INTF_META_IMG_DYN_FEAT, pMetaData) {
+        pme->mParameters.setDynamicImgData(*dyn_img_data);
     }
 
     stream->bufDone(frame->buf_idx);
