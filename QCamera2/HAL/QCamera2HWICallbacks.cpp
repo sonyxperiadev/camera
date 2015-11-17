@@ -2683,7 +2683,7 @@ void QCamera2HardwareInterface::dumpMetadataToFile(QCameraStream *stream,
  * RETURN     : None
  *==========================================================================*/
 void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
-        mm_camera_buf_def_t *frame, uint32_t dump_type)
+        mm_camera_buf_def_t *frame, uint32_t dump_type, const char *misc)
 {
     char value[PROPERTY_VALUE_MAX];
     property_get("persist.camera.dumpimg", value, "0");
@@ -2768,8 +2768,13 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                             } else {
                                 stream->getFrameDimension(dim);
                             }
-                            snprintf(buf, sizeof(buf), "%ds_%dx%d_%d.yuv",
-                                    dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
+                            if (misc != NULL) {
+                                snprintf(buf, sizeof(buf), "%ds_%dx%d_%d_%s.yuv",
+                                        dumpFrmCnt, dim.width, dim.height, frame->frame_idx, misc);
+                            } else {
+                                snprintf(buf, sizeof(buf), "%ds_%dx%d_%d.yuv",
+                                        dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
+                            }
                         }
                         break;
                     case QCAMERA_DUMP_FRM_VIDEO:
@@ -2810,6 +2815,14 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                             if (i > 0) {
                                 index += offset.mp[i-1].len;
                             }
+
+                            if (offset.mp[i].meta_len != 0) {
+                                data = (void *)((uint8_t *)frame->buffer + index);
+                                written_len += write(file_fd, data,
+                                        (size_t)offset.mp[i].meta_len);
+                                index += (uint32_t)offset.mp[i].meta_len;
+                            }
+
                             for (int j = 0; j < offset.mp[i].height; j++) {
                                 data = (void *)((uint8_t *)frame->buffer + index);
                                 written_len += write(file_fd, data,

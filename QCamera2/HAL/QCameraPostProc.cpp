@@ -2131,7 +2131,8 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
     }
 
     // dump snapshot frame if enabled
-    m_parent->dumpFrameToFile(main_stream, main_frame, QCAMERA_DUMP_FRM_SNAPSHOT);
+    m_parent->dumpFrameToFile(main_stream, main_frame,
+            QCAMERA_DUMP_FRM_SNAPSHOT, (char *)"CPP");
 
     // send upperlayer callback for raw image
     camera_memory_t *mem = memObj->getMemory(main_frame->buf_idx, false);

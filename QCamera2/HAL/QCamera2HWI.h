@@ -391,7 +391,7 @@ private:
     void debugShowPreviewFPS();
     void dumpJpegToFile(const void *data, size_t size, uint32_t index);
     void dumpFrameToFile(QCameraStream *stream,
-            mm_camera_buf_def_t *frame, uint32_t dump_type);
+            mm_camera_buf_def_t *frame, uint32_t dump_type, const char *misc = NULL);
     void dumpMetadataToFile(QCameraStream *stream,
                             mm_camera_buf_def_t *frame,char *type);
     void releaseSuperBuf(mm_camera_super_buf_t *super_buf);
