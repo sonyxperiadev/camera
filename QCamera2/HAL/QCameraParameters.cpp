@@ -7380,12 +7380,6 @@ int32_t QCameraParameters::configureLowLight(cam_capture_frame_config_t &frame_c
     int32_t rc = NO_ERROR;
     uint32_t i = 0;
 
-    rc = setCDSMode(CAM_CDS_MODE_OFF, false);
-    if (rc != NO_ERROR) {
-        ALOGE("%s: Failed to configure csd mode", __func__);
-        return rc;
-    }
-
     frame_config.num_batch = 1;
     frame_config.configs[0].num_frames = getNumOfSnapshots();
     frame_config.configs[0].type = CAM_CAPTURE_LOW_LIGHT;
