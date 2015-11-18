@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <utils/Errors.h>
 #include <gralloc_priv.h>
+#include "util/QCameraFlash.h"
 #include <gui/Surface.h>
 #include <binder/Parcel.h>
 #include <binder/IServiceManager.h>
@@ -1441,6 +1442,14 @@ int QCamera2HardwareInterface::openCamera()
         return ALREADY_EXISTS;
     }
 
+    rc = QCameraFlash::getInstance().reserveFlashForCamera(mCameraId);
+    if (rc < 0) {
+        ALOGE("%s: Failed to reserve flash for camera id: %d",
+                __func__,
+                mCameraId);
+        return UNKNOWN_ERROR;
+    }
+
     // alloc param buffer
     DeferWorkArgs args;
     memset(&args, 0, sizeof(args));
@@ -1770,6 +1779,13 @@ int QCamera2HardwareInterface::closeCamera()
         free(mExifParams.debug_params);
         mExifParams.debug_params = NULL;
     }
+
+    if (QCameraFlash::getInstance().releaseFlashFromCamera(mCameraId) != 0) {
+        CDBG("%s: Failed to release flash for camera id: %d",
+                __func__,
+                mCameraId);
+    }
+
     ALOGI("[KPI Perf] %s: X PROFILE_CLOSE_CAMERA camera id %d, rc: %d",
         __func__, mCameraId, rc);
 
