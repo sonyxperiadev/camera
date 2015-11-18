@@ -735,7 +735,6 @@ int QCamera3HardwareInterface::validateStreamDimensions(
 {
     int rc = NO_ERROR;
     int32_t available_processed_sizes[MAX_SIZES_CNT * 2];
-    int32_t available_jpeg_sizes[MAX_SIZES_CNT * 2];
     size_t count = 0;
 
     /*
@@ -766,23 +765,12 @@ int QCamera3HardwareInterface::validateStreamDimensions(
             break;
         case HAL_PIXEL_FORMAT_BLOB:
             count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
-            /* Generate JPEG sizes table */
-            makeTable(gCamCapability[mCameraId]->picture_sizes_tbl,
-                    count,
-                    MAX_SIZES_CNT,
-                    available_processed_sizes);
-            jpeg_sizes_cnt = filterJpegSizes(
-                    available_jpeg_sizes,
-                    available_processed_sizes,
-                    count * 2,
-                    MAX_SIZES_CNT * 2,
-                    gCamCapability[mCameraId]->active_array_size,
-                    gCamCapability[mCameraId]->max_downscale_factor);
-
             /* Verify set size against generated sizes table */
-            for (size_t i = 0; i < (jpeg_sizes_cnt / 2); i++) {
-                if (((int32_t)newStream->width == available_jpeg_sizes[i*2]) &&
-                        ((int32_t)newStream->height == available_jpeg_sizes[i*2+1])) {
+            for (size_t i = 0; i < count; i++) {
+                if (((int32_t)newStream->width ==
+                            gCamCapability[mCameraId]->picture_sizes_tbl[i].width) &&
+                        ((int32_t)newStream->height ==
+                                gCamCapability[mCameraId]->picture_sizes_tbl[i].height)) {
                     sizeFound = true;
                     break;
                 }
@@ -1034,6 +1022,8 @@ int QCamera3HardwareInterface::configureStreams(
     cam_dimension_t maxViewfinderSize;
     bool bJpegExceeds4K = false;
     bool bUseCommonFeatureMask = false;
+    bool bSmallJpegSize = false;
+    uint8_t maxDownscaleFactor = 1;
     uint32_t commonFeatureMask = 0;
 
     //@todo Remove fullFeatureMask and possibly m_bTnrEnabled once CPP checks
@@ -1056,6 +1046,8 @@ int QCamera3HardwareInterface::configureStreams(
 
     cam_padding_info_t padding_info = gCamCapability[mCameraId]->padding_info;
 
+    uint32_t minWidth;
+    uint32_t minHeight;
     /*EIS configuration*/
     bool eisSupported = false;
     bool oisSupported = false;
@@ -1139,6 +1131,16 @@ int QCamera3HardwareInterface::configureStreams(
                     commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
                     numStreamsOnEncoder++;
                 }
+                assert(gCamCapability[mCameraId]->max_downscale_factor > 0);
+                maxDownscaleFactor = gCamCapability[mCameraId]->max_downscale_factor;
+                minWidth = gCamCapability[mCameraId]->active_array_size.width/maxDownscaleFactor;
+                minHeight = gCamCapability[mCameraId]->active_array_size.height/maxDownscaleFactor;
+                // Set bSmallJpegSize to link the cpp if new resolution is < VFE downscale
+                if ( (newStream->width < minWidth) ||
+                        (newStream->height < minHeight)) {
+                    CDBG("%s: Setting small jpeg size to true", __func__);
+                    bSmallJpegSize = true;
+                }
                 break;
             case HAL_PIXEL_FORMAT_RAW10:
             case HAL_PIXEL_FORMAT_RAW_OPAQUE:
@@ -1170,6 +1172,11 @@ int QCamera3HardwareInterface::configureStreams(
 
         }
     }
+
+    CDBG_HIGH("%s: max viewfinder width %d height %d isZsl %d",  __func__, maxViewfinderSize.width,
+            maxViewfinderSize.height, isZsl);
+    CDBG_HIGH("%s: numStreamsOnEncoder %d, processedStreamCnt %d, stallcnt %d bSmallJpegSize %d",
+            __func__, numStreamsOnEncoder, processedStreamCnt, stallStreamCnt, bSmallJpegSize);
 
     /* Check if num_streams is sane */
     if (stallStreamCnt > MAX_STALLING_STREAMS ||
@@ -1348,7 +1355,13 @@ int QCamera3HardwareInterface::configureStreams(
             mStreamConfigInfo.stream_sizes[i].width = (int32_t)jpegStream->width;
             mStreamConfigInfo.stream_sizes[i].height = (int32_t)jpegStream->height;
             mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
-            mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
+            // link the cpp if below conditions are met
+            if (bSmallJpegSize) {
+                mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
+                mStreamConfigInfo.postprocess_mask[i] &= ~CAM_QCOM_FEATURE_CDS;
+            } else {
+                mStreamConfigInfo.postprocess_mask[i] = CAM_QCOM_FEATURE_NONE;
+            }
         } else {
             //for non zsl streams find out the format
             switch (newStream->format) {
@@ -1391,7 +1404,8 @@ int QCamera3HardwareInterface::configureStreams(
             break;
             case HAL_PIXEL_FORMAT_BLOB:
                 mStreamConfigInfo.type[i] = CAM_STREAM_TYPE_SNAPSHOT;
-                if (m_bIs4KVideo && !isZsl) {
+                // link the cpp if below conditions are met
+                if ((m_bIs4KVideo && !isZsl) || bSmallJpegSize) {
                     mStreamConfigInfo.postprocess_mask[i] = fullFeatureMask;
                     mStreamConfigInfo.postprocess_mask[i] &= ~CAM_QCOM_FEATURE_CDS;
                 } else {
@@ -5340,11 +5354,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       sizeof(available_thumbnail_sizes)/sizeof(int32_t));
 
     /*all sizes will be clubbed into this tag*/
-    int32_t available_jpeg_sizes[MAX_SIZES_CNT * 2];
     count = MIN(gCamCapability[cameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
-    size_t jpeg_sizes_cnt = filterJpegSizes(available_jpeg_sizes, available_processed_sizes,
-            count * 2, MAX_SIZES_CNT * 2, gCamCapability[cameraId]->active_array_size,
-            gCamCapability[cameraId]->max_downscale_factor);
     /*android.scaler.availableStreamConfigurations*/
     size_t max_stream_configs_size = count * scalar_formats_count * 4;
     int32_t available_stream_configs[max_stream_configs_size];
@@ -5366,10 +5376,13 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             }
             break;
         case HAL_PIXEL_FORMAT_BLOB:
-            for (size_t i = 0; i < jpeg_sizes_cnt/2; i++) {
+            for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+                    gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
                 available_stream_configs[idx] = scalar_formats[j];
-                available_stream_configs[idx+1] = available_jpeg_sizes[i*2];
-                available_stream_configs[idx+2] = available_jpeg_sizes[i*2+1];
+                available_stream_configs[idx+1] =
+                        gCamCapability[cameraId]->picture_sizes_tbl[i].width;
+                available_stream_configs[idx+2] =
+                        gCamCapability[cameraId]->picture_sizes_tbl[i].height;
                 available_stream_configs[idx+3] = ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
                 idx+=4;
             }
