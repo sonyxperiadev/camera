@@ -590,14 +590,11 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
     if (obj && evt) {
         switch(evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
+                pthread_mutex_lock(&obj->mMutex);
+                obj->mState = ERROR;
+                pthread_mutex_unlock(&obj->mMutex);
+
                 ALOGE("%s: Fatal, camera daemon died", __func__);
-                camera3_notify_msg_t notify_msg;
-                memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-                notify_msg.type = CAMERA3_MSG_ERROR;
-                notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_DEVICE;
-                notify_msg.message.error.error_stream = NULL;
-                notify_msg.message.error.frame_number = 0;
-                obj->mCallbackOps->notify(obj->mCallbackOps, &notify_msg);
                 break;
 
             case CAM_EVENT_TYPE_DAEMON_PULL_REQ:
@@ -802,10 +799,22 @@ int QCamera3HardwareInterface::initialize(
 
     pthread_mutex_lock(&mMutex);
 
-    if (mState != OPENED) {
-        ALOGE("%s: Invalid state %d", __func__, mState);
-        rc = -ENODEV;
-        goto err1;
+    // Validate current state
+    switch (mState) {
+        case OPENED:
+            /* valid state */
+            break;
+
+        case ERROR:
+            pthread_mutex_unlock(&mMutex);
+            handleCameraDeviceError();
+            rc = -ENODEV;
+            goto err2;
+
+        default:
+            ALOGE("%s: Invalid state %d", __func__, mState);
+            rc = -ENODEV;
+            goto err1;
     }
 
     rc = initParameters();
@@ -831,6 +840,7 @@ int QCamera3HardwareInterface::initialize(
 
 err1:
     pthread_mutex_unlock(&mMutex);
+err2:
     return rc;
 }
 
@@ -1301,12 +1311,22 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     pthread_mutex_lock(&mMutex);
 
     // Check state
-    if ((mState != INITIALIZED) && (mState != CONFIGURED)
-            && (mState != STARTED)) {
-        ALOGE("%s: Wrong state %d", __func__, mState);
-        pthread_mutex_unlock(&mMutex);
-        rc = -ENODEV;
-        return rc;
+    switch (mState) {
+        case INITIALIZED:
+        case CONFIGURED:
+        case STARTED:
+            /* valid state */
+            break;
+
+        case ERROR:
+            pthread_mutex_unlock(&mMutex);
+            handleCameraDeviceError();
+            return -ENODEV;
+
+        default:
+            ALOGE("%s: Invalid state %d", __func__, mState);
+            pthread_mutex_unlock(&mMutex);
+            return -ENODEV;
     }
 
     /* Check whether we have video stream */
@@ -2568,10 +2588,10 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     mm_camera_super_buf_t *metadata_buf, bool free_and_bufdone_meta_buf)
 {
     ATRACE_CALL();
-    if (mFlushPerf) {
+    if ((mFlushPerf) || (ERROR == mState) || (DEINIT == mState)) {
         //during flush do not send metadata from this thread
-        CDBG("%s: not sending metadata during flush",
-                            __func__);
+        CDBG("%s: not sending metadata during flush or when mState is error",
+                __func__);
         if (free_and_bufdone_meta_buf) {
             mMetadataChannel->bufDone(metadata_buf);
             free(metadata_buf);
@@ -2734,11 +2754,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     mMetadataChannel->bufDone(metadata_buf);
                     free(metadata_buf);
                 }
-                camera3_notify_msg_t notify_msg;
-                memset(&notify_msg, 0, sizeof(notify_msg));
-                notify_msg.type = CAMERA3_MSG_ERROR;
-                notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_DEVICE;
-                mCallbackOps->notify(mCallbackOps, &notify_msg);
+                mState = ERROR;
                 goto done_metadata;
             }
         } else {
@@ -3033,6 +3049,10 @@ void QCamera3HardwareInterface::handleBufferWithLock(
         }
         return;
     }
+    /* Nothing to be done during error state */
+    if ((ERROR == mState) || (DEINIT == mState)) {
+        return;
+    }
 
     //not in flush
     // If the frame number doesn't exist in the pending request list,
@@ -3230,10 +3250,21 @@ int QCamera3HardwareInterface::processCaptureRequest(
     pthread_mutex_lock(&mMutex);
 
     // Validate current state
-    if ((mState != CONFIGURED) && (mState != STARTED)) {
-        ALOGE("%s: Wrong state %d", __func__, mState);
-        pthread_mutex_unlock(&mMutex);
-        return -ENODEV;
+    switch (mState) {
+        case CONFIGURED:
+        case STARTED:
+            /* valid state */
+            break;
+
+        case ERROR:
+            pthread_mutex_unlock(&mMutex);
+            handleCameraDeviceError();
+            return -ENODEV;
+
+        default:
+            ALOGE("%s: Invalid state %d", __func__, mState);
+            pthread_mutex_unlock(&mMutex);
+            return -ENODEV;
     }
 
     rc = validateCaptureRequest(request);
@@ -3893,7 +3924,8 @@ no_error:
         minInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
         maxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
     }
-    while ((mPendingLiveRequest >= minInFlightRequests) && !pInputBuffer) {
+    while ((mPendingLiveRequest >= minInFlightRequests) && !pInputBuffer &&
+            (mState != ERROR) && (mState != DEINIT)) {
         if (!isValidTimeout) {
             CDBG("%s: Blocking on conditional wait", __func__);
             pthread_cond_wait(&mRequestCond, &mMutex);
@@ -3982,25 +4014,24 @@ void QCamera3HardwareInterface::dump(int fd)
 /*===========================================================================
  * FUNCTION   : flush
  *
- * DESCRIPTION:
+ * DESCRIPTION: Calls stopAllChannels, notifyErrorForPendingRequests and
+ *              conditionally restarts channels
  *
  * PARAMETERS :
+ *  @ restartChannels: re-start all channels
  *
  *
  * RETURN     :
+ *          0 on success
+ *          Error code on failure
  *==========================================================================*/
-int QCamera3HardwareInterface::flush()
+int QCamera3HardwareInterface::flush(bool restartChannels)
 {
     KPI_ATRACE_CALL();
     int32_t rc = NO_ERROR;
 
     CDBG("%s: Unblocking Process Capture Request", __func__);
     pthread_mutex_lock(&mMutex);
-    if (mState != STARTED) {
-        ALOGI("%s: Flush returned during state %d", __func__, mState);
-        pthread_mutex_unlock(&mMutex);
-        return 0;
-    }
     mFlush = true;
     pthread_mutex_unlock(&mMutex);
 
@@ -4038,11 +4069,13 @@ int QCamera3HardwareInterface::flush()
     mFlush = false;
 
     // Start the Streams/Channels
-    rc = startAllChannels();
-    if (rc < 0) {
-        ALOGE("%s: startAllChannels failed", __func__);
-        pthread_mutex_unlock(&mMutex);
-        return rc;
+    if (restartChannels) {
+        rc = startAllChannels();
+        if (rc < 0) {
+            ALOGE("%s: startAllChannels failed", __func__);
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
     }
 
     if (mChannelHandle) {
@@ -4170,6 +4203,49 @@ int QCamera3HardwareInterface::flushPerf()
 
     mFlushPerf = false;
     pthread_mutex_unlock(&mMutex);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : handleCameraDeviceError
+ *
+ * DESCRIPTION: This function calls internal flush and notifies the error to
+ *              framework and updates the state variable.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : NO_ERROR on Success
+ *              Error code on failure
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::handleCameraDeviceError()
+{
+    int32_t rc = NO_ERROR;
+
+    pthread_mutex_lock(&mMutex);
+    if (mState != ERROR) {
+        //if mState != ERROR, nothing to be done
+        pthread_mutex_unlock(&mMutex);
+        return NO_ERROR;
+    }
+    pthread_mutex_unlock(&mMutex);
+
+    rc = flush(false /* restart channels */);
+    if (NO_ERROR != rc) {
+        ALOGE("%s: internal flush to handle mState = ERROR failed", __func__);
+    }
+
+    pthread_mutex_lock(&mMutex);
+    mState = DEINIT;
+    pthread_mutex_unlock(&mMutex);
+
+    camera3_notify_msg_t notify_msg;
+    memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+    notify_msg.type = CAMERA3_MSG_ERROR;
+    notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_DEVICE;
+    notify_msg.message.error.error_stream = NULL;
+    notify_msg.message.error.frame_number = 0;
+    mCallbackOps->notify(mCallbackOps, &notify_msg);
+
     return rc;
 }
 
@@ -9126,7 +9202,26 @@ int QCamera3HardwareInterface::flush(
         return -EINVAL;
     }
 
-    rc = hw->flush();
+    pthread_mutex_lock(&hw->mMutex);
+    // Validate current state
+    switch (hw->mState) {
+        case STARTED:
+            /* valid state */
+            break;
+
+        case ERROR:
+            pthread_mutex_unlock(&hw->mMutex);
+            hw->handleCameraDeviceError();
+            return -ENODEV;
+
+        default:
+            ALOGI("%s: Flush returned during state %d", __func__, hw->mState);
+            pthread_mutex_unlock(&hw->mMutex);
+            return 0;
+    }
+    pthread_mutex_unlock(&hw->mMutex);
+
+    rc = hw->flush(true /* restart channels */ );
     CDBG("%s: X", __func__);
     return rc;
 }
