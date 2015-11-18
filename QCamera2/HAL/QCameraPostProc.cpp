@@ -616,7 +616,10 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
             encode_parm.thumb_rotation = m_parent->mParameters.getJpegRotation();
         }
         encode_parm.thumb_dim.crop = crop;
-        encode_parm.thumb_from_postview = !m_parent->mParameters.generateThumbFromMain();
+        encode_parm.thumb_from_postview =
+            !m_parent->mParameters.generateThumbFromMain() &&
+            (m_parent->mParameters.useJpegExifRotation() ||
+            m_parent->mParameters.getJpegRotation() == 0);
     }
 
     encode_parm.num_dst_bufs = 1;
