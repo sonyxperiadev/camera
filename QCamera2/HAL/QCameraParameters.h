@@ -561,6 +561,9 @@ public:
     static const char VIDEO_ROTATION_180[];
     static const char VIDEO_ROTATION_270[];
 
+    //param key for HFR batch size
+    static const char KEY_QC_VIDEO_BATCH_SIZE[];
+
     enum {
         CAMERA_ORIENTATION_UNKNOWN = 0,
         CAMERA_ORIENTATION_PORTRAIT = 1,

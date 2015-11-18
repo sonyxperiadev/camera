@@ -1252,8 +1252,8 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
         for (int i = 0; i < count; i ++) {
             struct encoder_media_buffer_type * packet =
                     (struct encoder_media_buffer_type *)mMetadata[i]->data;
-            //1     fd, 1 offset, 1 size, 1 color transform
-            packet->meta_handle = native_handle_create(1, 3);
+            //1     fd, 1 offset, 1 size, 1 color transform, 1 Timestamp  1 format
+            packet->meta_handle = native_handle_create(1, 5);
             packet->buffer_type = kMetadataBufferTypeCameraSource;
             native_handle_t * nh = const_cast<native_handle_t *>(packet->meta_handle);
             if (!nh) {
@@ -1264,6 +1264,8 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
             nh->data[3] = private_handle_t::PRIV_FLAGS_ITU_R_709;
+            nh->data[4] = 0;
+            nh->data[5] = 0;
         }
     }
     mBufferCount = count;
@@ -1307,7 +1309,8 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             }
             struct encoder_media_buffer_type * packet =
                     (struct encoder_media_buffer_type *)mMetadata[i]->data;
-            packet->meta_handle = native_handle_create(1, 2); //1 fd, 1 offset and 1 size
+             //1     fd, 1 offset, 1 size, 1 color transform, 1 Timestamp  1 format
+            packet->meta_handle = native_handle_create(1, 5);
             packet->buffer_type = kMetadataBufferTypeCameraSource;
             native_handle_t * nh = const_cast<native_handle_t *>(packet->meta_handle);
             if (!nh) {
@@ -1317,6 +1320,9 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             nh->data[0] = mMemInfo[i].fd;
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
+            nh->data[3] = private_handle_t::PRIV_FLAGS_ITU_R_709;
+            nh->data[4] = 0;
+            nh->data[5] = 0;
         }
     }
     mBufferCount = (uint8_t)(mBufferCount + count);
