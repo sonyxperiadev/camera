@@ -48,6 +48,8 @@ typedef enum {
 
 extern int g_cam_log[CAM_LAST_MODULE][CAM_GLBL_DBG_INFO + 1];
 
+#define FATAL_IF(cond, ...) LOG_ALWAYS_FATAL_IF(cond, ## __VA_ARGS__)
+
 #undef CLOGx
 #define CLOGx(module, level, fmt, args...)                         \
 {\

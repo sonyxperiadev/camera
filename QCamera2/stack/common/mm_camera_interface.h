@@ -46,6 +46,8 @@
         ((size + (typeof(size))(padding - 1)) & \
         (typeof(size))(~(padding - 1)))
 
+#define CEIL_DIVISION(n, d) ((n+d-1)/d)
+
 /** CAM_DUMP_TO_FILE:
  *  @filename: file name
  *  @name:filename
