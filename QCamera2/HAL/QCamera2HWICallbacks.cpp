@@ -2391,6 +2391,10 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         pme->mParameters.setDynamicImgData(*dyn_img_data);
     }
 
+    IF_META_AVAILABLE(int32_t, touch_ae_status, CAM_INTF_META_TOUCH_AE_RESULT, pMetaData) {
+      CDBG("%s:touch_ae_status: %d", __func__, *touch_ae_status);
+    }
+
     stream->bufDone(frame->buf_idx);
     free(super_frame);
 
