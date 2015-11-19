@@ -47,6 +47,7 @@
 #include "QCameraThermalAdapter.h"
 #include "QCameraMem.h"
 #include "QCameraPerf.h"
+#include "QCameraDisplay.h"
 
 #ifdef TARGET_TS_MAKEUP
 #include "ts_makeup_engine.h"
@@ -770,6 +771,9 @@ private:
     void *lib_surface_utils;
     int (*LINK_get_surface_pixel_alignment)();
     uint32_t mSurfaceStridePadding;
+
+    //QCamera Display Object
+    QCameraDisplay mCameraDisplay;
 };
 
 }; // namespace qcamera

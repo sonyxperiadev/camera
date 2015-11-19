@@ -10,6 +10,7 @@ LOCAL_SRC_FILES := \
         util/QCameraBufferMaps.cpp \
         util/QCameraFlash.cpp \
         util/QCameraPerf.cpp \
+        util/QCameraDisplay.cpp \
         QCamera2Hal.cpp \
         QCamera2Factory.cpp
 
@@ -85,7 +86,7 @@ LOCAL_C_INCLUDES += \
         $(TARGET_OUT_HEADERS)/qcom/display
 LOCAL_C_INCLUDES += \
         hardware/qcom/display/libqservice
-LOCAL_SHARED_LIBRARIES := libcamera_client liblog libhardware libutils libcutils libdl libsync
+LOCAL_SHARED_LIBRARIES := libcamera_client liblog libhardware libutils libcutils libdl libsync libgui
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 ifeq ($(TARGET_TS_MAKEUP),true)
