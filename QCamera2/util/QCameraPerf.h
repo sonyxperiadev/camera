@@ -32,6 +32,7 @@
 
 #include <dlfcn.h>
 #include <utils/Mutex.h>
+#include <utils/List.h>
 #include <hardware/power.h>
 
 typedef enum {
@@ -62,8 +63,8 @@ public:
     int32_t lock_acq_timed(int32_t timer_val);
     int32_t lock_rel_timed();
     bool    isTimerReset();
-    void    powerHintInternal(power_hint_t hint, uint32_t enable);
-    void    powerHint(power_hint_t hint, uint32_t enable);
+    void    powerHintInternal(power_hint_t hint, bool enable);
+    void    powerHint(power_hint_t hint, bool enable);
 
 private:
     int32_t        (*perf_lock_acq)(int, int, int[], int);
@@ -72,14 +73,15 @@ private:
     void           *mDlHandle;
     uint32_t        mPerfLockEnable;
     Mutex           mLock;
-    int32_t         mPerfLockHandle;  // Performance lock library handle
-    int32_t         mPerfLockHandleTimed;  // Performance lock library handle
-    power_module_t *m_pPowerModule;   // power module Handle
+    int32_t         mPerfLockHandle;        // Performance lock library handle
+    int32_t         mPerfLockHandleTimed;   // Performance lock library handle
+    power_module_t *m_pPowerModule;         // power module Handle
     power_hint_t    mCurrentPowerHint;
-    uint32_t        mCurrentPowerHintEnable;
+    bool            mCurrentPowerHintEnable;
     uint32_t        mTimerSet;
     uint32_t        mPerfLockTimeout;
     nsecs_t         mStartTimeofLock;
+    List<power_hint_t> mActivePowerHints;   // Active/enabled power hints list
 };
 
 }; // namespace qcamera

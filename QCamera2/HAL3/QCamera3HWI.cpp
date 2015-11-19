@@ -1097,7 +1097,7 @@ int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_d
 void QCamera3HardwareInterface::enablePowerHint()
 {
     if (!mPowerHintEnabled) {
-        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, 1);
+        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
         mPowerHintEnabled = true;
     }
 }
@@ -1115,7 +1115,7 @@ void QCamera3HardwareInterface::enablePowerHint()
 void QCamera3HardwareInterface::disablePowerHint()
 {
     if (mPowerHintEnabled) {
-        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, 0);
+        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, false);
         mPowerHintEnabled = false;
     }
 }

@@ -110,9 +110,13 @@ void QCameraPerfLock::lock_init()
     CDBG("%s E", __func__);
     Mutex::Autolock lock(mLock);
 
+    // Clear the list of active power hints
+    mActivePowerHints.clear();
+    mCurrentPowerHint       = static_cast<power_hint_t>(0);
+    mCurrentPowerHintEnable = false;
+
     property_get("persist.camera.perflock.enable", value, "1");
     mPerfLockEnable = atoi(value);
-    mCurrentPowerHintEnable = 0;
 #ifdef HAS_MULTIMEDIA_HINTS
     if (hw_get_module(POWER_HARDWARE_MODULE_ID, (const hw_module_t **)&m_pPowerModule)) {
         ALOGE("%s: %s module not found", __func__, POWER_HARDWARE_MODULE_ID);
@@ -271,7 +275,7 @@ int32_t QCameraPerfLock::lock_acq_timed(int32_t timer_val)
         // Disable power hint when acquiring the perf lock
         if (mCurrentPowerHintEnable) {
             CDBG_HIGH("%s mCurrentPowerHintEnable %d", __func__ ,mCurrentPowerHintEnable);
-            powerHintInternal(mCurrentPowerHint, 0);
+            powerHintInternal(mCurrentPowerHint, false);
         }
 
         if ((NULL != perf_lock_acq) && (mPerfLockHandleTimed < 0)) {
@@ -320,7 +324,7 @@ int32_t QCameraPerfLock::lock_acq()
 
         // Disable power hint when acquiring the perf lock
         if (mCurrentPowerHintEnable) {
-            powerHintInternal(mCurrentPowerHint, 0);
+            powerHintInternal(mCurrentPowerHint, false);
         }
 
         if ((NULL != perf_lock_acq) && (mPerfLockHandle < 0)) {
@@ -428,18 +432,18 @@ int32_t QCameraPerfLock::lock_rel()
  * DESCRIPTION: Sets the requested power hint and state to power HAL.
  *
  * PARAMETERS :
+ * hint       : Power hint
  * enable     : Enable power hint if set to 1. Disable if set to 0.
  * RETURN     : void
  *
  *==========================================================================*/
-void QCameraPerfLock::powerHintInternal(power_hint_t hint, uint32_t enable)
+void QCameraPerfLock::powerHintInternal(power_hint_t hint, bool enable)
 {
 #ifdef HAS_MULTIMEDIA_HINTS
     if (m_pPowerModule != NULL) {
-        if (enable == 1) {
+        if (enable == true) {
             m_pPowerModule->powerHint(m_pPowerModule, hint, (void *)"state=1");
-        }
-        else {
+        } else {
             m_pPowerModule->powerHint(m_pPowerModule, hint, (void *)"state=0");
         }
     }
@@ -449,25 +453,63 @@ void QCameraPerfLock::powerHintInternal(power_hint_t hint, uint32_t enable)
 /*===========================================================================
  * FUNCTION   : powerHint
  *
- * DESCRIPTION: Sets the requested power hint and state to power HAL.
- *
+ * DESCRIPTION: Updates the list containing active/enabled power hints.
+ *              If needed, calls the internal powerHint function with
+ *              requested power hint and state.
  * PARAMETERS :
  * hint       : Power hint
  * enable     : Enable power hint if set to 1. Disable if set to 0.
  * RETURN     : void
  *
  *==========================================================================*/
-void QCameraPerfLock::powerHint(power_hint_t hint, uint32_t enable)
+void QCameraPerfLock::powerHint(power_hint_t hint, bool enable)
 {
 #ifdef HAS_MULTIMEDIA_HINTS
-    if (mCurrentPowerHintEnable) {
-        //disable previous hint
-        powerHintInternal(mCurrentPowerHint, 0);
-    }
-    powerHintInternal(hint, enable);
+    if (enable == true) {
+        if ((hint != mCurrentPowerHint) || (enable != mCurrentPowerHintEnable)) {
+            // Disable the current active power hint
+            if (mCurrentPowerHintEnable == true) {
+                powerHintInternal(mCurrentPowerHint, false);
+            }
+            // Push the new power hint at the head of the active power hint list
+            mActivePowerHints.push_front(hint);
 
-    mCurrentPowerHint       = hint;
-    mCurrentPowerHintEnable = enable;
+            // Set the new power hint
+            mCurrentPowerHint       = hint;
+            mCurrentPowerHintEnable = enable;
+            powerHintInternal(hint, enable);
+        }
+    } else {
+        // Remove the power hint from the list
+        for (List<power_hint_t>::iterator it = mActivePowerHints.begin();
+                it != mActivePowerHints.end(); ++it) {
+            if (*it == hint) {
+                mActivePowerHints.erase(it);
+                if (it != mActivePowerHints.begin()) {
+                    ALOGE("%s: Request to remove the previous power hint: %d instead of"
+                            "currently active power hint: %d", __func__, static_cast<int>(hint),
+                                                            static_cast<int>(mCurrentPowerHint));
+                }
+                break;
+            }
+        }
+
+        if (hint == mCurrentPowerHint) {
+            // Disable the power hint
+            powerHintInternal(hint, false);
+
+            // If the active power hint list is not empty,
+            // restore the previous power hint from the head of the list
+            if (mActivePowerHints.empty() == false) {
+                mCurrentPowerHint       = *mActivePowerHints.begin();
+                mCurrentPowerHintEnable = true;
+                powerHintInternal(mCurrentPowerHint, true);
+            } else {
+                mCurrentPowerHint       = static_cast<power_hint_t>(0);
+                mCurrentPowerHintEnable = false;
+            }
+        }
+    }
 #endif
 }
 
