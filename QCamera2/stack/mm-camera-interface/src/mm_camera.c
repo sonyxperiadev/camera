@@ -262,6 +262,7 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     const char *dev_name_value = NULL;
     char prop[PROPERTY_VALUE_MAX];
     uint32_t globalLogLevel = 0;
+    int l_errno = 0;
 
     property_get("persist.camera.hal.debug", prop, "0");
     int val = atoi(prop);
@@ -295,8 +296,9 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     do{
         n_try--;
         my_obj->ctrl_fd = open(dev_name, O_RDWR | O_NONBLOCK);
-        CDBG("%s:  ctrl_fd = %d, errno == %d", __func__, my_obj->ctrl_fd, errno);
-        if((my_obj->ctrl_fd >= 0) || (errno != EIO) || (n_try <= 0 )) {
+        l_errno = errno;
+        CDBG("%s:  ctrl_fd = %d, errno == %d", __func__, my_obj->ctrl_fd, l_errno);
+        if((my_obj->ctrl_fd >= 0) || (l_errno != EIO) || (n_try <= 0 )) {
             CDBG("%s:  opened, break out while loop", __func__);
             break;
         }
@@ -307,8 +309,8 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
 
     if (my_obj->ctrl_fd < 0) {
         CDBG_ERROR("%s: cannot open control fd of '%s' (%s)\n",
-                 __func__, dev_name, strerror(errno));
-        if (errno == EBUSY)
+                 __func__, dev_name, strerror(l_errno));
+        if (l_errno == EBUSY)
             rc = -EUSERS;
         else
             rc = -1;
@@ -320,7 +322,8 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     do {
         n_try--;
         my_obj->ds_fd = mm_camera_socket_create(cam_idx, MM_CAMERA_SOCK_TYPE_UDP);
-        CDBG("%s:  ds_fd = %d, errno = %d", __func__, my_obj->ds_fd, errno);
+        l_errno = errno;
+        CDBG("%s:  ds_fd = %d, errno = %d", __func__, my_obj->ds_fd, l_errno);
         if((my_obj->ds_fd >= 0) || (n_try <= 0 )) {
             CDBG("%s:  opened, break out while loop", __func__);
             break;
@@ -332,7 +335,7 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
 
     if (my_obj->ds_fd < 0) {
         CDBG_ERROR("%s: cannot open domain socket fd of '%s'(%s)\n",
-                 __func__, dev_name, strerror(errno));
+                 __func__, dev_name, strerror(l_errno));
         rc = -1;
         goto on_error;
     }
