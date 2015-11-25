@@ -253,6 +253,8 @@ public:
     static void put_parameters(struct camera_device *, char *);
     static int send_command(struct camera_device *,
               int32_t cmd, int32_t arg1, int32_t arg2);
+    static int send_command_restart(struct camera_device *,
+            int32_t cmd, int32_t arg1, int32_t arg2);
     static void release(struct camera_device *);
     static int dump(struct camera_device *, int fd);
     static int close_camera_device(hw_device_t *);
