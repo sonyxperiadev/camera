@@ -265,13 +265,9 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
     }
 
     // Wait on Postproc initialization if needed
-    if (NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) {
-        LOGE("Reprocess Deferred work failed");
-        return;
-    }
-
-    // send to postprocessor
-    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+    // then send to postprocessor
+    if ((NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) ||
+            (NO_ERROR != pme->m_postprocessor.processData(frame))) {
         LOGE("Failed to trigger process data");
         pChannel->bufDone(recvd_frame);
         free(frame);
@@ -451,10 +447,9 @@ void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t
     }
 
     // Wait on Postproc initialization if needed
-    pme->waitDeferredWork(pme->mReprocJob);
-
-    // send to postprocessor
-    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+    // then send to postprocessor
+    if ((NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) ||
+            (NO_ERROR != pme->m_postprocessor.processData(frame))) {
         LOGE("Failed to trigger process data");
         pChannel->bufDone(recvd_frame);
         free(frame);
@@ -1787,15 +1782,9 @@ void QCamera2HardwareInterface::raw_channel_cb_routine(mm_camera_super_buf_t *su
     }
 
     // Wait on Postproc initialization if needed
-    if (NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) {
-        LOGE("Reprocess Deferred work failed");
-        pChannel->bufDone(super_frame);
-        free(frame);
-        frame = NULL;
-        return;
-    }
-
-    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+    // then send to postprocessor
+    if ((NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) ||
+            (NO_ERROR != pme->m_postprocessor.processData(frame))) {
         LOGE("Failed to trigger process data");
         pChannel->bufDone(super_frame);
         free(frame);
@@ -2088,12 +2077,12 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             payload->faces_data = faces_data;
             int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
             if (rc != NO_ERROR) {
-                LOGW("%s: processEvt face detection failed", __func__);
+                LOGW("processEvt face detection failed");
                 free(payload);
                 payload = NULL;
             }
         } else {
-            LOGE("%s: No memory for face detect qcamera_sm_internal_evt_payload_t", __func__);
+            LOGE("No memory for face detect qcamera_sm_internal_evt_payload_t");
         }
     }
 
@@ -2952,8 +2941,8 @@ void QCamera2HardwareInterface::fillFacesData(cam_faces_data_t &faces_data,
             faces_data.detection_data.num_faces_detected = MAX_ROI;
         }
 
-        LOGH("[KPI Perf] %s: PROFILE_NUMBER_OF_FACES_DETECTED %d",
-                __func__,faces_data.detection_data.num_faces_detected);
+        LOGH("[KPI Perf] PROFILE_NUMBER_OF_FACES_DETECTED %d",
+                faces_data.detection_data.num_faces_detected);
 
         IF_META_AVAILABLE(cam_face_recog_data_t, p_recog_data,
                 CAM_INTF_META_FACE_RECOG, metadata) {
