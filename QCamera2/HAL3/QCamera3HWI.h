@@ -138,7 +138,7 @@ public:
     static void makeOverridesList(cam_scene_mode_overrides_t *overridesTable,
             size_t size, size_t max_size, uint8_t *overridesList,
             uint8_t *supported_indexes, uint32_t camera_id);
-    static size_t filterJpegSizes(int32_t *jpegSizes, int32_t *processedSizes,
+    static size_t filterSizes(int32_t *filteredSizes, int32_t *processedSizes,
             size_t processedSizesCnt, size_t maxCount, cam_rect_t active_array_size,
             uint8_t downscale_factor);
     static void convertToRegions(cam_rect_t rect, int32_t* region, int weight);

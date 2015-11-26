@@ -809,6 +809,7 @@ int QCamera3HardwareInterface::validateStreamDimensions(
     int rc = NO_ERROR;
     int32_t available_processed_sizes[MAX_SIZES_CNT * 2];
     int32_t available_jpeg_sizes[MAX_SIZES_CNT * 2];
+    int32_t available_yuv_sizes[MAX_SIZES_CNT * 2];
     size_t count = 0;
 
     camera3_stream_t *inputStream = NULL;
@@ -824,6 +825,13 @@ int QCamera3HardwareInterface::validateStreamDimensions(
             inputStream = streamList->streams[i];
         }
     }
+
+    count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
+    /* Generate processed sizes table */
+    makeTable(gCamCapability[mCameraId]->picture_sizes_tbl,
+            count,
+            MAX_SIZES_CNT,
+            available_processed_sizes);
     /*
     * Loop through all streams requested in configuration
     * Check if unsupported sizes have been requested on any of them
@@ -831,6 +839,7 @@ int QCamera3HardwareInterface::validateStreamDimensions(
     for (size_t j = 0; j < streamList->num_streams; j++) {
         bool sizeFound = false;
         size_t jpeg_sizes_cnt = 0;
+        size_t yuv_sizes_cnt = 0;
         camera3_stream_t *newStream = streamList->streams[j];
 
         uint32_t rotatedHeight = newStream->height;
@@ -859,19 +868,13 @@ int QCamera3HardwareInterface::validateStreamDimensions(
             }
             break;
         case HAL_PIXEL_FORMAT_BLOB:
-            count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
-            /* Generate JPEG sizes table */
-            makeTable(gCamCapability[mCameraId]->picture_sizes_tbl,
-                    count,
-                    MAX_SIZES_CNT,
-                    available_processed_sizes);
-            jpeg_sizes_cnt = filterJpegSizes(
+            jpeg_sizes_cnt = filterSizes(
                     available_jpeg_sizes,
                     available_processed_sizes,
                     count * 2,
                     MAX_SIZES_CNT * 2,
                     gCamCapability[mCameraId]->active_array_size,
-                    gCamCapability[mCameraId]->max_downscale_factor);
+                    gCamCapability[mCameraId]->max_vfe_downscale_factor);
 
             /* Verify set size against generated sizes table */
             for (size_t i = 0; i < (jpeg_sizes_cnt / 2); i++) {
@@ -883,8 +886,14 @@ int QCamera3HardwareInterface::validateStreamDimensions(
             }
             break;
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
+            yuv_sizes_cnt = filterSizes(
+                    available_yuv_sizes,
+                    available_processed_sizes,
+                    count * 2,
+                    MAX_SIZES_CNT * 2,
+                    gCamCapability[mCameraId]->active_array_size,
+                    gCamCapability[mCameraId]->max_cpp_downscale_factor);
         case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-        default:
             if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
                     || newStream->stream_type == CAMERA3_STREAM_INPUT
                     || IS_USAGE_ZSL(newStream->usage)) {
@@ -902,18 +911,32 @@ int QCamera3HardwareInterface::validateStreamDimensions(
                  * size, so keeping the logic lenient at the moment
                  */
             }
-            count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt,
-                    MAX_SIZES_CNT);
-            for (size_t i = 0; i < count; i++) {
-                if (((int32_t)rotatedWidth ==
-                            gCamCapability[mCameraId]->picture_sizes_tbl[i].width) &&
-                            ((int32_t)rotatedHeight ==
-                            gCamCapability[mCameraId]->picture_sizes_tbl[i].height)) {
-                    sizeFound = true;
-                    break;
+            if (newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
+                count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt,
+                        MAX_SIZES_CNT);
+                for (size_t i = 0; i < count; i++) {
+                    if (((int32_t)rotatedWidth ==
+                                gCamCapability[mCameraId]->picture_sizes_tbl[i].width) &&
+                                ((int32_t)rotatedHeight ==
+                                gCamCapability[mCameraId]->picture_sizes_tbl[i].height)) {
+                        sizeFound = true;
+                        break;
+                    }
+                }
+            } else if (newStream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+                /* Verify set size against yuv sizes table */
+                for (size_t i = 0; i < (yuv_sizes_cnt / 2); i++) {
+                    if (((int32_t)rotatedWidth == available_yuv_sizes[i*2]) &&
+                            ((int32_t)rotatedHeight == available_yuv_sizes[i*2+1])) {
+                        sizeFound = true;
+                        break;
+                    }
                 }
             }
             break;
+        default:
+            ALOGE("%s: This format is not supported %d", __func__, newStream->format);
+            return -EINVAL;
         } /* End of switch(newStream->format) */
 
         /* We error out even if a single stream has unsupported size set */
@@ -6240,9 +6263,24 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     /*all sizes will be clubbed into this tag*/
     int32_t available_jpeg_sizes[MAX_SIZES_CNT * 2];
     count = MIN(gCamCapability[cameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
-    size_t jpeg_sizes_cnt = filterJpegSizes(available_jpeg_sizes, available_processed_sizes,
+    size_t jpeg_sizes_cnt = filterSizes(available_jpeg_sizes, available_processed_sizes,
             count * 2, MAX_SIZES_CNT * 2, gCamCapability[cameraId]->active_array_size,
-            gCamCapability[cameraId]->max_downscale_factor);
+            gCamCapability[cameraId]->max_vfe_downscale_factor);
+    int32_t available_yuv_sizes[MAX_SIZES_CNT * 2];
+    size_t yuv_sizes_cnt = filterSizes(available_yuv_sizes, available_processed_sizes,
+            count * 2, MAX_SIZES_CNT * 2, gCamCapability[cameraId]->active_array_size,
+            gCamCapability[cameraId]->max_cpp_downscale_factor);
+    cam_dimension_t largest_picture_size;
+    memset(&largest_picture_size, 0, sizeof(cam_dimension_t));
+    for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
+            gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
+        /* Book keep largest */
+        if (gCamCapability[cameraId]->picture_sizes_tbl[i].width
+                >= largest_picture_size.width &&
+                gCamCapability[cameraId]->picture_sizes_tbl[i].height
+                >= largest_picture_size.height)
+            largest_picture_size = gCamCapability[cameraId]->picture_sizes_tbl[i];
+    }
     /*android.scaler.availableStreamConfigurations*/
     Vector<int32_t> available_stream_configs;
     cam_dimension_t active_array_dim;
@@ -6272,30 +6310,36 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             }
             break;
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
+            cam_dimension_t yuv_size;
+            for (size_t i = 0; i < yuv_sizes_cnt/2; i++) {
+                yuv_size.width  = available_yuv_sizes[i*2];
+                yuv_size.height = available_yuv_sizes[i*2+1];
+                addStreamConfig(available_stream_configs, scalar_formats[j],
+                        yuv_size,
+                        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
+            }
+            /*For YUV_888 format we also support i/p streams for reprocessing advertise those*/
+            addStreamConfig(available_stream_configs, scalar_formats[j],
+                    largest_picture_size,
+                    ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
+            break;
         case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-        default:
-            cam_dimension_t largest_picture_size;
-            memset(&largest_picture_size, 0, sizeof(cam_dimension_t));
             for (size_t i = 0; i < MIN(MAX_SIZES_CNT,
                     gCamCapability[cameraId]->picture_sizes_tbl_cnt); i++) {
                 addStreamConfig(available_stream_configs, scalar_formats[j],
                         gCamCapability[cameraId]->picture_sizes_tbl[i],
                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
-                /* Book keep largest */
-                if (gCamCapability[cameraId]->picture_sizes_tbl[i].width
-                        >= largest_picture_size.width &&
-                        gCamCapability[cameraId]->picture_sizes_tbl[i].height
-                        >= largest_picture_size.height)
-                    largest_picture_size = gCamCapability[cameraId]->picture_sizes_tbl[i];
             }
-            /*For below 2 formats we also support i/p streams for reprocessing advertise those*/
-            if (scalar_formats[j] == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED ||
-                    scalar_formats[j] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+            /*For IMPLEMENTATION_DEFINED we support i/p streams for reprocessing, advertise those*/
+            if (scalar_formats[j] == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
                  addStreamConfig(available_stream_configs, scalar_formats[j],
                          largest_picture_size,
                          ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
             }
             break;
+        default:
+            ALOGE("%s: This format is not supported %d", __func__, scalar_formats[j]);
+            return -EINVAL;
         }
     }
 
@@ -7104,17 +7148,17 @@ void QCamera3HardwareInterface::makeOverridesList(
 }
 
 /*===========================================================================
- * FUNCTION   : filterJpegSizes
+ * FUNCTION   : filterSizes
  *
- * DESCRIPTION: Returns the supported jpeg sizes based on the max dimension that
+ * DESCRIPTION: Returns the supported sizes based on the max dimension that
  *              could be downscaled to
  *
  * PARAMETERS :
  *
- * RETURN     : length of jpegSizes array
+ * RETURN     : length of filteredSizes array
  *==========================================================================*/
 
-size_t QCamera3HardwareInterface::filterJpegSizes(int32_t *jpegSizes, int32_t *processedSizes,
+size_t QCamera3HardwareInterface::filterSizes(int32_t *filteredSizes, int32_t *processedSizes,
         size_t processedSizesCnt, size_t maxCount, cam_rect_t active_array_size,
         uint8_t downscale_factor)
 {
@@ -7124,18 +7168,18 @@ size_t QCamera3HardwareInterface::filterJpegSizes(int32_t *jpegSizes, int32_t *p
 
     int32_t min_width = active_array_size.width / downscale_factor;
     int32_t min_height = active_array_size.height / downscale_factor;
-    size_t jpegSizesCnt = 0;
+    size_t filteredCnt = 0;
     if (processedSizesCnt > maxCount) {
         processedSizesCnt = maxCount;
     }
     for (size_t i = 0; i < processedSizesCnt; i+=2) {
         if (processedSizes[i] >= min_width && processedSizes[i+1] >= min_height) {
-            jpegSizes[jpegSizesCnt] = processedSizes[i];
-            jpegSizes[jpegSizesCnt+1] = processedSizes[i+1];
-            jpegSizesCnt += 2;
+            filteredSizes[filteredCnt] = processedSizes[i];
+            filteredSizes[filteredCnt+1] = processedSizes[i+1];
+            filteredCnt += 2;
         }
     }
-    return jpegSizesCnt;
+    return filteredCnt;
 }
 
 /*===========================================================================
