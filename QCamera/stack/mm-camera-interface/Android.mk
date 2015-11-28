@@ -47,7 +47,6 @@ LOCAL_SRC_FILES := $(MM_CAM_FILES)
 LOCAL_MODULE           := libmmcamera_interface
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog
 LOCAL_MODULE_TAGS := optional
-LOCAL_PROPRIETARY_MODULE := true
 
 # (BEGIN) Need to remove later once dependency on jpeg removed
 # LOCAL_SHARED_LIBRARIES += libmmjpeg_interface
