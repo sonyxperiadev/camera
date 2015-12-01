@@ -5247,7 +5247,8 @@ int32_t QCameraParameters::initDefaultParameters()
     // Set default preview format
     CameraParameters::setPreviewFormat(PIXEL_FORMAT_YUV420SP);
 
-    // Set default Video Format
+    // Set default Video Format as OPAQUE
+    // Internally both Video and Camera subsystems use NV21_VENUS
     set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_ANDROID_OPAQUE);
 
     // Set supported picture formats
@@ -9741,8 +9742,8 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             if (getRecordingHintValue() == true &&
                     video.width == preview.width &&
                     video.height == preview.height &&
-                    mPreviewFormat == CAM_FORMAT_YUV_420_NV12) {
-                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+                    mPreviewFormat == CAM_FORMAT_YUV_420_NV21) {
+                format = CAM_FORMAT_YUV_420_NV21_VENUS;
             } else
 #endif
             format = mPreviewFormat;
@@ -9790,13 +9791,13 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             if (pFormat == 1) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
-                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+                format = CAM_FORMAT_YUV_420_NV21_VENUS;
             }
         } else {
 #if VENUS_PRESENT
-            format = CAM_FORMAT_YUV_420_NV12_VENUS;
+            format = CAM_FORMAT_YUV_420_NV21_VENUS;
 #else
-            format = CAM_FORMAT_YUV_420_NV12;
+            format = CAM_FORMAT_YUV_420_NV21;
 #endif
         }
         break;
