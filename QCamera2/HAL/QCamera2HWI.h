@@ -34,7 +34,7 @@
 #include <utils/Log.h>
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
-#include <QCameraParameters.h>
+#include <QCameraParametersIntf.h>
 
 #include "QCameraTrace.h"
 #include "QCameraQueue.h"
@@ -135,6 +135,8 @@ typedef struct {
 #define MAX_ONGOING_JOBS 25
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#define EXIF_ASCII_PREFIX_SIZE           8   //(sizeof(ExifAsciiPrefix))
 
 extern volatile uint32_t gCamHalLogLevel;
 
@@ -298,6 +300,7 @@ public:
             void *userdata, void *data);
 
     virtual int recalcFPSRange(int &minFPS, int &maxFPS,
+            const float &minVideoFPS, const float &maxVideoFPS,
             cam_fps_range_t &adjustedRange);
 
     friend class QCameraStateMachine;
@@ -314,7 +317,6 @@ public:
     int32_t getJpegHandleInfo(mm_jpeg_ops_t *ops,
             mm_jpeg_mpo_ops_t *mpo_ops, uint32_t *pJpegClientHandle);
     uint32_t getCameraId() { return mCameraId; };
-    void getParams(QCameraParameters **pParm) {*pParm = &mParameters;};
 private:
     int setPreviewWindow(struct preview_stream_ops *window);
     int setCallBacks(
@@ -341,7 +343,7 @@ private:
     int takeLiveSnapshot();
     int takePictureInternal();
     int cancelLiveSnapshot();
-    char* getParameters();
+    char* getParameters() {return mParameters.getParameters(); }
     int putParameters(char *);
     int sendCommand(int32_t cmd, int32_t &arg1, int32_t &arg2);
     int release();
@@ -365,7 +367,9 @@ private:
     void signalEvtResult(qcamera_api_result_t *result);
 
     int calcThermalLevel(qcamera_thermal_level_enum_t level,
-            const int minFPSi, const int maxFPSi, cam_fps_range_t &adjustedRange,
+            const int minFPSi, const int maxFPSi,
+            const float &minVideoFPS, const float &maxVideoFPS,
+            cam_fps_range_t &adjustedRange,
             enum msm_vfe_frame_skip_pattern &skipPattern);
     int updateThermalLevel(void *level);
 
@@ -573,7 +577,7 @@ private:
     bool m_bRelCamCalibValid;
 
     preview_stream_ops_t *mPreviewWindow;
-    QCameraParameters mParameters;
+    QCameraParametersIntf mParameters;
     int32_t               mMsgEnabled;
     int                   mStoreMetaDataInFrame;
 
@@ -601,7 +605,6 @@ private:
     pthread_cond_t m_evtCond;
     qcamera_api_result_t m_evtResult;
 
-    pthread_mutex_t m_parm_lock;
 
     QCameraChannel *m_channels[QCAMERA_CH_TYPE_MAX]; // array holding channel ptr
 
