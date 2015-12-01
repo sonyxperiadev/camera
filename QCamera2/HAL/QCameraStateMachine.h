@@ -88,6 +88,8 @@ typedef enum {
     QCAMERA_SM_EVT_THERMAL_NOTIFY,           // evt notify from thermal daemon
     QCAMERA_SM_EVT_STOP_CAPTURE_CHANNEL,     // stop capture channel
     QCAMERA_SM_EVT_RESTART_PERVIEW,          // internal preview restart
+    QCAMERA_SM_EVT_DELAYED_RESTART,          // preview restart needs delay (dual camera mode)
+    QCAMERA_SM_EVT_SEND_COMMAND_RESTART,     // restart after send command (if necessary)
     QCAMERA_SM_EVT_MAX
 } qcamera_sm_evt_enum_t;
 
@@ -238,6 +240,8 @@ private:
     pthread_t cmd_pid;                    // cmd thread ID
     cam_semaphore_t cmd_sem;              // semaphore for cmd thread
     bool m_bDelayPreviewMsgs;             // Delay preview callback enable during ZSL snapshot
+    bool m_bPreviewNeedsRestart;          // Preview needs restart
+    bool m_bPreviewDelayedRestart;        // Preview delayed restart
     int32_t m_DelayedMsgs;
     bool m_RestoreZSL;
 };
