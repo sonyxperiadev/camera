@@ -161,7 +161,6 @@ public:
     int configureStreamsPerfLocked(camera3_stream_configuration_t *stream_list);
     int processCaptureRequest(camera3_capture_request_t *request);
     void dump(int fd);
-    int flush();
     int flushPerf();
 
     int setFrameParameters(camera3_capture_request_t *request,
@@ -219,29 +218,37 @@ private:
     // State transition conditions:
     // "\" means not applicable
     // "x" means not valid
-    // +------------+----------+----------+-------------+------------+---------+
-    // |            |  CLOSED  |  OPENED  | INITIALIZED | CONFIGURED | STARTED |
-    // +------------+----------+----------+-------------+------------+---------+
-    // |  CLOSED    |    \     |   open   |     x       |    x       |    x    |
-    // +------------+----------+----------+-------------+------------+---------+
-    // |  OPENED    |  close   |    \     | initialize  |    x       |    x    |
-    // +------------+----------+----------+-------------+------------+---------+
-    // |INITIALIZED |  close   |    x     |     \       | configure  |   x     |
-    // +------------+----------+----------+-------------+------------+---------+
-    // | CONFIGURED |  close   |    x     |     x       | configure  | request |
-    // +------------+----------+----------+-------------+------------+---------+
-    // |  STARTED   |  close   |    x     |     x       | configure  |    \    |
-    // +------------+----------+----------+-------------+------------+---------+
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |            |  CLOSED  |  OPENED  | INITIALIZED | CONFIGURED | STARTED | ERROR | DEINIT |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |  CLOSED    |    \     |   open   |     x       |    x       |    x    |   x   |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |  OPENED    |  close   |    \     | initialize  |    x       |    x    | error |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |INITIALIZED |  close   |    x     |     \       | configure  |   x     | error |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // | CONFIGURED |  close   |    x     |     x       | configure  | request | error |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |  STARTED   |  close   |    x     |     x       | configure  |    \    | error |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |   ERROR    |  close   |    x     |     x       |     x      |    x    |   \   |  any   |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |   DEINIT   |  close   |    x     |     x       |     x      |    x    |   x   |   \    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+
     typedef enum {
         CLOSED,
         OPENED,
         INITIALIZED,
         CONFIGURED,
         STARTED,
+        ERROR,
+        DEINIT
     } State;
 
     int openCamera();
     int closeCamera();
+    int flush(bool restartChannels);
     static size_t calcMaxJpegSize(uint32_t camera_id);
     cam_dimension_t getMaxRawSize(uint32_t camera_id);
     static void addStreamConfig(Vector<int32_t> &available_stream_configs,
@@ -290,6 +297,7 @@ private:
     int32_t stopAllChannels();
     int32_t notifyErrorForPendingRequests();
     int32_t getReprocessibleOutputStreamId(uint32_t &id);
+    int32_t handleCameraDeviceError();
 
     bool isOnEncoder(const cam_dimension_t max_viewfinder_size,
             uint32_t width, uint32_t height);
