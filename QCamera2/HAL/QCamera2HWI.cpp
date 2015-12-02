@@ -362,6 +362,10 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
     }
     ALOGI("[KPI Perf] %s: E PROFILE_START_PREVIEW camera id %d",
             __func__, hw->getCameraId());
+
+    // Release the timed perf lock acquired in openCamera
+    hw->m_perfLock.lock_rel_timed();
+
     hw->m_perfLock.lock_acq();
     hw->lockAPI();
     qcamera_api_result_t apiResult;

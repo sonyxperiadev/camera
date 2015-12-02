@@ -70,6 +70,7 @@ private:
     int32_t        (*perf_lock_acq)(int, int, int[], int);
     int32_t        (*perf_lock_rel)(int);
     void            startTimer(uint32_t timer_val);
+    void            resetTimer();
     void           *mDlHandle;
     uint32_t        mPerfLockEnable;
     Mutex           mLock;
