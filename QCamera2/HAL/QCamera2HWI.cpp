@@ -730,7 +730,8 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
     // Check for Retro-active Frames
     if ((hw->mParameters.getNumOfRetroSnapshots() > 0) &&
         !hw->isLiveSnapshot() && hw->isZSLMode() &&
-        !hw->isHDRMode() && !hw->isLongshotEnabled()) {
+        !hw->isHDRMode() && !hw->isLongshotEnabled() &&
+        (hw->getRelatedCamSyncInfo()->sync_control != CAM_SYNC_RELATED_SENSORS_ON)) {
         // Set Retro Picture Mode
         hw->lockAPI();
         hw->setRetroPicture(1);
