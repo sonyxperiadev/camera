@@ -8191,7 +8191,18 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *
                 faces[i].mouth[1] = MAP_TO_DRIVER_COORDINATE(
                         faces_data->landmark_data.face_landmarks[i].mouth_center.y,
                         display_dim.height, 2000, -1000);
+            } else {
+                // return -2000 if invalid
+                faces[i].left_eye[0] = -2000;
+                faces[i].left_eye[1] = -2000;
+
+                faces[i].right_eye[0] = -2000;
+                faces[i].right_eye[1] = -2000;
+
+                faces[i].mouth[0] = -2000;
+                faces[i].mouth[1] = -2000;
             }
+
 #ifndef VANILLA_HAL
 #ifdef TARGET_TS_MAKEUP
             mFaceRect.left = detect_data->faces[i].face_boundary.left;
