@@ -5846,11 +5846,14 @@ int32_t QCameraParameters::initDefaultParameters()
     property_get("persist.camera.zsl.mode", value, "0");
     int32_t zsl_mode = atoi(value);
     if((zsl_mode == 1) ||
-       (m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON)) {
+            (m_bZslMode == true) ||
+            (m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON)) {
         CDBG_HIGH("%s: %d: Forcing Camera to ZSL mode enabled", __func__, __LINE__);
         set(KEY_QC_ZSL, VALUE_ON);
         m_bForceZslMode = true;
         m_bZslMode = true;
+        int32_t value = m_bForceZslMode;
+        ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value);
     }
     m_bZslMode_new = m_bZslMode;
 
