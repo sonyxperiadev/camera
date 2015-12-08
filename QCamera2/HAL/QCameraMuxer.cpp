@@ -649,6 +649,11 @@ void QCameraMuxer::stop_preview(struct camera_device * device)
 
         QCamera2HardwareInterface::stop_preview(pCam->dev);
     }
+
+    //Flush JPEG Queues. Nodes in Main and Aux JPEGQ are not valid after preview stopped.
+    gMuxer->m_MainJpegQ.flush();
+    gMuxer->m_AuxJpegQ.flush();
+
     CDBG_HIGH("%s: X", __func__);
 }
 
