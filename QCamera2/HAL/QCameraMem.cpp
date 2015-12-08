@@ -1871,6 +1871,8 @@ int32_t QCameraGrallocMemory::dequeueBuffer()
                 return BAD_INDEX;
             }
 
+            setMetaData(mPrivateHandle[dequeuedIdx], UPDATE_COLOR_SPACE,
+                    &mColorSpace);
             mCameraMemory[dequeuedIdx] =
                     mGetMemory(mPrivateHandle[dequeuedIdx]->fd,
                     (size_t)mPrivateHandle[dequeuedIdx]->size,
