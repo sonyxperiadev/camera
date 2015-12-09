@@ -619,6 +619,7 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
         encode_parm.thumb_dim.crop = crop;
         encode_parm.thumb_from_postview =
             !m_parent->mParameters.generateThumbFromMain() &&
+            (img_fmt_thumb != CAM_FORMAT_YUV_420_NV12_UBWC) &&
             (m_parent->mParameters.useJpegExifRotation() ||
             m_parent->mParameters.getJpegRotation() == 0);
     }
