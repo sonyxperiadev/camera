@@ -31,6 +31,7 @@
 #define __QCAMERA_CHANNEL_H__
 
 #include <hardware/camera.h>
+#include <utils/Vector.h>
 #include "QCameraStream.h"
 
 extern "C" {
@@ -67,7 +68,7 @@ public:
     uint32_t getNumOfStreams() const {return (uint32_t) mStreams.size();};
     QCameraStream *getStreamByIndex(uint32_t index);
     QCameraStream *getStreamByServerID(uint32_t serverID);
-    int32_t UpdateStreamBasedParameters(QCameraParameters &param);
+    int32_t UpdateStreamBasedParameters(QCameraParametersIntf &param);
     void deleteChannel();
     int32_t setStreamSyncCB (cam_stream_type_t stream_type,
             stream_cb_routine stream_cb);
@@ -127,19 +128,19 @@ public:
                                        uint8_t minStreamBufNum,
                                        uint8_t burstNum,
                                        cam_padding_info_t *paddingInfo,
-                                       QCameraParameters &param,
+                                       QCameraParametersIntf &param,
                                        bool contStream,
                                        bool offline);
     // online reprocess
     int32_t doReprocess(mm_camera_super_buf_t *frame,
-            QCameraParameters &param, QCameraStream *pMetaStream,
+            QCameraParametersIntf &param, QCameraStream *pMetaStream,
             uint8_t meta_buf_index);
 
     // offline reprocess
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val);
 
     int32_t doReprocessOffline(mm_camera_super_buf_t *frame,
-             mm_camera_buf_def_t *meta_buf, QCameraParameters &param);
+             mm_camera_buf_def_t *meta_buf, QCameraParametersIntf &param);
 
     int32_t doReprocessOffline(mm_camera_buf_def_t *frame,
              mm_camera_buf_def_t *meta_buf, QCameraStream *pStream = NULL);

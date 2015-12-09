@@ -30,7 +30,7 @@
 #define LOG_TAG "QCameraChannel"
 
 #include <utils/Errors.h>
-#include "QCameraParameters.h"
+#include "QCameraParametersIntf.h"
 #include "QCamera2HWI.h"
 #include "QCameraChannel.h"
 
@@ -566,7 +566,7 @@ QCameraStream *QCameraChannel::getStreamByIndex(uint32_t index)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParameters &param)
+int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param)
 {
     int32_t rc = NO_ERROR;
     if (param.isPreviewFlipChanged()) {
@@ -953,7 +953,7 @@ QCameraReprocessChannel::~QCameraReprocessChannel()
 int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
         QCameraAllocator& allocator, cam_pp_feature_config_t &featureConfig,
         QCameraChannel *pSrcChannel, uint8_t minStreamBufNum, uint8_t burstNum,
-        cam_padding_info_t *paddingInfo, QCameraParameters &param, bool contStream,
+        cam_padding_info_t *paddingInfo, QCameraParametersIntf &param, bool contStream,
         bool offline)
 {
     int32_t rc = 0;
@@ -1149,8 +1149,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
 
             if ((streamInfo->reprocess_config.pp_feature_config.feature_mask
                     & CAM_QCOM_FEATURE_SCALE)
-                    && param.m_reprocScaleParam.isScaleEnabled()
-                    && param.m_reprocScaleParam.isUnderScaling()) {
+                    && param.isReprocScaleEnabled()
+                    && param.isUnderReprocScaling()) {
                 //we only Scale Snapshot frame
                 if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
                     streamInfo->dim.width =
@@ -1374,7 +1374,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame,
-        mm_camera_buf_def_t *meta_buf, QCameraParameters &mParameter)
+        mm_camera_buf_def_t *meta_buf, QCameraParametersIntf &mParameter)
 {
     int32_t rc = 0;
     OfflineBuffer mappedBuffer;
@@ -1475,7 +1475,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
-        QCameraParameters &mParameter, QCameraStream *pMetaStream,
+        QCameraParametersIntf &mParameter, QCameraStream *pMetaStream,
         uint8_t meta_buf_index)
 {
     int32_t rc = 0;

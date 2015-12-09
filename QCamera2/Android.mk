@@ -35,6 +35,7 @@ LOCAL_SRC_FILES += \
         HAL/QCameraStream.cpp \
         HAL/QCameraPostProc.cpp \
         HAL/QCamera2HWICallbacks.cpp \
+        HAL/QCameraParametersIntf.cpp \
         HAL/QCameraParameters.cpp \
         HAL/QCameraThermalAdapter.cpp
 

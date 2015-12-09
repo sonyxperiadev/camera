@@ -37,6 +37,7 @@
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <utils/RefBase.h>
+#include <cutils/properties.h>
 
 #include "QCameraMuxer.h"
 #include "QCamera2HWI.h"

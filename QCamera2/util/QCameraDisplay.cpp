@@ -29,6 +29,7 @@
 
 #define LOG_TAG "QCameraDisplay"
 
+#include <cutils/properties.h>
 #include "QCamera2HWI.h"
 #include "QCameraDisplay.h"
 

@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 #include <utils/Errors.h>
 #include <utils/Timers.h>
+#include <cutils/properties.h>
 #include <QComOMXMetadata.h>
 #include "QCamera2HWI.h"
 
@@ -582,24 +583,15 @@ bool QCamera2HardwareInterface::TsMakeupProcess(mm_camera_buf_def_t *pFrame,
         CDBG_HIGH("%s pStream == NULL || pFrame == NULL ",__func__);
         return false;
     }
-    pthread_mutex_lock(&m_parm_lock);
-    const char* pch_makeup_enable = mParameters.get(QCameraParameters::KEY_TS_MAKEUP);
-    pthread_mutex_unlock(&m_parm_lock);
-    if (pch_makeup_enable == NULL) {
-        CDBG_HIGH("%s pch_makeup_enable = null",__func__);
-        return false;
-    }
-    bool enableMakeUp = (strcmp(pch_makeup_enable,"On") == 0) && (faceRect.left > -1);
-    CDBG("%s pch_makeup_enable = %s ",__func__,pch_makeup_enable);
-    if (enableMakeUp) {
+
+    int whiteLevel, cleanLevel;
+    bool enableMakeup = (faceRect.left > -1) &&
+            (mParameters.getTsMakeupInfo(whiteLevel, cleanLevel));
+    if (enableMakeup) {
         cam_dimension_t dim;
         cam_frame_len_offset_t offset;
         pStream->getFrameDimension(dim);
         pStream->getFrameOffset(offset);
-        pthread_mutex_lock(&m_parm_lock);
-        int whiteLevel = mParameters.getInt(QCameraParameters::KEY_TS_MAKEUP_WHITEN),
-        cleanLevel = mParameters.getInt(QCameraParameters::KEY_TS_MAKEUP_CLEAN);
-        pthread_mutex_unlock(&(m_parm_lock));
         unsigned char *tempOriBuf = NULL;
 
         tempOriBuf = (unsigned char*)pFrame->buffer;

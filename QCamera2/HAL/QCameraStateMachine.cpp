@@ -123,6 +123,8 @@ QCameraStateMachine::QCameraStateMachine(QCamera2HardwareInterface *ctrl) :
     m_bDelayPreviewMsgs = false;
     m_DelayedMsgs = 0;
     m_RestoreZSL = TRUE;
+
+    m_bDisplayFrame = TRUE;
 }
 
 /*===========================================================================

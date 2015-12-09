@@ -191,6 +191,8 @@ public:
     bool isRecording();
     void releaseThread();
 
+    bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
+    int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
 private:
     typedef enum {
         QCAMERA_SM_STATE_PREVIEW_STOPPED,          // preview is stopped
@@ -244,6 +246,8 @@ private:
     bool m_bPreviewDelayedRestart;        // Preview delayed restart
     int32_t m_DelayedMsgs;
     bool m_RestoreZSL;
+
+    bool m_bDisplayFrame;
 };
 
 }; // namespace qcamera
