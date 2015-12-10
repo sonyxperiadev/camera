@@ -228,6 +228,21 @@ uint8_t QCameraMemory::getMappable() const
 }
 
 /*===========================================================================
+ * FUNCTION   : checkIfAllBuffersMapped
+ *
+ * DESCRIPTION: query if all buffers are mapped
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : 1 as buffer count is always equal to mappable count
+ *==========================================================================*/
+uint8_t QCameraMemory::checkIfAllBuffersMapped() const
+{
+    return 1;
+}
+
+
+/*===========================================================================
  * FUNCTION   : getBufDef
  *
  * DESCRIPTION: query detailed buffer information
@@ -2301,5 +2316,23 @@ uint8_t QCameraGrallocMemory::getMappable() const
 {
     return mMappableBuffers;
 }
+
+/*===========================================================================
+ * FUNCTION   : checkIfAllBuffersMapped
+ *
+ * DESCRIPTION: check if all buffers for the are mapped
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : 1 if all buffers mapped
+                     0 if total buffers not equal to mapped buffers
+ *==========================================================================*/
+uint8_t QCameraGrallocMemory::checkIfAllBuffersMapped() const
+{
+    CDBG_HIGH("%s: mBufferCount: %d, mMappableBuffers: %d",
+            __func__, mBufferCount, mMappableBuffers);
+    return (mBufferCount == mMappableBuffers);
+}
+
 
 }; //namespace qcamera

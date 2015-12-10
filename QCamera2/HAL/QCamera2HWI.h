@@ -763,6 +763,9 @@ private:
 
     //QCamera Display Object
     QCameraDisplay mCameraDisplay;
+    Mutex mMapLock;
+    Condition mMapCond;
+
 };
 
 }; // namespace qcamera

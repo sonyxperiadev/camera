@@ -66,6 +66,7 @@
 
 // Very long wait, just to be sure we don't deadlock
 #define CAMERA_DEFERRED_THREAD_TIMEOUT 5000000000 // 5 seconds
+#define CAMERA_DEFERRED_MAP_BUF_TIMEOUT 2000000000 // 2 seconds
 #define CAMERA_MIN_METADATA_BUFFERS 10 // Need at least 10 for ZSL snapshot
 #define CAMERA_INITIAL_MAPPABLE_PREVIEW_BUFFERS 5
 
@@ -2183,7 +2184,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
         break;
     }
 
-    CDBG("%s: Buffer count = %d for stream type = %d",__func__, bufferCnt, stream_type);
+    CDBG_HIGH("%s: Buffer count = %d for stream type = %d",__func__, bufferCnt, stream_type);
     if (CAM_MAX_NUM_BUFS_PER_STREAM < bufferCnt) {
         ALOGE("%s: Buffer count %d for stream type %d exceeds limit %d",
                 __func__, bufferCnt, stream_type, CAM_MAX_NUM_BUFS_PER_STREAM);
@@ -3833,8 +3834,8 @@ int QCamera2HardwareInterface::takePicture()
     CDBG_HIGH("%s:numSnapshots = %d", __func__, numSnapshots);
 
     if (mParameters.isZSLMode()) {
-        QCameraPicChannel *pZSLChannel =
-            (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
+        QCameraChannel *pChannel = m_channels[QCAMERA_CH_TYPE_ZSL];
+        QCameraPicChannel *pZSLChannel = (QCameraPicChannel *)pChannel;
         if (NULL != pZSLChannel) {
 
             rc = configureOnlineRotation(*pZSLChannel);
@@ -3858,6 +3859,43 @@ int QCamera2HardwareInterface::takePicture()
                 ALOGE("%s: Failure: Unable to start pproc", __func__);
                 return -ENOMEM;
             }
+
+            // Check if all preview buffers are mapped before creating
+            // a jpeg session as preview stream buffers are queried during the same
+            uint8_t numStreams = pChannel->getNumOfStreams();
+            QCameraStream *pStream = NULL;
+            QCameraStream *pPreviewStream = NULL;
+            for (uint8_t i = 0 ; i < numStreams ; i++ ) {
+                pStream = pChannel->getStreamByIndex(i);
+                if (!pStream)
+                    continue;
+                if (CAM_STREAM_TYPE_PREVIEW == pStream->getMyType()) {
+                    pPreviewStream = pStream;
+                    break;
+                }
+            }
+            if (pPreviewStream != NULL) {
+                Mutex::Autolock l(mMapLock);
+                QCameraMemory *pMemory = pStream->getStreamBufs();
+                if (!pMemory) {
+                    ALOGE("%s: Error!! pMemory is NULL", __func__);
+                    return -ENOMEM;
+                }
+
+                uint8_t waitCnt = 2;
+                while (!pMemory->checkIfAllBuffersMapped() && (waitCnt > 0)) {
+                    CDBG_HIGH("%s: Waiting for preview buffers to be mapped", __func__);
+                    mMapCond.waitRelative(
+                            mMapLock, CAMERA_DEFERRED_MAP_BUF_TIMEOUT);
+                    CDBG_HIGH("%s: Wait completed!!", __func__);
+                    waitCnt--;
+                }
+                // If all buffers are not mapped after retries, assert
+                assert(pMemory->checkIfAllBuffersMapped());
+            } else {
+                assert(pPreviewStream);
+            }
+
             // Create JPEG session
             mJpegJob = queueDeferredWork(CMD_DEF_CREATE_JPEG_SESSION,
                     args);

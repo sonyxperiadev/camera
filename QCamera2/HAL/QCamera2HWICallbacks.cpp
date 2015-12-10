@@ -839,6 +839,15 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
             if (dequeuedIdx >= numMapped) {
                 // This buffer has not yet been mapped to the backend
                 err = stream->mapNewBuffer((uint32_t)dequeuedIdx);
+                if (memory->checkIfAllBuffersMapped()) {
+                    // check if mapping is done for all the buffers
+                    // Signal the condition for create jpeg session
+                    Mutex::Autolock l(pme->mMapLock);
+                    pme->mMapCond.signal();
+                    ALOGI ("%s: Mapping done for all bufs", __func__);
+                } else {
+                    CDBG_HIGH ("%s: All buffers are not yet mapped", __func__);
+                }
             }
         }
 
