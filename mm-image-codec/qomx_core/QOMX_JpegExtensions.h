@@ -298,11 +298,9 @@ typedef struct {
 * Structure holding the function pointers to
 * buffer memory operations
 * @get_memory - function to allocate buffer memory
-* @psession - reference to jpeg session ptr
 **/
 typedef struct {
-  int (*get_memory)( omx_jpeg_ouput_buf_t *p_out_buf, void *p_jpeg_session);
-  void *psession;
+  int (*get_memory)( omx_jpeg_ouput_buf_t *p_out_buf);
 } QOMX_MEM_OPS;
 
 /** QOMX_JPEG_SPEED_MODE
