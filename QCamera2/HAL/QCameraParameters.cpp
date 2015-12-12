@@ -5160,7 +5160,8 @@ int32_t QCameraParameters::initDefaultParameters()
     // Set default preview format
     CameraParameters::setPreviewFormat(PIXEL_FORMAT_YUV420SP);
 
-    // Set default Video Format
+    // Set default Video Format as OPAQUE
+    // Internally both Video and Camera subsystems use NV21_VENUS
     set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_ANDROID_OPAQUE);
 
     // Set supported picture formats
@@ -9660,8 +9661,8 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             if (getRecordingHintValue() == true &&
                     video.width == preview.width &&
                     video.height == preview.height &&
-                    mPreviewFormat == CAM_FORMAT_YUV_420_NV12) {
-                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+                    mPreviewFormat == CAM_FORMAT_YUV_420_NV21) {
+                format = CAM_FORMAT_YUV_420_NV21_VENUS;
             } else
 #endif
             format = mPreviewFormat;
@@ -9709,13 +9710,13 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             if (pFormat == 1) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
-                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+                format = CAM_FORMAT_YUV_420_NV21_VENUS;
             }
         } else {
 #if VENUS_PRESENT
-            format = CAM_FORMAT_YUV_420_NV12_VENUS;
+            format = CAM_FORMAT_YUV_420_NV21_VENUS;
 #else
-            format = CAM_FORMAT_YUV_420_NV12;
+            format = CAM_FORMAT_YUV_420_NV21;
 #endif
         }
         break;
@@ -11058,7 +11059,19 @@ int32_t QCameraParameters::setFrameSkip(enum msm_vfe_frame_skip_pattern pattern)
 int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
 {
     int32_t rc = NO_ERROR;
-    cam_dimension_t raw_dim;
+    cam_dimension_t raw_dim, pic_dim;
+
+    // If offline raw is enabled, check the dimensions from Picture size since snapshot
+    // stream is not added but final JPEG is required of snapshot size
+    if (getofflineRAW()) {
+        getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, pic_dim);
+        if (pic_dim.width > max_dim.width) {
+            max_dim.width = pic_dim.width;
+        }
+        if (pic_dim.height > max_dim.height) {
+            max_dim.height = pic_dim.height;
+        }
+    }
 
     if (max_dim.width == 0 || max_dim.height == 0) {
         max_dim = m_pCapability->raw_dim[0];
@@ -12497,6 +12510,16 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     if ((!raw_capture) && ((getofflineRAW() && !getRecordingHintValue())
             || (raw_yuv))) {
         cam_dimension_t max_dim = {0,0};
+        // Find the Maximum dimension admong all the streams
+        for (uint32_t j = 0; j < stream_config_info.num_streams; j++) {
+            if (stream_config_info.stream_sizes[j].width > max_dim.width) {
+                max_dim.width = stream_config_info.stream_sizes[j].width;
+            }
+            if (stream_config_info.stream_sizes[j].height > max_dim.height) {
+                max_dim.height = stream_config_info.stream_sizes[j].height;
+            }
+        }
+        CDBG_HIGH("%s : Max Dimension = %d X %d",__func__, max_dim.width, max_dim.height);
         updateRAW(max_dim);
         stream_config_info.type[stream_config_info.num_streams] =
                 CAM_STREAM_TYPE_RAW;

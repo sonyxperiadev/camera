@@ -993,9 +993,14 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 if (!param.needThumbnailReprocess(&feature_mask)) {
                     continue;
                 }
-
-                //Don't do WNR for thumbnail
-                feature_mask &= ~CAM_QCOM_FEATURE_DENOISE2D;
+                // CAC, SHARPNESS, FLIP and WNR would have been already applied -
+                // on preview/postview stream in realtime.
+                // So, need not apply again.
+                feature_mask &= ~(CAM_QCOM_FEATURE_DENOISE2D |
+                        CAM_QCOM_FEATURE_CAC |
+                        CAM_QCOM_FEATURE_SHARPNESS |
+                        CAM_QCOM_FEATURE_FLIP |
+                        CAM_QCOM_FEATURE_RAW_PROCESSING);
                 if (!feature_mask) {
                     // Skip thumbnail stream reprocessing since no other
                     //reprocessing is enabled.
@@ -1095,6 +1100,9 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                         ~CAM_QCOM_FEATURE_CDS;
                 streamInfo->reprocess_config.pp_feature_config.feature_mask &=
                         ~CAM_QCOM_FEATURE_DSDN;
+                //No need of RAW processing for other than RAW streams
+                streamInfo->reprocess_config.pp_feature_config.feature_mask &=
+                        ~CAM_QCOM_FEATURE_RAW_PROCESSING;
 
                 if (param.isHDREnabled()
                   && !param.isHDRThumbnailProcessNeeded()){
@@ -1437,9 +1445,10 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
     for (uint32_t i = 0; i < frame->num_bufs; i++) {
         QCameraStream *pStream = getStreamBySrouceHandle(frame->bufs[i]->stream_id);
         if ((pStream != NULL) && (m_handle == pStream->getChannelHandle())) {
-            if (mParameter.getofflineRAW() &&
-                    !((pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW))
+            if (mParameter.getofflineRAW() && !((pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW))
+                    || (pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW))
                     || (pStream->isOrignalTypeOf(CAM_STREAM_TYPE_METADATA)))) {
+                //Skip all the stream other than RAW and POSTVIEW incase of offline of RAW
                 continue;
             }
             if ((pStream->isOrignalTypeOf(CAM_STREAM_TYPE_METADATA)
