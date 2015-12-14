@@ -328,7 +328,8 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mDefferedAllocation(deffered),
         wait_for_cond(false),
         mAllocTaskId(0),
-        mMapTaskId(0)
+        mMapTaskId(0),
+        mSyncCBEnabled(false)
 {
     mMemVtbl.user_data = this;
     if ( !deffered ) {
@@ -683,7 +684,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         mAllocTaskId = mAllocator.scheduleBackgroundTask(&mAllocTask);
         if (mAllocTaskId == 0) {
             ALOGE("%s : Failed to schedule buffer alloction", __func__);
-            rc = UNKNOWN_ERROR;
+            rc = -ENOMEM;
             goto done;
         }
     }
@@ -723,7 +724,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         mMapTaskId = mAllocator.scheduleBackgroundTask(&mMapTask);
         if (mMapTaskId == 0) {
             ALOGE("%s : Failed to schedule buffer alloction", __func__);
-            rc = UNKNOWN_ERROR;
+            rc = -ENOMEM;
             goto err1;
         }
     }
@@ -973,11 +974,15 @@ int32_t QCameraStream::processZoomDone(preview_stream_ops_t *previewWindow,
 int32_t QCameraStream::processDataNotify(mm_camera_super_buf_t *frame)
 {
     CDBG("%s:\n", __func__);
+
     if (mDataQ.enqueue((void *)frame)) {
         return mProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
     } else {
-        CDBG_HIGH("%s: Stream thread is not active, no ops here", __func__);
-        bufDone(frame->bufs[0]->buf_idx);
+        if (!m_bActive) {
+            CDBG_HIGH("%s: Stream thread is not active, no ops here %d", __func__, getMyType());
+        } else {
+            bufDone(frame->bufs[0]->buf_idx);
+        }
         free(frame);
         return NO_ERROR;
     }
@@ -1007,7 +1012,7 @@ void QCameraStream::dataNotifySYNCCB(mm_camera_super_buf_t *recvd_frame,
         ALOGE("%s: Not a valid stream to handle buf", __func__);
         return;
     }
-    if (stream->mSYNCDataCB != NULL)
+    if ((stream->mSyncCBEnabled) && (stream->mSYNCDataCB != NULL))
         stream->mSYNCDataCB(recvd_frame, stream, stream->mUserData);
     return;
 }
@@ -2241,7 +2246,8 @@ int32_t QCameraStream::getFrameOffset(cam_frame_len_offset_t &offset)
     }
 
     offset = mFrameLenOffset;
-    if ((ROTATE_90 == mOnlineRotation) || (ROTATE_270 == mOnlineRotation)) {
+    if ((ROTATE_90 == mOnlineRotation) || (ROTATE_270 == mOnlineRotation)
+            || (offset.frame_len == 0) || (offset.num_planes == 0)) {
         // Re-calculate frame offset in case of online rotation
         cam_stream_info_t streamInfo = *mStreamInfo;
         getFrameDimension(streamInfo.dim);
@@ -2588,11 +2594,17 @@ int32_t QCameraStream::configStream()
  *==========================================================================*/
 int32_t QCameraStream::setSyncDataCB(stream_cb_routine data_cb)
 {
+    int32_t rc = NO_ERROR;
+
     if (mCamOps != NULL) {
         mSYNCDataCB = data_cb;
-        return mCamOps->register_stream_buf_cb(mCamHandle,
+        rc = mCamOps->register_stream_buf_cb(mCamHandle,
                 mChannelHandle, mHandle, dataNotifySYNCCB, MM_CAMERA_STREAM_CB_TYPE_SYNC,
                 this);
+        if (rc == NO_ERROR) {
+            mSyncCBEnabled = TRUE;
+            return rc;
+        }
     }
     ALOGE("%s: Interface handle is NULL", __func__);
     return UNKNOWN_ERROR;

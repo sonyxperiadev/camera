@@ -115,6 +115,7 @@ public:
     static void releaseFrameData(void *data, void *user_data);
     int32_t configStream();
     bool isDeffered() const { return mDefferedAllocation; }
+    bool isSyncCBEnabled() {return mSyncCBEnabled;};
     void deleteStream();
 
     uint8_t getBufferCount() { return mNumBufs; }
@@ -260,6 +261,8 @@ private:
     uint32_t mAllocTaskId;
     BackgroundTask mMapTask;
     uint32_t mMapTaskId;
+
+    bool mSyncCBEnabled;
 };
 
 }; // namespace qcamera

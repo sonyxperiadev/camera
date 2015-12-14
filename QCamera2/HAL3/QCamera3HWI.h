@@ -154,14 +154,13 @@ public:
 
     static void captureResultCb(mm_camera_super_buf_t *metadata,
                 camera3_stream_buffer_t *buffer, uint32_t frame_number,
-                void *userdata);
+                bool isInputBuffer, void *userdata);
 
     int initialize(const camera3_callback_ops_t *callback_ops);
     int configureStreams(camera3_stream_configuration_t *stream_list);
     int configureStreamsPerfLocked(camera3_stream_configuration_t *stream_list);
     int processCaptureRequest(camera3_capture_request_t *request);
     void dump(int fd);
-    int flush();
     int flushPerf();
 
     int setFrameParameters(camera3_capture_request_t *request,
@@ -189,7 +188,8 @@ public:
     cam_denoise_process_type_t getTemporalDenoiseProcessPlate();
 
     void captureResultCb(mm_camera_super_buf_t *metadata,
-                camera3_stream_buffer_t *buffer, uint32_t frame_number);
+                camera3_stream_buffer_t *buffer, uint32_t frame_number,
+                bool isInputBuffer);
     cam_dimension_t calcMaxJpegDim();
     bool needOnlineRotation();
     uint32_t getJpegQuality();
@@ -219,29 +219,37 @@ private:
     // State transition conditions:
     // "\" means not applicable
     // "x" means not valid
-    // +------------+----------+----------+-------------+------------+---------+
-    // |            |  CLOSED  |  OPENED  | INITIALIZED | CONFIGURED | STARTED |
-    // +------------+----------+----------+-------------+------------+---------+
-    // |  CLOSED    |    \     |   open   |     x       |    x       |    x    |
-    // +------------+----------+----------+-------------+------------+---------+
-    // |  OPENED    |  close   |    \     | initialize  |    x       |    x    |
-    // +------------+----------+----------+-------------+------------+---------+
-    // |INITIALIZED |  close   |    x     |     \       | configure  |   x     |
-    // +------------+----------+----------+-------------+------------+---------+
-    // | CONFIGURED |  close   |    x     |     x       | configure  | request |
-    // +------------+----------+----------+-------------+------------+---------+
-    // |  STARTED   |  close   |    x     |     x       | configure  |    \    |
-    // +------------+----------+----------+-------------+------------+---------+
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |            |  CLOSED  |  OPENED  | INITIALIZED | CONFIGURED | STARTED | ERROR | DEINIT |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |  CLOSED    |    \     |   open   |     x       |    x       |    x    |   x   |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |  OPENED    |  close   |    \     | initialize  |    x       |    x    | error |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |INITIALIZED |  close   |    x     |     \       | configure  |   x     | error |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // | CONFIGURED |  close   |    x     |     x       | configure  | request | error |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |  STARTED   |  close   |    x     |     x       | configure  |    \    | error |   x    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |   ERROR    |  close   |    x     |     x       |     x      |    x    |   \   |  any   |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+    // |   DEINIT   |  close   |    x     |     x       |     x      |    x    |   x   |   \    |
+    // +------------+----------+----------+-------------+------------+---------+-------+--------+
+
     typedef enum {
         CLOSED,
         OPENED,
         INITIALIZED,
         CONFIGURED,
         STARTED,
+        ERROR,
+        DEINIT
     } State;
 
     int openCamera();
     int closeCamera();
+    int flush(bool restartChannels);
     static size_t calcMaxJpegSize(uint32_t camera_id);
     cam_dimension_t getMaxRawSize(uint32_t camera_id);
     static void addStreamConfig(Vector<int32_t> &available_stream_configs,
@@ -260,6 +268,7 @@ private:
             bool free_and_bufdone_meta_buf);
     void handleBufferWithLock(camera3_stream_buffer_t *buffer,
             uint32_t frame_number);
+    void handleInputBufferWithLock(uint32_t frame_number);
     void unblockRequestIfNecessary();
     void dumpMetadataToFile(tuning_params_t &meta, uint32_t &dumpFrameCount,
             bool enabled, const char *type, uint32_t frameNumber);
@@ -291,12 +300,14 @@ private:
     int32_t stopAllChannels();
     int32_t notifyErrorForPendingRequests();
     int32_t getReprocessibleOutputStreamId(uint32_t &id);
+    int32_t handleCameraDeviceError();
 
     bool isOnEncoder(const cam_dimension_t max_viewfinder_size,
             uint32_t width, uint32_t height);
     void hdrPlusPerfLock(mm_camera_super_buf_t *metadata_buf);
 
     static bool supportBurstCapture(uint32_t cameraId);
+    int32_t setBundleInfo();
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -313,6 +324,8 @@ private:
     QCamera3RawDumpChannel *mRawDumpChannel;
     QCamera3RegularChannel *mDummyBatchChannel;
     QCameraPerfLock m_perfLock;
+
+    uint32_t mChannelHandle;
 
     void saveExifParams(metadata_buffer_t *metadata);
     mm_jpeg_exif_params_t mExifParams;
@@ -366,6 +379,7 @@ private:
         uint32_t partial_result_cnt;
         uint8_t capture_intent;
         uint8_t fwkCacMode;
+        bool shutter_notified;
     } PendingRequestInfo;
     typedef struct {
         uint32_t frame_number;

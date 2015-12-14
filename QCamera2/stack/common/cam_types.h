@@ -54,7 +54,7 @@
 #define MAX_SIZES_CNT 40
 #define MAX_EXP_BRACKETING_LENGTH 32
 #define MAX_ROI 10
-#define MAX_STREAM_NUM_IN_BUNDLE 6
+#define MAX_STREAM_NUM_IN_BUNDLE 8
 #define MAX_NUM_STREAMS          8
 #define CHROMATIX_SIZE 60000
 #define COMMONCHROMATIX_SIZE 45000
@@ -133,6 +133,9 @@
 #define MAX_EEPROM_VERSION_INFO_LEN 32
 
 #define MAX_OPTICAL_BLACK_REGIONS 5
+
+/*reprocess pipeline stages are pproc and jpeg */
+#define MAX_REPROCESS_PIPELINE_STAGES 2
 
 typedef enum {
     CAM_HAL_V1 = 1,
@@ -391,10 +394,10 @@ typedef enum {
 typedef enum {
     CAM_GLBL_DBG_NONE  = 0,
     CAM_GLBL_DBG_ERR   = 1,
-    CAM_GLBL_DBG_HIGH  = 2,
-    CAM_GLBL_DBG_WARN  = 3,
-    CAM_GLBL_DBG_LOW   = 4,
-    CAM_GLBL_DBG_DEBUG = 5,
+    CAM_GLBL_DBG_WARN  = 2,
+    CAM_GLBL_DBG_HIGH  = 3,
+    CAM_GLBL_DBG_DEBUG = 4,
+    CAM_GLBL_DBG_LOW   = 5,
     CAM_GLBL_DBG_INFO  = 6
 } cam_global_debug_level_t;
 
@@ -1207,6 +1210,9 @@ typedef enum {
     CAM_AF_SCANNING,
     CAM_AF_FOCUSED,
     CAM_AF_NOT_FOCUSED,
+    CAM_CAF_SCANNING,
+    CAM_CAF_FOCUSED,
+    CAM_CAF_NOT_FOCUSED,
     CAM_AF_INACTIVE
 } cam_autofocus_state_t;
 
@@ -1637,7 +1643,6 @@ typedef enum {
     CAM_INTF_META_FACE_DETECTION,
     /* Whether optical image stabilization is enabled. */
     CAM_INTF_META_LENS_OPT_STAB_MODE,
-
     /* specific to HAl1 */
     CAM_INTF_META_AUTOFOCUS_DATA,
     CAM_INTF_PARM_QUERY_FLASH4SNAP,
@@ -1949,13 +1954,17 @@ typedef enum {
     /*3A low light level information*/
     CAM_INTF_META_LOW_LIGHT,
     /* dynamic feature detection */
-    CAM_INTF_META_IMG_DYN_FEAT,
+    CAM_INTF_META_IMG_DYN_FEAT, /* 200 */
     /*Parameter entry to communicate manual
     capture type*/
     CAM_INTF_PARM_MANUAL_CAPTURE_TYPE,
     /*AF state change detected by AF module*/
     CAM_INTF_AF_STATE_TRANSITION,
-    CAM_INTF_PARM_MAX /* 201 */
+    /* Whether EIS is enabled */
+    CAM_INTF_META_VIDEO_STAB_MODE,
+    /* Touch exposure compensation (EV) status */
+    CAM_INTF_META_TOUCH_AE_RESULT,
+    CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
 typedef struct {

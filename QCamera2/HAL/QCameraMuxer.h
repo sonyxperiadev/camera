@@ -248,6 +248,8 @@ private:
     bool m_bMpoEnabled;
     // Signifies if frame sync is enabled
     bool m_bFrameSyncEnabled;
+    // flag to indicate whether recording hint is internally set.
+    bool m_bRecordingHintInternallySet;
 
     /* Private Member Methods */
     int setupLogicalCameras();

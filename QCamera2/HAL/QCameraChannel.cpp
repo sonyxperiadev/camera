@@ -30,7 +30,7 @@
 #define LOG_TAG "QCameraChannel"
 
 #include <utils/Errors.h>
-#include "QCameraParameters.h"
+#include "QCameraParametersIntf.h"
 #include "QCamera2HWI.h"
 #include "QCameraChannel.h"
 
@@ -240,30 +240,6 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
     }
     return rc;
 }
-/*===========================================================================
- * FUNCTION   : config
- *
- * DESCRIPTION: Configure any deffered channel streams
- *
- * PARAMETERS : None
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCameraChannel::config()
-{
-    int32_t rc = NO_ERROR;
-    for (size_t i = 0; i < mStreams.size(); ++i) {
-        if ( mStreams[i]->isDeffered() ) {
-            rc = mStreams[i]->configStream();
-            if (rc != NO_ERROR) {
-                break;
-            }
-        }
-    }
-    return rc;
-}
 
 /*===========================================================================
  * FUNCTION   : linkStream
@@ -448,6 +424,48 @@ int32_t QCameraChannel::bufDone(mm_camera_super_buf_t *recvd_frame)
 }
 
 /*===========================================================================
+ * FUNCTION   : bufDone
+ *
+ * DESCRIPTION: return specified buffer from super buffer to kernel
+ *
+ * PARAMETERS :
+ *   @recvd_frame  : stream buf frame to be returned
+ *   @stream_id      : stream ID of the buffer to be released
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraChannel::bufDone(mm_camera_super_buf_t *recvd_frame, uint32_t stream_id)
+{
+    int32_t rc = NO_ERROR;
+    int32_t index;
+    for (int32_t i = 0; i < (int32_t)recvd_frame->num_bufs; i++) {
+        index = -1;
+        if ((recvd_frame->bufs[i] != NULL) &&
+                (recvd_frame->bufs[i]->stream_id == stream_id)) {
+            for (size_t j = 0; j < mStreams.size(); j++) {
+                if ((mStreams[j] != NULL) &&
+                        (mStreams[j]->getMyHandle() == stream_id)) {
+                    rc = mStreams[j]->bufDone(recvd_frame->bufs[i]->buf_idx);
+                    index = i;
+                    break; // break loop j
+                }
+            }
+            if ((index >= 0) && (index < (int32_t)recvd_frame->num_bufs)) {
+                for (int32_t j = index; j < (int32_t)(recvd_frame->num_bufs - 1); j++) {
+                    recvd_frame->bufs[j] = recvd_frame->bufs[j + 1];
+                }
+                recvd_frame->num_bufs--;
+                i--;
+            }
+        }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : processZoomDone
  *
  * DESCRIPTION: process zoom done event
@@ -548,7 +566,7 @@ QCameraStream *QCameraChannel::getStreamByIndex(uint32_t index)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParameters &param)
+int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param)
 {
     int32_t rc = NO_ERROR;
     if (param.isPreviewFlipChanged()) {
@@ -878,7 +896,8 @@ int32_t QCameraVideoChannel::releaseFrame(const void * opaque, bool isMetaData)
 QCameraReprocessChannel::QCameraReprocessChannel(uint32_t cam_handle,
                                                  mm_camera_ops_t *cam_ops) :
     QCameraChannel(cam_handle, cam_ops),
-    m_pSrcChannel(NULL)
+    m_pSrcChannel(NULL),
+    mPassCount(0)
 {
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
 }
@@ -893,7 +912,8 @@ QCameraReprocessChannel::QCameraReprocessChannel(uint32_t cam_handle,
  * RETURN     : none
  *==========================================================================*/
 QCameraReprocessChannel::QCameraReprocessChannel() :
-    m_pSrcChannel(NULL)
+    m_pSrcChannel(NULL),
+    mPassCount(0)
 {
 }
 
@@ -933,7 +953,7 @@ QCameraReprocessChannel::~QCameraReprocessChannel()
 int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
         QCameraAllocator& allocator, cam_pp_feature_config_t &featureConfig,
         QCameraChannel *pSrcChannel, uint8_t minStreamBufNum, uint8_t burstNum,
-        cam_padding_info_t *paddingInfo, QCameraParameters &param, bool contStream,
+        cam_padding_info_t *paddingInfo, QCameraParametersIntf &param, bool contStream,
         bool offline)
 {
     int32_t rc = 0;
@@ -963,7 +983,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
         if (pStream != NULL) {
             if (param.getofflineRAW() && !((pStream->isTypeOf(CAM_STREAM_TYPE_RAW))
                     || (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW))
-                    || (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)))) {
+                    || (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA))
+                    || (pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW)))) {
                 //Skip all the stream other than RAW and POSTVIEW incase of offline of RAW
                 continue;
             }
@@ -1128,8 +1149,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
 
             if ((streamInfo->reprocess_config.pp_feature_config.feature_mask
                     & CAM_QCOM_FEATURE_SCALE)
-                    && param.m_reprocScaleParam.isScaleEnabled()
-                    && param.m_reprocScaleParam.isUnderScaling()) {
+                    && param.isReprocScaleEnabled()
+                    && param.isUnderReprocScaling()) {
                 //we only Scale Snapshot frame
                 if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
                     streamInfo->dim.width =
@@ -1145,6 +1166,10 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             mSrcStreamHandles[mStreams.size()] = pStream->getMyHandle();
 
             pMiscBuf = allocator.allocateMiscBuf(streamInfo);
+
+            CDBG_HIGH("Configure Reprocessing: stream = %d, res = %dX%d, fmt = %d, type = %d",
+                    pStream->getMyOriginalType(), streamInfo->dim.width,
+                    streamInfo->dim.height, streamInfo->fmt, type);
 
             // add reprocess stream
             if (streamInfo->reprocess_config.pp_feature_config.feature_mask
@@ -1248,13 +1273,31 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
 {
     int32_t rc = 0;
     OfflineBuffer mappedBuffer;
+    uint32_t buf_index = 0;
     uint32_t meta_buf_index = 0;
 
-    if (pStream == NULL) {
-        ALOGE("%s: Invalid input parameters", __func__);
-        return -1;
+    if ((frame == NULL) || (meta_buf == NULL)) {
+        ALOGE("%s: Invalid Input Paramters", __func__);
+        return INVALID_OPERATION;
     }
 
+    if (pStream == NULL) {
+        pStream = getStreamBySrouceHandle(frame->stream_id);
+        if (pStream == NULL) {
+            ALOGE("%s: Input validation failed.", __func__);
+            return INVALID_OPERATION;
+        }
+    }
+
+    if (!mOfflineBuffers.empty()) {
+        List<OfflineBuffer>::iterator it = mOfflineBuffers.begin();
+        for( ; it != mOfflineBuffers.end(); it++) {
+            buf_index = (buf_index < ((*it).index)) ? ((*it).index) : buf_index;
+        }
+        buf_index += 1;
+    }
+
+    meta_buf_index = buf_index;
     if (meta_buf != NULL) {
         rc = pStream->mapBuf(CAM_MAPPING_BUF_TYPE_OFFLINE_META_BUF,
                 meta_buf_index,
@@ -1272,9 +1315,9 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
         mappedBuffer.stream = pStream;
         mappedBuffer.type = CAM_MAPPING_BUF_TYPE_OFFLINE_META_BUF;
         mOfflineBuffers.push_back(mappedBuffer);
+        buf_index += 1;
     }
 
-    uint32_t buf_index = 1;
     rc = pStream->mapBuf(CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF,
              buf_index,
              -1,
@@ -1297,8 +1340,15 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
     param.type = CAM_STREAM_PARAM_TYPE_DO_REPROCESS;
     param.reprocess.buf_index = buf_index;
     param.reprocess.frame_idx = frame->frame_idx;
-    param.reprocess.meta_present = 1;
-    param.reprocess.meta_buf_index = meta_buf_index;
+
+    if (meta_buf != NULL) {
+        param.reprocess.meta_present = 1;
+        param.reprocess.meta_buf_index = meta_buf_index;
+    }
+
+    CDBG_HIGH("%s: Offline reprocessing id = %d buf Id = %d meta index = %d type = %d",
+            __func__, param.reprocess.frame_idx, param.reprocess.buf_index,
+            param.reprocess.meta_buf_index, pStream->getMyOriginalType());
 
     rc = pStream->setParameter(param);
     if (rc != NO_ERROR) {
@@ -1324,7 +1374,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame,
-        mm_camera_buf_def_t *meta_buf, QCameraParameters &mParameter)
+        mm_camera_buf_def_t *meta_buf, QCameraParametersIntf &mParameter)
 {
     int32_t rc = 0;
     OfflineBuffer mappedBuffer;
@@ -1425,7 +1475,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
-        QCameraParameters &mParameter, QCameraStream *pMetaStream,
+        QCameraParametersIntf &mParameter, QCameraStream *pMetaStream,
         uint8_t meta_buf_index)
 {
     int32_t rc = 0;
@@ -1472,9 +1522,9 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
                 param.reprocess.meta_buf_index = meta_buf_index;
             }
 
-            CDBG_HIGH("Frame for reprocessing id = %d buf Id = %d meta index = %d",
-                    param.reprocess.frame_idx, param.reprocess.buf_index,
-                    param.reprocess.meta_buf_index, pStream->getMyType());
+            CDBG_HIGH("%s: Online reprocessing id = %d buf Id = %d meta index = %d type = %d",
+                    __func__, param.reprocess.frame_idx, param.reprocess.buf_index,
+                    param.reprocess.meta_buf_index, pStream->getMyOriginalType());
 
             rc = pStream->setParameter(param);
             if (rc != NO_ERROR) {

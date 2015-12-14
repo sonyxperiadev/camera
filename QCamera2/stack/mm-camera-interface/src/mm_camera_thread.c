@@ -484,8 +484,10 @@ int32_t mm_camera_poll_thread_del_poll_fd(mm_camera_poll_thread_t * poll_cb,
             rc = mm_camera_poll_sig_async(poll_cb, MM_CAMERA_PIPE_CMD_POLL_ENTRIES_UPDATED_ASYNC );
         }
     } else {
-        CDBG_ERROR("%s: invalid handler %d (%d)",
-                   __func__, handler, idx);
+        /* The error might be due to async update. We only report error for EVT type*/
+        if (MM_CAMERA_POLL_TYPE_DATA != poll_cb->poll_type)
+            ALOGE("%s: invalid handler %d (%d)", __func__, handler, idx);
+
         return -1;
     }
 
