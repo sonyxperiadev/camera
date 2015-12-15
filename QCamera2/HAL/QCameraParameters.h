@@ -708,6 +708,7 @@ public:
     bool isSnapshotFDNeeded();
 
     bool isHDR1xFrameEnabled() {return m_bHDR1xFrameEnabled;}
+    bool isSupportedSensorHdrSize(const QCameraParameters& params);
     bool isYUVFrameInfoNeeded();
     const char*getFrameFmtString(cam_format_t fmt);
     bool isHDR1xExtraBufferNeeded() {return m_bHDR1xExtraBufferNeeded;}

@@ -824,6 +824,13 @@ typedef enum {
     CAM_CDS_MODE_MAX
 } cam_cds_mode_type_t;
 
+typedef enum {
+    CAM_SENSOR_HDR_OFF,
+    CAM_SENSOR_HDR_IN_SENSOR = 1,
+    CAM_SENSOR_HDR_ZIGZAG,
+    CAM_SENSOR_HDR_MAX,
+} cam_sensor_hdr_type_t;
+
 typedef struct  {
     int32_t left;
     int32_t top;
