@@ -1463,15 +1463,22 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_SEND_COMMAND:
         {
             qcamera_sm_evt_command_payload_t *cmd_payload =
-                (qcamera_sm_evt_command_payload_t *)payload;
+                    (qcamera_sm_evt_command_payload_t *)payload;
             rc = m_parent->sendCommand(cmd_payload->cmd,
-                                       cmd_payload->arg1,
-                                       cmd_payload->arg2);
-            if (CAMERA_CMD_LONGSHOT_ON == cmd_payload->cmd) {
-                if (QCAMERA_SM_EVT_RESTART_PERVIEW == cmd_payload->arg1) {
-                    m_parent->stopPreview();
-                    // Clear memory pools
-                    m_parent->m_memoryPool.clear();
+                    cmd_payload->arg1,
+                    cmd_payload->arg2);
+            m_bPreviewNeedsRestart =
+                    (QCAMERA_SM_EVT_RESTART_PERVIEW == cmd_payload->arg1);
+            m_bPreviewDelayedRestart =
+                    (QCAMERA_SM_EVT_DELAYED_RESTART == cmd_payload->arg2);
+
+            if ((CAMERA_CMD_LONGSHOT_ON == cmd_payload->cmd) &&
+                    (m_bPreviewNeedsRestart)) {
+                m_parent->stopPreview();
+                // Clear memory pools
+                m_parent->m_memoryPool.clear();
+
+                if (!m_bPreviewDelayedRestart) {
                     // start preview again
                     rc = m_parent->preparePreview();
                     if (rc == NO_ERROR) {
@@ -1479,6 +1486,28 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                         if (rc != NO_ERROR) {
                             m_parent->unpreparePreview();
                         }
+                    }
+                }
+            }
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_SEND_COMMAND_RESTART:
+        {
+            qcamera_sm_evt_command_payload_t *cmd_payload =
+                    (qcamera_sm_evt_command_payload_t *)payload;
+            if ((CAMERA_CMD_LONGSHOT_ON == cmd_payload->cmd) &&
+                    (m_bPreviewNeedsRestart) &&
+                    (m_bPreviewDelayedRestart)) {
+                // start preview again
+                rc = m_parent->preparePreview();
+                if (rc == NO_ERROR) {
+                    rc = m_parent->startPreview();
+                    if (rc != NO_ERROR) {
+                        m_parent->unpreparePreview();
                     }
                 }
             }
