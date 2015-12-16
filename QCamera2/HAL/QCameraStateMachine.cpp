@@ -122,6 +122,8 @@ QCameraStateMachine::QCameraStateMachine(QCamera2HardwareInterface *ctrl) :
     pthread_setname_np(cmd_pid, "CAM_stMachine");
     m_bDelayPreviewMsgs = false;
     m_DelayedMsgs = 0;
+
+    m_bDisplayFrame = TRUE;
 }
 
 /*===========================================================================
