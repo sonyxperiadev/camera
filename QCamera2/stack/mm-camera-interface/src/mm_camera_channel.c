@@ -1179,7 +1179,7 @@ int32_t mm_channel_init(mm_channel_t *my_obj,
     }
 
     CDBG("%s : Launch data poll thread in channel open", __func__);
-    snprintf(my_obj->threadName, THREAD_NAME_SIZE, "CAM_dataPoll");
+    snprintf(my_obj->poll_thread[0].threadName, THREAD_NAME_SIZE, "CAM_dataPoll");
     mm_camera_poll_thread_launch(&my_obj->poll_thread[0],
                                  MM_CAMERA_POLL_TYPE_DATA);
 
