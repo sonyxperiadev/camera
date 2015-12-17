@@ -6750,8 +6750,8 @@ int32_t QCameraParameters::setSceneDetect(const char *sceneDetect)
 int32_t QCameraParameters::setSensorSnapshotHDR(const char *snapshotHDR)
 {
     if (snapshotHDR != NULL) {
-        int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
-                snapshotHDR);
+        int32_t value = (cam_sensor_hdr_type_t) lookupAttr(ON_OFF_MODES_MAP,
+                PARAM_MAP_SIZE(ON_OFF_MODES_MAP), snapshotHDR);
         if (value != NAME_NOT_FOUND) {
             LOGH("Setting Sensor Snapshot HDR %s", snapshotHDR);
             updateParamEntry(KEY_QC_SENSOR_HDR, snapshotHDR);
@@ -6766,7 +6766,7 @@ int32_t QCameraParameters::setSensorSnapshotHDR(const char *snapshotHDR)
                 LOGH("%s: Overriding to ZZ HDR Mode", __func__);
             }
 
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, value)) {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, (cam_sensor_hdr_type_t)value)) {
                 return BAD_VALUE;
             }
             return NO_ERROR;
@@ -6796,21 +6796,28 @@ int32_t QCameraParameters::setVideoHDR(const char *videoHDR)
     if (videoHDR != NULL) {
         int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP), videoHDR);
         if (value != NAME_NOT_FOUND) {
-            LOGH("Setting Video HDR %s", videoHDR);
-            updateParamEntry(KEY_QC_VIDEO_HDR, videoHDR);
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_VIDEO_HDR, value)) {
-                return BAD_VALUE;
-            }
 
             char zz_prop[PROPERTY_VALUE_MAX];
             memset(zz_prop, 0, sizeof(zz_prop));
-            property_get("persist.camera.zzhdr.enable", zz_prop, "0");
-            uint8_t zzhdr_enable = (uint8_t)atoi(zz_prop);
-            if (zzhdr_enable && value) {
-                value = CAM_SENSOR_HDR_ZIGZAG;
-                LOGH("%s: Overriding to ZZ HDR Mode", __func__);
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, value)) {
-                    ALOGE("%s: Override to ZZ mode for video HDR failed", __func__);
+            property_get("persist.camera.zzhdr.video", zz_prop, "0");
+            uint8_t use_zzhdr_video = (uint8_t)atoi(zz_prop);
+
+            if (use_zzhdr_video) {
+                LOGH("%s: Using ZZ HDR for video mode", __func__);
+                if (value)
+                    value = CAM_SENSOR_HDR_ZIGZAG;
+                else
+                    value = CAM_SENSOR_HDR_OFF;
+                LOGH("%s: Overriding to sensor HDR Mode to:%d", __func__, value);
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, (cam_sensor_hdr_type_t) value)) {
+                    ALOGE("%s: Override to sensor HDR mode for video HDR failed", __func__);
+                    return BAD_VALUE;
+                }
+                updateParamEntry(KEY_QC_VIDEO_HDR, videoHDR);
+            } else {
+                LOGH("%s: Setting Video HDR %s", __func__, videoHDR);
+                updateParamEntry(KEY_QC_VIDEO_HDR, videoHDR);
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_VIDEO_HDR, value)) {
                     return BAD_VALUE;
                 }
             }

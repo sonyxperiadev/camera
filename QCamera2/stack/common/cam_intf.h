@@ -877,7 +877,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_HDR_NEED_1X,                  int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_LOCK_CAF,                     int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_VIDEO_HDR,                    int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_SENSOR_HDR,                   int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_SENSOR_HDR,                   cam_sensor_hdr_type_t,       1);
     INCLUDE(CAM_INTF_PARM_VT,                           int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_SET_AUTOFOCUSTUNING,          tune_actuator_t,             1);
     INCLUDE(CAM_INTF_PARM_SET_VFE_COMMAND,              tune_cmd_t,                  1);
