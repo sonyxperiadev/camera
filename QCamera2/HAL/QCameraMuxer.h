@@ -248,6 +248,8 @@ private:
     bool m_bMpoEnabled;
     // Signifies if frame sync is enabled
     bool m_bFrameSyncEnabled;
+    // flag to indicate whether recording hint is internally set.
+    bool m_bRecordingHintInternallySet;
 
     /* Private Member Methods */
     int setupLogicalCameras();
@@ -262,6 +264,8 @@ private:
             struct camera_device * device);
     qcamera_physical_descriptor_t* getPhysicalCamera(
             qcamera_logical_descriptor_t* log_cam, uint32_t index);
+    int32_t getActiveNumOfPhyCam(
+            qcamera_logical_descriptor_t* log_cam, int& numOfAcitvePhyCam);
     int32_t setMpoCallbackCookie(void* mpoCbCookie);
     void* getMpoCallbackCookie();
     int32_t setMainJpegCallbackCookie(void* jpegCbCookie);

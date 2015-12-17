@@ -456,7 +456,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   rc = addExifEntry(exif_info, EXIFTAGID_ISO_SPEED_RATING, EXIF_SHORT,
     sizeof(val_short)/2, &val_short);
   if (rc) {
-    ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+     ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
   }
 
   /*WB mode*/
@@ -606,13 +606,13 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
   }
 
   /* take the cached values if meta is invalid */
-  if (!is_3a_meta_valid) {
+  if ((!is_3a_meta_valid) && (hal_version == CAM_HAL_V1)) {
     p_3a_params = p_cam_exif_params->cam_3a_params;
     CDBG_ERROR("%s:%d] Warning using cached values for 3a",
       __func__, __LINE__);
   }
 
-  if (!is_sensor_meta_valid) {
+  if ((!is_sensor_meta_valid) && (hal_version == CAM_HAL_V1)) {
     p_sensor_params = p_cam_exif_params->sensor_params;
     CDBG_ERROR("%s:%d] Warning using cached values for sensor",
       __func__, __LINE__);

@@ -40,7 +40,6 @@
 
 #include "QCamera2HWI.h"
 #include "QCameraMem.h"
-#include "QCameraParameters.h"
 
 extern "C" {
 #include <mm_camera_interface.h>
@@ -1876,6 +1875,8 @@ int32_t QCameraGrallocMemory::dequeueBuffer()
                 return BAD_INDEX;
             }
 
+            setMetaData(mPrivateHandle[dequeuedIdx], UPDATE_COLOR_SPACE,
+                    &mColorSpace);
             mCameraMemory[dequeuedIdx] =
                     mGetMemory(mPrivateHandle[dequeuedIdx]->fd,
                     (size_t)mPrivateHandle[dequeuedIdx]->size,

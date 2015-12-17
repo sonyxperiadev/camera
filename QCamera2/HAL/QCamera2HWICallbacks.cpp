@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 #include <utils/Errors.h>
 #include <utils/Timers.h>
+#include <cutils/properties.h>
 #include <QComOMXMetadata.h>
 #include "QCamera2HWI.h"
 
@@ -582,24 +583,15 @@ bool QCamera2HardwareInterface::TsMakeupProcess(mm_camera_buf_def_t *pFrame,
         CDBG_HIGH("%s pStream == NULL || pFrame == NULL ",__func__);
         return false;
     }
-    pthread_mutex_lock(&m_parm_lock);
-    const char* pch_makeup_enable = mParameters.get(QCameraParameters::KEY_TS_MAKEUP);
-    pthread_mutex_unlock(&m_parm_lock);
-    if (pch_makeup_enable == NULL) {
-        CDBG_HIGH("%s pch_makeup_enable = null",__func__);
-        return false;
-    }
-    bool enableMakeUp = (strcmp(pch_makeup_enable,"On") == 0) && (faceRect.left > -1);
-    CDBG("%s pch_makeup_enable = %s ",__func__,pch_makeup_enable);
-    if (enableMakeUp) {
+
+    int whiteLevel, cleanLevel;
+    bool enableMakeup = (faceRect.left > -1) &&
+            (mParameters.getTsMakeupInfo(whiteLevel, cleanLevel));
+    if (enableMakeup) {
         cam_dimension_t dim;
         cam_frame_len_offset_t offset;
         pStream->getFrameDimension(dim);
         pStream->getFrameOffset(offset);
-        pthread_mutex_lock(&m_parm_lock);
-        int whiteLevel = mParameters.getInt(QCameraParameters::KEY_TS_MAKEUP_WHITEN),
-        cleanLevel = mParameters.getInt(QCameraParameters::KEY_TS_MAKEUP_CLEAN);
-        pthread_mutex_unlock(&(m_parm_lock));
         unsigned char *tempOriBuf = NULL;
 
         tempOriBuf = (unsigned char*)pFrame->buffer;
@@ -679,6 +671,9 @@ void QCamera2HardwareInterface::postproc_channel_cb_routine(mm_camera_super_buf_
     }
     *frame = *recvd_frame;
 
+    if (recvd_frame->num_bufs > 0) {
+        ALOGI("[KPI Perf] %s: frame_idx %d", __func__, recvd_frame->bufs[0]->frame_idx);
+    }
     // Wait on JPEG create session
     pme->waitDeferredWork(pme->mJpegJob);
 
@@ -740,28 +735,14 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
         return;
     }
 
-#if WINDOW_TIMESTAMP
-    frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
     if(pme->m_bPreviewStarted) {
-        cam_fps_range_t fpsRange = pme->mParameters.getFpsRange();
-        nsecs_t previewRate = 0;
-        ALOGI("[KPI Perf] %s : PROFILE_FIRST_PREVIEW_FRAME fps = %d", __func__, fpsRange.min_fps);
-        pme->m_bPreviewStarted = false ;
-        if (fpsRange.min_fps != 0) {
-            previewRate = (nsecs_t)(((int)(1000/fpsRange.min_fps) * 1000) * 1000000LL);
-        }
-        mPreviewTimestamp = frameTime + previewRate;
-    } else {
-        nsecs_t diff = (nsecs_t)(frameTime - stream->mStreamTimestamp);
-        if (diff >= 0) {
-            mPreviewTimestamp = frameTime + diff;
-        } else {
-            ALOGE ("%s: Issue in frame timestamp", __func__);
-            mPreviewTimestamp = frameTime;
-        }
+        ALOGI("[KPI Perf] %s : PROFILE_FIRST_PREVIEW_FRAME", __func__);
+        pme->m_bPreviewStarted = false;
     }
+    frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
+    // Calculate the future presentation time stamp for displaying frames at regular interval
+    mPreviewTimestamp = pme->mCameraDisplay.computePresentationTimeStamp(frameTime);
     stream->mStreamTimestamp = frameTime;
-#endif
     memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
 
     // Enqueue  buffer to gralloc.
@@ -833,7 +814,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     pme->TsMakeupProcess_Preview(frame,stream);
 #endif
     if (!pme->needProcessPreviewFrame()) {
-        ALOGE("%s: preview is not running, no need to process", __func__);
+        ALOGI("%s: preview is not running, no need to process", __func__);
         stream->bufDone(frame->buf_idx);
         free(super_frame);
         return;
@@ -852,9 +833,24 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
        pme->m_bPreviewStarted = false ;
     }
 
-    pthread_mutex_lock(&pme->mGrallocLock);
-    dequeueCnt = pme->mEnqueuedBuffers;
-    pthread_mutex_unlock(&pme->mGrallocLock);
+    if (!stream->isSyncCBEnabled()) {
+        CDBG("%s : Enqueue Buffer to display %d",
+                __func__, idx);
+        err = memory->enqueueBuffer(idx);
+
+        if (err == NO_ERROR) {
+            pthread_mutex_lock(&pme->mGrallocLock);
+            pme->mEnqueuedBuffers++;
+            dequeueCnt = pme->mEnqueuedBuffers;
+            pthread_mutex_unlock(&pme->mGrallocLock);
+        } else {
+            ALOGE ("%s: Enqueue Buffer failed", __func__);
+        }
+    } else {
+        pthread_mutex_lock(&pme->mGrallocLock);
+        dequeueCnt = pme->mEnqueuedBuffers;
+        pthread_mutex_unlock(&pme->mGrallocLock);
+    }
 
     // Display the buffer.
     CDBG("%p displayBuffer %d E", pme, idx);
@@ -1134,8 +1130,8 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
 
         if ((pme->needProcessPreviewFrame()) &&
                 (pme->mDataCb != NULL) &&
-                (pme->msgTypeEnabledWithLock(
-                CAMERA_MSG_PREVIEW_FRAME) > 0)) {
+                (pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) &&
+                (pme->getRelatedCamSyncInfo()->mode != CAM_MODE_SECONDARY)) {
             qcamera_callback_argm_t cbArg;
             memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
             cbArg.cb_type = QCAMERA_DATA_CALLBACK;
@@ -1960,6 +1956,15 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
 
     ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData, CAM_INTF_PARM_ROTATION, rotation_info);
 
+    // Imglib Dynamic Scene Data
+    cam_dyn_img_data_t dyn_img_data = mParameters.getDynamicImgData();
+    if (mParameters.isStillMoreEnabled()) {
+        cam_still_more_t stillmore_cap = mParameters.getStillMoreSettings();
+        dyn_img_data.input_count = stillmore_cap.burst_count;
+    }
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
+            CAM_INTF_META_IMG_DYN_FEAT, dyn_img_data);
+
     //CPP CDS
     int32_t prmCDSMode = mParameters.getCDSMode();
     ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
@@ -2373,6 +2378,15 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         }
     }
 
+    IF_META_AVAILABLE(cam_dyn_img_data_t, dyn_img_data,
+            CAM_INTF_META_IMG_DYN_FEAT, pMetaData) {
+        pme->mParameters.setDynamicImgData(*dyn_img_data);
+    }
+
+    IF_META_AVAILABLE(int32_t, touch_ae_status, CAM_INTF_META_TOUCH_AE_RESULT, pMetaData) {
+      CDBG("%s:touch_ae_status: %d", __func__, *touch_ae_status);
+    }
+
     stream->bufDone(frame->buf_idx);
     free(super_frame);
 
@@ -2651,7 +2665,7 @@ void QCamera2HardwareInterface::dumpMetadataToFile(QCameraStream *stream,
  * RETURN     : None
  *==========================================================================*/
 void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
-        mm_camera_buf_def_t *frame, uint32_t dump_type)
+        mm_camera_buf_def_t *frame, uint32_t dump_type, const char *misc)
 {
     char value[PROPERTY_VALUE_MAX];
     property_get("persist.camera.dumpimg", value, "0");
@@ -2736,8 +2750,13 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                             } else {
                                 stream->getFrameDimension(dim);
                             }
-                            snprintf(buf, sizeof(buf), "%ds_%dx%d_%d.yuv",
-                                    dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
+                            if (misc != NULL) {
+                                snprintf(buf, sizeof(buf), "%ds_%dx%d_%d_%s.yuv",
+                                        dumpFrmCnt, dim.width, dim.height, frame->frame_idx, misc);
+                            } else {
+                                snprintf(buf, sizeof(buf), "%ds_%dx%d_%d.yuv",
+                                        dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
+                            }
                         }
                         break;
                     case QCAMERA_DUMP_FRM_VIDEO:
@@ -2778,6 +2797,14 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                             if (i > 0) {
                                 index += offset.mp[i-1].len;
                             }
+
+                            if (offset.mp[i].meta_len != 0) {
+                                data = (void *)((uint8_t *)frame->buffer + index);
+                                written_len += write(file_fd, data,
+                                        (size_t)offset.mp[i].meta_len);
+                                index += (uint32_t)offset.mp[i].meta_len;
+                            }
+
                             for (int j = 0; j < offset.mp[i].height; j++) {
                                 data = (void *)((uint8_t *)frame->buffer + index);
                                 written_len += write(file_fd, data,

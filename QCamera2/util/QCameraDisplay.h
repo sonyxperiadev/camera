@@ -27,64 +27,50 @@
  *
  */
 
-#ifndef __QCAMERAPERF_H__
-#define __QCAMERAPERF_H__
+#ifndef __QCAMERADISPLAY_H__
+#define __QCAMERADISPLAY_H__
 
-#include <dlfcn.h>
-#include <utils/Mutex.h>
-#include <utils/List.h>
-#include <hardware/power.h>
-
-typedef enum {
-    ALL_CORES_ONLINE = 0x7FE,
-    ALL_CPUS_PWR_CLPS_DIS = 0x101,
-    CPU0_MIN_FREQ_TURBO_MAX = 0x2FE,
-    CPU4_MIN_FREQ_TURBO_MAX = 0x1FFE,
-}perf_lock_params_t;
-
-/* Time related macros */
-#define ONE_SEC 1000
-typedef int64_t nsecs_t;
-#define NSEC_PER_SEC 1000000000LLU
-
-using namespace android;
+#include <gui/DisplayEventReceiver.h>
+#include <android/looper.h>
+#include <utils/Looper.h>
 
 namespace qcamera {
 
-class QCameraPerfLock {
-public:
-    QCameraPerfLock();
-    ~QCameraPerfLock();
+#define CAMERA_NUM_VSYNC_INTERVAL_HISTORY  6
 
-    void    lock_init();
-    void    lock_deinit();
-    int32_t lock_rel();
-    int32_t lock_acq();
-    int32_t lock_acq_timed(int32_t timer_val);
-    int32_t lock_rel_timed();
-    bool    isTimerReset();
-    void    powerHintInternal(power_hint_t hint, bool enable);
-    void    powerHint(power_hint_t hint, bool enable);
+class QCameraDisplay {
+public:
+    QCameraDisplay();
+    ~QCameraDisplay();
+    static int   vsyncEventReceiverCamera(int fd, int events, void* data);
+    static void* vsyncThreadCamera(void * data);
+    void         computeAverageVsyncInterval(nsecs_t currentVsyncTimeStamp);
+    nsecs_t      computePresentationTimeStamp(nsecs_t frameTimeStamp);
 
 private:
-    int32_t        (*perf_lock_acq)(int, int, int[], int);
-    int32_t        (*perf_lock_rel)(int);
-    void            startTimer(uint32_t timer_val);
-    void            resetTimer();
-    void           *mDlHandle;
-    uint32_t        mPerfLockEnable;
-    Mutex           mLock;
-    int32_t         mPerfLockHandle;        // Performance lock library handle
-    int32_t         mPerfLockHandleTimed;   // Performance lock library handle
-    power_module_t *m_pPowerModule;         // power module Handle
-    power_hint_t    mCurrentPowerHint;
-    bool            mCurrentPowerHintEnable;
-    uint32_t        mTimerSet;
-    uint32_t        mPerfLockTimeout;
-    nsecs_t         mStartTimeofLock;
-    List<power_hint_t> mActivePowerHints;   // Active/enabled power hints list
+    pthread_t mVsyncThreadCameraHandle;
+    nsecs_t   mVsyncTimeStamp;
+    nsecs_t   mAvgVsyncInterval;
+    nsecs_t   mOldTimeStamp;
+    nsecs_t   mVsyncIntervalHistory[CAMERA_NUM_VSYNC_INTERVAL_HISTORY];
+    nsecs_t   mVsyncHistoryIndex;
+    nsecs_t   mAdditionalVsyncOffsetForWiggle;
+    uint32_t  mThreadExit;
+    // Tunable property. Increasing this will increase the frame delay and will loose
+    // the real time display.
+    uint32_t  mNum_vsync_from_vfe_isr_to_presentation_timestamp;
+    // Tunable property. Set the time stamp x ms prior to expected vsync so that
+    // it will be picked in that vsync
+    uint32_t  mSet_timestamp_num_ms_prior_to_vsync;
+    // Tunable property for filtering timestamp wiggle when VFE ISR crosses
+    // over MDP ISR over a period. Typical scenario is VFE is running at
+    // 30.2 fps vs display running at 60 fps.
+    uint32_t  mVfe_and_mdp_freq_wiggle_filter_max_ms;
+    uint32_t  mVfe_and_mdp_freq_wiggle_filter_min_ms;
+
+    android::DisplayEventReceiver  mDisplayEventReceiver;
 };
 
 }; // namespace qcamera
 
-#endif /* __QCAMREAPERF_H__ */
+#endif /* __QCAMERADISPLAY_H__ */

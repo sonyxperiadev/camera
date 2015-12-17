@@ -549,6 +549,97 @@ mm_camera_stream_t * mm_app_add_metadata_stream(mm_camera_test_obj_t *test_obj,
     return stream;
 }
 
+cam_dimension_t mm_app_get_analysis_stream_dim(
+                                               const mm_camera_test_obj_t *test_obj,
+                                               const cam_dimension_t* preview_dim)
+{
+    cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
+    cam_dimension_t max_analysis_dim = cam_cap->analysis_max_res;
+    cam_dimension_t analysis_dim = {0, 0};
+
+    if (preview_dim->width > max_analysis_dim.width ||
+            preview_dim->height > max_analysis_dim.height) {
+        double max_ratio, requested_ratio;
+
+        max_ratio = (double)max_analysis_dim.width / (double)max_analysis_dim.height;
+        requested_ratio = (double)preview_dim->width / (double)preview_dim->height;
+
+        if (max_ratio < requested_ratio) {
+            analysis_dim.width = analysis_dim.width;
+            analysis_dim.height = (int32_t)((double)analysis_dim.width / requested_ratio);
+        } else {
+            analysis_dim.height = analysis_dim.height;
+            analysis_dim.width = (int32_t)((double)analysis_dim.height * requested_ratio);
+        }
+        analysis_dim.width &= ~0x1;
+        analysis_dim.height &= ~0x1;
+    } else {
+        analysis_dim = *preview_dim;
+    }
+
+    ALOGD("%s, analysis stream dim (%d x %d)\n", __func__, analysis_dim.width, analysis_dim.height);
+    return analysis_dim;
+}
+
+mm_camera_stream_t * mm_app_add_analysis_stream(mm_camera_test_obj_t *test_obj,
+                                               mm_camera_channel_t *channel,
+                                               mm_camera_buf_notify_t stream_cb,
+                                               void *userdata,
+                                               uint8_t num_bufs)
+{
+    int rc = MM_CAMERA_OK;
+    mm_camera_stream_t *stream = NULL;
+    cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
+    cam_dimension_t preview_dim = {0, 0};
+    cam_dimension_t analysis_dim = {0, 0};
+
+
+    stream = mm_app_add_stream(test_obj, channel);
+    if (NULL == stream) {
+        CDBG_ERROR("%s: add stream failed\n", __func__);
+        return NULL;
+    }
+
+    if ((test_obj->preview_resolution.user_input_display_width == 0) ||
+           ( test_obj->preview_resolution.user_input_display_height == 0)) {
+        preview_dim.width = DEFAULT_PREVIEW_WIDTH;
+        preview_dim.height = DEFAULT_PREVIEW_HEIGHT;
+    } else {
+        preview_dim.width = test_obj->preview_resolution.user_input_display_width;
+        preview_dim.height = test_obj->preview_resolution.user_input_display_height;
+    }
+
+    analysis_dim = mm_app_get_analysis_stream_dim(test_obj, &preview_dim);
+    ALOGI("%s, analysis stream dimesion: %d x %d\n", __func__,
+            analysis_dim.width, analysis_dim.height);
+
+    stream->s_config.mem_vtbl.get_bufs = mm_app_stream_initbuf;
+    stream->s_config.mem_vtbl.put_bufs = mm_app_stream_deinitbuf;
+    stream->s_config.mem_vtbl.clean_invalidate_buf =
+      mm_app_stream_clean_invalidate_buf;
+    stream->s_config.mem_vtbl.invalidate_buf = mm_app_stream_invalidate_buf;
+    stream->s_config.mem_vtbl.user_data = (void *)stream;
+    stream->s_config.stream_cb = stream_cb;
+    stream->s_config.userdata = userdata;
+    stream->num_of_bufs = num_bufs;
+
+    stream->s_config.stream_info = (cam_stream_info_t *)stream->s_info_buf.buf.buffer;
+    memset(stream->s_config.stream_info, 0, sizeof(cam_stream_info_t));
+    stream->s_config.stream_info->stream_type = CAM_STREAM_TYPE_ANALYSIS;
+    stream->s_config.stream_info->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
+    stream->s_config.stream_info->fmt = DEFAULT_PREVIEW_FORMAT;
+    stream->s_config.stream_info->dim = analysis_dim;
+    stream->s_config.padding_info = cam_cap->analysis_padding_info;
+
+    rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
+    if (MM_CAMERA_OK != rc) {
+        CDBG_ERROR("%s:config preview stream err=%d\n", __func__, rc);
+        return NULL;
+    }
+
+    return stream;
+}
+
 mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
                                                mm_camera_channel_t *channel,
                                                mm_camera_buf_notify_t stream_cb,
@@ -559,6 +650,7 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
     mm_camera_stream_t *stream = NULL;
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
     cam_dimension_t preview_dim = {0, 0};
+    cam_dimension_t analysis_dim = {0, 0};
 
     if ((test_obj->preview_resolution.user_input_display_width == 0) ||
            ( test_obj->preview_resolution.user_input_display_height == 0)) {
@@ -570,14 +662,29 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
     }
     ALOGI("%s, preview dimesion: %d x %d\n", __func__, preview_dim.width, preview_dim.height);
 
+    analysis_dim = mm_app_get_analysis_stream_dim(test_obj, &preview_dim);
+    ALOGI("%s, analysis stream dimesion: %d x %d\n", __func__,
+            analysis_dim.width, analysis_dim.height);
+
+    uint32_t analysis_pp_mask = cam_cap->qcom_supported_feature_mask &
+                                        (CAM_QCOM_FEATURE_SHARPNESS |
+                                         CAM_QCOM_FEATURE_EFFECT |
+                                         CAM_QCOM_FEATURE_DENOISE2D);
+    ALOGI("%s, analysis stream pp mask:%x\n", __func__, analysis_pp_mask);
+
     cam_stream_size_info_t abc ;
     memset (&abc , 0, sizeof (cam_stream_size_info_t));
 
-    abc.num_streams = 1;
+    abc.num_streams = 2;
     abc.postprocess_mask[0] = 2178;
     abc.stream_sizes[0].width = preview_dim.width;
     abc.stream_sizes[0].height = preview_dim.height;
     abc.type[0] = CAM_STREAM_TYPE_PREVIEW;
+
+    abc.postprocess_mask[1] = analysis_pp_mask;
+    abc.stream_sizes[1].width = analysis_dim.width;
+    abc.stream_sizes[1].height = analysis_dim.height;
+    abc.type[1] = CAM_STREAM_TYPE_ANALYSIS;
 
     abc.buffer_info.min_buffers = 10;
     abc.buffer_info.max_buffers = 10;
@@ -634,6 +741,30 @@ mm_camera_stream_t * mm_app_add_raw_stream(mm_camera_test_obj_t *test_obj,
     int rc = MM_CAMERA_OK;
     mm_camera_stream_t *stream = NULL;
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
+
+    cam_stream_size_info_t abc ;
+    memset (&abc , 0, sizeof (cam_stream_size_info_t));
+
+    abc.num_streams = 1;
+    abc.postprocess_mask[0] = 0;
+
+    if ( test_obj->buffer_width == 0 || test_obj->buffer_height == 0 ) {
+        abc.stream_sizes[0].width = DEFAULT_SNAPSHOT_WIDTH;
+        abc.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+    } else {
+        abc.stream_sizes[0].width = (int32_t)test_obj->buffer_width;
+        abc.stream_sizes[0].height = (int32_t)test_obj->buffer_height;
+    }
+    abc.type[0] = CAM_STREAM_TYPE_RAW;
+
+    abc.buffer_info.min_buffers = num_bufs;
+    abc.buffer_info.max_buffers = num_bufs;
+    abc.is_type = IS_TYPE_NONE;
+
+    rc = setmetainfoCommand(test_obj, &abc);
+    if (rc != MM_CAMERA_OK) {
+       CDBG_ERROR("%s: meta info command failed\n", __func__);
+    }
 
     stream = mm_app_add_stream(test_obj, channel);
     if (NULL == stream) {
@@ -831,6 +962,7 @@ int mm_app_start_preview(mm_camera_test_obj_t *test_obj)
     mm_camera_channel_t *channel = NULL;
     mm_camera_stream_t *stream = NULL;
     mm_camera_stream_t *s_metadata = NULL;
+    mm_camera_stream_t *s_analysis = NULL;
     uint8_t i;
 
     channel =  mm_app_add_preview_channel(test_obj);
@@ -845,6 +977,17 @@ int mm_app_start_preview(mm_camera_test_obj_t *test_obj)
                                             (void *)test_obj,
                                             PREVIEW_BUF_NUM);
     if (NULL == s_metadata) {
+        CDBG_ERROR("%s: add metadata stream failed\n", __func__);
+        mm_app_del_channel(test_obj, channel);
+        return rc;
+    }
+
+    s_analysis = mm_app_add_analysis_stream(test_obj,
+                                            channel,
+                                            NULL,
+                                            (void *)test_obj,
+                                            PREVIEW_BUF_NUM);
+    if (NULL == s_analysis) {
         CDBG_ERROR("%s: add metadata stream failed\n", __func__);
         mm_app_del_channel(test_obj, channel);
         return rc;

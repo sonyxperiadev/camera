@@ -183,3 +183,5 @@ LOCAL_MODULE:= libmm-qcamera
 LOCAL_CLANG := false
 
 include $(BUILD_SHARED_LIBRARY)
+
+LOCAL_PATH := $(OLD_LOCAL_PATH)

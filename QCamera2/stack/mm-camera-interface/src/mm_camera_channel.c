@@ -2423,7 +2423,9 @@ int32_t mm_channel_handle_metadata(
     }
 
     if ((CAM_STREAM_TYPE_METADATA == stream_obj->stream_info->stream_type) &&
-            (stream_obj->ch_obj == ch_obj)) {
+            ((stream_obj->ch_obj == ch_obj) ||
+            ((stream_obj->linked_stream != NULL) &&
+            (stream_obj->linked_stream->linked_obj == ch_obj)))) {
         const metadata_buffer_t *metadata;
         metadata = (const metadata_buffer_t *)buf_info->buf->buffer;
 
