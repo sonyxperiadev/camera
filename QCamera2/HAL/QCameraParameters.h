@@ -213,6 +213,8 @@ public:
     static const char WHITE_BALANCE_MANUAL[];
     static const char FOCUS_MODE_MANUAL_POSITION[];
     static const char KEY_QC_LONG_SHOT[];
+    static const char KEY_QC_INSTANT_AEC[];
+    static const char KEY_QC_INSTANT_CAPTURE[];
 
     static const char KEY_QC_MANUAL_FOCUS_POSITION[];
     static const char KEY_QC_MANUAL_FOCUS_POS_TYPE[];
@@ -649,6 +651,9 @@ public:
     uint32_t getJpegExifRotation();
     bool useJpegExifRotation();
     int32_t getEffectValue();
+    bool isInstantAECEnabled() {return m_bInstantAEC;};
+    bool isInstantCaptureEnabled() {return m_bInstantCapture;};
+    uint8_t getAecFrameBoundValue() {return mAecFrameBound;};
 
     int32_t getExifDateTime(String8 &dateTime, String8 &subsecTime);
     int32_t getExifFocalLength(rat_t *focalLenght);
@@ -891,6 +896,7 @@ private:
     int32_t setPAAF();
     int32_t setTintlessValue(const QCameraParameters& params);
     int32_t setCDSMode(const QCameraParameters& params);
+    int32_t setInstantAECandCaptureParams(const QCameraParameters& params);
     int32_t setMobicat(const QCameraParameters& params);
     int32_t setRdiMode(const QCameraParameters& );
     int32_t setSecureMode(const QCameraParameters& );
@@ -1117,6 +1123,12 @@ private:
     bool m_bDcrfEnabled;
     uint32_t mRotation;
     uint32_t mJpegRotation;
+    // Param to trigger instant AEC.
+    bool m_bInstantAEC;
+    // Param to trigger instant capture.
+    bool m_bInstantCapture;
+    // Number of frames, camera interface will wait for getting the instant capture frame.
+    uint8_t mAecFrameBound;
 };
 
 }; // namespace qcamera

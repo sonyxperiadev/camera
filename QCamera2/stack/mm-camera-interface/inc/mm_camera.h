@@ -371,6 +371,7 @@ typedef struct {
     uint32_t once;
     uint32_t frame_skip_count;
     uint32_t nomatch_frame_id;
+    uint32_t frame_num_for_instant_capture;
 } mm_channel_queue_t;
 
 typedef struct {

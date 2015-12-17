@@ -1849,6 +1849,8 @@ typedef enum {
     CAM_INTF_BUF_DIVERT_INFO, /* 190 */
     /*AF state change detected by AF module*/
     CAM_INTF_AF_STATE_TRANSITION, /* 191 */
+    /* Param for enabling instant aec*/
+    CAM_INTF_PARM_INSTANT_AEC,
     CAM_INTF_PARM_MAX /* 192 */
 } cam_intf_parm_type_t;
 

@@ -145,6 +145,7 @@ void mm_channel_node_qbuf(mm_channel_t *ch_obj, mm_channel_queue_node_t *node);
 void mm_channel_send_super_buf(mm_channel_node_info_t *info);
 mm_channel_queue_node_t* mm_channel_superbuf_dequeue_frame_internal(
         mm_channel_queue_t * queue, uint32_t frame_idx);
+uint8_t mm_channel_check_aec(mm_channel_queue_node_t *node);
 
 /*===========================================================================
  * FUNCTION   : mm_channel_util_get_stream_by_handler
@@ -465,9 +466,29 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                    }
                    free(node);
                } else {
-                   info.num_nodes = 1;
-                   info.ch_obj[0] = ch_obj;
-                   info.node[0] = node;
+                   if (ch_obj->bundle.superbuf_queue.attr.instant_capture_enabled) {
+                       // If instant capture enabled, wait until the AEC is settled
+                       // check if AEC is settled or waited more than the aec frame bound.
+                       if (!mm_channel_check_aec(node) &&
+                                (ch_obj->bundle.superbuf_queue.frame_num_for_instant_capture <
+                                ch_obj->bundle.superbuf_queue.attr.aec_frame_bound)) {
+                           uint8_t i;
+                           for (i = 0; i < node->num_of_bufs; i++) {
+                               mm_channel_qbuf(ch_obj, node->super_buf[i].buf);
+                           }
+                           ch_obj->bundle.superbuf_queue.frame_num_for_instant_capture++;
+                           free(node);
+                       } else {
+                           info.num_nodes = 1;
+                           info.ch_obj[0] = ch_obj;
+                           info.node[0] = node;
+                           ch_obj->bundle.superbuf_queue.frame_num_for_instant_capture = 0;
+                       }
+                   } else {
+                       info.num_nodes = 1;
+                       info.ch_obj[0] = ch_obj;
+                       info.node[0] = node;
+                   }
                }
             }
         }
@@ -1408,6 +1429,7 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
         my_obj->bundle.superbuf_queue.led_off_start_frame_id = 0;
         my_obj->bundle.superbuf_queue.led_on_start_frame_id = 0;
         my_obj->bundle.superbuf_queue.led_on_num_frames = 0;
+        my_obj->bundle.superbuf_queue.frame_num_for_instant_capture = 0;
 
         for (i = 0; i < num_streams_to_start; i++) {
             /* Only bundle streams that belong to the channel */
@@ -2212,6 +2234,34 @@ int8_t mm_channel_util_seq_comp_w_rollover(uint32_t v1,
     }
 
     return ret;
+}
+
+uint8_t mm_channel_check_aec(mm_channel_queue_node_t *node)
+{
+    uint8_t i = 0;
+    const metadata_buffer_t *metadata = NULL;
+    uint8_t is_settled = 0;
+    for (i = 0; i < node->num_of_bufs; i++) {
+        if (node->super_buf[i].buf->stream_type == CAM_STREAM_TYPE_METADATA) {
+            metadata = (const metadata_buffer_t *)node->super_buf[i].buf->buffer;
+            break;
+        }
+    }
+
+    if (i == node->num_of_bufs) {
+        CDBG_ERROR("%s: no metadata stream , ignore is_settled",
+                   __func__);
+        is_settled = 1;
+    } else if (NULL == metadata) {
+        CDBG_ERROR("%s: NULL metadata buffer for metadata stream",
+                   __func__);
+    } else {
+        IF_META_AVAILABLE(const cam_3a_params_t, ae_params, CAM_INTF_META_AEC_INFO, metadata) {
+            is_settled = ae_params->settled;
+        }
+    }
+    CDBG("%s: is_settled %d", __func__ ,is_settled);
+    return is_settled;
 }
 
 /*===========================================================================

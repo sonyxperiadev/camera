@@ -6699,6 +6699,8 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     attr.post_frame_skip = mParameters.getZSLBurstInterval();
     attr.water_mark = mParameters.getZSLQueueDepth();
     attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
+    attr.instant_capture_enabled = (uint8_t)mParameters.isInstantCaptureEnabled();
+    attr.aec_frame_bound = (uint8_t)mParameters.getAecFrameBoundValue();
 
     //Enabled matched queue
     if (getRelatedCamSyncInfo()->is_frame_sync_enabled) {
