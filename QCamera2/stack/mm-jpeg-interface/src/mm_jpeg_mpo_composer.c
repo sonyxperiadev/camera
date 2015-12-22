@@ -172,20 +172,20 @@ uint8_t *mm_jpeg_mpo_get_app_marker(uint8_t *buffer_addr, int buffer_size,
 
     //If 0xFF is not found at all, break
     if (byte != 0xFF) {
-      CDBG("%s %d: 0xFF not found", __func__, __LINE__);
+      LOGD("0xFF not found");
       break;
     }
 
     //Read the next byte after 0xFF
     byte = *(p_current_addr);
-    CDBG("%s %d: Byte %x", __func__, __LINE__, byte);
+    LOGD("Byte %x", byte);
     if (byte == app_marker) {
-      CDBG("%s %d: Byte %x", __func__, __LINE__, byte);
+      LOGD("Byte %x", byte);
       p_start_offset = ++p_current_addr;
       break;
     } else if (byte != M_SOI) {
       app_marker_size = READ_SHORT(p_current_addr, 1);
-      CDBG("%s %d: size %d", __func__, __LINE__, app_marker_size);
+      LOGD("size %d", app_marker_size);
       p_current_addr += app_marker_size;
     }
   }
@@ -249,28 +249,26 @@ int mm_jpeg_mpo_update_header(mm_jpeg_mpo_info_t *mpo_info)
   app2_start_off_addr = mm_jpeg_mpo_get_app_marker(
     mpo_info->output_buff.buf_vaddr, mpo_info->primary_image.buf_filled_len, M_APP2);
   if (!app2_start_off_addr) {
-    CDBG_ERROR("%s %d:] Cannot find App2 marker. MPO composition failed",
-      __func__, __LINE__ );
+    LOGE("Cannot find App2 marker. MPO composition failed" );
     return rc;
   }
-  CDBG("%s %d:] app2_start_off_addr %p = %x", __func__, __LINE__,
+  LOGD("app2_start_off_addr %p = %x",
     app2_start_off_addr, *app2_start_off_addr);
 
   //Get the addr of the MP Headr start offset.
   //All offsets in the MP header are wrt to this addr
   mp_headr_start_off_addr = mm_jpeg_mpo_get_mp_header(app2_start_off_addr);
   if (!mp_headr_start_off_addr) {
-    CDBG_ERROR("%s %d:] mp headr start offset is NULL. MPO composition failed",
-      __func__, __LINE__ );
+    LOGE("mp headr start offset is NULL. MPO composition failed" );
     return rc;
   }
-  CDBG("%s %d:] mp_headr_start_off_addr %x", __func__, __LINE__,
+  LOGD("mp_headr_start_off_addr %x",
     *mp_headr_start_off_addr);
 
   current_offset = mp_headr_start_off_addr - mpo_info->output_buff.buf_vaddr;
 
   endianess = READ_LONG(mpo_info->output_buff.buf_vaddr, current_offset);
-  CDBG("%s %d:] Endianess %d", __func__, __LINE__, endianess);
+  LOGD("Endianess %d", endianess);
 
   //Add offset to first ifd
   current_offset += MP_ENDIAN_BYTES;
@@ -283,17 +281,17 @@ int mm_jpeg_mpo_update_header(mm_jpeg_mpo_info_t *mpo_info)
     offset_to_nxt_ifd = READ_LONG(mpo_info->output_buff.buf_vaddr,
       current_offset);
   }
-  CDBG("%s %d:] offset_to_nxt_ifd %d", __func__, __LINE__, offset_to_nxt_ifd);
+  LOGD("offset_to_nxt_ifd %d", offset_to_nxt_ifd);
 
   current_offset = ((mp_headr_start_off_addr + offset_to_nxt_ifd) -
     mpo_info->output_buff.buf_vaddr);
   mp_index_ifd_offset = current_offset;
-  CDBG("%s %d:] mp_index_ifd_offset %d", __func__, __LINE__,
+  LOGD("mp_index_ifd_offset %d",
     mp_index_ifd_offset);
 
   //Traverse to MP Entry value
   ifd_tag_count = READ_SHORT(mpo_info->output_buff.buf_vaddr, current_offset);
-  CDBG("%s %d:] Tag count in MP entry %d", __func__, __LINE__, ifd_tag_count);
+  LOGD("Tag count in MP entry %d", ifd_tag_count);
   current_offset += MP_INDEX_COUNT_BYTES;
 
   /* Get MP Entry Value offset - Count * 12 (Each tag is 12 bytes)*/
@@ -302,7 +300,7 @@ int mm_jpeg_mpo_update_header(mm_jpeg_mpo_info_t *mpo_info)
   current_offset += MP_INDEX_OFFSET_OF_NEXT_IFD_BYTES;
 
   mp_entry_val_offset = current_offset;
-  CDBG("%s %d:] MP Entry value offset %d", __func__, __LINE__,
+  LOGD("MP Entry value offset %d",
     mp_entry_val_offset);
 
   //Update image size for primary image
@@ -336,8 +334,7 @@ int mm_jpeg_mpo_update_header(mm_jpeg_mpo_info_t *mpo_info)
         current_offset, mpo_info->output_buff_size,
         mpo_info->aux_images[i].buf_filled_len, &overflow_flag);
     }
-    CDBG("%s %d:] aux[%d] start_addr %x", __func__, __LINE__, i,
-       *aux_start_addr);
+    LOGD("aux[start_addr %x", *aux_start_addr);
     //Update the offset
     current_offset += MP_INDEX_ENTRY_INDIVIDUAL_IMAGE_SIZE_BYTES;
     if (endianess == MPO_LITTLE_ENDIAN) {
@@ -385,8 +382,7 @@ int mm_jpeg_mpo_compose(mm_jpeg_mpo_info_t *mpo_info)
       mpo_info->output_buff.buf_filled_len +=
         mpo_info->primary_image.buf_filled_len;
     } else {
-      CDBG_ERROR("%s %d: O/P buffer not large enough. MPO composition failed",
-        __func__, __LINE__);
+      LOGE("O/P buffer not large enough. MPO composition failed");
       pthread_mutex_unlock(&g_mpo_lock);
       return rc;
     }
@@ -402,8 +398,7 @@ int mm_jpeg_mpo_compose(mm_jpeg_mpo_info_t *mpo_info)
       mpo_info->output_buff.buf_filled_len +=
         mpo_info->aux_images[i].buf_filled_len;
     } else {
-      CDBG_ERROR("%s %d: O/P buffer not large enough. MPO composition failed",
-          __func__, __LINE__);
+      LOGE("O/P buffer not large enough. MPO composition failed");
       pthread_mutex_unlock(&g_mpo_lock);
       return rc;
     }

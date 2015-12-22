@@ -44,7 +44,7 @@ int32_t mm_jpeg_queue_enq(mm_jpeg_queue_t* queue, mm_jpeg_q_data_t data)
     mm_jpeg_q_node_t* node =
         (mm_jpeg_q_node_t *)malloc(sizeof(mm_jpeg_q_node_t));
     if (NULL == node) {
-        CDBG_ERROR("%s: No memory for mm_jpeg_q_node_t", __func__);
+        LOGE("No memory for mm_jpeg_q_node_t");
         return -1;
     }
 
@@ -67,7 +67,7 @@ int32_t mm_jpeg_queue_enq_head(mm_jpeg_queue_t* queue, mm_jpeg_q_data_t data)
   mm_jpeg_q_node_t* node =
         (mm_jpeg_q_node_t *)malloc(sizeof(mm_jpeg_q_node_t));
     if (NULL == node) {
-        CDBG_ERROR("%s: No memory for mm_jpeg_q_node_t", __func__);
+        LOGE("No memory for mm_jpeg_q_node_t");
         return -1;
     }
 

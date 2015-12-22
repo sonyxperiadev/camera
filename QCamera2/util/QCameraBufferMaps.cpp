@@ -32,6 +32,7 @@
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include "QCameraBufferMaps.h"
+#include "QCameraTrace.h"
 #include <stdlib.h>
 #include <string.h>
 

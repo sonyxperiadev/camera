@@ -20,19 +20,35 @@
 #ifndef __QCAMERATRACE_H__
 #define __QCAMERATRACE_H__
 
-#define ATRACE_TAG ATRACE_TAG_CAMERA
 #include <utils/Trace.h>
+
+#ifdef QCAMERA_REDEFINE_LOG
+#define CAM_MODULE CAM_HAL_MODULE
+extern "C" {
+#include "mm_camera_dbg.h"
+}
+#endif
 
 #undef ATRACE_CALL
 #undef ATRACE_NAME
 #undef ATRACE_BEGIN
 #undef ATRACE_INT
 #undef ATRACE_END
+#undef ATRACE_BEGIN_SNPRINTF
+#undef KPI_ATRACE_BEGIN
+#undef KPI_ATRACE_END
+#undef KPI_ATRACE_INT
+#undef ATRACE_TAG
+#undef ATRACE_BEGIN_DBG
+#undef ATRACE_INT_DBG
+#undef ATRACE_END_DBG
 
 #define KPI_ONLY 1
 #define KPI_DBG 2
 
 #define CAMERA_TRACE_BUF 32
+
+#define ATRACE_TAG ATRACE_TAG_CAMERA
 
 //to enable only KPI logs
 #define KPI_ATRACE_BEGIN(name) ({\

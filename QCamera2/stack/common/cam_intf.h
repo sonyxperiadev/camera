@@ -652,8 +652,8 @@ typedef struct {
     ((NULL != TABLE_PTR) ? \
     ((TABLE_PTR->data.member_variable_##META_ID[ 0 ] = DATA), \
     (TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
-    ((ALOGE("%s: %d, Unable to set metadata TABLE_PTR:%p META_ID:%d", \
-    __func__, __LINE__, TABLE_PTR, META_ID)), (-1))) \
+    ((LOGE("Unable to set metadata TABLE_PTR:%p META_ID:%d", \
+            TABLE_PTR, META_ID)), (-1))) \
 
 #define ADD_SET_PARAM_ARRAY_TO_BATCH(TABLE_PTR, META_ID, PDATA, COUNT, RCOUNT) \
 { \
@@ -668,8 +668,8 @@ typedef struct {
         TABLE_PTR->is_valid[META_ID] = 1; \
         RCOUNT = COUNT; \
     } else { \
-        ALOGE("%s: %d, Unable to set metadata TABLE_PTR:%p META_ID:%d COUNT:%zu", \
-                __func__, __LINE__, TABLE_PTR, META_ID, COUNT); \
+        LOGE("Unable to set metadata TABLE_PTR:%p META_ID:%d COUNT:%zu", \
+              TABLE_PTR, META_ID, COUNT); \
         RCOUNT = 0; \
     } \
 }
@@ -679,8 +679,8 @@ typedef struct {
     if (NULL != TABLE_PTR) { \
         TABLE_PTR->is_reqd[META_ID] = 1; \
     } else { \
-        ALOGE("%s: %d, Unable to get metadata TABLE_PTR:%p META_ID:%d", \
-                __func__, __LINE__, TABLE_PTR, META_ID); \
+        LOGE("Unable to get metadata TABLE_PTR:%p META_ID:%d", \
+                  TABLE_PTR, META_ID); \
     } \
 }
 
@@ -689,8 +689,8 @@ typedef struct {
     if (NULL != TABLE_PTR) { \
         DATA = TABLE_PTR->data.member_variable_##META_ID[ 0 ]; \
     } else { \
-        ALOGE("%s: %d, Unable to read metadata TABLE_PTR:%p META_ID:%d", \
-                __func__, __LINE__, TABLE_PTR, META_ID); \
+        LOGE("Unable to read metadata TABLE_PTR:%p META_ID:%d", \
+                  TABLE_PTR, META_ID); \
     } \
 }
 

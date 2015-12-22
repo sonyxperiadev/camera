@@ -31,6 +31,12 @@
 #define MM_LIB2D_H_
 
 #include "cam_types.h"
+#ifdef QCAMERA_REDEFINE_LOG
+#define CAM_MODULE CAM_NO_MODULE
+extern "C" {
+#include "mm_camera_dbg.h"
+}
+#endif
 
 /** lib2d_error
  * @MM_LIB2D_SUCCESS: Success

@@ -84,7 +84,7 @@ int mm_qcamera_queue_enqueue(mm_camera_queue_t *queue, void *data)
     camera_q_node *node =
         (camera_q_node *)malloc(sizeof(camera_q_node));
     if (NULL == node) {
-        CDBG_ERROR("%s: No memory for camera_q_node", __func__);
+        LOGE(" No memory for camera_q_node");
         return 0;
     }
 

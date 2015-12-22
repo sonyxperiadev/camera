@@ -30,42 +30,9 @@
 #ifndef __MM_QCAMERA_DBG_H__
 #define __MM_QCAMERA_DBG_H__
 
-//#define LOG_DEBUG 1
-
-#ifndef LOG_DEBUG
-  #ifdef _ANDROID_
-    #undef LOG_NIDEBUG
-    #undef LOG_TAG
-    #define LOG_NIDEBUG 0
-    #define LOG_TAG "mm-camera-test"
-    #include <utils/Log.h>
-  #else
-    #include <stdio.h>
-    #define ALOGE CDBG
-  #endif
-  #undef CDBG
-  #define CDBG(fmt, args...) do{}while(0)
-  #define CDBG_ERROR(fmt, args...) ALOGE(fmt, ##args)
-#else
-  #ifdef _ANDROID_
-    #undef LOG_NIDEBUG
-    #undef LOG_TAG
-    #define LOG_NIDEBUG 0
-    #define LOG_TAG "mm-camera-test"
-    #include <utils/Log.h>
-    #define CDBG(fmt, args...) ALOGE(fmt, ##args)
-  #else
-    #include <stdio.h>
-    #define CDBG(fmt, args...) fprintf(stderr, fmt, ##args)
-    #define ALOGE(fmt, args...) fprintf(stderr, fmt, ##args)
-  #endif
+#ifdef QCAMERA_REDEFINE_LOG
+#define CAM_MODULE CAM_HAL_MODULE
+#include "mm_camera_dbg.h"
 #endif
 
-#ifdef _ANDROID_
-  #define CDBG_HIGH(fmt, args...)  ALOGE(fmt, ##args)
-  #define CDBG_ERROR(fmt, args...)  ALOGE(fmt, ##args)
-#else
-  #define CDBG_HIGH(fmt, args...) fprintf(stderr, fmt, ##args)
-  #define CDBG_ERROR(fmt, args...) fprintf(stderr, fmt, ##args)
-#endif
 #endif /* __MM_QCAMERA_DBG_H__ */

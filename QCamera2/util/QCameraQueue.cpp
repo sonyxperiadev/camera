@@ -30,6 +30,7 @@
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include "QCameraQueue.h"
+#include "QCameraTrace.h"
 
 namespace qcamera {
 
@@ -140,7 +141,7 @@ bool QCameraQueue::enqueue(void *data)
     camera_q_node *node =
         (camera_q_node *)malloc(sizeof(camera_q_node));
     if (NULL == node) {
-        ALOGE("%s: No memory for camera_q_node", __func__);
+        LOGE("No memory for camera_q_node");
         return false;
     }
 
@@ -177,7 +178,7 @@ bool QCameraQueue::enqueueWithPriority(void *data)
     camera_q_node *node =
         (camera_q_node *)malloc(sizeof(camera_q_node));
     if (NULL == node) {
-        ALOGE("%s: No memory for camera_q_node", __func__);
+        LOGE("No memory for camera_q_node");
         return false;
     }
 

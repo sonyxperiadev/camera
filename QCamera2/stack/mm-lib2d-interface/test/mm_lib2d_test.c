@@ -51,10 +51,10 @@
   FILE *fp = fopen(filename, "w+"); \
   if (fp) { \
     rc = fwrite(p_addr, 1, len, fp); \
-    printf("%s:%d] written size %zu \n", __func__, __LINE__, len); \
+    printf(" ] written size %zu \n",  __LINE__, len); \
     fclose(fp); \
   } else { \
-    printf("%s:%d] open %s failed \n", __func__, __LINE__, filename); \
+    printf(" ] open %s failed \n",  __LINE__, filename); \
   } \
 })
 
@@ -71,10 +71,10 @@
   if (fp) { \
     rc = fwrite(p_addr1, 1, len1, fp); \
     rc = fwrite(p_addr2, 1, len2, fp); \
-    printf("%s:%d] written %zu %zu \n", __func__, __LINE__, len1, len2); \
+    printf(" ] written %zu %zu \n",  __LINE__, len1, len2); \
     fclose(fp); \
   } else { \
-    printf("%s:%d] open %s failed \n", __func__, __LINE__, filename); \
+    printf(" ] open %s failed \n",  __LINE__, filename); \
   } \
 })
 
@@ -182,7 +182,7 @@ void lib2d_dump_tga(void *addr, cam_format_t format, int width,
  **/
 lib2d_error lib2d_test_client_cb(void *userdata, int jobid)
 {
-  printf("%s %d, jobid=%d \n", __func__, __LINE__, jobid);
+  printf("%s %d, jobid=%d \n",  __LINE__, jobid);
   return MM_LIB2D_SUCCESS;
 }
 
@@ -350,7 +350,7 @@ int main(int32_t argc, const char * argv[])
   img_lib.ptr = dlopen("libmmcamera_imglib.so", RTLD_NOW);
   if (!img_lib.ptr) {
     printf("%s ERROR: couldn't dlopen libmmcamera_imglib.so: %s",
-      __func__, dlerror());
+       dlerror());
     return -1;
   }
 
@@ -366,7 +366,7 @@ int main(int32_t argc, const char * argv[])
   if ((img_lib.img_buffer_get == NULL) ||
     (img_lib.img_buffer_release == NULL) ||
     (img_lib.img_buffer_cacheops == NULL)) {
-    printf("%s: ERROR mapping symbols from libmmcamera_imglib.so", __func__);
+    printf(" ERROR mapping symbols from libmmcamera_imglib.so");
     dlclose(img_lib.ptr);
     return -1;
   }
@@ -425,18 +425,18 @@ int main(int32_t argc, const char * argv[])
     ret = img_lib.img_buffer_get(IMG_BUFFER_ION_IOMMU, -1, TRUE,
           yuv_size, &m_yuv_memHandle);
     if (ret != IMG_SUCCESS) {
-      printf("%s:%d] Error, img buf get failed \n", __func__, __LINE__);
+      printf(" ] Error, img buf get failed \n");
       goto deinit;
     }
 
     printf("%s %d yuv buffer properties : w=%d, h=%d, y_stride=%d, "
       "crcb_stride=%d, y_size=%d, crcb_size=%d, yuv_size=%d, "
       "crcb_offset=%d \n",
-      __func__, __LINE__,
+       __LINE__,
       width, height, y_plane_stride, crcb_plane_stride, y_plane_size,
       crcb_plane_size, yuv_size, y_plane_size_align);
     printf("%s %d yuv buffer properties : fd=%d, ptr=%p, size=%d \n",
-      __func__, __LINE__, m_yuv_memHandle.fd, m_yuv_memHandle.vaddr,
+       __LINE__, m_yuv_memHandle.fd, m_yuv_memHandle.vaddr,
       m_yuv_memHandle.length);
 
     // Allocate ARGB buffer
@@ -446,15 +446,15 @@ int main(int32_t argc, const char * argv[])
     ret = img_lib.img_buffer_get(IMG_BUFFER_ION_IOMMU, -1, TRUE,
           rgb_size, &m_rgb_memHandle);
     if (ret != IMG_SUCCESS) {
-      printf("%s:%d] Error, img buf get failed", __func__, __LINE__);
+      printf(" ] Error, img buf get failed");
       img_lib.img_buffer_release(&m_yuv_memHandle);
       goto deinit;
     }
 
     printf("%s %d rgb buffer properties : w=%d, h=%d, stride=%d, size=%d \n",
-      __func__, __LINE__, width, height, stride, rgb_size);
+       __LINE__, width, height, stride, rgb_size);
     printf("%s %d rgb buffer properties : fd=%d, ptr=%p, size=%d \n",
-      __func__, __LINE__, m_rgb_memHandle.fd, m_rgb_memHandle.vaddr,
+       __LINE__, m_rgb_memHandle.fd, m_rgb_memHandle.vaddr,
       m_rgb_memHandle.length);
 
 #if 0
@@ -462,7 +462,7 @@ int main(int32_t argc, const char * argv[])
       (input_yuv_stride * height), (input_yuv_stride * height / 2), y_plane_size_align,
       m_yuv_memHandle.vaddr);
     if (lib2d_err != MM_LIB2D_SUCCESS) {
-      printf("%s:%d] Error loading the input buffer \n", __func__, __LINE__);
+      printf(" ] Error loading the input buffer \n");
       goto release;
     }
 #else
@@ -470,7 +470,7 @@ int main(int32_t argc, const char * argv[])
       input_yuv_stride, y_plane_stride,height, y_plane_size_align,
       m_yuv_memHandle.vaddr);
     if (lib2d_err != MM_LIB2D_SUCCESS) {
-      printf("%s:%d] Error loading the input buffer \n", __func__, __LINE__);
+      printf(" ] Error loading the input buffer \n");
       goto release;
     }
 #endif
@@ -501,7 +501,7 @@ int main(int32_t argc, const char * argv[])
     lib2d_err = mm_lib2d_start_job(lib2d_handle, &src_buffer, &dst_buffer,
       index, NULL, lib2d_test_client_cb);
     if (lib2d_err != MM_LIB2D_SUCCESS) {
-      printf("%s:%d] Error in mm_lib2d_start_job \n", __func__, __LINE__);
+      printf(" ] Error in mm_lib2d_start_job \n");
       goto release;
     }
 
@@ -532,7 +532,7 @@ release:
 deinit:
   mm_lib2d_deinit(lib2d_handle);
   printf("%s %d some error happened, tests completed = %d/%d \n",
-    __func__, __LINE__, index - 1, total_tests);
+     __LINE__, index - 1, total_tests);
   return -1;
 }
 
