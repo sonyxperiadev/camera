@@ -46,17 +46,17 @@ static ssize_t tuneserver_send_command_rsp(tuningserver_t *tsctrl,
 
   /* send ack back to client upon req */
   if (send_len <= 0) {
-    ALOGE("%s:Invalid send len \n", __func__);
+    LOGE("Invalid send len \n");
     return -1;
   }
   if (send_buf == NULL) {
-    ALOGE("%s:Invalid send buf \n", __func__);
+    LOGE("Invalid send buf \n");
     return -1;
   }
 
   rc = send(tsctrl->clientsocket_id, send_buf, send_len, 0);
   if (rc < 0) {
-    ALOGE("%s:RSP send returns error %s\n", __func__, strerror(errno));
+    LOGE("RSP send returns error %s\n",  strerror(errno));
   } else {
     rc = 0;
   }
@@ -86,7 +86,7 @@ static ssize_t tuneserver_ack(uint16_t a, uint32_t b, tuningserver_t *tsctrl)
   /* send echo back to client upon accept */
   rc = send(tsctrl->clientsocket_id, &ack_1, sizeof(ack_1), 0);
   if (rc < 0) {
-    ALOGE("%s: eztune_server_run: send returns error %s\n", __func__,
+    LOGE(" eztune_server_run: send returns error %s\n",
       strerror(errno));
     return rc;
   } else if (rc < (int32_t)sizeof(ack_1)) {
@@ -102,7 +102,7 @@ static ssize_t tuneserver_send_command_ack( uint8_t ack,
   /* send ack back to client upon req */
   rc = send(tsctrl->clientsocket_id, &ack, sizeof(ack), 0);
   if (rc < 0) {
-    ALOGE("%s:ACK send returns error %s\n", __func__, strerror(errno));
+    LOGE("ACK send returns error %s\n",  strerror(errno));
     return rc;
   }
   return 0;
@@ -121,72 +121,72 @@ static int32_t tuneserver_process_command(tuningserver_t *tsctrl,
   tuneserver_protocol_t *p = tsctrl->proto;
   int result = 0;
 
-  CDBG("%s: Current command is %d\n", __func__, p->current_cmd);
+  LOGD(" Current command is %d\n",  p->current_cmd);
   switch (p->current_cmd) {
   case TUNESERVER_GET_LIST:
     if(tuneserver_send_command_ack(CURRENT_COMMAND_ACK_SUCCESS, tsctrl)) {
-      ALOGE("%s: Ack Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" Ack Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     result = tuneserver_process_get_list_cmd(tsctrl, p->recv_buf,
       send_buf, send_len);
     if (result < 0) {
-      ALOGE("%s: RSP processing Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP processing Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     if(tuneserver_send_command_rsp(tsctrl, send_buf, send_len)) {
-      ALOGE("%s: RSP Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     break;
 
   case TUNESERVER_GET_PARMS:
     if(tuneserver_send_command_ack(CURRENT_COMMAND_ACK_SUCCESS, tsctrl)) {
-      ALOGE("%s: Ack Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" Ack Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     result = tuneserver_process_get_params_cmd(tsctrl, p->recv_buf,
       send_buf, send_len);
     if (result < 0) {
-      ALOGE("%s: RSP processing Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP processing Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     if(tuneserver_send_command_rsp(tsctrl, send_buf, send_len)) {
-      ALOGE("%s: RSP Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     break;
 
   case TUNESERVER_SET_PARMS:
     if(tuneserver_send_command_ack(CURRENT_COMMAND_ACK_SUCCESS, tsctrl)) {
-      ALOGE("%s: Ack Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" Ack Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     result = tuneserver_process_set_params_cmd(tsctrl, p->recv_buf,
       send_buf, send_len);
     if (result < 0) {
-      ALOGE("%s: RSP processing Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP processing Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     if(tuneserver_send_command_rsp(tsctrl, send_buf, send_len)) {
-      ALOGE("%s: RSP Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     break;
 
   case TUNESERVER_MISC_CMDS: {
     if(tuneserver_send_command_ack(CURRENT_COMMAND_ACK_SUCCESS, tsctrl)) {
-      ALOGE("%s: Ack Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" Ack Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     result = tuneserver_process_misc_cmd(tsctrl, p->recv_buf,
       send_buf, send_len);
     if (result < 0) {
-      ALOGE("%s: RSP processing Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP processing Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     if(tuneserver_send_command_rsp(tsctrl, send_buf, send_len)) {
-      ALOGE("%s: RSP Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     break;
@@ -194,10 +194,10 @@ static int32_t tuneserver_process_command(tuningserver_t *tsctrl,
 
   default:
     if(tuneserver_send_command_ack(CURRENT_COMMAND_ACK_SUCCESS, tsctrl)) {
-      ALOGE("%s: Ack Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" Ack Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
-    ALOGE("%s: p->current_cmd: default\n", __func__);
+    LOGE(" p->current_cmd: default\n");
     result = -1;
     break;
   }
@@ -242,7 +242,7 @@ static int32_t tuneserver_process_client_message(void *recv_buffer,
   case TUNESERVER_RECV_PAYLOAD:
     p->recv_buf = malloc(p->next_recv_len);
     if (!p->recv_buf) {
-      ALOGE("%s:Error allocating memory for recv_buf %s\n", __func__,
+      LOGE("Error allocating memory for recv_buf %s\n",
         strerror(errno));
       return -1;
     }
@@ -258,7 +258,7 @@ static int32_t tuneserver_process_client_message(void *recv_buffer,
     p->send_len = *(uint32_t *)recv_buffer;
     p->send_buf =  (char *)calloc(p->send_len, sizeof(char *));
     if (!p->send_buf) {
-      ALOGE("%s:Error allocating memory for send_buf %s\n", __func__,
+      LOGE("Error allocating memory for send_buf %s\n",
         strerror(errno));
       return -1;
     }
@@ -269,7 +269,7 @@ static int32_t tuneserver_process_client_message(void *recv_buffer,
     break;
 
   default:
-    ALOGE("%s: p->next_recv_code: default\n", __func__);
+    LOGE(" p->next_recv_code: default\n");
     rc = -1;
     break;
   }
@@ -290,7 +290,7 @@ static ssize_t tuneserver_ack_onaccept_initprotocol(tuningserver_t *tsctrl)
   ssize_t rc = 0;
   uint32_t ack_status;
 
-  ALOGE("%s starts\n", __func__);
+  LOGE("starts\n");
 /*
   if(tsctrl->camera_running) {
     ack_status = 1;
@@ -304,7 +304,7 @@ static ssize_t tuneserver_ack_onaccept_initprotocol(tuningserver_t *tsctrl)
 
   tsctrl->proto = malloc(sizeof(tuneserver_protocol_t));
   if (!tsctrl->proto) {
-    ALOGE("%s: malloc returns NULL with error %s\n", __func__, strerror(errno));
+    LOGE(" malloc returns NULL with error %s\n",  strerror(errno));
     return -1;
   }
 
@@ -314,7 +314,7 @@ static ssize_t tuneserver_ack_onaccept_initprotocol(tuningserver_t *tsctrl)
   tsctrl->proto->recv_buf       = NULL;
   tsctrl->proto->send_buf       = NULL;
 
-  CDBG("%s end\n", __func__);
+  LOGD("X\n");
 
   return rc;
 }
@@ -346,17 +346,17 @@ static ssize_t prevserver_send_command_rsp(tuningserver_t *tsctrl,
 
   /* send ack back to client upon req */
   if (send_len <= 0) {
-    ALOGE("%s:Invalid send len \n", __func__);
+    LOGE("Invalid send len \n");
     return -1;
   }
   if (send_buf == NULL) {
-    ALOGE("%s:Invalid send buf \n", __func__);
+    LOGE("Invalid send buf \n");
     return -1;
   }
 
   rc = send(tsctrl->pr_clientsocket_id, send_buf, send_len, 0);
   if (rc < 0) {
-    ALOGE("%s:RSP send returns error %s\n", __func__, strerror(errno));
+    LOGE("RSP send returns error %s\n",  strerror(errno));
   } else {
     rc = 0;
   }
@@ -371,8 +371,8 @@ static void prevserver_init_protocol(tuningserver_t *tsctrl)
 {
   tsctrl->pr_proto = malloc(sizeof(prserver_protocol_t));
   if (!tsctrl->pr_proto) {
-    ALOGE("%s: malloc returns NULL with error %s\n",
-     __func__, strerror(errno));
+    LOGE(" malloc returns NULL with error %s\n",
+      strerror(errno));
     return;
   }
 
@@ -388,34 +388,34 @@ static int32_t prevserver_process_command(
   int result = 0;
   eztune_prevcmd_rsp *rsp_ptr=NULL, *rspn_ptr=NULL, *head_ptr=NULL;
 
-  CDBG("%s: Current command is %d\n", __func__, p->current_cmd);
+  LOGD(" Current command is %d\n",  p->current_cmd);
   switch (p->current_cmd) {
   case TUNE_PREV_GET_INFO:
     result = tuneserver_preview_getinfo(tsctrl, send_buf, send_len);
     if (result < 0) {
-      ALOGE("%s: RSP processing Failed for cmd %d\n", __func__,
+      LOGE(" RSP processing Failed for cmd %d\n",
         p->current_cmd);
       return -1;
     }
     rsp_ptr = (eztune_prevcmd_rsp *)*send_buf;
     if ((!rsp_ptr) || (!rsp_ptr->send_buf)) {
-      ALOGE("%s: RSP ptr is NULL %d\n", __func__, p->current_cmd);
+      LOGE(" RSP ptr is NULL %d\n",  p->current_cmd);
       return -1;
     }
     if (prevserver_send_command_rsp(tsctrl,
       rsp_ptr->send_buf, rsp_ptr->send_len)) {
-      ALOGE("%s: RSP Failed for TUNE_PREV_GET_INFO ver cmd %d\n", __func__,
+      LOGE(" RSP Failed for TUNE_PREV_GET_INFO ver cmd %d\n",
         p->current_cmd);
       return -1;
     }
     rspn_ptr = (eztune_prevcmd_rsp *)rsp_ptr->next;
     if ((!rspn_ptr) || (!rspn_ptr->send_buf)) {
-      ALOGE("%s: RSP1 ptr is NULL %d\n", __func__, p->current_cmd);
+      LOGE(" RSP1 ptr is NULL %d\n",  p->current_cmd);
       return -1;
     }
     if (prevserver_send_command_rsp(tsctrl,
         rspn_ptr->send_buf, rspn_ptr->send_len)) {
-      ALOGE("%s: RSP Failed for TUNE_PREV_GET_INFO caps cmd %d\n", __func__,
+      LOGE(" RSP Failed for TUNE_PREV_GET_INFO caps cmd %d\n",
         p->current_cmd);
       return -1;
     }
@@ -426,11 +426,11 @@ static int32_t prevserver_process_command(
   case TUNE_PREV_CH_CNK_SIZE:
     result = tuneserver_preview_getchunksize(tsctrl, send_buf, send_len);
     if (result < 0) {
-      ALOGE("%s: RSP processing Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP processing Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     if (prevserver_send_command_rsp(tsctrl, *send_buf, *send_len)) {
-      ALOGE("%s: RSP Failed for TUNE_PREV_CH_CNK_SIZE cmd %d\n", __func__,
+      LOGE(" RSP Failed for TUNE_PREV_CH_CNK_SIZE cmd %d\n",
         p->current_cmd);
       return -1;
     }
@@ -439,24 +439,24 @@ static int32_t prevserver_process_command(
   case TUNE_PREV_GET_PREV_FRAME:
     result = tuneserver_preview_getframe(tsctrl, send_buf, send_len);
     if (result < 0) {
-      ALOGE("%s: RSP processing Failed for cmd %d\n", __func__, p->current_cmd);
+      LOGE(" RSP processing Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     rsp_ptr = (eztune_prevcmd_rsp *)*send_buf;
     if ((!rsp_ptr) || (!rsp_ptr->send_buf)) {
-      ALOGE("%s: RSP ptr is NULL %d\n", __func__, p->current_cmd);
+      LOGE(" RSP ptr is NULL %d\n",  p->current_cmd);
       return -1;
     }
     head_ptr = rsp_ptr;
 
     while (rsp_ptr != NULL) {
       if ((!rsp_ptr) || (!rsp_ptr->send_buf)) {
-        ALOGE("%s: RSP ptr is NULL %d\n", __func__, p->current_cmd);
+        LOGE(" RSP ptr is NULL %d\n",  p->current_cmd);
         return -1;
       }
       if (prevserver_send_command_rsp(tsctrl,
         rsp_ptr->send_buf, rsp_ptr->send_len)) {
-        ALOGE("%s: RSP Failed for TUNE_PREV_GET_INFO ver cmd %d\n", __func__,
+        LOGE(" RSP Failed for TUNE_PREV_GET_INFO ver cmd %d\n",
           p->current_cmd);
         return -1;
       }
@@ -470,17 +470,17 @@ static int32_t prevserver_process_command(
   case TUNE_PREV_GET_RAW_PREV:
     result = tuneserver_preview_unsupported(tsctrl, send_buf, send_len);
     if (result < 0) {
-       ALOGE("%s:RSP processing Failed for cmd %d\n", __func__, p->current_cmd);
+       LOGE("RSP processing Failed for cmd %d\n",  p->current_cmd);
       return -1;
     }
     if (prevserver_send_command_rsp(tsctrl, *send_buf, *send_len)) {
-      ALOGE("%s:RSP Failed for UNSUPPORTED cmd %d\n", __func__, p->current_cmd);
+      LOGE("RSP Failed for UNSUPPORTED cmd %d\n",  p->current_cmd);
       return -1;
     }
     break;
 
   default:
-    ALOGE("%s: p->current_cmd: default\n", __func__);
+    LOGE(" p->current_cmd: default\n");
     result = -1;
     break;
   }
@@ -503,9 +503,10 @@ static int32_t prevserver_process_client_message(void *recv_buffer,
   int rc = 0;
   prserver_protocol_t *p = tsctrl->pr_proto;
 
+  LOGD("command = %d", p->next_recv_code);
+
   switch (p->next_recv_code) {
   case TUNE_PREV_RECV_COMMAND:
-    CDBG("%s  %d\n", __func__, __LINE__);
     p->current_cmd = *(uint16_t *)recv_buffer;
     if(p->current_cmd != TUNE_PREV_CH_CNK_SIZE) {
       rc = prevserver_process_command(tsctrl,
@@ -514,10 +515,9 @@ static int32_t prevserver_process_client_message(void *recv_buffer,
     }
     p->next_recv_code = TUNE_PREV_RECV_NEWCNKSIZE;
     p->next_recv_len = sizeof(uint32_t);
-    CDBG("%s TUNE_PREV_COMMAND X\n", __func__);
+    LOGD("TUNE_PREV_COMMAND X\n");
     break;
   case TUNE_PREV_RECV_NEWCNKSIZE:
-    CDBG("%s  %d\n", __func__, __LINE__);
     p->new_cnk_size = *(uint32_t *)recv_buffer;
     p->next_recv_code = TUNE_PREV_RECV_COMMAND;
     p->next_recv_len  = 2;
@@ -525,7 +525,7 @@ static int32_t prevserver_process_client_message(void *recv_buffer,
       &p->send_buf, (uint32_t *)&p->send_len);
     break;
   default:
-    ALOGE("%s prev_proc->next_recv_code: default\n", __func__);
+    LOGE("prev_proc->next_recv_code: default\n");
     rc = -1;
     break;
   }
@@ -555,14 +555,14 @@ int tunning_server_socket_listen(const char* ip_addr, uint16_t port)
   server_addr.addr_in.sin_addr.s_addr = inet_addr(ip_addr);
 
   if (server_addr.addr_in.sin_addr.s_addr == INADDR_NONE) {
-    ALOGE("[ERR] %s invalid address.\n", __func__);
+    LOGE("[ERR] %s invalid address.\n");
     return -1;
   }
 
   /* Create an AF_INET stream socket to receive incoming connection ON */
   sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_fd < 0) {
-    ALOGE("[ERR] %s socket failed\n", __func__);
+    LOGE("[ERR] %s socket failed\n");
     return sock_fd;
   }
 
@@ -576,7 +576,7 @@ int tunning_server_socket_listen(const char* ip_addr, uint16_t port)
     &option, sizeof(option));
 
   if (result < 0) {
-    ALOGE("eztune setsockopt failed");
+    LOGE("eztune setsockopt failed");
     close(sock_fd);
     sock_fd = -1;
     return sock_fd;
@@ -584,7 +584,7 @@ int tunning_server_socket_listen(const char* ip_addr, uint16_t port)
 
   result = bind(sock_fd, &server_addr.addr, sizeof(server_addr.addr_in));
   if (result < 0) {
-    ALOGE("eztune socket bind failed");
+    LOGE("eztune socket bind failed");
     close(sock_fd);
     sock_fd = -1;
     return sock_fd;
@@ -592,13 +592,13 @@ int tunning_server_socket_listen(const char* ip_addr, uint16_t port)
 
   result = listen(sock_fd, 1);
   if (result < 0) {
-    ALOGE("eztune socket listen failed");
+    LOGE("eztune socket listen failed");
     close(sock_fd);
     sock_fd = -1;
     return sock_fd;
   }
 
-  CDBG_HIGH("%s. sock_fd: %d, listen at port: %d\n", __func__, sock_fd, port);
+  LOGH("%s. sock_fd: %d, listen at port: %d\n",  sock_fd, port);
 
   return sock_fd;
 }
@@ -625,21 +625,21 @@ void *eztune_proc(void *data)
 
   mm_camera_lib_handle *lib_handle = (mm_camera_lib_handle *)data;
 
-  ALOGE(">>> Starting tune server <<< \n");
+  LOGE(">>> Starting tune server <<< \n");
 
   // for eztune chromatix params
   server_socket = tunning_server_socket_listen(IP_ADDR, TUNING_CHROMATIX_PORT);
   if (server_socket <= 0) {
-    ALOGE("[ERR] fail to setup listen socket for eztune chromatix parms...");
+    LOGE("[ERR] fail to setup listen socket for eztune chromatix parms...");
     return NULL;
   }
   prev_server_socket = tunning_server_socket_listen(IP_ADDR, TUNING_PREVIEW_PORT);
   if (prev_server_socket <= 0) {
-    ALOGE("[ERR] fail to setup listen socket for eztune preview...\n");
+    LOGE("[ERR] fail to setup listen socket for eztune preview...\n");
     return NULL;
   }
   num_fds = TUNESERVER_MAX(server_socket, prev_server_socket);
-  CDBG_HIGH("num_fds = %d\n", num_fds);
+  LOGH("num_fds = %d\n", num_fds);
 
   do {
     FD_ZERO(&tsfds);
@@ -655,7 +655,7 @@ void *eztune_proc(void *data)
     /* no timeout */
     result = select(num_fds + 1, &tsfds, NULL, NULL, NULL);
     if (result < 0) {
-      ALOGE("[ERR] select failed: %s\n", strerror(errno));
+      LOGE("[ERR] select failed: %s\n", strerror(errno));
       continue;
     }
 
@@ -663,16 +663,16 @@ void *eztune_proc(void *data)
      ** (1) CHROMATIX SERVER
      */
     if (FD_ISSET(server_socket, &tsfds)) {
-      CDBG("Receiving New client connection\n");
+      LOGD("Receiving New client connection\n");
 
       client_socket = accept(server_socket,
         &addr_client_inet.addr, &addr_client_len);
       if (client_socket == -1) {
-        ALOGE("accept failed %s", strerror(errno));
+        LOGE("accept failed %s", strerror(errno));
         continue;
       }
 
-      ALOGE("accept a new connect on 55555, sd(%d)\n", client_socket);
+      LOGE("accept a new connect on 55555, sd(%d)\n", client_socket);
       num_fds = TUNESERVER_MAX(num_fds, client_socket);
 
       // open camera and get handle - this is needed to
@@ -688,13 +688,13 @@ void *eztune_proc(void *data)
       }*/
       result = tuneserver_open_cam(lib_handle);
       if(result) {
-        ALOGE("\n Tuning Library open failed!!!\n");
+        LOGE("\n Tuning Library open failed!!!\n");
         close(server_socket);
         return NULL;
       }
       lib_handle->tsctrl.clientsocket_id = client_socket;
       if (tuneserver_ack_onaccept_initprotocol(&lib_handle->tsctrl) < 0) {
-        ALOGE("%s: Error while acking\n", __func__);
+        LOGE(" Error while acking\n");
         close(client_socket);
         continue;
       }
@@ -704,21 +704,21 @@ void *eztune_proc(void *data)
 
     if (FD_ISSET(client_socket, &tsfds)) {
       if (lib_handle->tsctrl.proto == NULL) {
-        ALOGE("%s: Cannot receive msg without connect\n", __func__);
+        LOGE(" Cannot receive msg without connect\n");
         continue;
       }
 
       /*Receive message and process it*/
       recv_bytes = recv(client_socket, (void *)buf,
         lib_handle->tsctrl.proto->next_recv_len, 0);
-      CDBG("Receive %lld bytes \n", (long long int) recv_bytes);
+      LOGD("Receive %lld bytes \n", (long long int) recv_bytes);
 
       if (recv_bytes == -1) {
-        ALOGE("%s: Receive failed with error %s\n", __func__, strerror(errno));
+        LOGE(" Receive failed with error %s\n",  strerror(errno));
         //tuneserver_check_status(&tsctrl);
         continue;
       } else if (recv_bytes == 0) {
-        ALOGE("%s %d: connection has been terminated\n", __func__, __LINE__);
+        LOGE("connection has been terminated\n");
 
         tuneserver_deinitialize_tuningp(&lib_handle->tsctrl, client_socket,
           lib_handle->tsctrl.proto->send_buf,
@@ -730,12 +730,12 @@ void *eztune_proc(void *data)
         client_socket = -1;
         //tuneserver_check_status(&tsctrl);
       } else {
-        CDBG("%s: Processing socket command\n", __func__);
+        LOGD(" Processing socket command\n");
 
         result = tuneserver_process_client_message(buf, &lib_handle->tsctrl);
 
         if (result < 0) {
-          ALOGE("%s %d Protocol violated\n", __func__, __LINE__);
+          LOGE("Protocol violated\n");
 
           free(lib_handle->tsctrl.proto);
           lib_handle->tsctrl.proto = NULL;
@@ -752,18 +752,18 @@ void *eztune_proc(void *data)
      ** (2) PREVIEW SERVER
      */
     if (FD_ISSET(prev_server_socket, &tsfds)) {
-      CDBG("Receiving New Preview client connection\n");
+      LOGD("Receiving New Preview client connection\n");
 
       prev_client_socket = accept(prev_server_socket,
         &addr_client_inet.addr, &addr_client_len);
       if (prev_client_socket == -1) {
-        ALOGE("accept failed %s", strerror(errno));
+        LOGE("accept failed %s", strerror(errno));
         continue;
       }
 
       lib_handle->tsctrl.pr_clientsocket_id = prev_client_socket;
 
-      CDBG("Accepted a new connection, fd(%d)\n", prev_client_socket);
+      LOGD("Accepted a new connection, fd(%d)\n", prev_client_socket);
       num_fds = TUNESERVER_MAX(num_fds, prev_client_socket);
 
       // start camera
@@ -781,7 +781,7 @@ void *eztune_proc(void *data)
       dim.width = DEFAULT_PREVIEW_WIDTH;
       dim.height = DEFAULT_PREVIEW_HEIGHT;
 
-      CDBG("preview dimension info: w(%d), h(%d)\n", dim.width, dim.height);
+      LOGD("preview dimension info: w(%d), h(%d)\n", dim.width, dim.height);
       // we have to make sure that camera is running, before init connection,
       // because we need to know the frame size for allocating the memory.
       prevserver_init_protocol(&lib_handle->tsctrl);
@@ -790,7 +790,7 @@ void *eztune_proc(void *data)
         dim, (char **)&lib_handle->tsctrl.proto->send_buf,
         &lib_handle->tsctrl.proto->send_len);
       if (result < 0) {
-        ALOGE("tuneserver_initialize_prevtuningp error!");
+        LOGE("tuneserver_initialize_prevtuningp error!");
         close(prev_client_socket);
         prev_client_socket = -1;
       }
@@ -800,14 +800,14 @@ void *eztune_proc(void *data)
       recv_bytes = recv(prev_client_socket, (void *)buf,
         lib_handle->tsctrl.pr_proto->next_recv_len, 0);
 
-      CDBG("%s prev_client_socket=%d\n", __func__, prev_client_socket);
-      CDBG("%s next_recv_len=%d\n", __func__, buf[0]+buf[1]*256);
+      LOGD("prev_client_socket=%d\n",  prev_client_socket);
+      LOGD("next_recv_len=%d\n",  buf[0]+buf[1]*256);
 
       if (recv_bytes <= 0) {
         if (recv_bytes == 0) {
-          ALOGE("client close the connection.\n");
+          LOGE("client close the connection.\n");
         } else {
-          ALOGE("receive error: %s\n", strerror(errno));
+          LOGE("receive error: %s\n", strerror(errno));
         }
 
         //tuneserver_check_status(&tsctrl);
@@ -825,7 +825,7 @@ void *eztune_proc(void *data)
         result = prevserver_process_client_message((void *)buf,
           &lib_handle->tsctrl);
         if (result < 0) {
-          ALOGE("%s %d Protocol violated\n", __func__, __LINE__);
+          LOGE("Protocol violated\n");
 
           //free(tsctrl->preivew_proto);
           //free(tsctrl);

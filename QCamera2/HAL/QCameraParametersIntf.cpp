@@ -33,6 +33,7 @@
 #include <utils/Log.h>
 #include "QCameraParametersIntf.h"
 #include "QCameraParameters.h"
+#include "QCameraTrace.h"
 
 namespace qcamera {
 
@@ -60,7 +61,7 @@ int32_t QCameraParametersIntf::allocate()
     Mutex::Autolock lock(mLock);
     mImpl = new QCameraParameters();
     if (!mImpl) {
-        ALOGE("%s: Out of memory", __func__);
+        LOGE("Out of memory");
         return NO_MEMORY;
     }
 

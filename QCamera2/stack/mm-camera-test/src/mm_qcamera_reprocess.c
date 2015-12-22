@@ -42,8 +42,8 @@ static void mm_app_reprocess_notify_cb(mm_camera_super_buf_t *bufs,
     int i = 0;
     int rc = 0;
 
-    CDBG_ERROR("%s: BEGIN - length=%zu, frame idx = %d\n",
-         __func__, frame->frame_len, frame->frame_idx);
+    LOGE(" BEGIN - length=%zu, frame idx = %d\n",
+          frame->frame_len, frame->frame_idx);
 
     /* find channel */
     for (i = 0; i < MM_CHANNEL_TYPE_MAX; i++) {
@@ -53,7 +53,7 @@ static void mm_app_reprocess_notify_cb(mm_camera_super_buf_t *bufs,
         }
     }
     if (NULL == channel) {
-        CDBG_ERROR("%s: Wrong channel id (%d)", __func__, bufs->ch_id);
+        LOGE(" Wrong channel id (%d)",  bufs->ch_id);
         return;
     }
 
@@ -65,7 +65,7 @@ static void mm_app_reprocess_notify_cb(mm_camera_super_buf_t *bufs,
     if ( pme->encodeJpeg ) {
         pme->jpeg_buf.buf.buffer = (uint8_t *)malloc(m_frame->frame_len);
         if ( NULL == pme->jpeg_buf.buf.buffer ) {
-            CDBG_ERROR("%s: error allocating jpeg output buffer", __func__);
+            LOGE(" error allocating jpeg output buffer");
             goto exit;
         }
 
@@ -73,20 +73,20 @@ static void mm_app_reprocess_notify_cb(mm_camera_super_buf_t *bufs,
         /* create a new jpeg encoding session */
         rc = createEncodingSession(pme, m_stream, m_frame);
         if (0 != rc) {
-            CDBG_ERROR("%s: error creating jpeg session", __func__);
+            LOGE(" error creating jpeg session");
             free(pme->jpeg_buf.buf.buffer);
             goto exit;
         }
 
         /* start jpeg encoding job */
-        CDBG_ERROR("Encoding reprocessed frame!!");
+        LOGE("Encoding reprocessed frame!!");
         rc = encodeData(pme, bufs, m_stream);
         pme->encodeJpeg = 0;
     } else {
         if (MM_CAMERA_OK != pme->cam->ops->qbuf(bufs->camera_handle,
                                                 bufs->ch_id,
                                                 frame)) {
-            CDBG_ERROR("%s: Failed in Reprocess Qbuf\n", __func__);
+            LOGE(" Failed in Reprocess Qbuf\n");
         }
         mm_app_cache_ops((mm_camera_app_meminfo_t *)frame->mem_info,
                          ION_IOC_INV_CACHES);
@@ -100,7 +100,7 @@ exit:
         mm_app_release_ppinput((void *) src_frame, (void *) pme);
     }
 
-    CDBG_ERROR("%s: END\n", __func__);
+    LOGE(" END\n");
 }
 
 mm_camera_stream_t * mm_app_add_reprocess_stream_from_source(mm_camera_test_obj_t *test_obj,
@@ -119,7 +119,7 @@ mm_camera_stream_t * mm_app_add_reprocess_stream_from_source(mm_camera_test_obj_
     if ( ( NULL == test_obj ) ||
          ( NULL == channel ) ||
          ( NULL == source ) ) {
-        CDBG_ERROR("%s: Invalid input\n", __func__);
+        LOGE(" Invalid input\n");
         return NULL;
     }
 
@@ -127,7 +127,7 @@ mm_camera_stream_t * mm_app_add_reprocess_stream_from_source(mm_camera_test_obj_
 
     stream = mm_app_add_stream(test_obj, channel);
     if (NULL == stream) {
-        CDBG_ERROR("%s: add stream failed\n", __func__);
+        LOGE(" add stream failed\n");
         return NULL;
     }
 
@@ -159,7 +159,7 @@ mm_camera_stream_t * mm_app_add_reprocess_stream_from_source(mm_camera_test_obj_
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
     if (MM_CAMERA_OK != rc) {
-        CDBG_ERROR("%s:config preview stream err=%d\n", __func__, rc);
+        LOGE("config preview stream err=%d\n",  rc);
         return NULL;
     }
 
@@ -173,7 +173,7 @@ mm_camera_channel_t * mm_app_add_reprocess_channel(mm_camera_test_obj_t *test_ob
     mm_camera_stream_t *stream = NULL;
 
     if ( NULL == source_stream ) {
-        CDBG_ERROR("%s: add reprocess stream failed\n", __func__);
+        LOGE(" add reprocess stream failed\n");
         return NULL;
     }
 
@@ -183,7 +183,7 @@ mm_camera_channel_t * mm_app_add_reprocess_channel(mm_camera_test_obj_t *test_ob
                                  NULL,
                                  NULL);
     if (NULL == channel) {
-        CDBG_ERROR("%s: add channel failed", __func__);
+        LOGE(" add channel failed");
         return NULL;
     }
 
@@ -215,7 +215,7 @@ mm_camera_channel_t * mm_app_add_reprocess_channel(mm_camera_test_obj_t *test_ob
                                      (void *)test_obj,
                                      minStreamBufNum);
     if (NULL == stream) {
-        CDBG_ERROR("%s: add reprocess stream failed\n", __func__);
+        LOGE(" add reprocess stream failed\n");
         mm_app_del_channel(test_obj, channel);
         return NULL;
     }
@@ -235,15 +235,13 @@ int mm_app_start_reprocess(mm_camera_test_obj_t *test_obj)
 
     r_ch = mm_app_get_channel_by_type(test_obj, MM_CHANNEL_TYPE_REPROCESS);
     if (MM_CAMERA_OK != rc) {
-        CDBG_ERROR("%s: No initialized reprocess channel d rc=%d\n",
-                    __func__,
-                    rc);
+        LOGE(" No initialized reprocess channel d rc=%d\n", rc);
         return rc;
     }
 
     rc = mm_app_start_channel(test_obj, r_ch);
     if (MM_CAMERA_OK != rc) {
-        CDBG_ERROR("%s:start reprocess failed rc=%d\n", __func__, rc);
+        LOGE("start reprocess failed rc=%d\n",  rc);
         mm_app_del_channel(test_obj, r_ch);
         return rc;
     }
@@ -258,15 +256,13 @@ int mm_app_stop_reprocess(mm_camera_test_obj_t *test_obj)
 
     r_ch = mm_app_get_channel_by_type(test_obj, MM_CHANNEL_TYPE_REPROCESS);
     if (MM_CAMERA_OK != rc) {
-        CDBG_ERROR("%s: No initialized reprocess channel d rc=%d\n",
-                    __func__,
-                    rc);
+        LOGE(" No initialized reprocess channel d rc=%d\n", rc);
         return rc;
     }
 
     rc = mm_app_stop_and_del_channel(test_obj, r_ch);
     if (MM_CAMERA_OK != rc) {
-        CDBG_ERROR("%s:Stop Preview failed rc=%d\n", __func__, rc);
+        LOGE("Stop Preview failed rc=%d\n",  rc);
     }
 
     mm_qcamera_queue_release(&test_obj->pp_frames);
@@ -288,32 +284,24 @@ int mm_app_do_reprocess(mm_camera_test_obj_t *test_obj,
     if ( ( NULL == test_obj ) ||
          ( NULL == frame ) ||
          ( NULL == super_buf )) {
-        CDBG_ERROR("%s: Invalid input rc=%d\n",
-                    __func__,
-                    rc);
+        LOGE(" Invalid input rc=%d\n", rc);
         return rc;
     }
 
     if ( NULL == test_obj->reproc_stream ) {
-        CDBG_ERROR("%s: No reprocess stream rc=%d\n",
-                    __func__,
-                    rc);
+        LOGE(" No reprocess stream rc=%d\n", rc);
         return rc;
     }
 
     r_ch = mm_app_get_channel_by_type(test_obj, MM_CHANNEL_TYPE_REPROCESS);
     if (MM_CAMERA_OK != rc) {
-        CDBG_ERROR("%s: No reprocess channel rc=%d\n",
-                    __func__,
-                    rc);
+        LOGE(" No reprocess channel rc=%d\n", rc);
         return rc;
     }
 
     src_buf = ( mm_camera_super_buf_t * ) malloc(sizeof(mm_camera_super_buf_t));
     if ( NULL == src_buf ) {
-        CDBG_ERROR("%s: No resources for src frame rc=%d\n",
-                    __func__,
-                    rc);
+        LOGE(" No resources for src frame rc=%d\n", rc);
         return -1;
     }
     memcpy(src_buf, super_buf, sizeof(mm_camera_super_buf_t));
@@ -329,9 +317,7 @@ int mm_app_do_reprocess(mm_camera_test_obj_t *test_obj,
         param.reprocess.meta_stream_handle = src_meta->s_config.stream_info->stream_svr_id;
         param.reprocess.meta_buf_index = meta_idx;
     } else {
-        CDBG_ERROR("%s: No metadata source stream rc=%d\n",
-                   __func__,
-                   rc);
+        LOGE(" No metadata source stream rc=%d\n", rc);
     }
 
     test_obj->reproc_stream->s_config.stream_info->parm_buf = param;
@@ -353,7 +339,7 @@ void mm_app_release_ppinput(void *data, void *user_data)
         if (MM_CAMERA_OK != pme->cam->ops->qbuf(pme->cam->camera_handle,
                                                 recvd_frame->ch_id,
                                                 recvd_frame->bufs[i])) {
-            CDBG_ERROR("%s: Failed in Qbuf\n", __func__);
+            LOGE(" Failed in Qbuf\n");
         }
         mm_app_cache_ops((mm_camera_app_meminfo_t *) recvd_frame->bufs[i]->mem_info,
                          ION_IOC_INV_CACHES);

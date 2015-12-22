@@ -45,20 +45,6 @@ extern "C" {
 #include <mm_camera_interface.h>
 #include <mm_jpeg_interface.h>
 }
-#ifdef CDBG
-#undef CDBG
-#endif //#ifdef CDBG
-#define CDBG(fmt, args...) ALOGD_IF(gCamHal3LogLevel >= 2, fmt, ##args)
-
-#ifdef CDBG_HIGH
-#undef CDBG_HIGH
-#endif //#ifdef CDBG_HIGH
-#define CDBG_HIGH(fmt, args...) ALOGD_IF(gCamHal3LogLevel >= 1, fmt, ##args)
-
-#ifdef CDBG_FATAL_IF
-#undef CDBG_FATAL_IF
-#endif //#ifdef CDBG_FATAL_IF
-#define CDBG_FATAL_IF(cond, ...) LOG_ALWAYS_FATAL_IF(cond, ## __VA_ARGS__)
 
 using namespace android;
 

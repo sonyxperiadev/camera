@@ -54,7 +54,7 @@ struct timeval dtime[2];
     rc = fwrite(p_addr, 1, len, fp); \
     fclose(fp); \
   } else { \
-    CDBG_ERROR("%s:%d] cannot dump image", __func__, __LINE__); \
+    LOGE("cannot dump image"); \
   } \
 })
 
@@ -114,20 +114,20 @@ static void mm_jpegdec_decode_callback(jpeg_job_status_t status,
   mm_jpegdec_intf_test_t *p_obj = (mm_jpegdec_intf_test_t *)userData;
 
   if (status == JPEG_JOB_STATUS_ERROR) {
-    CDBG_ERROR("%s:%d] Decode error", __func__, __LINE__);
+    LOGE("Decode error");
   } else {
     gettimeofday(&dtime[1], NULL);
-    CDBG_ERROR("%s:%d] Decode time %llu ms",
-     __func__, __LINE__, ((TIME_IN_US(dtime[1]) - TIME_IN_US(dtime[0]))/1000));
+    LOGE("Decode time %llu ms",
+      ((TIME_IN_US(dtime[1]) - TIME_IN_US(dtime[0]))/1000));
 
-    CDBG_ERROR("%s:%d] Decode success file%s addr %p len %zu",
-      __func__, __LINE__, p_obj->out_filename,
+    LOGE("Decode success file%s addr %p len %zu",
+       p_obj->out_filename,
       p_output->buf_vaddr, p_output->buf_filled_len);
     DUMP_TO_FILE(p_obj->out_filename, p_output->buf_vaddr, p_output->buf_filled_len);
   }
   g_i++;
   if (g_i >= g_count) {
-    CDBG_ERROR("%s:%d] Signal the thread", __func__, __LINE__);
+    LOGE("Signal the thread");
     pthread_cond_signal(&p_obj->cond);
   }
 }
@@ -139,14 +139,14 @@ int mm_jpegdec_test_alloc(buffer_t *p_buffer, int use_pmem)
   if (use_pmem) {
     p_buffer->addr = (uint8_t *)buffer_allocate(p_buffer, 0);
     if (NULL == p_buffer->addr) {
-      CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+      LOGE("Error");
       return -1;
     }
   } else {
     /* Allocate heap memory */
     p_buffer->addr = (uint8_t *)malloc(p_buffer->size);
     if (NULL == p_buffer->addr) {
-      CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+      LOGE("Error");
       return -1;
     }
   }
@@ -173,22 +173,22 @@ int mm_jpegdec_test_read(mm_jpegdec_intf_test_t *p_obj)
   size_t file_size = 0;
   fp = fopen(p_obj->filename, "rb");
   if (!fp) {
-    CDBG_ERROR("%s:%d] error", __func__, __LINE__);
+    LOGE("error");
     return -1;
   }
   fseek(fp, 0, SEEK_END);
   file_size = (size_t)ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  CDBG_ERROR("%s:%d] input file size is %zu",
-    __func__, __LINE__, file_size);
+  LOGE("input file size is %zu",
+     file_size);
 
   p_obj->input.size = file_size;
 
   /* allocate buffers */
   rc = mm_jpegdec_test_alloc(&p_obj->input, p_obj->use_ion);
   if (rc) {
-    CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+    LOGE("Error");
     return -1;
   }
 
@@ -221,7 +221,7 @@ void chromaScale(mm_jpeg_color_format format, double *cScale)
       break;
     default:
       scale = 0;
-      CDBG_ERROR("%s:%d] color format Error",__func__, __LINE__);
+      LOGE("color format Error");
     }
 
   *cScale = scale;
@@ -248,13 +248,13 @@ static int decode_init(jpeg_test_input_t *p_input, mm_jpegdec_intf_test_t *p_obj
   p_obj->output.size = (size_t)((double)size * cScale);
   rc = mm_jpegdec_test_alloc(&p_obj->output, p_obj->use_ion);
   if (rc) {
-    CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+    LOGE("Error");
     return -1;
   }
 
   rc = mm_jpegdec_test_read(p_obj);
   if (rc) {
-    CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+    LOGE("Error");
     return -1;
   }
 
@@ -384,27 +384,27 @@ static int decode_test(jpeg_test_input_t *p_input)
   memset(&jpeg_obj, 0x0, sizeof(jpeg_obj));
   rc = decode_init(p_input, &jpeg_obj);
   if (rc) {
-    CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+    LOGE("Error");
     return -1;
   }
 
   jpeg_obj.handle = jpegdec_open(&jpeg_obj.ops);
   if (jpeg_obj.handle == 0) {
-    CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+    LOGE("Error");
     goto end;
   }
 
   rc = jpeg_obj.ops.create_session(jpeg_obj.handle, &jpeg_obj.params,
     &jpeg_obj.job.decode_job.session_id);
   if (jpeg_obj.job.decode_job.session_id == 0) {
-    CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+    LOGE("Error");
     goto end;
   }
 
   for (i = 0; i < g_count; i++) {
     jpeg_obj.job.job_type = JPEG_JOB_TYPE_DECODE;
 
-    CDBG_ERROR("%s:%d] Starting decode job",__func__, __LINE__);
+    LOGE("Starting decode job");
     gettimeofday(&dtime[0], NULL);
 
     fprintf(stderr, "Starting decode of %s into %s outw %d outh %d\n\n",
@@ -412,7 +412,7 @@ static int decode_test(jpeg_test_input_t *p_input)
         p_input->width, p_input->height);
     rc = jpeg_obj.ops.start_job(&jpeg_obj.job, &jpeg_obj.job_id[i]);
     if (rc) {
-      CDBG_ERROR("%s:%d] Error",__func__, __LINE__);
+      LOGE("Error");
       goto end;
     }
   }

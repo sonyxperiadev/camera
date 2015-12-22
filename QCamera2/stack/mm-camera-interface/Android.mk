@@ -24,7 +24,7 @@ ifneq (,$(filter msm8996,$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DUBWC_PRESENT
 endif
 
-LOCAL_CFLAGS += -D_ANDROID_
+LOCAL_CFLAGS += -D_ANDROID_ -DQCAMERA_REDEFINE_LOG
 LOCAL_COPY_HEADERS_TO := mm-camera-interface
 LOCAL_COPY_HEADERS += ../common/cam_intf.h
 LOCAL_COPY_HEADERS += ../common/cam_types.h
@@ -39,6 +39,7 @@ LOCAL_C_INCLUDES+= $(kernel_includes)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)
 
 LOCAL_C_INCLUDES += hardware/qcom/media/mm-core/inc
+
 
 ifneq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) >= 17 ))" )))
   LOCAL_CFLAGS += -include bionic/libc/kernel/common/linux/socket.h

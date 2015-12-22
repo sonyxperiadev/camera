@@ -42,9 +42,9 @@ int tuneserver_initialize_prevtuningp(void * ctrl,
   mm_camera_lib_handle *lib_handle = (mm_camera_lib_handle *) ctrl;
   tuningserver_t *tctrl = &lib_handle->tsctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   if (tctrl->tuning_params.func_tbl->prevcommand_process == NULL) {
-      ALOGE("%s  %d\n", __func__, __LINE__);
+      LOGE("prevcommand_process is NULL");
       return -1;
   }
 
@@ -67,7 +67,7 @@ int tuneserver_deinitialize_prevtuningp(void * ctrl,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
 
   result = tctrl->tuning_params.func_tbl->prevcommand_process(
     &tctrl->pr_proto, TUNE_PREVCMD_DEINIT, NULL, send_buf, send_len);
@@ -80,7 +80,7 @@ int tuneserver_preview_getinfo(void * ctrl, char **send_buf, uint32_t *send_len)
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->prevcommand_process(
     &tctrl->pr_proto, TUNE_PREVCMD_GETINFO, NULL, send_buf, send_len);
 
@@ -93,7 +93,7 @@ int tuneserver_preview_getchunksize(void * ctrl,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->prevcommand_process(
     &tctrl->pr_proto, TUNE_PREVCMD_GETCHUNKSIZE,
     (void *)&tctrl->pr_proto->new_cnk_size, send_buf, send_len);
@@ -107,7 +107,7 @@ int tuneserver_preview_getframe(void * ctrl,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->prevcommand_process(
     &tctrl->pr_proto, TUNE_PREVCMD_GETFRAME, NULL, send_buf, send_len);
 
@@ -120,7 +120,7 @@ int tuneserver_preview_unsupported(void * ctrl,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->prevcommand_process(
     &tctrl->pr_proto, TUNE_PREVCMD_UNSUPPORTED, NULL, send_buf, send_len);
 
@@ -134,7 +134,7 @@ int tuneserver_initialize_tuningp(void * ctrl, int client_socket_id,
   mm_camera_lib_handle *lib_handle = (mm_camera_lib_handle *) ctrl;
   tuningserver_t *tctrl = &lib_handle->tsctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->command_process(
     lib_handle, TUNE_CMD_INIT, &client_socket_id, send_buf, send_len);
 
@@ -147,7 +147,7 @@ int tuneserver_deinitialize_tuningp(void * ctrl, int client_socket_id,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
 
   result = tctrl->tuning_params.func_tbl->command_process(
     NULL, TUNE_CMD_DEINIT, &client_socket_id, send_buf, send_len);
@@ -161,7 +161,7 @@ int tuneserver_process_get_list_cmd(void * ctrl, void *recv_cmd,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->command_process(
      recv_cmd, TUNE_CMD_GET_LIST, NULL, send_buf, send_len);
 
@@ -174,7 +174,7 @@ int tuneserver_process_get_params_cmd(void * ctrl, void *recv_cmd,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->command_process
     (recv_cmd, TUNE_CMD_GET_PARAMS, NULL, send_buf, send_len);
 
@@ -187,7 +187,7 @@ int tuneserver_process_set_params_cmd(void * ctrl, void *recv_cmd,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->command_process(
      recv_cmd, TUNE_CMD_SET_PARAMS, NULL, send_buf, send_len);
 
@@ -200,7 +200,7 @@ int tuneserver_process_misc_cmd(void * ctrl, void *recv_cmd,
   int result = 0;
   tuningserver_t *tctrl = (tuningserver_t *) ctrl;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = tctrl->tuning_params.func_tbl->command_process(
      recv_cmd, TUNE_CMD_MISC, NULL, send_buf, send_len);
 
@@ -220,7 +220,7 @@ int tuneserver_close_cam(mm_camera_lib_handle *lib_handle)
 
   result = mm_camera_lib_close(lib_handle);
   if (result < 0) {
-    printf("%s: Camera close failed\n", __func__);
+    printf(" Camera close failed\n");
   } else {
     printf("Camera is closed \n");
   }
@@ -240,7 +240,7 @@ static int tuneserver_start_cam(mm_camera_lib_handle *lib_handle)
 
   result = mm_camera_lib_start_stream(lib_handle);
   if (result < 0) {
-    printf("%s: Camera start failed\n", __func__);
+    printf(" Camera start failed\n");
     goto error1;
   }
   return result;
@@ -263,7 +263,7 @@ int tuneserver_stop_cam(mm_camera_lib_handle *lib_handle)
 
   result = mm_camera_lib_stop_stream(lib_handle);
   if (result < 0) {
-    printf("%s: Camera stop failed\n", __func__);
+    printf(" Camera stop failed\n");
   }
 //  result = mm_camera_lib_close(lib_handle);
   return result;
@@ -281,10 +281,10 @@ int tuneserver_open_cam(mm_camera_lib_handle *lib_handle)
 {
   int result = 0;
 
-  CDBG("%s  %d\n", __func__, __LINE__);
+  LOGD("E");
   result = mm_camera_load_tuninglibrary(&lib_handle->tsctrl.tuning_params);
   if (result < 0) {
-    CDBG_ERROR("%s: tuning library open failed\n", __func__);
+    LOGE(" tuning library open failed\n");
   }
   return result;
 }

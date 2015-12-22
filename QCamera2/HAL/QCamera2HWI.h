@@ -36,7 +36,6 @@
 #include <utils/Condition.h>
 #include <QCameraParametersIntf.h>
 
-#include "QCameraTrace.h"
 #include "QCameraQueue.h"
 #include "QCameraCmdThread.h"
 #include "QCameraChannel.h"
@@ -58,39 +57,7 @@ extern "C" {
 #include <mm_jpeg_interface.h>
 }
 
-#if DISABLE_DEBUG_LOG
-
-inline void __null_log(int, const char *, const char *, ...) {}
-
-#ifdef ALOGD
-#undef ALOGD
-#define ALOGD(...) do { __null_log(0, LOG_TAG,__VA_ARGS__); } while (0)
-#endif
-
-#ifdef ALOGI
-#undef ALOGI
-#define ALOGI(...) do { __null_log(0, LOG_TAG,__VA_ARGS__); } while (0)
-#endif
-
-#ifdef CDBG
-#undef CDBG
-#define CDBG(...) do{} while(0)
-#endif
-
-#else
-
-
-#ifdef CDBG
-#undef CDBG
-#endif //#ifdef CDBG
-#define CDBG(fmt, args...) ALOGD_IF(gCamHalLogLevel >= 2, fmt, ##args)
-
-#ifdef CDBG_HIGH
-#undef CDBG_HIGH
-#endif //#ifdef CDBG_HIGH
-#define CDBG_HIGH(fmt, args...) ALOGD_IF(gCamHalLogLevel >= 1, fmt, ##args)
-
-#endif // DISABLE_DEBUG_LOG
+#include "QCameraTrace.h"
 
 namespace qcamera {
 
@@ -137,8 +104,6 @@ typedef struct {
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define EXIF_ASCII_PREFIX_SIZE           8   //(sizeof(ExifAsciiPrefix))
-
-extern volatile uint32_t gCamHalLogLevel;
 
 typedef enum {
     QCAMERA_NOTIFY_CALLBACK,

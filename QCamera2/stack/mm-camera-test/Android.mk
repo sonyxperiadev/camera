@@ -15,7 +15,7 @@ ifeq ($(strip $(TARGET_USES_ION)),true)
 LOCAL_CFLAGS += -DUSE_ION
 endif
 
-LOCAL_CFLAGS += -D_ANDROID_
+LOCAL_CFLAGS += -D_ANDROID_ -DQCAMERA_REDEFINE_LOG
 
 LOCAL_SRC_FILES:= \
         src/mm_qcamera_main_menu.c \
@@ -36,7 +36,8 @@ LOCAL_C_INCLUDES+= \
         frameworks/native/include/media/openmax \
         $(LOCAL_PATH)/../common \
         $(LOCAL_PATH)/../../../mm-image-codec/qexif \
-        $(LOCAL_PATH)/../../../mm-image-codec/qomx_core
+        $(LOCAL_PATH)/../../../mm-image-codec/qomx_core \
+        $(LOCAL_PATH)/../mm-camera-interface/inc \
 
 LOCAL_C_INCLUDES+= $(kernel_includes)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)
@@ -106,7 +107,7 @@ ifeq ($(strip $(TARGET_USES_ION)),true)
 LOCAL_CFLAGS += -DUSE_ION
 endif
 
-LOCAL_CFLAGS += -D_ANDROID_
+LOCAL_CFLAGS += -D_ANDROID_ -DQCAMERA_REDEFINE_LOG
 
 LOCAL_SRC_FILES:= \
         src/mm_qcamera_main_menu.c \
@@ -127,7 +128,8 @@ LOCAL_C_INCLUDES+= \
         frameworks/native/include/media/openmax \
         $(LOCAL_PATH)/../common \
         $(LOCAL_PATH)/../../../mm-image-codec/qexif \
-        $(LOCAL_PATH)/../../../mm-image-codec/qomx_core
+        $(LOCAL_PATH)/../../../mm-image-codec/qomx_core \
+        $(LOCAL_PATH)/../mm-camera-interface/inc \
 
 LOCAL_C_INCLUDES+= $(kernel_includes)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)

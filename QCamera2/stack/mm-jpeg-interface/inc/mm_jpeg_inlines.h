@@ -51,11 +51,11 @@ static inline mm_jpeg_job_session_t *mm_jpeg_get_session(mm_jpeg_obj *my_obj, ui
   int client_idx =  GET_CLIENT_IDX(job_id);
   int session_idx= GET_SESSION_IDX(job_id);
 
-  CDBG("%s:%d] client_idx %d session_idx %d", __func__, __LINE__,
+  LOGD("client_idx %d session_idx %d",
     client_idx, session_idx);
   if ((session_idx >= MM_JPEG_MAX_SESSION) ||
     (client_idx >= MAX_JPEG_CLIENT_NUM)) {
-    CDBG_ERROR("%s:%d] invalid job id %x", __func__, __LINE__,
+    LOGE("invalid job id %x",
       job_id);
     return NULL;
   }
@@ -114,7 +114,7 @@ static inline void mm_jpeg_remove_session_idx(mm_jpeg_obj *my_obj, uint32_t job_
 {
   int client_idx =  GET_CLIENT_IDX(job_id);
   int session_idx= GET_SESSION_IDX(job_id);
-  CDBG("%s:%d] client_idx %d session_idx %d", __func__, __LINE__,
+  LOGD("client_idx %d session_idx %d",
     client_idx, session_idx);
   pthread_mutex_lock(&my_obj->clnt_mgr[client_idx].lock);
   my_obj->clnt_mgr[client_idx].session[session_idx].active = OMX_FALSE;

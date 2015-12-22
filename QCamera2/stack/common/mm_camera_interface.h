@@ -64,10 +64,10 @@
   FILE *fp = fopen(filename, "w+"); \
   if (fp) { \
     rc = fwrite(p_addr, 1, len, fp); \
-    ALOGE("%s:%d] written size %d", __func__, __LINE__, len); \
+    LOGE("written size %d", len); \
     fclose(fp); \
   } else { \
-    ALOGE("%s:%d] open %s failed", __func__, __LINE__, filename); \
+    LOGE("open %s failed", filename); \
   } \
 })
 

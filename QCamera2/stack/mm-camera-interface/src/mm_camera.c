@@ -38,7 +38,6 @@
 #include <stdlib.h>
 
 #include <cam_semaphore.h>
-
 #include "mm_camera_dbg.h"
 #include "mm_camera_sock.h"
 #include "mm_camera_interface.h"
@@ -182,7 +181,7 @@ static void mm_camera_event_notify(void* user_data)
                 break;
             case MSM_CAMERA_PRIV_SHUTDOWN:
                 {
-                    CDBG_ERROR("%s: Camera Event DAEMON DIED received", __func__);
+                    LOGE("Camera Event DAEMON DIED received");
                     evt.server_event_type = CAM_EVENT_TYPE_DAEMON_DIED;
                     mm_camera_enqueue_evt(my_obj, &evt);
                 }
@@ -231,7 +230,7 @@ int32_t mm_camera_enqueue_evt(mm_camera_obj_t *my_obj,
         /* wake up evt cmd thread */
         cam_sem_post(&(my_obj->evt_thread.cmd_sem));
     } else {
-        CDBG_ERROR("%s: No memory for mm_camera_node_t", __func__);
+        LOGE("No memory for mm_camera_node_t");
         rc = -1;
     }
 
@@ -261,22 +260,7 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     char prop[PROPERTY_VALUE_MAX];
     uint32_t globalLogLevel = 0;
 
-    property_get("persist.camera.hal.debug", prop, "0");
-    int val = atoi(prop);
-    if (0 <= val) {
-        gMmCameraIntfLogLevel = (uint32_t)val;
-    }
-    property_get("persist.camera.global.debug", prop, "0");
-    val = atoi(prop);
-    if (0 <= val) {
-        globalLogLevel = (uint32_t)val;
-    }
-
-    /* Highest log level among hal.logs and global.logs is selected */
-    if (gMmCameraIntfLogLevel < globalLogLevel)
-        gMmCameraIntfLogLevel = globalLogLevel;
-
-    CDBG("%s:  begin\n", __func__);
+    LOGD("begin\n");
 
     if (NULL == my_obj) {
         goto on_error;
@@ -288,25 +272,25 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     snprintf(dev_name, sizeof(dev_name), "/dev/%s",
              dev_name_value);
     sscanf(dev_name, "/dev/video%d", &cam_idx);
-    CDBG("%s: dev name = %s, cam_idx = %d", __func__, dev_name, cam_idx);
+    LOGD("dev name = %s, cam_idx = %d", dev_name, cam_idx);
 
     do{
         n_try--;
         errno = 0;
         my_obj->ctrl_fd = open(dev_name, O_RDWR | O_NONBLOCK);
-        CDBG("%s:  ctrl_fd = %d, errno == %d", __func__, my_obj->ctrl_fd, errno);
+        LOGD("ctrl_fd = %d, errno == %d", my_obj->ctrl_fd, errno);
         if((my_obj->ctrl_fd >= 0) || (errno != EIO && errno != ETIMEDOUT) || (n_try <= 0 )) {
-            CDBG_HIGH("%s:  opened, break out while loop", __func__);
+            LOGH("opened, break out while loop");
             break;
         }
-        ALOGE("%s:Failed with %s error, retrying after %d milli-seconds",
-             __func__, strerror(errno), sleep_msec);
+        LOGE("Failed with %s error, retrying after %d milli-seconds",
+              strerror(errno), sleep_msec);
         usleep(sleep_msec * 1000U);
     }while (n_try > 0);
 
     if (my_obj->ctrl_fd < 0) {
-        CDBG_ERROR("%s: cannot open control fd of '%s' (%s)\n",
-                 __func__, dev_name, strerror(errno));
+        LOGE("cannot open control fd of '%s' (%s)\n",
+                 dev_name, strerror(errno));
         if (errno == EBUSY)
             rc = -EUSERS;
         else
@@ -319,19 +303,19 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     do {
         n_try--;
         my_obj->ds_fd = mm_camera_socket_create(cam_idx, MM_CAMERA_SOCK_TYPE_UDP);
-        CDBG("%s:  ds_fd = %d, errno = %d", __func__, my_obj->ds_fd, errno);
+        LOGD("ds_fd = %d, errno = %d", my_obj->ds_fd, errno);
         if((my_obj->ds_fd >= 0) || (n_try <= 0 )) {
-            CDBG("%s:  opened, break out while loop", __func__);
+            LOGD("opened, break out while loop");
             break;
         }
-        CDBG("%s:failed with I/O error retrying after %d milli-seconds",
-             __func__, sleep_msec);
+        LOGD("failed with I/O error retrying after %d milli-seconds",
+              sleep_msec);
         usleep(sleep_msec * 1000U);
     } while (n_try > 0);
 
     if (my_obj->ds_fd < 0) {
-        CDBG_ERROR("%s: cannot open domain socket fd of '%s'(%s)\n",
-                 __func__, dev_name, strerror(errno));
+        LOGE("cannot open domain socket fd of '%s'(%s)\n",
+                 dev_name, strerror(errno));
         rc = -1;
         goto on_error;
     }
@@ -341,7 +325,7 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     pthread_mutex_init(&my_obj->evt_lock, NULL);
     pthread_cond_init(&my_obj->evt_cond, NULL);
 
-    CDBG("%s : Launch evt Thread in Cam Open",__func__);
+    LOGD("Launch evt Thread in Cam Open");
     snprintf(my_obj->evt_thread.threadName, THREAD_NAME_SIZE, "CAM_Dispatch");
     mm_camera_cmd_thread_launch(&my_obj->evt_thread,
                                 mm_camera_dispatch_app_event,
@@ -349,7 +333,7 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
 
     /* launch event poll thread
      * we will add evt fd into event poll thread upon user first register for evt */
-    CDBG("%s : Launch evt Poll Thread in Cam Open", __func__);
+    LOGD("Launch evt Poll Thread in Cam Open");
     snprintf(my_obj->evt_poll_thread.threadName, THREAD_NAME_SIZE, "CAM_evntPoll");
     mm_camera_poll_thread_launch(&my_obj->evt_poll_thread,
                                  MM_CAMERA_POLL_TYPE_EVT);
@@ -358,18 +342,18 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     /* unlock cam_lock, we need release global intf_lock in camera_open(),
      * in order not block operation of other Camera in dual camera use case.*/
     pthread_mutex_unlock(&my_obj->cam_lock);
-    CDBG("%s:  end (rc = %d)\n", __func__, rc);
+    LOGD("end (rc = %d)\n", rc);
     return rc;
 
 on_error:
 
     if (NULL == dev_name_value) {
-        CDBG_ERROR("%s: Invalid device name\n", __func__);
+        LOGE("Invalid device name\n");
         rc = -1;
     }
 
     if (NULL == my_obj) {
-        CDBG_ERROR("%s: Invalid camera object\n", __func__);
+        LOGE("Invalid camera object\n");
         rc = -1;
     } else {
         if (my_obj->ctrl_fd >= 0) {
@@ -404,13 +388,13 @@ on_error:
  *==========================================================================*/
 int32_t mm_camera_close(mm_camera_obj_t *my_obj)
 {
-    CDBG("%s : unsubscribe evt", __func__);
+    LOGD("unsubscribe evt");
     mm_camera_evt_sub(my_obj, FALSE);
 
-    CDBG("%s : Close evt Poll Thread in Cam Close",__func__);
+    LOGD("Close evt Poll Thread in Cam Close");
     mm_camera_poll_thread_release(&my_obj->evt_poll_thread);
 
-    CDBG("%s : Close evt cmd Thread in Cam Close",__func__);
+    LOGD("Close evt cmd Thread in Cam Close");
     mm_camera_cmd_thread_release(&my_obj->evt_thread);
 
     if(my_obj->ctrl_fd >= 0) {
@@ -599,8 +583,8 @@ int32_t mm_camera_query_capability(mm_camera_obj_t *my_obj)
     memset(&cap, 0, sizeof(cap));
     rc = ioctl(my_obj->ctrl_fd, VIDIOC_QUERYCAP, &cap);
     if (rc != 0) {
-        CDBG_ERROR("%s: cannot get camera capabilities, rc = %d, errno %d",
-                __func__, rc, errno);
+        LOGE("cannot get camera capabilities, rc = %d, errno %d",
+                 rc, errno);
     }
 
     pthread_mutex_unlock(&my_obj->cam_lock);
@@ -1695,8 +1679,8 @@ int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
         /* unsubscribe */
         rc = ioctl(my_obj->ctrl_fd, VIDIOC_UNSUBSCRIBE_EVENT, &sub);
         if (rc < 0) {
-            CDBG_ERROR("%s: unsubscribe event rc = %d, errno %d",
-                    __func__, rc, errno);
+            LOGE("unsubscribe event rc = %d, errno %d",
+                     rc, errno);
             return rc;
         }
         /* remove evt fd from the polling thraed when unreg the last event */
@@ -1706,8 +1690,8 @@ int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
     } else {
         rc = ioctl(my_obj->ctrl_fd, VIDIOC_SUBSCRIBE_EVENT, &sub);
         if (rc < 0) {
-            CDBG_ERROR("%s: subscribe event rc = %d, errno %d",
-            __func__, rc, errno);
+            LOGE("subscribe event rc = %d, errno %d",
+             rc, errno);
             return rc;
         }
         /* add evt fd to polling thread when subscribe the first event */
@@ -1747,8 +1731,8 @@ void mm_camera_util_wait_for_event(mm_camera_obj_t *my_obj,
         ts.tv_sec += WAIT_TIMEOUT;
         rc = pthread_cond_timedwait(&my_obj->evt_cond, &my_obj->evt_lock, &ts);
         if (rc) {
-            ALOGE("%s: pthread_cond_timedwait of evt_mask 0x%x failed %d",
-                    __func__, evt_mask, rc);
+            LOGE("pthread_cond_timedwait of evt_mask 0x%x failed %d",
+                     evt_mask, rc);
             break;
         }
     }
@@ -1978,10 +1962,10 @@ int32_t mm_camera_util_s_ctrl(int32_t fd,  uint32_t id, int32_t *value)
     }
     rc = ioctl(fd, VIDIOC_S_CTRL, &control);
 
-    CDBG("%s: fd=%d, S_CTRL, id=0x%x, value = %p, rc = %d\n",
-         __func__, fd, id, value, rc);
+    LOGD("fd=%d, S_CTRL, id=0x%x, value = %p, rc = %d\n",
+          fd, id, value, rc);
     if (rc < 0) {
-        CDBG_ERROR("%s: ioctl failed %d, errno %d", __func__, rc, errno);
+        LOGE("ioctl failed %d, errno %d", rc, errno);
     } else if (value != NULL) {
         *value = control.value;
     }
@@ -2013,7 +1997,7 @@ int32_t mm_camera_util_g_ctrl( int32_t fd, uint32_t id, int32_t *value)
         control.value = *value;
     }
     rc = ioctl(fd, VIDIOC_G_CTRL, &control);
-    CDBG("%s: fd=%d, G_CTRL, id=0x%x, rc = %d\n", __func__, fd, id, rc);
+    LOGD("fd=%d, G_CTRL, id=0x%x, rc = %d\n", fd, id, rc);
     if (value != NULL) {
         *value = control.value;
     }
@@ -2040,7 +2024,7 @@ int32_t mm_camera_channel_advanced_capture(mm_camera_obj_t *my_obj,
             uint32_t ch_id, mm_camera_advanced_capture_t type,
             uint32_t trigger, void *in_value)
 {
-    CDBG("%s: E type = %d",__func__, type);
+    LOGD("E type = %d", type);
     int32_t rc = -1;
     mm_channel_t * ch_obj =
         mm_camera_util_get_channel_by_handler(my_obj, ch_id);
@@ -2087,7 +2071,7 @@ int32_t mm_camera_channel_advanced_capture(mm_camera_obj_t *my_obj,
         pthread_mutex_unlock(&my_obj->cam_lock);
     }
 
-    CDBG("%s: X",__func__);
+    LOGD("X");
     return rc;
 }
 
@@ -2113,8 +2097,8 @@ int32_t mm_camera_get_session_id(mm_camera_obj_t *my_obj,
     if(sessionid != NULL) {
         rc = mm_camera_util_g_ctrl(my_obj->ctrl_fd,
                 MSM_CAMERA_PRIV_G_SESSION_ID, &value);
-        CDBG("%s: fd=%d, get_session_id, id=0x%x, value = %d, rc = %d\n",
-                __func__, my_obj->ctrl_fd, MSM_CAMERA_PRIV_G_SESSION_ID,
+        LOGD("fd=%d, get_session_id, id=0x%x, value = %d, rc = %d\n",
+                 my_obj->ctrl_fd, MSM_CAMERA_PRIV_G_SESSION_ID,
                 value, rc);
         *sessionid = value;
         my_obj->sessionid = value;
@@ -2203,3 +2187,208 @@ int32_t mm_camera_reg_stream_buf_cb(mm_camera_obj_t *my_obj,
     return rc;
 }
 
+#ifdef QCAMERA_REDEFINE_LOG
+
+/*===========================================================================
+ * DESCRIPTION: mm camera debug interface
+ *
+ *==========================================================================*/
+pthread_mutex_t dbg_log_mutex;
+
+#undef LOG_TAG
+#define LOG_TAG "QCamera"
+#define CDBG_MAX_STR_LEN 1024
+#define CDBG_MAX_LINE_LENGTH 256
+
+/* current trace loggin permissions
+   * {NONE, ERR, WARN, HIGH, DEBUG, LOW, INFO} */
+int g_cam_log[CAM_LAST_MODULE][CAM_GLBL_DBG_INFO + 1] = {
+    {0, 1, 0, 0, 0, 0, 1}, /* CAM_NO_MODULE     */
+    {0, 1, 0, 0, 0, 0, 1}, /* CAM_HAL_MODULE    */
+    {0, 1, 0, 0, 0, 0, 1}, /* CAM_MCI_MODULE    */
+    {0, 1, 0, 0, 0, 0, 1}, /* CAM_JPEG_MODULE   */
+};
+
+/* string representation for logging level */
+static const char *cam_dbg_level_to_str[] = {
+     "",        /* CAM_GLBL_DBG_NONE  */
+     "<ERROR>", /* CAM_GLBL_DBG_ERR   */
+     "<WARN >", /* CAM_GLBL_DBG_WARN  */
+     "<HIGH >", /* CAM_GLBL_DBG_HIGH  */
+     "<DBG  >", /* CAM_GLBL_DBG_DEBUG */
+     "<LOW  >", /* CAM_GLBL_DBG_LOW   */
+     "<INFO >"  /* CAM_GLBL_DBG_INFO  */
+};
+
+/* current trace logging configuration */
+typedef struct {
+   cam_global_debug_level_t  level;
+   int                       initialized;
+   const char               *name;
+   const char               *prop;
+} module_debug_t;
+
+static module_debug_t cam_loginfo[(int)CAM_LAST_MODULE] = {
+  {CAM_GLBL_DBG_ERR, 1,
+      "",         "persist.camera.global.debug"     }, /* CAM_NO_MODULE     */
+  {CAM_GLBL_DBG_ERR, 1,
+      "<HAL >", "persist.camera.hal.debug"        }, /* CAM_HAL_MODULE    */
+  {CAM_GLBL_DBG_ERR, 1,
+      "<MCI >", "persist.camera.mci.debug"        }, /* CAM_MCI_MODULE    */
+  {CAM_GLBL_DBG_ERR, 1,
+      "<JPEG>", "persist.camera.mmstill.logs"     }, /* CAM_JPEG_MODULE   */
+};
+
+/** cam_get_dbg_level
+ *
+ *    @module: module name
+ *    @level:  module debug logging level
+ *
+ *  Maps debug log string to value.
+ *
+ *  Return: logging level
+ **/
+static cam_global_debug_level_t cam_get_dbg_level(const char *module,
+  char *pValue) {
+
+  cam_global_debug_level_t rc = CAM_GLBL_DBG_NONE;
+
+  if (!strcmp(pValue, "none")) {
+    rc = CAM_GLBL_DBG_NONE;
+  } else if (!strcmp(pValue, "warn")) {
+    rc = CAM_GLBL_DBG_WARN;
+  } else if (!strcmp(pValue, "debug")) {
+    rc = CAM_GLBL_DBG_DEBUG;
+  } else if (!strcmp(pValue, "error")) {
+    rc = CAM_GLBL_DBG_ERR;
+  } else if (!strcmp(pValue, "low")) {
+    rc = CAM_GLBL_DBG_LOW;
+  } else if (!strcmp(pValue, "high")) {
+    rc = CAM_GLBL_DBG_HIGH;
+  } else if (!strcmp(pValue, "info")) {
+    rc = CAM_GLBL_DBG_INFO;
+  } else {
+    ALOGE("Invalid %s debug log level %s\n", module, pValue);
+  }
+
+  ALOGD("%s debug log level: %s\n", module, cam_dbg_level_to_str[rc]);
+
+  return rc;
+}
+
+/** cam_vsnprintf
+ *    @pdst:   destination buffer pointer
+ *    @size:   size of destination b uffer
+ *    @pfmt:   string format
+ *    @argptr: variabkle length argument list
+ *
+ *  Processes variable length argument list to a formatted string.
+ *
+ *  Return: n/a
+ **/
+static void cam_vsnprintf(char* pdst, unsigned int size,
+                          const char* pfmt, va_list argptr) {
+  int num_chars_written = 0;
+
+  pdst[0] = '\0';
+  num_chars_written = vsnprintf(pdst, size, pfmt, argptr);
+
+  if ((num_chars_written >= (int)size) && (size > 0)) {
+     /* Message length exceeds the buffer limit size */
+     num_chars_written = size - 1;
+     pdst[size - 1] = '\0';
+  }
+}
+
+/** mm_camera_debug_log
+ *    @module: origin or log message
+ *    @level:  logging level
+ *    @func:   caller function name
+ *    @line:   caller line number
+ *    @fmt:    log message formatting string
+ *    @...:    variable argument list
+ *
+ *  Generig logger method.
+ *
+ *  Return: N/A
+ **/
+void mm_camera_debug_log(const cam_modules_t module,
+                   const cam_global_debug_level_t level,
+                   const char *func, const int line, const char *fmt, ...) {
+  char    str_buffer[CDBG_MAX_STR_LEN];
+  va_list args;
+
+  va_start(args, fmt);
+  cam_vsnprintf(str_buffer, CDBG_MAX_STR_LEN, fmt, args);
+  va_end(args);
+
+  switch (level) {
+  case CAM_GLBL_DBG_WARN:
+    ALOGW("%s%s %s: %d: %s", cam_loginfo[module].name,
+      cam_dbg_level_to_str[level], func, line, str_buffer);
+    break;
+  case CAM_GLBL_DBG_ERR:
+    ALOGE("%s%s %s: %d: %s", cam_loginfo[module].name,
+      cam_dbg_level_to_str[level], func, line, str_buffer);
+    break;
+  case CAM_GLBL_DBG_INFO:
+    ALOGI("%s%s %s: %d: %s", cam_loginfo[module].name,
+      cam_dbg_level_to_str[level], func, line, str_buffer);
+    break;
+  case CAM_GLBL_DBG_HIGH:
+  case CAM_GLBL_DBG_DEBUG:
+  case CAM_GLBL_DBG_LOW:
+  default:
+    ALOGD("%s%s %s: %d: %s", cam_loginfo[module].name,
+      cam_dbg_level_to_str[level], func, line, str_buffer);
+  }
+}
+
+ /** mm_camera_set_dbg_log_properties
+ *
+ *  Set global and module log level properties.
+ *
+ *  Return: N/A
+ **/
+void mm_camera_set_dbg_log_properties(void) {
+  int          i;
+  unsigned int j;
+  static int   boot_init = 1;
+  char         property_value[PROPERTY_VALUE_MAX] = {0};
+  char         default_value[PROPERTY_VALUE_MAX]  = {0};
+
+  if (boot_init) {
+      boot_init = 0;
+      pthread_mutex_init(&dbg_log_mutex, 0);
+  }
+
+  /* set global and individual module logging levels */
+  pthread_mutex_lock(&dbg_log_mutex);
+  for (i = CAM_NO_MODULE; i < CAM_LAST_MODULE; i++) {
+    cam_global_debug_level_t log_level;
+    snprintf(default_value, PROPERTY_VALUE_MAX, "%d", (int)cam_loginfo[i].level);
+    property_get(cam_loginfo[i].prop, property_value, default_value);
+    log_level = (cam_global_debug_level_t)atoi(property_value);
+
+    /* fix KW warnings */
+    if (log_level > CAM_GLBL_DBG_INFO) {
+       log_level = CAM_GLBL_DBG_INFO;
+    }
+
+    cam_loginfo[i].level = log_level;
+
+    /* The logging macros will produce a log message when logging level for
+     * a module is less or equal to the level specified in the property for
+     * the module, or less or equal the level specified by the global logging
+     * property. Currently we don't allow INFO logging to be turned off */
+    for (j = CAM_GLBL_DBG_ERR; j <= CAM_GLBL_DBG_LOW; j++) {
+      g_cam_log[i][j] = (cam_loginfo[CAM_NO_MODULE].level != CAM_GLBL_DBG_NONE)     &&
+                        (cam_loginfo[i].level             != CAM_GLBL_DBG_NONE)     &&
+                        ((j                                <= cam_loginfo[i].level) ||
+                         (j                                <= cam_loginfo[CAM_NO_MODULE].level));
+    }
+  }
+  pthread_mutex_unlock(&dbg_log_mutex);
+}
+
+#endif

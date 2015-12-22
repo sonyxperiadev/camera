@@ -83,10 +83,10 @@ typedef enum {
   FILE *fp = fopen(filename, "w+"); \
   if (fp) { \
     rc = fwrite(p_addr, 1, len, fp); \
-    CDBG_ERROR("%s:%d] written size %zu", __func__, __LINE__, len); \
+    LOGE("written size %zu", len); \
     fclose(fp); \
   } else { \
-    CDBG_ERROR("%s:%d] open %s failed", __func__, __LINE__, filename); \
+    LOGE("open %s failed", filename); \
   } \
 })
 
@@ -103,10 +103,10 @@ typedef enum {
   if (fp) { \
     rc = fwrite(p_addr1, 1, len1, fp); \
     rc = fwrite(p_addr2, 1, len2, fp); \
-    CDBG_ERROR("%s:%d] written %zu %zu", __func__, __LINE__, len1, len2); \
+    LOGE("written %zu %zu", len1, len2); \
     fclose(fp); \
   } else { \
-    CDBG_ERROR("%s:%d] open %s failed", __func__, __LINE__, filename); \
+    LOGE("open %s failed", filename); \
   } \
 })
 
@@ -119,7 +119,7 @@ typedef enum {
  **/
 #define MM_JPEG_CHK_ABORT(p, ret, label) ({ \
   if (MM_JPEG_ABORT_INIT == p->abort_state) { \
-    CDBG_ERROR("%s:%d] jpeg abort", __func__, __LINE__); \
+    LOGE("jpeg abort"); \
     ret = OMX_ErrorNone; \
     goto label; \
   } \

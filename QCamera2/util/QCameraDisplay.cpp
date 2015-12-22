@@ -147,11 +147,11 @@ QCameraDisplay::QCameraDisplay()
         for (int i=0; i < CAMERA_NUM_VSYNC_INTERVAL_HISTORY; i++) {
             mVsyncIntervalHistory[i] = default_vsync_interval;
         }
-        CDBG("display jitter num_vsync_from_vfe_isr_to_presentation_timestamp %u \
+        LOGD("display jitter num_vsync_from_vfe_isr_to_presentation_timestamp %u \
                 set_timestamp_num_ms_prior_to_vsync %u",
                 mNum_vsync_from_vfe_isr_to_presentation_timestamp,
                 mSet_timestamp_num_ms_prior_to_vsync);
-        CDBG("display jitter vfe_and_mdp_freq_wiggle_filter_max_ms %u \
+        LOGD("display jitter vfe_and_mdp_freq_wiggle_filter_max_ms %u \
                 vfe_and_mdp_freq_wiggle_filter_min_ms %u",
                 mVfe_and_mdp_freq_wiggle_filter_max_ms,
                 mVfe_and_mdp_freq_wiggle_filter_min_ms);
@@ -258,7 +258,7 @@ nsecs_t QCameraDisplay::computePresentationTimeStamp(nsecs_t frameTimeStamp)
             } else if (vsyncOffset < keepInCurrentVsync) {
                 mAdditionalVsyncOffsetForWiggle = 0;
             }
-            CDBG("vsyncTimeStamp: %llu presentationTimeStamp: %llu expectedVsyncOffset: %d \
+            LOGD("vsyncTimeStamp: %llu presentationTimeStamp: %llu expectedVsyncOffset: %d \
                     timeDifference: %llu vsyncffset: %d avgvsync: %llu \
                     additionalvsyncOffsetForWiggle: %llu",
                     mVsyncTimeStamp, presentationTimeStamp, expectedVsyncOffset,
