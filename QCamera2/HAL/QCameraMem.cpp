@@ -791,6 +791,10 @@ int QCameraHeapMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
                     mPtr[j] = NULL;
                     deallocOneBuffer(mMemInfo[j]);
                 }
+                // Deallocate remaining buffers that have already been allocated
+                for (int j = i; j < count; j --) {
+                    deallocOneBuffer(mMemInfo[j]);
+                }
                 ATRACE_END();
                 return NO_MEMORY;
             } else
@@ -1998,6 +2002,15 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/,
                   __func__, strerror(-err), -err);
             ret = UNKNOWN_ERROR;
             for(int i = 0; i < cnt; i++) {
+                // Deallocate buffers when the native window is gone
+                struct ion_handle_data ion_handle;
+                memset(&ion_handle, 0, sizeof(ion_handle));
+                ion_handle.handle = mMemInfo[i].handle;
+                if (ioctl(mMemInfo[i].main_ion_fd, ION_IOC_FREE, &ion_handle) < 0) {
+                    ALOGE("ion free failed");
+                }
+                close(mMemInfo[i].main_ion_fd);
+
                 if(mLocalFlag[i] != BUFFER_NOT_OWNED) {
                     err = mWindow->cancel_buffer(mWindow, mBufferHandle[i]);
                     CDBG_HIGH("%s: cancel_buffer: hdl =%p", __func__, (*mBufferHandle[i]));
