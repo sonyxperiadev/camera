@@ -487,8 +487,11 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                     for (j = 0; j < info.num_nodes; j++) {
                         if (info.node[j]) {
                             mm_channel_node_qbuf(info.ch_obj[j], info.node[j]);
+                            free(info.node[j]);
                         }
                     }
+                    // we should not use it as matched dual camera frames
+                    info.num_nodes = 0;
                 }
             }
             mm_frame_sync_unlock_queues();
@@ -1179,7 +1182,7 @@ int32_t mm_channel_init(mm_channel_t *my_obj,
     }
 
     CDBG("%s : Launch data poll thread in channel open", __func__);
-    snprintf(my_obj->threadName, THREAD_NAME_SIZE, "CAM_dataPoll");
+    snprintf(my_obj->poll_thread[0].threadName, THREAD_NAME_SIZE, "CAM_dataPoll");
     mm_camera_poll_thread_launch(&my_obj->poll_thread[0],
                                  MM_CAMERA_POLL_TYPE_DATA);
 

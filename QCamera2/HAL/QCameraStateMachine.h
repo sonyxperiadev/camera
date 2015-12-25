@@ -53,6 +53,9 @@ typedef enum {
     QCAMERA_SM_EVT_MSG_TYPE_ENABLED,         // query certain msg type is enabled
 
     QCAMERA_SM_EVT_SET_PARAMS,               // set parameters
+    QCAMERA_SM_EVT_SET_PARAMS_STOP,          // stop camera after set params, if necessary
+    QCAMERA_SM_EVT_SET_PARAMS_COMMIT,        // commit set params
+    QCAMERA_SM_EVT_SET_PARAMS_RESTART,       // restart after set params, if necessary
     QCAMERA_SM_EVT_GET_PARAMS,               // get parameters
     QCAMERA_SM_EVT_PUT_PARAMS,               // put parameters, release param buf
 
@@ -197,6 +200,8 @@ public:
 
     bool isDisplayFrameNeeded() { return m_bDisplayFrame; };
     int32_t setDisplayFrame(bool enabled) {m_bDisplayFrame=enabled; return 0;};
+    bool isPreviewCallbackNeeded() { return m_bPreviewCallbackNeeded; };
+    int32_t setPreviewCallbackNeeded(bool enabled) {m_bPreviewCallbackNeeded=enabled; return 0;};
 private:
     typedef enum {
         QCAMERA_SM_STATE_PREVIEW_STOPPED,          // preview is stopped
@@ -252,6 +257,7 @@ private:
     bool m_RestoreZSL;
 
     bool m_bDisplayFrame;
+    bool m_bPreviewCallbackNeeded;
 };
 
 }; // namespace qcamera

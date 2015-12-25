@@ -885,8 +885,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
 
     // Handle preview data callback
     if (pme->m_channels[QCAMERA_CH_TYPE_CALLBACK] == NULL) {
-        if (pme->mDataCb != NULL &&
-                (pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) &&
+        if (pme->needSendPreviewCallback() &&
                 (!pme->mParameters.isSceneSelectionEnabled())) {
             int32_t rc = pme->sendPreviewCallback(stream, memory, idx);
             if (NO_ERROR != rc) {
@@ -1129,8 +1128,7 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
         pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
 
         if ((pme->needProcessPreviewFrame()) &&
-                (pme->mDataCb != NULL) &&
-                (pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) &&
+                pme->needSendPreviewCallback() &&
                 (pme->getRelatedCamSyncInfo()->mode != CAM_MODE_SECONDARY)) {
             qcamera_callback_argm_t cbArg;
             memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));

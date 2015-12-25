@@ -259,7 +259,7 @@ typedef struct {
   int32_t (*mm_camera_open) (uint8_t camera_idx, mm_camera_vtbl_t **camera_vtbl);
   uint32_t (*jpeg_open)(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
                    mm_dimension picture_size,
-                   cam_related_system_calibration_data_t *calibration_data);
+                   cam_jpeg_metadata_t *jpeg_metadata);
 
 } hal_interface_lib_t;
 
