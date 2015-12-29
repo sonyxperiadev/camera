@@ -1359,6 +1359,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                rc = m_parent->takePicture();
                if (rc != NO_ERROR) {
                    // move state to previewing state
+                   m_parent->unconfigureAdvancedCapture();
                    m_state = QCAMERA_SM_STATE_PREVIEWING;
                }
                if (!(m_parent->isRetroPicture()) || (rc != NO_ERROR)) {
@@ -1373,8 +1374,23 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                m_state = QCAMERA_SM_STATE_PIC_TAKING;
                rc = m_parent->takePicture();
                if (rc != NO_ERROR) {
+                   int32_t temp_rc = NO_ERROR;
                    // move state to preview stopped state
-                   m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
+                   m_parent->unconfigureAdvancedCapture();
+                   m_parent->stopPreview();
+                   // start preview again
+                   temp_rc = m_parent->preparePreview();
+                   if (temp_rc == NO_ERROR) {
+                       temp_rc = m_parent->startPreview();
+                       if (temp_rc != NO_ERROR) {
+                           m_parent->unpreparePreview();
+                           m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
+                       } else {
+                           m_state = QCAMERA_SM_STATE_PREVIEWING;
+                       }
+                   } else {
+                       m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
+                   }
                }
                result.status = rc;
                result.request_api = evt;
@@ -2284,6 +2300,7 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             m_state = QCAMERA_SM_STATE_VIDEO_PIC_TAKING;
             rc = m_parent->takeLiveSnapshot();
             if (rc != NO_ERROR) {
+                m_parent->unconfigureAdvancedCapture();
                 m_state = QCAMERA_SM_STATE_RECORDING;
             }
             result.status = rc;
