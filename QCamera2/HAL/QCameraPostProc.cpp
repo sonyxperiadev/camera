@@ -890,7 +890,6 @@ mm_camera_buf_def_t *QCameraPostProcessor::getOfflinePPInputBuffer(
  *==========================================================================*/
 int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
 {
-    bool triggerEvent = TRUE;
     QCameraChannel *m_pReprocChannel = NULL;
 
     if (m_bInited == FALSE) {
@@ -973,10 +972,7 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
             }
         }
 
-        if (m_inputPPQ.enqueue((void *)pp_request_job)) {
-            //avoid sending frame for reprocessing if o/p buffer is not queued to CPP.
-            triggerEvent = validatePostProcess(frame);
-        }else {
+        if (false == m_inputPPQ.enqueue((void *)pp_request_job)) {
             CDBG_HIGH("%s : Input PP Q is not active!!!", __func__);
             releaseSuperBuf(frame);
             free(frame);
@@ -1028,10 +1024,7 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
         }
     }
 
-    if (triggerEvent){
-        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
-    }
-
+    m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
     return NO_ERROR;
 }
 
@@ -1353,9 +1346,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         }
 
         // enqueu to post proc input queue
-        if (m_inputPPQ.enqueue((void *)pp_request_job)) {
-            triggerEvent = validatePostProcess(frame);
-        } else {
+        if (false == m_inputPPQ.enqueue((void *)pp_request_job)) {
             CDBG_HIGH("%s : m_input PP Q is not active!!!", __func__);
             releaseOngoingPPData(pp_request_job,this);
             free(pp_request_job);
@@ -1416,11 +1407,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         }
 
         // enqueu reprocessed frame to jpeg input queue
-        if (m_inputJpegQ.enqueue((void *)jpeg_job)) {
-            if (m_parent->isLongshotEnabled()) {
-                triggerEvent = validatePostProcess(frame);
-            }
-        } else {
+        if (false == m_inputJpegQ.enqueue((void *)jpeg_job)) {
             CDBG_HIGH("%s : Input Jpeg Q is not active!!!", __func__);
             releaseJpegJobData(jpeg_job);
             free(jpeg_job);
