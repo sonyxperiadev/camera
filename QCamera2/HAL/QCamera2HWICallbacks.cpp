@@ -723,6 +723,14 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
 #ifdef TARGET_TS_MAKEUP
     pme->TsMakeupProcess_Preview(frame,stream);
 #endif
+
+    // For instant capture and for instant AEC, keep track of the frame counter.
+    // This count will be used to check against the corresponding bound values.
+    if (pme->mParameters.isInstantAECEnabled() ||
+            pme->mParameters.isInstantCaptureEnabled()) {
+        pme->mInstantAecFrameCount++;
+    }
+
     if (!pme->needProcessPreviewFrame()) {
         ALOGE("%s: preview is not running, no need to process", __func__);
         stream->bufDone(frame->buf_idx);

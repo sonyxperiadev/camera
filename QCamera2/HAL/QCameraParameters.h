@@ -654,6 +654,7 @@ public:
     bool isInstantAECEnabled() {return m_bInstantAEC;};
     bool isInstantCaptureEnabled() {return m_bInstantCapture;};
     uint8_t getAecFrameBoundValue() {return mAecFrameBound;};
+    uint8_t getAecSkipDisplayFrameBound() {return mAecSkipDisplayFrameBound;};
 
     int32_t getExifDateTime(String8 &dateTime, String8 &subsecTime);
     int32_t getExifFocalLength(rat_t *focalLenght);
@@ -822,6 +823,7 @@ public:
     int32_t getRelatedCamCalibration(
             cam_related_system_calibration_data_t* calib);
     int32_t bundleRelatedCameras(bool sync, uint32_t sessionid);
+    int32_t setInstantAEC(uint8_t enable, bool initCommit);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -898,7 +900,8 @@ private:
     int32_t setPAAF();
     int32_t setTintlessValue(const QCameraParameters& params);
     int32_t setCDSMode(const QCameraParameters& params);
-    int32_t setInstantAECandCaptureParams(const QCameraParameters& params);
+    int32_t setInstantCapture(const QCameraParameters& params);
+    int32_t setInstantAEC(const QCameraParameters& params);
     int32_t setMobicat(const QCameraParameters& params);
     int32_t setRdiMode(const QCameraParameters& );
     int32_t setSecureMode(const QCameraParameters& );
@@ -1132,6 +1135,8 @@ private:
     bool m_bInstantCapture;
     // Number of frames, camera interface will wait for getting the instant capture frame.
     uint8_t mAecFrameBound;
+    // Number of preview frames, that HAL will hold without displaying, for instant AEC mode.
+    uint8_t mAecSkipDisplayFrameBound;
 };
 
 }; // namespace qcamera

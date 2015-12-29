@@ -870,7 +870,8 @@ QCameraParameters::QCameraParameters()
       m_bLtmForSeeMoreEnabled(false),
       m_bInstantAEC(false),
       m_bInstantCapture(false),
-      mAecFrameBound(0)
+      mAecFrameBound(0),
+      mAecSkipDisplayFrameBound(0)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -990,7 +991,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mParmEffect(CAM_EFFECT_MODE_OFF),
     m_bInstantAEC(false),
     m_bInstantCapture(false),
-    mAecFrameBound(0)
+    mAecFrameBound(0),
+    mAecSkipDisplayFrameBound(0)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -4804,7 +4806,8 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
     if ((rc = setCDSMode(params)))                      final_rc = rc;
     if ((rc = setTemporalDenoise(params)))              final_rc = rc;
     if ((rc = setCacheVideoBuffers(params)))            final_rc = rc;
-    if ((rc = setInstantAECandCaptureParams(params)))   final_rc = rc;
+    if ((rc = setInstantCapture(params)))               final_rc = rc;
+    if ((rc = setInstantAEC(params)))                   final_rc = rc;
 
     // update live snapshot size after all other parameters are set
     if ((rc = setLiveSnapshotSize(params)))             final_rc = rc;
@@ -7439,9 +7442,9 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
 }
 
 /*===========================================================================
- * FUNCTION   : setInstantAECandCaptureParams
+ * FUNCTION   : setInstantCapture
  *
- * DESCRIPTION: Set Instant AEC and capture related params
+ * DESCRIPTION: Set Instant Capture related params
  *
  * PARAMETERS :
  *   @params  : user setting parameters
@@ -7450,53 +7453,83 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setInstantAECandCaptureParams(const QCameraParameters& params)
+int32_t QCameraParameters::setInstantCapture(const QCameraParameters& params)
 {
     int32_t rc = NO_ERROR;
-
-    // Check for instant capture first, Instant capture will enable instant AEC as well.
+    int value = -1;
+    // Check for instant capture, this will enable instant AEC as well.
     // This param will trigger the instant AEC param to backend
     // And also will be useful for instant capture.
     const char *str = params.get(KEY_QC_INSTANT_CAPTURE);
     const char *prev_str = get(KEY_QC_INSTANT_CAPTURE);
     if (str) {
         if ((prev_str == NULL) || (strcmp(str, prev_str) != 0)) {
-            uint8_t value = (uint8_t)atoi(str);
+            value = atoi(str);
+            CDBG("%s: Set instant Capture from param = %d", __func__, value);
             if (value == 0 || value == 1) {
                 updateParamEntry(KEY_QC_INSTANT_CAPTURE, str);
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_INSTANT_AEC, value)) {
-                    ALOGE("%s:Failed instant Capture to update table", __func__);
-                    rc = BAD_VALUE;
-                } else {
-                    CDBG("%s: Set instant Capture from param = %d", __func__, value);
-                    m_bInstantCapture = (value > 0)? true : false;
-                    m_bInstantAEC = m_bInstantCapture;
-                }
-            } else {
-                ALOGE("%s: Invalid param value for instant Capture %d", __func__, value);
-                rc = BAD_VALUE;
             }
         }
     } else {
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.instant.capture", prop, "0");
-        uint8_t value = (uint8_t)atoi(prop);
-        if (value == 0 || value == 1) {
-            updateParamEntry(KEY_QC_INSTANT_CAPTURE, prop);
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_INSTANT_AEC, value)) {
-                ALOGE("%s:Failed instant Capture to update table", __func__);
-                rc = BAD_VALUE;
-            } else {
-                CDBG("%s: Set instant capture from setprop = %d", __func__, value);
-                m_bInstantCapture = (value > 0)? true : false;
-                m_bInstantAEC = m_bInstantCapture;
+        if ((prev_str == NULL) || (strcmp(prop, prev_str) != 0)) {
+            value = atoi(prop);
+            CDBG("%s: Set instant capture from setprop = %d", __func__, value);
+            if (value == 0 || value == 1) {
+                updateParamEntry(KEY_QC_INSTANT_CAPTURE, prop);
             }
+        }
+    }
+
+    // Set instant AEC param to the backend for either instant capture or instant AEC
+    if (value == 0 || value == 1) {
+        m_bInstantCapture = (value > 0)? true : false;
+        setInstantAEC((uint8_t)value, false);
+    } else {
+        CDBG("%s: Invalid value for instant capture %d", __func__, value);
+    }
+
+
+    // get frame aec bound value from setprop.
+    // This value indicates the number of frames, camera interface
+    // will wait for getting the instant capture frame.
+    // Default value set to 7.
+    // This value also indicates the number of frames, that HAL
+    // will not display and will not send preview frames to app
+    // This will be applicable only if instant capture is set.
+    if (m_bInstantCapture) {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.ae.capture.bound", prop, "7");
+        int32_t frame_bound = atoi(prop);
+        if (frame_bound >= 0) {
+            mAecFrameBound = (uint8_t)frame_bound;
         } else {
-            ALOGE("%s: Invalid prop for instant capture %d", __func__, value);
+            ALOGE("%s: Invalid prop for aec frame bound %d", __func__, frame_bound);
             rc = BAD_VALUE;
         }
     }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setInstantAEC
+ *
+ * DESCRIPTION: Set Instant AEC related params
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
+{
+    int32_t rc = NO_ERROR;
+    int value = -1;
 
     // Check for instant AEC only when instant capture is not enabled.
     // Instant capture already takes care of the instant AEC as well.
@@ -7504,61 +7537,49 @@ int32_t QCameraParameters::setInstantAECandCaptureParams(const QCameraParameters
         // Check for instant AEC. Instant AEC will only enable fast AEC.
         // It will not enable instant capture.
         // This param will trigger the instant AEC param to backend
-        str = params.get(KEY_QC_INSTANT_AEC);
-        prev_str = get(KEY_QC_INSTANT_AEC);
+        const char *str = params.get(KEY_QC_INSTANT_AEC);
+        const char *prev_str = get(KEY_QC_INSTANT_AEC);
         if (str) {
             if ((prev_str == NULL) || (strcmp(str, prev_str) != 0)) {
-                uint8_t value = (uint8_t)atoi(str);
-                if (value == 0 || value == 1) {
-                    updateParamEntry(KEY_QC_INSTANT_AEC, str);
-                    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_INSTANT_AEC, value)) {
-                        ALOGE("%s:Failed instant AEC to update table", __func__);
-                        rc = BAD_VALUE;
-                    } else {
-                        CDBG("%s: Set instant AEC from param = %d", __func__, value);
-                        m_bInstantAEC = (value > 0)? true : false;
-                    }
-                } else {
-                    ALOGE("%s: Invalid param value for instant AEC %d", __func__, value);
-                    rc = BAD_VALUE;
-                }
+                value = atoi(str);
+                CDBG("%s: Set instant AEC from param = %d", __func__, value);
             }
         } else {
             char prop[PROPERTY_VALUE_MAX];
             memset(prop, 0, sizeof(prop));
             property_get("persist.camera.instant.aec", prop, "0");
-            uint8_t value = (uint8_t)atoi(prop);
-            if (value == 0 || value == 1) {
-                updateParamEntry(KEY_QC_INSTANT_AEC, prop);
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_INSTANT_AEC, value)) {
-                    ALOGE("%s:Failed instant AEC to update table", __func__);
-                    rc = BAD_VALUE;
-                } else {
-                    CDBG("%s: Set instant AEC from setprop = %d", __func__, value);
-                    m_bInstantAEC = (value > 0)? true : false;
-                }
-            } else {
-                ALOGE("%s: Invalid prop for instant AEC %d", __func__, value);
-                rc = BAD_VALUE;
+            if ((prev_str == NULL) || (strcmp(prop, prev_str) != 0)) {
+                value = atoi(prop);
+                CDBG("%s: Set instant AEC from setprop = %d", __func__, value);
             }
         }
-    }
-    // get frame aec bound value from setprop.
-    // This value indicates the number of frames, camera interface
-    // will wait for getting the instant capture frame.
-    // Default value set to 7.
-    // This will be applicable only if instant capture is set.
-    char prop[PROPERTY_VALUE_MAX];
-    memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.aec.frame.bound", prop, "7");
-    int32_t value = atoi(prop);
-    if (value >= 0) {
-        mAecFrameBound = (uint8_t)value;
-    } else {
-        ALOGE("%s: Invalid prop for aec frame bound %d", __func__, value);
-        rc = BAD_VALUE;
+
+        // Set instant AEC param to the backend for either instant capture or instant AEC
+        if (value == 0 || value == 1) {
+            setInstantAEC((uint8_t)value, false);
+        } else {
+            CDBG("%s: Invalid value for instant AEC %d", __func__, value);
+        }
+
     }
 
+    // get frame aec preview skip count from setprop.
+    // This value indicates the number of frames, that HAL
+    // will not display and will not send preview frames to app
+    // Default value set to 7.
+    // This will be applicable only if instant aec is set.
+    if (m_bInstantAEC) {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.ae.instant.bound", prop, "7");
+        int32_t aec_frame_skip_cnt = atoi(prop);
+        if (aec_frame_skip_cnt >= 0) {
+            mAecSkipDisplayFrameBound= (uint8_t)aec_frame_skip_cnt;
+        } else {
+            ALOGE("%s: Invalid prop for aec frame bound %d", __func__, aec_frame_skip_cnt);
+            rc = BAD_VALUE;
+        }
+    }
     return rc;
 }
 
@@ -13253,6 +13274,51 @@ int32_t QCameraParameters::setCDSMode(int32_t cds_mode, bool initCommit)
 
     CDBG_HIGH(" cds mode -> %d", cds_mode);
 
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setinstantAEC
+ *
+ * DESCRIPTION: set instant AEC value to backend
+ *
+ * PARAMETERS :
+ *   @enable : instant aec enabled or not.
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setInstantAEC(uint8_t enable, bool initCommit)
+{
+    if (initCommit) {
+        if (initBatchUpdate(m_pParamBuf) < 0) {
+            ALOGE("%s:Failed to initialize group update table", __func__);
+            return FAILED_TRANSACTION;
+        }
+    }
+
+    int32_t rc = NO_ERROR;
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_INSTANT_AEC, enable)) {
+        ALOGE("%s:Failed to instant aec value", __func__);
+        return BAD_VALUE;
+    }
+
+    // set the new value
+    char val[8];
+    snprintf(val, sizeof(val), "%d", enable);
+    updateParamEntry(KEY_QC_INSTANT_AEC, val);
+
+    if (initCommit) {
+        rc = commitSetBatch();
+        if (NO_ERROR != rc) {
+            ALOGE("%s:Failed to instant aec value", __func__);
+            return rc;
+        }
+    }
+
+    CDBG_HIGH(" setInstantAEC set value %d", enable);
+    m_bInstantAEC = enable;
     return rc;
 }
 
