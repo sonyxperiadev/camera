@@ -1343,6 +1343,7 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
     CHECK_CAMERA_ERROR(cam);
+    int previewRestartNeeded = 0;
 
     for (uint32_t i = 0; i < cam->numCameras; i++) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
@@ -1365,8 +1366,28 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
         QCamera2HardwareInterface *hwi = pCam->hwi;
         CHECK_HWI_ERROR(hwi);
 
+        rc = QCamera2HardwareInterface::preview_restart_needed(pCam->dev,
+                                                    previewRestartNeeded);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Error get restart status rc=%d!! ", __func__, rc);
+            return rc;
+        }
+        if (previewRestartNeeded) {
+            CDBG_HIGH("%s: Need Restart Preview from Muxer.", __func__);
+            break;
+        }
+    }
+
+    for (uint32_t i = 0; i < cam->numCameras; i++) {
+        pCam = gMuxer->getPhysicalCamera(cam, i);
+        CHECK_CAMERA_ERROR(pCam);
+
+        QCamera2HardwareInterface *hwi = pCam->hwi;
+        CHECK_HWI_ERROR(hwi);
+
         CDBG("%s: stopping preview for cam %d", __func__, i);
-        rc = QCamera2HardwareInterface::commit_parameters_stop_preview(pCam->dev);
+        rc = QCamera2HardwareInterface::commit_parameters_stop_preview(
+                                          pCam->dev, previewRestartNeeded);
         if (rc != NO_ERROR) {
             ALOGE("%s: Error committing parameters rc=%d!! ", __func__, rc);
             return rc;
@@ -1381,7 +1402,8 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
         CHECK_HWI_ERROR(hwi);
 
         CDBG("%s: starting preview for cam %d", __func__, i);
-        rc = QCamera2HardwareInterface::commit_parameters_start_preview(pCam->dev);
+        rc = QCamera2HardwareInterface::commit_parameters_start_preview(
+                                          pCam->dev, previewRestartNeeded);
         if (rc != NO_ERROR) {
             ALOGE("%s: Error committing parameters rc=%d!! ", __func__, rc);
             return rc;

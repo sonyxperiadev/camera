@@ -450,8 +450,11 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                     for (j = 0; j < info.num_nodes; j++) {
                         if (info.node[j]) {
                             mm_channel_node_qbuf(info.ch_obj[j], info.node[j]);
+                            free(info.node[j]);
                         }
                     }
+                    //we should not use it as matched dual camera frames
+                    info.num_nodes = 0;
                 }
             }
             mm_frame_sync_unlock_queues();

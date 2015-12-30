@@ -423,9 +423,24 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         }
         break;
     case QCAMERA_SM_EVT_COMMIT_PARAMS:
-    case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
         {
             if (m_bPreviewNeedsRestart) {
+                m_parent->m_memoryPool.clear();
+            }
+            if (rc == NO_ERROR) {
+                rc = m_parent->commitParameterChanges();
+            }
+            m_bPreviewNeedsRestart  = false;
+            result.status           = rc;
+            result.request_api      = evt;
+            result.result_type      = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
+        {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 m_parent->m_memoryPool.clear();
             }
             if (rc == NO_ERROR) {
@@ -533,6 +548,7 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
         break;
     case QCAMERA_SM_EVT_PREVIEW_ENABLED:
     case QCAMERA_SM_EVT_RECORDING_ENABLED:
+    case QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED:
         {
             result.status = NO_ERROR;
             result.request_api = evt;
@@ -844,7 +860,8 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
         {
-            if (m_bPreviewNeedsRestart) {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 CDBG("Stopping preview for restart...");
                 // need restart preview for parameters to take effect
                 m_parent->unpreparePreview();
@@ -863,7 +880,8 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_COMMIT_START_PREVIEW:
         {
-            if (m_bPreviewNeedsRestart) {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 // prepare preview again
                 rc = m_parent->preparePreview();
                 if (rc != NO_ERROR) {
@@ -944,6 +962,16 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
             result.enabled = 1;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED:
+        {
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
+            result.enabled = m_bPreviewNeedsRestart;
             m_parent->signalAPIResult(&result);
         }
         break;
@@ -1237,7 +1265,8 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
         {
-            if (m_bPreviewNeedsRestart) {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 CDBG("Stopping preview for restart...");
                 // stop preview
                 m_parent->stopPreview();
@@ -1256,7 +1285,8 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_COMMIT_START_PREVIEW:
         {
-            if (m_bPreviewNeedsRestart) {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 CDBG("Starting preview for restart...");
                 // start preview again
                 rc = m_parent->preparePreview();
@@ -1340,6 +1370,17 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
             result.enabled = 1;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED:
+        {
+            applyDelayedMsgs();
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
+            result.enabled = m_bPreviewNeedsRestart;
             m_parent->signalAPIResult(&result);
         }
         break;
@@ -1728,6 +1769,7 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
     case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
     case QCAMERA_SM_EVT_STOP_PREVIEW:
     case QCAMERA_SM_EVT_PREVIEW_ENABLED:
+    case QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED:
     case QCAMERA_SM_EVT_RECORDING_ENABLED:
     case QCAMERA_SM_EVT_STORE_METADATA_IN_BUFS:
     case QCAMERA_SM_EVT_DUMP:
@@ -2006,6 +2048,16 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
             result.enabled = 0;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED:
+        {
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
+            result.enabled = m_bPreviewNeedsRestart;
             m_parent->signalAPIResult(&result);
         }
         break;
@@ -2392,9 +2444,26 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
         }
         break;
     case QCAMERA_SM_EVT_COMMIT_PARAMS:
-    case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
         {
             if (m_bPreviewNeedsRestart) {
+                // cannot set parameters that requires restart during recording
+                ALOGE("%s: Error!! cannot set parameters that requires restart during recording",
+                      __func__);
+                rc = BAD_VALUE;
+            } else {
+                rc = m_parent->commitParameterChanges();
+            }
+            m_bPreviewNeedsRestart = false;
+            result.status          = rc;
+            result.request_api     = evt;
+            result.result_type     = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
+        {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 // cannot set parameters that requires restart during recording
                 ALOGE("%s: Error!! cannot set parameters that requires restart during recording",
                       __func__);
@@ -2443,6 +2512,16 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
             result.enabled = 0;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED:
+        {
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
+            result.enabled = m_bPreviewNeedsRestart;
             m_parent->signalAPIResult(&result);
         }
         break;
@@ -2796,9 +2875,26 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
         }
         break;
     case QCAMERA_SM_EVT_COMMIT_PARAMS:
-    case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
         {
             if (m_bPreviewNeedsRestart) {
+                // cannot set parameters that requires restart during recording
+                ALOGE("%s: Error!! cannot set parameters that requires restart during recording",
+                      __func__);
+                rc = BAD_VALUE;
+            } else {
+                rc = m_parent->commitParameterChanges();
+            }
+            m_bPreviewNeedsRestart = false;
+            result.status          = rc;
+            result.request_api     = evt;
+            result.result_type     = QCAMERA_API_RESULT_TYPE_DEF;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
+        {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 // cannot set parameters that requires restart during recording
                 ALOGE("%s: Error!! cannot set parameters that requires restart during recording",
                       __func__);
@@ -2847,6 +2943,16 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
             result.enabled = 1;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED:
+        {
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
+            result.enabled = m_bPreviewNeedsRestart;
             m_parent->signalAPIResult(&result);
         }
         break;
@@ -3206,7 +3312,8 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
         break;
     case QCAMERA_SM_EVT_COMMIT_STOP_PREVIEW:
         {
-            if (m_bPreviewNeedsRestart) {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 CDBG("Stopping preview for restart...");
                 // stop preview
                 m_parent->stopPreview();
@@ -3225,7 +3332,8 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
         break;
     case QCAMERA_SM_EVT_COMMIT_START_PREVIEW:
         {
-            if (m_bPreviewNeedsRestart) {
+            int needRestart = *((int*)payload);
+            if (m_bPreviewNeedsRestart || needRestart) {
                 CDBG("Starting preview for restart...");
                 // start preview again
                 rc = m_parent->preparePreview();
@@ -3272,6 +3380,16 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
             result.enabled = 1;
+            m_parent->signalAPIResult(&result);
+        }
+        break;
+    case QCAMERA_SM_EVT_PREVIEW_RESTART_NEENED:
+        {
+            rc = NO_ERROR;
+            result.status = rc;
+            result.request_api = evt;
+            result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
+            result.enabled = m_bPreviewNeedsRestart;
             m_parent->signalAPIResult(&result);
         }
         break;
