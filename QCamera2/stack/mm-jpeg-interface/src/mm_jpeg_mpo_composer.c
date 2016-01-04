@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -240,7 +240,7 @@ int mm_jpeg_mpo_update_header(mm_jpeg_mpo_info_t *mpo_info)
   uint8_t *app2_start_off_addr = NULL, *mp_headr_start_off_addr = NULL;
   uint32_t mp_index_ifd_offset = 0, current_offset = 0, mp_entry_val_offset = 0;
   uint8_t *aux_start_addr = NULL;
-  uint8_t overflow_flag;
+  uint8_t overflow_flag = 0;
   int i = 0, rc = -1;
   uint32_t endianess = MPO_LITTLE_ENDIAN, offset_to_nxt_ifd = 8;
   uint16_t ifd_tag_count = 0;
