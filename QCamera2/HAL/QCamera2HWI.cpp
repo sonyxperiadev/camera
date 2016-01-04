@@ -4199,12 +4199,8 @@ int QCamera2HardwareInterface::takePicture()
             // It will be handled along with PRIMARY camera takePicture request
             mm_camera_req_buf_t buf;
             memset(&buf, 0x0, sizeof(buf));
-            if ((!mParameters.isAdvCamFeaturesEnabled() &&
-                    !mFlashNeeded &&
-                    !isLongshotEnabled() &&
-                    getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
-                    (getRelatedCamSyncInfo()->sync_control ==
-                    CAM_SYNC_RELATED_SENSORS_ON)) {
+            if ((getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
+                    m_bMpoEnabled) {
                 if (getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY) {
                     buf.type = MM_CAMERA_REQ_FRAME_SYNC_BUF;
                     buf.num_buf_requested = numSnapshots;
