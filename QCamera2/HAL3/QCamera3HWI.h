@@ -135,7 +135,6 @@ public:
                                    uint32_t tag);
     static bool resetIfNeededROI(cam_area_t* roi, const cam_crop_region_t* scalerCropRegion);
     static void convertLandmarks(cam_face_landmarks_info_t face, int32_t* landmarks);
-    static int32_t getScalarFormat(int32_t format);
     static int32_t getSensorSensitivity(int32_t iso_mode);
 
     double computeNoiseModelEntryS(int32_t sensitivity);

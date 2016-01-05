@@ -7295,42 +7295,6 @@ size_t QCamera3HardwareInterface::filterJpegSizes(int32_t *jpegSizes, int32_t *p
 }
 
 /*===========================================================================
- * FUNCTION   : getPreviewHalPixelFormat
- *
- * DESCRIPTION: convert the format to type recognized by framework
- *
- * PARAMETERS : format : the format from backend
- *
- ** RETURN    : format recognized by framework
- *
- *==========================================================================*/
-int32_t QCamera3HardwareInterface::getScalarFormat(int32_t format)
-{
-    int32_t halPixelFormat;
-
-    switch (format) {
-    case CAM_FORMAT_YUV_420_NV12:
-        halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP;
-        break;
-    case CAM_FORMAT_YUV_420_NV21:
-        halPixelFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
-        break;
-    case CAM_FORMAT_YUV_420_NV21_ADRENO:
-        halPixelFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP_ADRENO;
-        break;
-    case CAM_FORMAT_YUV_420_YV12:
-        halPixelFormat = HAL_PIXEL_FORMAT_YV12;
-        break;
-    case CAM_FORMAT_YUV_422_NV16:
-    case CAM_FORMAT_YUV_422_NV61:
-    default:
-        halPixelFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
-        break;
-    }
-    return halPixelFormat;
-}
-
-/*===========================================================================
  * FUNCTION   : computeNoiseModelEntryS
  *
  * DESCRIPTION: function to map a given sensitivity to the S noise
