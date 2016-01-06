@@ -672,6 +672,11 @@ void *eztune_proc(void *data)
         continue;
       }
 
+      if (client_socket >= FD_SETSIZE) {
+        LOGE("client_socket is out of range. client_socket=%d",client_socket);
+        continue;
+      }
+
       LOGE("accept a new connect on 55555, sd(%d)\n", client_socket);
       num_fds = TUNESERVER_MAX(num_fds, client_socket);
 
@@ -758,6 +763,10 @@ void *eztune_proc(void *data)
         &addr_client_inet.addr, &addr_client_len);
       if (prev_client_socket == -1) {
         LOGE("accept failed %s", strerror(errno));
+        continue;
+      }
+      if (prev_client_socket >= FD_SETSIZE) {
+        LOGE("prev_client_socket is out of range. prev_client_socket=%d",prev_client_socket);
         continue;
       }
 
