@@ -909,7 +909,6 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
         !hw->isHDRMode() && !hw->isLongshotEnabled() &&
         (hw->getRelatedCamSyncInfo()->sync_control != CAM_SYNC_RELATED_SENSORS_ON)) {
         // Set Retro Picture Mode
-        hw->lockAPI();
         hw->setRetroPicture(1);
         hw->m_bLedAfAecLock = 0;
         CDBG_HIGH("%s: [ZSL Retro] mode", __func__);
@@ -926,6 +925,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
 
         /* Call take Picture for total number of snapshots required.
              This includes the number of retro frames and normal frames */
+        hw->lockAPI();
         ret = hw->processAPI(QCAMERA_SM_EVT_TAKE_PICTURE, NULL);
         if (ret == NO_ERROR) {
           // Wait for retro frames, before calling prepare snapshot
