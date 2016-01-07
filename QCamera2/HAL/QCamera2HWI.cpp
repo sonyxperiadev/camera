@@ -4854,12 +4854,16 @@ int QCamera2HardwareInterface::cancelPicture()
     }
 
     if (mParameters.isZSLMode()) {
-        QCameraPicChannel *pZSLChannel =
-            (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
-        if (NULL != pZSLChannel) {
+        QCameraPicChannel *pPicChannel = NULL;
+        if (mParameters.getofflineRAW()) {
+            pPicChannel = (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_RAW];
+        } else {
+            pPicChannel = (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
+        }
+        if (NULL != pPicChannel) {
+            pPicChannel->cancelPicture();
             stopRAWChannel();
-            stopAdvancedCapture(pZSLChannel);
-            pZSLChannel->cancelPicture();
+            stopAdvancedCapture(pPicChannel);
         }
     } else {
 
