@@ -1281,7 +1281,10 @@ QCameraVideoMemory::QCameraVideoMemory(camera_request_memory memory,
     memset(mMetadata, 0, sizeof(mMetadata));
     mMetaBufCount = 0;
     mBufType = bufType;
-    mUsage = 0;
+    //Set Default color conversion format
+    mUsage = private_handle_t::PRIV_FLAGS_ITU_R_709;
+
+    //Set Default frame format
     mFormat = OMX_COLOR_FormatYUV420SemiPlanar;
 }
 
@@ -1320,8 +1323,6 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
         return rc;
     }
 
-    int usage = mUsage | private_handle_t::PRIV_FLAGS_ITU_R_709;
-
     if (!(mBufType & QCAMERA_MEM_TYPE_BATCH)) {
         /*
         *    FDs = 1
@@ -1344,7 +1345,7 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
             nh->data[0] = mMemInfo[i].fd;
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
-            nh->data[3] = usage;
+            nh->data[3] = mUsage;
             nh->data[4] = 0; //dummy value for timestamp in non-batch mode
             nh->data[5] = mFormat;
         }
@@ -1375,8 +1376,6 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
         ATRACE_END();
         return rc;
     }
-
-    int usage = mUsage | private_handle_t::PRIV_FLAGS_ITU_R_709;
 
     if (!(mBufType & QCAMERA_MEM_TYPE_BATCH)) {
         for (int i = mBufferCount; i < count + mBufferCount; i ++) {
@@ -1409,7 +1408,7 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             nh->data[0] = mMemInfo[i].fd;
             nh->data[1] = 0;
             nh->data[2] = (int)mMemInfo[i].size;
-            nh->data[3] = usage;
+            nh->data[3] = mUsage;
             nh->data[4] = 0; //dummy value for timestamp in non-batch mode
             nh->data[5] = mFormat;
         }
@@ -1584,7 +1583,7 @@ int QCameraVideoMemory::getMatchBufIndex(const void *opaque,
  *==========================================================================*/
 void QCameraVideoMemory::setVideoInfo(int usage, cam_format_t format)
 {
-    mUsage = usage;
+    mUsage |= usage;
     mFormat = convCamtoOMXFormat(format);
 }
 
