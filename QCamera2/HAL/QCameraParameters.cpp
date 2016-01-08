@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <gralloc_priv.h>
 #include <sys/sysinfo.h>
+#include "QCameraBufferMaps.h"
 #include "QCamera2HWI.h"
 #include "QCameraParameters.h"
 
@@ -902,7 +903,7 @@ QCameraParameters::QCameraParameters()
     memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
     memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
     memset(&m_relCamSyncInfo, 0, sizeof(cam_sync_related_sensors_event_info_t));
-    mTotalPPCount = 0;
+    mTotalPPCount = 1;
     mZoomLevel = 0;
     mParmZoomLevel = 0;
     mCurPPCount = 0;
@@ -5787,10 +5788,17 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     }
 
     //Map memory for parameters buffer
-    rc = m_pCamOpsTbl->ops->map_buf(m_pCamOpsTbl->camera_handle,
-                             CAM_MAPPING_BUF_TYPE_PARM_BUF,
-                             m_pParamHeap->getFd(0),
-                             sizeof(parm_buffer_t));
+    cam_buf_map_type_list bufMapList;
+    rc = QCameraBufferMaps::makeSingletonBufMapList(
+            CAM_MAPPING_BUF_TYPE_PARM_BUF, 0 /*stream id*/,
+            0 /*buffer index*/, -1 /*plane index*/, 0 /*cookie*/,
+            m_pParamHeap->getFd(0), sizeof(parm_buffer_t), bufMapList);
+
+    if (rc == NO_ERROR) {
+        rc = m_pCamOpsTbl->ops->map_bufs(m_pCamOpsTbl->camera_handle,
+                &bufMapList);
+    }
+
     if(rc < 0) {
         ALOGE("%s:failed to map SETPARM buffer",__func__);
         rc = FAILED_TRANSACTION;
