@@ -633,6 +633,39 @@ void mm_channel_send_super_buf(mm_channel_node_info_t *info)
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_channel_reg_stream_buf_cb
+ *
+ * DESCRIPTION: Register callback for stream buffer
+ *
+ * PARAMETERS :
+ *   @my_obj     : Channel object
+ *   @stream_id  : stream that will be linked
+ *   @buf_cb     : special callback needs to be registered for stream buffer
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 --  failure
+ *==========================================================================*/
+int32_t mm_channel_reg_stream_buf_cb (mm_channel_t* my_obj,
+        uint32_t stream_id, mm_stream_data_cb_t buf_cb)
+{
+    int32_t rc = -1;
+    mm_stream_t* s_obj = mm_channel_util_get_stream_by_handler(my_obj,
+            stream_id);
+
+    if (NULL != s_obj) {
+        if (s_obj->ch_obj != my_obj) {
+            /* No op. on linked streams */
+            return 0;
+        }
+        rc = mm_stream_reg_buf_cb(s_obj, buf_cb);
+    }
+
+    return rc;
+
+}
+
+/*===========================================================================
  * FUNCTION   : mm_channel_fsm_fn
  *
  * DESCRIPTION: channel finite state machine entry function. Depends on channel
@@ -841,6 +874,14 @@ int32_t mm_channel_fsm_fn_stopped(mm_channel_t *my_obj,
             rc = mm_channel_unmap_stream_buf(my_obj, payload);
         }
         break;
+    case MM_CHANNEL_EVT_REG_STREAM_BUF_CB:
+        {
+            mm_evt_paylod_reg_stream_buf_cb *payload =
+                (mm_evt_paylod_reg_stream_buf_cb *)in_val;
+            rc = mm_channel_reg_stream_buf_cb (my_obj,
+                    payload->stream_id, payload->buf_cb);
+        }
+        break;
     default:
         CDBG_ERROR("%s: invalid state (%d) for evt (%d)",
                    __func__, my_obj->state, evt);
@@ -1045,6 +1086,14 @@ int32_t mm_channel_fsm_fn_active(mm_channel_t *my_obj,
             rc = mm_channel_proc_general_cmd(my_obj, &gen_cmd);
         }
         break;
+    case MM_CHANNEL_EVT_REG_STREAM_BUF_CB:
+        {
+            mm_evt_paylod_reg_stream_buf_cb *payload =
+                (mm_evt_paylod_reg_stream_buf_cb *)in_val;
+            rc = mm_channel_reg_stream_buf_cb (my_obj,
+                    payload->stream_id, payload->buf_cb);
+        }
+        break;
      default:
         CDBG_ERROR("%s: invalid state (%d) for evt (%d), in(%p), out(%p)",
                    __func__, my_obj->state, evt, in_val, out_val);
@@ -1240,6 +1289,9 @@ uint32_t mm_channel_add_stream(mm_channel_t *my_obj)
     pthread_mutex_init(&stream_obj->buf_lock, NULL);
     pthread_mutex_init(&stream_obj->cb_lock, NULL);
     pthread_mutex_init(&stream_obj->cmd_lock, NULL);
+    pthread_cond_init(&stream_obj->buf_cond, NULL);
+    memset(stream_obj->buf_status, 0,
+            sizeof(stream_obj->buf_status));
     stream_obj->state = MM_STREAM_STATE_INITED;
 
     /* acquire stream */
@@ -1248,6 +1300,7 @@ uint32_t mm_channel_add_stream(mm_channel_t *my_obj)
         s_hdl = stream_obj->my_hdl;
     } else {
         /* error during acquire, de-init */
+        pthread_cond_destroy(&stream_obj->buf_cond);
         pthread_mutex_destroy(&stream_obj->buf_lock);
         pthread_mutex_destroy(&stream_obj->cb_lock);
         pthread_mutex_destroy(&stream_obj->cmd_lock);

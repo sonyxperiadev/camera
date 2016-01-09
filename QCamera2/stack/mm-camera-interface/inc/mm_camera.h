@@ -207,6 +207,7 @@ typedef struct {
     /* cb_count = -1: infinite
      * cb_count > 0: register only for required times */
     int8_t cb_count;
+    mm_camera_stream_cb_type cb_type;
 } mm_stream_data_cb_t;
 
 typedef struct {
@@ -221,6 +222,8 @@ typedef struct {
 
     /* indicate if buf is in kernel(1) or client(0) */
     uint8_t in_kernel;
+    /*indicate if this buffer is mapped to daemon*/
+    uint8_t is_mapped;
 } mm_stream_buf_status_t;
 
 typedef struct mm_stream {
@@ -249,7 +252,7 @@ typedef struct mm_stream {
     pthread_mutex_t buf_lock;
     uint8_t buf_num; /* num of buffers allocated */
     mm_camera_buf_def_t* buf; /* ptr to buf array */
-    mm_stream_buf_status_t* buf_status; /* ptr to buf status array */
+    mm_stream_buf_status_t buf_status[CAM_MAX_NUM_BUFS_PER_STREAM]; /* ptr to buf status array */
 
     uint8_t plane_buf_num; /* num of plane buffers allocated  Used only in Batch mode*/
     mm_camera_buf_def_t *plane_buf; /*Pointer to plane buffer array Used only in Batch mode */
@@ -276,6 +279,9 @@ typedef struct mm_stream {
     /*latest timestamp of this stream frame received & last frameID*/
     uint32_t prev_frameID;
     nsecs_t prev_timestamp;
+
+    /* Need to wait for buffer mapping before stream-on*/
+    pthread_cond_t buf_cond;
 } mm_stream_t;
 
 /* mm_channel */
@@ -315,7 +321,8 @@ typedef enum {
     MM_CHANNEL_EVT_ZOOM_1X,
     MM_CAMERA_EVT_CAPTURE_SETTING,
     MM_CHANNEL_EVT_GET_STREAM_QUEUED_BUF_COUNT,
-    MM_CHANNEL_EVT_MAP_STREAM_BUFS
+    MM_CHANNEL_EVT_MAP_STREAM_BUFS,
+    MM_CHANNEL_EVT_REG_STREAM_BUF_CB
 } mm_channel_evt_type_t;
 
 typedef struct {
@@ -332,6 +339,12 @@ typedef struct {
     uint32_t stream_id;
     void *actions;
 } mm_evt_paylod_do_stream_action_t;
+
+typedef struct {
+    uint32_t stream_id;
+    mm_stream_data_cb_t buf_cb;
+} mm_evt_paylod_reg_stream_buf_cb;
+
 
 typedef struct {
     uint8_t num_of_bufs;
@@ -612,6 +625,11 @@ extern uint32_t mm_camera_link_stream(mm_camera_obj_t *my_obj,
         uint32_t ch_id,
         uint32_t stream_id,
         uint32_t linked_ch_id);
+
+extern int32_t mm_camera_reg_stream_buf_cb(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id, mm_camera_buf_notify_t buf_cb,
+        mm_camera_stream_cb_type cb_type, void *userdata);
+
 extern int32_t mm_camera_config_stream(mm_camera_obj_t *my_obj,
                                        uint32_t ch_id,
                                        uint32_t stream_id,
@@ -686,13 +704,9 @@ extern int32_t mm_stream_fsm_fn(mm_stream_t *my_obj,
                                 mm_stream_evt_type_t evt,
                                 void * in_val,
                                 void * out_val);
-/* Allow other stream to register dataCB at certain stream.
- * This is for use case of video sized live snapshot,
- * because snapshot stream need register one time CB at video stream.
- * ext_image_mode and sensor_idx are used to identify the destinate stream
- * to be register with dataCB. */
+/* Function to register special callback for stream buffer*/
 extern int32_t mm_stream_reg_buf_cb(mm_stream_t *my_obj,
-                                    mm_stream_data_cb_t *val);
+        mm_stream_data_cb_t val);
 extern int32_t mm_stream_map_buf(mm_stream_t *my_obj,
                                  uint8_t buf_type,
                                  uint32_t frame_idx,
