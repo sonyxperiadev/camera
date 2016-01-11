@@ -127,6 +127,7 @@ typedef struct {
 #define QCAMERA_DUMP_FRM_THUMBNAIL           (1<<3)
 #define QCAMERA_DUMP_FRM_RAW                 (1<<4)
 #define QCAMERA_DUMP_FRM_JPEG                (1<<5)
+#define QCAMERA_DUMP_FRM_INPUT_REPROCESS     (1<<6)
 
 #define QCAMERA_DUMP_FRM_MASK_ALL    0x000000ff
 

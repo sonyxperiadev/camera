@@ -83,12 +83,10 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
 
     mPostProcMask = postprocess_mask;
 
-    char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.yuv.dump", prop, "0");
-    mYUVDump = (uint8_t) atoi(prop);
     mIsType = IS_TYPE_NONE;
     mNumBuffers = numBuffers;
     mPerFrameMapUnmapEnable = true;
+    dumpFrmCnt = 0;
 }
 
 /*===========================================================================
@@ -488,28 +486,91 @@ void QCamera3Channel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
  * RETURN  :
  *==========================================================================*/
 void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
-        cam_frame_len_offset_t offset, uint8_t name)
+        cam_frame_len_offset_t offset, uint8_t dump_type)
 {
     char buf[FILENAME_MAX];
     memset(buf, 0, sizeof(buf));
     static int counter = 0;
-    /* Note that the image dimension will be the unrotated stream dimension.
-     * If you feel that the image would have been rotated during reprocess
-     * then swap the dimensions while opening the file
-     * */
-    snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"%d_%d_%d_%dx%d.yuv",
-            name, counter, frame->frame_idx, dim.width, dim.height);
-    counter++;
-    int file_fd = open(buf, O_RDWR | O_CREAT, 0644);
-    if (file_fd >= 0) {
-        ssize_t written_len = write(file_fd, frame->buffer, offset.frame_len);
-        ALOGE("%s: written number of bytes %d", __func__, written_len);
-        close(file_fd);
-    } else {
-        ALOGE("%s: failed to open file to dump image", __func__);
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.dumpimg", prop, "0");
+    mYUVDump = (uint8_t) atoi(prop);
+    if (mYUVDump & dump_type) {
+        frm_num = ((mYUVDump & 0xffff0000) >> 16);
+        if (frm_num == 0) {
+            frm_num = 10;
+        }
+        if (frm_num > 256) {
+            frm_num = 256;
+        }
+        skip_mode = ((mYUVDump & 0x0000ff00) >> 8);
+        if (skip_mode == 0) {
+            skip_mode = 1;
+        }
+        if (mDumpSkipCnt == 0) {
+            mDumpSkipCnt = 1;
+        }
+        if (mDumpSkipCnt % skip_mode == 0) {
+            if (dumpFrmCnt <= frm_num) {
+                /* Note that the image dimension will be the unrotated stream dimension.
+                * If you feel that the image would have been rotated during reprocess
+                * then swap the dimensions while opening the file
+                * */
+                switch (dump_type) {
+                    case QCAMERA_DUMP_FRM_PREVIEW:
+                        snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"p_%d_%d_%dx%d.yuv",
+                            counter, frame->frame_idx, dim.width, dim.height);
+                    break;
+                    case QCAMERA_DUMP_FRM_VIDEO:
+                        snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"v_%d_%d_%dx%d.yuv",
+                            counter, frame->frame_idx, dim.width, dim.height);
+                    break;
+                    case QCAMERA_DUMP_FRM_SNAPSHOT:
+                        snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"s_%d_%d_%dx%d.yuv",
+                            counter, frame->frame_idx, dim.width, dim.height);
+                    break;
+                    case QCAMERA_DUMP_FRM_INPUT_REPROCESS:
+                        snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"ir_%d_%d_%dx%d.yuv",
+                            counter, frame->frame_idx, dim.width, dim.height);
+                    break;
+                    case QCAMERA_DUMP_FRM_CALLBACK:
+                        snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"c_%d_%d_%dx%d.yuv",
+                            counter, frame->frame_idx, dim.width, dim.height);
+                    break;
+                    default :
+                        ALOGE("%s: dumping not enabled for stream type %d",__func__,dump_type);
+                    break;
+                }
+                counter++;
+                int file_fd = open(buf, O_RDWR | O_CREAT, 0777);
+                ssize_t written_len = 0;
+                if (file_fd >= 0) {
+                    void *data = NULL;
+                    fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                    for (uint32_t i = 0; i < offset.num_planes; i++) {
+                        uint32_t index = offset.mp[i].offset;
+                        if (i > 0) {
+                            index += offset.mp[i-1].len;
+                        }
+                        for (int j = 0; j < offset.mp[i].height; j++) {
+                            data = (void *)((uint8_t *)frame->buffer + index);
+                            written_len += write(file_fd, data,
+                                    (size_t)offset.mp[i].width);
+                            index += (uint32_t)offset.mp[i].stride;
+                        }
+                    }
+                    CDBG_HIGH("%s: written number of bytes %ld\n",
+                             __func__, written_len);
+                    dumpFrmCnt++;
+                    close(file_fd);
+                } else {
+                    ALOGE("%s: failed to open file to dump image", __func__);
+                }
+            }
+        } else {
+            mDumpSkipCnt++;
+        }
     }
 }
-
 
 /*===========================================================================
  * FUNCTION   : isUBWCEnabled
@@ -721,7 +782,11 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
     buffer_handle_t *resultBuffer;
     int32_t resultFrameNumber;
     camera3_stream_buffer_t result;
+    cam_dimension_t dim;
+    cam_frame_len_offset_t offset;
 
+    memset(&dim, 0, sizeof(dim));
+    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
     if (checkStreamCbErrors(super_frame, stream) != NO_ERROR) {
         ALOGE("%s: Error with the stream callback", __func__);
         return;
@@ -737,7 +802,15 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
     if (mDebugFPS) {
         showDebugFPS(stream->getMyType());
     }
-
+    stream->getFrameDimension(dim);
+    stream->getFrameOffset(offset);
+    if (stream->getMyType() == CAM_STREAM_TYPE_PREVIEW) {
+        dumpYUV(super_frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_PREVIEW);
+    } else if (stream->getMyType() == CAM_STREAM_TYPE_VIDEO) {
+        dumpYUV(super_frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_VIDEO);
+    } else if (stream->getMyType() == CAM_STREAM_TYPE_CALLBACK) {
+        dumpYUV(super_frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_CALLBACK);
+    }
     ////Use below data to issue framework callback
     resultBuffer = (buffer_handle_t *)mMemory.getBufferHandle(frameIndex);
     resultFrameNumber = mMemory.getFrameNumber(frameIndex);
@@ -1014,11 +1087,8 @@ int32_t QCamera3ProcessingChannel::setFwkInputPPData(qcamera_fwk_input_pp_data_t
     if (rc != 0) {
         return rc;
     }
-    if (mYUVDump) {
-       dumpYUV(&src_frame->input_buffer, reproc_cfg->input_stream_dim,
-               reproc_cfg->input_stream_plane_info.plane_info, 1);
-    }
-
+    dumpYUV(&src_frame->input_buffer, reproc_cfg->input_stream_dim,
+            reproc_cfg->input_stream_plane_info.plane_info, QCAMERA_DUMP_FRM_INPUT_REPROCESS);
     cam_dimension_t dim = {sizeof(metadata_buffer_t), 1};
     cam_stream_buf_plane_info_t meta_planes;
     rc = mm_stream_calc_offset_metadata(&dim, &mPaddingInfo, &meta_planes);
@@ -3351,6 +3421,11 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
     //Got the yuv callback. Calling yuv callback handler in PostProc
     uint8_t frameIndex;
     mm_camera_super_buf_t* frame = NULL;
+    cam_dimension_t dim;
+    cam_frame_len_offset_t offset;
+
+    memset(&dim, 0, sizeof(dim));
+    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
 
     if (checkStreamCbErrors(super_frame, stream) != NO_ERROR) {
         ALOGE("%s: Error with the stream callback", __func__);
@@ -3382,16 +3457,9 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
        return;
     }
     *frame = *super_frame;
-
-    if (mYUVDump) {
-        cam_dimension_t dim;
-        memset(&dim, 0, sizeof(dim));
-        stream->getFrameDimension(dim);
-        cam_frame_len_offset_t offset;
-        memset(&offset, 0, sizeof(cam_frame_len_offset_t));
-        stream->getFrameOffset(offset);
-        dumpYUV(frame->bufs[0], dim, offset, 1);
-    }
+    stream->getFrameDimension(dim);
+    stream->getFrameOffset(offset);
+    dumpYUV(frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_INPUT_REPROCESS);
 
     m_postprocessor.processData(frame);
     free(super_frame);
@@ -3674,7 +3742,11 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
     uint32_t resultFrameNumber;
     mm_camera_super_buf_t* frame = NULL;
     QCamera3ProcessingChannel *obj = (QCamera3ProcessingChannel *)inputChHandle;
+    cam_dimension_t dim;
+    cam_frame_len_offset_t offset;
 
+    memset(&dim, 0, sizeof(dim));
+    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
     if(!super_frame) {
          ALOGE("%s: Invalid Super buffer",__func__);
          return;
@@ -3691,15 +3763,6 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
     }
     frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
 
-    if (mYUVDump) {
-        cam_dimension_t dim;
-        memset(&dim, 0, sizeof(dim));
-        stream->getFrameDimension(dim);
-        cam_frame_len_offset_t offset;
-        memset(&offset, 0, sizeof(cam_frame_len_offset_t));
-        stream->getFrameOffset(offset);
-        dumpYUV(super_frame->bufs[0], dim, offset, 2);
-    }
 
     if (mReprocessType == REPROCESS_TYPE_JPEG) {
         resultFrameNumber =  mMemory->getFrameNumber(frameIndex);
@@ -3716,6 +3779,9 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
             __func__, (uint32_t)frameIndex);
         *frame = *super_frame;
 
+        stream->getFrameDimension(dim);
+        stream->getFrameOffset(offset);
+        dumpYUV(frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_SNAPSHOT);
         /* Since reprocessing is done, send the callback to release the input buffer */
         if (mChannelCB) {
             mChannelCB(NULL, NULL, resultFrameNumber, true, mUserData);
