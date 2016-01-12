@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -888,7 +888,8 @@ QCameraParameters::QCameraParameters()
       m_bLtmForSeeMoreEnabled(false),
       m_expTime(0),
       m_isoValue(0),
-      m_ManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF)
+      m_ManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF),
+      m_dualLedCalibration(0)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1013,7 +1014,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bLtmForSeeMoreEnabled(false),
     m_expTime(0),
     m_isoValue(0),
-    m_ManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF)
+    m_ManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF),
+    m_dualLedCalibration(0)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -5054,6 +5056,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     if ((rc = setNoiseReductionMode(params)))           final_rc = rc;
 
     if ((rc = setLongshotParam(params)))                final_rc = rc;
+    if ((rc = setDualLedCalibration(params)))           final_rc = rc;
 
     setVideoBatchSize();
     setLowLightCapture();
@@ -13841,6 +13844,44 @@ bool QCameraParameters::isUnderReprocScaling()
 int32_t QCameraParameters::getPicSizeFromAPK(int &width, int &height)
 {
     return m_reprocScaleParam.getPicSizeFromAPK(width, height);
+}
+
+
+
+/*===========================================================================
+ * FUNCTION   : setDualLedCalibration
+ *
+ * DESCRIPTION: set dual led calibration
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setDualLedCalibration(const QCameraParameters& params)
+{
+    int32_t rc = NO_ERROR;
+    char value[PROPERTY_VALUE_MAX];
+    int32_t calibration = 0;
+
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.dual_led_calib", value, "0");
+    calibration = atoi(value);
+    if (calibration != m_dualLedCalibration) {
+      m_dualLedCalibration = calibration;
+      LOGD("%s:updating calibration=%d m_dualLedCalibration=%d",
+        __func__, calibration, m_dualLedCalibration);
+
+      if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+               CAM_INTF_PARM_DUAL_LED_CALIBRATION,
+               m_dualLedCalibration)) {
+          LOGE("%s:Failed to update dual led calibration param", __func__);
+          return BAD_VALUE;
+      }
+    }
+    return NO_ERROR;
 }
 
 }; // namespace qcamera
