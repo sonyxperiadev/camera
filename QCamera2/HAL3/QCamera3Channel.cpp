@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -1425,6 +1425,11 @@ int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cf
 
     switch (reproc_cfg.stream_type) {
         case CAM_STREAM_TYPE_PREVIEW:
+            if (getStreamByIndex(0) == NULL) {
+                LOGE("Could not find stream");
+                rc = -1;
+                break;
+            }
             rc = mm_stream_calc_offset_preview(
                     getStreamByIndex(0)->getStreamInfo(),
                     &reproc_cfg.input_stream_dim,

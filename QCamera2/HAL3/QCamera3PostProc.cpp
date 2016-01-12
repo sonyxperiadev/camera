@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -1826,7 +1826,10 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                             LOGE("no mem for qcamera_hal3_pp_data_t");
                             ret = -1;
                         } else if (meta_buffer == NULL) {
-                            LOGE("no mem for mm_camera_super_buf_t");
+                            LOGE("failed to dequeue from m_inputMetaQ");
+                            ret = -1;
+                        } else if (pp_buffer == NULL) {
+                            LOGE("failed to dequeue from m_inputPPQ");
                             ret = -1;
                         } else {
                             memset(pp_job, 0, sizeof(qcamera_hal3_pp_data_t));
