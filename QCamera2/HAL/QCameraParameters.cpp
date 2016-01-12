@@ -4712,6 +4712,39 @@ int32_t QCameraParameters::setLongshotParam(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : setDualLedCalibration
+ *
+ * DESCRIPTION: set dual led calibration
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setDualLedCalibration()
+{
+    char value[PROPERTY_VALUE_MAX];
+    uint32_t calibration = 0;
+
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.dual_led_calib", value, "0");
+
+    calibration = (uint32_t)atoi(value);
+
+    CDBG_HIGH("%s: Dual led calibration %d", __func__, calibration);
+
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+            CAM_INTF_PARM_DUAL_LED_CALIBRATION, calibration)) {
+        ALOGE("%s:Failed to update dual led calibration param", __func__);
+        return BAD_VALUE;
+    }
+
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : updateParameters
  *
  * DESCRIPTION: update parameters from user setting
@@ -4823,6 +4856,7 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
 
     if ((rc = updateFlash(false)))                      final_rc = rc;
     if ((rc = setLongshotParam(params)))                final_rc = rc;
+    if ((rc = setDualLedCalibration()))                 final_rc = rc;
 #ifdef TARGET_TS_MAKEUP
     if (params.get(KEY_TS_MAKEUP) != NULL) {
         set(KEY_TS_MAKEUP,params.get(KEY_TS_MAKEUP));
