@@ -4038,7 +4038,11 @@ int32_t QCameraParameters::setRecordingHint(const QCameraParameters& params)
                 updateParamEntry(KEY_RECORDING_HINT, str);
                 setRecordingHintValue(value);
                 if (getFaceDetectionOption() == true) {
-                    setFaceDetection(value > 0 ? false : true, false);
+                    if (!isFDInVideoEnabled()) {
+                        setFaceDetection(value > 0 ? false : true, false);
+                    } else {
+                        setFaceDetection(true, false);
+                    }
                 }
                 if (m_bDISEnabled) {
                     CDBG_HIGH("%s: %d: Setting DIS value again", __func__, __LINE__);
@@ -12234,7 +12238,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         // Analysis stream is needed in all use cases of DCRF and needed only in camera mode in
         // in non DCRF use cases
         if ((getDcrf() == true) ||
-                (getRecordingHintValue() != true)) {
+                (getRecordingHintValue() != true) ||
+                (isFDInVideoEnabled())) {
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_ANALYSIS;
             getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
@@ -13363,6 +13368,26 @@ int32_t QCameraParameters::setInstantAEC(uint8_t enable, bool initCommit)
     CDBG_HIGH(" setInstantAEC set value %d", enable);
     m_bInstantAEC = enable;
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : isFDInVideoEnabled
+ *
+ * DESCRIPTION: FD in Video change
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : TRUE  : If FD in Video enabled
+ *              FALSE : If FD in Video disabled
+ *==========================================================================*/
+bool QCameraParameters::isFDInVideoEnabled()
+{
+    char value[PROPERTY_VALUE_MAX];
+    bool fdvideo = FALSE;
+    property_get("persist.camera.fdvideo", value, "0");
+    fdvideo = (atoi(value) > 0) ? TRUE : FALSE;
+    CDBG("%s: FD in Video enabled : %d", __func__, fdvideo);
+    return fdvideo;
 }
 
 }; // namespace qcamera
