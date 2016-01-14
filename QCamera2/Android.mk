@@ -41,17 +41,18 @@ LOCAL_SRC_FILES += \
 
 LOCAL_CFLAGS := -Wall -Wextra -Werror
 
-LOCAL_CFLAGS += -DHAS_MULTIMEDIA_HINTS
+LOCAL_CFLAGS += -DHAS_MULTIMEDIA_HINTS -D_ANDROID_
 
 ifeq ($(TARGET_USES_AOSP),true)
 LOCAL_CFLAGS += -DVANILLA_HAL
 endif
 
 #HAL 1.0 Flags
-LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3
+LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3 -DQCAMERA_REDEFINE_LOG
 
 LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/stack/common \
+        $(LOCAL_PATH)/stack/mm-camera-interface/inc \
         frameworks/native/include/media/hardware \
         frameworks/native/include/media/openmax \
         hardware/qcom/media/libstagefrighthw \
@@ -59,7 +60,7 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/../mm-image-codec/qexif \
         $(LOCAL_PATH)/../mm-image-codec/qomx_core \
         $(LOCAL_PATH)/util \
-        hardware/qcom/media/mm-core/inc \
+        hardware/qcom/media/mm-core/inc
 
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \

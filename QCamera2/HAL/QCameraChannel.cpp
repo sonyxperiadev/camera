@@ -175,7 +175,7 @@ int32_t QCameraChannel::init(mm_camera_channel_attr_t *attr,
                                       dataCB,
                                       userData);
     if (m_handle == 0) {
-        ALOGE("%s: Add channel failed", __func__);
+        LOGE("Add channel failed");
         return UNKNOWN_ERROR;
     }
     return NO_ERROR;
@@ -209,8 +209,8 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
 {
     int32_t rc = NO_ERROR;
     if (mStreams.size() >= MAX_STREAM_NUM_IN_BUNDLE) {
-        ALOGE("%s: stream number (%zu) exceeds max limit (%d)",
-              __func__, mStreams.size(), MAX_STREAM_NUM_IN_BUNDLE);
+        LOGE("stream number (%zu) exceeds max limit (%d)",
+               mStreams.size(), MAX_STREAM_NUM_IN_BUNDLE);
         if (streamInfoBuf != NULL) {
             streamInfoBuf->deallocate();
             delete streamInfoBuf;
@@ -222,7 +222,7 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
             m_camHandle, m_handle, m_camOps, paddingInfo, bDeffAlloc,
             online_rotation);
     if (pStream == NULL) {
-        ALOGE("%s: No mem for Stream", __func__);
+        LOGE("No mem for Stream");
         if (streamInfoBuf != NULL) {
             streamInfoBuf->deallocate();
             delete streamInfoBuf;
@@ -267,7 +267,7 @@ int32_t QCameraChannel::linkStream(QCameraChannel *ch, QCameraStream *stream)
             stream->getMyHandle(),
             m_handle);
     if (0 == handle) {
-        ALOGE("%s : Linking of stream failed", __func__);
+        LOGE("Linking of stream failed");
         rc = INVALID_OPERATION;
     } else {
         mStreams.add(stream);
@@ -298,7 +298,7 @@ int32_t QCameraChannel::start()
         memset(&bundleInfo, 0, sizeof(bundleInfo));
         rc = m_camOps->get_bundle_info(m_camHandle, m_handle, &bundleInfo);
         if (rc != NO_ERROR) {
-            ALOGE("%s: get_bundle_info failed", __func__);
+            LOGE("get_bundle_info failed");
             return rc;
         }
         if (bundleInfo.num_of_streams > 1) {
@@ -318,7 +318,7 @@ int32_t QCameraChannel::start()
                     param.bundleInfo = bundleInfo;
                     rc = pStream->setParameter(param);
                     if (rc != NO_ERROR) {
-                        ALOGE("%s: stream setParameter for set bundle failed", __func__);
+                        LOGE("stream setParameter for set bundle failed");
                         return rc;
                     }
                 }
@@ -583,7 +583,7 @@ int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param
                         (uint32_t)param.getFlipMode(CAM_STREAM_TYPE_PREVIEW);
                 rc = mStreams[i]->setParameter(param_buf);
                 if (rc != NO_ERROR) {
-                    ALOGE("%s: set preview stream flip failed", __func__);
+                    LOGE("set preview stream flip failed");
                 }
             }
         }
@@ -602,7 +602,7 @@ int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param
                         (uint32_t)param.getFlipMode(CAM_STREAM_TYPE_VIDEO);
                 rc = mStreams[i]->setParameter(param_buf);
                 if (rc != NO_ERROR) {
-                    ALOGE("%s: set video stream flip failed", __func__);
+                    LOGE("set video stream flip failed");
                 }
             }
         }
@@ -623,7 +623,7 @@ int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param
                         (uint32_t)param.getFlipMode(CAM_STREAM_TYPE_SNAPSHOT);
                 rc = mStreams[i]->setParameter(param_buf);
                 if (rc != NO_ERROR) {
-                    ALOGE("%s: set snapshot stream flip failed", __func__);
+                    LOGE("set snapshot stream flip failed");
                 }
             }
         }
@@ -873,7 +873,7 @@ int32_t QCameraVideoChannel::releaseFrame(const void * opaque, bool isMetaData)
     }
 
     if (NULL == pVideoStream) {
-        ALOGE("%s: No video stream in the channel", __func__);
+        LOGE("No video stream in the channel");
         return BAD_VALUE;
     }
 
@@ -975,7 +975,7 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
     padding.offset_info.offset_x = 0;
     padding.offset_info.offset_y = 0;
 
-    CDBG("%s : %d: num of src stream = %d", __func__, __LINE__, pSrcChannel->getNumOfStreams());
+    LOGD("num of src stream = %d", pSrcChannel->getNumOfStreams());
 
     for (uint32_t i = 0; i < pSrcChannel->getNumOfStreams(); i++) {
         cam_pp_feature_config_t pp_featuremask = featureConfig;
@@ -1036,7 +1036,7 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
 
             pStreamInfoBuf = allocator.allocateStreamInfoBuf(CAM_STREAM_TYPE_OFFLINE_PROC);
             if (pStreamInfoBuf == NULL) {
-                ALOGE("%s: no mem for stream info buf", __func__);
+                LOGE("no mem for stream info buf");
                 rc = NO_MEMORY;
                 break;
             }
@@ -1158,8 +1158,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                     streamInfo->dim.height =
                             streamInfo->reprocess_config.pp_feature_config.scale_param.output_height;
                 }
-                CDBG_HIGH("%s: stream width=%d, height=%d.",
-                        __func__, streamInfo->dim.width, streamInfo->dim.height);
+                LOGH("stream width=%d, height=%d.",
+                         streamInfo->dim.width, streamInfo->dim.height);
             }
 
             // save source stream handler
@@ -1167,7 +1167,7 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
 
             pMiscBuf = allocator.allocateMiscBuf(streamInfo);
 
-            CDBG_HIGH("Configure Reprocessing: stream = %d, res = %dX%d, fmt = %d, type = %d",
+            LOGH("Configure Reprocessing: stream = %d, res = %dX%d, fmt = %d, type = %d",
                     pStream->getMyOriginalType(), streamInfo->dim.width,
                     streamInfo->dim.height, streamInfo->fmt, type);
 
@@ -1182,7 +1182,7 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                         minStreamBufNum, &padding, NULL, NULL, false, false);
             }
             if (rc != NO_ERROR) {
-                ALOGE("%s: add reprocess stream failed, ret = %d", __func__, rc);
+                LOGE("add reprocess stream failed, ret = %d", rc);
                 break;
             }
         }
@@ -1244,8 +1244,8 @@ int32_t QCameraReprocessChannel::stop()
                                          (*it).index,
                                          -1);
                 if (NO_ERROR != error) {
-                    ALOGE("%s: Error during offline buffer unmap %d",
-                          __func__, error);
+                    LOGE("Error during offline buffer unmap %d",
+                           error);
                 }
             }
         }
@@ -1277,14 +1277,14 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
     uint32_t meta_buf_index = 0;
 
     if ((frame == NULL) || (meta_buf == NULL)) {
-        ALOGE("%s: Invalid Input Paramters", __func__);
+        LOGE("Invalid Input Paramters");
         return INVALID_OPERATION;
     }
 
     if (pStream == NULL) {
         pStream = getStreamBySrouceHandle(frame->stream_id);
         if (pStream == NULL) {
-            ALOGE("%s: Input validation failed.", __func__);
+            LOGE("Input validation failed.");
             return INVALID_OPERATION;
         }
     }
@@ -1305,8 +1305,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
                 meta_buf->fd,
                 meta_buf->frame_len);
         if (NO_ERROR != rc ) {
-            ALOGE("%s : Error during metadata buffer mapping",
-                  __func__);
+            LOGE("Error during metadata buffer mapping");
             rc = -1;
             return rc;
         }
@@ -1324,8 +1323,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
              frame->fd,
              frame->frame_len);
     if (NO_ERROR != rc ) {
-        ALOGE("%s : Error during reprocess input buffer mapping",
-              __func__);
+        LOGE("Error during reprocess input buffer mapping");
         rc = -1;
         return rc;
     }
@@ -1346,14 +1344,13 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
         param.reprocess.meta_buf_index = meta_buf_index;
     }
 
-    CDBG_HIGH("%s: Offline reprocessing id = %d buf Id = %d meta index = %d type = %d",
-            __func__, param.reprocess.frame_idx, param.reprocess.buf_index,
+    LOGH("Offline reprocessing id = %d buf Id = %d meta index = %d type = %d",
+             param.reprocess.frame_idx, param.reprocess.buf_index,
             param.reprocess.meta_buf_index, pStream->getMyOriginalType());
 
     rc = pStream->setParameter(param);
     if (rc != NO_ERROR) {
-        ALOGE("%s: stream setParameter for reprocess failed",
-              __func__);
+        LOGE("stream setParameter for reprocess failed");
         return rc;
     }
     return rc;
@@ -1381,16 +1378,16 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
     QCameraStream *pStream = NULL;
 
     if (mStreams.size() < 1) {
-        ALOGE("%s: No reprocess streams", __func__);
+        LOGE("No reprocess streams");
         return -1;
     }
     if (m_pSrcChannel == NULL) {
-        ALOGE("%s: No source channel for reprocess", __func__);
+        LOGE("No source channel for reprocess");
         return -1;
     }
 
     if (frame == NULL) {
-        ALOGE("%s: Invalid source frame", __func__);
+        LOGE("Invalid source frame");
         return BAD_VALUE;
     }
 
@@ -1446,8 +1443,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
                                 }
                             }
                         } else {
-                            ALOGE("%s: No space to add reprocess stream crop/roi information",
-                                   __func__);
+                            LOGE("No space to add reprocess stream crop/roi information");
                         }
                     }
                 }
@@ -1480,16 +1476,16 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
 {
     int32_t rc = 0;
     if (mStreams.size() < 1) {
-        ALOGE("%s: No reprocess streams", __func__);
+        LOGE("No reprocess streams");
         return -1;
     }
     if (m_pSrcChannel == NULL) {
-        ALOGE("%s: No source channel for reprocess", __func__);
+        LOGE("No source channel for reprocess");
         return -1;
     }
 
     if (pMetaStream == NULL) {
-        CDBG_HIGH("%s: Null Metadata buffer for processing", __func__);
+        LOGH("Null Metadata buffer for processing");
     }
 
     for (uint32_t i = 0; i < frame->num_bufs; i++) {
@@ -1522,13 +1518,13 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
                 param.reprocess.meta_buf_index = meta_buf_index;
             }
 
-            CDBG_HIGH("%s: Online reprocessing id = %d buf Id = %d meta index = %d type = %d",
-                    __func__, param.reprocess.frame_idx, param.reprocess.buf_index,
+            LOGH("Online reprocessing id = %d buf Id = %d meta index = %d type = %d",
+                     param.reprocess.frame_idx, param.reprocess.buf_index,
                     param.reprocess.meta_buf_index, pStream->getMyOriginalType());
 
             rc = pStream->setParameter(param);
             if (rc != NO_ERROR) {
-                ALOGE("%s: stream setParameter for reprocess failed", __func__);
+                LOGE("stream setParameter for reprocess failed");
                 break;
             }
         }
@@ -1556,7 +1552,7 @@ int32_t QCameraReprocessChannel::doReprocess(int buf_fd,
 {
     int32_t rc = 0;
     if (mStreams.size() < 1) {
-        ALOGE("%s: No reprocess streams", __func__);
+        LOGE("No reprocess streams");
         return -1;
     }
 

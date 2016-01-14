@@ -27,7 +27,6 @@
  *
  */
 
-#define ALOG_NIDEBUG 0
 #define LOG_TAG "QCameraMuxer"
 #include <utils/Log.h>
 #include <utils/threads.h>
@@ -58,37 +57,37 @@ QCameraMuxer *gMuxer = NULL;
 //Error Check Macros
 #define CHECK_MUXER() \
     if (!gMuxer) { \
-        ALOGE("%s[%d]: Error getting muxer ", __func__, __LINE__); \
+        LOGE("Error getting muxer "); \
         return; \
     } \
 
 #define CHECK_MUXER_ERROR() \
     if (!gMuxer) { \
-        ALOGE("%s[%d]: Error getting muxer ", __func__, __LINE__); \
+        LOGE("Error getting muxer "); \
         return -ENODEV; \
     } \
 
 #define CHECK_CAMERA(pCam) \
     if (!pCam) { \
-        ALOGE("%s[%d]: Error getting physical camera", __func__, __LINE__); \
+        LOGE("Error getting physical camera"); \
         return; \
     } \
 
 #define CHECK_CAMERA_ERROR(pCam) \
     if (!pCam) { \
-        ALOGE("%s[%d]: Error getting physical camera", __func__, __LINE__); \
+        LOGE("Error getting physical camera"); \
         return -ENODEV; \
     } \
 
 #define CHECK_HWI(hwi) \
     if (!hwi) { \
-        ALOGE("%s[%d]: Error !! HWI not found!!", __func__, __LINE__); \
+        LOGE("Error !! HWI not found!!"); \
         return; \
     } \
 
 #define CHECK_HWI_ERROR(hwi) \
     if (!hwi) { \
-        ALOGE("%s[%d]: Error !! HWI not found!!", __func__, __LINE__); \
+        LOGE("Error !! HWI not found!!"); \
         return -ENODEV; \
     } \
 
@@ -113,7 +112,7 @@ void QCameraMuxer::getCameraMuxer(
     }
     CHECK_MUXER();
     *pMuxer = gMuxer;
-    CDBG_HIGH("%s[%d]: gMuxer: %p ", __func__, __LINE__, gMuxer);
+    LOGH("gMuxer: %p ", gMuxer);
     return;
 }
 
@@ -160,7 +159,7 @@ QCameraMuxer::QCameraMuxer(uint32_t num_of_cameras)
     char prop[PROPERTY_VALUE_MAX];
     property_get("persist.camera.dual.camera.dump", prop, "0");
     m_bDumpImages = atoi(prop);
-    CDBG_HIGH("%s: dualCamera dump images:%d ", __func__, m_bDumpImages);
+    LOGH("dualCamera dump images:%d ", m_bDumpImages);
 }
 
 /*===========================================================================
@@ -223,16 +222,16 @@ int QCameraMuxer::get_number_of_cameras()
 int QCameraMuxer::get_camera_info(int camera_id, struct camera_info *info)
 {
     int rc = NO_ERROR;
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     cam_sync_type_t type;
     if ((camera_id < 0) || (camera_id >= gMuxer->getNumberOfCameras())) {
-        ALOGE("%s : Camera id %d not found!", __func__, camera_id);
+        LOGE("Camera id %d not found!", camera_id);
         return -ENODEV;
     }
     if(info) {
         rc = gMuxer->getCameraInfo(camera_id, info, &type);
     }
-    CDBG_HIGH("%s: X, rc: %d", __func__, rc);
+    LOGH("X, rc: %d", rc);
     return rc;
 }
 
@@ -275,14 +274,14 @@ int QCameraMuxer::camera_device_open(
         struct hw_device_t **hw_device)
 {
     int rc = NO_ERROR;
-    CDBG_HIGH("%s[%d]: id= %d", __func__, __LINE__, atoi(id));
+    LOGH("id= %d",atoi(id));
     if (!id) {
-        ALOGE("%s: Invalid camera id", __func__);
+        LOGE("Invalid camera id");
         return BAD_VALUE;
     }
 
     rc =  gMuxer->cameraDeviceOpen(atoi(id), hw_device);
-    CDBG_HIGH("%s[%d]: id= %d, rc: %d", __func__, __LINE__, atoi(id), rc);
+    LOGH("id= %d, rc: %d", atoi(id), rc);
     return rc;
 }
 
@@ -306,14 +305,14 @@ int QCameraMuxer::open_legacy(const struct hw_module_t* module,
         const char* id, uint32_t halVersion, struct hw_device_t** hw_device)
 {
     int rc = NO_ERROR;
-    CDBG_HIGH("%s[%d]: id= %d", __func__, __LINE__, atoi(id));
+    LOGH("id= %d", atoi(id));
     if (!id) {
-        ALOGE("%s: Invalid camera id", __func__);
+        LOGE("Invalid camera id");
         return BAD_VALUE;
     }
 
     rc =  gMuxer->cameraDeviceOpen(atoi(id), hw_device);
-    CDBG_HIGH("%s[%d]: id= %d, rc: %d", __func__, __LINE__, atoi(id), rc);
+    LOGH("id= %d, rc: %d", atoi(id), rc);
     return rc;
 }
 
@@ -349,7 +348,7 @@ int QCameraMuxer::set_preview_window(struct camera_device * device,
             CHECK_HWI_ERROR(hwi);
             rc = hwi->set_preview_window(pCam->dev, window);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error!! setting preview window", __func__);
+                LOGE("Error!! setting preview window");
                 return rc;
             }
             break;
@@ -380,7 +379,7 @@ void QCameraMuxer::set_callBacks(struct camera_device * device,
         camera_request_memory get_memory,
         void *user)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -407,28 +406,28 @@ void QCameraMuxer::set_callBacks(struct camera_device * device,
         if (pCam->mode == CAM_MODE_PRIMARY) {
             rc = gMuxer->setMainJpegCallbackCookie((void*)(pCam));
             if(rc != NO_ERROR) {
-                ALOGE("%s: Error setting Jpeg callback cookie", __func__);
+                LOGE("Error setting Jpeg callback cookie");
             }
         }
     }
     // Store callback in Muxer to send data callbacks
     rc = gMuxer->setDataCallback(data_cb);
     if(rc != NO_ERROR) {
-        ALOGE("%s: Error setting data callback", __func__);
+        LOGE("Error setting data callback");
     }
     // memory callback stored to allocate memory for MPO buffer
     rc = gMuxer->setMemoryCallback(get_memory);
     if(rc != NO_ERROR) {
-        ALOGE("%s: Error setting memory callback", __func__);
+        LOGE("Error setting memory callback");
     }
     // actual user callback cookie is saved in Muxer
     // this will be used to deliver final MPO callback to the framework
     rc = gMuxer->setMpoCallbackCookie(user);
     if(rc != NO_ERROR) {
-        ALOGE("%s: Error setting mpo cookie", __func__);
+        LOGE("Error setting mpo cookie");
     }
 
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 
 }
 
@@ -445,7 +444,7 @@ void QCameraMuxer::set_callBacks(struct camera_device * device,
  *==========================================================================*/
 void QCameraMuxer::enable_msg_type(struct camera_device * device, int32_t msg_type)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -458,7 +457,7 @@ void QCameraMuxer::enable_msg_type(struct camera_device * device, int32_t msg_ty
         CHECK_HWI(hwi);
         hwi->enable_msg_type(pCam->dev, msg_type);
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 }
 
 /*===========================================================================
@@ -474,7 +473,7 @@ void QCameraMuxer::enable_msg_type(struct camera_device * device, int32_t msg_ty
  *==========================================================================*/
 void QCameraMuxer::disable_msg_type(struct camera_device * device, int32_t msg_type)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -487,7 +486,7 @@ void QCameraMuxer::disable_msg_type(struct camera_device * device, int32_t msg_t
         CHECK_HWI(hwi);
         hwi->disable_msg_type(pCam->dev, msg_type);
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 }
 
 /*===========================================================================
@@ -503,7 +502,7 @@ void QCameraMuxer::disable_msg_type(struct camera_device * device, int32_t msg_t
  *==========================================================================*/
 int QCameraMuxer::msg_type_enabled(struct camera_device * device, int32_t msg_type)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -520,7 +519,7 @@ int QCameraMuxer::msg_type_enabled(struct camera_device * device, int32_t msg_ty
             return hwi->msg_type_enabled(pCam->dev, msg_type);
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return false;
 }
 
@@ -538,7 +537,7 @@ int QCameraMuxer::msg_type_enabled(struct camera_device * device, int32_t msg_ty
  *==========================================================================*/
 int QCameraMuxer::start_preview(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -555,7 +554,7 @@ int QCameraMuxer::start_preview(struct camera_device * device)
 
         rc = hwi->prepare_preview(pCam->dev);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error preparing preview !! ", __func__);
+            LOGE("Error preparing preview !! ");
             return rc;
         }
     }
@@ -577,12 +576,12 @@ int QCameraMuxer::start_preview(struct camera_device * device)
                         continue;
                     }
                     sessionId = cam->sId[j];
-                    CDBG_HIGH("%s: Related cam id: %d, server id: %d sync ON"
-                            " related session_id %d", __func__,
+                    LOGH("Related cam id: %d, server id: %d sync ON"
+                            " related session_id %d",
                             cam->pId[i], cam->sId[i], sessionId);
                     rc = hwi->bundleRelatedCameras(true, sessionId);
                     if (rc != NO_ERROR) {
-                        ALOGE("%s: Error Bundling physical cameras !! ", __func__);
+                        LOGE("Error Bundling physical cameras !! ");
                         return rc;
                     }
                 }
@@ -591,12 +590,12 @@ int QCameraMuxer::start_preview(struct camera_device * device)
             if (pCam->mode == CAM_MODE_SECONDARY) {
                 // bundle all aux cam with primary cams
                 sessionId = cam->sId[cam->nPrimaryPhyCamIndex];
-                CDBG_HIGH("%s: Related cam id: %d, server id: %d sync ON"
-                        " related session_id %d", __func__,
+                LOGH("Related cam id: %d, server id: %d sync ON"
+                        " related session_id %d",
                         cam->pId[i], cam->sId[i], sessionId);
                 rc = hwi->bundleRelatedCameras(true, sessionId);
                 if (rc != NO_ERROR) {
-                    ALOGE("%s: Error Bundling physical cameras !! ", __func__);
+                    LOGE("Error Bundling physical cameras !! ");
                     return rc;
                 }
             }
@@ -614,11 +613,11 @@ int QCameraMuxer::start_preview(struct camera_device * device)
         CHECK_HWI_ERROR(hwi);
         rc = hwi->start_preview(pCam->dev);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error starting preview !! ", __func__);
+            LOGE("Error starting preview !! ");
             return rc;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -634,7 +633,7 @@ int QCameraMuxer::start_preview(struct camera_device * device)
  *==========================================================================*/
 void QCameraMuxer::stop_preview(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -653,8 +652,7 @@ void QCameraMuxer::stop_preview(struct camera_device * device)
     //Flush JPEG Queues. Nodes in Main and Aux JPEGQ are not valid after preview stopped.
     gMuxer->m_MainJpegQ.flush();
     gMuxer->m_AuxJpegQ.flush();
-
-    CDBG_HIGH("%s: X", __func__);
+    LOGH(" X");
 }
 
 /*===========================================================================
@@ -669,7 +667,7 @@ void QCameraMuxer::stop_preview(struct camera_device * device)
  *==========================================================================*/
 int QCameraMuxer::preview_enabled(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -686,7 +684,7 @@ int QCameraMuxer::preview_enabled(struct camera_device * device)
             return hwi->preview_enabled(pCam->dev);
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return false;
 }
 
@@ -705,7 +703,7 @@ int QCameraMuxer::preview_enabled(struct camera_device * device)
  *==========================================================================*/
 int QCameraMuxer::store_meta_data_in_buffers(struct camera_device * device, int enable)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -721,11 +719,11 @@ int QCameraMuxer::store_meta_data_in_buffers(struct camera_device * device, int 
 
         rc = hwi->store_meta_data_in_buffers(pCam->dev, enable);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error storing metat data !! ", __func__);
+            LOGE("Error storing metat data !! ");
             return rc;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -743,7 +741,7 @@ int QCameraMuxer::store_meta_data_in_buffers(struct camera_device * device, int 
  *==========================================================================*/
 int QCameraMuxer::start_recording(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     bool previewRestartNeeded = false;
@@ -764,7 +762,7 @@ int QCameraMuxer::start_recording(struct camera_device * device)
 
         rc = hwi->pre_start_recording(pCam->dev);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error preparing recording start!! ", __func__);
+            LOGE("Error preparing recording start!! ");
             return rc;
         }
     }
@@ -794,7 +792,7 @@ int QCameraMuxer::start_recording(struct camera_device * device)
 
             rc = hwi->restart_stop_preview(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in restart stop preview!! ", __func__);
+                LOGE("Error in restart stop preview!! ");
                 return rc;
             }
         }
@@ -809,7 +807,7 @@ int QCameraMuxer::start_recording(struct camera_device * device)
 
             rc = hwi->setRecordingHintValue(TRUE);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in setting recording hint value!! ", __func__);
+                LOGE("Error in setting recording hint value!! ");
                 return rc;
             }
             gMuxer->m_bRecordingHintInternallySet = TRUE;
@@ -825,7 +823,7 @@ int QCameraMuxer::start_recording(struct camera_device * device)
 
             rc = hwi->restart_start_preview(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in restart start preview!! ", __func__);
+                LOGE("Error in restart start preview!! ");
                 return rc;
             }
         }
@@ -841,12 +839,12 @@ int QCameraMuxer::start_recording(struct camera_device * device)
         if (pCam->mode == CAM_MODE_PRIMARY) {
             rc = hwi->start_recording(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error starting recording!! ", __func__);
+                LOGE("Error starting recording!! ");
             }
             break;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -862,8 +860,10 @@ int QCameraMuxer::start_recording(struct camera_device * device)
  *==========================================================================*/
 void QCameraMuxer::stop_recording(struct camera_device * device)
 {
+
     int rc = NO_ERROR;
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
+
     CHECK_MUXER();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -896,7 +896,7 @@ void QCameraMuxer::stop_recording(struct camera_device * device)
 
             rc = hwi->restart_stop_preview(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in restart stop preview!! ", __func__);
+                LOGE("Error in restart stop preview!! ");
                 return;
             }
         }
@@ -911,7 +911,7 @@ void QCameraMuxer::stop_recording(struct camera_device * device)
 
             rc = hwi->setRecordingHintValue(FALSE);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in setting recording hint value!! ", __func__);
+                LOGE("Error in setting recording hint value!! ");
                 return;
             }
             gMuxer->m_bRecordingHintInternallySet = FALSE;
@@ -927,12 +927,12 @@ void QCameraMuxer::stop_recording(struct camera_device * device)
 
             rc = hwi->restart_start_preview(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in restart start preview!! ", __func__);
+                LOGE("Error in restart start preview!! ");
                 return;
             }
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 }
 
 /*===========================================================================
@@ -947,7 +947,7 @@ void QCameraMuxer::stop_recording(struct camera_device * device)
  *==========================================================================*/
 int QCameraMuxer::recording_enabled(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -964,7 +964,7 @@ int QCameraMuxer::recording_enabled(struct camera_device * device)
             return hwi->recording_enabled(pCam->dev);
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return false;
 }
 
@@ -982,7 +982,7 @@ int QCameraMuxer::recording_enabled(struct camera_device * device)
 void QCameraMuxer::release_recording_frame(struct camera_device * device,
                 const void *opaque)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -1000,7 +1000,7 @@ void QCameraMuxer::release_recording_frame(struct camera_device * device,
             break;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 }
 
 /*===========================================================================
@@ -1017,7 +1017,7 @@ void QCameraMuxer::release_recording_frame(struct camera_device * device,
  *==========================================================================*/
 int QCameraMuxer::auto_focus(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -1034,13 +1034,13 @@ int QCameraMuxer::auto_focus(struct camera_device * device)
         if (pCam->mode == CAM_MODE_PRIMARY) {
             rc = QCamera2HardwareInterface::auto_focus(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error auto focusing !! ", __func__);
+                LOGE("Error auto focusing !! ");
                 return rc;
             }
             break;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -1058,7 +1058,7 @@ int QCameraMuxer::auto_focus(struct camera_device * device)
  *==========================================================================*/
 int QCameraMuxer::cancel_auto_focus(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -1075,13 +1075,13 @@ int QCameraMuxer::cancel_auto_focus(struct camera_device * device)
         if (pCam->mode == CAM_MODE_PRIMARY) {
             rc = QCamera2HardwareInterface::cancel_auto_focus(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error cancelling auto focus !! ", __func__);
+                LOGE("Error cancelling auto focus !! ");
                 return rc;
             }
             break;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -1099,7 +1099,7 @@ int QCameraMuxer::cancel_auto_focus(struct camera_device * device)
  *==========================================================================*/
 int QCameraMuxer::take_picture(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     bool previewRestartNeeded = false;
@@ -1116,7 +1116,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
     if (gMuxer->m_bMpoEnabled && numOfAcitvePhyCam <= 1) {
         gMuxer->m_bMpoEnabled = 0;
     }
-    CDBG_HIGH("%s: dualCamera MPO Enabled:%d ", __func__, gMuxer->m_bMpoEnabled);
+    LOGH("dualCamera MPO Enabled:%d ", gMuxer->m_bMpoEnabled);
 
     if (!gMuxer->mJpegClientHandle) {
         // set up jpeg handles
@@ -1129,7 +1129,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
         rc = hwi->getJpegHandleInfo(&gMuxer->mJpegOps, &gMuxer->mJpegMpoOps,
                 &gMuxer->mJpegClientHandle);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error retrieving jpeg handle!", __func__);
+            LOGE("Error retrieving jpeg handle!");
             return rc;
         }
 
@@ -1143,7 +1143,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
             rc = hwi->setJpegHandleInfo(&gMuxer->mJpegOps, &gMuxer->mJpegMpoOps,
                     gMuxer->mJpegClientHandle);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error setting jpeg handle %d!", __func__, i);
+                LOGE("Error setting jpeg handle %d!", i);
                 return rc;
             }
         }
@@ -1160,7 +1160,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
         if (pCam->mode == CAM_MODE_PRIMARY) {
             rc = hwi->prepare_snapshot(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error preparing for snapshot !! ", __func__);
+                LOGE("Error preparing for snapshot !! ");
                 return rc;
             }
         }
@@ -1194,7 +1194,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
         if ( (gMuxer->m_bMpoEnabled == 1) || (pCam->mode == CAM_MODE_PRIMARY) ) {
             rc = hwi->pre_take_picture(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error preparing take_picture!! ", __func__);
+                LOGE("Error preparing take_picture!! ");
                 return rc;
             }
         }
@@ -1225,7 +1225,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
 
             rc = hwi->restart_stop_preview(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in restart stop preview!! ", __func__);
+                LOGE("Error in restart stop preview!! ");
                 return rc;
             }
         }
@@ -1240,7 +1240,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
 
             rc = hwi->setRecordingHintValue(FALSE);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in setting recording hint value!! ", __func__);
+                LOGE("Error in setting recording hint value!! ");
                 return rc;
             }
         }
@@ -1255,7 +1255,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
 
             rc = hwi->restart_start_preview(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error in restart start preview!! ", __func__);
+                LOGE("Error in restart start preview!! ");
                 return rc;
             }
         }
@@ -1278,12 +1278,12 @@ int QCameraMuxer::take_picture(struct camera_device * device)
         if ( (gMuxer->m_bMpoEnabled == 1) || (pCam->mode == CAM_MODE_PRIMARY) ) {
             rc = QCamera2HardwareInterface::take_picture(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error taking picture !! ", __func__);
+                LOGE("Error taking picture !! ");
                 return rc;
             }
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -1301,7 +1301,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
  *==========================================================================*/
 int QCameraMuxer::cancel_picture(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -1317,7 +1317,7 @@ int QCameraMuxer::cancel_picture(struct camera_device * device)
 
         rc = QCamera2HardwareInterface::cancel_picture(pCam->dev);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error cancelling picture !! ", __func__);
+            LOGE("Error cancelling picture !! ");
             return rc;
         }
     }
@@ -1326,7 +1326,7 @@ int QCameraMuxer::cancel_picture(struct camera_device * device)
     gMuxer->m_MainJpegQ.flush();
     gMuxer->m_AuxJpegQ.flush();
 
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -1347,7 +1347,7 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
         const char *parms)
 
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -1364,7 +1364,7 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
 
         rc = QCamera2HardwareInterface::set_parameters(pCam->dev, parms);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error setting parameters !! ", __func__);
+            LOGE("Error setting parameters !! ");
             return rc;
         }
 
@@ -1379,10 +1379,10 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
             QCamera2HardwareInterface *hwi = pCam->hwi;
             CHECK_HWI_ERROR(hwi);
 
-            CDBG("%s: stopping preview for cam %d", __func__, i);
+            LOGD("stopping preview for cam %d", i);
             rc = QCamera2HardwareInterface::stop_after_set_params(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error stopping camera rc=%d!! ", __func__, rc);
+                LOGE("Error stopping camera rc=%d!! ", rc);
                 return rc;
             }
         }
@@ -1395,10 +1395,10 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
         QCamera2HardwareInterface *hwi = pCam->hwi;
         CHECK_HWI_ERROR(hwi);
 
-        CDBG("%s: commiting parameters for cam %d", __func__, i);
+        LOGD("commiting parameters for cam %d", i);
         rc = QCamera2HardwareInterface::commit_params(pCam->dev);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error committing parameters rc=%d!! ", __func__, rc);
+            LOGE("Error committing parameters rc=%d!! ", rc);
             return rc;
         }
     }
@@ -1411,16 +1411,16 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
             QCamera2HardwareInterface *hwi = pCam->hwi;
             CHECK_HWI_ERROR(hwi);
 
-            CDBG("%s: restarting preview for cam %d", __func__, i);
+            LOGD("restarting preview for cam %d", i);
             rc = QCamera2HardwareInterface::restart_after_set_params(pCam->dev);
             if (rc != NO_ERROR) {
-                ALOGE("%s: Error restarting camera rc=%d!! ", __func__, rc);
+                LOGE("Error restarting camera rc=%d!! ", rc);
                 return rc;
             }
         }
     }
 
-    CDBG_HIGH("%s: X", __func__);
+    LOGH(" X");
     return rc;
 }
 
@@ -1436,7 +1436,7 @@ int QCameraMuxer::set_parameters(struct camera_device * device,
  *==========================================================================*/
 char* QCameraMuxer::get_parameters(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
 
     if (!gMuxer)
         return NULL;
@@ -1446,19 +1446,19 @@ char* QCameraMuxer::get_parameters(struct camera_device * device)
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
     if (!cam) {
-        ALOGE("%s: Error getting logical camera", __func__);
+        LOGE("Error getting logical camera");
         return NULL;
     }
 
     for (uint32_t i = 0; i < cam->numCameras; i++) {
         pCam = gMuxer->getPhysicalCamera(cam, i);
         if (!pCam) {
-            ALOGE("%s: Error getting physical camera", __func__);
+            LOGE("Error getting physical camera");
             return NULL;
         }
         QCamera2HardwareInterface *hwi = pCam->hwi;
         if (!hwi) {
-            ALOGE("%s: Allocation of hardware interface failed", __func__);
+            LOGE("Allocation of hardware interface failed");
             return NULL;
         }
         if (pCam->mode == CAM_MODE_PRIMARY) {
@@ -1468,7 +1468,7 @@ char* QCameraMuxer::get_parameters(struct camera_device * device)
         }
     }
 
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return ret;
 }
 
@@ -1485,7 +1485,7 @@ char* QCameraMuxer::get_parameters(struct camera_device * device)
  *==========================================================================*/
 void QCameraMuxer::put_parameters(struct camera_device * device, char *parm)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -1504,7 +1504,7 @@ void QCameraMuxer::put_parameters(struct camera_device * device, char *parm)
             break;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 }
 
 /*===========================================================================
@@ -1524,7 +1524,7 @@ void QCameraMuxer::put_parameters(struct camera_device * device, char *parm)
 int QCameraMuxer::send_command(struct camera_device * device,
         int32_t cmd, int32_t arg1, int32_t arg2)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -1540,7 +1540,7 @@ int QCameraMuxer::send_command(struct camera_device * device,
 
         rc = QCamera2HardwareInterface::send_command(pCam->dev, cmd, arg1, arg2);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error sending command !! ", __func__);
+            LOGE("Error sending command !! ");
             return rc;
         }
     }
@@ -1558,7 +1558,7 @@ int QCameraMuxer::send_command(struct camera_device * device,
                 rc = QCamera2HardwareInterface::send_command_restart(pCam->dev,
                         cmd, arg1, arg2);
                 if (rc != NO_ERROR) {
-                    ALOGE("%s: Error sending command restart !! ", __func__);
+                    LOGE("Error sending command restart !! ");
                     return rc;
                 }
             }
@@ -1577,7 +1577,7 @@ int QCameraMuxer::send_command(struct camera_device * device,
         break;
         }
 
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -1593,7 +1593,7 @@ int QCameraMuxer::send_command(struct camera_device * device,
  *==========================================================================*/
 void QCameraMuxer::release(struct camera_device * device)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER();
     qcamera_physical_descriptor_t *pCam = NULL;
     qcamera_logical_descriptor_t *cam = gMuxer->getLogicalCamera(device);
@@ -1608,7 +1608,7 @@ void QCameraMuxer::release(struct camera_device * device)
 
         QCamera2HardwareInterface::release(pCam->dev);
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 }
 
 /*===========================================================================
@@ -1626,7 +1626,7 @@ void QCameraMuxer::release(struct camera_device * device)
  *==========================================================================*/
 int QCameraMuxer::dump(struct camera_device * device, int fd)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -1642,11 +1642,11 @@ int QCameraMuxer::dump(struct camera_device * device, int fd)
 
         rc = QCamera2HardwareInterface::dump(pCam->dev, fd);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error dumping", __func__);
+            LOGE("Error dumping");
             return rc;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -1664,7 +1664,7 @@ int QCameraMuxer::dump(struct camera_device * device, int fd)
  *==========================================================================*/
 int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER_ERROR();
     int rc = NO_ERROR;
     qcamera_physical_descriptor_t *pCam = NULL;
@@ -1691,12 +1691,12 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
                             continue;
                         }
                         sessionId = cam->sId[j];
-                        CDBG_HIGH("%s: Related cam id: %d, server id: %d sync OFF"
-                                " related session_id %d", __func__,
+                        LOGH("Related cam id: %d, server id: %d sync OFF"
+                                " related session_id %d",
                                 cam->pId[i], cam->sId[i], sessionId);
                         rc = hwi->bundleRelatedCameras(false, sessionId);
                         if (rc != NO_ERROR) {
-                            ALOGE("%s: Error Bundling physical cameras !! ", __func__);
+                            LOGE("Error Bundling physical cameras !! ");
                             break;
                         }
                     }
@@ -1705,12 +1705,12 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
                 if (pCam->mode == CAM_MODE_SECONDARY) {
                     // unbundle all aux cam with primary cams
                     sessionId = cam->sId[cam->nPrimaryPhyCamIndex];
-                    CDBG_HIGH("%s: Related cam id: %d, server id: %d sync OFF"
-                            " related session_id %d", __func__,
+                    LOGH("Related cam id: %d, server id: %d sync OFF"
+                            " related session_id %d",
                             cam->pId[i], cam->sId[i], sessionId);
                     rc = hwi->bundleRelatedCameras(false, sessionId);
                     if (rc != NO_ERROR) {
-                        ALOGE("%s: Error Bundling physical cameras !! ", __func__);
+                        LOGE("Error Bundling physical cameras !! ");
                         break;
                     }
                 }
@@ -1725,11 +1725,11 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
         CHECK_CAMERA_ERROR(pCam);
 
         hw_device_t *dev = (hw_device_t*)(pCam->dev);
-        CDBG_HIGH("%s: hw device %x, hw %x", __func__, dev, pCam->hwi);
+        LOGH("hw device %x, hw %x", dev, pCam->hwi);
 
         rc = QCamera2HardwareInterface::close_camera_device(dev);
         if (rc != NO_ERROR) {
-            ALOGE("%s: Error closing camera", __func__);
+            LOGE("Error closing camera");
         }
         pCam->hwi = NULL;
         pCam->dev = NULL;
@@ -1737,7 +1737,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
 
     // Reset JPEG client handle
     gMuxer->setJpegHandle(0);
-    CDBG_HIGH("%s: X, rc: %d", __func__, rc);
+    LOGH("X, rc: %d", rc);
     return rc;
 }
 
@@ -1758,7 +1758,7 @@ int QCameraMuxer::setupLogicalCameras()
     camera_info info;
     int primaryType = CAM_TYPE_MAIN;
 
-    CDBG_HIGH("%s[%d] E: rc = %d", __func__, __LINE__, rc);
+    LOGH("[%d] E: rc = %d", rc);
     // Signifies whether AUX camera has to be exposed as physical camera
     property_get("persist.camera.aux.camera", prop, "0");
     m_bAuxCameraExposed = atoi(prop);
@@ -1772,14 +1772,14 @@ int QCameraMuxer::setupLogicalCameras()
 
     // Check for number of camera present on device
     if (!m_nPhyCameras || (m_nPhyCameras > MM_CAMERA_MAX_NUM_SENSORS)) {
-        ALOGE("%s: Error!! Invalid number of cameras: %d",
-                __func__, m_nPhyCameras);
+        LOGE("Error!! Invalid number of cameras: %d",
+                 m_nPhyCameras);
         return BAD_VALUE;
     }
 
     m_pPhyCamera = new qcamera_physical_descriptor_t[m_nPhyCameras];
     if (!m_pPhyCamera) {
-        ALOGE("%s: Error allocating camera info buffer!!",__func__);
+        LOGE("Error allocating camera info buffer!!");
         return NO_MEMORY;
     }
     memset(m_pPhyCamera, 0x00,
@@ -1798,21 +1798,21 @@ int QCameraMuxer::setupLogicalCameras()
 
         if (!m_bAuxCameraExposed && (m_pPhyCamera[i].type != primaryType)) {
             m_pPhyCamera[i].mode = CAM_MODE_SECONDARY;
-            CDBG_HIGH("%s[%d]: Camera ID: %d, Aux Camera, type: %d, facing: %d",
-                    __func__, __LINE__, cameraId, m_pPhyCamera[i].type,
+            LOGH("Camera ID: %d, Aux Camera, type: %d, facing: %d",
+ cameraId, m_pPhyCamera[i].type,
                     m_pPhyCamera[i].cam_info.facing);
         }
         else {
             m_nLogicalCameras++;
-            CDBG_HIGH("%s[%d]: Camera ID: %d, Main Camera, type: %d, facing: %d",
-                    __func__, __LINE__, cameraId, m_pPhyCamera[i].type,
+            LOGH("Camera ID: %d, Main Camera, type: %d, facing: %d",
+ cameraId, m_pPhyCamera[i].type,
                     m_pPhyCamera[i].cam_info.facing);
         }
     }
 
     if (!m_nLogicalCameras) {
         // No Main camera detected, return from here
-        ALOGE("%s: Error !!!! detecting main camera!!",__func__);
+        LOGE("Error !!!! detecting main camera!!");
         delete [] m_pPhyCamera;
         m_pPhyCamera = NULL;
         return -ENODEV;
@@ -1820,7 +1820,7 @@ int QCameraMuxer::setupLogicalCameras()
     // Allocate Logical Camera descriptors
     m_pLogicalCamera = new qcamera_logical_descriptor_t[m_nLogicalCameras];
     if (!m_pLogicalCamera) {
-        ALOGE("%s: Error !!!! allocating camera info buffer!!",__func__);
+        LOGE("Error !!!! allocating camera info buffer!!");
         delete [] m_pPhyCamera;
         m_pPhyCamera = NULL;
         return  NO_MEMORY;
@@ -1839,9 +1839,9 @@ int QCameraMuxer::setupLogicalCameras()
             m_pLogicalCamera[index].mode[0] = CAM_MODE_PRIMARY;
             m_pLogicalCamera[index].facing = m_pPhyCamera[i].cam_info.facing;
             m_pLogicalCamera[index].numCameras++;
-            CDBG_HIGH("%s[%d]: Logical Main Camera ID: %d, facing: %d,"
+            LOGH("Logical Main Camera ID: %d, facing: %d,"
                     "Phy Id: %d type: %d mode: %d",
-                    __func__, __LINE__, m_pLogicalCamera[index].id,
+ m_pLogicalCamera[index].id,
                     m_pLogicalCamera[index].facing,
                     m_pLogicalCamera[index].pId[0],
                     m_pLogicalCamera[index].type[0],
@@ -1863,9 +1863,9 @@ int QCameraMuxer::setupLogicalCameras()
                     m_pLogicalCamera[j].type[n] = CAM_TYPE_AUX;
                     m_pLogicalCamera[j].mode[n] = CAM_MODE_SECONDARY;
                     m_pLogicalCamera[j].numCameras++;
-                    CDBG_HIGH("%s[%d]: Aux %d for Logical Camera ID: %d,"
+                    LOGH("Aux %d for Logical Camera ID: %d,"
                         "aux phy id:%d, type: %d mode: %d",
-                        __func__, __LINE__, n, j, m_pLogicalCamera[j].pId[n],
+ n, j, m_pLogicalCamera[j].pId[n],
                         m_pLogicalCamera[j].type[n], m_pLogicalCamera[j].mode[n]);
                 }
             }
@@ -1874,14 +1874,14 @@ int QCameraMuxer::setupLogicalCameras()
     //Print logical and physical camera tables
     for (i = 0; i < m_nLogicalCameras ; i++) {
         for (uint8_t j = 0; j < m_pLogicalCamera[i].numCameras; j++) {
-            CDBG_HIGH("%s[%d]: Logical Camera ID: %d, index: %d, "
+            LOGH("Logical Camera ID: %d, index: %d, "
                     "facing: %d, Phy Id: %d type: %d mode: %d",
-                    __func__, __LINE__, i, j, m_pLogicalCamera[i].facing,
+ i, j, m_pLogicalCamera[i].facing,
                     m_pLogicalCamera[i].pId[j], m_pLogicalCamera[i].type[j],
                     m_pLogicalCamera[i].mode[j]);
         }
     }
-    CDBG_HIGH("%s[%d] X: rc = %d", __func__, __LINE__, rc);
+    LOGH("[%d] X: rc = %d", rc);
     return rc;
 }
 
@@ -1914,25 +1914,25 @@ int QCameraMuxer::getCameraInfo(int camera_id,
         struct camera_info *info, cam_sync_type_t *p_cam_type)
 {
     int rc = NO_ERROR;
-    CDBG_HIGH("%s: E, camera_id = %d", __func__, camera_id);
+    LOGH("E, camera_id = %d", camera_id);
     cam_sync_type_t cam_type = CAM_TYPE_MAIN;
 
     if (!m_nLogicalCameras || (camera_id >= m_nLogicalCameras) ||
             !info || (camera_id < 0)) {
-        ALOGE("%s : m_nLogicalCameras: %d, camera id: %d", __func__,
+        LOGE("m_nLogicalCameras: %d, camera id: %d",
                 m_nLogicalCameras, camera_id);
         return -ENODEV;
     }
 
     if (!m_pLogicalCamera || !m_pPhyCamera) {
-        ALOGE("%s : Error! Cameras not initialized!", __func__);
+        LOGE("Error! Cameras not initialized!");
         return NO_INIT;
     }
     uint32_t phy_id =
             m_pLogicalCamera[camera_id].pId[
             m_pLogicalCamera[camera_id].nPrimaryPhyCamIndex];
     rc = QCamera2HardwareInterface::getCapabilities(phy_id, info, &cam_type);
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return rc;
 }
 
@@ -2100,12 +2100,12 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
     qcamera_logical_descriptor_t *cam = NULL;
 
     if (camera_id < 0 || camera_id >= m_nLogicalCameras) {
-        ALOGE("%s : Camera id %d not found!", __func__, camera_id);
+        LOGE("Camera id %d not found!", camera_id);
         return -ENODEV;
     }
 
     if ( NULL == m_pLogicalCamera) {
-        ALOGE("%s : Hal descriptor table is not initialized!", __func__);
+        LOGE("Hal descriptor table is not initialized!");
         return NO_INIT;
     }
 
@@ -2122,7 +2122,7 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
         hw_device_t *hw_dev[cam->numCameras];
 
         if (m_pPhyCamera[cam->pId[0]].type != CAM_TYPE_MAIN) {
-            ALOGE("%s: Physical camera at index 0 is not main!", __func__);
+            LOGE("Physical camera at index 0 is not main!");
             return UNKNOWN_ERROR;
         }
 
@@ -2132,7 +2132,7 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
             QCamera2HardwareInterface *hw =
                     new QCamera2HardwareInterface((uint32_t)phyId);
             if (!hw) {
-                ALOGE("%s: Allocation of hardware interface failed", __func__);
+                LOGE("Allocation of hardware interface failed");
                 return NO_MEMORY;
             }
             hw_dev[i] = NULL;
@@ -2145,7 +2145,7 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
             info.is_frame_sync_enabled = m_bFrameSyncEnabled;
             rc = hw->setRelatedCamSyncInfo(&info);
             if (rc != NO_ERROR) {
-                ALOGE("%s: setRelatedCamSyncInfo failed %d", __func__, rc);
+                LOGE("setRelatedCamSyncInfo failed %d", rc);
                 delete hw;
                 return rc;
             }
@@ -2159,12 +2159,12 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
             m_pPhyCamera[phyId].dev = reinterpret_cast<camera_device_t*>(hw_dev[i]);
             m_pPhyCamera[phyId].hwi = hw;
             cam->sId[i] = m_pPhyCamera[phyId].camera_server_id;
-            CDBG_HIGH("%s: camera id %d server id : %d hw device %x, hw %x",
-                    __func__, phyId, cam->sId[i], hw_dev[i], hw);
+            LOGH("camera id %d server id : %d hw device %x, hw %x",
+                     phyId, cam->sId[i], hw_dev[i], hw);
         }
     } else {
-        ALOGE("%s: Device version for camera id %d invalid %d",
-                __func__, camera_id, m_pLogicalCamera[camera_id].device_version);
+        LOGE("Device version for camera id %d invalid %d",
+                 camera_id, m_pLogicalCamera[camera_id].device_version);
         return BAD_VALUE;
     }
 
@@ -2258,7 +2258,7 @@ int32_t QCameraMuxer::getActiveNumOfPhyCam(
 int32_t QCameraMuxer::sendEvtNotify(int32_t msg_type, int32_t ext1,
         int32_t ext2)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     int rc = NO_ERROR;
 
     CHECK_MUXER_ERROR();
@@ -2271,7 +2271,7 @@ int32_t QCameraMuxer::sendEvtNotify(int32_t msg_type, int32_t ext1,
     QCamera2HardwareInterface *hwi = pCam->hwi;
     CHECK_HWI_ERROR(hwi);
 
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return pCam->hwi->sendEvtNotify(msg_type, ext1, ext2);
 }
 
@@ -2289,11 +2289,11 @@ int32_t QCameraMuxer::sendEvtNotify(int32_t msg_type, int32_t ext1,
 void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
         cam_compose_jpeg_info_t* aux_Jpeg)
 {
-    CDBG_HIGH("%s: E Main Jpeg %p Aux Jpeg %p", __func__, main_Jpeg, aux_Jpeg);
+    LOGH("E Main Jpeg %p Aux Jpeg %p", main_Jpeg, aux_Jpeg);
 
     CHECK_MUXER();
     if(main_Jpeg == NULL || aux_Jpeg == NULL) {
-        ALOGE("%s : input buffers invalid, ret = NO_MEMORY", __func__);
+        LOGE("input buffers invalid, ret = NO_MEMORY");
         gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
         return;
     }
@@ -2303,7 +2303,7 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
     m_pRelCamMpoJpeg = mGetMemoryCb(-1, main_Jpeg->buffer->size +
             aux_Jpeg->buffer->size, 1, m_pMpoCallbackCookie);
     if (NULL == m_pRelCamMpoJpeg) {
-        ALOGE("%s : getMemory for mpo, ret = NO_MEMORY", __func__);
+        LOGE("getMemory for mpo, ret = NO_MEMORY");
         gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
         pthread_mutex_unlock(&m_JpegLock);
         return;
@@ -2324,26 +2324,26 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
     mpo_compose_info.output_buff_size = main_Jpeg->buffer->size +
             aux_Jpeg->buffer->size;
 
-    CDBG("%s: MPO buffer size %d\n"
+    LOGD("MPO buffer size %d\n"
             "expected size %d, mpo_compose_info.output_buff_size %d",
-            __func__, m_pRelCamMpoJpeg->size,
+             m_pRelCamMpoJpeg->size,
             main_Jpeg->buffer->size + aux_Jpeg->buffer->size,
             mpo_compose_info.output_buff_size);
 
-    CDBG("%s: MPO primary buffer filled lengths\n"
+    LOGD("MPO primary buffer filled lengths\n"
             "mpo_compose_info.primary_image.buf_filled_len %d\n"
-            "mpo_compose_info.primary_image.buf_vaddr %p", __func__,
+            "mpo_compose_info.primary_image.buf_vaddr %p",
             mpo_compose_info.primary_image.buf_filled_len,
             mpo_compose_info.primary_image.buf_vaddr);
 
-    CDBG("%s: MPO aux buffer filled lengths\n"
+    LOGD("MPO aux buffer filled lengths\n"
             "mpo_compose_info.aux_images[0].buf_filled_len %d"
-            "mpo_compose_info.aux_images[0].buf_vaddr %p", __func__,
+            "mpo_compose_info.aux_images[0].buf_vaddr %p",
             mpo_compose_info.aux_images[0].buf_filled_len,
             mpo_compose_info.aux_images[0].buf_vaddr);
 
     if(m_bDumpImages) {
-        CDBG("%s: Dumping Main Image for MPO", __func__);
+        LOGD("Dumping Main Image for MPO");
         char buf_main[QCAMERA_MAX_FILEPATH_LENGTH];
         memset(buf_main, 0, sizeof(buf_main));
         snprintf(buf_main, sizeof(buf_main),
@@ -2355,12 +2355,12 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
                     mpo_compose_info.primary_image.buf_vaddr,
                     mpo_compose_info.primary_image.buf_filled_len);
             fchmod(file_fd_main, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-            CDBG("%s: written number of bytes for main Image %zd\n",
-                    __func__, written_len);
+            LOGD("written number of bytes for main Image %zd\n",
+                     written_len);
             close(file_fd_main);
         }
 
-        CDBG("%s: Dumping Aux Image for MPO", __func__);
+        LOGD("Dumping Aux Image for MPO");
         char buf_aux[QCAMERA_MAX_FILEPATH_LENGTH];
         memset(buf_aux, 0, sizeof(buf_aux));
         snprintf(buf_aux, sizeof(buf_aux),
@@ -2372,17 +2372,17 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
                     mpo_compose_info.aux_images[0].buf_vaddr,
                     mpo_compose_info.aux_images[0].buf_filled_len);
             fchmod(file_fd_aux, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-            CDBG("%s: written number of bytes for Aux Image %zd\n",
-                    __func__, written_len);
+            LOGD("written number of bytes for Aux Image %zd\n",
+                     written_len);
             close(file_fd_aux);
         }
     }
 
     int32_t rc = mJpegMpoOps.compose_mpo(&mpo_compose_info);
-    CDBG("%s: Compose mpo returned %d", __func__, rc);
+    LOGD("Compose mpo returned %d", rc);
 
     if(rc != NO_ERROR) {
-        ALOGE("%s : ComposeMpo failed, ret = %d", __func__, rc);
+        LOGE("ComposeMpo failed, ret = %d", rc);
         gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
         pthread_mutex_unlock(&m_JpegLock);
         return;
@@ -2400,8 +2400,8 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
                     m_pRelCamMpoJpeg->data,
                     m_pRelCamMpoJpeg->size);
             fchmod(file_fd_mpo, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-            CDBG("%s: written number of bytes for MPO Image %zd\n",
-                    __func__, written_len);
+            LOGD("written number of bytes for MPO Image %zd\n",
+                     written_len);
             close(file_fd_mpo);
         }
     }
@@ -2418,7 +2418,7 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
     }
 
     pthread_mutex_unlock(&m_JpegLock);
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return;
 }
 
@@ -2437,7 +2437,7 @@ void QCameraMuxer::composeMpo(cam_compose_jpeg_info_t* main_Jpeg,
 bool QCameraMuxer::matchFrameId(void *data, void *user_data,
         void *match_data)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
 
     if (!data || !match_data) {
         return false;
@@ -2445,7 +2445,7 @@ bool QCameraMuxer::matchFrameId(void *data, void *user_data,
 
     cam_compose_jpeg_info_t * node = (cam_compose_jpeg_info_t *) data;
     uint32_t frame_idx = *((uint32_t *) match_data);
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return node->frame_idx == frame_idx;
 }
 
@@ -2464,14 +2464,14 @@ bool QCameraMuxer::matchFrameId(void *data, void *user_data,
 bool QCameraMuxer::findPreviousJpegs(void *data, void *user_data,
         void *match_data)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
 
     if (!data || !match_data) {
         return false;
     }
     cam_compose_jpeg_info_t * node = (cam_compose_jpeg_info_t *) data;
     uint32_t frame_idx = *((uint32_t *) match_data);
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return node->frame_idx < frame_idx;
 }
 
@@ -2489,7 +2489,7 @@ bool QCameraMuxer::findPreviousJpegs(void *data, void *user_data,
  *==========================================================================*/
 void QCameraMuxer::releaseJpegInfo(void *data, void *user_data)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
 
     cam_compose_jpeg_info_t *jpegInfo = (cam_compose_jpeg_info_t *)data;
     if(jpegInfo && jpegInfo->release_cb) {
@@ -2499,7 +2499,7 @@ void QCameraMuxer::releaseJpegInfo(void *data, void *user_data)
                     NO_ERROR);
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 }
 
 /*===========================================================================
@@ -2514,9 +2514,9 @@ void QCameraMuxer::releaseJpegInfo(void *data, void *user_data)
  *==========================================================================*/
 void* QCameraMuxer::composeMpoRoutine(void *data)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     if (!gMuxer) {
-        ALOGE("%s[%d]: Error getting muxer ", __func__, __LINE__);
+        LOGE("Error getting muxer ");
         return NULL;
     }
 
@@ -2531,7 +2531,7 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
         do {
             ret = cam_sem_wait(&cmdThread->cmd_sem);
             if (ret != 0 && errno != EINVAL) {
-                ALOGE("%s: cam_sem_wait error (%s)", __func__, strerror(errno));
+                LOGE("cam_sem_wait error (%s)", strerror(errno));
                 return NULL;
             }
         } while (ret != 0);
@@ -2541,7 +2541,7 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
         switch (cmd) {
         case CAMERA_CMD_TYPE_START_DATA_PROC:
             {
-                CDBG_HIGH("%s: start ComposeMpo processing", __func__);
+                LOGH("start ComposeMpo processing");
                 is_active = TRUE;
 
                 // signal cmd is completed
@@ -2550,7 +2550,7 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
             break;
         case CAMERA_CMD_TYPE_STOP_DATA_PROC:
             {
-                CDBG_HIGH("%s: stop ComposeMpo processing", __func__);
+                LOGH("stop ComposeMpo processing");
                 is_active = FALSE;
 
                 // signal cmd is completed
@@ -2560,7 +2560,7 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
         case CAMERA_CMD_TYPE_DO_NEXT_JOB:
             {
                 if (is_active == TRUE) {
-                    CDBG_HIGH("%s: Mpo Composition Requested", __func__);
+                    LOGH("Mpo Composition Requested");
                     cam_compose_jpeg_info_t *main_jpeg_node = NULL;
                     cam_compose_jpeg_info_t *aux_jpeg_node = NULL;
                     bool foundMatch = false;
@@ -2569,9 +2569,9 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                         main_jpeg_node = (cam_compose_jpeg_info_t *)
                                 gMuxer->m_MainJpegQ.dequeue();
                         if (main_jpeg_node) {
-                            CDBG("%s: main_jpeg_node found frame idx %d"
+                            LOGD("main_jpeg_node found frame idx %d"
                                     "ptr %p buffer_ptr %p buffer_size %d",
-                                    __func__, main_jpeg_node->frame_idx,
+                                     main_jpeg_node->frame_idx,
                                     main_jpeg_node,
                                     main_jpeg_node->buffer->data,
                                     main_jpeg_node->buffer->size);
@@ -2580,9 +2580,9 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                                     (cam_compose_jpeg_info_t *) gMuxer->
                                     m_AuxJpegQ.dequeue();
                             if (aux_jpeg_node) {
-                                CDBG("%s: aux_jpeg_node found frame idx %d"
+                                LOGD("aux_jpeg_node found frame idx %d"
                                         "ptr %p buffer_ptr %p buffer_size %d",
-                                        __func__, aux_jpeg_node->frame_idx,
+                                         aux_jpeg_node->frame_idx,
                                         aux_jpeg_node,
                                         aux_jpeg_node->buffer->data,
                                         aux_jpeg_node->buffer->size);
@@ -2601,7 +2601,7 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                             }
                             free(main_jpeg_node);
                         } else {
-                            CDBG_HIGH("%s: Mpo Match not found", __func__);
+                            LOGH("Mpo Match not found");
                         }
                         if (aux_jpeg_node) {
                             if ( aux_jpeg_node->release_cb ) {
@@ -2612,21 +2612,21 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                             }
                             free(aux_jpeg_node);
                         } else {
-                            CDBG_HIGH("%s: Mpo Match not found", __func__);
+                            LOGH("Mpo Match not found");
                         }
                     }
                 }
             break;
             }
         case CAMERA_CMD_TYPE_EXIT:
-            CDBG_HIGH("%s : ComposeMpo thread exit", __func__);
+            LOGH("ComposeMpo thread exit");
             running = 0;
             break;
         default:
             break;
         }
     } while (running);
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return NULL;
 }
 
@@ -2654,12 +2654,12 @@ void QCameraMuxer::jpeg_data_callback(int32_t msg_type,
            uint32_t frame_idx, camera_release_callback release_cb,
            void *release_cookie, void *release_data)
 {
-    CDBG_HIGH("%s: E", __func__);
+    LOGH("E");
     CHECK_MUXER();
 
     if(data != NULL) {
-        CDBG_HIGH("%s: jpeg received: data %p size %d data ptr %p frameIdx %d",
-                __func__, data, data->size, data->data, frame_idx);
+        LOGH("jpeg received: data %p size %d data ptr %p frameIdx %d",
+                 data, data->size, data->data, frame_idx);
         int rc = gMuxer->storeJpeg(((qcamera_physical_descriptor_t*)(user))->type,
                 msg_type, data, index, metadata, user, frame_idx, release_cb,
                 release_cookie, release_data);
@@ -2669,7 +2669,7 @@ void QCameraMuxer::jpeg_data_callback(int32_t msg_type,
     } else {
         gMuxer->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
     return;
 }
 
@@ -2700,8 +2700,8 @@ int32_t QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
         camera_release_callback release_cb, void *release_cookie,
         void *release_data)
 {
-    CDBG_HIGH("%s: E jpeg received: data %p size %d data ptr %p frameIdx %d",
-            __func__, data, data->size, data->data, frame_idx);
+    LOGH("E jpeg received: data %p size %d data ptr %p frameIdx %d",
+             data, data->size, data->data, frame_idx);
 
     CHECK_MUXER_ERROR();
 
@@ -2718,14 +2718,14 @@ int32_t QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
         if (release_cb) {
             release_cb(release_data, release_cookie, NO_ERROR);
         }
-        CDBG_HIGH("%s: X", __func__);
+        LOGH("X");
         return NO_ERROR;
     }
 
     cam_compose_jpeg_info_t* pJpegFrame =
             (cam_compose_jpeg_info_t*)malloc(sizeof(cam_compose_jpeg_info_t));
     if (!pJpegFrame) {
-        ALOGE("%s: Allocation failed for MPO nodes", __func__);
+        LOGE("Allocation failed for MPO nodes");
         return NO_MEMORY;
     }
     memset(pJpegFrame, 0, sizeof(*pJpegFrame));
@@ -2742,13 +2742,13 @@ int32_t QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
     pJpegFrame->release_data = release_data;
     if(cam_type == CAM_TYPE_MAIN) {
         if (m_MainJpegQ.enqueue((void *)pJpegFrame)) {
-            CDBG("%s:Main FrameIdx %d", __func__, pJpegFrame->frame_idx);
+            LOGD("Main FrameIdx %d", pJpegFrame->frame_idx);
             if (m_MainJpegQ.getCurrentSize() > 0) {
-                CDBG("%s: Trigger Compose", __func__);
+                LOGD("Trigger Compose");
                 m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
             }
         } else {
-            ALOGE("%s: Enqueue Failed for Main Jpeg Q", __func__);
+            LOGE("Enqueue Failed for Main Jpeg Q");
             if ( pJpegFrame->release_cb ) {
                 // release other buffer also here
                 pJpegFrame->release_cb(
@@ -2763,13 +2763,13 @@ int32_t QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
 
     } else {
         if (m_AuxJpegQ.enqueue((void *)pJpegFrame)) {
-            CDBG("%s:Aux FrameIdx %d", __func__, pJpegFrame->frame_idx);
+            LOGD("Aux FrameIdx %d", pJpegFrame->frame_idx);
             if (m_AuxJpegQ.getCurrentSize() > 0) {
-                CDBG("%s: Trigger Compose", __func__);
+                LOGD("Trigger Compose");
                 m_ComposeMpoTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
             }
         } else {
-            ALOGE("%s: Enqueue Failed for Aux Jpeg Q", __func__);
+            LOGE("Enqueue Failed for Aux Jpeg Q");
             if ( pJpegFrame->release_cb ) {
                 // release other buffer also here
                 pJpegFrame->release_cb(
@@ -2782,7 +2782,7 @@ int32_t QCameraMuxer::storeJpeg(cam_sync_type_t cam_type,
             return NO_MEMORY;
         }
     }
-    CDBG_HIGH("%s: X", __func__);
+    LOGH("X");
 
     return NO_ERROR;
 }

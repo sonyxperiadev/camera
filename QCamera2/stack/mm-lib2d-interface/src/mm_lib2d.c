@@ -45,9 +45,6 @@
 #include "img_buffer.h"
 #include "lib2d.h"
 
-#define LIB2D_ERROR ALOGE
-#define LIB2D_DBG   ALOGV
-
 /** lib2d_job_private_info
  * @jobid: Job id of this process request
  * @userdata: Client userdata that will be passed on callback
@@ -114,11 +111,11 @@ int lib2d_event_handler(void* p_appdata, img_event_t *p_event)
   mm_lib2d_obj *lib2d_obj = (mm_lib2d_obj *)p_appdata;
 
   if ((NULL == p_event) || (NULL == p_appdata)) {
-    LIB2D_ERROR("%s:%d] invalid event", __func__, __LINE__);
+    LOGE("invalid event");
     return IMG_ERR_INVALID_INPUT;
   }
 
-  LIB2D_DBG("%s:%d] type %d", __func__, __LINE__, p_event->type);
+  LOGD("type %d", p_event->type);
 
   switch (p_event->type) {
     case QIMG_EVT_DONE:
@@ -156,7 +153,7 @@ int lib2d_callback_handler(void *userdata, img_frame_t *p_in_frame,
   lib2d_job_private_info *job_info = NULL;
 
   if (NULL == userdata) {
-    LIB2D_ERROR("%s:%d] invalid event", __func__, __LINE__);
+    LOGE("invalid event");
     return IMG_ERR_INVALID_INPUT;
   }
 
@@ -293,8 +290,8 @@ lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
   // Currently support NV21 to ARGB conversions only. Others not tested.
   if ((src_format != CAM_FORMAT_YUV_420_NV21) ||
     (dst_format != CAM_FORMAT_8888_ARGB)) {
-    LIB2D_ERROR("%s:%d] Formats conversion from %d to %d not supported",
-        __func__, __LINE__, src_format, dst_format);
+    LOGE("Formats conversion from %d to %d not supported",
+        src_format, dst_format);
   }
 
   lib2d_obj = malloc(sizeof(mm_lib2d_obj));
@@ -305,8 +302,8 @@ lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
   // Open libmmcamera_imglib
   lib2d_obj->img_lib.ptr = dlopen("libmmcamera_imglib.so", RTLD_NOW);
   if (!lib2d_obj->img_lib.ptr) {
-    LIB2D_ERROR("%s ERROR: couldn't dlopen libmmcamera_imglib.so: %s",
-      __func__, dlerror());
+    LOGE("ERROR: couldn't dlopen libmmcamera_imglib.so: %s",
+       dlerror());
     goto FREE_LIB2D_OBJ;
   }
 
@@ -319,7 +316,7 @@ lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
   /* Validate function pointers */
   if ((lib2d_obj->img_lib.img_core_get_comp == NULL) ||
     (lib2d_obj->img_lib.img_wait_for_completion == NULL)) {
-    LIB2D_ERROR("%s: ERROR mapping symbols from libc2d2.so", __func__);
+    LOGE(" ERROR mapping symbols from libc2d2.so");
     goto FREE_LIB2D_OBJ;
   }
 
@@ -332,31 +329,31 @@ lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
   rc = lib2d_obj->img_lib.img_core_get_comp(IMG_COMP_LIB2D,
     "qti.lib2d", p_core_ops);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto FREE_LIB2D_OBJ;
   }
 
   rc = IMG_COMP_LOAD(p_core_ops, NULL);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto FREE_LIB2D_OBJ;
   }
 
   rc = IMG_COMP_CREATE(p_core_ops, p_comp);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto COMP_UNLOAD;
   }
 
   rc = IMG_COMP_INIT(p_comp, (void *)lib2d_obj, lib2d_callback_handler);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto COMP_UNLOAD;
   }
 
   rc = IMG_COMP_SET_CB(p_comp, lib2d_event_handler);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto COMP_DEINIT;
   }
 
@@ -371,7 +368,7 @@ lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
   // Set source format
   rc = IMG_COMP_SET_PARAM(p_comp, QLIB2D_SOURCE_FORMAT, (void *)&src_format);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto COMP_DEINIT;
   }
 
@@ -379,14 +376,14 @@ lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
   rc = IMG_COMP_SET_PARAM(p_comp, QLIB2D_DESTINATION_FORMAT,
     (void *)&dst_format);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto COMP_DEINIT;
   }
 
   // Try setting the required mode.
   rc = IMG_COMP_SET_PARAM(p_comp, QIMG_PARAM_MODE, (void *)&comp_mode);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto COMP_DEINIT;
   }
 
@@ -395,13 +392,13 @@ lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
   rc = IMG_COMP_GET_PARAM(p_comp, QIMG_PARAM_MODE,
     (void *)&lib2d_obj->comp_mode);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto COMP_DEINIT;
   }
 
   if (comp_mode != lib2d_obj->comp_mode) {
-    LIB2D_DBG("%s:%d] Component is running in %d mode",
-      __func__, __LINE__, lib2d_obj->comp_mode);
+    LOGD("Component is running in %d mode",
+      lib2d_obj->comp_mode);
   }
 
   *my_obj = (void *)lib2d_obj;
@@ -411,14 +408,14 @@ lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
 COMP_DEINIT :
   rc = IMG_COMP_DEINIT(p_comp);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     return MM_LIB2D_ERR_GENERAL;
   }
 
 COMP_UNLOAD :
   rc = IMG_COMP_UNLOAD(p_core_ops);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     return MM_LIB2D_ERR_GENERAL;
   }
 
@@ -450,13 +447,13 @@ lib2d_error mm_lib2d_deinit(void *lib2d_obj_handle)
 
   rc = IMG_COMP_DEINIT(p_comp);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     return MM_LIB2D_ERR_GENERAL;
   }
 
   rc = IMG_COMP_UNLOAD(p_core_ops);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     return MM_LIB2D_ERR_GENERAL;
   }
 
@@ -536,29 +533,29 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
 
   rc = IMG_COMP_Q_BUF(p_comp, p_in_frame, IMG_IN);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto ERROR;
   }
 
   rc = IMG_COMP_Q_BUF(p_comp, p_out_frame, IMG_OUT);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto ERROR;
   }
 
   rc = IMG_COMP_START(p_comp, NULL);
   if (rc != IMG_SUCCESS) {
-    LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+    LOGE("rc %d", rc);
     goto ERROR;
   }
 
   if (lib2d_obj->lib2d_mode == MM_LIB2D_SYNC_MODE) {
     if (lib2d_obj->comp_mode == IMG_ASYNC_MODE) {
-      LIB2D_DBG("%s:%d] before wait rc %d", __func__, __LINE__, rc);
+      LOGD("before wait rc %d", rc);
       rc = lib2d_obj->img_lib.img_wait_for_completion(&lib2d_obj->cond,
         &lib2d_obj->mutex, 10000);
       if (rc != IMG_SUCCESS) {
-        LIB2D_ERROR("%s:%d] rc %d", __func__, __LINE__, rc);
+        LOGE("rc %d", rc);
         goto ERROR;
       }
     }
@@ -566,7 +563,7 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
 
   rc = IMG_COMP_ABORT(p_comp, NULL);
   if (IMG_ERROR(rc)) {
-    LIB2D_ERROR("%s:%d] comp abort failed %d", __func__, __LINE__, rc);
+    LOGE("comp abort failed %d", rc);
     return rc;
   }
 

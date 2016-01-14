@@ -66,7 +66,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
     uint32_t numOfEntries = (uint32_t)p_exif_info->numOfEntries;
     QEXIF_INFO_DATA *p_info_data = p_exif_info->exif_data;
     if(numOfEntries >= MAX_EXIF_TABLE_ENTRIES) {
-        ALOGE("%s: Number of entries exceeded limit", __func__);
+        LOGE("Number of entries exceeded limit");
         return -1;
     }
 
@@ -79,7 +79,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
       if (count > 1) {
         uint8_t *values = (uint8_t *)malloc(count);
         if (values == NULL) {
-          ALOGE("%s: No memory for byte array", __func__);
+          LOGE("No memory for byte array");
           rc = -1;
         } else {
           memcpy(values, data, count);
@@ -94,7 +94,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
       char *str = NULL;
       str = (char *)malloc(count + 1);
       if (str == NULL) {
-        ALOGE("%s: No memory for ascii string", __func__);
+        LOGE("No memory for ascii string");
         rc = -1;
       } else {
         memset(str, 0, count + 1);
@@ -107,7 +107,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
       if (count > 1) {
         uint16_t *values = (uint16_t *)malloc(count * sizeof(uint16_t));
         if (values == NULL) {
-          ALOGE("%s: No memory for short array", __func__);
+          LOGE("No memory for short array");
           rc = -1;
         } else {
           memcpy(values, data, count * sizeof(uint16_t));
@@ -122,7 +122,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
       if (count > 1) {
         uint32_t *values = (uint32_t *)malloc(count * sizeof(uint32_t));
         if (values == NULL) {
-          ALOGE("%s: No memory for long array", __func__);
+          LOGE("No memory for long array");
           rc = -1;
         } else {
           memcpy(values, data, count * sizeof(uint32_t));
@@ -137,7 +137,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
       if (count > 1) {
         rat_t *values = (rat_t *)malloc(count * sizeof(rat_t));
         if (values == NULL) {
-          ALOGE("%s: No memory for rational array", __func__);
+          LOGE("No memory for rational array");
           rc = -1;
         } else {
           memcpy(values, data, count * sizeof(rat_t));
@@ -151,7 +151,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
     case EXIF_UNDEFINED: {
       uint8_t *values = (uint8_t *)malloc(count);
       if (values == NULL) {
-        ALOGE("%s: No memory for undefined array", __func__);
+        LOGE("No memory for undefined array");
         rc = -1;
       } else {
         memcpy(values, data, count);
@@ -163,7 +163,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
       if (count > 1) {
         int32_t *values = (int32_t *)malloc(count * sizeof(int32_t));
         if (values == NULL) {
-          ALOGE("%s: No memory for signed long array", __func__);
+          LOGE("No memory for signed long array");
           rc = -1;
         } else {
           memcpy(values, data, count * sizeof(int32_t));
@@ -178,7 +178,7 @@ int32_t addExifEntry(QOMX_EXIF_INFO *p_exif_info, exif_tag_id_t tagid,
       if (count > 1) {
         srat_t *values = (srat_t *)malloc(count * sizeof(srat_t));
         if (values == NULL) {
-          ALOGE("%s: No memory for signed rational array", __func__);
+          LOGE("No memory for signed rational array");
           rc = -1;
         } else {
           memcpy(values, data, count * sizeof(srat_t));
@@ -300,11 +300,11 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
   rat_t val_rat;
 
   if (NULL == p_sensor_params) {
-    ALOGE("%s %d: Sensor params are null", __func__, __LINE__);
+    LOGE("Sensor params are null");
     return 0;
   }
 
-  CDBG("%s:%d] From metadata aperture = %f ", __func__, __LINE__,
+  LOGD("From metadata aperture = %f ",
     p_sensor_params->aperture_value );
 
   if (p_sensor_params->aperture_value >= 1.0) {
@@ -314,14 +314,14 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
     val_rat.denom = 100;
     rc = addExifEntry(exif_info, EXIFTAGID_APERTURE, EXIF_RATIONAL, 1, &val_rat);
     if (rc) {
-      ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+      LOGE(": Error adding Exif Entry");
     }
 
     val_rat.num = (uint32_t)(p_sensor_params->aperture_value * 100);
     val_rat.denom = 100;
     rc = addExifEntry(exif_info, EXIFTAGID_F_NUMBER, EXIF_RATIONAL, 1, &val_rat);
     if (rc) {
-      ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+      LOGE(": Error adding Exif Entry");
     }
   }
 
@@ -333,7 +333,7 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
   } else {
     flash_fired = 0;
   }
-  CDBG("%s: Flash value %d flash mode %d flash state %d", __func__, val_short,
+  LOGD("Flash value %d flash mode %d flash state %d", val_short,
     p_sensor_params->flash_mode, p_sensor_params->flash_state);
 
   switch(p_sensor_params->flash_mode) {
@@ -348,20 +348,20 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
     break;
   default:
     flash_mode_exif = MM_JPEG_EXIF_FLASH_MODE_AUTO;
-    ALOGE("%s:%d]: Unsupported flash mode", __func__, __LINE__);
+    LOGE(": Unsupported flash mode");
   }
   val_short = (short)(flash_fired | (flash_mode_exif << 3));
 
   rc = addExifEntry(exif_info, EXIFTAGID_FLASH, EXIF_SHORT, 1, &val_short);
   if (rc) {
-    ALOGE("%s %d]: Error adding flash exif entry", __func__, __LINE__);
+    LOGE(": Error adding flash exif entry");
   }
   /* Sensing Method */
   val_short = (short) p_sensor_params->sensing_method;
   rc = addExifEntry(exif_info, EXIFTAGID_SENSING_METHOD, EXIF_SHORT,
     sizeof(val_short)/2, &val_short);
   if (rc) {
-    ALOGE("%s:%d]: Error adding flash Exif Entry", __func__, __LINE__);
+    LOGE(": Error adding flash Exif Entry");
   }
 
   /* Focal Length in 35 MM Film */
@@ -370,7 +370,7 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
   rc = addExifEntry(exif_info, EXIFTAGID_FOCAL_LENGTH_35MM, EXIF_SHORT,
     1, &val_short);
   if (rc) {
-    ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+    LOGE(": Error adding Exif Entry");
   }
 
   /* F Number */
@@ -378,7 +378,7 @@ int process_sensor_data(cam_sensor_params_t *p_sensor_params,
   val_rat.denom = 100;
   rc = addExifEntry(exif_info, EXIFTAGTYPE_F_NUMBER, EXIF_RATIONAL, 1, &val_rat);
   if (rc) {
-    ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+    LOGE(": Error adding Exif Entry");
   }
   return rc;
 }
@@ -407,11 +407,11 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   double shutter_speed_value;
 
   if (NULL == p_3a_params) {
-    ALOGE("%s %d: 3A params are null", __func__, __LINE__);
+    LOGE("3A params are null");
     return 0;
   }
 
-  CDBG("%s:%d] exp_time %f, iso_value %d, wb_mode %d", __func__, __LINE__,
+  LOGD("exp_time %f, iso_value %d, wb_mode %d",
     p_3a_params->exp_time, p_3a_params->iso_value, p_3a_params->wb_mode);
 
   /* Exposure time */
@@ -425,14 +425,13 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
     val_rat.num = ROUND(p_3a_params->exp_time);
     val_rat.denom = 1;
   }
-  CDBG("%s: numer %d denom %d %zd", __func__, val_rat.num, val_rat.denom,
+  LOGD("numer %d denom %d %zd", val_rat.num, val_rat.denom,
     sizeof(val_rat) / (8));
 
   rc = addExifEntry(exif_info, EXIFTAGID_EXPOSURE_TIME, EXIF_RATIONAL,
     (sizeof(val_rat)/(8)), &val_rat);
   if (rc) {
-    ALOGE("%s:%d]: Error adding Exif Entry Exposure time",
-      __func__, __LINE__);
+    LOGE(": Error adding Exif Entry Exposure time");
   }
 
   /* Shutter Speed*/
@@ -447,7 +446,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   rc = addExifEntry(exif_info, EXIFTAGID_SHUTTER_SPEED, EXIF_SRATIONAL,
     (sizeof(val_srat)/(8)), &val_srat);
   if (rc) {
-    ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+    LOGE(": Error adding Exif Entry");
   }
 
   /*ISO*/
@@ -456,7 +455,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   rc = addExifEntry(exif_info, EXIFTAGID_ISO_SPEED_RATING, EXIF_SHORT,
     sizeof(val_short)/2, &val_short);
   if (rc) {
-     ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+     LOGE(": Error adding Exif Entry");
   }
 
   /*WB mode*/
@@ -467,7 +466,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   rc = addExifEntry(exif_info, EXIFTAGID_WHITE_BALANCE, EXIF_SHORT,
     sizeof(val_short)/2, &val_short);
   if (rc) {
-    ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+    LOGE(": Error adding Exif Entry");
   }
 
   /* Metering Mode   */
@@ -475,7 +474,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
   rc = addExifEntry(exif_info,EXIFTAGID_METERING_MODE, EXIF_SHORT,
      sizeof(val_short)/2, &val_short);
   if (rc) {
-     ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+     LOGE(": Error adding Exif Entry");
    }
 
   /*Exposure Program*/
@@ -483,7 +482,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
    rc = addExifEntry(exif_info,EXIFTAGID_EXPOSURE_PROGRAM, EXIF_SHORT,
       sizeof(val_short)/2, &val_short);
    if (rc) {
-      ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+      LOGE(": Error adding Exif Entry");
     }
 
    /*Exposure Mode */
@@ -491,7 +490,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
     rc = addExifEntry(exif_info,EXIFTAGID_EXPOSURE_MODE, EXIF_SHORT,
        sizeof(val_short)/2, &val_short);
     if (rc) {
-       ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+       LOGE(": Error adding Exif Entry");
      }
 
     /*Scenetype*/
@@ -500,10 +499,10 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
      rc = addExifEntry(exif_info,EXIFTAGID_SCENE_TYPE, EXIF_UNDEFINED,
         sizeof(val_undef), &val_undef);
      if (rc) {
-        ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+        LOGE(": Error adding Exif Entry");
       }
 
-     CDBG("%s:%d] brightness %f", __func__, __LINE__,
+     LOGD("brightness %f",
        p_3a_params->brightness);
 
     /* Brightness Value*/
@@ -512,7 +511,7 @@ int process_3a_data(cam_3a_params_t *p_3a_params, QOMX_EXIF_INFO *exif_info)
      rc = addExifEntry(exif_info,EXIFTAGID_BRIGHTNESS, EXIF_SRATIONAL,
                  (sizeof(val_srat)/(8)), &val_srat);
      if (rc) {
-        ALOGE("%s:%d]: Error adding Exif Entry", __func__, __LINE__);
+        LOGE(": Error adding Exif Entry");
      }
 
   return rc;
@@ -567,7 +566,7 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
       IF_META_AVAILABLE(int32_t, iso, CAM_INTF_META_SENSOR_SENSITIVITY, p_meta) {
         p_3a_params.iso_value= *iso;
       } else {
-        ALOGE("%s: Cannot extract Iso value", __func__);
+        LOGE("Cannot extract Iso value");
       }
 
       IF_META_AVAILABLE(int64_t, sensor_exposure_time,
@@ -575,32 +574,32 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
         p_3a_params.exp_time =
           (float)((double)(*sensor_exposure_time) / 1000000000.0);
       } else {
-        ALOGE("%s: Cannot extract Exp time value", __func__);
+        LOGE("Cannot extract Exp time value");
       }
 
       IF_META_AVAILABLE(int32_t, wb_mode, CAM_INTF_PARM_WHITE_BALANCE, p_meta) {
         p_3a_params.wb_mode = *wb_mode;
       } else {
-        ALOGE("%s: Cannot extract white balance mode", __func__);
+        LOGE("Cannot extract white balance mode");
       }
 
       /* Process sensor data */
       IF_META_AVAILABLE(float, aperture, CAM_INTF_META_LENS_APERTURE, p_meta) {
         p_sensor_params.aperture_value = *aperture;
       } else {
-        ALOGE("%s: Cannot extract Aperture value", __func__);
+        LOGE("Cannot extract Aperture value");
       }
 
       IF_META_AVAILABLE(uint32_t, flash_mode, CAM_INTF_META_FLASH_MODE, p_meta) {
         p_sensor_params.flash_mode = *flash_mode;
       } else {
-        ALOGE("%s: Cannot extract flash mode value", __func__);
+        LOGE("Cannot extract flash mode value");
       }
 
       IF_META_AVAILABLE(int32_t, flash_state, CAM_INTF_META_FLASH_STATE, p_meta) {
         p_sensor_params.flash_state = (cam_flash_state_t) *flash_state;
       } else {
-        ALOGE("%s: Cannot extract flash state value", __func__);
+        LOGE("Cannot extract flash state value");
       }
     }
   }
@@ -608,26 +607,24 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
   /* take the cached values if meta is invalid */
   if ((!is_3a_meta_valid) && (hal_version == CAM_HAL_V1)) {
     p_3a_params = p_cam_exif_params->cam_3a_params;
-    CDBG_ERROR("%s:%d] Warning using cached values for 3a",
-      __func__, __LINE__);
+    LOGE("Warning using cached values for 3a");
   }
 
   if ((!is_sensor_meta_valid) && (hal_version == CAM_HAL_V1)) {
     p_sensor_params = p_cam_exif_params->sensor_params;
-    CDBG_ERROR("%s:%d] Warning using cached values for sensor",
-      __func__, __LINE__);
+    LOGE("Warning using cached values for sensor");
   }
 
   if ((hal_version != CAM_HAL_V1) || (p_sensor_params.sens_type != CAM_SENSOR_YUV)) {
     rc = process_3a_data(&p_3a_params, exif_info);
     if (rc) {
-      ALOGE("%s %d: Failed to add 3a exif params", __func__, __LINE__);
+      LOGE("Failed to add 3a exif params");
     }
   }
 
   rc = process_sensor_data(&p_sensor_params, exif_info);
   if (rc) {
-    ALOGE("%s %d: Failed to extract sensor params", __func__, __LINE__);
+    LOGE("Failed to extract sensor params");
   }
 
   if (p_meta) {
@@ -641,10 +638,10 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
     rc = addExifEntry(exif_info, EXIFTAGID_SCENE_CAPTURE_TYPE, EXIF_SHORT,
       sizeof(val_short)/2, &val_short);
     if (rc) {
-      ALOGE("%s:%d]: Error adding ASD Exif Entry", __func__, __LINE__);
+      LOGE(": Error adding ASD Exif Entry");
     }
   } else {
-    ALOGE("%s:%d]: Error adding ASD Exif Entry, no meta", __func__, __LINE__);
+    LOGE(": Error adding ASD Exif Entry, no meta");
   }
   return rc;
 }

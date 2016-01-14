@@ -184,7 +184,7 @@ const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
 void QCamera3VendorTags::get_vendor_tag_ops(
                                 vendor_tag_ops_t* ops)
 {
-    ALOGV("%s: E", __func__);
+    LOGL("E");
 
     Ops = ops;
 
@@ -195,7 +195,7 @@ void QCamera3VendorTags::get_vendor_tag_ops(
     ops->get_tag_type = get_tag_type;
     ops->reserved[0] = NULL;
 
-    ALOGV("%s: X", __func__);
+    LOGL("X");
     return;
 }
 
@@ -218,7 +218,7 @@ int QCamera3VendorTags::get_tag_count(
     if (ops == Ops)
         count = sizeof(qcamera3_all_tags)/sizeof(qcamera3_all_tags[0]);
 
-    ALOGV("%s: count is %d", __func__, count);
+    LOGL("count is %d", count);
     return (int)count;
 }
 
@@ -245,7 +245,7 @@ void QCamera3VendorTags::get_all_tags(
             i < sizeof(qcamera3_all_tags)/sizeof(qcamera3_all_tags[0]);
             i++) {
         g_array[i] = qcamera3_all_tags[i];
-        CDBG("%s: g_array[%d] is %d", __func__, i, g_array[i]);
+        LOGD("g_array[%d] is %d", i, g_array[i]);
     }
 }
 
@@ -267,7 +267,7 @@ const char* QCamera3VendorTags::get_section_name(
                 const vendor_tag_ops_t * ops,
                 uint32_t tag)
 {
-    ALOGV("%s: E", __func__);
+    LOGL("E");
     if (ops != Ops)
         return NULL;
 
@@ -280,8 +280,8 @@ const char* QCamera3VendorTags::get_section_name(
         ret = qcamera3_ext_section_names[section - VENDOR_SECTION];
 
     if (ret)
-        ALOGV("%s: section_name[%d] is %s", __func__, tag, ret);
-    ALOGV("%s: X", __func__);
+        LOGL("section_name[%d] is %s", tag, ret);
+    LOGL("X");
     return ret;
 }
 
@@ -301,7 +301,7 @@ const char* QCamera3VendorTags::get_tag_name(
                 const vendor_tag_ops_t * ops,
                 uint32_t tag)
 {
-    ALOGV("%s: E", __func__);
+    LOGL("E");
     const char *ret;
     uint32_t section = tag >> 16;
     uint32_t section_index = section - VENDOR_SECTION;
@@ -320,8 +320,8 @@ const char* QCamera3VendorTags::get_tag_name(
         ret = qcamera3_tag_info[section_index][tag_index].tag_name;
 
     if (ret)
-        ALOGV("%s: tag name for tag %d is %s", __func__, tag, ret);
-    ALOGV("%s: X", __func__);
+        LOGL("tag name for tag %d is %s", tag, ret);
+    LOGL("X");
 
 done:
     return ret;
@@ -343,7 +343,7 @@ int QCamera3VendorTags::get_tag_type(
                 const vendor_tag_ops_t *ops,
                 uint32_t tag)
 {
-    ALOGV("%s: E", __func__);
+    LOGL("E");
     int ret;
     uint32_t section = tag >> 16;
     uint32_t section_index = section - VENDOR_SECTION;
@@ -360,8 +360,8 @@ int QCamera3VendorTags::get_tag_type(
     else
         ret = qcamera3_tag_info[section_index][tag_index].tag_type;
 
-    ALOGV("%s: tag type for tag %d is %d", __func__, tag, ret);
-    ALOGV("%s: X", __func__);
+    LOGL("tag type for tag %d is %d", tag, ret);
+    LOGL("X");
 done:
     return ret;
 }
