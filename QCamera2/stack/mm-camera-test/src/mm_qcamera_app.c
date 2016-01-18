@@ -376,7 +376,7 @@ int mm_app_dump_frame(mm_camera_test_obj_t *testObj, mm_camera_stream_t *stream,
                             }
                         }
 
-                        CDBG_HIGH("%s: written number of bytes %ld\n",
+                        CDBG_HIGH("%s: written number of bytes %zd\n",
                             __func__, written_len);
                         close(file_fd);
                     } else {
