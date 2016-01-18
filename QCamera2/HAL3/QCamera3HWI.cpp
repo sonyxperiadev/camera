@@ -3604,7 +3604,7 @@ no_error:
         request_id = mCurrentRequestId;
     }
 
-    LOGH("%d, num_output_buffers = %d input_buffer = %p frame_number = %d",
+    LOGH("num_output_buffers = %d input_buffer = %p frame_number = %d",
                                     request->num_output_buffers,
                                     request->input_buffer,
                                     frameNumber);
@@ -4560,7 +4560,14 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     IF_META_AVAILABLE(uint32_t, videoStab, CAM_INTF_META_VIDEO_STAB_MODE, metadata) {
         uint8_t fwk_videoStab = (uint8_t) *videoStab;
+        LOGD("fwk_videoStab = %d", fwk_videoStab);
         camMetadata.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &fwk_videoStab, 1);
+    } else {
+        // Regardless of Video stab supports or not, CTS is expecting the EIS result to be non NULL
+        // and so hardcoding the Video Stab result to OFF mode.
+        uint8_t fwkVideoStabMode = ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF;
+        camMetadata.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &fwkVideoStabMode, 1);
+        LOGD("%s: EIS result default to OFF mode", __func__);
     }
 
     IF_META_AVAILABLE(uint32_t, noiseRedMode, CAM_INTF_META_NOISE_REDUCTION_MODE, metadata) {
@@ -8565,6 +8572,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE)) {
         uint8_t videoStabMode =
                 frame_settings.find(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE).data.u8[0];
+        LOGD("videoStabMode from APP = %d", videoStabMode);
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_VIDEO_STAB_MODE,
                 videoStabMode)) {
             rc = BAD_VALUE;
