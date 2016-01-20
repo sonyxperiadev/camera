@@ -650,8 +650,10 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     status_t ret = NO_ERROR;
     struct ion_fd_data ion_info_fd;
     void *vaddr = NULL;
+#ifndef CAM_MSM8974
     int32_t colorSpace =
             (type == CAM_STREAM_TYPE_VIDEO) ? ITU_R_709 : ITU_R_601_FR;
+#endif
     int32_t idx = -1;
 
     CDBG(" %s : E ", __FUNCTION__);
@@ -679,7 +681,9 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     mBufferHandle[idx] = buffer;
     mPrivateHandle[idx] = (struct private_handle_t *)(*mBufferHandle[idx]);
 
+#ifndef CAM_MSM8974
     setMetaData(mPrivateHandle[idx], UPDATE_COLOR_SPACE, &colorSpace);
+#endif
 
     mMemInfo[idx].main_ion_fd = open("/dev/ion", O_RDONLY);
     if (mMemInfo[idx].main_ion_fd < 0) {
