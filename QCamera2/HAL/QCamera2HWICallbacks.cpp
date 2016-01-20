@@ -727,6 +727,10 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
     stream->mStreamTimestamp = frameTime;
     memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
 
+#ifdef TARGET_TS_MAKEUP
+    pme->TsMakeupProcess_Preview(frame,stream);
+#endif
+
     // Enqueue  buffer to gralloc.
     uint32_t idx = frame->buf_idx;
     LOGD("%p Enqueue Buffer to display %d frame Time = %lld Display Time = %lld",
@@ -792,9 +796,6 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         free(super_frame);
         return;
     }
-#ifdef TARGET_TS_MAKEUP
-    pme->TsMakeupProcess_Preview(frame,stream);
-#endif
     if (!pme->needProcessPreviewFrame()) {
         LOGI("preview is not running, no need to process");
         stream->bufDone(frame->buf_idx);
@@ -817,6 +818,9 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
 
     if (!stream->isSyncCBEnabled()) {
         LOGD("Enqueue Buffer to display %d", idx);
+#ifdef TARGET_TS_MAKEUP
+        pme->TsMakeupProcess_Preview(frame,stream);
+#endif
         err = memory->enqueueBuffer(idx);
 
         if (err == NO_ERROR) {
