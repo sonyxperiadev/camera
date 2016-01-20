@@ -749,6 +749,10 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
 #endif
     memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
 
+#ifdef TARGET_TS_MAKEUP
+    pme->TsMakeupProcess_Preview(frame,stream);
+#endif
+
     // Enqueue  buffer to gralloc.
     uint32_t idx = frame->buf_idx;
     CDBG("%p Enqueue Buffer to display %d frame Time = %lld Display Time = %lld",
@@ -814,9 +818,6 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         free(super_frame);
         return;
     }
-#ifdef TARGET_TS_MAKEUP
-    pme->TsMakeupProcess_Preview(frame,stream);
-#endif
 
     // For instant capture and for instant AEC, keep track of the frame counter.
     // This count will be used to check against the corresponding bound values.
