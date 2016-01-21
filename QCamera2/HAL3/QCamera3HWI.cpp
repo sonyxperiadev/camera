@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -1157,10 +1157,14 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
     switch (stream_format) {
     case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED: {
         /* Add LLVD to pp feature mask only if video hint is enabled */
-        if ((m_bIsVideo) && (feature_mask & CAM_QCOM_FEATURE_LLVD)) {
+        if ((m_bIsVideo) && (feature_mask & CAM_QTI_FEATURE_SW_TNR)) {
+            mStreamConfigInfo.postprocess_mask[stream_idx]
+                    |= CAM_QTI_FEATURE_SW_TNR;
+            LOGH("Added SW TNR to pp feature mask");
+        } else if ((m_bIsVideo) && (feature_mask & CAM_QCOM_FEATURE_LLVD)) {
             mStreamConfigInfo.postprocess_mask[stream_idx]
                     |= CAM_QCOM_FEATURE_LLVD;
-            LOGI("Added LLVD SeeMore to pp feature mask ");
+            LOGH("Added LLVD SeeMore to pp feature mask");
         }
         break;
     }

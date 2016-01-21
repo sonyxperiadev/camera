@@ -3487,7 +3487,7 @@ int32_t QCameraParameters::setSceneMode(const QCameraParameters& params)
             if (strcmp(str, SCENE_MODE_HDR) == 0) {
 
                 // If HDR is set from client  and the feature is not enabled in the backend, ignore it.
-                if (m_bHDRModeSensor) {
+                if (m_bHDRModeSensor && isSupportedSensorHdrSize(params)) {
                     m_bSensorHDREnabled = true;
                     LOGH("Sensor HDR mode Enabled");
                 } else {
@@ -6750,12 +6750,23 @@ int32_t QCameraParameters::setSceneDetect(const char *sceneDetect)
 int32_t QCameraParameters::setSensorSnapshotHDR(const char *snapshotHDR)
 {
     if (snapshotHDR != NULL) {
-        int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
-                snapshotHDR);
+        int32_t value = (cam_sensor_hdr_type_t) lookupAttr(ON_OFF_MODES_MAP,
+                PARAM_MAP_SIZE(ON_OFF_MODES_MAP), snapshotHDR);
         if (value != NAME_NOT_FOUND) {
             LOGH("Setting Sensor Snapshot HDR %s", snapshotHDR);
             updateParamEntry(KEY_QC_SENSOR_HDR, snapshotHDR);
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, value)) {
+
+            char zz_prop[PROPERTY_VALUE_MAX];
+            memset(zz_prop, 0, sizeof(zz_prop));
+            property_get("persist.camera.zzhdr.enable", zz_prop, "0");
+            uint8_t zzhdr_enable = (uint8_t)atoi(zz_prop);
+
+            if (zzhdr_enable && (value != CAM_SENSOR_HDR_OFF)) {
+                value = CAM_SENSOR_HDR_ZIGZAG;
+                LOGH("%s: Overriding to ZZ HDR Mode", __func__);
+            }
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, (cam_sensor_hdr_type_t)value)) {
                 return BAD_VALUE;
             }
             return NO_ERROR;
@@ -6785,11 +6796,32 @@ int32_t QCameraParameters::setVideoHDR(const char *videoHDR)
     if (videoHDR != NULL) {
         int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP), videoHDR);
         if (value != NAME_NOT_FOUND) {
-            LOGH("Setting Video HDR %s", videoHDR);
-            updateParamEntry(KEY_QC_VIDEO_HDR, videoHDR);
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_VIDEO_HDR, value)) {
-                return BAD_VALUE;
+
+            char zz_prop[PROPERTY_VALUE_MAX];
+            memset(zz_prop, 0, sizeof(zz_prop));
+            property_get("persist.camera.zzhdr.video", zz_prop, "0");
+            uint8_t use_zzhdr_video = (uint8_t)atoi(zz_prop);
+
+            if (use_zzhdr_video) {
+                LOGH("%s: Using ZZ HDR for video mode", __func__);
+                if (value)
+                    value = CAM_SENSOR_HDR_ZIGZAG;
+                else
+                    value = CAM_SENSOR_HDR_OFF;
+                LOGH("%s: Overriding to sensor HDR Mode to:%d", __func__, value);
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, (cam_sensor_hdr_type_t) value)) {
+                    ALOGE("%s: Override to sensor HDR mode for video HDR failed", __func__);
+                    return BAD_VALUE;
+                }
+                updateParamEntry(KEY_QC_VIDEO_HDR, videoHDR);
+            } else {
+                LOGH("%s: Setting Video HDR %s", __func__, videoHDR);
+                updateParamEntry(KEY_QC_VIDEO_HDR, videoHDR);
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_VIDEO_HDR, value)) {
+                    return BAD_VALUE;
+                }
             }
+
             return NO_ERROR;
         }
     }
@@ -8440,6 +8472,51 @@ int32_t QCameraParameters::setMeteringAreas(const char *meteringAreasStr)
     }
 
     return NO_ERROR;
+}
+
+
+/*===========================================================================
+ * FUNCTION   : isSupportedSensorHdrSize
+ *
+ * DESCRIPTION: Checks if the requested snapshot size is compatible with currently
+ *              configured HDR mode, currently primary target for validation is
+ *              zzhdr however this function can be extended in the future to vet
+ *              all sensor based HDR configs
+ *
+ * PARAMETERS :
+ *   @params  : CameraParameters object
+ *
+ * RETURN     : boolean type
+ *              True  -- indicates supported config
+ *              False -- indicated unsupported config should fallback to other
+ *              available HDR modes
+ *==========================================================================*/
+bool QCameraParameters::isSupportedSensorHdrSize(const QCameraParameters& params)
+{
+    char value[PROPERTY_VALUE_MAX];
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.zzhdr.enable", value, "0");
+    uint8_t zzhdr_enable = (uint8_t)atoi(value);
+
+    if (zzhdr_enable) {
+
+        int req_w, req_h;
+        params.getPictureSize(&req_w, &req_h);
+
+        // Check if requested w x h is in zzhdr supported list
+        for (size_t i = 0; i< m_pCapability->zzhdr_sizes_tbl_cnt; ++i) {
+
+            if (req_w == m_pCapability->zzhdr_sizes_tbl[i].width &&
+                    req_h == m_pCapability->zzhdr_sizes_tbl[i].height) {
+                LOGD("%s: Found match for %d x %d", __func__, req_w, req_h);
+                return true;
+            }
+        }
+        LOGH("%s: %d x %d is not supported for zzhdr mode", __func__, req_w, req_h);
+        return false;
+    }
+
+    return true;
 }
 
 /*===========================================================================

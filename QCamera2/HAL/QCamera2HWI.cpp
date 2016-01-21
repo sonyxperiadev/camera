@@ -3704,6 +3704,8 @@ int QCamera2HardwareInterface::autoFocus()
     LOGH("[AF_DBG]  focusMode=%d, m_currentFocusState=%d",
              focusMode, m_currentFocusState);
 
+    m_currentFocusState = CAM_AF_STATE_INACTIVE;
+
     switch (focusMode) {
     case CAM_FOCUS_MODE_AUTO:
     case CAM_FOCUS_MODE_MACRO:
