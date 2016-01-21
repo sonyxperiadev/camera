@@ -9412,19 +9412,25 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                             break;
                         }
 
-                        rc = pme->mParameters.getRelatedCamCalibration(
-                            &(pme->mJpegMetadata.otp_calibration_data));
-                        LOGD("Dumping Calibration Data Version Id %f rc %d",
-                                pme->mJpegMetadata.otp_calibration_data.calibration_format_version,
-                                rc);
-                        if (rc != 0) {
-                            job_status = UNKNOWN_ERROR;
-                            LOGE("getRelatedCamCalibration failed");
-                            pme->sendEvtNotify(CAMERA_MSG_ERROR,
-                                    CAMERA_ERROR_UNKNOWN, 0);
-                            break;
+                        // Get related cam calibration only in
+                        // dual camera mode
+                        if (pme->getRelatedCamSyncInfo()->sync_control ==
+                                CAM_SYNC_RELATED_SENSORS_ON) {
+                            rc = pme->mParameters.getRelatedCamCalibration(
+                                &(pme->mJpegMetadata.otp_calibration_data));
+                            LOGD("Dumping Calibration Data Version Id %f rc %d",
+                                    pme->mJpegMetadata.otp_calibration_data.calibration_format_version,
+                                    rc);
+                            if (rc != 0) {
+                                job_status = UNKNOWN_ERROR;
+                                LOGE("getRelatedCamCalibration failed");
+                                pme->sendEvtNotify(CAMERA_MSG_ERROR,
+                                        CAMERA_ERROR_UNKNOWN, 0);
+                                break;
+                            }
+                            pme->m_bRelCamCalibValid = true;
                         }
-                        pme->m_bRelCamCalibValid = true;
+
                         pme->mJpegMetadata.sensor_mount_angle =
                             cap->sensor_mount_angle;
                         pme->mJpegMetadata.default_sensor_flip = FLIP_NONE;
