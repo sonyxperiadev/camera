@@ -296,10 +296,15 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     do{
         n_try--;
         my_obj->ctrl_fd = open(dev_name, O_RDWR | O_NONBLOCK);
-        l_errno = errno;
-        CDBG("%s:  ctrl_fd = %d, errno == %d", __func__, my_obj->ctrl_fd, l_errno);
-        if((my_obj->ctrl_fd >= 0) || (l_errno != EIO) || (n_try <= 0 )) {
-            CDBG("%s:  opened, break out while loop", __func__);
+        CDBG("%s:  ctrl_fd = %d, errno == %d", __func__, my_obj->ctrl_fd, errno);
+        if((my_obj->ctrl_fd >= 0) ||
+                (errno != EIO && errno != ETIMEDOUT && errno != ENODEV) ||
+                (n_try <= 0 )) {
+            CDBG_HIGH("%s:  opened, break out while loop", __func__);
+            if (my_obj->ctrl_fd < 0) {
+                    ALOGE("%s: Failed to open %s: %s(%d).", __func__, dev_name,
+                            strerror(-errno), errno);
+            }
             break;
         }
         CDBG("%s:failed with I/O error retrying after %d milli-seconds",
