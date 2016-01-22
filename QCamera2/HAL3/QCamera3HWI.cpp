@@ -92,7 +92,7 @@ namespace qcamera {
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
 extern pthread_mutex_t gCamLock;
-volatile uint32_t gCamHal3LogLevel = 1;
+volatile uint32_t gCamHal3LogLevel = 0;
 extern uint8_t gNumCameraSessions;
 
 const QCamera3HardwareInterface::QCameraPropMap QCamera3HardwareInterface::CDS_MAP [] = {
