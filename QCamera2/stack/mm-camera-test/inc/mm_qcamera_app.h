@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,17 +30,12 @@
 #ifndef __MM_QCAMERA_APP_H__
 #define __MM_QCAMERA_APP_H__
 
+// System dependencies
 #include <pthread.h>
-#include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <poll.h>
-#include <linux/fb.h>
+#include <linux/msm_ion.h>
 #include <linux/msm_mdp.h>
-#include <semaphore.h>
 
+// Camera dependencies
 #include "mm_camera_interface.h"
 #include "mm_jpeg_interface.h"
 #include "mm_qcamera_socket.h"

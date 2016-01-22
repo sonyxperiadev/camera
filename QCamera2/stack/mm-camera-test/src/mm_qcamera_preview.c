@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -27,6 +27,15 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+// System dependencies
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#define MMAN_H <SYSTEM_HEADER_PREFIX/mman.h>
+#include MMAN_H
+
+// Camera dependencies
+#include "mm_qcamera_app.h"
 #include "mm_qcamera_dbg.h"
 #include "mm_qcamera_app.h"
 #include <assert.h>

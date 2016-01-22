@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,19 +27,20 @@
  *
  */
 
+// To remove
+#include <cutils/properties.h>
+
+// System dependencies
 #include <pthread.h>
 #include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
-#include <poll.h>
-#include <linux/media.h>
-#include <signal.h>
-#include <media/msm_cam_sensor.h>
-#include <cutils/properties.h>
 #include <stdlib.h>
+#include <linux/media.h>
+#include <media/msm_cam_sensor.h>
+#define IOCTL_H <SYSTEM_HEADER_PREFIX/ioctl.h>
+#include IOCTL_H
 
+// Camera dependencies
 #include "mm_camera_dbg.h"
 #include "mm_camera_interface.h"
 #include "mm_camera_sock.h"

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013, 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,6 +30,7 @@
 #ifndef MM_JPEG_INLINES_H_
 #define MM_JPEG_INLINES_H_
 
+// JPEG dependencies
 #include "mm_jpeg.h"
 
 /** mm_jpeg_get_session:

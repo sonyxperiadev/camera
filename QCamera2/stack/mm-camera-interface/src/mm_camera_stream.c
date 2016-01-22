@@ -27,18 +27,19 @@
  *
  */
 
+// System dependencies
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
-#include <poll.h>
-#include <time.h>
-#include <cam_semaphore.h>
 #include <media/msm_media_info.h>
+#define TIME_H <SYSTEM_HEADER_PREFIX/time.h>
+#include TIME_H
+#define IOCTL_H <SYSTEM_HEADER_PREFIX/ioctl.h>
+#include IOCTL_H
 
+// Camera dependencies
+#include "cam_semaphore.h"
 #include "mm_camera_dbg.h"
 #include "mm_camera_interface.h"
 #include "mm_camera.h"

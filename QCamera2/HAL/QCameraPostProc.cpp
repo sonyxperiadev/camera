@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -29,13 +29,20 @@
 
 #define LOG_TAG "QCameraPostProc"
 
+// System dependencies
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <utils/Errors.h>
-#include <cutils/properties.h>
 
+// Camera dependencies
 #include "QCamera2HWI.h"
 #include "QCameraPostProc.h"
+#include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 namespace qcamera {
 

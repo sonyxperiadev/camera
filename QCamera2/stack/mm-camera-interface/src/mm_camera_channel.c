@@ -27,15 +27,12 @@
  *
  */
 
+// System dependencies
 #include <pthread.h>
-#include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
-#include <poll.h>
-#include <cam_semaphore.h>
 
+// Camera dependencies
+#include "cam_semaphore.h"
 #include "mm_camera_dbg.h"
 #include "mm_camera_interface.h"
 #include "mm_camera.h"

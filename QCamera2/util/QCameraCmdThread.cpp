@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -27,11 +27,19 @@
 *
 */
 
+// System dependencies
+#include <string.h>
 #include <utils/Errors.h>
-#include <utils/Log.h>
-#include <sys/prctl.h>
+#define PRCTL_H <SYSTEM_HEADER_PREFIX/prctl.h>
+#include PRCTL_H
+
+// Camera dependencies
 #include "QCameraCmdThread.h"
-#include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
+
 using namespace android;
 
 namespace qcamera {

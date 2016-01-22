@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -29,27 +29,30 @@
 
 #define LOG_TAG "QCamera2HWI"
 
-#include <utils/Log.h>
+// To remove
 #include <cutils/properties.h>
-#include <hardware/camera.h>
+
+// System definitions
+#include <utils/Errors.h>
+#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <utils/Errors.h>
-#include <gralloc_priv.h>
-#include "util/QCameraFlash.h"
-#include <gui/Surface.h>
-#include <binder/Parcel.h>
-#include <binder/IServiceManager.h>
-#include <utils/RefBase.h>
-#include <QServiceUtils.h>
-#include <dlfcn.h>
+#include "gralloc_priv.h"
+#include "native_handle.h"
 
+// Camera definitions
+#include "android/QCamera2External.h"
 #include "QCamera2HWI.h"
 #include "QCameraBufferMaps.h"
-#include "QCameraMem.h"
+#include "QCameraFlash.h"
+#include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 #define MAP_TO_DRIVER_COORDINATE(val, base, scale, offset) \
-  ((int32_t)val * (int32_t)scale / (int32_t)base + (int32_t)offset)
+    ((int32_t)val * (int32_t)scale / (int32_t)base + (int32_t)offset)
 #define CAMERA_MIN_STREAMING_BUFFERS     3
 #define EXTRA_ZSL_PREVIEW_STREAM_BUF     2
 #define CAMERA_MIN_JPEG_ENCODING_BUFFERS 2

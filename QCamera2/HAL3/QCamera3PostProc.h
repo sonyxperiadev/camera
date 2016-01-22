@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,25 +30,23 @@
 #ifndef __QCamera3_POSTPROC_H__
 #define __QCamera3_POSTPROC_H__
 
-extern "C" {
-#include <mm_camera_interface.h>
-#include <mm_jpeg_interface.h>
-}
-#include <hardware/camera3.h>
-//#include "QCamera3HWI.h"
-#include "QCameraQueue.h"
-#include "QCameraCmdThread.h"
+// Camera dependencies
+#include "camera3.h"
 #include "QCamera3HALHeader.h"
+#include "QCameraCmdThread.h"
+#include "QCameraQueue.h"
+
+extern "C" {
+#include "mm_camera_interface.h"
+#include "mm_jpeg_interface.h"
+}
 
 namespace qcamera {
 
 class QCamera3Exif;
-class QCamera3Channel;
 class QCamera3ProcessingChannel;
-class QCamera3PicChannel;
 class QCamera3ReprocessChannel;
 class QCamera3Stream;
-class QCamera3Memory;
 class QCamera3StreamMem;
 
 typedef struct {

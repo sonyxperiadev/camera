@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,16 +30,17 @@
 #ifndef __QCAMERA_STATEMACHINE_H__
 #define __QCAMERA_STATEMACHINE_H__
 
+// System dependencies
 #include <pthread.h>
 
-#include <cam_semaphore.h>
-extern "C" {
-#include <mm_camera_interface.h>
-}
-
-#include "cam_types.h"
+// Camera dependencies
 #include "QCameraQueue.h"
 #include "QCameraChannel.h"
+#include "cam_semaphore.h"
+
+extern "C" {
+#include "mm_camera_interface.h"
+}
 
 namespace qcamera {
 

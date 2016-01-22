@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,14 +30,16 @@
 #ifndef __MM_CAMERA_H__
 #define __MM_CAMERA_H__
 
-#include <cam_semaphore.h>
+// System dependencies
+#include <poll.h>
 
+// Camera dependencies
+#include "camera_common.h"
+#include "cam_semaphore.h"
 #include "mm_camera_interface.h"
-#include <hardware/camera.h>
-#include <utils/Timers.h>
 
 /**********************************************************************************
-* Data structure declare
+* Data structure declarations
 ***********************************************************************************/
 /* num of callbacks allowed for an event type */
 #define MM_CAMERA_EVT_ENTRY_MAX 4
@@ -69,6 +71,8 @@
 struct mm_channel;
 struct mm_stream;
 struct mm_camera_obj;
+
+typedef int64_t nsecs_t;
 
 typedef enum
 {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -27,10 +27,16 @@
 *
 */
 
+// System dependencies
+#include <string.h>
 #include <utils/Errors.h>
-#include <utils/Log.h>
+
+// Camera dependencies
 #include "QCameraQueue.h"
-#include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 namespace qcamera {
 

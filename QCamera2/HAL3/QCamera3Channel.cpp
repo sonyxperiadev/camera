@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -28,21 +28,24 @@
 */
 
 #define LOG_TAG "QCamera3Channel"
-//#define LOG_NDEBUG 0
-#include <fcntl.h>
-#include <stdlib.h>
-#include <cstdlib>
-#include <stdio.h>
-#include <string.h>
-#include <linux/videodev2.h>
-#include <hardware/camera3.h>
-#include <system/camera_metadata.h>
-#include <gralloc_priv.h>
-#include <utils/Log.h>
-#include <utils/Errors.h>
+
+// To remove
 #include <cutils/properties.h>
+
+// System dependencies
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "gralloc.h"
+
+// Camera dependencies
 #include "QCamera3Channel.h"
 #include "QCamera3HWI.h"
+#include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 using namespace android;
 

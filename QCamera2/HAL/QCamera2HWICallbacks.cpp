@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -29,14 +29,24 @@
 
 #define LOG_TAG "QCamera2HWI"
 
-#include <time.h>
+// System dependencies
 #include <fcntl.h>
-#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#define STAT_H <SYSTEM_HEADER_PREFIX/stat.h>
+#include STAT_H
 #include <utils/Errors.h>
-#include <utils/Timers.h>
-#include <cutils/properties.h>
-#include <QComOMXMetadata.h>
+
+// OpenMAX dependencies
+#include "QComOMXMetadata.h"
+
+// Camera dependencies
 #include "QCamera2HWI.h"
+#include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 namespace qcamera {
 

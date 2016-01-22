@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,24 +30,8 @@
 #ifndef __MM_QCAMERA_SOCKET_H__
 #define __MM_QCAMERA_SOCKET_H__
 
-#include <stdint.h>
-#include <pthread.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <termios.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <signal.h>
-#include <errno.h>
-#include <stdarg.h>
-#include <sys/mman.h>
-#include <sys/time.h>
-#include <linux/socket.h>
+// System dependencies
 #include <arpa/inet.h>
-#include <utils/Log.h>
 
 #undef __FD_SET
 #define __FD_SET(fd, fdsetp) \

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -30,20 +30,23 @@
 #ifndef __QCAMERA3HARDWAREINTERFACE_H__
 #define __QCAMERA3HARDWAREINTERFACE_H__
 
-#include <pthread.h>
-#include <utils/List.h>
-#include <utils/KeyedVector.h>
-#include <hardware/camera3.h>
+// System dependencies
 #include <camera/CameraMetadata.h>
-#include "QCameraTrace.h"
-#include "QCamera3HALHeader.h"
+#include <pthread.h>
+#include <utils/KeyedVector.h>
+#include <utils/List.h>
+
+// Camera dependencies
+#include "camera3.h"
 #include "QCamera3Channel.h"
 #include "QCamera3CropRegionMapper.h"
+#include "QCamera3HALHeader.h"
+#include "QCamera3Mem.h"
 #include "QCameraPerf.h"
 
 extern "C" {
-#include <mm_camera_interface.h>
-#include <mm_jpeg_interface.h>
+#include "mm_camera_interface.h"
+#include "mm_jpeg_interface.h"
 }
 
 using namespace android;

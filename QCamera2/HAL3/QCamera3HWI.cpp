@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -31,31 +31,31 @@
 //#define LOG_NDEBUG 0
 
 #define __STDC_LIMIT_MACROS
+
+// To remove
 #include <cutils/properties.h>
-#include <hardware/camera3.h>
-#include <camera/CameraMetadata.h>
+
+// System dependencies
+#include <dlfcn.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <stdint.h>
-#include <qdMetaData.h>
-#include <utils/Log.h>
-#include <utils/Errors.h>
 #include <sync/sync.h>
-#include <gralloc_priv.h>
+#include "gralloc_priv.h"
+
+// Display dependencies
+#include "qdMetaData.h"
+
+// Camera dependencies
+#include "android/QCamera3External.h"
 #include "util/QCameraFlash.h"
 #include "QCamera3HWI.h"
-#include "QCamera3Mem.h"
-#include "QCamera3Channel.h"
-#include "QCamera3PostProc.h"
 #include "QCamera3VendorTags.h"
-#include <cutils/properties.h>
-#include <dlfcn.h>
+#include "QCameraTrace.h"
 
-#include <binder/Parcel.h>
-#include <binder/IServiceManager.h>
-#include <utils/RefBase.h>
-#include <QServiceUtils.h>
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 using namespace android;
 

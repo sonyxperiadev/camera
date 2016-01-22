@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012, The Linux Foundation. All rights reserved.
+Copyright (c) 2012, 2016, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -27,15 +27,12 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+// System dependencies
 #include <pthread.h>
-#include "mm_camera_dbg.h"
-#include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <poll.h>
+
+// Camera dependencies
 #include "mm_qcamera_unit_test.h"
+#include "mm_camera_dbg.h"
 
 #define MM_QCAMERA_APP_UTEST_MAX_MAIN_LOOP 4
 #define MM_QCAM_APP_TEST_NUM 128

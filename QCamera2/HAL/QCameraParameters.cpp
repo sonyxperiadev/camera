@@ -29,17 +29,28 @@
 
 #define LOG_TAG "QCameraParameters"
 
+// To remove
 #include <cutils/properties.h>
+
+// System dependencies
 #include <math.h>
-#include <utils/Errors.h>
-#include <utils/Log.h>
 #include <string.h>
 #include <stdlib.h>
-#include <gralloc_priv.h>
-#include <sys/sysinfo.h>
+#include <utils/Errors.h>
+#define SYSINFO_H <SYSTEM_HEADER_PREFIX/sysinfo.h>
+#include SYSINFO_H
+#include "gralloc_priv.h"
+#include "graphics.h"
+
+// Camera dependencies
 #include "QCameraBufferMaps.h"
-#include "QCameraParameters.h"
 #include "QCamera2HWI.h"
+#include "QCameraParameters.h"
+#include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 #define PI 3.14159265
 #define ASPECT_TOLERANCE 0.001

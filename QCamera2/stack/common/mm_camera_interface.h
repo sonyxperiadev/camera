@@ -29,9 +29,11 @@
 
 #ifndef __MM_CAMERA_INTERFACE_H__
 #define __MM_CAMERA_INTERFACE_H__
-#include <linux/msm_ion.h>
-#include <linux/videodev2.h>
+
+// System dependencies
 #include <media/msmb_camera.h>
+
+// Camera dependencies
 #include "cam_intf.h"
 #include "cam_queue.h"
 

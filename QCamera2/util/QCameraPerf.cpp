@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -29,11 +29,20 @@
 
 #define LOG_TAG "QCameraPerf"
 
+// To remove
 #include <cutils/properties.h>
+
+// System dependencies
 #include <stdlib.h>
-#include <utils/Log.h>
+#include <dlfcn.h>
+
+// Camera dependencies
 #include "QCameraPerf.h"
 #include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 namespace qcamera {
 

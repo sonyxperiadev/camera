@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -70,7 +70,6 @@
 #include <gralloc_priv.h>
 #include <math.h>
 
-//#include "qcamera_test.h"
 #include "cam_types.h"
 
 #define VIDEO_BUF_ALLIGN(size, allign) \

@@ -27,24 +27,23 @@
  *
  */
 
+// System dependencies
 #include <pthread.h>
 #include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/prctl.h>
 #include <fcntl.h>
-#include <poll.h>
-
-#include "mm_jpeg_dbg.h"
-#include "mm_jpeg_interface.h"
-#include "mm_jpeg.h"
-#include "mm_jpeg_inlines.h"
+#define PRCTL_H <SYSTEM_HEADER_PREFIX/prctl.h>
+#include PRCTL_H
 
 #ifdef LOAD_ADSP_RPC_LIB
 #include <dlfcn.h>
 #include <stdlib.h>
 #endif
+
+// JPEG dependencies
+#include "mm_jpeg_dbg.h"
+#include "mm_jpeg_interface.h"
+#include "mm_jpeg.h"
+#include "mm_jpeg_inlines.h"
 
 #define ENCODING_MODE_PARALLEL 1
 
