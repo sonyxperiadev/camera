@@ -1858,7 +1858,9 @@ typedef enum {
     CAM_INTF_AF_STATE_TRANSITION, /* 191 */
     /* Param for enabling instant aec*/
     CAM_INTF_PARM_INSTANT_AEC,
-    CAM_INTF_PARM_MAX /* 192 */
+    /* Param for updating initial exposure index value*/
+    CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX,
+    CAM_INTF_PARM_MAX /* 194 */
 } cam_intf_parm_type_t;
 
 typedef struct {
