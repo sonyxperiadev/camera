@@ -112,7 +112,8 @@ mm_camera_stream_t * mm_app_add_rdi_stream(mm_camera_test_obj_t *test_obj,
         if (((CAM_FORMAT_BAYER_MIPI_RAW_8BPP_GBRG <= cam_cap->supported_raw_fmts[i]) &&
             (CAM_FORMAT_BAYER_MIPI_RAW_12BPP_BGGR >= cam_cap->supported_raw_fmts[i])) ||
             (cam_cap->supported_raw_fmts[i] == CAM_FORMAT_META_RAW_8BIT) ||
-            (cam_cap->supported_raw_fmts[i] == CAM_FORMAT_JPEG_RAW_8BIT))
+            (cam_cap->supported_raw_fmts[i] == CAM_FORMAT_JPEG_RAW_8BIT) ||
+            (cam_cap->supported_raw_fmts[i] == CAM_FORMAT_BAYER_MIPI_RAW_14BPP_BGGR))
         {
             fmt = cam_cap->supported_raw_fmts[i];
             LOGE(" fmt=%d\n",  fmt);

@@ -369,6 +369,10 @@ private:
     static const char QC_PIXEL_FORMAT_BAYER_QCOM_RAW_12GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_QCOM_RAW_12RGGB[];
     static const char QC_PIXEL_FORMAT_BAYER_QCOM_RAW_12BGGR[];
+    static const char QC_PIXEL_FORMAT_BAYER_QCOM_RAW_14GBRG[];
+    static const char QC_PIXEL_FORMAT_BAYER_QCOM_RAW_14GRBG[];
+    static const char QC_PIXEL_FORMAT_BAYER_QCOM_RAW_14RGGB[];
+    static const char QC_PIXEL_FORMAT_BAYER_QCOM_RAW_14BGGR[];
     static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_8GBRG[];
     static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_8GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_8RGGB[];
@@ -381,6 +385,10 @@ private:
     static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_12GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_12RGGB[];
     static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_12BGGR[];
+    static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_14GBRG[];
+    static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_14GRBG[];
+    static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_14RGGB[];
+    static const char QC_PIXEL_FORMAT_BAYER_MIPI_RAW_14BGGR[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_8GBRG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_8GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_8RGGB[];
@@ -393,6 +401,10 @@ private:
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_12GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_12RGGB[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_12BGGR[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_14GBRG[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_14GRBG[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_14RGGB[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_QCOM_14BGGR[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_8GBRG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_8GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_8RGGB[];
@@ -405,6 +417,10 @@ private:
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_12GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_12RGGB[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_12BGGR[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_14GBRG[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_14GRBG[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_14RGGB[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_MIPI_14BGGR[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN8_8GBRG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN8_8GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN8_8RGGB[];
@@ -421,6 +437,10 @@ private:
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN16_12GRBG[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN16_12RGGB[];
     static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN16_12BGGR[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN16_14GBRG[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN16_14GRBG[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN16_14RGGB[];
+    static const char QC_PIXEL_FORMAT_BAYER_IDEAL_PLAIN16_14BGGR[];
 
     // ISO values
     static const char ISO_AUTO[];
