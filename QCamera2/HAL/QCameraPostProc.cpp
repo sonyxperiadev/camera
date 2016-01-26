@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -257,7 +257,6 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
         m_parent->mParameters.setCurPPCount(0);
 
         LOGD("mTotalNumReproc = %d", mTotalNumReproc);
-
         // Create all reproc channels and start channel
         for (int8_t i = 0; i < mTotalNumReproc; i++) {
             m_parent->mParameters.setCurPPCount((int8_t) (i + 1));
@@ -285,7 +284,7 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
     m_InputMetadata.clear();
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, TRUE, FALSE);
     m_parent->m_cbNotifier.startSnapshots();
-    LOGH("X ");
+    LOGH("X rc = %d", rc);
     return rc;
 }
 
@@ -533,7 +532,7 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
     if (0U < val) {
         encode_parm.quality = val;
     } else {
-        LOGI("Using default JPEG quality");
+        LOGH("Using default JPEG quality");
         encode_parm.quality = 85;
     }
     cam_frame_len_offset_t main_offset;
@@ -559,6 +558,13 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
             encode_parm.src_main_buf[i].offset = main_offset;
         }
     }
+    LOGI("Src Buffer cnt = %d, res = %dX%d len = %d rot = %d "
+            "src_dim = %dX%d dst_dim = %dX%d",
+            encode_parm.num_src_bufs,
+            main_offset.mp[0].width, main_offset.mp[0].height,
+            main_offset.frame_len, encode_parm.rotation,
+            src_dim.width, src_dim.height,
+            dst_dim.width, dst_dim.height);
 
     if (m_bThumbnailNeeded == TRUE) {
         uint32_t jpeg_rotation = m_parent->mParameters.getJpegRotation();
@@ -618,6 +624,15 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
             !m_parent->mParameters.generateThumbFromMain() &&
             (m_parent->mParameters.useJpegExifRotation() ||
             m_parent->mParameters.getJpegRotation() == 0);
+        LOGI("Src THUMB buf_cnt = %d, res = %dX%d len = %d rot = %d "
+            "src_dim = %dX%d, dst_dim = %dX%d",
+            encode_parm.num_tmb_bufs,
+            thumb_offset.mp[0].width, thumb_offset.mp[0].height,
+            thumb_offset.frame_len, encode_parm.thumb_rotation,
+            encode_parm.thumb_dim.src_dim.width,
+            encode_parm.thumb_dim.src_dim.height,
+            encode_parm.thumb_dim.dst_dim.width,
+            encode_parm.thumb_dim.dst_dim.height);
     }
 
     encode_parm.num_dst_bufs = 1;
@@ -658,7 +673,6 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
         encode_parm.dest_buf[i].format = MM_JPEG_FMT_YUV;
         encode_parm.dest_buf[i].offset = main_offset;
     }
-
 
     LOGD("X");
     return NO_ERROR;
@@ -786,7 +800,7 @@ bool QCameraPostProcessor::validatePostProcess(mm_camera_super_buf_t *frame)
             pStream = m_pReprocChannel->getStreamByIndex(i);
             if (pStream && (m_inputPPQ.getCurrentSize() > 0) &&
                     m_ongoingPPQ.getCurrentSize() >=  pStream->getNumQueuedBuf()) {
-                LOGH("Out of PP Buffer PPQ = %d ongoingQ = %d Jpeg = %d onJpeg = %d",
+                LOGW("Out of PP Buffer PPQ = %d ongoingQ = %d Jpeg = %d onJpeg = %d",
                         m_inputPPQ.getCurrentSize(), m_inputPPQ.getCurrentSize(),
                         m_inputJpegQ.getCurrentSize(), m_ongoingJpegQ.getCurrentSize());
                 status = FALSE;
@@ -862,7 +876,7 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
             //avoid sending frame for reprocessing if o/p buffer is not queued to CPP.
             triggerEvent = validatePostProcess(frame);
         }else {
-            LOGH("Input PP Q is not active!!!");
+            LOGW("Input PP Q is not active!!!");
             releaseSuperBuf(frame);
             free(frame);
             free(pp_request_job);
@@ -905,7 +919,7 @@ int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
 
         // enqueu to jpeg input queue
         if (!m_inputJpegQ.enqueue((void *)jpeg_job)) {
-            LOGH("Input Jpeg Q is not active!!!");
+            LOGW("Input Jpeg Q is not active!!!");
             releaseJpegJobData(jpeg_job);
             free(jpeg_job);
             jpeg_job = NULL;
@@ -943,7 +957,7 @@ int32_t QCameraPostProcessor::processRawData(mm_camera_super_buf_t *frame)
     if (m_inputRawQ.enqueue((void *)frame)) {
         m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
     } else {
-        LOGH("m_inputRawQ is not active!!!");
+        LOGW("m_inputRawQ is not active!!!");
         releaseSuperBuf(frame);
         free(frame);
         frame = NULL;
@@ -1013,7 +1027,7 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
         if ((false == m_parent->m_bIntJpegEvtPending) &&
              (m_parent->mDataCb == NULL ||
               m_parent->msgTypeEnabledWithLock(CAMERA_MSG_COMPRESSED_IMAGE) == 0 )) {
-            LOGH("No dataCB or CAMERA_MSG_COMPRESSED_IMAGE not enabled");
+            LOGW("No dataCB or CAMERA_MSG_COMPRESSED_IMAGE not enabled");
             rc = NO_ERROR;
             goto end;
         }
@@ -1075,6 +1089,7 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
 end:
         if (rc != NO_ERROR) {
             // send error msg to upper layer
+            LOGE("Jpeg Encoding failed. Notify Application");
             sendEvtNotify(CAMERA_MSG_ERROR,
                           UNKNOWN_ERROR,
                           0);
@@ -1184,7 +1199,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
     }
     if (pChannel == NULL) {
         LOGE("No corresponding channel (ch_id = %d) exist, return here",
- frame->ch_id);
+                frame->ch_id);
         return BAD_VALUE;
     }
 
@@ -1239,7 +1254,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         if (m_inputPPQ.enqueue((void *)pp_request_job)) {
             triggerEvent = validatePostProcess(frame);
         } else {
-            LOGH("m_input PP Q is not active!!!");
+            LOGW("m_input PP Q is not active!!!");
             releasePPInputData(pp_request_job,this);
             free(pp_request_job);
             pp_request_job = NULL;
@@ -1267,7 +1282,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
             if (m_InputMetadata.size() >= (meta_idx + 1)) {
                 meta_frame = m_InputMetadata.itemAt(meta_idx);
             } else {
-                LOGE("Input metadata vector contains %d entries, index required %d",
+                LOGW("Input metadata vector contains %d entries, index required %d",
                          m_InputMetadata.size(), meta_idx);
             }
             m_PPindex++;
@@ -1302,7 +1317,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
                 triggerEvent = validatePostProcess(frame);
             }
         } else {
-            LOGH("%s : Input Jpeg Q is not active!!!");
+            LOGW("%s : Input Jpeg Q is not active!!!");
             releaseJpegJobData(jpeg_job);
             free(jpeg_job);
             jpeg_job = NULL;
@@ -1919,7 +1934,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
 
     if (pChannel == NULL) {
         LOGE("No corresponding channel (ch_id = %d) exist, return here",
- recvd_frame->ch_id);
+                recvd_frame->ch_id);
         return BAD_VALUE;
     }
 
@@ -2205,14 +2220,16 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         if (thumb_frame != NULL) {
             jpg_job.encode_job.thumb_index = thumb_frame->buf_idx;
         }
-        LOGH(", thumbnail src w/h (%dx%d), dst w/h (%dx%d)",
+        LOGI("Thumbnail idx = %d src w/h (%dx%d), dst w/h (%dx%d)",
+            jpg_job.encode_job.thumb_index,
             jpg_job.encode_job.thumb_dim.src_dim.width,
             jpg_job.encode_job.thumb_dim.src_dim.height,
             jpg_job.encode_job.thumb_dim.dst_dim.width,
             jpg_job.encode_job.thumb_dim.dst_dim.height);
     }
 
-    LOGD("main_dim src w/h (%dx%d), dst w/h (%dx%d)",
+    LOGI("Main image idx = %d src w/h (%dx%d), dst w/h (%dx%d)",
+            jpg_job.encode_job.src_index,
             jpg_job.encode_job.main_dim.src_dim.width,
             jpg_job.encode_job.main_dim.src_dim.height,
             jpg_job.encode_job.main_dim.dst_dim.width,
@@ -2361,7 +2378,7 @@ int32_t QCameraPostProcessor::processRawImageImpl(mm_camera_super_buf_t *recvd_f
     }
     if (pChannel == NULL) {
         LOGE("No corresponding channel (ch_id = %d) exist, return here",
- recvd_frame->ch_id);
+                recvd_frame->ch_id);
         return BAD_VALUE;
     }
 
@@ -2640,7 +2657,7 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
             ret = cam_sem_wait(&cmdThread->cmd_sem);
             if (ret != 0 && errno != EINVAL) {
                 LOGE("cam_sem_wait error (%s)",
-                            strerror(errno));
+                        strerror(errno));
                 return NULL;
             }
         } while (ret != 0);
@@ -2747,7 +2764,7 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                                 pme->sendEvtNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
                             }
                         } else {
-                            LOGH("m_ongoingJpegQ is not active!!!");
+                            LOGW("m_ongoingJpegQ is not active!!!");
                             pme->releaseJpegJobData(jpeg_job);
                             free(jpeg_job);
                             jpeg_job = NULL;
@@ -2921,10 +2938,9 @@ int32_t QCameraPostProcessor::doReprocess()
                     pp_job = NULL;
                 }
             } else {
-
                 m_bufCountPPQ++;
                 if (!m_ongoingPPQ.enqueue((void *)pp_job)) {
-                    LOGH("m_ongoingJpegQ is not active!!!");
+                    LOGW("m_ongoingJpegQ is not active!!!");
                     releaseOngoingPPData(pp_job, this);
                     free(pp_job);
                     pp_job = NULL;
@@ -2949,7 +2965,7 @@ int32_t QCameraPostProcessor::doReprocess()
                         }
                         extra_pp_job->reprocCount = pp_job->reprocCount;
                         if (!m_ongoingPPQ.enqueue((void *)extra_pp_job)) {
-                            LOGH("%s : m_ongoingJpegQ is not active!!!");
+                            LOGW("%s : m_ongoingJpegQ is not active!!!");
                             releaseOngoingPPData(extra_pp_job, this);
                             free(extra_pp_job);
                             extra_pp_job = NULL;
@@ -3079,7 +3095,7 @@ int32_t QCameraPostProcessor::setYUVFrameInfo(mm_camera_super_buf_t *recvd_frame
 
     if (pChannel == NULL) {
         LOGE("No corresponding channel (ch_id = %d) exist, return here",
- recvd_frame->ch_id);
+                recvd_frame->ch_id);
         return BAD_VALUE;
     }
 
