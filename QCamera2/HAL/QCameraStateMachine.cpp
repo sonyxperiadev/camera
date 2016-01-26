@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -169,7 +169,7 @@ void QCameraStateMachine::releaseThread()
 
             /* wait until cmd thread exits */
             if (pthread_join(cmd_pid, NULL) != 0) {
-                LOGH("pthread dead already\n");
+                LOGW("pthread dead already\n");
             }
         }
         cmd_pid = 0;
@@ -232,6 +232,7 @@ int32_t QCameraStateMachine::procAPI(qcamera_sm_evt_enum_t evt,
         cam_sem_post(&cmd_sem);
         return NO_ERROR;
     } else {
+        LOGE("API enqueue failed API = %d", evt);
         free(node);
         return UNKNOWN_ERROR;
     }
@@ -269,6 +270,7 @@ int32_t QCameraStateMachine::procEvt(qcamera_sm_evt_enum_t evt,
         cam_sem_post(&cmd_sem);
         return NO_ERROR;
     } else {
+        LOGE("EVENT enqueue failed Event = %d", evt);
         free(node);
         return UNKNOWN_ERROR;
     }
@@ -557,7 +559,7 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
     case QCAMERA_SM_EVT_STOP_PREVIEW:
         {
             // no op needed here
-            LOGH("already in preview stopped state, do nothing");
+            LOGW("already in preview stopped state, do nothing");
             result.status = NO_ERROR;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -646,7 +648,7 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
     case QCAMERA_SM_EVT_CANCEL_PICTURE:
         {
             // no op needed here
-            LOGH("No ops for evt(%d) in state(%d)", evt, m_state);
+            LOGW("No ops for evt(%d) in state(%d)", evt, m_state);
             result.status = NO_ERROR;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -1281,7 +1283,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_PREPARE_PREVIEW:
         {
             // no ops here
-            LOGH("Already in preview ready state, no ops here");
+            LOGW("Already in preview ready state, no ops here");
             rc = NO_ERROR;
             result.status = rc;
             result.request_api = evt;
@@ -1293,7 +1295,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_START_NODISPLAY_PREVIEW:
         {
             // no ops here
-            LOGH("Already in previewing, no ops here to start preview");
+            LOGW("Already in previewing, no ops here to start preview");
             applyDelayedMsgs();
             rc = NO_ERROR;
             result.status = rc;
@@ -1645,7 +1647,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                 }
                 break;
             default:
-                LOGH("no handling for server evt (%d) at this state",
+                LOGW("no handling for server evt (%d) at this state",
                        cam_evt->server_event_type);
                 break;
             }
@@ -1770,7 +1772,6 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
                 rc = m_parent->processAutoFocusEvent(internal_evt->focus_data);
                 break;
             case QCAMERA_INTERNAL_EVT_PREP_SNAPSHOT_DONE:
-                LOGD("Received QCAMERA_INTERNAL_EVT_PREP_SNAPSHOT_DONE event");
                 m_parent->processPrepSnapshotDoneEvent(internal_evt->prep_snapshot_state);
                 m_state = QCAMERA_SM_STATE_PREVIEWING;
 
@@ -2550,7 +2551,7 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_START_RECORDING:
         {
             // no ops here
-            LOGH("already in recording state, no ops for start_recording");
+            LOGW("already in recording state, no ops for start_recording");
             rc = 0;
             result.status = rc;
             result.request_api = evt;
@@ -3451,12 +3452,12 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
 
     case QCAMERA_SM_EVT_PREPARE_SNAPSHOT:
         {
-          LOGD("[ZSL Retro]Prepare Snapshot");
+          LOGD("Prepare Snapshot");
           if (m_parent->isRetroPicture()) {
-              LOGD("[ZSL Retro] Prepare Snapshot in Retro Mode");
+              LOGD("Prepare Snapshot in Retro Mode");
               rc = m_parent->prepareHardwareForSnapshot(FALSE);
               if (rc != NO_ERROR) {
-                  LOGE("[ZSL Retro]prepareHardwareForSnapshot failed %d",
+                  LOGE("prepareHardwareForSnapshot failed %d",
                        rc);
                   result.status = rc;
                   result.request_api = evt;
@@ -3499,17 +3500,17 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                 rc = m_parent->processAutoFocusEvent(internal_evt->focus_data);
                 break;
             case QCAMERA_INTERNAL_EVT_PREP_SNAPSHOT_DONE:
-                LOGD("[ZSL Retro]Received QCAMERA_INTERNAL_EVT_PREP_SNAPSHOT_DONE event");
+                LOGD("Received QCAMERA_INTERNAL_EVT_PREP_SNAPSHOT_DONE event");
                 if (m_parent->isRetroPicture()) {
                     m_parent->processPrepSnapshotDoneEvent(internal_evt->prep_snapshot_state);
-                    LOGD("[ZSL Retro] Retro picture");
+                    LOGD("Retro picture");
                     result.status = NO_ERROR;
                     result.request_api = QCAMERA_SM_EVT_PREPARE_SNAPSHOT;
                     result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
                     m_parent->signalAPIResult(&result);
                 }
                 else {
-                    LOGE("[ZSL Retro] Invalid Case for  "
+                    LOGE("Invalid Case for  "
                             "QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT event");
                 }
                 break;
@@ -3519,15 +3520,14 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
             case QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT:
                 // This is valid only in Retro picture Mode
                 if (m_parent->isRetroPicture()) {
-                    LOGD("[ZSL Retro] Received QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT event");
+                    LOGD("Received QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT event");
                     result.status = NO_ERROR;
                     result.request_api = QCAMERA_SM_EVT_TAKE_PICTURE;
                     result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
                     m_parent->signalAPIResult(&result);
                 }
                 else {
-                    LOGD("[ZSL Retro] Wrong Case for  "
-                           "QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT event");
+                    LOGD("Wrong Case for QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT event");
                 }
                 break;
             case QCAMERA_INTERNAL_EVT_HISTOGRAM_STATS:
@@ -3597,7 +3597,7 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
         break;
     case QCAMERA_SM_EVT_JPEG_EVT_NOTIFY:
         {
-            LOGL("[ZSL Retro] Calling Process Jpeg Notify");
+            LOGL("Calling Process Jpeg Notify");
             qcamera_jpeg_evt_payload_t *jpeg_job =
                 (qcamera_jpeg_evt_payload_t *)payload;
             rc = m_parent->processJpegNotify(jpeg_job);
@@ -3605,7 +3605,7 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
         break;
     case QCAMERA_SM_EVT_SNAPSHOT_DONE:
         {
-            LOGL("[ZSL Retro] Snapshot Done");
+            LOGL("Snapshot Done");
             if (m_parent->isZSLMode() || m_parent->isLongshotEnabled()) {
                 rc = m_parent->cancelPicture();
             } else {
