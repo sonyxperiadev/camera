@@ -2929,6 +2929,11 @@ void QCamera3HardwareInterface::hdrPlusPerfLock(
     uint32_t *p_frame_number =
             POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
 
+    if (p_frame_number_valid == NULL || p_frame_number == NULL) {
+        LOGE("%s: Invalid metadata", __func__);
+        return;
+    }
+
     //acquire perf lock for 5 sec after the last HDR frame is captured
     if (*p_frame_number_valid) {
         if (mLastCustIntentFrmNum == (int32_t)*p_frame_number) {

@@ -1,6 +1,6 @@
 /*
 ** Copyright 2008, The Android Open Source Project
-** Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+** Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 ** Not a Contribution. Apache license notifications and license are
 ** retained for attribution purposes only.
 **
@@ -1004,6 +1004,7 @@ private:
             size_t len, int &default_fps_index);
     String8 createFpsString(cam_fps_range_t &fps);
     String8 createZoomRatioValuesString(uint32_t *zoomRatios, size_t length);
+    int32_t setDualLedCalibration(const QCameraParameters& params);
 
     // ops for batch set/get params with server
     int32_t initBatchUpdate(parm_buffer_t *p_table);
@@ -1160,6 +1161,7 @@ private:
     int32_t m_isoValue;
     QCameraManualCaptureModes m_ManualCaptureMode;
     cam_dyn_img_data_t m_DynamicImgData;
+    int32_t m_dualLedCalibration;
 };
 
 }; // namespace qcamera
