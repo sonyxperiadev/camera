@@ -87,6 +87,7 @@ namespace qcamera {
 #define MAX_HFR_BATCH_SIZE     (8)
 #define REGIONS_TUPLE_COUNT    5
 #define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
+#define BURST_REPROCESS_PERF_TIME_OUT  (1000) // milliseconds
 
 #define FLUSH_TIMEOUT 3
 
@@ -3705,6 +3706,16 @@ no_error:
             }
         } else if (output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
             bool needMetadata = false;
+            if (m_perfLock.isPerfLockTimedAcquired()) {
+                if (m_perfLock.isTimerReset())
+                {
+                    m_perfLock.lock_rel_timed();
+                    m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
+                }
+            } else {
+                m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
+            }
+
             QCamera3YUVChannel *yuvChannel = (QCamera3YUVChannel *)channel;
             rc = yuvChannel->request(output.buffer, frameNumber,
                     pInputBuffer,
@@ -3793,6 +3804,9 @@ no_error:
         minInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
         maxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
     }
+    if (m_perfLock.isPerfLockTimedAcquired() && m_perfLock.isTimerReset())
+        m_perfLock.lock_rel_timed();
+
     while ((mPendingLiveRequest >= minInFlightRequests) && !pInputBuffer &&
             (mState != ERROR) && (mState != DEINIT)) {
         if (!isValidTimeout) {
