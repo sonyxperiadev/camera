@@ -3879,6 +3879,19 @@ no_error:
         } else {
             LOGD("request with buffer %p, frame_number %d",
                   output.buffer, frameNumber);
+            /* Set perf lock for API-2 zsl */
+            if (IS_USAGE_ZSL(output.stream->usage)) {
+                if (m_perfLock.isPerfLockTimedAcquired()) {
+                    if (m_perfLock.isTimerReset())
+                    {
+                        m_perfLock.lock_rel_timed();
+                        m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
+                    }
+                } else {
+                    m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
+                }
+            }
+
             rc = channel->request(output.buffer, frameNumber);
             if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())
                     && mBatchSize) {
