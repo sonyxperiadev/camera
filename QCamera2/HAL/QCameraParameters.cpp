@@ -10652,9 +10652,15 @@ bool QCameraParameters::useJpegExifRotation() {
     char exifRotation[PROPERTY_VALUE_MAX];
 
     property_get("persist.camera.exif.rotation", exifRotation, "off");
+
     if (!strcmp(exifRotation, "on")) {
         return true;
     }
+
+    if (!(m_pCapability->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION)) {
+        return true;
+    }
+
     return false;
 }
 

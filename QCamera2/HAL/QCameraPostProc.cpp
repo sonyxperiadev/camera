@@ -642,6 +642,10 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
             encode_parm.thumb_dim.dst_dim.height);
     }
 
+    if (m_parent->mParameters.useJpegExifRotation()){
+        encode_parm.thumb_rotation = m_parent->mParameters.getJpegExifRotation();
+    }
+
     encode_parm.num_dst_bufs = 1;
     if (mUseJpegBurst) {
         encode_parm.num_dst_bufs = MAX_JPEG_BURST;
