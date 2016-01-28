@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1476,12 +1476,14 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
         buf_info->buf->frame_idx = vb.sequence;
         buf_info->buf->ts.tv_sec  = vb.timestamp.tv_sec;
         buf_info->buf->ts.tv_nsec = vb.timestamp.tv_usec * 1000;
+        buf_info->buf->flags = vb.flags;
 
         LOGH("VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d,"
-                "queued: %d, buf_type = %d",
+                "queued: %d, buf_type = %d flags = %d",
              vb.index, buf_info->buf->frame_idx,
             my_obj->stream_info->stream_type, rc,
-            my_obj->queued_buffer_count, buf_info->buf->buf_type);
+            my_obj->queued_buffer_count, buf_info->buf->buf_type,
+            buf_info->buf->flags);
 
         buf_info->buf->is_uv_subsampled =
             (vb.reserved == V4L2_PIX_FMT_NV14 || vb.reserved == V4L2_PIX_FMT_NV41);

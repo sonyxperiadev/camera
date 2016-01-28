@@ -192,22 +192,11 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
         if(pMetaFrame != NULL){
             metadata_buffer_t *pMetaData = (metadata_buffer_t *)pMetaFrame->buffer;
             //send the face detection info
-            uint8_t found = 0;
-            cam_face_detection_data_t faces_data;
-            IF_META_AVAILABLE(cam_face_detection_data_t, p_faces_data,
-                    CAM_INTF_META_FACE_DETECTION, pMetaData) {
-                faces_data = *p_faces_data;
-                found = 1;
-            } else {
-                memset(&faces_data, 0, sizeof(cam_face_detection_data_t));
-            }
-            faces_data.fd_type = QCAMERA_FD_SNAPSHOT; //HARD CODE here before MCT can support
-            if(!found){
-                faces_data.num_faces_detected = 0;
-            }else if(faces_data.num_faces_detected > MAX_ROI){
-                LOGE("Invalid number of faces %d",
-                     faces_data.num_faces_detected);
-            }
+            cam_faces_data_t faces_data;
+            pme->fillFacesData(faces_data, pMetaData);
+            //HARD CODE here before MCT can support
+            faces_data.detection_data.fd_type = QCAMERA_FD_SNAPSHOT;
+
             qcamera_sm_internal_evt_payload_t *payload =
                 (qcamera_sm_internal_evt_payload_t *)malloc(sizeof(qcamera_sm_internal_evt_payload_t));
             if (NULL != payload) {
@@ -738,6 +727,10 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
     stream->mStreamTimestamp = frameTime;
     memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
 
+#ifdef TARGET_TS_MAKEUP
+    pme->TsMakeupProcess_Preview(frame,stream);
+#endif
+
     // Enqueue  buffer to gralloc.
     uint32_t idx = frame->buf_idx;
     LOGD("%p Enqueue Buffer to display %d frame Time = %lld Display Time = %lld",
@@ -803,9 +796,6 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         free(super_frame);
         return;
     }
-#ifdef TARGET_TS_MAKEUP
-    pme->TsMakeupProcess_Preview(frame,stream);
-#endif
     if (!pme->needProcessPreviewFrame()) {
         LOGI("preview is not running, no need to process");
         stream->bufDone(frame->buf_idx);
@@ -828,6 +818,9 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
 
     if (!stream->isSyncCBEnabled()) {
         LOGD("Enqueue Buffer to display %d", idx);
+#ifdef TARGET_TS_MAKEUP
+        pme->TsMakeupProcess_Preview(frame,stream);
+#endif
         err = memory->enqueueBuffer(idx);
 
         if (err == NO_ERROR) {
@@ -2025,32 +2018,27 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         }
     }
 
-    IF_META_AVAILABLE(cam_face_detection_data_t, faces_data,
+    IF_META_AVAILABLE(cam_face_detection_data_t, detection_data,
             CAM_INTF_META_FACE_DETECTION, pMetaData) {
-        if (faces_data->num_faces_detected > MAX_ROI) {
-            LOGE("Invalid number of faces %d",
-                 faces_data->num_faces_detected);
-        } else {
-            // process face detection result
-            if (faces_data->num_faces_detected)
-                LOGH("[KPI Perf]: PROFILE_NUMBER_OF_FACES_DETECTED %d",
-                    faces_data->num_faces_detected);
-            faces_data->fd_type = QCAMERA_FD_PREVIEW; //HARD CODE here before MCT can support
-            qcamera_sm_internal_evt_payload_t *payload = (qcamera_sm_internal_evt_payload_t *)
-                malloc(sizeof(qcamera_sm_internal_evt_payload_t));
-            if (NULL != payload) {
-                memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
-                payload->evt_type = QCAMERA_INTERNAL_EVT_FACE_DETECT_RESULT;
-                payload->faces_data = *faces_data;
-                int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
-                if (rc != NO_ERROR) {
-                    LOGE("processEvt face detection failed");
-                    free(payload);
-                    payload = NULL;
-                }
-            } else {
-                LOGE("No memory for face detect qcamera_sm_internal_evt_payload_t");
+
+        cam_faces_data_t faces_data;
+        pme->fillFacesData(faces_data, pMetaData);
+        faces_data.detection_data.fd_type = QCAMERA_FD_PREVIEW; //HARD CODE here before MCT can support
+
+        qcamera_sm_internal_evt_payload_t *payload = (qcamera_sm_internal_evt_payload_t *)
+            malloc(sizeof(qcamera_sm_internal_evt_payload_t));
+        if (NULL != payload) {
+            memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+            payload->evt_type = QCAMERA_INTERNAL_EVT_FACE_DETECT_RESULT;
+            payload->faces_data = faces_data;
+            int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+            if (rc != NO_ERROR) {
+                LOGE("%s: processEvt face detection failed", __func__);
+                free(payload);
+                payload = NULL;
             }
+        } else {
+            LOGE("%s: No memory for face detect qcamera_sm_internal_evt_payload_t", __func__);
         }
     }
 
@@ -2874,6 +2862,70 @@ void QCamera2HardwareInterface::debugShowPreviewFPS()
                  mPFps, mCameraId);
         mPLastFpsTime = now;
         mPLastFrameCount = mPFrameCount;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : fillFacesData
+ *
+ * DESCRIPTION: helper function to fill in face related metadata into a struct.
+ *
+ * PARAMETERS :
+ *   @faces_data : face features data to be filled
+ *   @metadata   : metadata structure to read face features from
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCamera2HardwareInterface::fillFacesData(cam_faces_data_t &faces_data,
+        metadata_buffer_t *metadata)
+{
+    memset(&faces_data, 0, sizeof(cam_faces_data_t));
+
+    IF_META_AVAILABLE(cam_face_detection_data_t, p_detection_data,
+            CAM_INTF_META_FACE_DETECTION, metadata) {
+        faces_data.detection_data = *p_detection_data;
+        if (faces_data.detection_data.num_faces_detected > MAX_ROI) {
+            faces_data.detection_data.num_faces_detected = MAX_ROI;
+        }
+
+        LOGH("[KPI Perf] %s: PROFILE_NUMBER_OF_FACES_DETECTED %d",
+                __func__,faces_data.detection_data.num_faces_detected);
+
+        IF_META_AVAILABLE(cam_face_recog_data_t, p_recog_data,
+                CAM_INTF_META_FACE_RECOG, metadata) {
+            faces_data.recog_valid = true;
+            faces_data.recog_data = *p_recog_data;
+        }
+
+        IF_META_AVAILABLE(cam_face_blink_data_t, p_blink_data,
+                CAM_INTF_META_FACE_BLINK, metadata) {
+            faces_data.blink_valid = true;
+            faces_data.blink_data = *p_blink_data;
+        }
+
+        IF_META_AVAILABLE(cam_face_gaze_data_t, p_gaze_data,
+                CAM_INTF_META_FACE_GAZE, metadata) {
+            faces_data.gaze_valid = true;
+            faces_data.gaze_data = *p_gaze_data;
+        }
+
+        IF_META_AVAILABLE(cam_face_smile_data_t, p_smile_data,
+                CAM_INTF_META_FACE_SMILE, metadata) {
+            faces_data.smile_valid = true;
+            faces_data.smile_data = *p_smile_data;
+        }
+
+        IF_META_AVAILABLE(cam_face_landmarks_data_t, p_landmarks,
+                CAM_INTF_META_FACE_LANDMARK, metadata) {
+            faces_data.landmark_valid = true;
+            faces_data.landmark_data = *p_landmarks;
+        }
+
+        IF_META_AVAILABLE(cam_face_contour_data_t, p_contour,
+                CAM_INTF_META_FACE_CONTOUR, metadata) {
+            faces_data.contour_valid = true;
+            faces_data.contour_data = *p_contour;
+        }
     }
 }
 

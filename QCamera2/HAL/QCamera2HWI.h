@@ -436,7 +436,7 @@ private:
     int32_t prepareRawStream(QCameraChannel *pChannel);
     QCameraChannel *getChannelByHandle(uint32_t channelHandle);
     mm_camera_buf_def_t *getSnapshotFrame(mm_camera_super_buf_t *recvd_frame);
-    int32_t processFaceDetectionResult(cam_face_detection_data_t *fd_data);
+    int32_t processFaceDetectionResult(cam_faces_data_t *fd_data);
     bool needPreviewFDCallback(uint8_t num_faces);
     int32_t processHistogramStats(cam_hist_stats_t &stats_data);
     int32_t setHistogram(bool histogram_en);
@@ -475,6 +475,7 @@ private:
     bool processUFDumps(qcamera_jpeg_evt_payload_t *evt);
     void captureDone();
     int32_t updateMetadata(metadata_buffer_t *pMetaData);
+    void fillFacesData(cam_faces_data_t &faces_data, metadata_buffer_t *metadata);
 
     int32_t getPPConfig(cam_pp_feature_config_t &pp_config,
             int8_t curIndex = 0, bool multipass = FALSE);

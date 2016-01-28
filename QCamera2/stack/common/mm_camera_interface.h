@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -115,6 +115,7 @@ typedef struct {
 *    @frame_len : length of the whole frame, to be filled during
 *               mem allocation
 *    @mem_info : user specific pointer to additional mem info
+*    @flags:  v4l2_buffer flags, used to report error in data buffers
 **/
 typedef struct mm_camera_buf_def {
     uint32_t stream_id;
@@ -132,6 +133,7 @@ typedef struct mm_camera_buf_def {
     void *buffer;
     size_t frame_len;
     void *mem_info;
+    uint32_t flags;
 } mm_camera_buf_def_t;
 
 /** mm_camera_super_buf_t: super buf structure for bundled

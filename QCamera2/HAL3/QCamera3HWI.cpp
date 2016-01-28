@@ -3604,7 +3604,7 @@ no_error:
         request_id = mCurrentRequestId;
     }
 
-    LOGH("%d, num_output_buffers = %d input_buffer = %p frame_number = %d",
+    LOGH("num_output_buffers = %d input_buffer = %p frame_number = %d",
                                     request->num_output_buffers,
                                     request->input_buffer,
                                     frameNumber);
@@ -4560,7 +4560,14 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     IF_META_AVAILABLE(uint32_t, videoStab, CAM_INTF_META_VIDEO_STAB_MODE, metadata) {
         uint8_t fwk_videoStab = (uint8_t) *videoStab;
+        LOGD("fwk_videoStab = %d", fwk_videoStab);
         camMetadata.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &fwk_videoStab, 1);
+    } else {
+        // Regardless of Video stab supports or not, CTS is expecting the EIS result to be non NULL
+        // and so hardcoding the Video Stab result to OFF mode.
+        uint8_t fwkVideoStabMode = ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF;
+        camMetadata.update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE, &fwkVideoStabMode, 1);
+        LOGD("%s: EIS result default to OFF mode", __func__);
     }
 
     IF_META_AVAILABLE(uint32_t, noiseRedMode, CAM_INTF_META_NOISE_REDUCTION_MODE, metadata) {
@@ -4697,19 +4704,7 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         convertToRegions(faceDetectionInfo->faces[i].face_boundary,
                                 faceRectangles+j, -1);
 
-                        // Map the co-ordinate sensor output coordinate system to active
-                        // array coordinate system.
-                        cam_face_detection_info_t& face = faceDetectionInfo->faces[i];
-                        mCropRegionMapper.toActiveArray(face.left_eye_center.x,
-                                face.left_eye_center.y);
-                        mCropRegionMapper.toActiveArray(face.right_eye_center.x,
-                                face.right_eye_center.y);
-                        mCropRegionMapper.toActiveArray(face.mouth_center.x,
-                                face.mouth_center.y);
-
-                        convertLandmarks(faceDetectionInfo->faces[i], faceLandmarks+k);
                         j+= 4;
-                        k+= 6;
                     }
                     if (numFaces <= 0) {
                         memset(faceIds, 0, sizeof(int32_t) * MAX_ROI);
@@ -4724,6 +4719,27 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             faceRectangles, numFaces * 4U);
                     if (fwk_faceDetectMode ==
                             ANDROID_STATISTICS_FACE_DETECT_MODE_FULL) {
+                        IF_META_AVAILABLE(cam_face_landmarks_data_t, landmarks,
+                                CAM_INTF_META_FACE_LANDMARK, metadata) {
+
+                            for (size_t i = 0; i < numFaces; i++) {
+                                // Map the co-ordinate sensor output coordinate system to active
+                                // array coordinate system.
+                                mCropRegionMapper.toActiveArray(
+                                        landmarks->face_landmarks[i].left_eye_center.x,
+                                        landmarks->face_landmarks[i].left_eye_center.y);
+                                mCropRegionMapper.toActiveArray(
+                                        landmarks->face_landmarks[i].right_eye_center.x,
+                                        landmarks->face_landmarks[i].right_eye_center.y);
+                                mCropRegionMapper.toActiveArray(
+                                        landmarks->face_landmarks[i].mouth_center.x,
+                                        landmarks->face_landmarks[i].mouth_center.y);
+
+                                convertLandmarks(landmarks->face_landmarks[i], faceLandmarks+k);
+                                k+= 6;
+                            }
+                        }
+
                         camMetadata.update(ANDROID_STATISTICS_FACE_IDS, faceIds, numFaces);
                         camMetadata.update(ANDROID_STATISTICS_FACE_LANDMARKS,
                                 faceLandmarks, numFaces * 6U);
@@ -5763,19 +5779,21 @@ bool QCamera3HardwareInterface::resetIfNeededROI(cam_area_t* roi,
  * DESCRIPTION: helper method to extract the landmarks from face detection info
  *
  * PARAMETERS :
- *   @face   : cam_rect_t struct to convert
+ *   @landmark_data : input landmark data to be converted
  *   @landmarks : int32_t destination array
  *
  *
  *==========================================================================*/
-void QCamera3HardwareInterface::convertLandmarks(cam_face_detection_info_t face, int32_t *landmarks)
+void QCamera3HardwareInterface::convertLandmarks(
+        cam_face_landmarks_info_t landmark_data,
+        int32_t *landmarks)
 {
-    landmarks[0] = (int32_t)face.left_eye_center.x;
-    landmarks[1] = (int32_t)face.left_eye_center.y;
-    landmarks[2] = (int32_t)face.right_eye_center.x;
-    landmarks[3] = (int32_t)face.right_eye_center.y;
-    landmarks[4] = (int32_t)face.mouth_center.x;
-    landmarks[5] = (int32_t)face.mouth_center.y;
+    landmarks[0] = (int32_t)landmark_data.left_eye_center.x;
+    landmarks[1] = (int32_t)landmark_data.left_eye_center.y;
+    landmarks[2] = (int32_t)landmark_data.right_eye_center.x;
+    landmarks[3] = (int32_t)landmark_data.right_eye_center.y;
+    landmarks[4] = (int32_t)landmark_data.mouth_center.x;
+    landmarks[5] = (int32_t)landmark_data.mouth_center.y;
 }
 
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
@@ -8565,6 +8583,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE)) {
         uint8_t videoStabMode =
                 frame_settings.find(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE).data.u8[0];
+        LOGD("videoStabMode from APP = %d", videoStabMode);
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_VIDEO_STAB_MODE,
                 videoStabMode)) {
             rc = BAD_VALUE;
