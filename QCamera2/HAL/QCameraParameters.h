@@ -207,6 +207,7 @@ private:
     static const char WHITE_BALANCE_MANUAL[];
     static const char FOCUS_MODE_MANUAL_POSITION[];
     static const char KEY_QC_LONG_SHOT[];
+    static const char KEY_QC_INITIAL_EXPOSURE_INDEX[];
 
     static const char KEY_QC_MANUAL_FOCUS_POSITION[];
     static const char KEY_QC_MANUAL_FOCUS_POS_TYPE[];
@@ -896,6 +897,7 @@ private:
     int32_t setPAAF();
     int32_t setTintlessValue(const QCameraParameters& params);
     int32_t setCDSMode(const QCameraParameters& params);
+    int32_t setInitialExposureIndex(const QCameraParameters& params);
     int32_t setMobicat(const QCameraParameters& params);
     int32_t setRdiMode(const QCameraParameters& );
     int32_t setSecureMode(const QCameraParameters& );

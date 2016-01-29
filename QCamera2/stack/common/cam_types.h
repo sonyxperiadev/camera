@@ -2025,6 +2025,8 @@ typedef enum {
     CAM_INTF_META_VIDEO_STAB_MODE,
     /* Touch exposure compensation (EV) status */
     CAM_INTF_META_TOUCH_AE_RESULT,
+    /* Param for updating initial exposure index value*/
+    CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

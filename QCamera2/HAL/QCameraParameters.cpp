@@ -195,6 +195,7 @@ const char QCameraParameters::FOCUS_MODE_MANUAL_POSITION[] = "manual";
 const char QCameraParameters::KEY_QC_CACHE_VIDEO_BUFFERS[] = "cache-video-buffers";
 
 const char QCameraParameters::KEY_QC_LONG_SHOT[] = "long-shot";
+const char QCameraParameters::KEY_QC_INITIAL_EXPOSURE_INDEX[] = "initial-exp-index";
 
 // Values for effect settings.
 const char QCameraParameters::EFFECT_EMBOSS[] = "emboss";
@@ -5045,6 +5046,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     if ((rc = setCDSMode(params)))                      final_rc = rc;
     if ((rc = setTemporalDenoise(params)))              final_rc = rc;
     if ((rc = setCacheVideoBuffers(params)))            final_rc = rc;
+    if ((rc = setInitialExposureIndex(params)))         final_rc = rc;
 
     // update live snapshot size after all other parameters are set
     if ((rc = setLiveSnapshotSize(params)))             final_rc = rc;
@@ -7865,6 +7867,59 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                 rc = BAD_VALUE;
             }
         }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setInitialExposureIndex
+ *
+ * DESCRIPTION: Set initial exposure index value
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setInitialExposureIndex(const QCameraParameters& params)
+{
+    int32_t rc = NO_ERROR;
+    int value = -1;
+    const char *str = params.get(KEY_QC_INITIAL_EXPOSURE_INDEX);
+    const char *prev_str = get(KEY_QC_INITIAL_EXPOSURE_INDEX);
+    if (str) {
+        if ((prev_str == NULL) || (strcmp(str, prev_str) != 0)) {
+            value = atoi(str);
+            LOGD("Set initial exposure index value from param = %d", value);
+            if (value >= 0) {
+                updateParamEntry(KEY_QC_INITIAL_EXPOSURE_INDEX, str);
+            }
+        }
+    } else {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.initial.exp.val", prop, "");
+        if ((strlen(prop) > 0) &&
+                ( (prev_str == NULL) || (strcmp(prop, prev_str) != 0))) {
+            value = atoi(prop);
+            LOGD("Set initial exposure index value from setprop = %d", value);
+            if (value >= 0) {
+                updateParamEntry(KEY_QC_INITIAL_EXPOSURE_INDEX, prop);
+            }
+        }
+    }
+
+    if (value >= 0) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX, (uint32_t)value)) {
+            LOGE("Failed to update initial exposure index value");
+            rc = BAD_VALUE;
+        }
+    } else {
+        LOGD("Invalid value for initial exposure index value %d", value);
     }
 
     return rc;
