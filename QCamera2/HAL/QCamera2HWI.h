@@ -760,6 +760,8 @@ private:
     QCameraDisplay mCameraDisplay;
 
     bool m_bNeedRestart;
+    Mutex mMapLock;
+    Condition mMapCond;
 };
 
 }; // namespace qcamera
