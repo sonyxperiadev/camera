@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -271,6 +271,7 @@ private:
     bool m_bEisEnable;
     uint8_t m_MobicatMask;
     uint8_t m_bTnrEnabled;
+    uint8_t mSupportedFaceDetectMode;
 
     /* Data structure to store pending request */
     typedef struct {
