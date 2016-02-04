@@ -595,6 +595,7 @@ public:
                     cam_stream_type_t streamType,
                     cam_dimension_t *dim,
                     cam_format_t streamFormat,
+                    uint8_t hw_analysis_supported,
                     void *userData,
                     uint32_t numBuffers = MIN_STREAMING_BUFFER_NUM
                     );
