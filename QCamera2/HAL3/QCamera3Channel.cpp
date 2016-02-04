@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -155,7 +155,7 @@ void QCamera3Channel::destroy()
     }
     if (m_handle) {
         m_camOps->delete_channel(m_camHandle, m_handle);
-        LOGE("deleting channel %d", m_handle);
+        LOGH("deleting channel %d", m_handle);
         m_handle = 0;
     }
     m_numStreams = 0;
@@ -268,13 +268,13 @@ int32_t QCamera3Channel::start()
     int32_t rc = NO_ERROR;
 
     if (m_numStreams > 1) {
-        LOGE("bundle not supported");
+        LOGW("bundle not supported");
     } else if (m_numStreams == 0) {
         return NO_INIT;
     }
 
     if(m_bIsActive) {
-        LOGD("Attempt to start active channel");
+        LOGW("Attempt to start active channel");
         return rc;
     }
 
@@ -314,7 +314,7 @@ int32_t QCamera3Channel::stop()
     ATRACE_CALL();
     int32_t rc = NO_ERROR;
     if(!m_bIsActive) {
-        LOGE("Attempt to stop inactive channel");
+        LOGW("Attempt to stop inactive channel");
         return rc;
     }
 
@@ -898,7 +898,6 @@ int32_t QCamera3ProcessingChannel::request(buffer_handle_t *buffer,
             return rc;
         }
         LOGH("Post-process started");
-        LOGH("Issue call to reprocess");
         m_postprocessor.processData(src_frame);
     } else {
         //need to fill output buffer with new data and return
@@ -999,8 +998,7 @@ int32_t QCamera3ProcessingChannel::registerBuffer(buffer_handle_t *buffer,
     if (0 == m_numStreams) {
         rc = initialize(mIsType);
         if (rc != NO_ERROR) {
-            LOGE("Couldn't initialize camera stream %d",
-                     rc);
+            LOGE("Couldn't initialize camera stream %d", rc);
             return rc;
         }
     }
@@ -1214,7 +1212,7 @@ int32_t QCamera3ProcessingChannel::stop()
 {
     int32_t rc = NO_ERROR;
     if(!m_bIsActive) {
-        LOGE("Attempt to stop inactive channel");
+        LOGW("Attempt to stop inactive channel");
         return rc;
     }
 
@@ -1552,7 +1550,7 @@ int32_t QCamera3ProcessingChannel::releaseOfflineMemory(uint32_t resultFrameNumb
     if (0 <= inputBufIndex) {
         rc = mOfflineMemory.unregisterBuffer(inputBufIndex);
     } else {
-        LOGE("Could not find offline input buffer, resultFrameNumber %d",
+        LOGW("Could not find offline input buffer, resultFrameNumber %d",
                  resultFrameNumber);
     }
     if (rc != NO_ERROR) {
@@ -1565,8 +1563,8 @@ int32_t QCamera3ProcessingChannel::releaseOfflineMemory(uint32_t resultFrameNumb
         Mutex::Autolock lock(mFreeOfflineMetaBuffersLock);
         mFreeOfflineMetaBuffersList.push_back((uint32_t)metaBufIndex);
     } else {
-        LOGE("Could not find offline meta buffer, resultFrameNumber %d",
-                 resultFrameNumber);
+        LOGW("Could not find offline meta buffer, resultFrameNumber %d",
+                resultFrameNumber);
     }
 
     return rc;
@@ -2083,7 +2081,7 @@ void QCamera3RawChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
        int file_fd = open(buf, O_RDWR| O_CREAT, 0644);
        if (file_fd >= 0) {
           ssize_t written_len = write(file_fd, frame->buffer, frame->frame_len);
-          LOGE("written number of bytes %zd", written_len);
+          LOGD("written number of bytes %zd", written_len);
           close(file_fd);
        } else {
           LOGE("failed to open file to dump image");
@@ -2628,8 +2626,7 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
     int index;
     Mutex::Autolock lock(mOfflinePpLock);
 
-    LOGD("pInputBuffer is %p", pInputBuffer);
-    LOGD("frame number %d", frameNumber);
+    LOGD("pInputBuffer is %p frame number %d", pInputBuffer, frameNumber);
     if (NULL == buffer || NULL == metadata) {
         LOGE("Invalid buffer/metadata in channel request");
         return BAD_VALUE;
@@ -2766,7 +2763,6 @@ void QCamera3YUVChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
                 // There is pending reprocess buffer, cache current buffer
                 if (ppInfo->callback_buffer != NULL) {
                     LOGE("Fatal: cached callback_buffer is already present");
-
                 }
                 ppInfo->callback_buffer = super_frame;
                 return;
@@ -3089,7 +3085,8 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                 LOGE("Snapshot buffer not found!");
             }
 
-            LOGD("Issue Callback");
+            LOGI("Issue Jpeg Callback frameNumber = %d status = %d",
+                    resultFrameNumber, resultStatus);
             obj->mChannelCB(NULL,
                     &result,
                     (uint32_t)resultFrameNumber,
@@ -3368,7 +3365,6 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
             return rc;
         }
         LOGH("Post-process started");
-        LOGH("Issue call to reprocess");
         m_postprocessor.processData(src_frame);
     }
     return rc;
@@ -3794,8 +3790,8 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
            }
            return;
         }
-        LOGD("bufIndex: %u recvd from post proc",
-             (uint32_t)frameIndex);
+        LOGI("bufIndex: %u recvd from post proc",
+                 (uint32_t)frameIndex);
         *frame = *super_frame;
 
         obj->m_postprocessor.processPPData(frame);
@@ -4228,7 +4224,7 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
             return BAD_VALUE;
         }
     } else {
-        LOGH("Crop data not present");
+        LOGW("Crop data not present");
     }
 
     IF_META_AVAILABLE(cam_cds_data_t, cdsInfo, CAM_INTF_META_CDS_DATA, meta) {
@@ -4373,6 +4369,10 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
         param.reprocess.frame_idx = frame->input_buffer.frame_idx;
         param.reprocess.meta_present = 1;
         param.reprocess.meta_buf_index = meta_buf_idx;
+
+        LOGI("Offline reprocessing id = %d buf Id = %d meta index = %d",
+                    param.reprocess.frame_idx, param.reprocess.buf_index,
+                    param.reprocess.meta_buf_index);
         rc = pStream->setParameter(param);
         if (rc != NO_ERROR) {
             LOGE("stream setParameter for reprocess failed");
@@ -4427,6 +4427,10 @@ int32_t QCamera3ReprocessChannel::doReprocess(int buf_fd, size_t buf_length,
             param.reprocess.meta_present = 1;
             param.reprocess.meta_stream_handle = m_pMetaChannel->mStreams[0]->getMyServerID();
             param.reprocess.meta_buf_index = meta_frame->bufs[0]->buf_idx;
+
+            LOGI("Online reprocessing id = %d buf Id = %d meta index = %d",
+                    param.reprocess.frame_idx, param.reprocess.buf_index,
+                    param.reprocess.meta_buf_index);
             rc = mStreams[i]->setParameter(param);
             if (rc == NO_ERROR) {
                 ret_val = param.reprocess.ret_val;

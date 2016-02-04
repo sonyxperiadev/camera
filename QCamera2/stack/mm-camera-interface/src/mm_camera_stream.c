@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -558,7 +558,7 @@ int32_t mm_stream_fsm_inited(mm_stream_t *my_obj,
         }
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d), in(%p), out(%p)",
+        LOGW("invalid state (%d) for evt (%d), in(%p), out(%p)",
                     my_obj->state, evt, in_val, out_val);
         break;
     }
@@ -623,7 +623,7 @@ int32_t mm_stream_fsm_acquired(mm_stream_t *my_obj,
         }
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d), in(%p), out(%p)",
+        LOGW("invalid state (%d) for evt (%d), in(%p), out(%p)",
                     my_obj->state, evt, in_val, out_val);
     }
     LOGD("X rc = %d", rc);
@@ -693,7 +693,7 @@ int32_t mm_stream_fsm_cfg(mm_stream_t * my_obj,
         }
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d), in(%p), out(%p)",
+        LOGW("invalid state (%d) for evt (%d), in(%p), out(%p)",
                     my_obj->state, evt, in_val, out_val);
     }
     LOGD("X rc = %d", rc);
@@ -752,7 +752,7 @@ int32_t mm_stream_fsm_buffed(mm_stream_t * my_obj,
         }
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d), in(%p), out(%p)",
+        LOGW("invalid state (%d) for evt (%d), in(%p), out(%p)",
                     my_obj->state, evt, in_val, out_val);
     }
     LOGD("X rc = %d", rc);
@@ -844,7 +844,7 @@ int32_t mm_stream_fsm_reg(mm_stream_t * my_obj,
         }
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d), in(%p), out(%p)",
+        LOGW("invalid state (%d) for evt (%d), in(%p), out(%p)",
                     my_obj->state, evt, in_val, out_val);
     }
     LOGD("X rc = %d", rc);
@@ -924,7 +924,7 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
         rc = mm_stream_do_action(my_obj, in_val);
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d), in(%p), out(%p)",
+        LOGW("invalid state (%d) for evt (%d), in(%p), out(%p)",
                     my_obj->state, evt, in_val, out_val);
     }
     LOGD("X rc = %d", rc);
@@ -1530,6 +1530,9 @@ int32_t mm_stream_set_parm(mm_stream_t *my_obj,
     int32_t value = 0;
     if (in_value != NULL) {
         rc = mm_camera_util_s_ctrl(my_obj->fd, CAM_PRIV_STREAM_PARM, &value);
+        if (rc < 0) {
+            LOGE("Failed to set stream parameter type = %d", in_value->type);
+        }
     }
     return rc;
 }
@@ -2271,6 +2274,11 @@ uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt)
         break;
     case CAM_FORMAT_YUV_422_NV16:
         val= V4L2_PIX_FMT_NV16;
+        break;
+    case CAM_FORMAT_MAX:
+    case CAM_FORMAT_Y_ONLY:
+        val = 0;
+        LOGW("Custom format configured");
         break;
     default:
         val = 0;
