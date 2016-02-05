@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -169,11 +169,16 @@ int32_t QCameraStream::put_bufs(
  *==========================================================================*/
 int32_t QCameraStream::put_bufs_deffered(
         mm_camera_map_unmap_ops_tbl_t * /*ops_tbl */,
-        void * /*user_data*/ )
+        void * user_data )
 {
-    // No op
-    // Used for handling buffers with deffered allocation. They are freed separately.
-    return NO_ERROR;
+    QCameraStream *stream = reinterpret_cast<QCameraStream *>(user_data);
+
+    if (!stream) {
+        LOGE("put_bufs_deffered invalid stream pointer");
+        return NO_MEMORY;
+    }
+
+    return stream->putBufsDeffered();
 }
 
 /*===========================================================================
@@ -2092,6 +2097,31 @@ int32_t QCameraStream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
     }
 
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : putBufsDeffered
+ *
+ * DESCRIPTION: function to deallocate deffered stream buffers
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::putBufsDeffered()
+{
+    if (mBufAllocPid != 0) {
+        cond_signal(true);
+        LOGH("%s: wait for buf allocation thread dead", __func__);
+        // Wait for the allocation of additional stream buffers
+        pthread_join(mBufAllocPid, NULL);
+        mBufAllocPid = 0;
+        LOGH("%s: return from buf allocation thread", __func__);
+    }
+    // Deallocation of the deffered stream buffers handled separately
+    return NO_ERROR;
 }
 
 /*===========================================================================
