@@ -985,7 +985,7 @@ int32_t QCameraStream::processDataNotify(mm_camera_super_buf_t *frame)
         return mProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
     } else {
         if (!m_bActive) {
-            LOGH("Stream thread is not active, no ops here %d", getMyType());
+            LOGW("Stream thread is not active, no ops here %d", getMyType());
         } else {
             bufDone(frame->bufs[0]->buf_idx);
         }

@@ -1532,6 +1532,9 @@ int32_t mm_stream_set_parm(mm_stream_t *my_obj,
     int32_t value = 0;
     if (in_value != NULL) {
         rc = mm_camera_util_s_ctrl(my_obj->fd, CAM_PRIV_STREAM_PARM, &value);
+        if (rc < 0) {
+            LOGE("Failed to set stream parameter type = %d", in_value->type);
+        }
     }
     return rc;
 }

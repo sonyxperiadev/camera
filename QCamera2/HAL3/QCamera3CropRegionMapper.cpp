@@ -102,7 +102,7 @@ void QCamera3CropRegionMapper::update(uint32_t active_array_w,
     mActiveArrayW = active_array_w;
     mActiveArrayH = active_array_h;
 
-    LOGI("active_array: %d x %d, sensor size %d x %d",
+    LOGH("active_array: %d x %d, sensor size %d x %d",
             mActiveArrayW, mActiveArrayH, mSensorW, mSensorH);
 }
 

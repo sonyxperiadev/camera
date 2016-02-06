@@ -195,6 +195,7 @@ const char QCameraParameters::FOCUS_MODE_MANUAL_POSITION[] = "manual";
 const char QCameraParameters::KEY_QC_CACHE_VIDEO_BUFFERS[] = "cache-video-buffers";
 
 const char QCameraParameters::KEY_QC_LONG_SHOT[] = "long-shot";
+const char QCameraParameters::KEY_QC_INITIAL_EXPOSURE_INDEX[] = "initial-exp-index";
 
 // Values for effect settings.
 const char QCameraParameters::EFFECT_EMBOSS[] = "emboss";
@@ -904,7 +905,7 @@ QCameraParameters::QCameraParameters()
         m_ThermalMode = QCAMERA_THERMAL_ADJUST_FRAMESKIP;
     } else {
         if (strcmp(value, "fps"))
-            LOGE("Invalid camera thermal mode %s", value);
+            LOGW("Invalid camera thermal mode %s", value);
         m_ThermalMode = QCAMERA_THERMAL_ADJUST_FPS;
     }
 
@@ -1401,7 +1402,7 @@ int32_t QCameraParameters::setPreviewSize(const QCameraParameters& params)
            && height ==  m_pCapability->preview_sizes_tbl[i].height) {
             // check if need to restart preview in case of preview size change
             if (width != old_width || height != old_height) {
-				LOGI("Requested preview size %d x %d", width, height);
+                LOGI("Requested preview size %d x %d", width, height);
                 m_bNeedRestart = true;
             }
             // set the new value
@@ -1604,7 +1605,7 @@ int32_t QCameraParameters::setVideoSize(const QCameraParameters& params)
         //If application didn't set this parameter string, use the values from
         //getPreviewSize() as video dimensions.
         params.getPreviewSize(&width, &height);
-        LOGE("No Record Size requested, use the preview dimensions");
+        LOGW("No Record Size requested, use the preview dimensions");
     } else {
         params.getVideoSize(&width, &height);
     }
@@ -2001,7 +2002,7 @@ int32_t QCameraParameters::setRetroActiveBurstNum(
         const QCameraParameters& params)
 {
     int32_t nBurstNum = params.getInt(KEY_QC_NUM_RETRO_BURST_PER_SHUTTER);
-    LOGH("[ZSL Retro] m_nRetroBurstNum = %d", m_nRetroBurstNum);
+    LOGH("m_nRetroBurstNum = %d", m_nRetroBurstNum);
     if (nBurstNum <= 0) {
         // if burst number is not set in parameters,
         // read from sys prop
@@ -2017,7 +2018,7 @@ int32_t QCameraParameters::setRetroActiveBurstNum(
     set(KEY_QC_NUM_RETRO_BURST_PER_SHUTTER, nBurstNum);
 
     m_nRetroBurstNum = nBurstNum;
-    LOGH("[ZSL Retro] m_nRetroBurstNum = %d", m_nRetroBurstNum);
+    LOGH("m_nRetroBurstNum = %d", m_nRetroBurstNum);
     return NO_ERROR;
 }
 
@@ -3454,7 +3455,8 @@ int32_t QCameraParameters::setMeteringAreas(const QCameraParameters& params)
 
         const char *prev_str = get(KEY_METERING_AREAS);
         if (prev_str == NULL ||
-            strcmp(str, prev_str) != 0) {
+            strcmp(str, prev_str) != 0 ||
+            (m_bNeedRestart == true)) {
             return setMeteringAreas(str);
         }
     }
@@ -4231,16 +4233,16 @@ int32_t QCameraParameters::setZslMode(bool value)
                 rc = BAD_VALUE;
             }
 
-            LOGH("ZSL Mode forced to be enabled");
+            LOGI("ZSL Mode forced to be enabled");
         }
     } else {
-        LOGH("ZSL Mode  -> %s", m_bZslMode_new ? "Enabled" : "Disabled");
+        LOGI("ZSL Mode  -> %s", m_bZslMode_new ? "Enabled" : "Disabled");
         m_bZslMode_new = (value > 0)? true : false;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
             rc = BAD_VALUE;
         }
     }
-    LOGI("enabled: %d", m_bZslMode_new);
+    LOGH("enabled: %d rc = %d", m_bZslMode_new, rc);
     return rc;
 }
 
@@ -4643,7 +4645,7 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.interval", prop, "1");
         set(KEY_QC_ZSL_BURST_INTERVAL, prop);
-        LOGH("[ZSL Retro] burst interval: %s", prop);
+        LOGH("burst interval: %s", prop);
     }
 
     str = params.get(KEY_QC_ZSL_BURST_LOOKBACK);
@@ -4657,7 +4659,7 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
             look_back_cnt += EXTRA_FRAME_SYNC_BUFFERS;
         }
         set(KEY_QC_ZSL_BURST_LOOKBACK, look_back_cnt);
-        LOGH("[ZSL Retro] look back count: %s", prop);
+        LOGH("look back count: %s", prop);
     }
 
     str = params.get(KEY_QC_ZSL_QUEUE_DEPTH);
@@ -4671,7 +4673,7 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
             queue_depth += EXTRA_FRAME_SYNC_BUFFERS;
         }
         set(KEY_QC_ZSL_QUEUE_DEPTH, queue_depth);
-        LOGH("[ZSL Retro] queue depth: %s", prop);
+        LOGH("queue depth: %s", prop);
     }
 
     return NO_ERROR;
@@ -4769,7 +4771,7 @@ int32_t QCameraParameters::setBurstNum(const QCameraParameters& params)
     }
     set(KEY_QC_SNAPSHOT_BURST_NUM, nBurstNum);
     m_nBurstNum = (uint8_t)nBurstNum;
-    LOGH("[ZSL Retro] m_nBurstNum = %d", m_nBurstNum);
+    LOGH("m_nBurstNum = %d", m_nBurstNum);
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_BURST_NUM, (uint32_t)nBurstNum)) {
         return BAD_VALUE;
     }
@@ -4943,6 +4945,7 @@ int32_t QCameraParameters::checkFeatureConcurrency()
             rc = BAD_TYPE;
         }
     }
+    LOGI("Advance feature enabled 0x%x", advancedFeatEnableBit);
     return rc;
 }
 
@@ -5043,6 +5046,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     if ((rc = setCDSMode(params)))                      final_rc = rc;
     if ((rc = setTemporalDenoise(params)))              final_rc = rc;
     if ((rc = setCacheVideoBuffers(params)))            final_rc = rc;
+    if ((rc = setInitialExposureIndex(params)))         final_rc = rc;
 
     // update live snapshot size after all other parameters are set
     if ((rc = setLiveSnapshotSize(params)))             final_rc = rc;
@@ -5155,7 +5159,7 @@ int32_t QCameraParameters::initDefaultParameters()
         CameraParameters::setPreviewSize(m_pCapability->preview_sizes_tbl[0].width,
                                          m_pCapability->preview_sizes_tbl[0].height);
     } else {
-        LOGE("supported preview sizes cnt is 0 or exceeds max!!!");
+        LOGW("supported preview sizes cnt is 0 or exceeds max!!!");
     }
 
     // Set supported video sizes
@@ -5173,7 +5177,7 @@ int32_t QCameraParameters::initDefaultParameters()
         String8 vSize = createSizesString(&m_pCapability->preview_sizes_tbl[0], 1);
         set(KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO, vSize.string());
     } else {
-        LOGE("supported video sizes cnt is 0 or exceeds max!!!");
+        LOGW("supported video sizes cnt is 0 or exceeds max!!!");
     }
 
     // Set supported picture sizes
@@ -5188,7 +5192,7 @@ int32_t QCameraParameters::initDefaultParameters()
            m_pCapability->picture_sizes_tbl[m_pCapability->picture_sizes_tbl_cnt-1].width,
            m_pCapability->picture_sizes_tbl[m_pCapability->picture_sizes_tbl_cnt-1].height);
     } else {
-        LOGE("supported picture sizes cnt is 0 or exceeds max!!!");
+        LOGW("supported picture sizes cnt is 0 or exceeds max!!!");
     }
 
     // Need check if scale should be enabled
@@ -5207,7 +5211,7 @@ int32_t QCameraParameters::initDefaultParameters()
             LOGH("scaled supported pic sizes: %s", pictureSizeValues.string());
         }else{
             m_reprocScaleParam.setScaleEnable(false);
-            LOGE("reset scaled picture size table failed.");
+            LOGW("reset scaled picture size table failed.");
         }
     }else{
         m_reprocScaleParam.setScaleEnable(false);
@@ -5298,7 +5302,7 @@ int32_t QCameraParameters::initDefaultParameters()
         LOGH("supported fps rates: %s", fpsValues.string());
         CameraParameters::setPreviewFrameRate(int(m_pCapability->fps_ranges_tbl[default_fps_index].max_fps));
     } else {
-        LOGE("supported fps ranges cnt is 0 or exceeds max!!!");
+        LOGW("supported fps ranges cnt is 0 or exceeds max!!!");
     }
 
     // Set supported focus modes
@@ -5320,7 +5324,7 @@ int32_t QCameraParameters::initDefaultParameters()
             setFocusMode(FOCUS_MODE_FIXED);
         }
     } else {
-        LOGE("supported focus modes cnt is 0!!!");
+        LOGW("supported focus modes cnt is 0!!!");
     }
 
     // Set focus areas
@@ -5450,7 +5454,7 @@ int32_t QCameraParameters::initDefaultParameters()
     if (m_pCapability->supported_effects_cnt > 0) {
         set(KEY_SUPPORTED_EFFECTS, effectValues);
     } else {
-        LOGE("Color effects are not available");
+        LOGW("Color effects are not available");
         set(KEY_SUPPORTED_EFFECTS, EFFECT_NONE);
     }
     setEffect(EFFECT_NONE);
@@ -5497,7 +5501,7 @@ int32_t QCameraParameters::initDefaultParameters()
        set(KEY_SUPPORTED_FLASH_MODES, flashValues);
        setFlash(FLASH_MODE_OFF);
     } else {
-        LOGE("supported flash modes cnt is 0!!!");
+        LOGW("supported flash modes cnt is 0!!!");
     }
 
     // Set Scene Mode
@@ -7302,7 +7306,7 @@ int32_t QCameraParameters::configureHDRBracketing(cam_capture_frame_config_t &fr
     if (mode == CAM_EXP_BRACKETING_ON) {
         rc = setToneMapMode(false, true);
         if (rc != NO_ERROR) {
-            LOGE("Failed to disable tone map during HDR");
+            LOGW("Failed to disable tone map during HDR");
         }
     }
     for (i = 0; i < frame_config.num_batch; i++) {
@@ -7863,6 +7867,59 @@ int32_t QCameraParameters::setCDSMode(const QCameraParameters& params)
                 rc = BAD_VALUE;
             }
         }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setInitialExposureIndex
+ *
+ * DESCRIPTION: Set initial exposure index value
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setInitialExposureIndex(const QCameraParameters& params)
+{
+    int32_t rc = NO_ERROR;
+    int value = -1;
+    const char *str = params.get(KEY_QC_INITIAL_EXPOSURE_INDEX);
+    const char *prev_str = get(KEY_QC_INITIAL_EXPOSURE_INDEX);
+    if (str) {
+        if ((prev_str == NULL) || (strcmp(str, prev_str) != 0)) {
+            value = atoi(str);
+            LOGD("Set initial exposure index value from param = %d", value);
+            if (value >= 0) {
+                updateParamEntry(KEY_QC_INITIAL_EXPOSURE_INDEX, str);
+            }
+        }
+    } else {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.initial.exp.val", prop, "");
+        if ((strlen(prop) > 0) &&
+                ( (prev_str == NULL) || (strcmp(prop, prev_str) != 0))) {
+            value = atoi(prop);
+            LOGD("Set initial exposure index value from setprop = %d", value);
+            if (value >= 0) {
+                updateParamEntry(KEY_QC_INITIAL_EXPOSURE_INDEX, prop);
+            }
+        }
+    }
+
+    if (value >= 0) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX, (uint32_t)value)) {
+            LOGE("Failed to update initial exposure index value");
+            rc = BAD_VALUE;
+        }
+    } else {
+        LOGD("Invalid value for initial exposure index value %d", value);
     }
 
     return rc;
@@ -9423,7 +9480,7 @@ cam_denoise_process_type_t
     } else if (CAM_INTF_PARM_TEMPORAL_DENOISE == type) {
         property_get("persist.tnr.process.plates", prop, "");
     } else {
-        LOGE("Type not supported");
+        LOGW("Type not supported");
         prop[0] = '\0';
     }
     if (strlen(prop) > 0) {
@@ -9667,7 +9724,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
                 CAM_FORMAT_Y_ONLY) {
             format = m_pCapability->analysis_recommended_format;
         } else {
-            LOGE("Invalid analysis_recommended_format %d\n",
+            LOGW("Invalid analysis_recommended_format %d\n",
                      m_pCapability->analysis_recommended_format);
             format = mAppPreviewFormat;
         }
@@ -10262,7 +10319,7 @@ uint8_t QCameraParameters::getNumOfRetroSnapshots()
     if (numOfRetroSnapshots < 0) {
         numOfRetroSnapshots = 0;
     }
-    LOGH("[ZSL Retro] : numOfRetroSnaps - %d", numOfRetroSnapshots);
+    LOGH("numOfRetroSnaps - %d", numOfRetroSnapshots);
     return (uint8_t)numOfRetroSnapshots;
 }
 
@@ -10462,7 +10519,7 @@ int32_t QCameraParameters::getEffectValue()
             cnt++;
         }
     } else {
-        LOGE("Missing effect value");
+        LOGW("Missing effect value");
     }
     return CAM_EFFECT_MODE_OFF;
 }
@@ -11174,7 +11231,7 @@ int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
 
     LOGH("RAW Dimension = %d X %d",raw_dim.width,raw_dim.height);
     if (raw_dim.width == 0 || raw_dim.height == 0) {
-        LOGE("Error getting RAW size. Setting to Capability value");
+        LOGW("Error getting RAW size. Setting to Capability value");
         raw_dim = m_pCapability->raw_dim[0];
     }
     setRawSize(raw_dim);
@@ -12591,7 +12648,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         stream_config_info.num_streams++;
     }
     for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
-        LOGI("STREAM INFO : type %d, w x h: %d x %d, pp_mask: 0x%x Format = %d",
+        LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%x Format = %d",
                 stream_config_info.type[k],
                 stream_config_info.stream_sizes[k].width,
                 stream_config_info.stream_sizes[k].height,

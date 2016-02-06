@@ -1993,6 +1993,8 @@ typedef enum {
     CAM_INTF_META_EFFECTIVE_EXPOSURE_FACTOR,
     /* Special event to request stream frames*/
     CAM_INTF_PARM_REQUEST_FRAMES,
+    /* Special event to request operational mode*/
+    CAM_INTF_PARM_REQUEST_OPS_MODE,
     /*Black level parameters*/
     CAM_INTF_META_LDAF_EXIF,
     CAM_INTF_META_BLACK_LEVEL_SOURCE_PATTERN,
@@ -2023,6 +2025,8 @@ typedef enum {
     CAM_INTF_META_VIDEO_STAB_MODE,
     /* Touch exposure compensation (EV) status */
     CAM_INTF_META_TOUCH_AE_RESULT,
+    /* Param for updating initial exposure index value*/
+    CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

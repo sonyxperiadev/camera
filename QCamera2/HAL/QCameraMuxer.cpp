@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -406,25 +406,25 @@ void QCameraMuxer::set_callBacks(struct camera_device * device,
         if (pCam->mode == CAM_MODE_PRIMARY) {
             rc = gMuxer->setMainJpegCallbackCookie((void*)(pCam));
             if(rc != NO_ERROR) {
-                LOGE("Error setting Jpeg callback cookie");
+                LOGW("Error setting Jpeg callback cookie");
             }
         }
     }
     // Store callback in Muxer to send data callbacks
     rc = gMuxer->setDataCallback(data_cb);
     if(rc != NO_ERROR) {
-        LOGE("Error setting data callback");
+        LOGW("Error setting data callback");
     }
     // memory callback stored to allocate memory for MPO buffer
     rc = gMuxer->setMemoryCallback(get_memory);
     if(rc != NO_ERROR) {
-        LOGE("Error setting memory callback");
+        LOGW("Error setting memory callback");
     }
     // actual user callback cookie is saved in Muxer
     // this will be used to deliver final MPO callback to the framework
     rc = gMuxer->setMpoCallbackCookie(user);
     if(rc != NO_ERROR) {
-        LOGE("Error setting mpo cookie");
+        LOGW("Error setting mpo cookie");
     }
 
     LOGH("X");

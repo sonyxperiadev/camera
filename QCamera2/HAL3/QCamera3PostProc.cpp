@@ -1282,7 +1282,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
        //Fill in the metadata passed as parameter
        jpg_job.encode_job.p_metadata = metadata;
     } else {
-       LOGE("Metadata is null");
+       LOGW("Metadata is null");
     }
 
     jpg_job.encode_job.hal_version = CAM_HAL_V3;
@@ -1459,6 +1459,26 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
            encodeParam.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
         }
 
+        LOGI("Src Buffer cnt = %d, res = %dX%d len = %d rot = %d "
+            "src_dim = %dX%d dst_dim = %dX%d",
+            encodeParam.num_src_bufs,
+            encodeParam.src_main_buf[0].offset.mp[0].stride,
+            encodeParam.src_main_buf[0].offset.mp[0].scanline,
+            encodeParam.src_main_buf[0].offset.frame_len,
+            encodeParam.rotation,
+            src_dim.width, src_dim.height,
+            dst_dim.width, dst_dim.height);
+        LOGI("Src THUMB buf_cnt = %d, res = %dX%d len = %d rot = %d "
+            "src_dim = %dX%d, dst_dim = %dX%d",
+            encodeParam.num_tmb_bufs,
+            encodeParam.src_thumb_buf[0].offset.mp[0].stride,
+            encodeParam.src_thumb_buf[0].offset.mp[0].scanline,
+            encodeParam.src_thumb_buf[0].offset.frame_len,
+            encodeParam.thumb_rotation,
+            encodeParam.thumb_dim.src_dim.width,
+            encodeParam.thumb_dim.src_dim.height,
+            encodeParam.thumb_dim.dst_dim.width,
+            encodeParam.thumb_dim.dst_dim.height);
         ret = mJpegHandle.create_session(mJpegClientHandle, &encodeParam, &mJpegSessionId);
         if (ret != NO_ERROR) {
             LOGE("Error creating a new jpeg encoding session, ret = %d", ret);
@@ -1554,7 +1574,19 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         }
         jpg_job.encode_job.thumb_dim.crop = crop;
         jpg_job.encode_job.thumb_index = main_frame->buf_idx;
+        LOGI("Thumbnail idx = %d src w/h (%dx%d), dst w/h (%dx%d)",
+                jpg_job.encode_job.thumb_index,
+                jpg_job.encode_job.thumb_dim.src_dim.width,
+                jpg_job.encode_job.thumb_dim.src_dim.height,
+                jpg_job.encode_job.thumb_dim.dst_dim.width,
+                jpg_job.encode_job.thumb_dim.dst_dim.height);
     }
+    LOGI("Main image idx = %d src w/h (%dx%d), dst w/h (%dx%d)",
+            jpg_job.encode_job.src_index,
+            jpg_job.encode_job.main_dim.src_dim.width,
+            jpg_job.encode_job.main_dim.src_dim.height,
+            jpg_job.encode_job.main_dim.dst_dim.width,
+            jpg_job.encode_job.main_dim.dst_dim.height);
 
     jpg_job.encode_job.cam_exif_params = hal_obj->get3AExifParams();
     exif_debug_params = jpg_job.encode_job.cam_exif_params.debug_params;
@@ -1619,7 +1651,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
             }
         }
     } else {
-       LOGE("Metadata is null");
+       LOGW("Metadata is null");
     }
 
     jpg_job.encode_job.hal_version = CAM_HAL_V3;
@@ -2324,7 +2356,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
         exif->addEntry(EXIFTAGID_SUBSEC_TIME_DIGITIZED, EXIF_ASCII,
                 (uint32_t)(subsecTime.length() + 1), (void *)subsecTime.string());
     } else {
-        LOGE("getExifDateTime failed");
+        LOGW("getExifDateTime failed");
     }
 
 
@@ -2338,7 +2370,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
                         1,
                         (void *)&(focalLength));
             } else {
-                LOGE("getExifFocalLength failed");
+                LOGW("getExifFocalLength failed");
             }
         }
 
@@ -2358,7 +2390,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
                         1,
                         (void *)&(sensorExpTime));
             } else {
-                LOGE("getExifExpTimeInfo failed");
+                LOGW("getExifExpTimeInfo failed");
             }
         }
 
@@ -2376,7 +2408,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
                         count,
                         (void *)gpsProcessingMethod);
             } else {
-                LOGE("getExifGpsProcessingMethod failed");
+                LOGW("getExifGpsProcessingMethod failed");
             }
         }
 
@@ -2397,7 +2429,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
                         2,
                         (void *)latRef);
             } else {
-                LOGE("getExifLatitude failed");
+                LOGW("getExifLatitude failed");
             }
 
             //longitude
@@ -2416,7 +2448,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
                         2,
                         (void *)lonRef);
             } else {
-                LOGE("getExifLongitude failed");
+                LOGW("getExifLongitude failed");
             }
 
             //altitude
@@ -2435,7 +2467,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
                         1,
                         (void *)&altRef);
             } else {
-                LOGE("getExifAltitude failed");
+                LOGW("getExifAltitude failed");
             }
         }
 
@@ -2455,7 +2487,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
                         3,
                         (void *)gpsTimeStamp);
             } else {
-                LOGE("getExifGpsDataTimeStamp failed");
+                LOGW("getExifGpsDataTimeStamp failed");
             }
         }
 
@@ -2469,12 +2501,12 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
                             1,
                             (void *)(&exposure_val));
                 } else {
-                    LOGE("getExifExposureValue failed ");
+                    LOGW("getExifExposureValue failed ");
                 }
             }
         }
     } else {
-        LOGE("no metadata provided ");
+        LOGW("no metadata provided ");
     }
 
 #ifdef ENABLE_MODEL_INFO_EXIF
@@ -2484,21 +2516,21 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
         exif->addEntry(EXIFTAGID_MAKE, EXIF_ASCII,
                 (uint32_t)(strlen(value) + 1), (void *)value);
     } else {
-        LOGE("getExifMaker failed");
+        LOGW("getExifMaker failed");
     }
 
     if (property_get("ro.product.model", value, "QCAM-AA") > 0) {
         exif->addEntry(EXIFTAGID_MODEL, EXIF_ASCII,
                 (uint32_t)(strlen(value) + 1), (void *)value);
     } else {
-        LOGE("getExifModel failed");
+        LOGW("getExifModel failed");
     }
 
     if (property_get("ro.build.description", value, "QCAM-AA") > 0) {
         exif->addEntry(EXIFTAGID_SOFTWARE, EXIF_ASCII,
                 (uint32_t)(strlen(value) + 1), (void *)value);
     } else {
-        LOGE("getExifSoftware failed");
+        LOGW("getExifSoftware failed");
     }
 
 #endif
@@ -2507,7 +2539,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
         if (exif->addEntry(EXIFTAGID_IMAGE_DESCRIPTION, EXIF_ASCII,
                 strlen(jpeg_settings->image_desc)+1,
                 (void *)jpeg_settings->image_desc)) {
-            LOGE("Adding IMAGE_DESCRIPTION tag failed");
+            LOGW("Adding IMAGE_DESCRIPTION tag failed");
         }
     }
     return exif;
@@ -2612,7 +2644,7 @@ QCamera3Exif::~QCamera3Exif()
                 }
                 break;
             default:
-                LOGE("Error, Unknown type");
+                LOGW("Error, Unknown type");
                 break;
         }
     }
