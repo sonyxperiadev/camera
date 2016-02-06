@@ -721,11 +721,9 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
         pme->m_bPreviewStarted = false;
     }
 
-    if (!pme->needProcessPreviewFrame()) {
+    if (!pme->needProcessPreviewFrame(frame->frame_idx)) {
         pthread_mutex_lock(&pme->mGrallocLock);
-        // Increment the counter here to make sure,
-        // these many frames will be skipped in preview channel cb as well
-        pme->mIgnoredPreviewCount++;
+        pme->mLastPreviewFrameID = frame->frame_idx;
         pthread_mutex_unlock(&pme->mGrallocLock);
         LOGH("preview is not running, no need to process");
         return;
@@ -749,6 +747,7 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
 
     if (err == NO_ERROR) {
         pthread_mutex_lock(&pme->mGrallocLock);
+        pme->mLastPreviewFrameID = frame->frame_idx;
         pme->mEnqueuedBuffers++;
         pthread_mutex_unlock(&pme->mGrallocLock);
     } else {
@@ -815,11 +814,15 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     }
 
     pthread_mutex_lock(&pme->mGrallocLock);
-    if (!pme->needProcessPreviewFrame() ||
-            pme->mIgnoredPreviewCount > 0) {
-        if (pme->mIgnoredPreviewCount > 0) {
-            pme->mIgnoredPreviewCount--;
-        }
+    if (!stream->isSyncCBEnabled()) {
+        pme->mLastPreviewFrameID = frame->frame_idx;
+    }
+    if (((!stream->isSyncCBEnabled()) &&
+            (!pme->needProcessPreviewFrame(frame->frame_idx))) ||
+            ((stream->isSyncCBEnabled()) &&
+            (memory->isBufOwnedByCamera(frame->buf_idx)))) {
+        //If buffer owned by camera, then it is not enqueued to display.
+        // bufDone it back to backend.
         pthread_mutex_unlock(&pme->mGrallocLock);
         LOGH("preview is not running, no need to process");
         stream->bufDone(frame->buf_idx);
@@ -1138,7 +1141,7 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
         return;
     }
 
-    if (!pme->needProcessPreviewFrame()) {
+    if (!pme->needProcessPreviewFrame(frame->frame_idx)) {
         LOGH("preview is not running, no need to process");
         stream->bufDone(frame->buf_idx);
         free(super_frame);
@@ -1157,7 +1160,7 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
     if (NULL != previewMemObj && NULL != preview_mem) {
         pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
 
-        if ((pme->needProcessPreviewFrame()) &&
+        if ((pme->needProcessPreviewFrame(frame->frame_idx)) &&
                 pme->needSendPreviewCallback() &&
                 (pme->getRelatedCamSyncInfo()->mode != CAM_MODE_SECONDARY)) {
             qcamera_callback_argm_t cbArg;
@@ -1217,7 +1220,7 @@ void QCamera2HardwareInterface::rdi_mode_stream_cb_routine(
         LOGE("preview frame is NLUL");
         goto end;
     }
-    if (!pme->needProcessPreviewFrame()) {
+    if (!pme->needProcessPreviewFrame(frame->frame_idx)) {
         LOGE("preview is not running, no need to process");
         stream->bufDone(frame->buf_idx);
         goto end;
@@ -1240,7 +1243,7 @@ void QCamera2HardwareInterface::rdi_mode_stream_cb_routine(
             // Dump RAW frame
             pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_RAW);
             // Notify Preview callback frame
-            if (pme->needProcessPreviewFrame() &&
+            if (pme->needProcessPreviewFrame(frame->frame_idx) &&
                     pme->mDataCb != NULL &&
                     pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) {
                 qcamera_callback_argm_t cbArg;
@@ -1273,7 +1276,7 @@ void QCamera2HardwareInterface::rdi_mode_stream_cb_routine(
 
         int fd = previewMemObj->getFd(frame->buf_idx);
         LOGD("Preview frame fd =%d for index = %d ", fd, frame->buf_idx);
-        if (pme->needProcessPreviewFrame() &&
+        if (pme->needProcessPreviewFrame(frame->frame_idx) &&
                 pme->mDataCb != NULL &&
                 pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) {
             // Prepare Callback structure
@@ -2500,7 +2503,7 @@ void QCamera2HardwareInterface::callback_stream_cb_routine(mm_camera_super_buf_t
         return;
     }
 
-    if (!pme->needProcessPreviewFrame()) {
+    if (!pme->needProcessPreviewFrame(frame->frame_idx)) {
         LOGH("preview is not running, no need to process");
         stream->bufDone(frame->buf_idx);
         free(super_frame);

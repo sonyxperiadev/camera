@@ -270,6 +270,7 @@ public:
     void setMaxFPS(int maxFPS);
     int32_t enqueueBuffer(uint32_t index, nsecs_t timeStamp = 0);
     int32_t dequeueBuffer();
+    inline bool isBufOwnedByCamera(uint32_t index){return mLocalFlag[index] == BUFFER_OWNED;};
 
 private:
     buffer_handle_t *mBufferHandle[MM_CAMERA_MAX_NUM_FRAMES];

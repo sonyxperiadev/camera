@@ -444,7 +444,7 @@ private:
     int32_t setHistogram(bool histogram_en);
     int32_t setFaceDetection(bool enabled);
     int32_t prepareHardwareForSnapshot(int32_t afNeeded);
-    bool needProcessPreviewFrame();
+    bool needProcessPreviewFrame(uint32_t frameID);
     bool needSendPreviewCallback();
     bool isNoDisplayMode() {return mParameters.isNoDisplayMode();};
     bool isZSLMode() {return mParameters.isZSLMode();};
@@ -553,6 +553,15 @@ private:
 
     inline bool getNeedRestart() {return m_bNeedRestart;}
     inline void setNeedRestart(bool needRestart) {m_bNeedRestart = needRestart;}
+
+    /*Start display skip. Skip starts after
+    skipCnt number of frames from current frame*/
+    void setDisplaySkip(bool enabled, uint8_t skipCnt = 0);
+    /*Caller can specify range frameID to skip.
+    if end is 0, all the frames after start will be skipped*/
+    void setDisplayFrameSkip(uint32_t start = 0, uint32_t end = 0);
+    /*Verifies if frameId is valid to skip*/
+    bool isDisplayFrameToSkip(uint32_t frameId);
 
 private:
     camera_device_t   mCameraDevice;
@@ -765,8 +774,14 @@ private:
     bool m_bNeedRestart;
     Mutex mMapLock;
     Condition mMapCond;
-    // Count to determine the number of preview frames ignored for displaying.
-    uint8_t mIgnoredPreviewCount;
+
+    //Used to decide the next frameID to be skipped
+    uint32_t mLastPreviewFrameID;
+    //FrameID to start frame skip.
+    uint32_t mFrameSkipStart;
+    /*FrameID to stop frameskip. If this is not set,
+    all frames are skipped till we set this*/
+    uint32_t mFrameSkipEnd;
 };
 
 }; // namespace qcamera
