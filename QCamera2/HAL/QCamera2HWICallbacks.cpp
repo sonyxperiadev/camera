@@ -723,15 +723,21 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
         return;
     }
 
-    if (!pme->needProcessPreviewFrame()) {
-        LOGE("preview is not running, no need to process");
-        return;
-    }
-
     if(pme->m_bPreviewStarted) {
         LOGI("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
         pme->m_bPreviewStarted = false;
     }
+
+    if (!pme->needProcessPreviewFrame()) {
+        pthread_mutex_lock(&pme->mGrallocLock);
+        // Increment the counter here to make sure,
+        // these many frames will be skipped in preview channel cb as well
+        pme->mIgnoredPreviewCount++;
+        pthread_mutex_unlock(&pme->mGrallocLock);
+        LOGH("preview is not running, no need to process");
+        return;
+    }
+
     frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
     // Calculate the future presentation time stamp for displaying frames at regular interval
     mPreviewTimestamp = pme->mCameraDisplay.computePresentationTimeStamp(frameTime);
@@ -807,11 +813,19 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         free(super_frame);
         return;
     }
-    if (!pme->needProcessPreviewFrame()) {
-        LOGI("preview is not running, no need to process");
+    pthread_mutex_lock(&pme->mGrallocLock);
+    if (!pme->needProcessPreviewFrame() ||
+            pme->mIgnoredPreviewCount > 0) {
+        if (pme->mIgnoredPreviewCount > 0) {
+            pme->mIgnoredPreviewCount--;
+        }
+        pthread_mutex_unlock(&pme->mGrallocLock);
+        LOGH("preview is not running, no need to process");
         stream->bufDone(frame->buf_idx);
         free(super_frame);
         return;
+    } else {
+        pthread_mutex_unlock(&pme->mGrallocLock);
     }
 
     if (pme->needDebugFps()) {

@@ -3298,15 +3298,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     CAM_INTF_PARM_HAL_VERSION, hal_version);
             ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                     CAM_INTF_META_STREAM_INFO, stream_config_info);
-            for (uint32_t i = 0; i < mStreamConfigInfo.num_streams; i++) {
-                LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%x "
-                        "Format:%d",
-                        mStreamConfigInfo.type[i],
-                        mStreamConfigInfo.stream_sizes[i].width,
-                        mStreamConfigInfo.stream_sizes[i].height,
-                        mStreamConfigInfo.postprocess_mask[i],
-                        mStreamConfigInfo.format[i]);
-            }
             rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
             if (rc < 0) {
@@ -3394,6 +3385,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
         /*set the capture intent, hal version, tintless, stream info,
          *and disenable parameters to the backend*/
         LOGD("set_parms META_STREAM_INFO " );
+        for (uint32_t i = 0; i < mStreamConfigInfo.num_streams; i++) {
+            LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%x "
+                    "Format:%d",
+                    mStreamConfigInfo.type[i],
+                    mStreamConfigInfo.stream_sizes[i].width,
+                    mStreamConfigInfo.stream_sizes[i].height,
+                    mStreamConfigInfo.postprocess_mask[i],
+                    mStreamConfigInfo.format[i]);
+        }
         rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
         if (rc < 0) {
