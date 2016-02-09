@@ -6005,13 +6005,12 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
         mParameters.updateFocusDistances(&focus_data.focus_dist);
 
         //flush any old snapshot frames in ZSL Q which are not focused.
-        if ((CAM_AF_STATE_FOCUSED_LOCKED == focus_data.focus_state) &&
-                mParameters.isZSLMode()) {
+        if (mParameters.isZSLMode() && focus_data.flush_info.needFlush ) {
             QCameraPicChannel *pZSLChannel =
                     (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
             if (NULL != pZSLChannel) {
                 //flush the zsl-buffer
-                uint32_t flush_frame_idx = focus_data.focused_frame_idx;
+                uint32_t flush_frame_idx = focus_data.flush_info.focused_frame_idx;
                 LOGD("flush the zsl-buffer before frame = %u.", flush_frame_idx);
                 pZSLChannel->flushSuperbuffer(flush_frame_idx);
             }
@@ -6052,14 +6051,12 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
             // update focus distance
             mParameters.updateFocusDistances(&focus_data.focus_dist);
 
-            if ((focusMode == CAM_FOCUS_MODE_CONTINOUS_PICTURE) &&
-                    (CAM_AF_STATE_FOCUSED_LOCKED == focus_data.focus_state) &&
-                    mParameters.isZSLMode()) {
+            if (mParameters.isZSLMode() && focus_data.flush_info.needFlush ) {
                 QCameraPicChannel *pZSLChannel =
                         (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
                 if (NULL != pZSLChannel) {
                     //flush the zsl-buffer
-                    uint32_t flush_frame_idx = focus_data.focused_frame_idx;
+                    uint32_t flush_frame_idx = focus_data.flush_info.focused_frame_idx;
                     LOGD("flush the zsl-buffer before frame = %u.", flush_frame_idx);
                     pZSLChannel->flushSuperbuffer(flush_frame_idx);
                 }

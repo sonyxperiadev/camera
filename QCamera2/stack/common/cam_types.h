@@ -1265,6 +1265,11 @@ typedef struct {
     float focalLengthRatio;
 } cam_focal_length_ratio_t;
 
+typedef struct {
+    uint8_t needFlush;
+    uint32_t focused_frame_idx;
+} cam_af_flush_info_t;
+
 /* Different autofocus cycle when calling do_autoFocus
  * CAM_AF_COMPLETE_EXISTING_SWEEP: Complete existing sweep
  * if one is ongoing, and lock.
@@ -1310,8 +1315,8 @@ typedef struct {
     cam_af_state_t focus_state;           /* state of focus */
     cam_focus_distances_info_t focus_dist;       /* focus distance */
     cam_focus_mode_type focus_mode;        /* focus mode from backend */
-    uint32_t focused_frame_idx;
     int32_t focus_pos;
+    cam_af_flush_info_t flush_info;
 } cam_auto_focus_data_t;
 
 typedef struct {
