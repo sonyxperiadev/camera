@@ -361,6 +361,13 @@ void mm_jpeg_session_destroy(mm_jpeg_job_session_t* p_session)
     }
   }
 
+  /* If current session is the session in progress
+     set session in progress pointer to null*/
+  p_session->config = OMX_FALSE;
+  if (my_obj->p_session_inprogress == p_session) {
+    my_obj->p_session_inprogress = NULL;
+  }
+
   rc = OMX_FreeHandle(p_session->omx_handle);
   if (0 != rc) {
     LOGE("OMX_FreeHandle failed (%d)", rc);
@@ -1562,6 +1569,7 @@ static OMX_ERRORTYPE mm_jpeg_session_encode(mm_jpeg_job_session_t *p_session)
 {
   OMX_ERRORTYPE ret = OMX_ErrorNone;
   mm_jpeg_encode_job_t *p_jobparams = &p_session->encode_job;
+  mm_jpeg_obj *my_obj = (mm_jpeg_obj *) p_session->jpeg_obj;
 
   pthread_mutex_lock(&p_session->lock);
   p_session->abort_state = MM_JPEG_ABORT_NONE;
@@ -1579,12 +1587,44 @@ static OMX_ERRORTYPE mm_jpeg_session_encode(mm_jpeg_job_session_t *p_session)
   }
 
   if (OMX_FALSE == p_session->config) {
+    /* If another session in progress clear that sessions configuration */
+    if (my_obj->p_session_inprogress != NULL) {
+      OMX_STATETYPE state;
+      mm_jpeg_job_session_t *p_session_inprogress = my_obj->p_session_inprogress;
+
+      OMX_GetState(p_session_inprogress->omx_handle, &state);
+
+      //Check state before state transition
+      if ((state == OMX_StateExecuting) || (state == OMX_StatePause)) {
+        ret = mm_jpeg_session_change_state(p_session_inprogress,
+          OMX_StateIdle, NULL);
+        if (ret) {
+          LOGE("Error");
+          goto error;
+        }
+      }
+
+      OMX_GetState(p_session_inprogress->omx_handle, &state);
+
+      if (state == OMX_StateIdle) {
+        ret = mm_jpeg_session_change_state(p_session_inprogress,
+          OMX_StateLoaded, mm_jpeg_session_free_buffers);
+        if (ret) {
+          LOGE("Error");
+          goto error;
+        }
+      }
+      p_session_inprogress->config = OMX_FALSE;
+      my_obj->p_session_inprogress = NULL;
+    }
+
     ret = mm_jpeg_session_configure(p_session);
     if (ret) {
       LOGE("Error");
       goto error;
     }
     p_session->config = OMX_TRUE;
+    my_obj->p_session_inprogress = p_session;
   }
 
   ret = mm_jpeg_configure_job_params(p_session);
@@ -2534,14 +2574,21 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
     mm_jpeg_read_meta_keyfile(p_session, META_KEYFILE);
 #endif
 
-    if (OMX_FALSE == p_session->config) {
+    pthread_mutex_lock(&my_obj->job_lock);
+    /* Configure session if not already configured and if
+       no other session configured*/
+    if ((OMX_FALSE == p_session->config) &&
+      (my_obj->p_session_inprogress == NULL)) {
       rc = mm_jpeg_session_configure(p_session);
       if (rc) {
         LOGE("Error");
+        pthread_mutex_unlock(&my_obj->job_lock);
         goto error2;
       }
       p_session->config = OMX_TRUE;
+      my_obj->p_session_inprogress = p_session;
     }
+    pthread_mutex_unlock(&my_obj->job_lock);
     p_session->num_omx_sessions = num_omx_sessions;
 
     LOGH("session id %x thumb_from_main %d",
