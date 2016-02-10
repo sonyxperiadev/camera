@@ -148,29 +148,6 @@ typedef struct {
     cam_pp_offline_src_config_t *config;
 } qcamera_sm_evt_reg_face_payload_t;
 
-// definition of composite face detection data
-typedef struct {
-    cam_face_detection_data_t detection_data;
-
-    bool recog_valid;
-    cam_face_recog_data_t recog_data;
-
-    bool blink_valid;
-    cam_face_blink_data_t blink_data;
-
-    bool gaze_valid;
-    cam_face_gaze_data_t gaze_data;
-
-    bool smile_valid;
-    cam_face_smile_data_t smile_data;
-
-    bool landmark_valid;
-    cam_face_landmarks_data_t landmark_data;
-
-    bool contour_valid;
-    cam_face_contour_data_t contour_data;
-} cam_faces_data_t;
-
 typedef enum {
     QCAMERA_INTERNAL_EVT_FOCUS_UPDATE,       // focus updating result
     QCAMERA_INTERNAL_EVT_PREP_SNAPSHOT_DONE, // prepare snapshot done
