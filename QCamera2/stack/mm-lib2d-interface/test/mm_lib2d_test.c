@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -26,13 +26,17 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-#include <sys/time.h>
-#include <stdlib.h>
+
+// System dependencies
+#include <dlfcn.h>
 #include <stdbool.h>
-#include <utils/Log.h>
+#include <stdlib.h>
+#include <sys/time.h>
+
+// Camera dependencies
 #include "img_buffer.h"
 #include "mm_lib2d.h"
-#include <dlfcn.h>
+
 
 #define ENABLE_OUTPUT_DUMP 1
 #define ALIGN4K 4032

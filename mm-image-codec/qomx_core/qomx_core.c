@@ -1,4 +1,4 @@
-/*Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/*Copyright (c) 2012-2014, 2016, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -28,8 +28,14 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #define LOG_NDEBUG 0
 #define LOG_NIDEBUG 0
 #define LOG_TAG "qomx_image_core"
+
+// System dependencies
+#include <dlfcn.h>
+#include <malloc.h>
+#include <string.h>
 #include <utils/Log.h>
 
+// OpenMAX dependencies
 #include "qomx_core.h"
 
 #define BUFF_SIZE 255

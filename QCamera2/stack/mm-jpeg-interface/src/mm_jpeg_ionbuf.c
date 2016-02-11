@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,10 +27,17 @@
  *
  */
 
-#include "mm_jpeg_ionbuf.h"
+// System dependencies
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <linux/msm_ion.h>
+#define MMAN_H <SYSTEM_HEADER_PREFIX/mman.h>
+#include MMAN_H
+
+// JPEG dependencies
+#include "mm_jpeg_ionbuf.h"
 
 /** buffer_allocate:
  *

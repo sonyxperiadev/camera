@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2013, 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,7 +30,7 @@
 #ifndef ANDROID_HARDWARE_QUALCOMM_CAMERA_H
 #define ANDROID_HARDWARE_QUALCOMM_CAMERA_H
 
-
+// Camera dependencies
 #include "QCamera2HWI.h"
 
 extern "C" {

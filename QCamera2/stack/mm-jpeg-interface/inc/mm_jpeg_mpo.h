@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,9 +30,9 @@
 #ifndef MM_JPEG_MPO_H_
 #define MM_JPEG_MPO_H_
 
-#include <cam_semaphore.h>
+// JPEG dependencies
 #include "mm_jpeg_interface.h"
-#include <qmpo.h>
+#include "qmpo.h"
 
 #define TRUE 1
 #define FALSE 0

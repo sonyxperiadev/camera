@@ -5,12 +5,12 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-        util/QCameraCmdThread.cpp \
-        util/QCameraQueue.cpp \
         util/QCameraBufferMaps.cpp \
+        util/QCameraCmdThread.cpp \
+        util/QCameraDisplay.cpp \
         util/QCameraFlash.cpp \
         util/QCameraPerf.cpp \
-        util/QCameraDisplay.cpp \
+        util/QCameraQueue.cpp \
         QCamera2Hal.cpp \
         QCamera2Factory.cpp
 
@@ -35,13 +35,16 @@ LOCAL_SRC_FILES += \
         HAL/QCameraStream.cpp \
         HAL/QCameraPostProc.cpp \
         HAL/QCamera2HWICallbacks.cpp \
-        HAL/QCameraParametersIntf.cpp \
         HAL/QCameraParameters.cpp \
+        HAL/QCameraParametersIntf.cpp \
         HAL/QCameraThermalAdapter.cpp
 
 LOCAL_CFLAGS := -Wall -Wextra -Werror
 
-LOCAL_CFLAGS += -DHAS_MULTIMEDIA_HINTS -D_ANDROID_
+# System header file path prefix
+LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
+
+LOCAL_CFLAGS += -DHAS_MULTIMEDIA_HINTS -D_ANDROID
 
 ifeq ($(TARGET_USES_AOSP),true)
 LOCAL_CFLAGS += -DVANILLA_HAL
@@ -51,20 +54,21 @@ endif
 LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3 -DQCAMERA_REDEFINE_LOG
 
 LOCAL_C_INCLUDES := \
-        $(LOCAL_PATH)/stack/common \
-        $(LOCAL_PATH)/stack/mm-camera-interface/inc \
-        frameworks/native/include/media/hardware \
-        frameworks/native/include/media/openmax \
-        hardware/qcom/media/libstagefrighthw \
-        system/media/camera/include \
         $(LOCAL_PATH)/../mm-image-codec/qexif \
         $(LOCAL_PATH)/../mm-image-codec/qomx_core \
+        $(LOCAL_PATH)/include \
+        $(LOCAL_PATH)/stack/common \
+        $(LOCAL_PATH)/stack/mm-camera-interface/inc \
         $(LOCAL_PATH)/util \
-        hardware/qcom/media/mm-core/inc
+        hardware/libhardware/include/hardware \
+        hardware/qcom/media/libstagefrighthw \
+        hardware/qcom/media/mm-core/inc \
+        system/core/include/cutils \
+        system/core/include/system \
+        system/media/camera/include/system
 
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \
-        frameworks/native/include/media/hardware \
         hardware/qcom/camera/QCamera2/HAL
 
 ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)

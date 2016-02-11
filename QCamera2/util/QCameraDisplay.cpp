@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -29,9 +29,16 @@
 
 #define LOG_TAG "QCameraDisplay"
 
+// To remove
 #include <cutils/properties.h>
+
+// Camera dependencies
 #include "QCamera2HWI.h"
 #include "QCameraDisplay.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 #define CAMERA_VSYNC_WAIT_MS               33 // Used by vsync thread to wait for vsync timeout.
 #define DISPLAY_EVENT_RECEIVER_ARRAY_SIZE  1

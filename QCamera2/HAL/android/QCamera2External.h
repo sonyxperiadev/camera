@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -27,39 +27,21 @@
 *
 */
 
-#ifndef __QCAMERA3CROPREGIONMAPPER_H__
-#define __QCAMERA3CROPREGIONMAPPER_H__
+#ifndef __QCAMERA2EXTERNAL_H__
+#define __QCAMERA2EXTERNAL_H__
 
 // System dependencies
 #include <utils/Errors.h>
 
-using namespace android;
+// Display dependencies
+#include "QServiceUtils.h"
 
 namespace qcamera {
 
-class QCamera3CropRegionMapper {
-public:
-    QCamera3CropRegionMapper();
-    virtual ~QCamera3CropRegionMapper();
-
-    void update(uint32_t active_array_w, uint32_t active_array_h,
-            uint32_t sensor_w, uint32_t sensor_h);
-    void toActiveArray(int32_t& crop_left, int32_t& crop_top,
-            int32_t& crop_width, int32_t& crop_height);
-    void toSensor(int32_t& crop_left, int32_t& crop_top,
-            int32_t& crop_width, int32_t& crop_height);
-    void toActiveArray(uint32_t& x, uint32_t& y);
-    void toSensor(uint32_t& x, uint32_t& y);
-
-private:
-    /* sensor output size */
-    int32_t mSensorW, mSensorH;
-    int32_t mActiveArrayW, mActiveArrayH;
-
-    void boundToSize(int32_t& left, int32_t& top, int32_t& width,
-            int32_t& height, int32_t bound_w, int32_t bound_h);
-};
+inline android::status_t setCameraLaunchStatus(uint32_t on) {
+    return ::setCameraLaunchStatus(on);
+}
 
 }; // namespace qcamera
 
-#endif /* __QCAMERA3CROPREGIONMAPPER_H__ */
+#endif /* __QCAMERA2EXTERNAL_H__ */

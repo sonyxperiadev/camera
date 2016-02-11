@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -29,12 +29,13 @@
 
 #define LOG_TAG "QCameraBufferMaps"
 
+// System dependencies
 #include <utils/Errors.h>
-#include <utils/Log.h>
-#include "QCameraBufferMaps.h"
-#include "QCameraTrace.h"
 #include <stdlib.h>
 #include <string.h>
+
+// Camera dependencies
+#include "QCameraBufferMaps.h"
 
 using namespace android;
 

@@ -1,22 +1,20 @@
-OMX_CORE_PATH := $(call my-dir)
+LOCAL_PATH := $(call my-dir)
 
 # ------------------------------------------------------------------------------
 #                Make the shared library (libqomx_core)
 # ------------------------------------------------------------------------------
 
 include $(CLEAR_VARS)
-LOCAL_PATH := $(OMX_CORE_PATH)
 LOCAL_MODULE_TAGS := optional
 
-omx_core_defines:= -Werror \
+LOCAL_CFLAGS := -Werror \
                    -g -O0
 
-LOCAL_CFLAGS := $(omx_core_defines)
+LOCAL_C_INCLUDES := frameworks/native/include/media/openmax \
+                    $(LOCAL_PATH)/../qexif
 
-OMX_HEADER_DIR := frameworks/native/include/media/openmax
-
-LOCAL_C_INCLUDES := $(OMX_HEADER_DIR)
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/../qexif
+LOCAL_INC_FILES := qomx_core.h \
+                   QOMX_JpegExtensions.h
 
 LOCAL_SRC_FILES := qomx_core.c
 

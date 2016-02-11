@@ -29,11 +29,17 @@
 
 #define LOG_TAG "QCameraParametersIntf"
 
+// System dependencies
 #include <utils/Mutex.h>
-#include <utils/Log.h>
-#include "QCameraParametersIntf.h"
+
+// Camera dependencies
 #include "QCameraParameters.h"
+#include "QCameraParametersIntf.h"
 #include "QCameraTrace.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 namespace qcamera {
 

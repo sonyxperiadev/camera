@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012, 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,9 +30,9 @@
 #ifndef __QCAMERA_INTF_H__
 #define __QCAMERA_INTF_H__
 
-#include <stdint.h>
+// System dependencies
 #include <pthread.h>
-#include <inttypes.h>
+#include <stdint.h>
 
 #define PAD_TO_WORD(a)               (((a)+3)&~3)
 #define PAD_TO_2K(a)                 (((a)+2047)&~2047)

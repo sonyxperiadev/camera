@@ -28,27 +28,24 @@
  */
 
 #define LOG_TAG "QCameraMuxer"
-#include <utils/Log.h>
-#include <utils/threads.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <binder/IMemory.h>
-#include <binder/MemoryBase.h>
-#include <binder/MemoryHeapBase.h>
-#include <utils/RefBase.h>
-#include <cutils/properties.h>
 
+// System dependencies
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <utils/Errors.h>
+#define STAT_H <SYSTEM_HEADER_PREFIX/stat.h>
+#include STAT_H
+
+// Camera dependencies
 #include "QCameraMuxer.h"
 #include "QCamera2HWI.h"
-#include "QCameraPostProc.h"
 
-#include <sys/stat.h>
-#include <utils/Errors.h>
-#include <utils/Trace.h>
-#include <utils/Timers.h>
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 /* Muxer implementation */
-
 using namespace android;
 namespace qcamera {
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,11 +27,18 @@
  *
  */
 
+// System dependencies
+#include <pthread.h>
+#include <stdlib.h>
+#define TIME_H <SYSTEM_HEADER_PREFIX/time.h>
+#include TIME_H
+
+// JPEG dependencies
 #include "mm_jpeg_interface.h"
 #include "mm_jpeg_ionbuf.h"
-#include <sys/time.h>
-#include <stdlib.h>
-#include <stdbool.h>
+
+// Camera dependencies
+#include "mm_camera_dbg.h"
 
 #define MAX_NUM_BUFS (12)
 #define MAX_NUM_CLIENT (8)

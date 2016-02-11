@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,13 +27,18 @@
  *
  */
 
-#include <ctype.h>
+// To remove
 #include <cutils/properties.h>
-#include <fcntl.h>
-#include <dlfcn.h>
-#include <linux/msm_ion.h>
-#include <sys/mman.h>
 
+// System dependencies
+#include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/msm_ion.h>
+#define MMAN_H <SYSTEM_HEADER_PREFIX/mman.h>
+#include MMAN_H
+
+// Camera dependencies
 #include "mm_qcamera_dbg.h"
 #include "mm_qcamera_app.h"
 

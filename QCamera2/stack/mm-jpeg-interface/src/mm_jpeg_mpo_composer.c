@@ -29,7 +29,10 @@
 
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 
+// System dependencies
 #include <pthread.h>
+
+// JPEG dependencies
 #include "mm_jpeg_dbg.h"
 #include "mm_jpeg_mpo.h"
 

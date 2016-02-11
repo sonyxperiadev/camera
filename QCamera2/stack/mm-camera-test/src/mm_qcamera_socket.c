@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -26,6 +26,11 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
+
+// System dependencies
+#include <errno.h>
+
+// Camera dependencies
 #include "mm_qcamera_socket.h"
 #include "mm_qcamera_commands.h"
 #include "mm_qcamera_dbg.h"

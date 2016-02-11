@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -28,20 +28,23 @@
 */
 
 #define LOG_TAG "QCamera2Factory"
-//#define LOG_NDEBUG 0
 
+// System dependencies
 #include <stdlib.h>
-#include <utils/Log.h>
 #include <utils/Errors.h>
-#include <cutils/properties.h>
-#include <hardware/camera.h>
-#include <hardware/camera3.h>
 
+// Camera dependencies
+#include "camera.h"
+#include "camera3.h"
 #include "HAL/QCamera2HWI.h"
 #include "HAL3/QCamera3HWI.h"
 #include "util/QCameraFlash.h"
 #include "QCamera2Factory.h"
 #include "QCameraMuxer.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 using namespace android;
 

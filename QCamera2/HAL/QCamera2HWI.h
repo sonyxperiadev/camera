@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,31 +30,33 @@
 #ifndef __QCAMERA2HARDWAREINTERFACE_H__
 #define __QCAMERA2HARDWAREINTERFACE_H__
 
-#include <hardware/camera.h>
-#include <utils/Log.h>
+// System dependencies
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
-#include <QCameraParametersIntf.h>
 
-#include "QCameraQueue.h"
-#include "QCameraCmdThread.h"
+// Camera dependencies
+#include "camera.h"
+#include "QCameraAllocator.h"
 #include "QCameraChannel.h"
+#include "QCameraCmdThread.h"
+#include "QCameraDisplay.h"
+#include "QCameraMem.h"
+#include "QCameraParameters.h"
+#include "QCameraParametersIntf.h"
+#include "QCameraPerf.h"
+#include "QCameraPostProc.h"
+#include "QCameraQueue.h"
 #include "QCameraStream.h"
 #include "QCameraStateMachine.h"
-#include "QCameraAllocator.h"
-#include "QCameraPostProc.h"
 #include "QCameraThermalAdapter.h"
-#include "QCameraMem.h"
-#include "QCameraPerf.h"
-#include "QCameraDisplay.h"
 
 #ifdef TARGET_TS_MAKEUP
 #include "ts_makeup_engine.h"
 #include "ts_detectface_engine.h"
 #endif
 extern "C" {
-#include <mm_camera_interface.h>
-#include <mm_jpeg_interface.h>
+#include "mm_camera_interface.h"
+#include "mm_jpeg_interface.h"
 }
 
 #include "QCameraTrace.h"

@@ -30,8 +30,11 @@
 #ifndef __QCAMERA_INTF_H__
 #define __QCAMERA_INTF_H__
 
+// System dependencies
 #include <string.h>
 #include <media/msmb_isp.h>
+
+// Camera dependencies
 #include "cam_types.h"
 
 #define CAM_PRIV_IOCTL_BASE (V4L2_CID_PRIVATE_BASE + MSM_CAMERA_PRIV_CMD_MAX)

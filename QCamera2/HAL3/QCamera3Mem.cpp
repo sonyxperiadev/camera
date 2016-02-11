@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -29,18 +29,23 @@
 
 #define LOG_TAG "QCameraHWI_Mem"
 
-#include <string.h>
+// System dependencies
 #include <fcntl.h>
-#include <sys/mman.h>
-#include <utils/Log.h>
-#include <utils/Errors.h>
-#include <gralloc_priv.h>
-#include <qdMetaData.h>
-#include "QCamera3Mem.h"
+#define MMAN_H <SYSTEM_HEADER_PREFIX/mman.h>
+#include MMAN_H
+#include "gralloc_priv.h"
+
+// Display dependencies
+#include "qdMetaData.h"
+
+// Camera dependencies
 #include "QCamera3HWI.h"
+#include "QCamera3Mem.h"
+#include "QCameraTrace.h"
 
 extern "C" {
-#include <mm_camera_interface.h>
+#include "mm_camera_dbg.h"
+#include "mm_camera_interface.h"
 }
 
 using namespace android;

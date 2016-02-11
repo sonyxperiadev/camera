@@ -17,6 +17,9 @@ endif
 
 LOCAL_CFLAGS += -D_ANDROID_ -DQCAMERA_REDEFINE_LOG
 
+# System header file path prefix
+LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
+
 LOCAL_SRC_FILES:= \
         src/mm_qcamera_main_menu.c \
         src/mm_qcamera_app.c \
@@ -35,9 +38,9 @@ LOCAL_C_INCLUDES:=$(LOCAL_PATH)/inc
 LOCAL_C_INCLUDES+= \
         frameworks/native/include/media/openmax \
         $(LOCAL_PATH)/../common \
-        $(LOCAL_PATH)/../../../mm-image-codec/qexif \
-        $(LOCAL_PATH)/../../../mm-image-codec/qomx_core \
         $(LOCAL_PATH)/../mm-camera-interface/inc \
+        $(LOCAL_PATH)/../../../mm-image-codec/qexif \
+        $(LOCAL_PATH)/../../../mm-image-codec/qomx_core
 
 LOCAL_C_INCLUDES+= $(kernel_includes)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)
@@ -109,6 +112,9 @@ endif
 
 LOCAL_CFLAGS += -D_ANDROID_ -DQCAMERA_REDEFINE_LOG
 
+# System header file path prefix
+LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
+
 LOCAL_SRC_FILES:= \
         src/mm_qcamera_main_menu.c \
         src/mm_qcamera_app.c \
@@ -127,9 +133,9 @@ LOCAL_C_INCLUDES:=$(LOCAL_PATH)/inc
 LOCAL_C_INCLUDES+= \
         frameworks/native/include/media/openmax \
         $(LOCAL_PATH)/../common \
-        $(LOCAL_PATH)/../../../mm-image-codec/qexif \
-        $(LOCAL_PATH)/../../../mm-image-codec/qomx_core \
         $(LOCAL_PATH)/../mm-camera-interface/inc \
+        $(LOCAL_PATH)/../../../mm-image-codec/qexif \
+        $(LOCAL_PATH)/../../../mm-image-codec/qomx_core
 
 LOCAL_C_INCLUDES+= $(kernel_includes)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)

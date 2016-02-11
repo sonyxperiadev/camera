@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,13 +30,14 @@
 #ifndef __QCAMERA_STREAM_H__
 #define __QCAMERA_STREAM_H__
 
-#include <hardware/camera.h>
+// Camera dependencies
+#include "camera.h"
 #include "QCameraCmdThread.h"
 #include "QCameraMem.h"
 #include "QCameraAllocator.h"
 
 extern "C" {
-#include <mm_camera_interface.h>
+#include "mm_camera_interface.h"
 }
 
 namespace qcamera {

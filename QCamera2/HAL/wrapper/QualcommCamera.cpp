@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2014, 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -29,23 +29,23 @@
 
 #define ALOG_NIDEBUG 0
 #define LOG_TAG "QualcommCamera"
-#include <utils/Log.h>
+
+// System dependencies
 #include <utils/threads.h>
-#include <fcntl.h>
-#include <sys/mman.h>
 #include <binder/IMemory.h>
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <utils/RefBase.h>
 
+extern "C" {
+#define TIME_H <SYSTEM_HEADER_PREFIX/time.h>
+#include TIME_H
+}
+
+// Camera dependencies
 #include "QualcommCamera.h"
 #include "QCamera2Factory.h"
 #include "QCamera2HWI.h"
-
-
-extern "C" {
-#include <sys/time.h>
-}
 
 /* HAL function implementation goes here*/
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -31,31 +31,31 @@
 //#define LOG_NDEBUG 0
 
 #define __STDC_LIMIT_MACROS
+
+// To remove
 #include <cutils/properties.h>
-#include <hardware/camera3.h>
-#include <camera/CameraMetadata.h>
+
+// System dependencies
+#include <dlfcn.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <stdint.h>
-#include <qdMetaData.h>
-#include <utils/Log.h>
-#include <utils/Errors.h>
 #include <sync/sync.h>
-#include <gralloc_priv.h>
+#include "gralloc_priv.h"
+
+// Display dependencies
+#include "qdMetaData.h"
+
+// Camera dependencies
+#include "android/QCamera3External.h"
 #include "util/QCameraFlash.h"
 #include "QCamera3HWI.h"
-#include "QCamera3Mem.h"
-#include "QCamera3Channel.h"
-#include "QCamera3PostProc.h"
 #include "QCamera3VendorTags.h"
-#include <cutils/properties.h>
-#include <dlfcn.h>
+#include "QCameraTrace.h"
 
-#include <binder/Parcel.h>
-#include <binder/IServiceManager.h>
-#include <utils/RefBase.h>
-#include <QServiceUtils.h>
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 using namespace android;
 
@@ -87,6 +87,7 @@ namespace qcamera {
 #define MAX_HFR_BATCH_SIZE     (8)
 #define REGIONS_TUPLE_COUNT    5
 #define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
+#define BURST_REPROCESS_PERF_TIME_OUT  (1000) // milliseconds
 
 #define FLUSH_TIMEOUT 3
 
@@ -3848,6 +3849,17 @@ no_error:
             }
         } else if (output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
             bool needMetadata = false;
+
+            if (m_perfLock.isPerfLockTimedAcquired()) {
+                if (m_perfLock.isTimerReset())
+                {
+                    m_perfLock.lock_rel_timed();
+                    m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
+                }
+            } else {
+                m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
+            }
+
             QCamera3YUVChannel *yuvChannel = (QCamera3YUVChannel *)channel;
             rc = yuvChannel->request(output.buffer, frameNumber,
                     pInputBuffer,
@@ -3936,6 +3948,9 @@ no_error:
         minInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
         maxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
     }
+    if (m_perfLock.isPerfLockTimedAcquired() && m_perfLock.isTimerReset())
+        m_perfLock.lock_rel_timed();
+
     while ((mPendingLiveRequest >= minInFlightRequests) && !pInputBuffer &&
             (mState != ERROR) && (mState != DEINIT)) {
         if (!isValidTimeout) {

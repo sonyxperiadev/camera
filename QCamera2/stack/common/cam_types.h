@@ -30,9 +30,8 @@
 #ifndef __QCAMERA_TYPES_H__
 #define __QCAMERA_TYPES_H__
 
+// System dependencies
 #include <stdint.h>
-#include <pthread.h>
-#include <inttypes.h>
 #include <media/msmb_camera.h>
 
 #define CAM_MAX_NUM_BUFS_PER_STREAM 64

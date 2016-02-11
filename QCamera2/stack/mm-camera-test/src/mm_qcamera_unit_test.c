@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013, 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,8 +27,9 @@
  *
  */
 
-#include "mm_qcamera_dbg.h"
+// Camera dependencies
 #include "mm_qcamera_app.h"
+#include "mm_qcamera_dbg.h"
 
 #define MM_QCAMERA_APP_UTEST_MAX_MAIN_LOOP 1
 #define MM_QCAMERA_APP_UTEST_OUTER_LOOP 1
