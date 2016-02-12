@@ -9111,6 +9111,7 @@ int32_t QCameraParameters::setTruePortrait(const char *truePortraitStr)
         if (value != NAME_NOT_FOUND) {
             m_bTruePortraitOn = (value != 0);
             updateParamEntry(KEY_QC_TRUE_PORTRAIT, truePortraitStr);
+            setFaceDetection(m_bFaceDetectionOn, false);
             return NO_ERROR;
         }
     }
@@ -11130,9 +11131,17 @@ int32_t QCameraParameters::setFaceDetection(bool enabled, bool initCommit)
             faceProcMask |= CAM_FACE_PROCESS_MASK_FOCUS;
             faceProcMask |= CAM_FACE_PROCESS_MASK_DETECTION;
         }
+        if (isTruePortraitEnabled()) {
+            LOGL("QCameraParameters::setFaceDetection trueportrait enabled");
+            faceProcMask |= CAM_FACE_PROCESS_MASK_GAZE;
+        } else {
+            LOGL("QCameraParameters::setFaceDetection trueportrait disabled");
+            faceProcMask &= ~CAM_FACE_PROCESS_MASK_GAZE;
+        }
     } else {
         faceProcMask &= ~(CAM_FACE_PROCESS_MASK_DETECTION
-                | CAM_FACE_PROCESS_MASK_FOCUS);
+                | CAM_FACE_PROCESS_MASK_FOCUS
+                | CAM_FACE_PROCESS_MASK_GAZE);
     }
 
     if(m_nFaceProcMask == faceProcMask) {
