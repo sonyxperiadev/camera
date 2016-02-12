@@ -377,6 +377,13 @@ QCameraStream::~QCameraStream()
 
     mAllocator.waitForBackgroundTask(mAllocTaskId);
     mAllocator.waitForBackgroundTask(mMapTaskId);
+    if (mBufAllocPid != 0) {
+        cond_signal(true);
+        LOGL("Wait for buf allocation thread to join");
+        // Wait for the allocation of additional stream buffers
+        pthread_join(mBufAllocPid, NULL);
+        mBufAllocPid = 0;
+    }
 
     if (mDefferedAllocation) {
         mStreamBufsAcquired = false;
@@ -2068,10 +2075,10 @@ int32_t QCameraStream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
 
     if (mBufAllocPid != 0) {
         cond_signal(true);
-        LOGH("wait for buf allocation thread dead");
+        LOGL("wait for buf allocation thread dead");
         pthread_join(mBufAllocPid, NULL);
         mBufAllocPid = 0;
-        LOGH("return from buf allocation thread");
+        LOGL("return from buf allocation thread");
     }
 
     uint8_t numBufsToUnmap = mStreamBufs->getMappable();
