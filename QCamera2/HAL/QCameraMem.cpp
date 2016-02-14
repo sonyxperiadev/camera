@@ -1947,7 +1947,8 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/,
     if (!mWindow) {
         LOGE("Invalid native window");
         ATRACE_END();
-        return INVALID_OPERATION;
+        ret = INVALID_OPERATION;
+        goto end;
     }
 
     // Increment buffer count by min undequeued buffer.
@@ -2114,6 +2115,9 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/,
     }
 
 end:
+    if (ret != NO_ERROR) {
+        mMappableBuffers = 0;
+    }
     LOGD("X ");
     ATRACE_END();
     return ret;
