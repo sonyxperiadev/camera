@@ -764,6 +764,8 @@ private:
     bool m_bNeedRestart;
     Mutex mMapLock;
     Condition mMapCond;
+    // Count to determine the number of preview frames ignored for displaying.
+    uint8_t mIgnoredPreviewCount;
 };
 
 }; // namespace qcamera

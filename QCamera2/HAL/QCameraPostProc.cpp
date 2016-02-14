@@ -1190,7 +1190,7 @@ int32_t QCameraPostProcessor::processJpegEvt(qcamera_jpeg_evt_payload_t *evt)
         qcamera_release_data_t release_data;
         memset(&release_data, 0, sizeof(qcamera_release_data_t));
         release_data.data = jpeg_mem;
-        LOGH("[KPI Perf]: PROFILE_JPEG_CB ");
+        LOGI("[KPI Perf]: PROFILE_JPEG_CB ");
         rc = sendDataNotify(CAMERA_MSG_COMPRESSED_IMAGE,
                 jpeg_mem,
                 0,
@@ -2505,7 +2505,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         jpg_job.encode_job.multi_image_info.num_of_images = 1;
     }
 
-    LOGH("[KPI Perf] : PROFILE_JPEG_JOB_START");
+    LOGI("[KPI Perf] : PROFILE_JPEG_JOB_START");
     ret = mJpegHandle.start_job(&jpg_job, &jobId);
     if (jpg_job.encode_job.cam_exif_params.debug_params) {
         free(jpg_job.encode_job.cam_exif_params.debug_params);
@@ -2776,7 +2776,7 @@ void *QCameraPostProcessor::dataSaveRoutine(void *data)
                     memset(&release_data, 0, sizeof(qcamera_release_data_t));
                     release_data.data = jpeg_mem;
                     release_data.unlinkFile = true;
-                    LOGH("[KPI Perf]: PROFILE_JPEG_CB ");
+                    LOGI("[KPI Perf]: PROFILE_JPEG_CB ");
                     ret = pme->sendDataNotify(CAMERA_MSG_COMPRESSED_IMAGE,
                             jpeg_mem,
                             0,

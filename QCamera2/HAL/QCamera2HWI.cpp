@@ -1668,7 +1668,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mJpegHandleOwner(false),
       mMetadataMem(NULL),
       mCACDoneReceived(false),
-      m_bNeedRestart(false)
+      m_bNeedRestart(false),
+      mIgnoredPreviewCount(0)
 {
 #ifdef TARGET_TS_MAKEUP
     memset(&mFaceRect, -1, sizeof(mFaceRect));
@@ -3395,6 +3396,7 @@ int QCamera2HardwareInterface::startPreview()
     m_perfLock.lock_acq();
 
     updateThermalLevel((void *)&mThermalLevel);
+    mIgnoredPreviewCount = 0;
     // start preview stream
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
         rc = startChannel(QCAMERA_CH_TYPE_ZSL);

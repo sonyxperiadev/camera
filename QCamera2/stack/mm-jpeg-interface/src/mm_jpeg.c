@@ -2879,8 +2879,8 @@ OMX_ERRORTYPE mm_jpeg_fbd(OMX_HANDLETYPE hComponent,
   OMX_ERRORTYPE ret = OMX_ErrorNone;
   mm_jpeg_job_session_t *p_session = (mm_jpeg_job_session_t *) pAppData;
   mm_jpeg_output_t output_buf;
-  LOGH("count %d ", p_session->fbd_count);
-  LOGH("KPI Perf] : PROFILE_JPEG_FBD");
+  LOGI("count %d ", p_session->fbd_count);
+  LOGI("KPI Perf] : PROFILE_JPEG_FBD");
 
   pthread_mutex_lock(&p_session->lock);
   KPI_ATRACE_INT("Camera:JPEG",
