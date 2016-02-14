@@ -3015,7 +3015,12 @@ int32_t  QCameraParameters::setContinuousISO(const char *isoValue)
             (continous_iso <= m_pCapability->sensitivity_range.max_sensitivity)) {
         LOGH("Setting continuous ISO value %d", continous_iso);
         updateParamEntry(KEY_QC_CONTINUOUS_ISO, isoValue);
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ISO, continous_iso)) {
+
+        cam_intf_parm_manual_3a_t iso_settings;
+        memset(&iso_settings, 0, sizeof(cam_intf_parm_manual_3a_t));
+        iso_settings.previewOnly = FALSE;
+        iso_settings.value = continous_iso;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ISO, iso_settings)) {
             return BAD_VALUE;
         }
         return NO_ERROR;
@@ -6790,7 +6795,12 @@ int32_t  QCameraParameters::setISOValue(const char *isoValue)
         if (value != NAME_NOT_FOUND) {
             LOGH("Setting ISO value %s", isoValue);
             updateParamEntry(KEY_QC_ISO_MODE, isoValue);
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ISO, value)) {
+
+            cam_intf_parm_manual_3a_t iso_settings;
+            memset(&iso_settings, 0, sizeof(cam_intf_parm_manual_3a_t));
+            iso_settings.previewOnly = FALSE;
+            iso_settings.value = value;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ISO, iso_settings)) {
                 return BAD_VALUE;
             }
             return NO_ERROR;
@@ -6863,8 +6873,13 @@ int32_t  QCameraParameters::setExposureTime(const char *expTimeStr)
                 (expTimeNs <= m_pCapability->exposure_time_range[1])))) {
             LOGH(", exposure time: %f ms", expTimeMs);
             updateParamEntry(KEY_QC_EXPOSURE_TIME, expTimeStr);
+
+            cam_intf_parm_manual_3a_t exp_settings;
+            memset(&exp_settings, 0, sizeof(cam_intf_parm_manual_3a_t));
+            exp_settings.previewOnly = FALSE;
+            exp_settings.value = expTimeNs;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_EXPOSURE_TIME,
-                    (uint64_t)expTimeNs)) {
+                    exp_settings)) {
                 return BAD_VALUE;
             }
             return NO_ERROR;
