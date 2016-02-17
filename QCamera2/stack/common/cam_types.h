@@ -1187,6 +1187,29 @@ typedef struct {
                                                 * to app or not */
 } cam_face_detection_data_t;
 
+// definition of composite face detection data
+typedef struct {
+    cam_face_detection_data_t detection_data;
+
+    int8_t recog_valid;
+    cam_face_recog_data_t recog_data;
+
+    int8_t blink_valid;
+    cam_face_blink_data_t blink_data;
+
+    int8_t gaze_valid;
+    cam_face_gaze_data_t gaze_data;
+
+    int8_t smile_valid;
+    cam_face_smile_data_t smile_data;
+
+    int8_t landmark_valid;
+    cam_face_landmarks_data_t landmark_data;
+
+    int8_t contour_valid;
+    cam_face_contour_data_t contour_data;
+} cam_faces_data_t;
+
 #define CAM_HISTOGRAM_STATS_SIZE 256
 typedef struct {
     uint32_t max_hist_value;
