@@ -527,7 +527,8 @@ public:
     // offline reprocess
     virtual int32_t start();
     virtual int32_t stop();
-    int32_t doReprocessOffline(qcamera_fwk_input_pp_data_t *frame);
+    int32_t doReprocessOffline(qcamera_fwk_input_pp_data_t *frame,
+            bool isPriorityFrame = false);
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val,
                         mm_camera_super_buf_t *meta_buf);
     int32_t overrideMetadata(qcamera_hal3_pp_buffer_t *pp_buffer,
@@ -562,6 +563,7 @@ private:
         uint32_t index;
     } OfflineBuffer;
 
+    int32_t resetToCamPerfNormal(uint32_t frameNumber);
     android::List<OfflineBuffer> mOfflineBuffers;
     android::List<OfflineBuffer> mOfflineMetaBuffers;
     int32_t mOfflineBuffersIndex;
@@ -575,6 +577,9 @@ private:
     QCamera3Channel *m_pMetaChannel;
     QCamera3StreamMem *mMemory;
     QCamera3StreamMem mGrallocMemory;
+    Vector<uint32_t> mPriorityFrames;
+    Mutex            mPriorityFramesLock;
+    bool             mReprocessPerfMode;
 };
 
 
