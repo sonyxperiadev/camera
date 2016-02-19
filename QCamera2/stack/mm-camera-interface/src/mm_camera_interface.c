@@ -1837,6 +1837,10 @@ uint8_t get_num_of_cameras()
         }
         close(dev_fd);
         dev_fd = -1;
+        if (num_cameras >= MM_CAMERA_MAX_NUM_SENSORS) {
+            LOGW("Maximum number of camera reached %d", num_cameras);
+            break;
+        }
     }
     g_cam_ctrl.num_cam = num_cameras;
 

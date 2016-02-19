@@ -500,7 +500,7 @@ void QCameraPerfLock::powerHint(power_hint_t hint, bool enable)
             if (*it == hint) {
                 mActivePowerHints.erase(it);
                 if (it != mActivePowerHints.begin()) {
-                    LOGE("Request to remove the previous power hint: %d instead of"
+                    LOGW("Request to remove the previous power hint: %d instead of"
                             "currently active power hint: %d", static_cast<int>(hint),
                                                             static_cast<int>(mCurrentPowerHint));
                 }

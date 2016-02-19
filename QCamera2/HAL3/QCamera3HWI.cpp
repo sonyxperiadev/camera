@@ -2852,54 +2852,55 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         if (result.num_output_buffers > 0) {
             camera3_stream_buffer_t *result_buffers =
                 new camera3_stream_buffer_t[result.num_output_buffers];
-            if (!result_buffers) {
+            if (result_buffers != NULL) {
+                size_t result_buffers_idx = 0;
+                for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
+                        j != i->buffers.end(); j++) {
+                    if (j->buffer) {
+                        for (List<PendingFrameDropInfo>::iterator m = mPendingFrameDropList.begin();
+                                m != mPendingFrameDropList.end(); m++) {
+                            QCamera3Channel *channel = (QCamera3Channel *)j->buffer->stream->priv;
+                            uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
+                            if((m->stream_ID == streamID) && (m->frame_number==frame_number)) {
+                                j->buffer->status=CAMERA3_BUFFER_STATUS_ERROR;
+                                LOGE("Stream STATUS_ERROR frame_number=%u, streamID=%u",
+                                        frame_number, streamID);
+                                m = mPendingFrameDropList.erase(m);
+                                break;
+                            }
+                        }
+
+                        for (List<PendingBufferInfo>::iterator k =
+                                mPendingBuffersMap.mPendingBufferList.begin();
+                                k != mPendingBuffersMap.mPendingBufferList.end(); k++) {
+                            if (k->buffer == j->buffer->buffer) {
+                                LOGD("Found buffer %p in pending buffer List "
+                                        "for frame %u, Take it out!!",
+                                        k->buffer, k->frame_number);
+                                mPendingBuffersMap.num_buffers--;
+                                k = mPendingBuffersMap.mPendingBufferList.erase(k);
+                                break;
+                            }
+                        }
+
+                        result_buffers[result_buffers_idx++] = *(j->buffer);
+                        free(j->buffer);
+                        j->buffer = NULL;
+                    }
+                }
+                result.output_buffers = result_buffers;
+                mCallbackOps->process_capture_result(mCallbackOps, &result);
+                LOGD("meta frame_number = %u, capture_time = %lld",
+                        result.frame_number, i->timestamp);
+                free_camera_metadata((camera_metadata_t *)result.result);
+                delete[] result_buffers;
+            }else {
                 LOGE("Fatal error: out of memory");
             }
-            size_t result_buffers_idx = 0;
-            for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
-                    j != i->buffers.end(); j++) {
-                if (j->buffer) {
-                    for (List<PendingFrameDropInfo>::iterator m = mPendingFrameDropList.begin();
-                            m != mPendingFrameDropList.end(); m++) {
-                        QCamera3Channel *channel = (QCamera3Channel *)j->buffer->stream->priv;
-                        uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
-                        if((m->stream_ID == streamID) && (m->frame_number==frame_number)) {
-                            j->buffer->status=CAMERA3_BUFFER_STATUS_ERROR;
-                            LOGE("Stream STATUS_ERROR frame_number=%u, streamID=%u",
-                                   frame_number, streamID);
-                            m = mPendingFrameDropList.erase(m);
-                            break;
-                        }
-                    }
-
-                    for (List<PendingBufferInfo>::iterator k =
-                      mPendingBuffersMap.mPendingBufferList.begin();
-                      k != mPendingBuffersMap.mPendingBufferList.end(); k++) {
-                      if (k->buffer == j->buffer->buffer) {
-                        LOGD("Found buffer %p in pending buffer List "
-                              "for frame %u, Take it out!!",
-                               k->buffer, k->frame_number);
-                        mPendingBuffersMap.num_buffers--;
-                        k = mPendingBuffersMap.mPendingBufferList.erase(k);
-                        break;
-                      }
-                    }
-
-                    result_buffers[result_buffers_idx++] = *(j->buffer);
-                    free(j->buffer);
-                    j->buffer = NULL;
-                }
-            }
-            result.output_buffers = result_buffers;
-            mCallbackOps->process_capture_result(mCallbackOps, &result);
-            LOGD("meta frame_number = %u, capture_time = %lld",
-                  result.frame_number, i->timestamp);
-            free_camera_metadata((camera_metadata_t *)result.result);
-            delete[] result_buffers;
         } else {
             mCallbackOps->process_capture_result(mCallbackOps, &result);
             LOGD("meta frame_number = %u, capture_time = %lld",
-                  result.frame_number, i->timestamp);
+                    result.frame_number, i->timestamp);
             free_camera_metadata((camera_metadata_t *)result.result);
         }
 
@@ -2949,8 +2950,9 @@ void QCamera3HardwareInterface::hdrPlusPerfLock(
     }
 
     //acquire perf lock for 5 sec after the last HDR frame is captured
-    if (*p_frame_number_valid) {
-        if (mLastCustIntentFrmNum == (int32_t)*p_frame_number) {
+    if ((p_frame_number_valid != NULL) && *p_frame_number_valid) {
+        if ((p_frame_number != NULL) &&
+                (mLastCustIntentFrmNum == (int32_t)*p_frame_number)) {
             m_perfLock.lock_acq_timed(HDR_PLUS_PERF_TIME_OUT);
         }
     }

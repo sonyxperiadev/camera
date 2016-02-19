@@ -2565,7 +2565,7 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                             !gMuxer->m_AuxJpegQ.isEmpty()) {
                         main_jpeg_node = (cam_compose_jpeg_info_t *)
                                 gMuxer->m_MainJpegQ.dequeue();
-                        if (main_jpeg_node) {
+                        if (main_jpeg_node != NULL) {
                             LOGD("main_jpeg_node found frame idx %d"
                                     "ptr %p buffer_ptr %p buffer_size %d",
                                      main_jpeg_node->frame_idx,
@@ -2576,7 +2576,7 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                             aux_jpeg_node =
                                     (cam_compose_jpeg_info_t *) gMuxer->
                                     m_AuxJpegQ.dequeue();
-                            if (aux_jpeg_node) {
+                            if (aux_jpeg_node != NULL) {
                                 LOGD("aux_jpeg_node found frame idx %d"
                                         "ptr %p buffer_ptr %p buffer_size %d",
                                          aux_jpeg_node->frame_idx,
@@ -2589,7 +2589,7 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                                         aux_jpeg_node);
                             }
                         }
-                        if (main_jpeg_node) {
+                        if (main_jpeg_node != NULL) {
                             if ( main_jpeg_node->release_cb ) {
                                 main_jpeg_node->release_cb(
                                         main_jpeg_node->release_data,
@@ -2597,17 +2597,19 @@ void* QCameraMuxer::composeMpoRoutine(void *data)
                                         NO_ERROR);
                             }
                             free(main_jpeg_node);
+                            main_jpeg_node = NULL;
                         } else {
                             LOGH("Mpo Match not found");
                         }
-                        if (aux_jpeg_node) {
-                            if ( aux_jpeg_node->release_cb ) {
+                        if (aux_jpeg_node != NULL) {
+                            if (aux_jpeg_node->release_cb) {
                                 aux_jpeg_node->release_cb(
                                         aux_jpeg_node->release_data,
                                         aux_jpeg_node->release_cookie,
                                         NO_ERROR);
                             }
                             free(aux_jpeg_node);
+                            aux_jpeg_node = NULL;
                         } else {
                             LOGH("Mpo Match not found");
                         }
