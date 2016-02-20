@@ -3819,6 +3819,7 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
             obj->m_postprocessor.releasePPJobData(pp_job);
         }
         free(pp_job);
+        resetToCamPerfNormal(resultFrameNumber);
     }
     free(super_frame);
     return;
@@ -3838,6 +3839,50 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel() :
     m_pMetaChannel(NULL),
     mGrallocMemory(0)
 {
+}
+
+/*===========================================================================
+ * FUNCTION   : resetToCamPerfNormal
+ *
+ * DESCRIPTION: Set the perf mode to normal if all the priority frames
+ *              have been reprocessed
+ *
+ * PARAMETERS :
+ *      @frameNumber: Frame number of the reprocess completed frame
+ *
+ * RETURN     : QCamera3StreamMem *
+ *==========================================================================*/
+int32_t QCamera3ReprocessChannel::resetToCamPerfNormal(uint32_t frameNumber)
+{
+    int32_t rc = NO_ERROR;
+    bool resetToPerfNormal = false;
+    {
+        Mutex::Autolock lock(mPriorityFramesLock);
+        /* remove the priority frame number from the list */
+        for (size_t i = 0; i < mPriorityFrames.size(); i++) {
+            if (mPriorityFrames[i] == frameNumber) {
+                mPriorityFrames.removeAt(i);
+            }
+        }
+        /* reset the perf mode if pending priority frame list is empty */
+        if (mReprocessPerfMode && mPriorityFrames.empty()) {
+            resetToPerfNormal = true;
+        }
+    }
+    if (resetToPerfNormal) {
+        QCamera3Stream *pStream = mStreams[0];
+        cam_stream_parm_buffer_t param;
+        memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+
+        param.type = CAM_STREAM_PARAM_TYPE_REQUEST_OPS_MODE;
+        param.perf_mode = CAM_PERF_NORMAL;
+        rc = pStream->setParameter(param);
+        {
+            Mutex::Autolock lock(mPriorityFramesLock);
+            mReprocessPerfMode = false;
+        }
+    }
+    return rc;
 }
 
 /*===========================================================================
@@ -4247,12 +4292,15 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
  *
  * PARAMETERS :
  *   @frame     : input frame for reprocessing
+ *   @isPriorityFrame: Hint that this frame is of priority, equivalent to
+ *              real time, even though it is processed in offline mechanism
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
- int32_t QCamera3ReprocessChannel::doReprocessOffline(qcamera_fwk_input_pp_data_t *frame)
+ int32_t  QCamera3ReprocessChannel::doReprocessOffline(
+        qcamera_fwk_input_pp_data_t *frame, bool isPriorityFrame)
 {
     int32_t rc = 0;
     int index;
@@ -4363,6 +4411,32 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
 
     if (rc == NO_ERROR) {
         cam_stream_parm_buffer_t param;
+        uint32_t numPendingPriorityFrames = 0;
+
+        if(isPriorityFrame && (mReprocessType != REPROCESS_TYPE_JPEG)) {
+            Mutex::Autolock lock(mPriorityFramesLock);
+            /* read the length before pushing the frame number to check if
+             * vector is empty */
+            numPendingPriorityFrames = mPriorityFrames.size();
+            mPriorityFrames.push(frame->frameNumber);
+        }
+
+        if(isPriorityFrame && !numPendingPriorityFrames &&
+            (mReprocessType != REPROCESS_TYPE_JPEG)) {
+            memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+            param.type = CAM_STREAM_PARAM_TYPE_REQUEST_OPS_MODE;
+            param.perf_mode = CAM_PERF_HIGH_PERFORMANCE;
+            rc = pStream->setParameter(param);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: setParameter for CAM_PERF_HIGH_PERFORMANCE failed",
+                    __func__);
+            }
+            {
+                Mutex::Autolock lock(mPriorityFramesLock);
+                mReprocessPerfMode = true;
+            }
+        }
+
         memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
         param.type = CAM_STREAM_PARAM_TYPE_DO_REPROCESS;
         param.reprocess.buf_index = buf_idx;
@@ -4376,6 +4450,7 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
         rc = pStream->setParameter(param);
         if (rc != NO_ERROR) {
             LOGE("stream setParameter for reprocess failed");
+            resetToCamPerfNormal(frame->frameNumber);
         }
     } else {
         LOGE("Input buffer memory map failed: %d", rc);

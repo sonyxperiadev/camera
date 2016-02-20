@@ -1883,7 +1883,7 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 if (NO_ERROR == ret) {
                                     // add into ongoing PP job Q
                                     ret = pme->m_pReprocChannel->doReprocessOffline(
-                                            &fwk_frame);
+                                            &fwk_frame, true);
                                     if (NO_ERROR != ret) {
                                         // remove from ongoing PP job Q
                                         pme->m_ongoingPPQ.dequeue(false);
