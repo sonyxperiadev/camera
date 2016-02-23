@@ -815,7 +815,7 @@ int QCameraHeapMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
                     deallocOneBuffer(mMemInfo[j]);
                 }
                 // Deallocate remaining buffers that have already been allocated
-                for (int j = i; j < count; j --) {
+                for (int j = i; j < count; j++) {
                     deallocOneBuffer(mMemInfo[j]);
                 }
                 ATRACE_END();
