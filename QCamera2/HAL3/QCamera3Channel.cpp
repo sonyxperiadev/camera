@@ -3625,7 +3625,8 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
     m_pSrcChannel(NULL),
     m_pMetaChannel(NULL),
     mMemory(NULL),
-    mGrallocMemory(0)
+    mGrallocMemory(0),
+    mReprocessPerfMode(false)
 {
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
     mOfflineBuffersIndex = mNumBuffers -1;
