@@ -369,9 +369,7 @@ int32_t QCameraPostProcessor::createJpegSession(QCameraChannel *pSrcChannel)
         return UNKNOWN_ERROR;
     }
 
-    if ( !m_parent->mParameters.getRecordingHintValue() &&
-            !m_parent->isLongshotEnabled() && (mPPChannelCount > 0)) {
-
+    if (mPPChannelCount > 0) {
         QCameraChannel *pChannel = NULL;
         int ppChannel_idx = mPPChannelCount - 1;
         pChannel = m_parent->needReprocess() ? mPPChannels[ppChannel_idx] :

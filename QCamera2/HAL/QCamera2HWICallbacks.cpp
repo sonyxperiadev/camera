@@ -1657,7 +1657,9 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
         LOGI("[KPI Perf]: superbuf frame_idx %d",
                 frame->bufs[0]->frame_idx);
     }
-    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+
+    if ((NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) ||
+            (NO_ERROR != pme->m_postprocessor.processData(frame))) {
         LOGE("Failed to trigger process data");
         pChannel->bufDone(super_frame);
         free(frame);
