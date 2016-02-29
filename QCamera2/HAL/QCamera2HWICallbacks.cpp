@@ -2112,6 +2112,7 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             }
         }
         if ((pme->m_currentFocusState != (*afState)) || forceAFUpdate) {
+            cam_af_state_t prevFocusState = pme->m_currentFocusState;
             pme->m_currentFocusState = (cam_af_state_t)(*afState);
             qcamera_sm_internal_evt_payload_t *payload = (qcamera_sm_internal_evt_payload_t *)
                     malloc(sizeof(qcamera_sm_internal_evt_payload_t));
@@ -2119,7 +2120,16 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
                 memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
                 payload->evt_type = QCAMERA_INTERNAL_EVT_FOCUS_UPDATE;
                 payload->focus_data.focus_state = (cam_af_state_t)(*afState);
-                payload->focus_data.focused_frame_idx = frame->frame_idx;
+                //Need to flush ZSL Q only if we are transitioning from scanning state
+                //to focused/not focused state.
+                payload->focus_data.flush_info.needFlush =
+                        ((prevFocusState == CAM_AF_STATE_PASSIVE_SCAN) ||
+                        (prevFocusState == CAM_AF_STATE_ACTIVE_SCAN) ||
+                        (prevFocusState == CAM_AF_STATE_INACTIVE)) &&
+                        ((pme->m_currentFocusState == CAM_AF_STATE_FOCUSED_LOCKED) ||
+                        (pme->m_currentFocusState == CAM_AF_STATE_NOT_FOCUSED_LOCKED));
+                payload->focus_data.flush_info.focused_frame_idx = frame->frame_idx;
+
                 IF_META_AVAILABLE(float, focusDistance,
                         CAM_INTF_META_LENS_FOCUS_DISTANCE, pMetaData) {
                     payload->focus_data.focus_dist.

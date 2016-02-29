@@ -402,6 +402,9 @@ typedef struct mm_jpeg_obj_t {
   uint32_t reuse_reproc_buffer;
 
   cam_jpeg_metadata_t *jpeg_metadata;
+
+  /* Pointer to the session in progress*/
+  mm_jpeg_job_session_t *p_session_inprogress;
 } mm_jpeg_obj;
 
 /** mm_jpeg_pending_func_t:

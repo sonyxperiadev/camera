@@ -136,6 +136,12 @@
 /*reprocess pipeline stages are pproc and jpeg */
 #define MAX_REPROCESS_PIPELINE_STAGES 2
 
+/* Defines the number of rows in the color correction matrix (CCM) */
+#define AWB_NUM_CCM_ROWS (3)
+
+/* Defines the number of columns in the color correction matrix (CCM) */
+#define AWB_NUM_CCM_COLS (3)
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3
@@ -182,7 +188,7 @@ typedef enum {
      * U and V are interleaved with Y: YUYV or YVYV */
     CAM_FORMAT_YUV_RAW_8BIT_YUYV,
     CAM_FORMAT_YUV_RAW_8BIT_YVYU,
-    CAM_FORMAT_YUV_RAW_8BIT_UYVY,
+    CAM_FORMAT_YUV_RAW_8BIT_UYVY, //10
     CAM_FORMAT_YUV_RAW_8BIT_VYUY,
 
     /* QCOM RAW formats where data is packed into 64bit word.
@@ -200,7 +206,7 @@ typedef enum {
     CAM_FORMAT_BAYER_QCOM_RAW_10BPP_GRBG,
     CAM_FORMAT_BAYER_QCOM_RAW_10BPP_RGGB,
     CAM_FORMAT_BAYER_QCOM_RAW_10BPP_BGGR,
-    CAM_FORMAT_BAYER_QCOM_RAW_12BPP_GBRG,
+    CAM_FORMAT_BAYER_QCOM_RAW_12BPP_GBRG,  //20
     CAM_FORMAT_BAYER_QCOM_RAW_12BPP_GRBG,
     CAM_FORMAT_BAYER_QCOM_RAW_12BPP_RGGB,
     CAM_FORMAT_BAYER_QCOM_RAW_12BPP_BGGR,
@@ -217,7 +223,7 @@ typedef enum {
     CAM_FORMAT_BAYER_MIPI_RAW_8BPP_BGGR,
     CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG,
     CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GRBG,
-    CAM_FORMAT_BAYER_MIPI_RAW_10BPP_RGGB,
+    CAM_FORMAT_BAYER_MIPI_RAW_10BPP_RGGB, //30
     CAM_FORMAT_BAYER_MIPI_RAW_10BPP_BGGR,
     CAM_FORMAT_BAYER_MIPI_RAW_12BPP_GBRG,
     CAM_FORMAT_BAYER_MIPI_RAW_12BPP_GRBG,
@@ -233,7 +239,7 @@ typedef enum {
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_8BPP_GRBG,
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_8BPP_RGGB,
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_8BPP_BGGR,
-    CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_10BPP_GBRG,
+    CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_10BPP_GBRG, //40
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_10BPP_GRBG,
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_10BPP_RGGB,
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_10BPP_BGGR,
@@ -243,7 +249,7 @@ typedef enum {
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_12BPP_BGGR,
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_8BPP_GBRG,
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_8BPP_GRBG,
-    CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_8BPP_RGGB,
+    CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_8BPP_RGGB, //50
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_8BPP_BGGR,
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_10BPP_GBRG,
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_10BPP_GRBG,
@@ -253,7 +259,7 @@ typedef enum {
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_12BPP_GRBG,
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_12BPP_RGGB,
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_12BPP_BGGR,
-    CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN8_8BPP_GBRG,
+    CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN8_8BPP_GBRG, //60
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN8_8BPP_GRBG,
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN8_8BPP_RGGB,
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN8_8BPP_BGGR,
@@ -263,7 +269,7 @@ typedef enum {
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_8BPP_BGGR,
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_GBRG,
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_GRBG,
-    CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_RGGB,
+    CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_RGGB, //70
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_BGGR,
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_12BPP_GBRG,
     CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_12BPP_GRBG,
@@ -280,7 +286,7 @@ typedef enum {
      */
     CAM_FORMAT_BAYER_QCOM_RAW_14BPP_GBRG,
     CAM_FORMAT_BAYER_QCOM_RAW_14BPP_GRBG,
-    CAM_FORMAT_BAYER_QCOM_RAW_14BPP_RGGB,
+    CAM_FORMAT_BAYER_QCOM_RAW_14BPP_RGGB, //80
     CAM_FORMAT_BAYER_QCOM_RAW_14BPP_BGGR,
     /* MIPI RAW formats based on MIPI CSI-2 specifiction.
      * 14 BPPP: 1st byte: P0 [13:6]
@@ -300,7 +306,7 @@ typedef enum {
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_14BPP_GRBG,
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_14BPP_RGGB,
     CAM_FORMAT_BAYER_IDEAL_RAW_QCOM_14BPP_BGGR,
-    CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_14BPP_GBRG,
+    CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_14BPP_GBRG, //90
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_14BPP_GRBG,
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_14BPP_RGGB,
     CAM_FORMAT_BAYER_IDEAL_RAW_MIPI_14BPP_BGGR,
@@ -318,7 +324,7 @@ typedef enum {
     CAM_FORMAT_YUV_444_NV42,
 
     /* Y plane only, used for FD */
-    CAM_FORMAT_Y_ONLY,
+    CAM_FORMAT_Y_ONLY, //100
 
     /* UBWC format */
     CAM_FORMAT_YUV_420_NV12_UBWC,
@@ -1011,9 +1017,12 @@ typedef struct {
     cam_denoise_process_type_t process_plates;
 } cam_denoise_param_t;
 
-#define CAM_FACE_PROCESS_MASK_DETECTION    (1U<<0)
-#define CAM_FACE_PROCESS_MASK_RECOGNITION  (1U<<1)
-#define CAM_FACE_PROCESS_MASK_FOCUS        (1U<<2)
+#define CAM_FACE_PROCESS_MASK_DETECTION     (1U<<0)
+#define CAM_FACE_PROCESS_MASK_RECOGNITION   (1U<<1)
+#define CAM_FACE_PROCESS_MASK_FOCUS         (1U<<2)
+#define CAM_FACE_PROCESS_MASK_BLINK         (1U<<3)
+#define CAM_FACE_PROCESS_MASK_SMILE         (1U<<4)
+#define CAM_FACE_PROCESS_MASK_GAZE          (1U<<5)
 
 typedef struct {
     uint32_t fd_mode;          /* mask of face process */
@@ -1256,6 +1265,11 @@ typedef struct {
     float focalLengthRatio;
 } cam_focal_length_ratio_t;
 
+typedef struct {
+    uint8_t needFlush;
+    uint32_t focused_frame_idx;
+} cam_af_flush_info_t;
+
 /* Different autofocus cycle when calling do_autoFocus
  * CAM_AF_COMPLETE_EXISTING_SWEEP: Complete existing sweep
  * if one is ongoing, and lock.
@@ -1301,8 +1315,8 @@ typedef struct {
     cam_af_state_t focus_state;           /* state of focus */
     cam_focus_distances_info_t focus_dist;       /* focus distance */
     cam_focus_mode_type focus_mode;        /* focus mode from backend */
-    uint32_t focused_frame_idx;
     int32_t focus_pos;
+    cam_af_flush_info_t flush_info;
 } cam_auto_focus_data_t;
 
 typedef struct {
@@ -1421,8 +1435,17 @@ typedef struct {
 } cam_ae_exif_debug_t;
 
 typedef struct {
+    int8_t awb_ccm_enable;
+    int8_t hard_awb_ccm_flag;
+    int8_t ccm_update_flag;
+    float  ccm[AWB_NUM_CCM_ROWS][AWB_NUM_CCM_COLS];
+    float  ccm_offset[AWB_NUM_CCM_ROWS];
+} cam_awb_ccm_update_t;
+
+typedef struct {
     int32_t cct_value;
     cam_awb_gain_t rgb_gains;
+    cam_awb_ccm_update_t ccm_update;
 } cam_awb_params_t;
 
 typedef struct {
