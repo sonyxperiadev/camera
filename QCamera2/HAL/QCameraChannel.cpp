@@ -372,24 +372,22 @@ int32_t QCameraChannel::start()
 int32_t QCameraChannel::stop()
 {
     int32_t rc = NO_ERROR;
-    ssize_t linkedIdx = -1;
+    size_t i = 0;
 
     if (!m_bIsActive) {
         return NO_INIT;
     }
 
-    for (size_t i = 0; i < mStreams.size(); i++) {
+    while(i < mStreams.size()) {
         if (mStreams[i] != NULL) {
-               if (m_handle == mStreams[i]->getChannelHandle()) {
-                   mStreams[i]->stop();
-               } else {
-                   // Remove linked stream from stream list
-                   linkedIdx = (ssize_t)i;
-               }
+            if (m_handle == mStreams[i]->getChannelHandle()) {
+                mStreams[i]->stop();
+                i++;
+            } else {
+                // Remove linked stream from stream list
+                mStreams.removeAt(i);
+            }
         }
-    }
-    if (linkedIdx > 0) {
-        mStreams.removeAt((size_t)linkedIdx);
     }
 
     rc = m_camOps->stop_channel(m_camHandle, m_handle);

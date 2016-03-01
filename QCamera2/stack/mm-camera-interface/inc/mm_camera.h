@@ -377,7 +377,6 @@ typedef struct {
     uint32_t led_on_num_frames;
     uint32_t once;
     uint32_t frame_skip_count;
-    uint32_t nomatch_frame_id;
 } mm_channel_queue_t;
 
 typedef struct {
