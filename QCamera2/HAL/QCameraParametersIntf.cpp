@@ -342,6 +342,34 @@ int32_t QCameraParametersIntf::getEffectValue()
     return mImpl->getEffectValue();
 }
 
+bool QCameraParametersIntf::isInstantAECEnabled()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isInstantAECEnabled();
+}
+
+bool QCameraParametersIntf::isInstantCaptureEnabled()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isInstantCaptureEnabled();
+}
+
+uint8_t QCameraParametersIntf::getAecFrameBoundValue()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getAecFrameBoundValue();
+}
+
+uint8_t QCameraParametersIntf::getAecSkipDisplayFrameBound()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getAecSkipDisplayFrameBound();
+}
+
 int32_t QCameraParametersIntf::getExifDateTime(
         String8 &dateTime, String8 &subsecTime)
 {
@@ -1334,6 +1362,13 @@ int32_t QCameraParametersIntf::checkFeatureConcurrency()
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->checkFeatureConcurrency();
+}
+
+int32_t QCameraParametersIntf::setInstantAEC(uint8_t enable, bool initCommit)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setInstantAEC(enable, initCommit);
 }
 
 }; // namespace qcamera

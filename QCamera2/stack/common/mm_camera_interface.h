@@ -378,6 +378,8 @@ typedef enum {
 *                     queue
 *    @enable_frame_sync: Enables frame sync for dual camera
 *    @priority : save matched priority frames only
+*    @user_expected_frame_id : Number of frames, camera interface
+*                     will wait for getting the instant capture frame.
 **/
 typedef struct {
     mm_camera_super_buf_notify_mode_t notify_mode;
@@ -387,6 +389,7 @@ typedef struct {
     uint8_t max_unmatched_frames;
     uint8_t enable_frame_sync;
     mm_camera_super_buf_priority_t priority;
+    uint8_t user_expected_frame_id;
 } mm_camera_channel_attr_t;
 
 typedef struct {
