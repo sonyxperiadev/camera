@@ -893,7 +893,6 @@ QCameraParameters::QCameraParameters()
       m_bTNRVideoOn(false),
       m_bTNRSnapshotOn(false),
       m_bInited(false),
-      m_nBurstNum(1),
       m_nRetroBurstNum(0),
       m_nBurstLEDOnPeriod(100),
       m_bUpdateEffects(false),
@@ -1022,7 +1021,6 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bTNRVideoOn(false),
     m_bTNRSnapshotOn(false),
     m_bInited(false),
-    m_nBurstNum(1),
     m_nRetroBurstNum(0),
     m_nBurstLEDOnPeriod(100),
     m_bPreviewFlipChanged(false),
@@ -4082,7 +4080,7 @@ int32_t QCameraParameters::setGpsLocation(const QCameraParameters& params)
  *==========================================================================*/
 int32_t QCameraParameters::setNumOfSnapshot()
 {
-    int nBurstNum = getBurstNum();
+    int nBurstNum = 1;
     int nExpnum = 0;
 
     const char *bracket_str = get(KEY_QC_AE_BRACKET_HDR);
@@ -4792,45 +4790,6 @@ int32_t QCameraParameters::setFlip(const QCameraParameters& params)
 }
 
 /*===========================================================================
- * FUNCTION   : setBurstNum
- *
- * DESCRIPTION: set burst number of snapshot
- *
- * PARAMETERS :
- *   @params  : user setting parameters
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCameraParameters::setBurstNum(const QCameraParameters& params)
-{
-    int nBurstNum = params.getInt(KEY_QC_SNAPSHOT_BURST_NUM);
-    if (isAdvCamFeaturesEnabled()) {
-        nBurstNum = 1;
-    }
-    if (nBurstNum <= 0) {
-        // if burst number is not set in parameters,
-        // read from sys prop
-        char prop[PROPERTY_VALUE_MAX];
-        memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.snapshot.number", prop, "0");
-        nBurstNum = atoi(prop);
-        if (nBurstNum <= 0) {
-            nBurstNum = 1;
-        }
-    }
-    set(KEY_QC_SNAPSHOT_BURST_NUM, nBurstNum);
-    m_nBurstNum = (uint8_t)nBurstNum;
-    LOGH("m_nBurstNum = %d", m_nBurstNum);
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_BURST_NUM, (uint32_t)nBurstNum)) {
-        return BAD_VALUE;
-    }
-
-    return NO_ERROR;
-}
-
-/*===========================================================================
  * FUNCTION   : setSnapshotFDReq
  *
  * DESCRIPTION: set requirement of Face Detection Metadata in Snapshot mode.
@@ -5089,7 +5048,6 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     if ((rc = setChromaFlash(params)))                  final_rc = rc;
     if ((rc = setTruePortrait(params)))                 final_rc = rc;
     if ((rc = setOptiZoom(params)))                     final_rc = rc;
-    if ((rc = setBurstNum(params)))                     final_rc = rc;
     if ((rc = setBurstLEDOnPeriod(params)))             final_rc = rc;
     if ((rc = setRetroActiveBurstNum(params)))          final_rc = rc;
     if ((rc = setSnapshotFDReq(params)))                final_rc = rc;
@@ -10242,7 +10200,7 @@ bool QCameraParameters::isVideoBuffersCached()
  *==========================================================================*/
 uint8_t QCameraParameters::getMaxUnmatchedFramesInQueue()
 {
-    return (uint8_t)(m_pCapability->min_num_pp_bufs + (m_nBurstNum / 10));
+    return (uint8_t)(m_pCapability->min_num_pp_bufs);
 }
 
 /*===========================================================================
@@ -10398,7 +10356,7 @@ uint8_t QCameraParameters::getNumOfExtraHDRInBufsIfNeeded()
         numOfBufs--; // Only additional buffers need to be returned
     }
 
-    return (uint8_t)(numOfBufs * getBurstNum());
+    return (uint8_t)(numOfBufs);
 }
 
 /*===========================================================================
@@ -10418,22 +10376,7 @@ uint8_t QCameraParameters::getNumOfExtraHDROutBufsIfNeeded()
         numOfBufs++;
     }
 
-    return (uint8_t)(numOfBufs * getBurstNum());
-}
-
-/*===========================================================================
- * FUNCTION   : getBurstNum
- *
- * DESCRIPTION: get burst number of snapshot
- *
- * PARAMETERS : none
- *
- * RETURN     : number of burst
- *==========================================================================*/
-uint8_t QCameraParameters::getBurstNum()
-{
-    LOGH("m_nBurstNum = %d", m_nBurstNum);
-    return m_nBurstNum;
+    return (uint8_t)(numOfBufs);
 }
 
 /*===========================================================================
@@ -12353,7 +12296,7 @@ int32_t QCameraParameters::setEztune()
  *==========================================================================*/
 bool QCameraParameters::isHDREnabled()
 {
-    return ((m_nBurstNum == 1) && (m_bHDREnabled || m_HDRSceneEnabled));
+    return ((m_bHDREnabled || m_HDRSceneEnabled));
 }
 
 /*===========================================================================
@@ -12866,7 +12809,7 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
         numOfBufs += 1;
     }
 
-    return (uint8_t)(numOfBufs * getBurstNum());
+    return (uint8_t)(numOfBufs);
 }
 
 /*===========================================================================
@@ -13588,9 +13531,6 @@ String8 QCameraParameters::dump()
 
     snprintf(s, 128, "getNumOfExtraHDROutBufsIfNeeded: %d\n",
         getNumOfExtraHDROutBufsIfNeeded());
-    str += s;
-
-    snprintf(s, 128, "getBurstNum: %d\n", getBurstNum());
     str += s;
 
     snprintf(s, 128, "getRecordingHintValue: %d\n", getRecordingHintValue());
