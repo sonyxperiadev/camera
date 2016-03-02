@@ -576,7 +576,6 @@ int32_t QCameraPostProcessor::getJpegEncodingConfig(mm_jpeg_encode_params_t& enc
             dst_dim.width, dst_dim.height);
 
     if (m_bThumbnailNeeded == TRUE) {
-        uint32_t jpeg_rotation = m_parent->mParameters.getJpegRotation();
         m_parent->getThumbnailSize(encode_parm.thumb_dim.dst_dim);
 
         if (thumb_stream == NULL) {
@@ -911,8 +910,6 @@ mm_camera_buf_def_t *QCameraPostProcessor::getOfflinePPInputBuffer(
  *==========================================================================*/
 int32_t QCameraPostProcessor::processData(mm_camera_super_buf_t *frame)
 {
-    QCameraChannel *m_pReprocChannel = NULL;
-
     if (m_bInited == FALSE) {
         LOGE("postproc not initialized yet");
         return UNKNOWN_ERROR;
@@ -3015,7 +3012,6 @@ int32_t QCameraPostProcessor::doReprocess()
     QCameraStream *pMetaStream = NULL;
     uint8_t meta_buf_index = 0;
     mm_camera_buf_def_t *meta_buf = NULL;
-    bool found_meta = FALSE;
     mm_camera_super_buf_t *ppInputFrame = NULL;
 
     qcamera_pp_data_t *ppreq_job = (qcamera_pp_data_t *)m_inputPPQ.peek();

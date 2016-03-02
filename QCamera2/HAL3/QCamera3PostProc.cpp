@@ -52,6 +52,8 @@ namespace qcamera {
 
 static const char ExifAsciiPrefix[] =
     { 0x41, 0x53, 0x43, 0x49, 0x49, 0x0, 0x0, 0x0 };          // "ASCII\0\0\0"
+
+__unused
 static const char ExifUndefinedPrefix[] =
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };   // "\0\0\0\0\0\0\0\0"
 
@@ -397,7 +399,6 @@ int32_t QCamera3PostProcessor::getFWKJpegEncodeConfig(
     LOGD("X");
     return NO_ERROR;
 
-on_error:
     LOGD("X with error %d", ret);
     return ret;
 }
@@ -561,7 +562,6 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *input,
         buffer_handle_t *output, uint32_t frameNumber)
 {
     LOGD("E");
-    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
     pthread_mutex_lock(&mReprocJobLock);
 
     // enqueue to post proc input queue
@@ -603,7 +603,6 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *input,
  *==========================================================================*/
 int32_t QCamera3PostProcessor::processData(qcamera_fwk_input_pp_data_t *frame)
 {
-    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
     if (frame->reproc_config.reprocess_type != REPROCESS_TYPE_NONE) {
         ATRACE_INT("Camera:Reprocess", 1);
         pthread_mutex_lock(&mReprocJobLock);
@@ -2150,7 +2149,7 @@ int32_t getExifGpsProcessingMethod(char *gpsProcessingMethod,
         count = EXIF_ASCII_PREFIX_SIZE;
         strlcpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE,
                 value,
-                strlen(value)+1);
+                GPS_PROCESSING_METHOD_SIZE);
         count += (uint32_t)strlen(value);
         gpsProcessingMethod[count++] = '\0'; // increase 1 for the last NULL char
         return NO_ERROR;
@@ -2177,7 +2176,7 @@ int32_t getExifLatitude(rat_t *latitude, char *latRef, double value)
 {
     char str[30];
     snprintf(str, sizeof(str), "%f", value);
-    if(str != NULL) {
+    if(str[0] != '\0') {
         parseGPSCoordinate(str, latitude);
 
         //set Latitude Ref
@@ -2212,7 +2211,7 @@ int32_t getExifLongitude(rat_t *longitude, char *lonRef, double value)
 {
     char str[30];
     snprintf(str, sizeof(str), "%f", value);
-    if(str != NULL) {
+    if(str[0] != '\0') {
         parseGPSCoordinate(str, longitude);
 
         //set Longitude Ref
@@ -2247,7 +2246,7 @@ int32_t getExifAltitude(rat_t *altitude, char *altRef, double argValue)
 {
     char str[30];
     snprintf(str, sizeof(str), "%f", argValue);
-    if (str != NULL) {
+    if (str[0] != '\0') {
         double value = atof(str);
         *altRef = 0;
         if(value < 0){
@@ -2280,7 +2279,7 @@ int32_t getExifGpsDateTimeStamp(char *gpsDateStamp, uint32_t bufLen,
 {
     char str[30];
     snprintf(str, sizeof(str), "%lld", (long long int)value);
-    if(str != NULL) {
+    if(str[0] != '\0') {
         time_t unixTime = (time_t)atol(str);
         struct tm *UTCTimestamp = gmtime(&unixTime);
         if (UTCTimestamp != NULL && gpsDateStamp != NULL

@@ -7446,7 +7446,6 @@ int32_t QCameraParameters::configureAEBracketing(cam_capture_frame_config_t &fra
 int32_t QCameraParameters::configureLowLight(cam_capture_frame_config_t &frame_config)
 {
     int32_t rc = NO_ERROR;
-    uint32_t i = 0;
 
     frame_config.num_batch = 1;
     frame_config.configs[0].num_frames = getNumOfSnapshots();
@@ -7591,7 +7590,7 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
  *==========================================================================*/
 int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
 {
-    int32_t rc = NO_ERROR, i = 0;
+    int32_t rc = NO_ERROR;
     memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
 
     if (commitSettings) {
@@ -8280,12 +8279,13 @@ int32_t QCameraParameters::parseGains(const char *gainStr, double &r_gain,
 {
     int32_t rc = NO_ERROR;
     char *saveptr = NULL;
-    char* gains = (char*) calloc(1, strlen(gainStr) + 1);
+    size_t gains_size = strlen(gainStr) + 1;
+    char* gains = (char*) calloc(1, gains_size);
     if (NULL == gains) {
         LOGE("No memory for gains");
         return NO_MEMORY;
     }
-    strlcpy(gains, gainStr, strlen(gainStr) + 1);
+    strlcpy(gains, gainStr, gains_size);
     char *token = strtok_r(gains, ",", &saveptr);
 
     if (NULL != token) {
@@ -10771,7 +10771,7 @@ int32_t QCameraParameters::getExifGpsProcessingMethod(char *gpsProcessingMethod,
     if(str != NULL) {
         memcpy(gpsProcessingMethod, ExifAsciiPrefix, EXIF_ASCII_PREFIX_SIZE);
         count = EXIF_ASCII_PREFIX_SIZE;
-        strlcpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE, str, strlen(str)+1);
+        strlcpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE, str, GPS_PROCESSING_METHOD_SIZE);
         count += (uint32_t)strlen(str);
         gpsProcessingMethod[count++] = '\0'; // increase 1 for the last NULL char
         return NO_ERROR;
@@ -11898,7 +11898,6 @@ int32_t QCameraParameters::commitParamChanges()
 QCameraParameters::QCameraReprocScaleParam::QCameraReprocScaleParam()
   : mScaleEnabled(false),
     mIsUnderScaling(false),
-    mScaleDirection(0),
     mNeedScaleCnt(0),
     mSensorSizeTblCnt(0),
     mSensorSizeTbl(NULL),
@@ -13513,7 +13512,7 @@ void QCameraParameters::setVideoBatchSize()
  *
  * RETURN     :  error value
  *==========================================================================*/
-int32_t QCameraParameters::setCustomParams(const QCameraParameters& params)
+int32_t QCameraParameters::setCustomParams(__unused const QCameraParameters& params)
 {
     int32_t rc = NO_ERROR;
 
@@ -13984,9 +13983,9 @@ int32_t QCameraParameters::getPicSizeFromAPK(int &width, int &height)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setDualLedCalibration(const QCameraParameters& params)
+int32_t QCameraParameters::setDualLedCalibration(
+        __unused const QCameraParameters& params)
 {
-    int32_t rc = NO_ERROR;
     char value[PROPERTY_VALUE_MAX];
     int32_t calibration = 0;
 

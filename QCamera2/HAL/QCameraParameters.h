@@ -90,7 +90,6 @@ private:
 
         bool mScaleEnabled;
         bool mIsUnderScaling;   //if in scale status
-        bool mScaleDirection;   // 0: Upscaling; 1: Downscaling
 
         // picture size cnt that need scale operation
         size_t mNeedScaleCnt;
@@ -1150,7 +1149,6 @@ private:
     bool m_bHfrMode;
     bool m_bSensorHDREnabled;             // if HDR is enabled
     bool m_bRdiMode;                // if RDI mode
-    bool m_bUbiRefocus;
     bool m_bSecureMode;
     bool m_bAeBracketingEnabled;
     int32_t mFlashValue;
