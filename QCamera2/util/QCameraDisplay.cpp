@@ -94,7 +94,7 @@ void* QCameraDisplay::vsyncThreadCamera(void * data)
     looper = new android::Looper(false);
     status_t status = pQCameraDisplay->mDisplayEventReceiver.initCheck();
     if (status != NO_ERROR) {
-        ALOGE("Initialization of DisplayEventReceiver failed with status: %d", status);
+        LOGE("Initialization of DisplayEventReceiver failed with status: %d", status);
         return NULL;
     }
     looper->addFd(pQCameraDisplay->mDisplayEventReceiver.getFd(), 0, ALOOPER_EVENT_INPUT,
