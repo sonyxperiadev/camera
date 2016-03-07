@@ -254,6 +254,8 @@ public:
             void);
     int32_t setRelatedCamSyncInfo(
             cam_sync_related_sensors_event_info_t* info);
+    bool isFrameSyncEnabled(void);
+    int32_t setFrameSyncEnabled(bool enable);
     int32_t setMpoComposition(bool enable);
     bool getMpoComposition(void);
     bool getRecordingHintValue(void);

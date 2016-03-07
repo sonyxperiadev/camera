@@ -846,6 +846,8 @@ public:
             cam_sync_related_sensors_event_info_t* info);
     const cam_sync_related_sensors_event_info_t*
             getRelatedCamSyncInfo(void);
+    int32_t setFrameSyncEnabled(bool enable);
+    bool isFrameSyncEnabled(void);
     int32_t getRelatedCamCalibration(
             cam_related_system_calibration_data_t* calib);
     int32_t bundleRelatedCameras(bool sync, uint32_t sessionid);
@@ -1105,6 +1107,7 @@ private:
     /* ptr to sync buffer in m_pRelCamSyncHeap */
     cam_sync_related_sensors_event_info_t *m_pRelCamSyncBuf;
     cam_sync_related_sensors_event_info_t m_relCamSyncInfo;
+    bool m_bFrameSyncEnabled;
     cam_is_type_t mIsType;
 
     bool m_bZslMode;                // if ZSL is enabled

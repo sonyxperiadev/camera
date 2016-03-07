@@ -2024,6 +2024,37 @@ int QCamera2HardwareInterface::getCameraSessionId(uint32_t* session_id)
 }
 
 /*===========================================================================
+ * FUNCTION   : isFrameSyncEnabled
+ *
+ * DESCRIPTION: returns whether frame sync is enabled
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : bool indicating whether frame sync is enabled
+ *==========================================================================*/
+bool QCamera2HardwareInterface::isFrameSyncEnabled(void)
+{
+    return mParameters.isFrameSyncEnabled();
+}
+
+/*===========================================================================
+ * FUNCTION   : setFrameSyncEnabled
+ *
+ * DESCRIPTION: sets whether frame sync is enabled
+ *
+ * PARAMETERS :
+ *   @enable  : flag whether to enable or disable frame sync
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::setFrameSyncEnabled(bool enable)
+{
+    return mParameters.setFrameSyncEnabled(enable);
+}
+
+/*===========================================================================
  * FUNCTION   : getRelatedCamSyncInfo
  *
  * DESCRIPTION:returns the related cam sync info for this HWI instance
@@ -4500,7 +4531,7 @@ int QCamera2HardwareInterface::takePicture()
             if ((!mParameters.isAdvCamFeaturesEnabled() &&
                     !mFlashNeeded &&
                     !isLongshotEnabled() &&
-                    getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
+                    isFrameSyncEnabled()) &&
                     (getRelatedCamSyncInfo()->sync_control ==
                     CAM_SYNC_RELATED_SENSORS_ON)) {
                 if (getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY) {
@@ -7034,7 +7065,7 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
         mParameters.isInstantCaptureEnabled() ? (uint8_t)mParameters.getAecFrameBoundValue() : 0;
 
     //Enabled matched queue
-    if (getRelatedCamSyncInfo()->is_frame_sync_enabled) {
+    if (isFrameSyncEnabled()) {
         LOGH("Enabling frame sync for dual camera, camera Id: %d",
                  mCameraId);
         attr.enable_frame_sync = 1;
