@@ -2457,6 +2457,8 @@ typedef enum {
     CAM_INTF_META_RTB_DATA,
     /* Notify capture request for Dual Camera */
     CAM_INTF_META_DC_CAPTURE,
+    /* Whether to enable hybrid ae mode */
+    CAM_INTF_META_HYBRID_AE,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
