@@ -10092,6 +10092,13 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         max_dim.width = m_pCapability->analysis_max_res.width;
         max_dim.height = m_pCapability->analysis_max_res.height;
 
+        if ((getRecordingHintValue() == true)
+                && fdModeInVideo()
+                && m_pCapability->hw_analysis_supported) {
+            max_dim.width /= 2;
+            max_dim.height /= 2;
+        }
+
         if (prv_dim.width > max_dim.width || prv_dim.height > max_dim.height) {
             double max_ratio, requested_ratio;
 
