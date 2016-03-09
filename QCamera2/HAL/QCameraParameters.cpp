@@ -13071,7 +13071,8 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
     if (isHighQualityNoiseReductionMode() &&
             ((stream_type == CAM_STREAM_TYPE_VIDEO) ||
-            (stream_type == CAM_STREAM_TYPE_PREVIEW && getRecordingHintValue()))) {
+            (stream_type == CAM_STREAM_TYPE_PREVIEW && getRecordingHintValue() &&
+            isPreviewSeeMoreRequired()))) {
         feature_mask |= CAM_QTI_FEATURE_SW_TNR;
     }
 
