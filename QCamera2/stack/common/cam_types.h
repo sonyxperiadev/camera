@@ -394,18 +394,6 @@ typedef enum {
     CAM_STREAM_BUF_TYPE_MAX
 } cam_stream_buf_type;
 
-/* values that persist.camera.global.debug can be set to */
-/* all camera modules need to map their internal debug levels to this range */
-typedef enum {
-    CAM_GLBL_DBG_NONE  = 0,
-    CAM_GLBL_DBG_ERR   = 1,
-    CAM_GLBL_DBG_WARN  = 2,
-    CAM_GLBL_DBG_HIGH  = 3,
-    CAM_GLBL_DBG_DEBUG = 4,
-    CAM_GLBL_DBG_LOW   = 5,
-    CAM_GLBL_DBG_INFO  = 6
-} cam_global_debug_level_t;
-
 typedef struct {
     cam_mapping_buf_type type;
     uint32_t stream_id;   /* stream id: valid if STREAM_BUF */

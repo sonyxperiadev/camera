@@ -976,6 +976,11 @@ int32_t QCamera2HardwareInterface::sendPreviewCallback(QCameraStream *stream,
     stream->getFrameDimension(preview_dim);
     stream->getFormat(previewFmt);
 
+    yStrideToApp = preview_dim.width;
+    yScanlineToApp = preview_dim.height;
+    uvStrideToApp = yStrideToApp;
+    uvScanlineToApp = yScanlineToApp / 2;
+
     /* The preview buffer size in the callback should be
      * (width*height*bytes_per_pixel). As all preview formats we support,
      * use 12 bits per pixel, buffer size = previewWidth * previewHeight * 3/2.
@@ -1002,11 +1007,6 @@ int32_t QCamera2HardwareInterface::sendPreviewCallback(QCameraStream *stream,
             yScanline = streamInfo->buf_planes.plane_info.mp[0].scanline;
             uvStride = streamInfo->buf_planes.plane_info.mp[1].stride;
             uvScanline = streamInfo->buf_planes.plane_info.mp[1].scanline;
-
-            yStrideToApp = preview_dim.width;
-            yScanlineToApp = preview_dim.height;
-            uvStrideToApp = yStrideToApp;
-            uvScanlineToApp = yScanlineToApp / 2;
 
             previewBufSize = (size_t)
                     ((yStrideToApp * yScanlineToApp) + (uvStrideToApp * uvScanlineToApp));
@@ -1053,8 +1053,19 @@ int32_t QCamera2HardwareInterface::sendPreviewCallback(QCameraStream *stream,
             }
         }
     } else {
-        LOGE("Invalid preview format for preview callback");
-        return BAD_VALUE;
+        /*Invalid Buffer content. But can be used as a first preview frame trigger in
+        framework/app */
+        previewBufSize = (size_t)
+                    ((yStrideToApp * yScanlineToApp) +
+                    (uvStrideToApp * uvScanlineToApp));
+        previewBufSizeFromCallback = 0;
+        LOGW("Invalid preview format. Buffer content cannot be processed size = %d",
+                previewBufSize);
+        dataToApp = mGetMemory(-1, previewBufSize, 1, mCallbackCookie);
+        if (!dataToApp || !dataToApp->data) {
+            LOGE("mGetMemory failed.\n");
+            return NO_MEMORY;
+        }
     }
     qcamera_callback_argm_t cbArg;
     memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));

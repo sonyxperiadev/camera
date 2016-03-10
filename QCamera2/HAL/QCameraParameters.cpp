@@ -4149,7 +4149,7 @@ int32_t QCameraParameters::setRecordingHint(const QCameraParameters& params)
                 updateParamEntry(KEY_RECORDING_HINT, str);
                 setRecordingHintValue(value);
                 if (getFaceDetectionOption() == true) {
-                    if (!isFDInVideoEnabled()) {
+                    if (!fdModeInVideo()) {
                         setFaceDetection(value > 0 ? false : true, false);
                     } else {
                         setFaceDetection(true, false);
@@ -11127,6 +11127,9 @@ int32_t QCameraParameters::setFaceDetection(bool enabled, bool initCommit)
         if (getRecordingHintValue() > 0) {
             faceProcMask = 0;
             faceProcMask |= CAM_FACE_PROCESS_MASK_FOCUS;
+            if (fdModeInVideo() == CAM_FACE_PROCESS_MASK_DETECTION) {
+                faceProcMask |= CAM_FACE_PROCESS_MASK_DETECTION;
+            }
         } else {
             faceProcMask |= CAM_FACE_PROCESS_MASK_FOCUS;
             faceProcMask |= CAM_FACE_PROCESS_MASK_DETECTION;
@@ -12590,7 +12593,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         /* Analysis stream is needed by DCRF regardless of recording hint */
         if ((getDcrf() == true) ||
                 (getRecordingHintValue() != true) ||
-                (isFDInVideoEnabled())) {
+                (fdModeInVideo())) {
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_ANALYSIS;
             getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
@@ -13849,28 +13852,30 @@ void QCameraParameters::setLowLightCapture()
 }
 
 /*===========================================================================
- * FUNCTION   : isFDInVideoEnabled
+ * FUNCTION   : fdModeInVideo
  *
  * DESCRIPTION: FD in Video change
  *
  * PARAMETERS : none
  *
- * RETURN     : TRUE  : If FD in Video enabled
- *              FALSE : If FD in Video disabled
+ * RETURN     : FD Mode in Video
+ *              0 : If FD in Video disabled
+ *              1 : If FD in Video enabled for Detection, focus
+ *              2 : If FD in Video enabled only for focus
  *==========================================================================*/
-bool QCameraParameters::isFDInVideoEnabled()
+uint8_t QCameraParameters::fdModeInVideo()
 {
     char value[PROPERTY_VALUE_MAX];
-    bool fdvideo = FALSE;
+    uint8_t fdvideo = 0;
 
     if (!m_pCapability->hw_analysis_supported) {
-        return FALSE;
+        return 0;
     }
 
     property_get("persist.camera.fdvideo", value, "0");
-    fdvideo = (atoi(value) > 0) ? TRUE : FALSE;
+    fdvideo = (atoi(value) > 0) ? atoi(value) : 0;
 
-    LOGD("FD in Video enabled : %d", fdvideo);
+    LOGD("FD mode in Video : %d", fdvideo);
     return fdvideo;
 }
 
