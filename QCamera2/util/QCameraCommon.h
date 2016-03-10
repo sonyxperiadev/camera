@@ -44,7 +44,7 @@ public:
     int32_t init(cam_capability_t *cap);
 
     int32_t getAnalysisInfo(
-        bool fdVideoEnabled, bool hal3, uint32_t featureMask,
+        bool fdVideoEnabled, bool hal3, cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo);
 
 private:

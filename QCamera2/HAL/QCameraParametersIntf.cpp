@@ -750,7 +750,7 @@ bool QCameraParametersIntf::isHDRThumbnailProcessNeeded()
     return mImpl->isHDRThumbnailProcessNeeded();
 }
 
-void QCameraParametersIntf::setMinPpMask(uint32_t min_pp_mask)
+void QCameraParametersIntf::setMinPpMask(cam_feature_mask_t min_pp_mask)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
@@ -802,7 +802,7 @@ uint32_t QCameraParametersIntf::getExifBufIndex(uint32_t captureIndex)
     return mImpl->getExifBufIndex(captureIndex);
 }
 
-bool QCameraParametersIntf::needThumbnailReprocess(uint32_t *pFeatureMask)
+bool QCameraParametersIntf::needThumbnailReprocess(cam_feature_mask_t *pFeatureMask)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
@@ -1026,7 +1026,7 @@ int32_t QCameraParametersIntf::updatePpFeatureMask(cam_stream_type_t stream_type
 }
 
 int32_t QCameraParametersIntf::getStreamPpMask(cam_stream_type_t stream_type,
-        uint32_t &pp_mask)
+        cam_feature_mask_t &pp_mask)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);

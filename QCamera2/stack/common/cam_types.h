@@ -142,6 +142,8 @@
 /* Defines the number of columns in the color correction matrix (CCM) */
 #define AWB_NUM_CCM_COLS (3)
 
+typedef uint64_t cam_feature_mask_t;
+
 typedef enum {
     CAM_HAL_V1 = 1,
     CAM_HAL_V3 = 3
@@ -1582,7 +1584,7 @@ typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
     uint32_t num_streams;
     cam_stream_type_t type[MAX_NUM_STREAMS];
-    uint32_t postprocess_mask[MAX_NUM_STREAMS];
+    cam_feature_mask_t postprocess_mask[MAX_NUM_STREAMS];
     cam_buffer_info_t buffer_info;
     cam_is_type_t is_type;
     cam_hfr_mode_t hfr_mode;
@@ -2312,40 +2314,40 @@ typedef struct {
     int32_t step;
 } cam_control_range_t;
 
-#define CAM_QCOM_FEATURE_NONE            0U
-#define CAM_QCOM_FEATURE_FACE_DETECTION (1U<<0)
-#define CAM_QCOM_FEATURE_DENOISE2D      (1U<<1)
-#define CAM_QCOM_FEATURE_CROP           (1U<<2)
-#define CAM_QCOM_FEATURE_ROTATION       (1U<<3)
-#define CAM_QCOM_FEATURE_FLIP           (1U<<4)
-#define CAM_QCOM_FEATURE_HDR            (1U<<5)
-#define CAM_QCOM_FEATURE_REGISTER_FACE  (1U<<6)
-#define CAM_QCOM_FEATURE_SHARPNESS      (1U<<7)
-#define CAM_QCOM_FEATURE_VIDEO_HDR      (1U<<8)
-#define CAM_QCOM_FEATURE_CAC            (1U<<9)
-#define CAM_QCOM_FEATURE_SCALE          (1U<<10)
-#define CAM_QCOM_FEATURE_EFFECT         (1U<<11)
-#define CAM_QCOM_FEATURE_UBIFOCUS       (1U<<12)
-#define CAM_QCOM_FEATURE_CHROMA_FLASH   (1U<<13)
-#define CAM_QCOM_FEATURE_OPTIZOOM       (1U<<14)
-#define CAM_QCOM_FEATURE_SENSOR_HDR     (1U<<15)
-#define CAM_QCOM_FEATURE_REFOCUS        (1U<<16)
-#define CAM_QCOM_FEATURE_CPP_TNR        (1U<<17)
-#define CAM_QCOM_FEATURE_RAW_PROCESSING (1U<<18)
-#define CAM_QCOM_FEATURE_TRUEPORTRAIT   (1U<<19)
-#define CAM_QCOM_FEATURE_LLVD           (1U<<20)
-#define CAM_QCOM_FEATURE_DIS20          (1U<<21)
-#define CAM_QCOM_FEATURE_STILLMORE      (1U<<22)
-#define CAM_QCOM_FEATURE_DCRF           (1U<<23)
-#define CAM_QCOM_FEATURE_CDS            (1U<<24)
-#define CAM_QCOM_FEATURE_EZTUNE         (1U<<25)
-#define CAM_QCOM_FEATURE_DSDN           (1U<<26) //Special CDS in CPP block
-#define CAM_QCOM_FEATURE_SW2D           (1U<<27)
-#define CAM_OEM_FEATURE_1               (1U<<28)
-#define CAM_OEM_FEATURE_2               (1U<<29)
-#define CAM_QTI_FEATURE_SW_TNR          (1U<<30)
-#define CAM_QCOM_FEATURE_METADATA_PROCESSING (1U<<31)
-#define CAM_QCOM_FEATURE_MAX            32
+#define CAM_QCOM_FEATURE_NONE            (cam_feature_mask_t)0UL
+#define CAM_QCOM_FEATURE_FACE_DETECTION ((cam_feature_mask_t)1UL<<0)
+#define CAM_QCOM_FEATURE_DENOISE2D      ((cam_feature_mask_t)1UL<<1)
+#define CAM_QCOM_FEATURE_CROP           ((cam_feature_mask_t)1UL<<2)
+#define CAM_QCOM_FEATURE_ROTATION       ((cam_feature_mask_t)1UL<<3)
+#define CAM_QCOM_FEATURE_FLIP           ((cam_feature_mask_t)1UL<<4)
+#define CAM_QCOM_FEATURE_HDR            ((cam_feature_mask_t)1UL<<5)
+#define CAM_QCOM_FEATURE_REGISTER_FACE  ((cam_feature_mask_t)1UL<<6)
+#define CAM_QCOM_FEATURE_SHARPNESS      ((cam_feature_mask_t)1UL<<7)
+#define CAM_QCOM_FEATURE_VIDEO_HDR      ((cam_feature_mask_t)1UL<<8)
+#define CAM_QCOM_FEATURE_CAC            ((cam_feature_mask_t)1UL<<9)
+#define CAM_QCOM_FEATURE_SCALE          ((cam_feature_mask_t)1UL<<10)
+#define CAM_QCOM_FEATURE_EFFECT         ((cam_feature_mask_t)1UL<<11)
+#define CAM_QCOM_FEATURE_UBIFOCUS       ((cam_feature_mask_t)1UL<<12)
+#define CAM_QCOM_FEATURE_CHROMA_FLASH   ((cam_feature_mask_t)1UL<<13)
+#define CAM_QCOM_FEATURE_OPTIZOOM       ((cam_feature_mask_t)1UL<<14)
+#define CAM_QCOM_FEATURE_SENSOR_HDR     ((cam_feature_mask_t)1UL<<15)
+#define CAM_QCOM_FEATURE_REFOCUS        ((cam_feature_mask_t)1UL<<16)
+#define CAM_QCOM_FEATURE_CPP_TNR        ((cam_feature_mask_t)1UL<<17)
+#define CAM_QCOM_FEATURE_RAW_PROCESSING ((cam_feature_mask_t)1UL<<18)
+#define CAM_QCOM_FEATURE_TRUEPORTRAIT   ((cam_feature_mask_t)1UL<<19)
+#define CAM_QCOM_FEATURE_LLVD           ((cam_feature_mask_t)1UL<<20)
+#define CAM_QCOM_FEATURE_DIS20          ((cam_feature_mask_t)1UL<<21)
+#define CAM_QCOM_FEATURE_STILLMORE      ((cam_feature_mask_t)1UL<<22)
+#define CAM_QCOM_FEATURE_DCRF           ((cam_feature_mask_t)1UL<<23)
+#define CAM_QCOM_FEATURE_CDS            ((cam_feature_mask_t)1UL<<24)
+#define CAM_QCOM_FEATURE_EZTUNE         ((cam_feature_mask_t)1UL<<25)
+#define CAM_QCOM_FEATURE_DSDN           ((cam_feature_mask_t)1UL<<26) //Special CDS in CPP block
+#define CAM_QCOM_FEATURE_SW2D           ((cam_feature_mask_t)1UL<<27)
+#define CAM_OEM_FEATURE_1               ((cam_feature_mask_t)1UL<<28)
+#define CAM_OEM_FEATURE_2               ((cam_feature_mask_t)1UL<<29)
+#define CAM_QTI_FEATURE_SW_TNR          ((cam_feature_mask_t)1UL<<30)
+#define CAM_QCOM_FEATURE_METADATA_PROCESSING ((cam_feature_mask_t)1UL<<31)
+#define CAM_QCOM_FEATURE_PAAF           (((cam_feature_mask_t)1UL)<<32)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
@@ -2463,7 +2465,7 @@ typedef struct {
 
 typedef struct {
     /* reprocess feature mask */
-    uint32_t feature_mask;
+    cam_feature_mask_t feature_mask;
 
     /* individual setting for features to be reprocessed */
     cam_denoise_param_t denoise2d;

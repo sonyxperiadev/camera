@@ -111,18 +111,15 @@ QCamera3PostProcessor::~QCamera3PostProcessor()
  *
  * PARAMETERS :
  *   @memory              : output buffer memory
- *   @postprocess_mask    : postprocess mask for the buffer
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3PostProcessor::init(QCamera3StreamMem *memory,
-        uint32_t postprocess_mask)
+int32_t QCamera3PostProcessor::init(QCamera3StreamMem *memory)
 {
     ATRACE_CALL();
     mOutputMem = memory;
-    mPostProcMask = postprocess_mask;
     m_dataProcTh.launch(dataProcessRoutine, this);
 
     return NO_ERROR;
