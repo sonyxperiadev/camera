@@ -632,10 +632,12 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
 
   if (p_meta) {
     short val_short = 0;
+    cam_asd_decision_t *scene_info = NULL;
 
-    IF_META_AVAILABLE(cam_auto_scene_t, scene_cap_type,
-        CAM_INTF_META_ASD_SCENE_CAPTURE_TYPE, p_meta) {
-      val_short = (short) *scene_cap_type;
+    IF_META_AVAILABLE(cam_asd_decision_t, scene_cap_type,
+        CAM_INTF_META_ASD_SCENE_INFO, p_meta) {
+      scene_info = (cam_asd_decision_t*)scene_cap_type;
+      val_short = (short) scene_info->detected_scene;
     }
 
     rc = addExifEntry(exif_info, EXIFTAGID_SCENE_CAPTURE_TYPE, EXIF_SHORT,

@@ -6362,7 +6362,7 @@ int32_t QCamera2HardwareInterface::processPrepSnapshotDoneEvent(
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCamera2HardwareInterface::processASDUpdate(
-        __unused cam_auto_scene_t scene)
+        __unused cam_asd_decision_t asd_decision)
 {
     size_t data_len = sizeof(cam_auto_scene_t);
     size_t buffer_len = 1 *sizeof(int)       //meta type
@@ -6386,7 +6386,7 @@ int32_t QCamera2HardwareInterface::processASDUpdate(
 #ifndef VANILLA_HAL
     pASDData[0] = CAMERA_META_DATA_ASD;
     pASDData[1] = (int)data_len;
-    pASDData[2] = scene;
+    pASDData[2] = asd_decision.detected_scene;
 
     qcamera_callback_argm_t cbArg;
     memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));

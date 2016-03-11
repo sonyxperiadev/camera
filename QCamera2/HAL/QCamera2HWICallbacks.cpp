@@ -2232,13 +2232,14 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         }
     }
 
-    IF_META_AVAILABLE(int32_t, scene, CAM_INTF_META_ASD_SCENE_TYPE, pMetaData) {
+    IF_META_AVAILABLE(cam_asd_decision_t, cam_asd_info,
+            CAM_INTF_META_ASD_SCENE_INFO, pMetaData) {
         qcamera_sm_internal_evt_payload_t *payload =
             (qcamera_sm_internal_evt_payload_t *)malloc(sizeof(qcamera_sm_internal_evt_payload_t));
         if (NULL != payload) {
             memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
             payload->evt_type = QCAMERA_INTERNAL_EVT_ASD_UPDATE;
-            payload->asd_data = (cam_auto_scene_t)*scene;
+            payload->asd_data = (cam_asd_decision_t)*cam_asd_info;
             int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
             if (rc != NO_ERROR) {
                 LOGW("processEvt asd_update failed");
