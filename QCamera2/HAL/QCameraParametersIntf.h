@@ -314,6 +314,7 @@ public:
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera();
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
+    int32_t getDualLedCalibration();
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;

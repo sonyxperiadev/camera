@@ -1482,4 +1482,11 @@ int32_t QCameraParametersIntf::setDeferCamera(cam_dual_camera_defer_cmd_t type)
     return mImpl->setDeferCamera(type);
 }
 
+int32_t QCameraParametersIntf::getDualLedCalibration()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getDualLedCalibration();
+}
+
 }; // namespace qcamera

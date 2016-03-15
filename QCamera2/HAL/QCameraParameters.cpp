@@ -488,6 +488,15 @@ const char QCameraParameters::KEY_TS_MAKEUP_CLEAN[] = "tsmakeup_clean";
 //KEY to share HFR batch size with video encoder.
 const char QCameraParameters::KEY_QC_VIDEO_BATCH_SIZE[] = "video-batch-size";
 
+//Camera supported metadata.  App can use this to read metadata callback type.
+const char QCameraParameters::KEY_QC_SUPPORTED_METADATA_TYPES[] = "metadata-types";
+const char QCameraParameters::QC_METADATA_ASD[] = "metadata-asd";
+const char QCameraParameters::QC_METADATA_FD[] = "metadata-fd";
+const char QCameraParameters::QC_METADATA_HDR[] = "metadata-hdr";
+const char QCameraParameters::QC_METADATA_LED_CALIB[] = "metadata-led-calib";
+
+const char QCameraParameters::KEY_QC_LED_CALIBRATION[] = "led-calibration";
+
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
 
@@ -857,6 +866,15 @@ const QCameraParameters::QCameraMap<int>
     { VALUE_FAST,  1 },
     { VALUE_HIGH_QUALITY,  2 }
 };
+
+const QCameraParameters::QCameraMap<int>
+        QCameraParameters::METADATA_TYPES_MAP[] = {
+    {QC_METADATA_ASD,        QCAMERA_METADATA_ASD},
+    {QC_METADATA_FD,         QCAMERA_METADATA_FD},
+    {QC_METADATA_HDR,        QCAMERA_METADATA_HDR},
+    {QC_METADATA_LED_CALIB,  QCAMERA_METADATA_LED_CALIB}
+};
+
 
 #define DEFAULT_CAMERA_AREA "(0, 0, 0, 0, 0)"
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
@@ -6172,6 +6190,11 @@ int32_t QCameraParameters::initDefaultParameters()
 
     set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, videoRotationValues.string());
     set(KEY_QC_VIDEO_ROTATION, VIDEO_ROTATION_0);
+
+    String8 metadataTypeValues = createValuesStringFromMap(METADATA_TYPES_MAP,
+        PARAM_MAP_SIZE(METADATA_TYPES_MAP));
+    set(KEY_QC_SUPPORTED_METADATA_TYPES, metadataTypeValues);
+    LOGE("gp_qcom: Supported metadata type = %s", metadataTypeValues.string());
 
     //Check for EZTune
     setEztune();
@@ -15981,28 +16004,58 @@ int32_t QCameraParameters::getPicSizeFromAPK(int &width, int &height)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setDualLedCalibration(
-        __unused const QCameraParameters& params)
+int32_t QCameraParameters::setDualLedCalibration(const QCameraParameters& params)
 {
-    char value[PROPERTY_VALUE_MAX];
-    int32_t calibration = 0;
+    const char *str = params.get(KEY_QC_LED_CALIBRATION);
+    const char *prev_str = get(KEY_QC_LED_CALIBRATION);
+    char prop[PROPERTY_VALUE_MAX];
 
-    memset(value, 0, sizeof(value));
-    property_get("persist.camera.dual_led_calib", value, "0");
-    calibration = atoi(value);
-    if (calibration != m_dualLedCalibration) {
-      m_dualLedCalibration = calibration;
-      LOGD("%s:updating calibration=%d m_dualLedCalibration=%d",
-        __func__, calibration, m_dualLedCalibration);
-
-      if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
-               CAM_INTF_PARM_DUAL_LED_CALIBRATION,
-               m_dualLedCalibration)) {
-          LOGE("%s:Failed to update dual led calibration param", __func__);
-          return BAD_VALUE;
-      }
+    property_get("persist.camera.dualled_calib", prop, "");
+    if (strlen(prop) > 0) {
+        if (prev_str == NULL || strcmp(prop, prev_str) != 0) {
+            return setDualLedCalibration(prop);
+        }
+    } else if (str != NULL) {
+        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
+            return setDualLedCalibration(str);
+        }
     }
     return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setDualLedCalibration
+ *
+ * DESCRIPTION: set Dual Led Calibration
+ *
+ * PARAMETERS :
+ *   @calibration_mode : calibration enable string
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setDualLedCalibration(const char *str)
+{
+    if (str != NULL) {
+        int32_t value = lookupAttr(ON_OFF_MODES_MAP,
+            PARAM_MAP_SIZE(ON_OFF_MODES_MAP), str);
+        if (value != NAME_NOT_FOUND) {
+            LOGD("Setting led calibration mode %d", value);
+            updateParamEntry(KEY_QC_LED_CALIBRATION, str);
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                    CAM_INTF_PARM_DUAL_LED_CALIBRATION, value)) {
+                LOGE("Failed to update led calibration param");
+                return BAD_VALUE;
+            }
+            m_dualLedCalibration = value;
+            return NO_ERROR;
+        }
+    }
+    LOGE("Invalid Calibraon Mode value: %s",
+            (str == NULL) ? "NULL" : str);
+    return BAD_VALUE;
 }
 
 /*===========================================================================

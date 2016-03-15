@@ -1045,6 +1045,7 @@ typedef enum {
     CAM_CAPTURE_LOW_LIGHT,
     CAM_CAPTURE_RESET,
     CAM_CAPTURE_MANUAL_3A,
+    CAM_CAPTURE_LED_CAL,
     CAM_CAPTURE_MAX
 } cam_capture_type;
 
@@ -2370,6 +2371,8 @@ typedef enum {
     /* Dual camera - indicate if snapshot bokeh mode is selected */
     CAM_INTF_META_DC_BOKEH_MODE,
     CAM_INTF_PARM_FOV_COMP_ENABLE,
+    /*Meta to update dual LED calibration results to app*/
+    CAM_INTF_META_LED_CALIB_RESULT,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
