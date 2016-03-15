@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -1304,24 +1304,22 @@ int QCamera3HardwareInterface::configureStreams(
         return rc;
     }
 
-    /* Create analysis stream if h/w support is available */
-    if (gCamCapability[mCameraId]->hw_analysis_supported) {
-        mAnalysisChannel = new QCamera3SupportChannel(
-                mCameraHandle->camera_handle,
-                mCameraHandle->ops,
-                &gCamCapability[mCameraId]->analysis_padding_info,
-                fullFeatureMask,
-                CAM_STREAM_TYPE_ANALYSIS,
-                &gCamCapability[mCameraId]->analysis_recommended_res,
-                (gCamCapability[mCameraId]->analysis_recommended_format
-                == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
-                : CAM_FORMAT_YUV_420_NV21),
-                this);
-        if (!mAnalysisChannel) {
-            ALOGE("%s: H/W Analysis channel cannot be created", __func__);
-            pthread_mutex_unlock(&mMutex);
-            return -ENOMEM;
-        }
+    /* Create analysis stream to support FD */
+    mAnalysisChannel = new QCamera3SupportChannel(
+            mCameraHandle->camera_handle,
+            mCameraHandle->ops,
+            &gCamCapability[mCameraId]->analysis_padding_info,
+            fullFeatureMask,
+            CAM_STREAM_TYPE_ANALYSIS,
+            &gCamCapability[mCameraId]->analysis_recommended_res,
+            (gCamCapability[mCameraId]->analysis_recommended_format
+            == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
+            : CAM_FORMAT_YUV_420_NV21),
+            this);
+    if (!mAnalysisChannel) {
+        ALOGE("%s: Analysis channel cannot be created", __func__);
+        pthread_mutex_unlock(&mMutex);
+        return -ENOMEM;
     }
 
     if (isSupportChannelNeeded(streamList)) {
