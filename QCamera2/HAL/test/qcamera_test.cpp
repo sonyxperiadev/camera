@@ -70,7 +70,9 @@
 #include <gralloc_priv.h>
 #include <math.h>
 
+#include "qcamera_test.h"
 #include "cam_types.h"
+#include "mm_camera_dbg.h"
 
 #define VIDEO_BUF_ALLIGN(size, allign) \
   (((size) + (allign-1)) & (typeof(size))(~(allign-1)))
@@ -197,7 +199,7 @@ status_t CameraContext::saveFile(const sp<IMemory>& mem, String8 path)
         return INVALID_OPERATION;
     }
 
-    printf(" buffer=%p, size=%lld stored at %s\n",
+    printf("%s: buffer=%p, size=%lld stored at %s\n",
             __FUNCTION__, buff, (long long int) size, path.string());
 
     if (fd >= 0)
@@ -502,7 +504,7 @@ status_t CameraContext::encodeJPEG(SkWStream * stream,
     fseek(fh, 0, SEEK_END);
     len = (size_t)ftell(fh);
     rewind(fh);
-    printf(" buffer=%p, size=%zu stored at %s\n",
+    printf("%s: buffer=%p, size=%zu stored at %s\n",
             __FUNCTION__, bitmap->getPixels(), len, path.string());
 
     free(mJEXIFSection.Data);
@@ -986,7 +988,7 @@ void CameraContext::postData(int32_t msgType,
 
                     if (encodeJPEG(wStream, skBMDec, jpegPath) != false) {
                         printf("%s():%d:: Failed during jpeg encode\n",
-                                __FUNCTION__);
+                                __FUNCTION__,__LINE__);
                         mInterpr->PiPUnlock();
                         return;
                     }
@@ -1442,65 +1444,57 @@ size_t CameraContext::calcUVScanLines(int height)
  *==========================================================================*/
 void CameraContext::printSupportedParams()
 {
+    const char *camera_ids = mParams.get("camera-indexes");
+    const char *pic_sizes = mParams.get(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES);
+    const char *pic_formats = mParams.get(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS);
+    const char *preview_sizes = mParams.get(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES);
+    const char *video_sizes = mParams.get(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES);
+    const char *preview_formats = mParams.get(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS);
+    const char *frame_rates = mParams.get(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES);
+    const char *thumb_sizes = mParams.get(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES);
+    const char *wb_modes = mParams.get(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE);
+    const char *effects = mParams.get(CameraParameters::KEY_SUPPORTED_EFFECTS);
+    const char *scene_modes = mParams.get(CameraParameters::KEY_SUPPORTED_SCENE_MODES);
+    const char *focus_modes = mParams.get(CameraParameters::KEY_SUPPORTED_FOCUS_MODES);
+    const char *antibanding_modes = mParams.get(CameraParameters::KEY_SUPPORTED_ANTIBANDING);
+    const char *flash_modes = mParams.get(CameraParameters::KEY_SUPPORTED_FLASH_MODES);
+    int focus_areas = mParams.getInt(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS);
+    const char *fps_ranges = mParams.get(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE);
+    const char *focus_distances = mParams.get(CameraParameters::KEY_FOCUS_DISTANCES);
+
     printf("\n\r\tSupported Cameras: %s",
-           mParams.get("camera-indexes")?
-               mParams.get("camera-indexes") : "NULL");
+           (camera_ids != NULL)? camera_ids : "NULL");
     printf("\n\r\tSupported Picture Sizes: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES)?
-           mParams.get(
-               CameraParameters::KEY_SUPPORTED_PICTURE_SIZES) : "NULL");
+           (pic_sizes != NULL)? pic_sizes : "NULL");
     printf("\n\r\tSupported Picture Formats: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS)?
-           mParams.get(
-               CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS) : "NULL");
+           (pic_formats != NULL)? pic_formats : "NULL");
     printf("\n\r\tSupported Preview Sizes: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES)?
-           mParams.get(
-               CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES) : "NULL");
+           (preview_sizes != NULL)? preview_sizes : "NULL");
     printf("\n\r\tSupported Video Sizes: %s",
-            mParams.get(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES)?
-            mParams.get(
-               CameraParameters::KEY_SUPPORTED_VIDEO_SIZES) : "NULL");
+            (video_sizes != NULL)? video_sizes : "NULL");
     printf("\n\r\tSupported Preview Formats: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS)?
-           mParams.get(
-               CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS) : "NULL");
+           (preview_formats != NULL)? preview_formats : "NULL");
     printf("\n\r\tSupported Preview Frame Rates: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES)?
-           mParams.get(
-               CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES) : "NULL");
+           (frame_rates != NULL)? frame_rates : "NULL");
     printf("\n\r\tSupported Thumbnail Sizes: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES)?
-           mParams.get(
-               CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES) : "NULL");
+           (thumb_sizes != NULL)? thumb_sizes : "NULL");
     printf("\n\r\tSupported Whitebalance Modes: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE)?
-           mParams.get(
-               CameraParameters::KEY_SUPPORTED_WHITE_BALANCE) : "NULL");
+           (wb_modes != NULL)? wb_modes : "NULL");
     printf("\n\r\tSupported Effects: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_EFFECTS)?
-           mParams.get(CameraParameters::KEY_SUPPORTED_EFFECTS) : "NULL");
+           (effects != NULL)? effects : "NULL");
     printf("\n\r\tSupported Scene Modes: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_SCENE_MODES)?
-           mParams.get(CameraParameters::KEY_SUPPORTED_SCENE_MODES) : "NULL");
+           (scene_modes != NULL)? scene_modes : "NULL");
     printf("\n\r\tSupported Focus Modes: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_FOCUS_MODES)?
-           mParams.get(CameraParameters::KEY_SUPPORTED_FOCUS_MODES) : "NULL");
+           (focus_modes != NULL)? focus_modes : "NULL");
     printf("\n\r\tSupported Antibanding Options: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_ANTIBANDING)?
-           mParams.get(CameraParameters::KEY_SUPPORTED_ANTIBANDING) : "NULL");
+           (antibanding_modes != NULL)? antibanding_modes : "NULL");
     printf("\n\r\tSupported Flash Modes: %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_FLASH_MODES)?
-           mParams.get(CameraParameters::KEY_SUPPORTED_FLASH_MODES) : "NULL");
-    printf("\n\r\tSupported Focus Areas: %d",
-           mParams.getInt(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS));
+           (flash_modes != NULL)? flash_modes : "NULL");
+    printf("\n\r\tSupported Focus Areas: %d", focus_areas);
     printf("\n\r\tSupported FPS ranges : %s",
-           mParams.get(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE)?
-           mParams.get(
-               CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE) : "NULL");
+           (fps_ranges != NULL)? fps_ranges : "NULL");
     printf("\n\r\tFocus Distances: %s \n",
-           mParams.get(CameraParameters::KEY_FOCUS_DISTANCES)?
-           mParams.get(CameraParameters::KEY_FOCUS_DISTANCES) : "NULL");
+           (focus_distances != NULL)? focus_distances : "NULL");
 }
 
 /*===========================================================================
@@ -1646,7 +1640,7 @@ CameraContext::CameraContext(int cameraIndex) :
     mPreviewSurface(NULL),
     mInUse(false)
 {
-    mRecorder = new MediaRecorder();
+    mRecorder = new MediaRecorder(String16("camera"));
 }
 
 /*===========================================================================
@@ -1713,6 +1707,7 @@ status_t  CameraContext::openCamera()
 
     if ( NULL != mCamera.get() ) {
         printf("Camera already open! \n");
+        signalFinished();
         return NO_ERROR;
     }
 
@@ -1734,6 +1729,7 @@ status_t  CameraContext::openCamera()
 
     if ( NULL == mCamera.get() ) {
         printf("Unable to connect to CameraService\n");
+        signalFinished();
         return NO_INIT;
     }
 
@@ -2140,35 +2136,35 @@ status_t CameraContext::configureRecorder()
     ret = mRecorder->setParameters(
         String8("video-param-encoding-bitrate=64000"));
     if ( ret != NO_ERROR ) {
-        ERROR("Could not configure recorder (%d)", ret);
+        LOGE("Could not configure recorder (%d)", ret);
         return ret;
     }
 
     ret = mRecorder->setCamera(
         mCamera->remote(), mCamera->getRecordingProxy());
     if ( ret != NO_ERROR ) {
-        ERROR("Could not set camera (%d)", ret);
+        LOGE("Could not set camera (%d)", ret);
         return ret;
     }
     ret = mRecorder->setVideoSource(VIDEO_SOURCE_CAMERA);
     if ( ret != NO_ERROR ) {
-        ERROR("Could not set video soruce (%d)", ret);
+        LOGE("Could not set video soruce (%d)", ret);
         return ret;
     }
     ret = mRecorder->setAudioSource(AUDIO_SOURCE_DEFAULT);
     if ( ret != NO_ERROR ) {
-        ERROR("Could not set audio source (%d)", ret);
+        LOGE("Could not set audio source (%d)", ret);
         return ret;
     }
     ret = mRecorder->setOutputFormat(OUTPUT_FORMAT_DEFAULT);
     if ( ret != NO_ERROR ) {
-        ERROR("Could not set output format (%d)", ret);
+        LOGE("Could not set output format (%d)", ret);
         return ret;
     }
 
     ret = mRecorder->setVideoEncoder(VIDEO_ENCODER_DEFAULT);
     if ( ret != NO_ERROR ) {
-        ERROR("Could not set video encoder (%d)", ret);
+        LOGE("Could not set video encoder (%d)", ret);
         return ret;
     }
 
@@ -2183,32 +2179,32 @@ status_t CameraContext::configureRecorder()
     }
 
     if ( mVideoFd < 0 ) {
-        ERROR("Could not open video file for writing %s!", fileName);
+        LOGE("Could not open video file for writing %s!", fileName);
         return UNKNOWN_ERROR;
     }
 
     ret = mRecorder->setOutputFile(mVideoFd, 0, 0);
     if ( ret != NO_ERROR ) {
-        ERROR("Could not set output file (%d)", ret);
+        LOGE("Could not set output file (%d)", ret);
         return ret;
     }
 
     ret = mRecorder->setVideoSize(videoSize.width, videoSize.height);
     if ( ret  != NO_ERROR ) {
-        ERROR("Could not set video size %dx%d", videoSize.width,
+        LOGE("Could not set video size %dx%d", videoSize.width,
             videoSize.height);
         return ret;
     }
 
     ret = mRecorder->setVideoFrameRate(30);
     if ( ret != NO_ERROR ) {
-        ERROR("Could not set video frame rate (%d)", ret);
+        LOGE("Could not set video frame rate (%d)", ret);
         return ret;
     }
 
     ret = mRecorder->setAudioEncoder(AUDIO_ENCODER_DEFAULT);
     if ( ret != NO_ERROR ) {
-        ERROR("Could not set audio encoder (%d)", ret);
+        LOGE("Could not set audio encoder (%d)", ret);
         return ret;
     }
 
@@ -2290,13 +2286,13 @@ status_t CameraContext::startRecording()
 
         ret = mRecorder->prepare();
         if ( ret != NO_ERROR ) {
-            ERROR("Could not prepare recorder");
+            LOGE("Could not prepare recorder");
             return ret;
         }
 
         ret = mRecorder->start();
         if ( ret != NO_ERROR ) {
-            ERROR("Could not start recorder");
+            LOGE("Could not start recorder");
             return ret;
         }
 
@@ -2781,6 +2777,7 @@ void CameraContext::printMenu(sp<CameraContext> currentCamera)
 {
     if ( !mDoPrintMenu ) return;
     Size currentPictureSize, currentPreviewSize, currentVideoSize;
+    const char *zsl_mode = mParams.get(CameraContext::KEY_ZSL);
 
     assert(currentCamera.get());
 
@@ -2839,8 +2836,8 @@ void CameraContext::printMenu(sp<CameraContext> currentCamera)
             Interpreter::CHANGE_PICTURE_SIZE_CMD,
             currentPictureSize.width,
             currentPictureSize.height);
-    printf("   %c. zsl:  %s\n", Interpreter::ZSL_CMD, mParams.get(CameraContext::KEY_ZSL) ?
-            mParams.get(CameraContext::KEY_ZSL) : "NULL");
+    printf("   %c. zsl:  %s\n", Interpreter::ZSL_CMD,
+        (zsl_mode != NULL) ? zsl_mode : "NULL");
 
     printf("\n   Choice: ");
 }
@@ -2966,8 +2963,13 @@ status_t Interpreter::configureViVCodec()
         format->setInt32("width", mTestContext->mViVVid.VideoSizes[1].width);
         format->setInt32("height", mTestContext->mViVVid.VideoSizes[1].height);
     }
+    int fd = open(fileName, O_CREAT | O_RDWR );
+    if (fd < 0) {
+        LOGE("Error opening file");
+        return UNKNOWN_ERROR;
+    }
     mTestContext->mViVVid.muxer = new MediaMuxer(
-        fileName, MediaMuxer::OUTPUT_FORMAT_MPEG_4);
+        fd, MediaMuxer::OUTPUT_FORMAT_MPEG_4);
 
     format->setString("mime", "video/avc");
     format->setInt32("color-format", OMX_COLOR_FormatAndroidOpaque);
@@ -3250,10 +3252,13 @@ TestContext::TestContext()
         }
         camera[i]->setTestCtxInstance(this);
 
-        status_t stat = camera[i]->openCamera();
-        if ( NO_ERROR != stat ) {
-            printf("Error encountered Openging camera id : %d\n", i);
-            break;
+        //by default open only back camera
+        if (i==0) {
+            status_t stat = camera[i]->openCamera();
+            if ( NO_ERROR != stat ) {
+                printf("Error encountered Openging camera id : %d\n", i);
+                break;
+            }
         }
         mAvailableCameras.add(camera[i]);
         i++;
@@ -3366,8 +3371,11 @@ status_t TestContext::FunctionalTest()
         mInterpreter->setTestCtxInst(this);
     }
 
-
-    mTestRunning = true;
+    if (mAvailableCameras.size() == 0) {
+        printf("no cameras supported... exiting test app\n");
+    } else {
+        mTestRunning = true;
+    }
 
     while (mTestRunning) {
         sp<CameraContext> currentCamera =
@@ -3382,6 +3390,7 @@ status_t TestContext::FunctionalTest()
             mCurrentCameraIndex++;
             mCurrentCameraIndex %= mAvailableCameras.size();
             currentCamera = mAvailableCameras.itemAt(mCurrentCameraIndex);
+            stat = currentCamera->openCamera();
         }
             break;
 
