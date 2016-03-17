@@ -2302,6 +2302,18 @@ uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt)
     case CAM_FORMAT_Y_ONLY:
         val= V4L2_PIX_FMT_GREY;
         break;
+    case CAM_FORMAT_Y_ONLY_10_BPP:
+        val= V4L2_PIX_FMT_Y10;
+        break;
+    case CAM_FORMAT_Y_ONLY_12_BPP:
+        val= V4L2_PIX_FMT_Y12;
+        break;
+    case CAM_FORMAT_Y_ONLY_14_BPP:
+        /* No v4l2 format is defined yet for CAM_FORMAT_Y_ONLY_14_BPP */
+        /* val= V4L2_PIX_FMT_Y14; */
+        val = 0;
+        LOGE("Unknown fmt=%d", fmt);
+        break;
     case CAM_FORMAT_MAX:
         /* CAM_STREAM_TYPE_DEFAULT,
          * CAM_STREAM_TYPE_OFFLINE_PROC,
@@ -2347,6 +2359,10 @@ int32_t mm_stream_calc_offset_preview(cam_stream_info_t *stream_info,
     switch (stream_info->fmt) {
     case CAM_FORMAT_YUV_420_NV12:
     case CAM_FORMAT_YUV_420_NV21:
+    case CAM_FORMAT_Y_ONLY:
+    case CAM_FORMAT_Y_ONLY_10_BPP:
+    case CAM_FORMAT_Y_ONLY_12_BPP:
+    case CAM_FORMAT_Y_ONLY_14_BPP:
         /* 2 planes: Y + CbCr */
         buf_planes->plane_info.num_planes = 2;
 
@@ -2683,6 +2699,10 @@ int32_t mm_stream_calc_offset_post_view(cam_format_t fmt,
     switch (fmt) {
     case CAM_FORMAT_YUV_420_NV12:
     case CAM_FORMAT_YUV_420_NV21:
+    case CAM_FORMAT_Y_ONLY:
+    case CAM_FORMAT_Y_ONLY_10_BPP:
+    case CAM_FORMAT_Y_ONLY_12_BPP:
+    case CAM_FORMAT_Y_ONLY_14_BPP:
         /* 2 planes: Y + CbCr */
         buf_planes->plane_info.num_planes = 2;
 
@@ -2992,6 +3012,10 @@ int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
     switch (fmt) {
     case CAM_FORMAT_YUV_420_NV12:
     case CAM_FORMAT_YUV_420_NV21:
+    case CAM_FORMAT_Y_ONLY:
+    case CAM_FORMAT_Y_ONLY_10_BPP:
+    case CAM_FORMAT_Y_ONLY_12_BPP:
+    case CAM_FORMAT_Y_ONLY_14_BPP:
         /* 2 planes: Y + CbCr */
         buf_planes->plane_info.num_planes = 2;
 
@@ -3627,6 +3651,10 @@ int32_t mm_stream_calc_offset_video(cam_format_t fmt,
 
     switch (fmt) {
         case CAM_FORMAT_YUV_420_NV12:
+        case CAM_FORMAT_Y_ONLY:
+        case CAM_FORMAT_Y_ONLY_10_BPP:
+        case CAM_FORMAT_Y_ONLY_12_BPP:
+        case CAM_FORMAT_Y_ONLY_14_BPP:
             buf_planes->plane_info.num_planes = 2;
 
             stride = dim->width;
@@ -3989,6 +4017,9 @@ int32_t mm_stream_calc_offset_analysis(cam_format_t fmt,
             CAM_PAD_TO_4K);
         break;
     case CAM_FORMAT_Y_ONLY:
+    case CAM_FORMAT_Y_ONLY_10_BPP:
+    case CAM_FORMAT_Y_ONLY_12_BPP:
+    case CAM_FORMAT_Y_ONLY_14_BPP:
         buf_planes->plane_info.num_planes = 1;
 
         buf_planes->plane_info.mp[0].len =
