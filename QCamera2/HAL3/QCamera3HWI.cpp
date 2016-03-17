@@ -3067,7 +3067,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
                 if (p_cam_frame_drop) {
                     for (uint32_t k = 0; k < p_cam_frame_drop->num_streams; k++) {
-                        if (streamID == p_cam_frame_drop->streamID[k]) {
+                        if (streamID == p_cam_frame_drop->stream_request[k].streamID) {
                             // Got the stream ID for drop frame.
                             dropFrame = true;
                             break;
@@ -4100,9 +4100,8 @@ no_error:
            }
         }
 
-        streamID.streamID[streamID.num_streams] =
+        streamID.stream_request[streamID.num_streams++].streamID =
             channel->getStreamID(channel->getStreamTypeMask());
-        streamID.num_streams++;
 
         if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
             isVidBufRequested = true;
@@ -4114,9 +4113,8 @@ no_error:
     }
     if (blob_request && mRawDumpChannel) {
         LOGD("Trigger Raw based on blob request if Raw dump is enabled");
-        streamID.streamID[streamID.num_streams] =
+        streamID.stream_request[streamID.num_streams++].streamID =
             mRawDumpChannel->getStreamID(mRawDumpChannel->getStreamTypeMask());
-        streamID.num_streams++;
     }
 
     if(request->input_buffer == NULL) {
