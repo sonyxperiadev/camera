@@ -983,7 +983,7 @@ int32_t QCamera3ProcessingChannel::request(buffer_handle_t *buffer,
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3ProcessingChannel::initialize(cam_is_type_t isType)
+int32_t QCamera3ProcessingChannel::initialize(__unused cam_is_type_t isType)
 {
     int32_t rc = NO_ERROR;
     rc = mOfflineMetaMemory.allocateAll(sizeof(metadata_buffer_t));
@@ -1394,7 +1394,7 @@ int32_t QCamera3ProcessingChannel::translateStreamTypeAndFormat(camera3_stream_t
  *==========================================================================*/
 int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cfg,
         camera3_stream_buffer_t *pInputBuffer,
-        metadata_buffer_t *metadata,
+        __unused metadata_buffer_t *metadata,
         cam_format_t streamFormat, cam_dimension_t dim)
 {
     int32_t rc = 0;
@@ -2338,7 +2338,7 @@ void QCamera3RawDumpChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
  * RETURN          : NA
  *==========================================================================*/
 void QCamera3RawDumpChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
-                                                QCamera3Stream *stream)
+                                                __unused QCamera3Stream *stream)
 {
     LOGD("E");
     if (super_frame == NULL || super_frame->num_bufs != 1) {
@@ -2609,7 +2609,6 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
         metadata_buffer_t* metadata, bool &needMetadata)
 {
     int32_t rc = NO_ERROR;
-    int index;
     Mutex::Autolock lock(mOfflinePpLock);
 
     LOGD("pInputBuffer is %p frame number %d", pInputBuffer, frameNumber);
@@ -3210,7 +3209,6 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
     cam_dimension_t streamDim;
     cam_stream_type_t streamType;
     cam_format_t streamFormat;
-    mm_camera_channel_attr_t attr;
 
     if (NULL == mCamera3Stream) {
         LOGE("Camera stream uninitialized");
@@ -3466,8 +3464,6 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
 
 QCamera3StreamMem* QCamera3PicChannel::getStreamBufs(uint32_t len)
 {
-    int rc = 0;
-
     mYuvMemory = new QCamera3StreamMem(mCamera3Stream->max_buffers, false);
     if (!mYuvMemory) {
         LOGE("unable to create metadata memory");
@@ -3867,7 +3863,6 @@ int32_t QCamera3ReprocessChannel::resetToCamPerfNormal(uint32_t frameNumber)
  *==========================================================================*/
 QCamera3StreamMem* QCamera3ReprocessChannel::getStreamBufs(uint32_t len)
 {
-    int rc = 0;
     if (mReprocessType == REPROCESS_TYPE_JPEG) {
         mMemory = new QCamera3StreamMem(mNumBuffers, false);
         if (!mMemory) {

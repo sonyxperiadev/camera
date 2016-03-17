@@ -228,7 +228,6 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
     uint32_t i = 0;
     /* Set expected frame id to a future frame idx, large enough to wait
     * for good_frame_idx_range, and small enough to still capture an image */
-    const uint32_t max_future_frame_offset = MM_CAMERA_MAX_FUTURE_FRAME_WAIT;
     uint8_t needStartZSL = FALSE;
 
     if (NULL == ch_obj) {
@@ -439,7 +438,6 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
              (!ch_obj->bWaitForPrepSnapshotDone)) {
 
         /* dequeue */
-        uint32_t match_frame = 0;
         mm_channel_node_info_t info;
         memset(&info, 0x0, sizeof(info));
 
@@ -507,8 +505,6 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
             }
         }
         if (info.num_nodes > 0) {
-             uint8_t bReady = 0;
-
             /* decrease pending_cnt */
             if (MM_CAMERA_SUPER_BUF_NOTIFY_BURST == notify_mode) {
                 ch_obj->pending_cnt--;

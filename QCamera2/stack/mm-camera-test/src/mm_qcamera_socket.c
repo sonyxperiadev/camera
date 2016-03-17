@@ -712,7 +712,7 @@ void *eztune_proc(void *data)
         lib_handle->tsctrl.proto->send_buf, lib_handle->tsctrl.proto->send_len);
     }
 
-    if (FD_ISSET(client_socket, &tsfds)) {
+    if ((client_socket < FD_SETSIZE) && (FD_ISSET(client_socket, &tsfds))) {
       if (lib_handle->tsctrl.proto == NULL) {
         LOGE(" Cannot receive msg without connect\n");
         continue;
@@ -810,7 +810,7 @@ void *eztune_proc(void *data)
       }
     }
 
-    if (FD_ISSET(prev_client_socket, &tsfds)) {
+    if ((prev_client_socket < FD_SETSIZE) && (FD_ISSET(prev_client_socket, &tsfds))) {
       recv_bytes = recv(prev_client_socket, (void *)buf,
         lib_handle->tsctrl.pr_proto->next_recv_len, 0);
 

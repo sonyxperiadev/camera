@@ -48,7 +48,7 @@
 
 static pthread_mutex_t g_intf_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static mm_camera_ctrl_t g_cam_ctrl = {0, {{0}}, {0}, {{0}}, {0}, {0}, {0}};
+static mm_camera_ctrl_t g_cam_ctrl;
 
 static pthread_mutex_t g_handler_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint16_t g_handler_history_count = 0; /* history count for handler */
@@ -1837,6 +1837,10 @@ uint8_t get_num_of_cameras()
         }
         close(dev_fd);
         dev_fd = -1;
+        if (num_cameras >= MM_CAMERA_MAX_NUM_SENSORS) {
+            LOGW("Maximum number of camera reached %d", num_cameras);
+            break;
+        }
     }
     g_cam_ctrl.num_cam = num_cameras;
 

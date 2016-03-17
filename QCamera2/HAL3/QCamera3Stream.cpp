@@ -1403,7 +1403,6 @@ int32_t QCamera3Stream::aggregateBufToBatch(mm_camera_buf_def_t& bufDef)
 int32_t QCamera3Stream::queueBatchBuf()
 {
     int32_t rc = NO_ERROR;
-    struct msm_camera_user_buf_cont_t *cont_buf = NULL;
 
     if (!mCurrentBatchBufDef) {
         LOGE("No buffers were queued into batch");

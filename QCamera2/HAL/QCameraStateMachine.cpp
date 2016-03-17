@@ -1545,9 +1545,9 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_SEND_COMMAND_RESTART:
         {
+#ifndef VANILLA_HAL
             qcamera_sm_evt_command_payload_t *cmd_payload =
                     (qcamera_sm_evt_command_payload_t *)payload;
-#ifndef VANILLA_HAL
             if ((CAMERA_CMD_LONGSHOT_ON == cmd_payload->cmd) &&
                     (m_bPreviewNeedsRestart) &&
                     (m_bPreviewDelayedRestart)) {
