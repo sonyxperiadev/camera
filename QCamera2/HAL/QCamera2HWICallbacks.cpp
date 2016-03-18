@@ -806,6 +806,14 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         free(super_frame);
         return;
     }
+
+    // For instant capture and for instant AEC, keep track of the frame counter.
+    // This count will be used to check against the corresponding bound values.
+    if (pme->mParameters.isInstantAECEnabled() ||
+            pme->mParameters.isInstantCaptureEnabled()) {
+        pme->mInstantAecFrameCount++;
+    }
+
     pthread_mutex_lock(&pme->mGrallocLock);
     if (!pme->needProcessPreviewFrame() ||
             pme->mIgnoredPreviewCount > 0) {

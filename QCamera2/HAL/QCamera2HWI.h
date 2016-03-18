@@ -633,6 +633,7 @@ private:
     int mPLastFrameCount;
     nsecs_t mPLastFpsTime;
     double mPFps;
+    uint8_t mInstantAecFrameCount;
 
     //eztune variables for communication with eztune server at backend
     bool m_bIntJpegEvtPending;

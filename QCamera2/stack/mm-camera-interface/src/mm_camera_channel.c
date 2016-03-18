@@ -1507,7 +1507,8 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
         /* init superbuf queue */
         mm_channel_superbuf_queue_init(&my_obj->bundle.superbuf_queue);
         my_obj->bundle.superbuf_queue.num_streams = num_streams_in_bundle_queue;
-        my_obj->bundle.superbuf_queue.expected_frame_id = 0;
+        my_obj->bundle.superbuf_queue.expected_frame_id =
+            my_obj->bundle.superbuf_queue.attr.user_expected_frame_id;
         my_obj->bundle.superbuf_queue.expected_frame_id_without_led = 0;
         my_obj->bundle.superbuf_queue.led_off_start_frame_id = 0;
         my_obj->bundle.superbuf_queue.led_on_start_frame_id = 0;
@@ -2588,6 +2589,27 @@ int32_t mm_channel_handle_metadata(
         IF_META_AVAILABLE(const cam_low_light_mode_t, low_light_level,
             CAM_INTF_META_LOW_LIGHT, metadata) {
             ch_obj->needLowLightZSL = *low_light_level;
+        }
+
+        // For the instant capture case, if AEC settles before expected frame ID from user,
+        // reset the expected frame ID to current frame index.
+        if (queue->attr.user_expected_frame_id > 0) {
+            if (queue->attr.user_expected_frame_id > buf_info->frame_idx) {
+                IF_META_AVAILABLE(const cam_3a_params_t, ae_params,
+                    CAM_INTF_META_AEC_INFO, metadata) {
+                    if (ae_params->settled) {
+                        queue->expected_frame_id = buf_info->frame_idx;
+                        // Reset the expected frame ID from HAL to 0
+                        queue->attr.user_expected_frame_id = 0;
+                        LOGD("AEC settled, reset expected frame ID from user");
+                    }
+                }
+            } else {
+                 // Reset the expected frame ID from HAL to 0 after
+                 // current frame index is greater than expected id.
+                queue->attr.user_expected_frame_id = 0;
+                LOGD("reset expected frame ID from user as it reached the bound");
+            }
         }
     }
 end:

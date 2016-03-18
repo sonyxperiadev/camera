@@ -209,6 +209,8 @@ private:
     static const char FOCUS_MODE_MANUAL_POSITION[];
     static const char KEY_QC_LONG_SHOT[];
     static const char KEY_QC_INITIAL_EXPOSURE_INDEX[];
+    static const char KEY_QC_INSTANT_AEC[];
+    static const char KEY_QC_INSTANT_CAPTURE[];
 
     static const char KEY_QC_MANUAL_FOCUS_POSITION[];
     static const char KEY_QC_MANUAL_FOCUS_POS_TYPE[];
@@ -664,6 +666,10 @@ public:
     uint32_t getJpegExifRotation();
     bool useJpegExifRotation();
     int32_t getEffectValue();
+    bool isInstantAECEnabled() {return m_bInstantAEC;};
+    bool isInstantCaptureEnabled() {return m_bInstantCapture;};
+    uint8_t getAecFrameBoundValue() {return mAecFrameBound;};
+    uint8_t getAecSkipDisplayFrameBound() {return mAecSkipDisplayFrameBound;};
 
     int32_t getExifDateTime(String8 &dateTime, String8 &subsecTime);
     int32_t getExifFocalLength(rat_t *focalLenght);
@@ -842,6 +848,7 @@ public:
     int32_t getPicSizeFromAPK(int &width, int &height);
 
     int32_t checkFeatureConcurrency();
+    int32_t setInstantAEC(uint8_t enable, bool initCommit);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -910,7 +917,6 @@ private:
     int32_t setSceneSelectionMode(const QCameraParameters& params);
     int32_t setFaceRecognition(const QCameraParameters& );
     int32_t setFlip(const QCameraParameters& );
-    int32_t setBurstNum(const QCameraParameters& params);
     int32_t setRetroActiveBurstNum(const QCameraParameters& params);
     int32_t setBurstLEDOnPeriod(const QCameraParameters& params);
     int32_t setSnapshotFDReq(const QCameraParameters& );
@@ -919,6 +925,8 @@ private:
     int32_t setTintlessValue(const QCameraParameters& params);
     int32_t setCDSMode(const QCameraParameters& params);
     int32_t setInitialExposureIndex(const QCameraParameters& params);
+    int32_t setInstantCapture(const QCameraParameters& params);
+    int32_t setInstantAEC(const QCameraParameters& params);
     int32_t setMobicat(const QCameraParameters& params);
     int32_t setRdiMode(const QCameraParameters& );
     int32_t setSecureMode(const QCameraParameters& );
@@ -999,7 +1007,6 @@ private:
 
     bool isTNRPreviewEnabled() {return m_bTNRPreviewOn;};
     bool isTNRVideoEnabled() {return m_bTNRVideoOn;};
-    uint8_t getBurstNum();
     bool getFaceDetectionOption() { return  m_bFaceDetectionOn;}
     bool isAVTimerEnabled();
     void getLiveSnapshotSize(cam_dimension_t &dim);
@@ -1106,7 +1113,6 @@ private:
     bool m_bTNRVideoOn;
     bool m_bTNRSnapshotOn;
     bool m_bInited;
-    uint8_t m_nBurstNum;
     int m_nRetroBurstNum;
     int m_nBurstLEDOnPeriod;
     cam_exp_bracketing_t m_AEBracketingClient;
@@ -1184,6 +1190,14 @@ private:
     QCameraManualCaptureModes m_ManualCaptureMode;
     cam_dyn_img_data_t m_DynamicImgData;
     int32_t m_dualLedCalibration;
+    // Param to trigger instant AEC.
+    bool m_bInstantAEC;
+    // Param to trigger instant capture.
+    bool m_bInstantCapture;
+    // Number of frames, camera interface will wait for getting the instant capture frame.
+    uint8_t mAecFrameBound;
+    // Number of preview frames, that HAL will hold without displaying, for instant AEC mode.
+    uint8_t mAecSkipDisplayFrameBound;
 };
 
 }; // namespace qcamera
