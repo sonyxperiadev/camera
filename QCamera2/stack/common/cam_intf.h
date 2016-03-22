@@ -430,6 +430,10 @@ typedef struct{
     uint8_t hotPixel_mode;
     uint32_t hotPixel_count;
     cam_coordinate_type_t hotPixelMap[512];
+
+    /* supported instant capture/AEC convergence modes */
+    size_t supported_instant_aec_modes_cnt;
+    cam_aec_convergence_type supported_instant_aec_modes[CAM_AEC_CONVERGENCE_MAX];
 } cam_capability_t;
 
 typedef enum {

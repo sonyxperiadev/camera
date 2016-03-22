@@ -1508,7 +1508,7 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
         mm_channel_superbuf_queue_init(&my_obj->bundle.superbuf_queue);
         my_obj->bundle.superbuf_queue.num_streams = num_streams_in_bundle_queue;
         my_obj->bundle.superbuf_queue.expected_frame_id =
-            my_obj->bundle.superbuf_queue.attr.user_expected_frame_id;
+                my_obj->bundle.superbuf_queue.attr.user_expected_frame_id;
         my_obj->bundle.superbuf_queue.expected_frame_id_without_led = 0;
         my_obj->bundle.superbuf_queue.led_off_start_frame_id = 0;
         my_obj->bundle.superbuf_queue.led_on_start_frame_id = 0;
