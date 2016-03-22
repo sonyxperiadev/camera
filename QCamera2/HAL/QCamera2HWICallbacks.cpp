@@ -1657,7 +1657,9 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
         LOGI("[KPI Perf]: superbuf frame_idx %d",
                 frame->bufs[0]->frame_idx);
     }
-    if (NO_ERROR != pme->m_postprocessor.processData(frame)) {
+
+    if ((NO_ERROR != pme->waitDeferredWork(pme->mReprocJob)) ||
+            (NO_ERROR != pme->m_postprocessor.processData(frame))) {
         LOGE("Failed to trigger process data");
         pChannel->bufDone(super_frame);
         free(frame);
@@ -2131,8 +2133,7 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
                 //to focused/not focused state.
                 payload->focus_data.flush_info.needFlush =
                         ((prevFocusState == CAM_AF_STATE_PASSIVE_SCAN) ||
-                        (prevFocusState == CAM_AF_STATE_ACTIVE_SCAN) ||
-                        (prevFocusState == CAM_AF_STATE_INACTIVE)) &&
+                        (prevFocusState == CAM_AF_STATE_ACTIVE_SCAN)) &&
                         ((pme->m_currentFocusState == CAM_AF_STATE_FOCUSED_LOCKED) ||
                         (pme->m_currentFocusState == CAM_AF_STATE_NOT_FOCUSED_LOCKED));
                 payload->focus_data.flush_info.focused_frame_idx = frame->frame_idx;

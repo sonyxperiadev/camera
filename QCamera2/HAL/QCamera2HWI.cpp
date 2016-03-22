@@ -4463,7 +4463,11 @@ int QCamera2HardwareInterface::takePicture()
             mJpegJob = queueDeferredWork(CMD_DEF_CREATE_JPEG_SESSION,
                     args);
             if (mJpegJob == 0) {
-                LOGE("Failure: Unable to create jpeg session");
+                LOGE("Failed to queue CREATE_JPEG_SESSION");
+                if (NO_ERROR != waitDeferredWork(mReprocJob)) {
+                        LOGE("Reprocess Deferred work was failed");
+                }
+                m_postprocessor.stop();
                 return -ENOMEM;
             }
 
@@ -4582,6 +4586,10 @@ int QCamera2HardwareInterface::takePicture()
                         args);
                 if (mJpegJob == 0) {
                     LOGE("Failed to queue CREATE_JPEG_SESSION");
+                    if (NO_ERROR != waitDeferredWork(mReprocJob)) {
+                        LOGE("Reprocess Deferred work was failed");
+                    }
+                    m_postprocessor.stop();
                     return -ENOMEM;
                 }
 
@@ -5251,14 +5259,32 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
         goto end;
     }
 
-    // start post processor
-    if (NO_ERROR != waitDeferredWork(mInitPProcJob)) {
-        LOGE("Init PProc Deferred work failed");
-        return UNKNOWN_ERROR;
+    DeferWorkArgs args;
+    memset(&args, 0, sizeof(DeferWorkArgs));
+
+    args.pprocArgs = pChannel;
+
+    // No need to wait for mInitPProcJob here, because it was
+    // queued in startPreview, and will definitely be processed before
+    // mReprocJob can begin.
+    mReprocJob = queueDeferredWork(CMD_DEF_PPROC_START,
+            args);
+    if (mReprocJob == 0) {
+        LOGE("Failed to queue CMD_DEF_PPROC_START");
+        rc = -ENOMEM;
+        goto end;
     }
-    rc = m_postprocessor.start(pChannel);
-    if (NO_ERROR != rc) {
-        LOGE("Post-processor start failed %d", rc);
+
+    // Create JPEG session
+    mJpegJob = queueDeferredWork(CMD_DEF_CREATE_JPEG_SESSION,
+            args);
+    if (mJpegJob == 0) {
+        LOGE("Failed to queue CREATE_JPEG_SESSION");
+        if (NO_ERROR != waitDeferredWork(mReprocJob)) {
+            LOGE("Reprocess Deferred work was failed");
+        }
+        m_postprocessor.stop();
+        rc = -ENOMEM;
         goto end;
     }
 
@@ -5276,6 +5302,12 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
         rc = configureOnlineRotation(*m_channels[QCAMERA_CH_TYPE_SNAPSHOT]);
         if (rc != NO_ERROR) {
             LOGE("online rotation failed");
+            if (NO_ERROR != waitDeferredWork(mReprocJob)) {
+                LOGE("Reprocess Deferred work was failed");
+            }
+            if (NO_ERROR != waitDeferredWork(mJpegJob)) {
+                LOGE("Jpeg Deferred work was failed");
+            }
             m_postprocessor.stop();
             return rc;
         }
@@ -9361,6 +9393,13 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                     {
                         QCameraChannel * pChannel = dw->args.pprocArgs;
                         assert(pChannel);
+
+                        int32_t ret = pme->getDefJobStatus(pme->mReprocJob);
+                        if (ret != NO_ERROR) {
+                            job_status = ret;
+                            LOGE("Jpeg create failed");
+                            break;
+                        }
 
                         if (pme->m_postprocessor.createJpegSession(pChannel)
                             != NO_ERROR) {
