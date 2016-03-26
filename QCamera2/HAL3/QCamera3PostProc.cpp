@@ -1124,7 +1124,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     metadata_buffer_t *metadata = NULL;
     jpeg_settings_t *jpeg_settings = NULL;
     QCamera3HardwareInterface* hal_obj = NULL;
-    bool needJpegRotation = false;
+    bool needJpegExifRotation = false;
 
     if (NULL == jpeg_job_data) {
         LOGE("Invalid jpeg job");
@@ -1171,6 +1171,8 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     dst_dim.width = recvd_frame->reproc_config.output_stream_dim.width;
     dst_dim.height = recvd_frame->reproc_config.output_stream_dim.height;
 
+    needJpegExifRotation = hal_obj->needJpegExifRotation();
+
     LOGH("Need new session?:%d", needNewSess);
     if (needNewSess) {
         //creating a new session, so we must destroy the old one
@@ -1190,6 +1192,10 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         encodeParam.main_dim.dst_dim = dst_dim;
         encodeParam.thumb_dim.src_dim = src_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
+
+        if (needJpegExifRotation) {
+            encodeParam.thumb_rotation = (uint32_t)jpeg_settings->jpeg_orientation;
+        }
 
         getFWKJpegEncodeConfig(encodeParam, recvd_frame, jpeg_settings);
         LOGH("#src bufs:%d # tmb bufs:%d #dst_bufs:%d",
@@ -1216,8 +1222,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     //main_stream->getCropInfo(crop);
 
     // Set main dim job parameters and handle rotation
-    needJpegRotation = hal_obj->needJpegRotation();
-    if (!needJpegRotation && (jpeg_settings->jpeg_orientation == 90 ||
+    if (!needJpegExifRotation && (jpeg_settings->jpeg_orientation == 90 ||
             jpeg_settings->jpeg_orientation == 270)) {
 
         jpg_job.encode_job.main_dim.src_dim.width = src_dim.height;
@@ -1267,11 +1272,8 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         jpg_job.encode_job.thumb_dim.dst_dim =
                 jpeg_settings->thumbnail_size;
 
-        if (needJpegRotation) {
-            jpg_job.encode_job.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
-            LOGH("jpeg rotation is set to %u", jpg_job.encode_job.rotation);
-        } else if (jpeg_settings->jpeg_orientation  == 90 ||
-                jpeg_settings->jpeg_orientation == 270) {
+        if (!needJpegExifRotation && (jpeg_settings->jpeg_orientation == 90 ||
+                jpeg_settings->jpeg_orientation == 270)) {
             //swap the thumbnail destination width and height if it has
             //already been rotated
             int temp = jpg_job.encode_job.thumb_dim.dst_dim.width;
@@ -1341,7 +1343,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
        LOGE("m_parent is NULL, Error");
        return BAD_VALUE;
     }
-    bool needJpegRotation = false;
+    bool needJpegExifRotation = false;
 
     recvd_frame = jpeg_job_data->src_frame;
     metadata = jpeg_job_data->metadata;
@@ -1418,7 +1420,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         return UNKNOWN_ERROR;
     }
 
-    needJpegRotation = hal_obj->needJpegRotation();
+    needJpegExifRotation = hal_obj->needJpegExifRotation();
     LOGH("Need new session?:%d", needNewSess);
     if (needNewSess) {
         //creating a new session, so we must destroy the old one
@@ -1437,7 +1439,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         getJpegEncodeConfig(encodeParam, main_stream, jpeg_settings);
         LOGH("#src bufs:%d # tmb bufs:%d #dst_bufs:%d",
                      encodeParam.num_src_bufs,encodeParam.num_tmb_bufs,encodeParam.num_dst_bufs);
-        if (!needJpegRotation &&
+        if (!needJpegExifRotation &&
             (jpeg_settings->jpeg_orientation == 90 ||
             jpeg_settings->jpeg_orientation == 270)) {
            //swap src width and height, stride and scanline due to rotation
@@ -1461,8 +1463,9 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         }
         encodeParam.main_dim.dst_dim = dst_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
-        if (needJpegRotation) {
-           encodeParam.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
+
+        if (needJpegExifRotation) {
+            encodeParam.thumb_rotation = (uint32_t)jpeg_settings->jpeg_orientation;
         }
 
         LOGI("Src Buffer cnt = %d, res = %dX%d len = %d rot = %d "
@@ -1500,19 +1503,13 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     jpg_job.encode_job.src_index = (int32_t)main_frame->buf_idx;
     jpg_job.encode_job.dst_index = 0;
 
-    if (needJpegRotation) {
-        jpg_job.encode_job.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
-        LOGD("jpeg rotation is set to %d",
-                jpg_job.encode_job.rotation);
-    }
-
     cam_rect_t crop;
     memset(&crop, 0, sizeof(cam_rect_t));
     //TBD_later - Zoom event removed in stream
     //main_stream->getCropInfo(crop);
 
     // Set main dim job parameters and handle rotation
-    if (!needJpegRotation && (jpeg_settings->jpeg_orientation == 90 ||
+    if (!needJpegExifRotation && (jpeg_settings->jpeg_orientation == 90 ||
             jpeg_settings->jpeg_orientation == 270)) {
 
         jpg_job.encode_job.main_dim.src_dim.width = src_dim.height;
@@ -1563,7 +1560,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         jpg_job.encode_job.thumb_dim.dst_dim =
                 jpeg_settings->thumbnail_size;
 
-      if (!needJpegRotation &&
+      if (!needJpegExifRotation &&
           (jpeg_settings->jpeg_orientation  == 90 ||
            jpeg_settings->jpeg_orientation == 270)) {
             //swap the thumbnail destination width and height if it has
@@ -2340,6 +2337,13 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
         LOGE("No memory for QCamera3Exif");
         return NULL;
     }
+    QCamera3HardwareInterface* hal_obj = NULL;
+    if (m_parent != NULL) {
+        hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+    } else {
+        LOGE("m_parent is NULL, Error");
+        return NULL;
+    }
 
     int32_t rc = NO_ERROR;
     uint32_t count = 0;
@@ -2548,6 +2552,37 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
             LOGW("Adding IMAGE_DESCRIPTION tag failed");
         }
     }
+
+    if( hal_obj->needJpegExifRotation()) {
+        int16_t orientation;
+        switch (jpeg_settings->jpeg_orientation) {
+            case 0:
+                orientation = 1;
+                break;
+            case 90:
+                orientation = 6;
+                break;
+            case 180:
+                orientation = 3;
+                break;
+            case 270:
+                orientation = 8;
+                break;
+            default:
+                orientation = 1;
+                break;
+        }
+        exif->addEntry(EXIFTAGID_ORIENTATION,
+                       EXIF_SHORT,
+                       1,
+                       (void *)&orientation);
+        exif->addEntry(EXIFTAGID_TN_ORIENTATION,
+                       EXIF_SHORT,
+                       1,
+                       (void *)&orientation);
+
+    }
+
     return exif;
 }
 

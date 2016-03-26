@@ -9439,7 +9439,7 @@ bool QCamera3HardwareInterface::needReprocess(uint32_t postprocess_mask)
 }
 
 /*===========================================================================
- * FUNCTION   : needJpegRotation
+ * FUNCTION   : needJpegExifRotation
  *
  * DESCRIPTION: if rotation from jpeg is needed
  *
@@ -9448,11 +9448,11 @@ bool QCamera3HardwareInterface::needReprocess(uint32_t postprocess_mask)
  * RETURN     : true: needed
  *              false: no need
  *==========================================================================*/
-bool QCamera3HardwareInterface::needJpegRotation()
+bool QCamera3HardwareInterface::needJpegExifRotation()
 {
    /*If the pp does not have the ability to do rotation, enable jpeg rotation*/
     if (!(gCamCapability[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION)) {
-       LOGD("Need Jpeg to do the rotation");
+       LOGD("Need use Jpeg EXIF Rotation");
        return true;
     }
     return false;
@@ -9502,6 +9502,9 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
         //Use CPP CDS incase h/w supports it.
         pp_config.feature_mask &= ~CAM_QCOM_FEATURE_CDS;
         pp_config.feature_mask |= CAM_QCOM_FEATURE_DSDN;
+    }
+    if (!(gCamCapability[mCameraId]->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION)) {
+        pp_config.feature_mask &= ~CAM_QCOM_FEATURE_ROTATION;
     }
 
     rc = pChannel->addReprocStreamsFromSource(pp_config,
