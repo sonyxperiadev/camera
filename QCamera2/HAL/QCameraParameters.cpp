@@ -209,6 +209,8 @@ const char QCameraParameters::KEY_QC_LONG_SHOT[] = "long-shot";
 const char QCameraParameters::KEY_QC_INITIAL_EXPOSURE_INDEX[] = "initial-exp-index";
 const char QCameraParameters::KEY_QC_INSTANT_AEC[] = "instant-aec";
 const char QCameraParameters::KEY_QC_INSTANT_CAPTURE[] = "instant-capture";
+const char QCameraParameters::KEY_QC_INSTANT_AEC_SUPPORTED_MODES[] = "instant-aec-values";
+const char QCameraParameters::KEY_QC_INSTANT_CAPTURE_SUPPORTED_MODES[] = "instant-capture-values";
 
 // Values for effect settings.
 const char QCameraParameters::EFFECT_EMBOSS[] = "emboss";
@@ -343,6 +345,16 @@ const char QCameraParameters::AUTO_EXPOSURE_SMART_METERING[] = "smart-metering";
 const char QCameraParameters::AUTO_EXPOSURE_USER_METERING[] = "user-metering";
 const char QCameraParameters::AUTO_EXPOSURE_SPOT_METERING_ADV[] = "spot-metering-adv";
 const char QCameraParameters::AUTO_EXPOSURE_CENTER_WEIGHTED_ADV[] = "center-weighted-adv";
+
+// Values for instant AEC modes
+const char QCameraParameters::KEY_QC_INSTANT_AEC_DISABLE[] = "0";
+const char QCameraParameters::KEY_QC_INSTANT_AEC_AGGRESSIVE_AEC[] = "1";
+const char QCameraParameters::KEY_QC_INSTANT_AEC_FAST_AEC[] = "2";
+
+// Values for instant capture modes
+const char QCameraParameters::KEY_QC_INSTANT_CAPTURE_DISABLE[] = "0";
+const char QCameraParameters::KEY_QC_INSTANT_CAPTURE_AGGRESSIVE_AEC[] = "1";
+const char QCameraParameters::KEY_QC_INSTANT_CAPTURE_FAST_AEC[] = "2";
 
 const char QCameraParameters::KEY_QC_GPS_LATITUDE_REF[] = "gps-latitude-ref";
 const char QCameraParameters::KEY_QC_GPS_LONGITUDE_REF[] = "gps-longitude-ref";
@@ -503,6 +515,20 @@ const QCameraParameters::QCameraMap<cam_auto_exposure_mode_type>
     { AUTO_EXPOSURE_USER_METERING,       CAM_AEC_MODE_USER_METERING },
     { AUTO_EXPOSURE_SPOT_METERING_ADV,   CAM_AEC_MODE_SPOT_METERING_ADV },
     { AUTO_EXPOSURE_CENTER_WEIGHTED_ADV, CAM_AEC_MODE_CENTER_WEIGHTED_ADV },
+};
+
+const QCameraParameters::QCameraMap<cam_aec_convergence_type>
+        QCameraParameters::INSTANT_AEC_MODES_MAP[] = {
+    { KEY_QC_INSTANT_AEC_DISABLE,        CAM_AEC_NORMAL_CONVERGENCE },
+    { KEY_QC_INSTANT_AEC_AGGRESSIVE_AEC, CAM_AEC_AGGRESSIVE_CONVERGENCE },
+    { KEY_QC_INSTANT_AEC_FAST_AEC,       CAM_AEC_FAST_CONVERGENCE },
+};
+
+const QCameraParameters::QCameraMap<cam_aec_convergence_type>
+        QCameraParameters::INSTANT_CAPTURE_MODES_MAP[] = {
+    { KEY_QC_INSTANT_CAPTURE_DISABLE,        CAM_AEC_NORMAL_CONVERGENCE },
+    { KEY_QC_INSTANT_CAPTURE_AGGRESSIVE_AEC, CAM_AEC_AGGRESSIVE_CONVERGENCE },
+    { KEY_QC_INSTANT_CAPTURE_FAST_AEC,       CAM_AEC_FAST_CONVERGENCE },
 };
 
 const QCameraParameters::QCameraMap<cam_format_t>
@@ -5456,6 +5482,23 @@ int32_t QCameraParameters::initDefaultParameters()
     setFloat(KEY_EXPOSURE_COMPENSATION_STEP, m_pCapability->exposure_compensation_step); // 1/6
     setExposureCompensation(m_pCapability->exposure_compensation_default); // 0
 
+    // Set Instant AEC modes
+    String8 instantAECModes = createValuesString(
+            m_pCapability->supported_instant_aec_modes,
+            m_pCapability->supported_instant_aec_modes_cnt,
+            INSTANT_AEC_MODES_MAP,
+            PARAM_MAP_SIZE(INSTANT_AEC_MODES_MAP));
+    set(KEY_QC_INSTANT_AEC_SUPPORTED_MODES, instantAECModes.string());
+
+    // Set Instant Capture modes
+    String8 instantCaptureModes = createValuesString(
+            m_pCapability->supported_instant_aec_modes,
+            m_pCapability->supported_instant_aec_modes_cnt,
+            INSTANT_CAPTURE_MODES_MAP,
+            PARAM_MAP_SIZE(INSTANT_CAPTURE_MODES_MAP));
+    set(KEY_QC_INSTANT_CAPTURE_SUPPORTED_MODES, instantCaptureModes.string());
+
+
     // Set Antibanding
     String8 antibandingValues = createValuesString(
             m_pCapability->supported_antibandings,
@@ -7968,20 +8011,22 @@ int32_t QCameraParameters::setInstantCapture(const QCameraParameters& params)
     const char *prev_str = get(KEY_QC_INSTANT_CAPTURE);
     if (str) {
         if ((prev_str == NULL) || (strcmp(str, prev_str) != 0)) {
-            value = atoi(str);
+            value = lookupAttr(INSTANT_CAPTURE_MODES_MAP,
+                    PARAM_MAP_SIZE(INSTANT_CAPTURE_MODES_MAP), str);
             LOGD("Set instant Capture from param = %d", value);
-            if (value == 0 || value == 1 || value == 2) {
+            if(value != NAME_NOT_FOUND) {
                 updateParamEntry(KEY_QC_INSTANT_CAPTURE, str);
             }
         }
     } else {
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.instant.capture", prop, "0");
+        property_get("persist.camera.instant.capture", prop, KEY_QC_INSTANT_CAPTURE_DISABLE);
         if ((prev_str == NULL) || (strcmp(prop, prev_str) != 0)) {
-            value = atoi(prop);
+            value = lookupAttr(INSTANT_CAPTURE_MODES_MAP,
+                    PARAM_MAP_SIZE(INSTANT_CAPTURE_MODES_MAP), prop);
             LOGD("Set instant capture from setprop = %d", value);
-            if (value == 0 || value == 1 || value == 2) {
+            if (value != NAME_NOT_FOUND) {
                 updateParamEntry(KEY_QC_INSTANT_CAPTURE, prop);
             }
         }
@@ -7991,7 +8036,7 @@ int32_t QCameraParameters::setInstantCapture(const QCameraParameters& params)
     // 0 - disbale (normal AEC)
     // 1 - Aggressive AEC (algo used in backend)
     // 2 - Fast AEC (algo used in backend)
-    if (value == 0 || value == 1 || value == 2) {
+    if (value != NAME_NOT_FOUND && value != -1) {
         m_bInstantCapture = (value > 0)? true : false;
         setInstantAEC((uint8_t)value, false);
     }
@@ -8046,15 +8091,17 @@ int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
         const char *prev_str = get(KEY_QC_INSTANT_AEC);
         if (str) {
             if ((prev_str == NULL) || (strcmp(str, prev_str) != 0)) {
-                value = atoi(str);
+                value = lookupAttr(INSTANT_AEC_MODES_MAP,
+                        PARAM_MAP_SIZE(INSTANT_AEC_MODES_MAP), str);
                 LOGD("Set instant AEC from param = %d", value);
             }
         } else {
             char prop[PROPERTY_VALUE_MAX];
             memset(prop, 0, sizeof(prop));
-            property_get("persist.camera.instant.aec", prop, "0");
+            property_get("persist.camera.instant.aec", prop, KEY_QC_INSTANT_AEC_DISABLE);
             if ((prev_str == NULL) || (strcmp(prop, prev_str) != 0)) {
-                value = atoi(prop);
+                value = lookupAttr(INSTANT_AEC_MODES_MAP,
+                        PARAM_MAP_SIZE(INSTANT_AEC_MODES_MAP), prop);
                 LOGD("Set instant AEC from setprop = %d", value);
             }
         }
@@ -8063,7 +8110,7 @@ int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
         // 0 - disbale (normal AEC)
         // 1 - Aggressive AEC (algo used in backend)
         // 2 - Fast AEC (algo used in backend)
-        if (value == 0 || value == 1 || value == 2) {
+        if (value != NAME_NOT_FOUND && value != -1) {
             setInstantAEC((uint8_t)value, false);
         }
 

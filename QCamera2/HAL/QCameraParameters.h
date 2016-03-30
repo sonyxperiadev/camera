@@ -211,6 +211,8 @@ private:
     static const char KEY_QC_INITIAL_EXPOSURE_INDEX[];
     static const char KEY_QC_INSTANT_AEC[];
     static const char KEY_QC_INSTANT_CAPTURE[];
+    static const char KEY_QC_INSTANT_AEC_SUPPORTED_MODES[];
+    static const char KEY_QC_INSTANT_CAPTURE_SUPPORTED_MODES[];
 
     static const char KEY_QC_MANUAL_FOCUS_POSITION[];
     static const char KEY_QC_MANUAL_FOCUS_POS_TYPE[];
@@ -462,6 +464,16 @@ private:
     static const char AUTO_EXPOSURE_USER_METERING[];
     static const char AUTO_EXPOSURE_SPOT_METERING_ADV[];
     static const char AUTO_EXPOSURE_CENTER_WEIGHTED_ADV[];
+
+    // Values for instant AEC modes
+    static const char KEY_QC_INSTANT_AEC_DISABLE[];
+    static const char KEY_QC_INSTANT_AEC_AGGRESSIVE_AEC[];
+    static const char KEY_QC_INSTANT_AEC_FAST_AEC[];
+
+    // Values for instant capture modes
+    static const char KEY_QC_INSTANT_CAPTURE_DISABLE[];
+    static const char KEY_QC_INSTANT_CAPTURE_AGGRESSIVE_AEC[];
+    static const char KEY_QC_INSTANT_CAPTURE_FAST_AEC[];
 
     static const char KEY_QC_SHARPNESS[];
     static const char KEY_QC_MIN_SHARPNESS[];
@@ -1049,6 +1061,8 @@ private:
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
     static const QCameraMap<cam_auto_exposure_mode_type> AUTO_EXPOSURE_MAP[];
+    static const QCameraMap<cam_aec_convergence_type> INSTANT_CAPTURE_MODES_MAP[];
+    static const QCameraMap<cam_aec_convergence_type> INSTANT_AEC_MODES_MAP[];
     static const QCameraMap<cam_format_t> PREVIEW_FORMATS_MAP[];
     static const QCameraMap<cam_format_t> PICTURE_TYPES_MAP[];
     static const QCameraMap<cam_focus_mode_type> FOCUS_MODES_MAP[];
