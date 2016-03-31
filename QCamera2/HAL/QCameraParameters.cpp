@@ -931,6 +931,7 @@ QCameraParameters::QCameraParameters()
       m_bSnapshotFlipChanged(false),
       m_bFixedFrameRateSet(false),
       m_bHDREnabled(false),
+      m_bLocalHDREnabled(false),
       m_bAVTimerEnabled(false),
       m_bDISEnabled(false),
       m_MobiMask(0),
@@ -1062,6 +1063,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bSnapshotFlipChanged(false),
     m_bFixedFrameRateSet(false),
     m_bHDREnabled(false),
+    m_bLocalHDREnabled(false),
     m_bAVTimerEnabled(false),
     m_AdjustFPS(NULL),
     m_bHDR1xFrameEnabled(false),
@@ -3567,6 +3569,17 @@ int32_t QCameraParameters::setSceneMode(const QCameraParameters& params)
     const char *str = params.get(KEY_SCENE_MODE);
     const char *prev_str = get(KEY_SCENE_MODE);
     LOGH("str - %s, prev_str - %s", str, prev_str);
+
+    // HDR & Recording are mutually exclusive and so disable HDR if recording hint is set
+    if (m_bRecordingHint_new && m_bHDREnabled) {
+        LOGH("Disable the HDR and set it to Auto");
+        str = SCENE_MODE_AUTO;
+        m_bLocalHDREnabled = true;
+    } else if (!m_bRecordingHint_new && m_bLocalHDREnabled) {
+        LOGH("Restore the HDR from Auto scene mode");
+        str = SCENE_MODE_HDR;
+        m_bLocalHDREnabled = false;
+    }
 
     if (str != NULL) {
         if (prev_str == NULL ||
