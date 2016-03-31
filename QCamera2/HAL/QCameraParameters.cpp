@@ -5421,7 +5421,7 @@ int32_t QCameraParameters::initDefaultParameters()
     m_pCapability->min_focus_pos[CAM_MANUAL_FOCUS_MODE_DIOPTER] = 0;
     if (m_pCapability->min_focus_distance > 0) {
         m_pCapability->max_focus_pos[CAM_MANUAL_FOCUS_MODE_DIOPTER] =
-                100.0f / m_pCapability->min_focus_distance;
+                m_pCapability->min_focus_distance;
     } else {
         m_pCapability->max_focus_pos[CAM_MANUAL_FOCUS_MODE_DIOPTER] = 0;
     }
