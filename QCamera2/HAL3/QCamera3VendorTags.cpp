@@ -264,7 +264,8 @@ vendor_tag_info_t qcamera3_stats[QCAMERA3_STATS_END -
 
 vendor_tag_info_t nexus_experimental_2016[NEXUS_EXPERIMENTAL_2016_END -
         NEXUS_EXPERIMENTAL_2016_START] = {
-   { "3a.hybrid_ae_enable", TYPE_BYTE }
+   { "3a.hybrid_ae_enable", TYPE_BYTE },
+   { "control.af_scene_change", TYPE_BYTE }
 };
 
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
@@ -404,7 +405,8 @@ uint32_t qcamera3_all_tags[] = {
     (uint32_t)QCAMERA3_STATS_GAZE_DEGREE,
 
     //NEXUS_EXPERIMENTAL_2016
-    (uint32_t)NEXUS_EXPERIMENTAL_2016_HYBRID_AE_ENABLE
+    (uint32_t)NEXUS_EXPERIMENTAL_2016_HYBRID_AE_ENABLE,
+    (uint32_t)NEXUS_EXPERIMENTAL_2016_AF_SCENE_CHANGE
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
