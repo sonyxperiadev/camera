@@ -1734,18 +1734,12 @@ int32_t mm_channel_stop(mm_channel_t *my_obj)
             s_objs[i]->linked_stream->is_linked = 0;
             s_objs[i]->linked_stream->linked_obj = NULL;
             pthread_mutex_unlock(&s_objs[i]->linked_stream->buf_lock);
-
-            if (TRUE == my_obj->bundle.is_active) {
-                mm_channel_flush_super_buf_queue(my_obj, 0, s_objs[i]->stream_info->stream_type);
-            }
-            break;
-        } else {
-            continue;
         }
     }
 
     /* destroy super buf cmd thread */
     if (TRUE == my_obj->bundle.is_active) {
+        mm_channel_flush_super_buf_queue(my_obj, 0, CAM_STREAM_TYPE_DEFAULT);
         /* first stop bundle thread */
         mm_camera_cmd_thread_release(&my_obj->cmd_thread);
         mm_camera_cmd_thread_release(&my_obj->cb_thread);
@@ -2673,14 +2667,6 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
         return 0;
     }
 
-    if((queue->nomatch_frame_id != 0)
-            && (queue->nomatch_frame_id > buf_info->frame_idx)
-            && (buf_info->buf->stream_type == CAM_STREAM_TYPE_METADATA)) {
-        /*Incoming metadata is older than expected*/
-        mm_channel_qbuf(ch_obj, buf_info->buf);
-        return 0;
-    }
-
     /* comp */
     pthread_mutex_lock(&queue->que.lock);
     head = &queue->que.head.list;
@@ -2704,10 +2690,10 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
                 continue;
             } else if ( buf_info->frame_idx == super_buf->frame_idx
                     /*Pick metadata greater than available frameID*/
-                    || ((queue->nomatch_frame_id != 0)
-                    && (queue->nomatch_frame_id <= buf_info->frame_idx)
+                    || ((queue->attr.priority == MM_CAMERA_SUPER_BUF_PRIORITY_LOW)
                     && (super_buf->super_buf[buf_s_idx].frame_idx == 0)
-                    && (buf_info->buf->stream_type == CAM_STREAM_TYPE_METADATA))
+                    && (buf_info->buf->stream_type == CAM_STREAM_TYPE_METADATA)
+                    && (super_buf->frame_idx < buf_info->frame_idx))
                     /*Pick available metadata closest to frameID*/
                     || ((queue->attr.priority == MM_CAMERA_SUPER_BUF_PRIORITY_LOW)
                     && (buf_info->buf->stream_type != CAM_STREAM_TYPE_METADATA)
@@ -2717,7 +2703,6 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
                 metadata frameID greater than avialbale super buffer frameID  OR
                 metadata frame closest to incoming frameID will be bundled*/
                 found_super_buf = 1;
-                queue->nomatch_frame_id = 0;
                 break;
             } else {
                 unmatched_bundles++;
@@ -2891,13 +2876,6 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
                         mm_frame_sync_add(buf_info->frame_idx, ch_obj);
                         pthread_mutex_unlock(&fs_lock);
                     }
-                }
-
-                if ((queue->attr.priority == MM_CAMERA_SUPER_BUF_PRIORITY_LOW)
-                        && (buf_info->buf->stream_type != CAM_STREAM_TYPE_METADATA)) {
-                    LOGD("No metadata matching for frame = %d",
-                             buf_info->frame_idx);
-                    queue->nomatch_frame_id = buf_info->frame_idx;
                 }
             } else {
                 /* No memory */

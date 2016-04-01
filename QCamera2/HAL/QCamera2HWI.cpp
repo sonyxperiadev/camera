@@ -2441,6 +2441,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             if (bufferCnt > CAMERA_ISP_PING_PONG_BUFFERS )
                 bufferCnt -= CAMERA_ISP_PING_PONG_BUFFERS;
 
+            if (mParameters.getRecordingHintValue() == true)
+                bufferCnt += EXTRA_ZSL_PREVIEW_STREAM_BUF;
+
             // Add the display minUndequeCount count on top of camera requirement
             bufferCnt += minUndequeCount;
 
@@ -5345,6 +5348,7 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
             // Find and try to link a metadata stream from preview channel
             QCameraChannel *pMetaChannel = NULL;
             QCameraStream *pMetaStream = NULL;
+            QCameraStream *pPreviewStream = NULL;
 
             if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
                 pMetaChannel = m_channels[QCAMERA_CH_TYPE_PREVIEW];
@@ -5352,10 +5356,12 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
                 QCameraStream *pStream = NULL;
                 for (uint32_t i = 0 ; i < streamNum ; i++ ) {
                     pStream = pMetaChannel->getStreamByIndex(i);
-                    if ((NULL != pStream) &&
-                            (CAM_STREAM_TYPE_METADATA == pStream->getMyType())) {
-                        pMetaStream = pStream;
-                        break;
+                    if (NULL != pStream) {
+                        if (CAM_STREAM_TYPE_METADATA == pStream->getMyType()) {
+                            pMetaStream = pStream;
+                        } else if (CAM_STREAM_TYPE_PREVIEW == pStream->getMyType()) {
+                            pPreviewStream = pStream;
+                        }
                     }
                 }
             }
@@ -5364,6 +5370,12 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
                 rc = pChannel->linkStream(pMetaChannel, pMetaStream);
                 if (NO_ERROR != rc) {
                     LOGE("Metadata stream link failed %d", rc);
+                }
+            }
+            if ((NULL != pMetaChannel) && (NULL != pPreviewStream)) {
+                rc = pChannel->linkStream(pMetaChannel, pPreviewStream);
+                if (NO_ERROR != rc) {
+                    LOGE("Preview stream link failed %d", rc);
                 }
             }
         }
@@ -6862,9 +6874,9 @@ int32_t QCamera2HardwareInterface::addSnapshotChannel()
     mm_camera_channel_attr_t attr;
     memset(&attr, 0, sizeof(mm_camera_channel_attr_t));
     attr.notify_mode = MM_CAMERA_SUPER_BUF_NOTIFY_CONTINUOUS;
-    attr.look_back = mParameters.getZSLBackLookCount();
+    attr.look_back = 0; //wait for future frame for liveshot
     attr.post_frame_skip = mParameters.getZSLBurstInterval();
-    attr.water_mark = mParameters.getZSLQueueDepth();
+    attr.water_mark = 1; //hold min buffers possible in Q
     attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
     attr.priority = MM_CAMERA_SUPER_BUF_PRIORITY_LOW;
     rc = pChannel->init(&attr, snapshot_channel_cb_routine, this);
