@@ -407,6 +407,9 @@ typedef struct mm_jpeg_obj_t {
 
   /* Pointer to the session in progress*/
   mm_jpeg_job_session_t *p_session_inprogress;
+
+  // dummy OMX handle
+  OMX_HANDLETYPE dummy_handle;
 } mm_jpeg_obj;
 
 /** mm_jpeg_pending_func_t:

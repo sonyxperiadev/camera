@@ -6209,6 +6209,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
      * advertised as limited device*/
     limitedDevice = gCamCapability[cameraId]->no_per_frame_control_support ||
             (CAM_SENSOR_YUV == gCamCapability[cameraId]->sensor_type.sens_type) ||
+            (CAM_SENSOR_MONO == gCamCapability[cameraId]->sensor_type.sens_type) ||
             !supportBurst;
 
     uint8_t supportedHwLvl = limitedDevice ?

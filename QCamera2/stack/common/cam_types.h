@@ -1431,7 +1431,8 @@ typedef struct {
 
 typedef enum {
     CAM_SENSOR_RAW,
-    CAM_SENSOR_YUV
+    CAM_SENSOR_YUV,
+    CAM_SENSOR_MONO
 } cam_sensor_t;
 
 typedef struct {
@@ -1850,6 +1851,7 @@ typedef enum {
     CAM_INTF_PARM_TONE_MAP_MODE,
     CAM_INTF_PARM_CAPTURE_FRAME_CONFIG, /* 90 */
     CAM_INTF_PARM_DUAL_LED_CALIBRATION,
+    CAM_INTF_PARM_ADV_CAPTURE_MODE,
 
     /* stream based parameters */
     CAM_INTF_PARM_DO_REPROCESS,
@@ -2113,6 +2115,9 @@ typedef enum {
     CAM_INTF_META_TOUCH_AE_RESULT,
     /* Param for updating initial exposure index value*/
     CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX,
+    /* Gain applied post raw captrue.
+       ISP digital gain */
+    CAM_INTF_META_ISP_SENSITIVITY,
     /* Param for enabling instant aec*/
     CAM_INTF_PARM_INSTANT_AEC,
     CAM_INTF_PARM_MAX

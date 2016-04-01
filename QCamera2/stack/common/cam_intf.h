@@ -327,6 +327,9 @@ typedef struct{
     cam_sensitivity_range_t sensitivity_range;
     int32_t max_analog_sensitivity;
 
+    /* ISP digital gain */
+    cam_sensitivity_range_t isp_sensitivity_range;
+
     /* picture sizes need scale*/
     cam_scene_mode_overrides_t scene_mode_overrides[CAM_SCENE_MODE_MAX];
     size_t scale_picture_sizes_cnt;
@@ -814,6 +817,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_SENSOR_EXPOSURE_TIME,         int64_t,                     1);
     INCLUDE(CAM_INTF_META_SENSOR_FRAME_DURATION,        int64_t,                     1);
     INCLUDE(CAM_INTF_META_SENSOR_SENSITIVITY,           int32_t,                     1);
+    INCLUDE(CAM_INTF_META_ISP_SENSITIVITY ,             int32_t,                     1);
     INCLUDE(CAM_INTF_META_SENSOR_TIMESTAMP,             int64_t,                     1);
     INCLUDE(CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW,  int64_t,                     1);
     INCLUDE(CAM_INTF_META_SHADING_MODE,                 uint32_t,                    1);
@@ -910,7 +914,8 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_LONGSHOT_ENABLE,              int8_t,                      1);
     INCLUDE(CAM_INTF_PARM_TONE_MAP_MODE,                uint32_t,                    1);
     INCLUDE(CAM_INTF_META_TOUCH_AE_RESULT,              int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_DUAL_LED_CALIBRATION,         int32_t,                    1);
+    INCLUDE(CAM_INTF_PARM_DUAL_LED_CALIBRATION,         int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_ADV_CAPTURE_MODE,             uint8_t,                     1);
 
     /* HAL3 specific */
     INCLUDE(CAM_INTF_META_STREAM_INFO,                  cam_stream_size_info_t,      1);

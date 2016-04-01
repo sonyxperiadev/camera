@@ -560,14 +560,14 @@ int tunning_server_socket_listen(const char* ip_addr, uint16_t port)
   server_addr.addr_in.sin_addr.s_addr = inet_addr(ip_addr);
 
   if (server_addr.addr_in.sin_addr.s_addr == INADDR_NONE) {
-    LOGE("[ERR] %s invalid address.\n");
+    LOGE(" invalid address.\n");
     return -1;
   }
 
   /* Create an AF_INET stream socket to receive incoming connection ON */
   sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_fd < 0) {
-    LOGE("[ERR] %s socket failed\n");
+    LOGE(" socket failed\n");
     return sock_fd;
   }
 
@@ -603,7 +603,7 @@ int tunning_server_socket_listen(const char* ip_addr, uint16_t port)
     return sock_fd;
   }
 
-  LOGH("%s. sock_fd: %d, listen at port: %d\n",  sock_fd, port);
+  LOGH("sock_fd: %d, listen at port: %d\n",  sock_fd, port);
 
   return sock_fd;
 }
@@ -660,7 +660,7 @@ void *eztune_proc(void *data)
     /* no timeout */
     result = select(num_fds + 1, &tsfds, NULL, NULL, NULL);
     if (result < 0) {
-      LOGE("[ERR] select failed: %s\n", strerror(errno));
+      LOGE("select failed: %s\n", strerror(errno));
       continue;
     }
 

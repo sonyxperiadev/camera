@@ -5128,6 +5128,8 @@ int32_t QCameraParameters::updateParameters(const String8& p,
         final_rc = rc;
     }
 #endif
+
+    if ((rc = setAdvancedCaptureMode()))                final_rc = rc;
 UPDATE_PARAM_DONE:
     needRestart = m_bNeedRestart;
     return final_rc;
@@ -14210,6 +14212,29 @@ int32_t QCameraParameters::setInstantAEC(uint8_t value, bool initCommit)
     LOGD(" Instant AEC value set to backend %d", value);
     m_bInstantAEC = value;
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setAdvancedCaptureMode
+ *
+ * DESCRIPTION: set advanced capture mode
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setAdvancedCaptureMode()
+{
+    uint8_t value = isAdvCamFeaturesEnabled();
+    LOGD("updating advanced capture mode value to %d",value);
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+            CAM_INTF_PARM_ADV_CAPTURE_MODE, value)) {
+        LOGE("Failed to set advanced capture mode param");
+        return BAD_VALUE;
+    }
+    return NO_ERROR;
 }
 
 }; // namespace qcamera
