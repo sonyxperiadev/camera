@@ -79,6 +79,27 @@ mm_jpeg_job_q_node_t* mm_jpeg_queue_remove_job_by_dst_ptr(
   mm_jpeg_queue_t* queue, void * dst_ptr);
 static OMX_ERRORTYPE mm_jpeg_session_configure(mm_jpeg_job_session_t *p_session);
 
+/** mm_jpeg_get_comp_name:
+ *
+ *  Arguments:
+ *       None
+ *
+ *  Return:
+ *       Encoder component name
+ *
+ *  Description:
+ *       Get the name of omx component to be used for jpeg encoding
+ *
+ **/
+inline char* mm_jpeg_get_comp_name()
+{
+#ifdef MM_JPEG_USE_PIPELINE
+  return "OMX.qcom.image.jpeg.encoder_pipeline";
+#else
+  return "OMX.qcom.image.jpeg.encoder";
+#endif
+}
+
 /** mm_jpeg_session_send_buffers:
  *
  *  Arguments:
@@ -277,7 +298,6 @@ OMX_ERRORTYPE mm_jpeg_session_create(mm_jpeg_job_session_t* p_session)
 {
   OMX_ERRORTYPE rc = OMX_ErrorNone;
   mm_jpeg_obj *my_obj = (mm_jpeg_obj *) p_session->jpeg_obj;
-  char *omx_lib = "OMX.qcom.image.jpeg.encoder";
 
   pthread_mutex_init(&p_session->lock, NULL);
   pthread_cond_init(&p_session->cond, NULL);
@@ -299,11 +319,10 @@ OMX_ERRORTYPE mm_jpeg_session_create(mm_jpeg_job_session_t* p_session)
   p_session->thumb_from_main = 0;
 #ifdef MM_JPEG_USE_PIPELINE
   p_session->thumb_from_main = !p_session->params.thumb_from_postview;
-  omx_lib = "OMX.qcom.image.jpeg.encoder_pipeline";
 #endif
 
   rc = OMX_GetHandle(&p_session->omx_handle,
-      omx_lib,
+      mm_jpeg_get_comp_name(),
       (void *)p_session,
       &p_session->omx_callbacks);
   if (OMX_ErrorNone != rc) {
@@ -2182,6 +2201,9 @@ int32_t mm_jpeg_init(mm_jpeg_obj *my_obj)
   }
 #endif
 
+  // create dummy OMX handle to avoid dlopen latency
+  OMX_GetHandle(&my_obj->dummy_handle, mm_jpeg_get_comp_name(), NULL, NULL);
+
   return rc;
 }
 
@@ -2206,6 +2228,10 @@ int32_t mm_jpeg_deinit(mm_jpeg_obj *my_obj)
   rc = mm_jpeg_jobmgr_thread_release(my_obj);
   if (0 != rc) {
     LOGE("Error");
+  }
+
+  if (my_obj->dummy_handle) {
+    OMX_FreeHandle(my_obj->dummy_handle);
   }
 
   /* unload OMX engine */
