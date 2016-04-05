@@ -217,6 +217,7 @@ public:
     static int pre_take_picture(struct camera_device *);
     static int take_picture(struct camera_device *);
     int takeLiveSnapshot_internal();
+    int cancelLiveSnapshot_internal();
     int takeBackendPic_internal(bool *JpegMemOpt, char *raw_format);
     void clearIntPendingEvents();
     void checkIntPicPending(bool JpegMemOpt, char *raw_format);
@@ -299,6 +300,7 @@ public:
     int32_t getJpegHandleInfo(mm_jpeg_ops_t *ops,
             mm_jpeg_mpo_ops_t *mpo_ops, uint32_t *pJpegClientHandle);
     uint32_t getCameraId() { return mCameraId; };
+    bool bLiveSnapshot;
 private:
     int setPreviewWindow(struct preview_stream_ops *window);
     int setCallBacks(
@@ -748,7 +750,6 @@ private:
     mm_jpeg_mpo_ops_t     mJpegMpoHandle;
     uint32_t              mJpegClientHandle;
     bool                  mJpegHandleOwner;
-
    //ts add for makeup
 #ifdef TARGET_TS_MAKEUP
     TSRect mFaceRect;

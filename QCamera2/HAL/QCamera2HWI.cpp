@@ -4974,7 +4974,11 @@ void* Live_Snapshot_thread (void* data)
         LOGE("take_picture_thread: NULL camera device");
         return (void *)BAD_VALUE;
     }
-    hw->takeLiveSnapshot_internal();
+    if (hw->bLiveSnapshot) {
+        hw->takeLiveSnapshot_internal();
+    } else {
+        hw->cancelLiveSnapshot_internal();
+    }
     return (void* )NULL;
 }
 
@@ -5028,6 +5032,11 @@ void* Int_Pic_thread (void* data)
 int QCamera2HardwareInterface::takeLiveSnapshot()
 {
     int rc = NO_ERROR;
+    if (mLiveSnapshotThread != 0) {
+        pthread_join(mLiveSnapshotThread,NULL);
+        mLiveSnapshotThread = 0;
+    }
+    bLiveSnapshot = true;
     rc= pthread_create(&mLiveSnapshotThread, NULL, Live_Snapshot_thread, (void *) this);
     if (!rc) {
         pthread_setname_np(mLiveSnapshotThread, "CAM_liveSnap");
@@ -5441,6 +5450,31 @@ end:
 int QCamera2HardwareInterface::cancelLiveSnapshot()
 {
     int rc = NO_ERROR;
+    if (mLiveSnapshotThread != 0) {
+        pthread_join(mLiveSnapshotThread,NULL);
+        mLiveSnapshotThread = 0;
+    }
+    bLiveSnapshot = false;
+    rc= pthread_create(&mLiveSnapshotThread, NULL, Live_Snapshot_thread, (void *) this);
+    if (!rc) {
+        pthread_setname_np(mLiveSnapshotThread, "CAM_cancel_liveSnap");
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : cancelLiveSnapshot_internal
+ *
+ * DESCRIPTION: cancel live snapshot during recording
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera2HardwareInterface::cancelLiveSnapshot_internal() {
+    int rc = NO_ERROR;
 
     unconfigureAdvancedCapture();
     LOGH("Enable display frames again");
@@ -5448,11 +5482,6 @@ int QCamera2HardwareInterface::cancelLiveSnapshot()
 
     if (!mLongshotEnabled) {
         m_perfLock.lock_rel();
-    }
-
-    if (mLiveSnapshotThread != 0) {
-        pthread_join(mLiveSnapshotThread,NULL);
-        mLiveSnapshotThread = 0;
     }
 
     //stop post processor
