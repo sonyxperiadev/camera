@@ -493,12 +493,12 @@ static const char* portrait = "portrait";
 static const char* landscape = "landscape";
 
 const cam_dimension_t QCameraParameters::THUMBNAIL_SIZES_MAP[] = {
-    { 512, 288 }, //1.777778
-    { 480, 288 }, //1.666667
     { 256, 154 }, //1.66233
-    { 432, 288 }, //1.5
+    { 240, 160 }, //1.5
     { 320, 320 }, //1.0
     { 320, 240 }, //1.33333
+    { 256, 144 }, //1.777778
+    { 240, 144 }, //1.666667
     { 176, 144 }, //1.222222
     /*Thumbnail sizes to match portrait picture size aspect ratio*/
     { 240, 320 }, //to match 480X640 & 240X320 picture size
