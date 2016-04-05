@@ -4923,13 +4923,13 @@ int32_t QCameraParameters::setLongshotParam(const QCameraParameters& params)
     if (str != NULL) {
         if (prev_str == NULL || strcmp(str, prev_str) != 0) {
             set(KEY_QC_LONG_SHOT, str);
-            if (!strcmp(str, "off")) {
-                if (m_bLongshotEnabled == true) {
-                    // We restart here, to reset the FPS and no
-                    // of buffers as per the requirement of single snapshot usecase.
-                    m_bNeedRestart = true;
-                }
-                m_bLongshotEnabled = false;
+            if (prev_str && !strcmp(str, "off") && !strcmp(prev_str, "on")) {
+                // We restart here, to reset the FPS and no
+                // of buffers as per the requirement of single snapshot usecase.
+                // Here restart happens when continuous shot is changed to off from on.
+                // In case of continuous shot on, restart is taken care when actual
+                // longshot command is triggered through sendCommand.
+                m_bNeedRestart = true;
             }
         }
     }
@@ -7216,7 +7216,7 @@ int32_t QCameraParameters::setLongshotEnable(bool enable)
         return rc;
     }
 
-    if (enable == true) m_bLongshotEnabled = enable;
+    m_bLongshotEnabled = enable;
 
     return rc;
 }
