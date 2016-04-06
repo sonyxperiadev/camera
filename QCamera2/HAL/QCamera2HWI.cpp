@@ -768,6 +768,10 @@ void QCamera2HardwareInterface::release_recording_frame(
         return;
     }
     LOGD("E camera id %d", hw->getCameraId());
+
+    //Close and delete duplicated native handle and FD's.
+    QCameraVideoMemory::closeNativeHandle(opaque, hw->mStoreMetaDataInFrame > 0);
+
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_RELEASE_RECORIDNG_FRAME, (void *)opaque);
@@ -3744,8 +3748,9 @@ int QCamera2HardwareInterface::releaseRecordingFrame(const void * opaque)
 {
     int32_t rc = UNKNOWN_ERROR;
     QCameraVideoChannel *pChannel =
-        (QCameraVideoChannel *)m_channels[QCAMERA_CH_TYPE_VIDEO];
+            (QCameraVideoChannel *)m_channels[QCAMERA_CH_TYPE_VIDEO];
     LOGD("opaque data = %p",opaque);
+
     if(pChannel != NULL) {
         rc = pChannel->releaseFrame(opaque, mStoreMetaDataInFrame > 0);
     }

@@ -37,9 +37,6 @@
 #include STAT_H
 #include <utils/Errors.h>
 
-// OpenMAX dependencies
-#include "QComOMXMetadata.h"
-
 // Camera dependencies
 #include "QCamera2HWI.h"
 #include "QCameraTrace.h"
@@ -1386,7 +1383,7 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                                                         void *userdata)
 {
     ATRACE_CALL();
-    QCameraMemory *videoMemObj = NULL;
+    QCameraVideoMemory *videoMemObj = NULL;
     camera_memory_t *video_mem = NULL;
     nsecs_t timeStamp = 0;
     bool triggerTCB = FALSE;
@@ -1423,11 +1420,12 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
             LOGD("Video frame to encoder TimeStamp : %lld batch = 0",
                     timeStamp);
             pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_VIDEO);
-            videoMemObj = (QCameraMemory *)frame->mem_info;
+            videoMemObj = (QCameraVideoMemory *)frame->mem_info;
             video_mem = NULL;
             if (NULL != videoMemObj) {
                 video_mem = videoMemObj->getMemory(frame->buf_idx,
                         (pme->mStoreMetaDataInFrame > 0)? true : false);
+                videoMemObj->updateNativeHandle(frame->buf_idx);
                 triggerTCB = TRUE;
             }
         } else {
@@ -1449,7 +1447,8 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                 }
             }
             video_mem = stream->mCurMetaMemory;
-            if (video_mem == NULL) {
+            nh = videoMemObj->updateNativeHandle(stream->mCurMetaIndex);
+            if (video_mem == NULL || nh == NULL) {
                 LOGE("No Free metadata. Drop this frame");
                 stream->mCurBufIndex = -1;
                 stream->bufDone(frame->buf_idx);
@@ -1457,9 +1456,6 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                 return;
             }
 
-            struct encoder_media_buffer_type * packet =
-                    (struct encoder_media_buffer_type *)video_mem->data;
-            nh = const_cast<native_handle_t *>(packet->meta_handle);
             int index = stream->mCurBufIndex;
             int fd_cnt = pme->mParameters.getVideoBatchSize();
             nsecs_t frame_ts = nsecs_t(frame->ts.tv_sec) * 1000000000LL
@@ -1499,19 +1495,13 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
             }
         }
     } else {
-        videoMemObj = (QCameraMemory *)frame->mem_info;
+        videoMemObj = (QCameraVideoMemory *)frame->mem_info;
         video_mem = NULL;
         native_handle_t *nh = NULL;
         int fd_cnt = frame->user_buf.bufs_used;
         if (NULL != videoMemObj) {
             video_mem = videoMemObj->getMemory(frame->buf_idx, true);
-            if (video_mem != NULL) {
-                struct encoder_media_buffer_type * packet =
-                        (struct encoder_media_buffer_type *)video_mem->data;
-                nh = const_cast<native_handle_t *>(packet->meta_handle);
-            } else {
-                LOGE("video_mem NULL");
-            }
+            nh = videoMemObj->updateNativeHandle(frame->buf_idx);
         } else {
             LOGE("videoMemObj NULL");
         }
