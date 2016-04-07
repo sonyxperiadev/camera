@@ -36,6 +36,9 @@
 
 namespace qcamera {
 
+#define ALIGN(a, b) (((a) + (b)) & ~(b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 class QCameraCommon {
 public:
     QCameraCommon();
@@ -46,6 +49,7 @@ public:
     int32_t getAnalysisInfo(
         bool fdVideoEnabled, bool hal3, cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo);
+    static uint32_t calculateLCM(int32_t num1, int32_t num2);
 
 private:
     cam_capability_t *m_pCapability;

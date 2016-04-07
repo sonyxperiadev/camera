@@ -2660,6 +2660,7 @@ typedef enum {
 typedef enum {
     CAM_ANALYSIS_INFO_FD_STILL,   /*Analysis requirements for STILL PREVIEW*/
     CAM_ANALYSIS_INFO_FD_VIDEO,   /*Analysis requirements for VIDEO*/
+    CAM_ANALYSIS_INFO_PAAF,       /*Analysis requirements for PAAF*/
     CAM_ANALYSIS_INFO_MAX,     /*Max number*/
 } cam_analysis_info_type;
 
