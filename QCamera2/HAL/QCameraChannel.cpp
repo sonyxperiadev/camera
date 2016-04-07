@@ -296,6 +296,10 @@ int32_t QCameraChannel::start()
 {
     int32_t rc = NO_ERROR;
 
+    if(m_bIsActive) {
+        LOGW("Attempt to start active channel");
+        return rc;
+    }
     if (mStreams.size() > 1) {
         // there is more than one stream in the channel
         // we need to notify mctl that all streams in this channel need to be bundled

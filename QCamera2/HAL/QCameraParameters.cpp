@@ -899,6 +899,7 @@ QCameraParameters::QCameraParameters()
       m_pParamBuf(NULL),
       m_pRelCamSyncHeap(NULL),
       m_pRelCamSyncBuf(NULL),
+      m_bFrameSyncEnabled(false),
       mIsType(IS_TYPE_NONE),
       m_bZslMode(false),
       m_bZslMode_new(false),
@@ -1033,6 +1034,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_pParamBuf(NULL),
     m_pRelCamSyncHeap(NULL),
     m_pRelCamSyncBuf(NULL),
+    m_bFrameSyncEnabled(false),
     m_bZslMode(false),
     m_bZslMode_new(false),
     m_bForceZslMode(false),
@@ -4740,7 +4742,7 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.backlookcnt", prop, "2");
         uint32_t look_back_cnt = atoi(prop);
-        if (m_relCamSyncInfo.is_frame_sync_enabled) {
+        if (m_bFrameSyncEnabled) {
             look_back_cnt += EXTRA_FRAME_SYNC_BUFFERS;
         }
         set(KEY_QC_ZSL_BURST_LOOKBACK, look_back_cnt);
@@ -4754,7 +4756,7 @@ int32_t QCameraParameters::setZslAttributes(const QCameraParameters& params)
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.zsl.queuedepth", prop, "2");
         uint32_t queue_depth = atoi(prop);
-        if (m_relCamSyncInfo.is_frame_sync_enabled) {
+        if (m_bFrameSyncEnabled) {
             queue_depth += EXTRA_FRAME_SYNC_BUFFERS;
         }
         set(KEY_QC_ZSL_QUEUE_DEPTH, queue_depth);
@@ -11786,6 +11788,38 @@ const cam_sync_related_sensors_event_info_t*
         QCameraParameters::getRelatedCamSyncInfo(void)
 {
     return &m_relCamSyncInfo;
+}
+
+/*===========================================================================
+ * FUNCTION   : setFrameSyncEnabled
+ *
+ * DESCRIPTION: sets whether frame sync is enabled
+ *
+ * PARAMETERS :
+ *   @enable  : flag whether to enable or disable frame sync
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setFrameSyncEnabled(bool enable)
+{
+    m_bFrameSyncEnabled = enable;
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : isFrameSyncEnabled
+ *
+ * DESCRIPTION: returns whether frame sync is enabled
+ *
+ * PARAMETERS :none
+ *
+ * RETURN     : bool indicating whether frame sync is enabled
+ *==========================================================================*/
+bool QCameraParameters::isFrameSyncEnabled(void)
+{
+    return m_bFrameSyncEnabled;
 }
 
 /*===========================================================================

@@ -2024,6 +2024,37 @@ int QCamera2HardwareInterface::getCameraSessionId(uint32_t* session_id)
 }
 
 /*===========================================================================
+ * FUNCTION   : isFrameSyncEnabled
+ *
+ * DESCRIPTION: returns whether frame sync is enabled
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : bool indicating whether frame sync is enabled
+ *==========================================================================*/
+bool QCamera2HardwareInterface::isFrameSyncEnabled(void)
+{
+    return mParameters.isFrameSyncEnabled();
+}
+
+/*===========================================================================
+ * FUNCTION   : setFrameSyncEnabled
+ *
+ * DESCRIPTION: sets whether frame sync is enabled
+ *
+ * PARAMETERS :
+ *   @enable  : flag whether to enable or disable frame sync
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::setFrameSyncEnabled(bool enable)
+{
+    return mParameters.setFrameSyncEnabled(enable);
+}
+
+/*===========================================================================
  * FUNCTION   : getRelatedCamSyncInfo
  *
  * DESCRIPTION:returns the related cam sync info for this HWI instance
@@ -3289,7 +3320,10 @@ int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
               Preview callback  in UBWC case*/
         if (!(msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
                 (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
-            if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
+            // Start callback channel only when preview channel is active
+            if ((m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) &&
+                    (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) &&
+                    (m_channels[QCAMERA_CH_TYPE_PREVIEW]->isActive())){
                 rc = startChannel(QCAMERA_CH_TYPE_CALLBACK);
                 if (rc != NO_ERROR) {
                     LOGE("START Callback Channel failed");
@@ -3322,7 +3356,9 @@ int QCamera2HardwareInterface::disableMsgType(int32_t msg_type)
         /*STOP CALLBACK STREAM*/
         if ((msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
                 (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
-            if (m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) {
+            // Stop callback channel only if it is active
+            if ((m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) &&
+                   (m_channels[QCAMERA_CH_TYPE_CALLBACK]->isActive())) {
                 rc = stopChannel(QCAMERA_CH_TYPE_CALLBACK);
                 if (rc != NO_ERROR) {
                     LOGE("STOP Callback Channel failed");
@@ -3439,8 +3475,10 @@ int QCamera2HardwareInterface::startPreview()
     m_perfLock.lock_rel();
 
     if (rc == NO_ERROR) {
-        // Set power Hint for preview
-        m_perfLock.powerHint(POWER_HINT_CAM_PREVIEW, true);
+        if (!mParameters.isSeeMoreEnabled()) {
+            // Set power Hint for preview
+            m_perfLock.powerHint(POWER_HINT_CAM_PREVIEW, true);
+        }
     }
 
     LOGI("X rc = %d", rc);
@@ -3640,8 +3678,10 @@ int QCamera2HardwareInterface::startRecording()
     }
 
     if (rc == NO_ERROR) {
-        // Set power Hint for video encoding
-        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
+        if (!mParameters.isSeeMoreEnabled()) {
+            // Set power Hint for video encoding
+            m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
+        }
     }
 
     LOGI("X rc = %d", rc);
@@ -4500,7 +4540,7 @@ int QCamera2HardwareInterface::takePicture()
             if ((!mParameters.isAdvCamFeaturesEnabled() &&
                     !mFlashNeeded &&
                     !isLongshotEnabled() &&
-                    getRelatedCamSyncInfo()->is_frame_sync_enabled) &&
+                    isFrameSyncEnabled()) &&
                     (getRelatedCamSyncInfo()->sync_control ==
                     CAM_SYNC_RELATED_SENSORS_ON)) {
                 if (getRelatedCamSyncInfo()->mode == CAM_MODE_PRIMARY) {
@@ -7034,7 +7074,7 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
         mParameters.isInstantCaptureEnabled() ? (uint8_t)mParameters.getAecFrameBoundValue() : 0;
 
     //Enabled matched queue
-    if (getRelatedCamSyncInfo()->is_frame_sync_enabled) {
+    if (isFrameSyncEnabled()) {
         LOGH("Enabling frame sync for dual camera, camera Id: %d",
                  mCameraId);
         attr.enable_frame_sync = 1;
@@ -8017,7 +8057,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
         }
     }
 
-    LOGI("E rc = %d", rc);
+    LOGI("X rc = %d", rc);
     return rc;
 }
 

@@ -1293,6 +1293,21 @@ const cam_sync_related_sensors_event_info_t*
     return mImpl->getRelatedCamSyncInfo();
 }
 
+int32_t QCameraParametersIntf::setFrameSyncEnabled(
+	bool enable)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setFrameSyncEnabled(enable);
+}
+
+bool QCameraParametersIntf::isFrameSyncEnabled(void)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isFrameSyncEnabled();
+}
+
 int32_t QCameraParametersIntf::getRelatedCamCalibration(
 	cam_related_system_calibration_data_t* calib)
 {

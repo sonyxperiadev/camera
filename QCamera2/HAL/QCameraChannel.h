@@ -73,7 +73,7 @@ public:
     void deleteChannel();
     int32_t setStreamSyncCB (cam_stream_type_t stream_type,
             stream_cb_routine stream_cb);
-
+    bool isActive() { return m_bIsActive; }
 protected:
     uint32_t m_camHandle;
     mm_camera_ops_t *m_camOps;
