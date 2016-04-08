@@ -2459,9 +2459,11 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
                     jpg_job.encode_job.cam_exif_params.debug_params->asd_debug_params_valid;
             jpg_job.encode_job.p_metadata->is_statsdebug_stats_params_valid =
                     jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_bhist_params_valid=
+            jpg_job.encode_job.p_metadata->is_statsdebug_bestats_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params_valid;
+            jpg_job.encode_job.p_metadata->is_statsdebug_bhist_params_valid =
                     jpg_job.encode_job.cam_exif_params.debug_params->bhist_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_3a_tuning_params_valid=
+            jpg_job.encode_job.p_metadata->is_statsdebug_3a_tuning_params_valid =
                     jpg_job.encode_job.cam_exif_params.debug_params->q3a_tuning_debug_params_valid;
 
             if (jpg_job.encode_job.cam_exif_params.debug_params->ae_debug_params_valid) {
@@ -2483,6 +2485,10 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             if (jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params_valid) {
                 jpg_job.encode_job.p_metadata->statsdebug_stats_buffer_data =
                         jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params;
+            }
+            if (jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_bestats_buffer_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params;
             }
             if (jpg_job.encode_job.cam_exif_params.debug_params->bhist_debug_params_valid) {
                 jpg_job.encode_job.p_metadata->statsdebug_bhist_data =

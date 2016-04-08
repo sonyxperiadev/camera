@@ -820,9 +820,10 @@ typedef struct {
     INCLUDE(CAM_INTF_META_EXIF_DEBUG_AWB,               cam_awb_exif_debug_t,        1);
     INCLUDE(CAM_INTF_META_EXIF_DEBUG_AF,                cam_af_exif_debug_t,         1);
     INCLUDE(CAM_INTF_META_EXIF_DEBUG_ASD,               cam_asd_exif_debug_t,        1);
-    INCLUDE(CAM_INTF_META_EXIF_DEBUG_STATS,             cam_stats_buffer_exif_debug_t, 1);
-    INCLUDE(CAM_INTF_META_EXIF_DEBUG_BHIST,             cam_bhist_buffer_exif_debug_t, 1);
-    INCLUDE(CAM_INTF_META_EXIF_DEBUG_3A_TUNING,         cam_q3a_tuning_info_t, 1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_STATS,             cam_stats_buffer_exif_debug_t,   1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_BESTATS,           cam_bestats_buffer_exif_debug_t, 1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_BHIST,             cam_bhist_buffer_exif_debug_t,   1);
+    INCLUDE(CAM_INTF_META_EXIF_DEBUG_3A_TUNING,         cam_q3a_tuning_info_t,       1);
     INCLUDE(CAM_INTF_META_ASD_SCENE_CAPTURE_TYPE,       cam_auto_scene_t,            1);
     INCLUDE(CAM_INTF_PARM_EFFECT,                       uint32_t,                    1);
     /* Defining as int32_t so that this array is 4 byte aligned */
@@ -993,6 +994,9 @@ typedef struct {
     uint8_t is_statsdebug_stats_params_valid;
     cam_stats_buffer_exif_debug_t statsdebug_stats_buffer_data;
 
+    uint8_t is_statsdebug_bestats_params_valid;
+    cam_bestats_buffer_exif_debug_t statsdebug_bestats_buffer_data;
+
     uint8_t is_statsdebug_bhist_params_valid;
     cam_bhist_buffer_exif_debug_t statsdebug_bhist_data;
 
@@ -1020,6 +1024,7 @@ static inline void clear_metadata_buffer(metadata_buffer_t *meta)
       meta->is_statsdebug_af_params_valid = 0;
       meta->is_statsdebug_asd_params_valid = 0;
       meta->is_statsdebug_stats_params_valid = 0;
+      meta->is_statsdebug_bestats_params_valid = 0;
       meta->is_statsdebug_bhist_params_valid = 0;
       meta->is_statsdebug_3a_tuning_params_valid = 0;
     }
