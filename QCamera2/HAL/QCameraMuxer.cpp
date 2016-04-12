@@ -40,6 +40,7 @@
 // Camera dependencies
 #include "QCameraMuxer.h"
 #include "QCamera2HWI.h"
+#include "QCamera3HWI.h"
 
 extern "C" {
 #include "mm_camera_dbg.h"
@@ -1925,7 +1926,10 @@ int QCameraMuxer::getCameraInfo(int camera_id,
     uint32_t phy_id =
             m_pLogicalCamera[camera_id].pId[
             m_pLogicalCamera[camera_id].nPrimaryPhyCamIndex];
-    rc = QCamera2HardwareInterface::getCapabilities(phy_id, info, &cam_type);
+    // Call HAL3 getCamInfo to get the flash light info through static metatdata
+    // regardless of HAL version
+    rc = QCamera3HardwareInterface::getCamInfo(phy_id, info);
+    info->device_version = CAMERA_DEVICE_API_VERSION_1_0; // Hardcode the HAL to HAL1
     LOGH("X");
     return rc;
 }

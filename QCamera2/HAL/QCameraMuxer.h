@@ -31,6 +31,7 @@
 
 #include "camera.h"
 #include "QCamera2HWI.h"
+#include "QCamera3HWI.h"
 
 namespace qcamera {
 

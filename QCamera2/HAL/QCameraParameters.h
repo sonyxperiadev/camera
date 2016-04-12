@@ -1145,6 +1145,7 @@ private:
     cam_dimension_t m_rawSize; // live snapshot size
     cam_dimension_t m_maxPicSize;
     bool m_bHDREnabled;             // if HDR is enabled
+    bool m_bLocalHDREnabled;   // This flag tells whether HDR enabled or not regarless of APP mode
     bool m_bAVTimerEnabled;    //if AVTimer is enabled
     bool m_bDISEnabled;
     bool m_bOISEnabled;
