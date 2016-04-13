@@ -1327,12 +1327,12 @@ String8 QCameraParameters::createHfrSizesString(const cam_hfr_info_t *values, si
 
     if (len > 0) {
         snprintf(buffer, sizeof(buffer), "%dx%d",
-                 values[0].dim.width, values[0].dim.height);
+                 values[0].dim[0].width, values[0].dim[0].height);
         str.append(buffer);
     }
     for (size_t i = 1; i < len; i++) {
         snprintf(buffer, sizeof(buffer), ",%dx%d",
-                 values[i].dim.width, values[i].dim.height);
+                 values[i].dim[0].width, values[i].dim[0].height);
         str.append(buffer);
     }
     return str;
@@ -5667,7 +5667,7 @@ int32_t QCameraParameters::initDefaultParameters()
             m_pCapability->hfr_tbl,
             m_pCapability->hfr_tbl_cnt);
     set(KEY_QC_SUPPORTED_HFR_SIZES, hfrSizeValues.string());
-    LOGD("HFR values %s HFR Sizes = %d", hfrValues.string(), hfrSizeValues.string());
+    LOGD("HFR values = %s HFR Sizes = %s", hfrValues.string(), hfrSizeValues.string());
     setHighFrameRate(CAM_HFR_MODE_OFF);
 
     // Set Focus algorithms

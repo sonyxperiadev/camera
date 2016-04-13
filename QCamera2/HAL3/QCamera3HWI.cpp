@@ -6551,29 +6551,32 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         /* Advertise only MIN_FPS_FOR_BATCH_MODE or above as HIGH_SPEED_CONFIGS */
         if (fps >= MIN_FPS_FOR_BATCH_MODE) {
             /* For each HFR frame rate, need to advertise one variable fps range
-             * and one fixed fps range. Eg: for 120 FPS, advertise [30, 120] and
-             * [120, 120]. While camcorder preview alone is running [30, 120] is
+             * and one fixed fps range per dimension. Eg: for 120 FPS, advertise [30, 120]
+             * and [120, 120]. While camcorder preview alone is running [30, 120] is
              * set by the app. When video recording is started, [120, 120] is
              * set. This way sensor configuration does not change when recording
              * is started */
 
             /* (width, height, fps_min, fps_max, batch_size_max) */
-            available_hfr_configs.add(
-                    gCamCapability[cameraId]->hfr_tbl[i].dim.width);
-            available_hfr_configs.add(
-                    gCamCapability[cameraId]->hfr_tbl[i].dim.height);
-            available_hfr_configs.add(PREVIEW_FPS_FOR_HFR);
-            available_hfr_configs.add(fps);
-            available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
+            for (size_t j = 0; j < gCamCapability[cameraId]->hfr_tbl[i].dim_cnt &&
+                j < MAX_SIZES_CNT; j++) {
+                available_hfr_configs.add(
+                        gCamCapability[cameraId]->hfr_tbl[i].dim[j].width);
+                available_hfr_configs.add(
+                        gCamCapability[cameraId]->hfr_tbl[i].dim[j].height);
+                available_hfr_configs.add(PREVIEW_FPS_FOR_HFR);
+                available_hfr_configs.add(fps);
+                available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
 
-            /* (width, height, fps_min, fps_max, batch_size_max) */
-            available_hfr_configs.add(
-                    gCamCapability[cameraId]->hfr_tbl[i].dim.width);
-            available_hfr_configs.add(
-                    gCamCapability[cameraId]->hfr_tbl[i].dim.height);
-            available_hfr_configs.add(fps);
-            available_hfr_configs.add(fps);
-            available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
+                /* (width, height, fps_min, fps_max, batch_size_max) */
+                available_hfr_configs.add(
+                        gCamCapability[cameraId]->hfr_tbl[i].dim[j].width);
+                available_hfr_configs.add(
+                        gCamCapability[cameraId]->hfr_tbl[i].dim[j].height);
+                available_hfr_configs.add(fps);
+                available_hfr_configs.add(fps);
+                available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
+            }
        }
     }
     //Advertise HFR capability only if the property is set
