@@ -3757,8 +3757,6 @@ int QCamera2HardwareInterface::autoFocus()
     cam_focus_mode_type focusMode = mParameters.getFocusMode();
     LOGH("E");
 
-    m_currentFocusState = CAM_AF_STATE_INACTIVE;
-
     switch (focusMode) {
     case CAM_FOCUS_MODE_AUTO:
     case CAM_FOCUS_MODE_MACRO:
