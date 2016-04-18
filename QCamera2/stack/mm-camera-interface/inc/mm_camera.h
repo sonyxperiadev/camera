@@ -361,6 +361,8 @@ typedef struct {
     uint8_t matched;
     uint8_t expected_frame;
     uint32_t frame_idx;
+    /* unmatched meta idx needed in case of low priority queue */
+    uint32_t unmatched_meta_idx;
 } mm_channel_queue_node_t;
 
 typedef struct {
