@@ -239,6 +239,7 @@ private:
     int32_t m_bufCountPPQ;
     Vector<mm_camera_buf_def_t *> m_InputMetadata; // store input metadata buffers for AOST cases
     size_t m_PPindex;                   // counter for each incoming AOST buffer
+    pthread_mutex_t m_reprocess_lock;   // lock to ensure reprocess job is not freed early.
 
 public:
     cam_dimension_t m_dst_dim;
