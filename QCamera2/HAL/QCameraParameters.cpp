@@ -14097,13 +14097,6 @@ uint8_t QCameraParameters::fdModeInVideo()
     char value[PROPERTY_VALUE_MAX];
     uint8_t fdvideo = 0;
 
-    cam_analysis_info_t *pAnalysisInfo =
-            &m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_VIDEO];
-
-    if (!pAnalysisInfo->hw_analysis_supported) {
-        return 0;
-    }
-
     property_get("persist.camera.fdvideo", value, "0");
     fdvideo = (atoi(value) > 0) ? atoi(value) : 0;
 
