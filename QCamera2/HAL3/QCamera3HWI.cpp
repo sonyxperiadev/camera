@@ -810,13 +810,6 @@ int QCamera3HardwareInterface::initialize(
         case OPENED:
             /* valid state */
             break;
-
-        case ERROR:
-            pthread_mutex_unlock(&mMutex);
-            handleCameraDeviceError();
-            rc = -ENODEV;
-            goto err2;
-
         default:
             LOGE("Invalid state %d", mState);
             rc = -ENODEV;
@@ -1316,12 +1309,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         case STARTED:
             /* valid state */
             break;
-
-        case ERROR:
-            pthread_mutex_unlock(&mMutex);
-            handleCameraDeviceError();
-            return -ENODEV;
-
         default:
             LOGE("Invalid state %d", mState);
             pthread_mutex_unlock(&mMutex);
