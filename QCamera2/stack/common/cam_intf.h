@@ -306,7 +306,6 @@ typedef struct{
     cam_format_t supported_scalar_fmts[CAM_FORMAT_MAX];
 
     uint32_t max_face_detection_count;
-    uint8_t hw_analysis_supported;
 
     uint8_t histogram_supported;
     /* Number of histogram buckets supported */
@@ -385,18 +384,11 @@ typedef struct{
      * timestamps from other sub-systems (gyro, accelerometer etc.) */
     uint8_t isTimestampCalibrated;
 
-    /* Analysis stream max supported size */
-    cam_dimension_t analysis_max_res;
-    /* Analysis stream padding info */
-    cam_padding_info_t analysis_padding_info;
     /* Max size supported by ISP viewfinder path */
     cam_dimension_t max_viewfinder_size;
 
-    /* Analysis recommended size */
-    cam_dimension_t analysis_recommended_res;
-
-    /* Analysis recommended format */
-    cam_format_t analysis_recommended_format;
+    /* Analysis buffer requirements */
+    cam_analysis_info_t analysis_info[CAM_ANALYSIS_INFO_MAX];
 
     /* This is set to 'true' if sensor cannot guarantee per frame control */
     /* Default value of this capability is 'false' indicating per-frame */
