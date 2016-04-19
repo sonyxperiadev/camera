@@ -97,6 +97,7 @@ QCameraPostProcessor::QCameraPostProcessor(QCamera2HardwareInterface *cam_ctrl)
     memset(mPPChannels, 0, sizeof(mPPChannels));
     m_DataMem = NULL;
     mOfflineDataBufs = NULL;
+    pthread_mutex_init(&m_reprocess_lock,NULL);
 }
 
 /*===========================================================================
@@ -124,6 +125,7 @@ QCameraPostProcessor::~QCameraPostProcessor()
         }
     }
     mPPChannelCount = 0;
+    pthread_mutex_destroy(&m_reprocess_lock);
 }
 
 /*===========================================================================
@@ -1435,9 +1437,11 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         }
 
         // free pp job buf
+        pthread_mutex_lock(&m_reprocess_lock);
         if (job) {
             free(job);
         }
+        pthread_mutex_unlock(&m_reprocess_lock);
     }
 
     LOGD("");
@@ -3108,9 +3112,11 @@ int32_t QCameraPostProcessor::doReprocess()
         if ((m_parent->isRegularCapture()) || (ppreq_job->offline_buffer)) {
             m_bufCountPPQ++;
             if (m_ongoingPPQ.enqueue((void *)ppreq_job)) {
+                pthread_mutex_lock(&m_reprocess_lock);
                 ret = mPPChannels[mCurChannelIdx]->doReprocessOffline(ppInputFrame,
                         meta_buf, m_parent->mParameters);
                 if (ret != NO_ERROR) {
+                    pthread_mutex_unlock(&m_reprocess_lock);
                     goto end;
                 }
 
@@ -3119,6 +3125,7 @@ int32_t QCameraPostProcessor::doReprocess()
                     mPPChannels[mCurChannelIdx]->doReprocessOffline(
                             ppreq_job->offline_reproc_buf, meta_buf);
                 }
+                pthread_mutex_unlock(&m_reprocess_lock);
             } else {
                 LOGW("m_ongoingPPQ is not active!!!");
                 ret = UNKNOWN_ERROR;

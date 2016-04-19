@@ -5434,7 +5434,7 @@ int32_t QCameraParameters::initDefaultParameters()
     m_pCapability->min_focus_pos[CAM_MANUAL_FOCUS_MODE_DIOPTER] = 0;
     if (m_pCapability->min_focus_distance > 0) {
         m_pCapability->max_focus_pos[CAM_MANUAL_FOCUS_MODE_DIOPTER] =
-                100.0f / m_pCapability->min_focus_distance;
+                m_pCapability->min_focus_distance;
     } else {
         m_pCapability->max_focus_pos[CAM_MANUAL_FOCUS_MODE_DIOPTER] = 0;
     }
@@ -6416,7 +6416,10 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
                  min_fps, max_fps, vid_min_fps, vid_max_fps);
 
     if(fixedFpsValue != 0) {
-      min_fps = max_fps = vid_min_fps = vid_max_fps = (int)fixedFpsValue*1000;
+        min_fps = max_fps = fixedFpsValue*1000;
+        if (!isHfrMode()) {
+             vid_min_fps = vid_max_fps = fixedFpsValue*1000;
+        }
     }
     snprintf(str, sizeof(str), "%d,%d", min_fps, max_fps);
     LOGH("Setting preview fps range %s", str);
