@@ -412,7 +412,7 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
              hw->getCameraId());
 
     // Disable power Hint for preview
-    hw->m_perfLock.powerHint(POWER_HINT_CAM_PREVIEW, false);
+    hw->m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, false);
 
     hw->m_perfLock.lock_acq();
     hw->lockAPI();
@@ -3489,7 +3489,7 @@ int QCamera2HardwareInterface::startPreview()
     if (rc == NO_ERROR) {
         if (!mParameters.isSeeMoreEnabled()) {
             // Set power Hint for preview
-            m_perfLock.powerHint(POWER_HINT_CAM_PREVIEW, true);
+            m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
         }
     }
 
@@ -3523,7 +3523,7 @@ int QCamera2HardwareInterface::stopPreview()
     mActiveAF = false;
 
     // Disable power Hint for preview
-    m_perfLock.powerHint(POWER_HINT_CAM_PREVIEW, false);
+    m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, false);
 
     m_perfLock.lock_acq();
 

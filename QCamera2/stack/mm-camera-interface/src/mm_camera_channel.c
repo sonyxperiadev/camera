@@ -2382,6 +2382,8 @@ int8_t mm_channel_validate_super_buf(mm_channel_t* ch_obj,
     struct cam_list *pos = NULL;
     mm_channel_queue_node_t* super_buf = NULL;
 
+    (void)ch_obj;
+
     /* comp */
     pthread_mutex_lock(&queue->que.lock);
     head = &queue->que.head.list;
