@@ -3733,7 +3733,6 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         return rc;
     }
 
-    mAdvancedCaptureConfigured = true;
     /* Temporarily stop display only if not in stillmore livesnapshot */
     if (!(mParameters.isStillMoreEnabled() &&
             mParameters.isSeeMoreEnabled())) {
@@ -3763,7 +3762,13 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     } else if (mParameters.isChromaFlashEnabled() || mFlashNeeded) {
         rc = mParameters.configFrameCapture(TRUE);
     } else {
-        ALOGD("%s: No Advanced Capture feature enabled!! ", __func__);
+        ALOGE("%s: No Advanced Capture feature enabled!! ", __func__);
+        rc = BAD_VALUE;
+    }
+
+    if (NO_ERROR == rc) {
+        mAdvancedCaptureConfigured = true;
+    } else {
         mAdvancedCaptureConfigured = false;
     }
 
@@ -4148,16 +4153,17 @@ int QCamera2HardwareInterface::takePicture()
       numRetroSnapshots = 0;
       CDBG_HIGH("%s: [ZSL Retro] Reset retro snaphot count to zero", __func__);
     }
-
-    //Do special configure for advanced capture modes.
-    rc = configureAdvancedCapture();
-    if (rc != NO_ERROR) {
-        ALOGE("Unsupported capture call");
-        return rc;
-    }
-
-    if (mAdvancedCaptureConfigured) {
-        numSnapshots = numAdvancedSnapshot;
+    if (mParameters.isUbiFocusEnabled() ||
+            mParameters.isUbiRefocus() ||
+            mParameters.isOptiZoomEnabled() ||
+            mParameters.isHDREnabled() ||
+            mParameters.isChromaFlashEnabled() ||
+            mParameters.isAEBracketEnabled() ||
+            mParameters.isStillMoreEnabled()) {
+        rc = configureAdvancedCapture();
+        if (rc == NO_ERROR) {
+            numSnapshots = numAdvancedSnapshot;
+        }
     }
     CDBG_HIGH("%s: [ZSL Retro] numSnapshots = %d, numRetroSnapshots = %d",
           __func__, numSnapshots, numRetroSnapshots);
@@ -4196,7 +4202,13 @@ int QCamera2HardwareInterface::takePicture()
                 return UNKNOWN_ERROR;
             }
 
-            if (mAdvancedCaptureConfigured) {
+            if (mParameters.isUbiFocusEnabled() ||
+                    mParameters.isUbiRefocus() ||
+                    mParameters.isOptiZoomEnabled() ||
+                    mParameters.isHDREnabled() ||
+                    mParameters.isChromaFlashEnabled() ||
+                    mParameters.isAEBracketEnabled() ||
+                    mParameters.isStillMoreEnabled()) {
                 rc = startAdvancedCapture(pZSLChannel);
                 if (rc != NO_ERROR) {
                     ALOGE("%s: cannot start zsl advanced capture", __func__);
