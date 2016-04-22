@@ -1719,6 +1719,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
                 : CAM_FORMAT_YUV_420_NV21),
                 analysisInfo.hw_analysis_supported,
+                gCamCapability[mCameraId]->color_arrangement,
                 this,
                 0); // force buffer count to 0
         if (!mAnalysisChannel) {
@@ -2108,6 +2109,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 &QCamera3SupportChannel::kDim,
                 CAM_FORMAT_YUV_420_NV21,
                 supportInfo.hw_analysis_supported,
+                gCamCapability[mCameraId]->color_arrangement,
                 this);
         if (!mSupportChannel) {
             LOGE("dummy channel cannot be created");
