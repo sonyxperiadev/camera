@@ -42,6 +42,8 @@
 #define AF_STATS_DEBUG_DATA_SIZE          (40000)
 #define ASD_DEBUG_DATA_SIZE               (100)
 #define STATS_BUFFER_DEBUG_DATA_SIZE      (75000)
+#define BHIST_STATS_DEBUG_DATA_SIZE       (70000)
+#define TUNING_INFO_DEBUG_DATA_SIZE       (4)
 
 #define CEILING64(X) (((X) + 0x0003F) & 0xFFFFFFC0)
 #define CEILING32(X) (((X) + 0x0001F) & 0xFFFFFFE0)
@@ -1517,10 +1519,14 @@ typedef struct {
 
 typedef struct {
     int32_t bg_stats_buffer_size;
-    int32_t bhist_stats_buffer_size;
     int32_t bg_config_buffer_size;
     char stats_buffer_private_debug_data[STATS_BUFFER_DEBUG_DATA_SIZE];
 } cam_stats_buffer_exif_debug_t;
+
+typedef struct {
+    int32_t bhist_stats_buffer_size;
+    char bhist_private_debug_data[BHIST_STATS_DEBUG_DATA_SIZE];
+} cam_bhist_buffer_exif_debug_t;
 
 /* 3A version*/
 typedef struct {
@@ -1529,6 +1535,11 @@ typedef struct {
     uint16_t patch_version;
     uint16_t new_feature_des;
 } cam_q3a_version_t;
+
+typedef struct {
+    int32_t tuning_info_buffer_size;
+    char tuning_info_private_debug_data[TUNING_INFO_DEBUG_DATA_SIZE];
+} cam_q3a_tuning_info_t;
 
 typedef struct {
     uint32_t tuning_data_version;
@@ -1709,6 +1720,10 @@ typedef  struct {
     uint8_t is_stats_buffer_exif_debug_valid;
     cam_stats_buffer_exif_debug_t stats_buffer_exif_debug_params;
 
+    /* Bhist exif debug parameters. */
+    uint8_t is_bhist_exif_debug_valid;
+    cam_bhist_buffer_exif_debug_t bhist_exif_debug_params;
+
     /* AWB parameters */
     uint8_t is_awb_params_valid;
     cam_awb_params_t awb_params;
@@ -1837,6 +1852,8 @@ typedef enum {
     CAM_INTF_META_EXIF_DEBUG_AF,
     CAM_INTF_META_EXIF_DEBUG_ASD,
     CAM_INTF_META_EXIF_DEBUG_STATS,
+    CAM_INTF_META_EXIF_DEBUG_BHIST,
+    CAM_INTF_META_EXIF_DEBUG_3A_TUNING,
     CAM_INTF_PARM_GET_CHROMATIX,
     CAM_INTF_PARM_SET_RELOAD_CHROMATIX,
     CAM_INTF_PARM_SET_AUTOFOCUSTUNING, /* 80 */

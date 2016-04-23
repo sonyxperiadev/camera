@@ -5352,6 +5352,20 @@ void QCamera3HardwareInterface::saveExifParams(metadata_buffer_t *metadata)
             mExifParams.debug_params->stats_debug_params_valid = TRUE;
         }
     }
+    IF_META_AVAILABLE(cam_bhist_buffer_exif_debug_t, bhist_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_BHIST, metadata) {
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->bhist_debug_params = *bhist_exif_debug_params;
+            mExifParams.debug_params->bhist_debug_params_valid = TRUE;
+        }
+    }
+    IF_META_AVAILABLE(cam_q3a_tuning_info_t, q3a_tuning_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_3A_TUNING, metadata) {
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->q3a_tuning_debug_params = *q3a_tuning_exif_debug_params;
+            mExifParams.debug_params->q3a_tuning_debug_params_valid = TRUE;
+        }
+    }
 }
 
 /*===========================================================================
