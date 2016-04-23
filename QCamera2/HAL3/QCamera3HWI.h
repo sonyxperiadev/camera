@@ -43,6 +43,7 @@
 #include "QCamera3HALHeader.h"
 #include "QCamera3Mem.h"
 #include "QCameraPerf.h"
+#include "QCameraCommon.h"
 
 extern "C" {
 #include "mm_camera_interface.h"
@@ -339,6 +340,7 @@ private:
     QCamera3RawDumpChannel *mRawDumpChannel;
     QCamera3RegularChannel *mDummyBatchChannel;
     QCameraPerfLock m_perfLock;
+    QCameraCommon   mCommon;
 
     uint32_t mChannelHandle;
 

@@ -2334,8 +2334,14 @@ int QCamera2HardwareInterface::initCapabilities(uint32_t cameraId,
     }
     memcpy(gCamCapability[cameraId], DATA_PTR(capabilityHeap,0),
                                         sizeof(cam_capability_t));
-    gCamCapability[cameraId]->analysis_padding_info.offset_info.offset_x = 0;
-    gCamCapability[cameraId]->analysis_padding_info.offset_info.offset_y = 0;
+
+    int index;
+    for (index = 0; index < CAM_ANALYSIS_INFO_MAX; index++) {
+        cam_analysis_info_t *p_analysis_info =
+                &gCamCapability[cameraId]->analysis_info[index];
+        p_analysis_info->analysis_padding_info.offset_info.offset_x = 0;
+        p_analysis_info->analysis_padding_info.offset_info.offset_y = 0;
+    }
 
     rc = NO_ERROR;
 
@@ -6719,9 +6725,22 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     }
 
     cam_padding_info_t padding_info;
+
     if (streamType == CAM_STREAM_TYPE_ANALYSIS) {
+        cam_analysis_info_t analysisInfo;
+        uint32_t featureMask;
+
+        featureMask = 0;
+        mParameters.getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
+        mParameters.getAnalysisInfo(
+                ((mParameters.getRecordingHintValue() == true) &&
+                 mParameters.fdModeInVideo()),
+                FALSE,
+                featureMask,
+                &analysisInfo);
+
         padding_info =
-                gCamCapability[mCameraId]->analysis_padding_info;
+                analysisInfo.analysis_padding_info;
     } else {
         padding_info =
                 gCamCapability[mCameraId]->padding_info;

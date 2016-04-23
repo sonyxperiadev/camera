@@ -333,6 +333,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mAnalysisChannel(NULL),
       mRawDumpChannel(NULL),
       mDummyBatchChannel(NULL),
+      m_perfLock(),
+      mCommon(),
       mChannelHandle(0),
       mFirstConfiguration(true),
       mFlush(false),
@@ -366,6 +368,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 {
     getLogLevel();
     m_perfLock.lock_init();
+    mCommon.init(gCamCapability[cameraId]);
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
     mCameraDevice.common.version = CAMERA_DEVICE_API_VERSION_3_3;
     mCameraDevice.common.close = close_camera_device;
@@ -1696,18 +1699,25 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
     // Create analysis stream all the time, even when h/w support is not available
     {
+        cam_analysis_info_t analysisInfo;
+        mCommon.getAnalysisInfo(
+                FALSE,
+                TRUE,
+                0,
+                &analysisInfo);
+
         mAnalysisChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mChannelHandle,
                 mCameraHandle->ops,
-                &gCamCapability[mCameraId]->analysis_padding_info,
+                &analysisInfo.analysis_padding_info,
                 CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
                 CAM_STREAM_TYPE_ANALYSIS,
-                &gCamCapability[mCameraId]->analysis_recommended_res,
-                (gCamCapability[mCameraId]->analysis_recommended_format
+                &analysisInfo.analysis_max_res,
+                (analysisInfo.analysis_format
                 == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
                 : CAM_FORMAT_YUV_420_NV21),
-                gCamCapability[mCameraId]->hw_analysis_supported,
+                analysisInfo.hw_analysis_supported,
                 this,
                 0); // force buffer count to 0
         if (!mAnalysisChannel) {
@@ -2051,9 +2061,17 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     }
 
 
+    cam_analysis_info_t analysisInfo;
+    mCommon.getAnalysisInfo(
+            FALSE,
+            TRUE,
+            0,
+            &analysisInfo);
+
     if (mAnalysisChannel) {
+
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams] =
-                gCamCapability[mCameraId]->analysis_recommended_res;
+                analysisInfo.analysis_max_res;
         mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
                 CAM_STREAM_TYPE_ANALYSIS;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
@@ -2071,7 +2089,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 CAM_STREAM_TYPE_CALLBACK,
                 &QCamera3SupportChannel::kDim,
                 CAM_FORMAT_YUV_420_NV21,
-                gCamCapability[mCameraId]->hw_analysis_supported,
+                analysisInfo.hw_analysis_supported,
                 this);
         if (!mSupportChannel) {
             LOGE("dummy channel cannot be created");
@@ -5925,8 +5943,14 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
     }
     memcpy(gCamCapability[cameraId], DATA_PTR(capabilityHeap,0),
                                         sizeof(cam_capability_t));
-    gCamCapability[cameraId]->analysis_padding_info.offset_info.offset_x = 0;
-    gCamCapability[cameraId]->analysis_padding_info.offset_info.offset_y = 0;
+
+    int index;
+    for (index = 0; index < CAM_ANALYSIS_INFO_MAX; index++) {
+        cam_analysis_info_t *p_analysis_info =
+                &gCamCapability[cameraId]->analysis_info[index];
+        p_analysis_info->analysis_padding_info.offset_info.offset_x = 0;
+        p_analysis_info->analysis_padding_info.offset_info.offset_y = 0;
+    }
     rc = 0;
 
 query_failed:

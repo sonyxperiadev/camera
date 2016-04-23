@@ -562,7 +562,8 @@ cam_dimension_t mm_app_get_analysis_stream_dim(
                                                const cam_dimension_t* preview_dim)
 {
     cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
-    cam_dimension_t max_analysis_dim = cam_cap->analysis_max_res;
+    cam_dimension_t max_analysis_dim =
+        cam_cap->analysis_info[CAM_ANALYSIS_INFO_FD_STILL].analysis_max_res;
     cam_dimension_t analysis_dim = {0, 0};
 
     if (preview_dim->width > max_analysis_dim.width ||
@@ -637,7 +638,8 @@ mm_camera_stream_t * mm_app_add_analysis_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.stream_info->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     stream->s_config.stream_info->fmt = DEFAULT_PREVIEW_FORMAT;
     stream->s_config.stream_info->dim = analysis_dim;
-    stream->s_config.padding_info = cam_cap->analysis_padding_info;
+    stream->s_config.padding_info =
+        cam_cap->analysis_info[CAM_ANALYSIS_INFO_FD_STILL].analysis_padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
     if (MM_CAMERA_OK != rc) {

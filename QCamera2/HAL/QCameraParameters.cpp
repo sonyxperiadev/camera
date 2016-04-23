@@ -893,6 +893,7 @@ static inline bool isOEMFeat1PropEnabled()
 QCameraParameters::QCameraParameters()
     : CameraParameters(),
       m_reprocScaleParam(),
+      mCommon(),
       m_pCapability(NULL),
       m_pCamOpsTbl(NULL),
       m_pParamHeap(NULL),
@@ -6187,6 +6188,8 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
 
     initDefaultParameters();
 
+    mCommon.init(capabilities);
+
     m_bInited = true;
 
     goto TRANS_INIT_DONE;
@@ -9953,13 +9956,24 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         format = mAppPreviewFormat;
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
-        if (m_pCapability->hw_analysis_supported &&
-                m_pCapability->analysis_recommended_format == CAM_FORMAT_Y_ONLY) {
-            format = m_pCapability->analysis_recommended_format;
+        cam_analysis_info_t analysisInfo;
+        uint32_t featureMask;
+
+        featureMask = 0;
+        getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
+        getAnalysisInfo(
+                ((getRecordingHintValue() == true) && fdModeInVideo()),
+                FALSE,
+                featureMask,
+                &analysisInfo);
+
+        if (analysisInfo.hw_analysis_supported &&
+                analysisInfo.analysis_format == CAM_FORMAT_Y_ONLY) {
+            format = analysisInfo.analysis_format;
         } else {
-            if (m_pCapability->hw_analysis_supported) {
-                LOGW("Invalid analysis_recommended_format %d\n",
-                        m_pCapability->analysis_recommended_format);
+            if (analysisInfo.hw_analysis_supported) {
+                LOGW("Invalid analysis_format %d\n",
+                        analysisInfo.analysis_format);
             }
             format = mAppPreviewFormat;
         }
@@ -10156,15 +10170,19 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         /* Analysis stream need aspect ratio as preview stream */
         getPreviewSize(&prv_dim.width, &prv_dim.height);
 
-        max_dim.width = m_pCapability->analysis_max_res.width;
-        max_dim.height = m_pCapability->analysis_max_res.height;
+        cam_analysis_info_t analysisInfo;
+        uint32_t featureMask;
 
-        if ((getRecordingHintValue() == true)
-                && fdModeInVideo()
-                && m_pCapability->hw_analysis_supported) {
-            max_dim.width /= 2;
-            max_dim.height /= 2;
-        }
+        featureMask = 0;
+        getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
+        getAnalysisInfo(
+                ((getRecordingHintValue() == true) && fdModeInVideo()),
+                FALSE,
+                featureMask,
+                &analysisInfo);
+
+        max_dim.width = analysisInfo.analysis_max_res.width;
+        max_dim.height = analysisInfo.analysis_max_res.height;
 
         if (prv_dim.width > max_dim.width || prv_dim.height > max_dim.height) {
             double max_ratio, requested_ratio;
@@ -12705,12 +12723,6 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     stream_config_info.min_stride     = m_pCapability->min_stride;
     stream_config_info.min_scanline   = m_pCapability->min_scanline;
     stream_config_info.batch_size = getBufBatchCount();
-    LOGH("buf_alignment=%d stride X scan=%dx%d batch size = %d\n",
-            m_pCapability->buf_alignment,
-            m_pCapability->min_stride,
-            m_pCapability->min_scanline,
-            stream_config_info.batch_size);
-
 
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
@@ -14076,7 +14088,10 @@ uint8_t QCameraParameters::fdModeInVideo()
     char value[PROPERTY_VALUE_MAX];
     uint8_t fdvideo = 0;
 
-    if (!m_pCapability->hw_analysis_supported) {
+    cam_analysis_info_t *pAnalysisInfo =
+            &m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_VIDEO];
+
+    if (!pAnalysisInfo->hw_analysis_supported) {
         return 0;
     }
 
@@ -14285,6 +14300,31 @@ int32_t QCameraParameters::setAdvancedCaptureMode()
         return BAD_VALUE;
     }
     return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : getAnalysisInfo
+ *
+ * DESCRIPTION: Get the Analysis information based on
+ *     current mode and feature mask
+ *
+ * PARAMETERS :
+ *   @fdVideoEnabled : Whether fdVideo enabled currently
+ *   @videoEnabled   : Whether hal3 or hal1
+ *   @featureMask    : Feature mask
+ *   @analysis_info  : Analysis info to be filled
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::getAnalysisInfo(
+        bool fdVideoEnabled,
+        bool hal3,
+        uint32_t featureMask,
+        cam_analysis_info_t *pAnalysisInfo)
+{
+    return mCommon.getAnalysisInfo(fdVideoEnabled, hal3, featureMask, pAnalysisInfo);
 }
 
 }; // namespace qcamera

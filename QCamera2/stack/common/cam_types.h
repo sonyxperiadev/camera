@@ -2666,6 +2666,32 @@ typedef enum {
     CAM_MANUAL_CAPTURE_TYPE_4    /*Offline RAW processing with multiple RAW*/
 } cam_manual_capture_type;
 
+typedef enum {
+    CAM_ANALYSIS_INFO_FD_STILL,   /*Analysis requirements for STILL PREVIEW*/
+    CAM_ANALYSIS_INFO_FD_VIDEO,   /*Analysis requirements for VIDEO*/
+    CAM_ANALYSIS_INFO_MAX,     /*Max number*/
+} cam_analysis_info_type;
+
+typedef struct {
+    /* Whether the information here is valid or not */
+    uint8_t valid;
+
+    /* Whether analysis supported by hw */
+    uint8_t hw_analysis_supported;
+
+    /* Analysis stream max supported size */
+    cam_dimension_t analysis_max_res;
+
+    /* Analysis stream padding info */
+    cam_padding_info_t analysis_padding_info;
+
+    /* Analysis format */
+    cam_format_t analysis_format;
+
+    /* Analysis recommended size */
+    cam_dimension_t analysis_recommended_res;
+} cam_analysis_info_t;
+
 /***********************************
 * ENUM definition for custom parameter type
 ************************************/
@@ -2673,4 +2699,5 @@ typedef enum {
     CAM_CUSTOM_PARM_EXAMPLE,
     CAM_CUSTOM_PARM_MAX,
 } cam_custom_parm_type;
+
 #endif /* __QCAMERA_TYPES_H__ */

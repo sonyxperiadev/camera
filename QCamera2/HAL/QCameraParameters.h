@@ -32,6 +32,7 @@
 #include "QCameraMem.h"
 #include "QCameraParametersIntf.h"
 #include "QCameraThermalAdapter.h"
+#include "QCameraCommon.h"
 
 extern "C" {
 #include "mm_jpeg_interface.h"
@@ -863,6 +864,12 @@ public:
 
     int32_t checkFeatureConcurrency();
     int32_t setInstantAEC(uint8_t enable, bool initCommit);
+
+    int32_t getAnalysisInfo(
+        bool fdVideoEnabled,
+        bool hal3,
+        uint32_t featureMask,
+        cam_analysis_info_t *pAnalysisInfo);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1097,6 +1104,7 @@ private:
     static const QCameraMap<int> NOISE_REDUCTION_MODES_MAP[];
 
     QCameraReprocScaleParam m_reprocScaleParam;
+    QCameraCommon           mCommon;
 
     cam_capability_t *m_pCapability;
     mm_camera_vtbl_t *m_pCamOpsTbl;
