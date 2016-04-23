@@ -183,7 +183,7 @@ public:
 
     const char *getASDStateString(cam_auto_scene_t scene);
     bool isHDRThumbnailProcessNeeded();
-    void setMinPpMask(uint32_t min_pp_mask);
+    void setMinPpMask(cam_feature_mask_t min_pp_mask);
     bool setStreamConfigure(bool isCapture,
             bool previewAsPostview, bool resetConfig);
     int32_t addOnlineRotation(uint32_t rotation, uint32_t streamId,
@@ -192,7 +192,7 @@ public:
     uint8_t getNumOfExtraBuffersForVideo();
     uint8_t getNumOfExtraBuffersForPreview();
     uint32_t getExifBufIndex(uint32_t captureIndex);
-    bool needThumbnailReprocess(uint32_t *pFeatureMask);
+    bool needThumbnailReprocess(cam_feature_mask_t *pFeatureMask);
     bool isUbiFocusEnabled();
     bool isChromaFlashEnabled();
     bool isHighQualityNoiseReductionMode();
@@ -228,7 +228,7 @@ public:
     int32_t setIntEvent(cam_int_evt_params_t params);
     bool getofflineRAW();
     int32_t updatePpFeatureMask(cam_stream_type_t stream_type);
-    int32_t getStreamPpMask(cam_stream_type_t stream_type, uint32_t &pp_mask);
+    int32_t getStreamPpMask(cam_stream_type_t stream_type, cam_feature_mask_t &pp_mask);
     int32_t getSharpness();
     int32_t getEffect();
     int32_t updateFlashMode(cam_flash_mode_t flash_mode);

@@ -395,7 +395,6 @@ const char QCameraParameters::KEY_QC_MIN_SCE_FACTOR[] = "min-sce-factor";
 const char QCameraParameters::KEY_QC_MAX_SCE_FACTOR[] = "max-sce-factor";
 const char QCameraParameters::KEY_QC_SCE_FACTOR_STEP[] = "sce-factor-step";
 
-const char QCameraParameters::KEY_QC_SUPPORTED_CAMERA_FEATURES[] = "qc-camera-features";
 const char QCameraParameters::KEY_QC_MAX_NUM_REQUESTED_FACES[] = "qc-max-num-requested-faces";
 
 //Values for DENOISE
@@ -5201,8 +5200,6 @@ int32_t QCameraParameters::initDefaultParameters()
         m_pCapability->auto_exposure_lock_supported? VALUE_TRUE : VALUE_FALSE);
     set(KEY_AUTO_WHITEBALANCE_LOCK_SUPPORTED,
         m_pCapability->auto_wb_lock_supported? VALUE_TRUE : VALUE_FALSE);
-    set(KEY_QC_SUPPORTED_CAMERA_FEATURES,
-            (int)m_pCapability->qcom_supported_feature_mask);
     set(KEY_MAX_NUM_DETECTED_FACES_HW, m_pCapability->max_num_roi);
     set(KEY_MAX_NUM_DETECTED_FACES_SW, m_pCapability->max_num_roi);
     set(KEY_QC_MAX_NUM_REQUESTED_FACES, m_pCapability->max_num_roi);
@@ -6012,7 +6009,7 @@ int32_t QCameraParameters::initDefaultParameters()
     }
 
     setOfflineRAW();
-    memset(mStreamPpMask, 0, sizeof(uint32_t)*CAM_STREAM_TYPE_MAX);
+    memset(mStreamPpMask, 0, sizeof(cam_feature_mask_t)*CAM_STREAM_TYPE_MAX);
     //Set video buffers as uncached by default
     set(KEY_QC_CACHE_VIDEO_BUFFERS, VALUE_DISABLE);
 
@@ -9957,7 +9954,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
         cam_analysis_info_t analysisInfo;
-        uint32_t featureMask;
+        cam_feature_mask_t featureMask;
 
         featureMask = 0;
         getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
@@ -10171,7 +10168,7 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         getPreviewSize(&prv_dim.width, &prv_dim.height);
 
         cam_analysis_info_t analysisInfo;
-        uint32_t featureMask;
+        cam_feature_mask_t featureMask;
 
         featureMask = 0;
         getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
@@ -12935,7 +12932,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         stream_config_info.num_streams++;
     }
     for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
-        LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%x Format = %d",
+        LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx Format = %d",
                 stream_config_info.type[k],
                 stream_config_info.stream_sizes[k].width,
                 stream_config_info.stream_sizes[k].height,
@@ -13026,7 +13023,7 @@ int32_t QCameraParameters::addOnlineRotation(uint32_t rotation, uint32_t streamI
  * RETURN     : true: needed
  *              false: no need
  *==========================================================================*/
-bool QCameraParameters::needThumbnailReprocess(uint32_t *pFeatureMask)
+bool QCameraParameters::needThumbnailReprocess(cam_feature_mask_t *pFeatureMask)
 {
     if (isUbiFocusEnabled() || isChromaFlashEnabled() ||
             isOptiZoomEnabled() || isUbiRefocus() ||
@@ -13335,7 +13332,7 @@ void QCameraParameters::setOfflineRAW(bool raw_value)
  *==========================================================================*/
 int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
-    uint32_t feature_mask = 0;
+    cam_feature_mask_t feature_mask = 0;
 
     if (stream_type >= CAM_STREAM_TYPE_MAX) {
         LOGE("Error!! stream type: %d not valid", stream_type);
@@ -13440,9 +13437,21 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         }
     }
 
+    // Preview assisted autofocus needs to be supported for
+    // callback, preview, or video streams
+    switch (stream_type) {
+    case CAM_STREAM_TYPE_CALLBACK:
+    case CAM_STREAM_TYPE_PREVIEW:
+    case CAM_STREAM_TYPE_VIDEO:
+        feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        break;
+    default:
+        break;
+    }
+
     // Store stream feature mask
     setStreamPpMask(stream_type, feature_mask);
-    LOGH("stream type: %d, pp_mask: 0x%x", stream_type, feature_mask);
+    LOGH("stream type: %d, pp_mask: 0x%llx", stream_type, feature_mask);
 
     return NO_ERROR;
 }
@@ -13460,7 +13469,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
  *              int32_t type of status
  *==========================================================================*/
 int32_t QCameraParameters::setStreamPpMask(cam_stream_type_t stream_type,
-        uint32_t pp_mask) {
+        cam_feature_mask_t pp_mask) {
 
     if(stream_type >= CAM_STREAM_TYPE_MAX) {
         return BAD_TYPE;
@@ -13483,7 +13492,7 @@ int32_t QCameraParameters::setStreamPpMask(cam_stream_type_t stream_type,
  *              int32_t type of status
  *==========================================================================*/
 int32_t QCameraParameters::getStreamPpMask(cam_stream_type_t stream_type,
-        uint32_t &pp_mask) {
+        cam_feature_mask_t &pp_mask) {
 
     if(stream_type >= CAM_STREAM_TYPE_MAX) {
         return BAD_TYPE;

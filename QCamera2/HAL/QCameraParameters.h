@@ -260,10 +260,6 @@ private:
     static const char KEY_QC_FACE_RECOGNITION[];
     static const char KEY_QC_SUPPORTED_FACE_RECOGNITION[];
 
-    // supported camera features to be queried by Snapdragon SDK
-    //Read only
-    static const char KEY_QC_SUPPORTED_CAMERA_FEATURES[];
-
     //Indicates number of faces requested by the application.
     //This value will be rejected if the requested faces
     //greater than supported by hardware.
@@ -745,14 +741,14 @@ public:
 
     const char *getASDStateString(cam_auto_scene_t scene);
     bool isHDRThumbnailProcessNeeded() { return m_bHDRThumbnailProcessNeeded; };
-    void setMinPpMask(uint32_t min_pp_mask) { m_nMinRequiredPpMask = min_pp_mask; };
+    void setMinPpMask(cam_feature_mask_t min_pp_mask) { m_nMinRequiredPpMask = min_pp_mask; };
     bool setStreamConfigure(bool isCapture, bool previewAsPostview, bool resetConfig);
     int32_t addOnlineRotation(uint32_t rotation, uint32_t streamId, int32_t device_rotation);
     uint8_t getNumOfExtraBuffersForImageProc();
     uint8_t getNumOfExtraBuffersForVideo();
     uint8_t getNumOfExtraBuffersForPreview();
     uint32_t getExifBufIndex(uint32_t captureIndex);
-    bool needThumbnailReprocess(uint32_t *pFeatureMask);
+    bool needThumbnailReprocess(cam_feature_mask_t *pFeatureMask);
     inline bool isUbiFocusEnabled() {return m_bAFBracketingOn && !m_bReFocusOn;};
     inline bool isChromaFlashEnabled() {return m_bChromaFlashOn;};
     inline bool isHighQualityNoiseReductionMode() {return m_bHighQualityNoiseReductionMode;};
@@ -795,7 +791,7 @@ public:
     int32_t setIntEvent(cam_int_evt_params_t params);
     bool getofflineRAW() {return mOfflineRAW;}
     int32_t updatePpFeatureMask(cam_stream_type_t stream_type);
-    int32_t getStreamPpMask(cam_stream_type_t stream_type, uint32_t &pp_mask);
+    int32_t getStreamPpMask(cam_stream_type_t stream_type, cam_feature_mask_t &pp_mask);
     int32_t getSharpness() {return m_nSharpness;};
     int32_t getEffect() {return mParmEffect;};
     int32_t updateFlashMode(cam_flash_mode_t flash_mode);
@@ -1020,7 +1016,7 @@ private:
     void setBufBatchCount(int8_t buf_cnt);
     void setVideoBatchSize();
     void setDcrf();
-    int32_t setStreamPpMask(cam_stream_type_t stream_type, uint32_t pp_mask);
+    int32_t setStreamPpMask(cam_stream_type_t stream_type, cam_feature_mask_t pp_mask);
     void setOfflineRAW(bool value = 0);
     int32_t configureFlash(cam_capture_frame_config_t &frame_config);
     int32_t configureLowLight(cam_capture_frame_config_t &frame_config);
@@ -1190,8 +1186,8 @@ private:
     bool m_bHDRModeSensor;
     bool mOfflineRAW;
     bool m_bTruePortraitOn;
-    uint32_t m_nMinRequiredPpMask;
-    uint32_t mStreamPpMask[CAM_STREAM_TYPE_MAX];
+    cam_feature_mask_t m_nMinRequiredPpMask;
+    cam_feature_mask_t mStreamPpMask[CAM_STREAM_TYPE_MAX];
     int32_t m_nSharpness;
     int8_t mTotalPPCount;
     int8_t mCurPPCount;

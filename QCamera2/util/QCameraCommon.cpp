@@ -115,7 +115,7 @@ int32_t QCameraCommon::init(cam_capability_t *pCapability)
 int32_t QCameraCommon::getAnalysisInfo(
         bool fdVideoEnabled,
         bool hal3,
-        uint32_t featureMask,
+        cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo)
 {
     if ((fdVideoEnabled == TRUE) && (hal3 == FALSE) &&
