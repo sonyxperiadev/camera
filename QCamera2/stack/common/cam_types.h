@@ -38,8 +38,7 @@
 #define MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES 8096
 #define AWB_DEBUG_DATA_SIZE               (45000)
 #define AEC_DEBUG_DATA_SIZE               (5000)
-#define AF_DEBUG_DATA_SIZE                (10000)
-#define AF_STATS_DEBUG_DATA_SIZE          (40000)
+#define AF_DEBUG_DATA_SIZE                (50000)
 #define ASD_DEBUG_DATA_SIZE               (100)
 #define STATS_BUFFER_DEBUG_DATA_SIZE      (75000)
 #define BHIST_STATS_DEBUG_DATA_SIZE       (70000)
@@ -1501,15 +1500,10 @@ typedef struct {
     char awb_private_debug_data[AWB_DEBUG_DATA_SIZE];
 } cam_awb_exif_debug_t;
 
+/* AF debug data for exif*/
 typedef struct {
     int32_t af_debug_data_size;
-    int32_t haf_debug_data_size;
-    int32_t tof_debug_data_size;
-    int32_t dciaf_debug_data_size;
-    int32_t pdaf_debug_data_size;
     char af_private_debug_data[AF_DEBUG_DATA_SIZE];
-    int32_t af_stats_buffer_size;
-    char af_stats_private_debug_data[AF_STATS_DEBUG_DATA_SIZE];
 } cam_af_exif_debug_t;
 
 typedef struct {
