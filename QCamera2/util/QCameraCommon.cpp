@@ -97,6 +97,47 @@ int32_t QCameraCommon::init(cam_capability_t *pCapability)
 }
 
 /*===========================================================================
+ * FUNCTION   : calculateLCM
+ *
+ * DESCRIPTION: Get the LCM of 2 numbers
+ *
+ * PARAMETERS :
+ *   @num1   : First number
+ *   @num2   : second number
+ *
+ * RETURN     : int32_t type (LCM)
+ *
+ *==========================================================================*/
+uint32_t QCameraCommon::calculateLCM(int32_t num1, int32_t num2)
+{
+   uint32_t lcm = 0;
+   uint32_t temp = 0;
+
+   if ((num1 < 1) && (num2 < 1)) {
+       return 0;
+   } else if (num1 < 1) {
+       return num2;
+   } else if (num2 < 1) {
+       return num1;
+   }
+
+   if (num1 > num2) {
+       lcm = num1;
+   } else {
+       lcm = num2;
+   }
+   temp = lcm;
+
+   while (1) {
+       if (((lcm % num1) == 0) && ((lcm % num2) == 0)) {
+           break;
+       }
+       lcm += temp;
+   }
+   return lcm;
+}
+
+/*===========================================================================
  * FUNCTION   : getAnalysisInfo
  *
  * DESCRIPTION: Get the Analysis information based on
@@ -130,7 +171,43 @@ int32_t QCameraCommon::getAnalysisInfo(
             pAnalysisInfo->analysis_max_res = pAnalysisInfo->analysis_recommended_res;
         }
     }
+    if ((featureMask & CAM_QCOM_FEATURE_PAAF) &&
+      (m_pCapability->analysis_info[CAM_ANALYSIS_INFO_PAAF].valid)) {
+        cam_analysis_info_t *pPaafInfo =
+          &m_pCapability->analysis_info[CAM_ANALYSIS_INFO_PAAF];
 
+        pAnalysisInfo->analysis_max_res.width =
+            MAX(pAnalysisInfo->analysis_max_res.width,
+            pPaafInfo->analysis_max_res.width);
+        pAnalysisInfo->analysis_max_res.height =
+            MAX(pAnalysisInfo->analysis_max_res.height,
+            pPaafInfo->analysis_max_res.height);
+        pAnalysisInfo->analysis_padding_info.height_padding =
+            calculateLCM(pAnalysisInfo->analysis_padding_info.height_padding,
+            pPaafInfo->analysis_padding_info.height_padding);
+        pAnalysisInfo->analysis_padding_info.width_padding =
+            calculateLCM(pAnalysisInfo->analysis_padding_info.width_padding,
+            pPaafInfo->analysis_padding_info.width_padding);
+        pAnalysisInfo->analysis_padding_info.plane_padding =
+            calculateLCM(pAnalysisInfo->analysis_padding_info.plane_padding,
+            pPaafInfo->analysis_padding_info.plane_padding);
+        pAnalysisInfo->analysis_padding_info.min_stride =
+            MAX(pAnalysisInfo->analysis_padding_info.min_stride,
+            pPaafInfo->analysis_padding_info.min_stride);
+        pAnalysisInfo->analysis_padding_info.min_stride =
+            ALIGN(pAnalysisInfo->analysis_padding_info.min_stride,
+            pAnalysisInfo->analysis_padding_info.width_padding);
+
+        pAnalysisInfo->analysis_padding_info.min_scanline =
+            MAX(pAnalysisInfo->analysis_padding_info.min_scanline,
+            pPaafInfo->analysis_padding_info.min_scanline);
+        pAnalysisInfo->analysis_padding_info.min_scanline =
+            ALIGN(pAnalysisInfo->analysis_padding_info.min_scanline,
+            pAnalysisInfo->analysis_padding_info.height_padding);
+
+        pAnalysisInfo->hw_analysis_supported |=
+           pPaafInfo->hw_analysis_supported;
+    }
     return 0;
 }
 
