@@ -559,9 +559,9 @@ typedef enum {
 
 typedef struct {
     cam_hfr_mode_t mode;
-    cam_dimension_t dim;
-    uint8_t frame_skip;
-    uint8_t livesnapshot_sizes_tbl_cnt;                     /* livesnapshot sizes table size */
+    uint8_t dim_cnt;                                        /* hfr sizes table count */
+    cam_dimension_t dim[MAX_SIZES_CNT];                     /* hfr sizes table */
+    uint8_t livesnapshot_sizes_tbl_cnt;                     /* livesnapshot sizes table count */
     cam_dimension_t livesnapshot_sizes_tbl[MAX_SIZES_CNT];  /* livesnapshot sizes table */
 } cam_hfr_info_t;
 
