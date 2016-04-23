@@ -81,14 +81,6 @@ typedef enum {
     CAM_MODE_SECONDARY
 } cam_sync_mode_t;
 
-typedef enum {
-    /* Main camera of the related cam subsystem which controls
-       HW sync at sensor level*/
-    CAM_TYPE_MAIN = 0,
-    /* Aux camera of the related cam subsystem */
-    CAM_TYPE_AUX
-} cam_sync_type_t;
-
 /* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;

@@ -1585,6 +1585,16 @@ typedef struct {
    uint32_t max_buffers;
 } cam_buffer_info_t;
 
+typedef enum {
+    /* Standalone camera (won't be linked) */
+    CAM_TYPE_STANDALONE=0,
+    /* Main camera of the related cam subsystem which controls
+       HW sync at sensor level*/
+    CAM_TYPE_MAIN,
+    /* Aux camera of the related cam subsystem */
+    CAM_TYPE_AUX
+} cam_sync_type_t;
+
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
     uint32_t num_streams;
@@ -1598,6 +1608,7 @@ typedef struct {
     uint32_t min_stride;
     uint32_t min_scanline;
     uint8_t batch_size;
+    cam_sync_type_t sync_type;
 } cam_stream_size_info_t;
 
 
