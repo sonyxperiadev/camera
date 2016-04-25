@@ -43,6 +43,7 @@
 #include "QCamera3HALHeader.h"
 #include "QCamera3Mem.h"
 #include "QCameraPerf.h"
+#include "QCameraCommon.h"
 
 extern "C" {
 #include "mm_camera_interface.h"
@@ -196,8 +197,9 @@ public:
     QCamera3ReprocessChannel *addOfflineReprocChannel(const reprocess_config_t &config,
             QCamera3ProcessingChannel *inputChHandle);
     bool needRotationReprocess();
-    bool needReprocess(uint32_t postprocess_mask);
     bool needJpegExifRotation();
+    bool needReprocess(cam_feature_mask_t postprocess_mask);
+    bool needJpegRotation();
     cam_denoise_process_type_t getWaveletDenoiseProcessPlate();
     cam_denoise_process_type_t getTemporalDenoiseProcessPlate();
 
@@ -324,6 +326,10 @@ private:
     static bool supportBurstCapture(uint32_t cameraId);
     int32_t setBundleInfo();
 
+    static void setPAAFSupport(cam_feature_mask_t& feature_mask,
+            cam_stream_type_t stream_type,
+            cam_color_filter_arrangement_t filter_arrangement);
+
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
     mm_camera_vtbl_t  *mCameraHandle;
@@ -339,6 +345,7 @@ private:
     QCamera3RawDumpChannel *mRawDumpChannel;
     QCamera3RegularChannel *mDummyBatchChannel;
     QCameraPerfLock m_perfLock;
+    QCameraCommon   mCommon;
 
     uint32_t mChannelHandle;
 

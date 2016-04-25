@@ -38,10 +38,11 @@
 #define MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES 8096
 #define AWB_DEBUG_DATA_SIZE               (45000)
 #define AEC_DEBUG_DATA_SIZE               (5000)
-#define AF_DEBUG_DATA_SIZE                (10000)
-#define AF_STATS_DEBUG_DATA_SIZE          (40000)
+#define AF_DEBUG_DATA_SIZE                (50000)
 #define ASD_DEBUG_DATA_SIZE               (100)
 #define STATS_BUFFER_DEBUG_DATA_SIZE      (75000)
+#define BHIST_STATS_DEBUG_DATA_SIZE       (70000)
+#define TUNING_INFO_DEBUG_DATA_SIZE       (4)
 
 #define CEILING64(X) (((X) + 0x0003F) & 0xFFFFFFC0)
 #define CEILING32(X) (((X) + 0x0001F) & 0xFFFFFFE0)
@@ -141,6 +142,8 @@
 
 /* Defines the number of columns in the color correction matrix (CCM) */
 #define AWB_NUM_CCM_COLS (3)
+
+typedef uint64_t cam_feature_mask_t;
 
 typedef enum {
     CAM_HAL_V1 = 1,
@@ -556,9 +559,9 @@ typedef enum {
 
 typedef struct {
     cam_hfr_mode_t mode;
-    cam_dimension_t dim;
-    uint8_t frame_skip;
-    uint8_t livesnapshot_sizes_tbl_cnt;                     /* livesnapshot sizes table size */
+    uint8_t dim_cnt;                                        /* hfr sizes table count */
+    cam_dimension_t dim[MAX_SIZES_CNT];                     /* hfr sizes table */
+    uint8_t livesnapshot_sizes_tbl_cnt;                     /* livesnapshot sizes table count */
     cam_dimension_t livesnapshot_sizes_tbl[MAX_SIZES_CNT];  /* livesnapshot sizes table */
 } cam_hfr_info_t;
 
@@ -1499,15 +1502,10 @@ typedef struct {
     char awb_private_debug_data[AWB_DEBUG_DATA_SIZE];
 } cam_awb_exif_debug_t;
 
+/* AF debug data for exif*/
 typedef struct {
     int32_t af_debug_data_size;
-    int32_t haf_debug_data_size;
-    int32_t tof_debug_data_size;
-    int32_t dciaf_debug_data_size;
-    int32_t pdaf_debug_data_size;
     char af_private_debug_data[AF_DEBUG_DATA_SIZE];
-    int32_t af_stats_buffer_size;
-    char af_stats_private_debug_data[AF_STATS_DEBUG_DATA_SIZE];
 } cam_af_exif_debug_t;
 
 typedef struct {
@@ -1517,10 +1515,14 @@ typedef struct {
 
 typedef struct {
     int32_t bg_stats_buffer_size;
-    int32_t bhist_stats_buffer_size;
     int32_t bg_config_buffer_size;
     char stats_buffer_private_debug_data[STATS_BUFFER_DEBUG_DATA_SIZE];
 } cam_stats_buffer_exif_debug_t;
+
+typedef struct {
+    int32_t bhist_stats_buffer_size;
+    char bhist_private_debug_data[BHIST_STATS_DEBUG_DATA_SIZE];
+} cam_bhist_buffer_exif_debug_t;
 
 /* 3A version*/
 typedef struct {
@@ -1529,6 +1531,11 @@ typedef struct {
     uint16_t patch_version;
     uint16_t new_feature_des;
 } cam_q3a_version_t;
+
+typedef struct {
+    int32_t tuning_info_buffer_size;
+    char tuning_info_private_debug_data[TUNING_INFO_DEBUG_DATA_SIZE];
+} cam_q3a_tuning_info_t;
 
 typedef struct {
     uint32_t tuning_data_version;
@@ -1578,11 +1585,21 @@ typedef struct {
    uint32_t max_buffers;
 } cam_buffer_info_t;
 
+typedef enum {
+    /* Standalone camera (won't be linked) */
+    CAM_TYPE_STANDALONE=0,
+    /* Main camera of the related cam subsystem which controls
+       HW sync at sensor level*/
+    CAM_TYPE_MAIN,
+    /* Aux camera of the related cam subsystem */
+    CAM_TYPE_AUX
+} cam_sync_type_t;
+
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
     uint32_t num_streams;
     cam_stream_type_t type[MAX_NUM_STREAMS];
-    uint32_t postprocess_mask[MAX_NUM_STREAMS];
+    cam_feature_mask_t postprocess_mask[MAX_NUM_STREAMS];
     cam_buffer_info_t buffer_info;
     cam_is_type_t is_type;
     cam_hfr_mode_t hfr_mode;
@@ -1591,6 +1608,7 @@ typedef struct {
     uint32_t min_stride;
     uint32_t min_scanline;
     uint8_t batch_size;
+    cam_sync_type_t sync_type;
 } cam_stream_size_info_t;
 
 
@@ -1708,6 +1726,10 @@ typedef  struct {
     /* Stats buffer exif debug parameters */
     uint8_t is_stats_buffer_exif_debug_valid;
     cam_stats_buffer_exif_debug_t stats_buffer_exif_debug_params;
+
+    /* Bhist exif debug parameters. */
+    uint8_t is_bhist_exif_debug_valid;
+    cam_bhist_buffer_exif_debug_t bhist_exif_debug_params;
 
     /* AWB parameters */
     uint8_t is_awb_params_valid;
@@ -1837,6 +1859,8 @@ typedef enum {
     CAM_INTF_META_EXIF_DEBUG_AF,
     CAM_INTF_META_EXIF_DEBUG_ASD,
     CAM_INTF_META_EXIF_DEBUG_STATS,
+    CAM_INTF_META_EXIF_DEBUG_BHIST,
+    CAM_INTF_META_EXIF_DEBUG_3A_TUNING,
     CAM_INTF_PARM_GET_CHROMATIX,
     CAM_INTF_PARM_SET_RELOAD_CHROMATIX,
     CAM_INTF_PARM_SET_AUTOFOCUSTUNING, /* 80 */
@@ -2312,40 +2336,40 @@ typedef struct {
     int32_t step;
 } cam_control_range_t;
 
-#define CAM_QCOM_FEATURE_NONE            0U
-#define CAM_QCOM_FEATURE_FACE_DETECTION (1U<<0)
-#define CAM_QCOM_FEATURE_DENOISE2D      (1U<<1)
-#define CAM_QCOM_FEATURE_CROP           (1U<<2)
-#define CAM_QCOM_FEATURE_ROTATION       (1U<<3)
-#define CAM_QCOM_FEATURE_FLIP           (1U<<4)
-#define CAM_QCOM_FEATURE_HDR            (1U<<5)
-#define CAM_QCOM_FEATURE_REGISTER_FACE  (1U<<6)
-#define CAM_QCOM_FEATURE_SHARPNESS      (1U<<7)
-#define CAM_QCOM_FEATURE_VIDEO_HDR      (1U<<8)
-#define CAM_QCOM_FEATURE_CAC            (1U<<9)
-#define CAM_QCOM_FEATURE_SCALE          (1U<<10)
-#define CAM_QCOM_FEATURE_EFFECT         (1U<<11)
-#define CAM_QCOM_FEATURE_UBIFOCUS       (1U<<12)
-#define CAM_QCOM_FEATURE_CHROMA_FLASH   (1U<<13)
-#define CAM_QCOM_FEATURE_OPTIZOOM       (1U<<14)
-#define CAM_QCOM_FEATURE_SENSOR_HDR     (1U<<15)
-#define CAM_QCOM_FEATURE_REFOCUS        (1U<<16)
-#define CAM_QCOM_FEATURE_CPP_TNR        (1U<<17)
-#define CAM_QCOM_FEATURE_RAW_PROCESSING (1U<<18)
-#define CAM_QCOM_FEATURE_TRUEPORTRAIT   (1U<<19)
-#define CAM_QCOM_FEATURE_LLVD           (1U<<20)
-#define CAM_QCOM_FEATURE_DIS20          (1U<<21)
-#define CAM_QCOM_FEATURE_STILLMORE      (1U<<22)
-#define CAM_QCOM_FEATURE_DCRF           (1U<<23)
-#define CAM_QCOM_FEATURE_CDS            (1U<<24)
-#define CAM_QCOM_FEATURE_EZTUNE         (1U<<25)
-#define CAM_QCOM_FEATURE_DSDN           (1U<<26) //Special CDS in CPP block
-#define CAM_QCOM_FEATURE_SW2D           (1U<<27)
-#define CAM_OEM_FEATURE_1               (1U<<28)
-#define CAM_OEM_FEATURE_2               (1U<<29)
-#define CAM_QTI_FEATURE_SW_TNR          (1U<<30)
-#define CAM_QCOM_FEATURE_METADATA_PROCESSING (1U<<31)
-#define CAM_QCOM_FEATURE_MAX            32
+#define CAM_QCOM_FEATURE_NONE            (cam_feature_mask_t)0UL
+#define CAM_QCOM_FEATURE_FACE_DETECTION ((cam_feature_mask_t)1UL<<0)
+#define CAM_QCOM_FEATURE_DENOISE2D      ((cam_feature_mask_t)1UL<<1)
+#define CAM_QCOM_FEATURE_CROP           ((cam_feature_mask_t)1UL<<2)
+#define CAM_QCOM_FEATURE_ROTATION       ((cam_feature_mask_t)1UL<<3)
+#define CAM_QCOM_FEATURE_FLIP           ((cam_feature_mask_t)1UL<<4)
+#define CAM_QCOM_FEATURE_HDR            ((cam_feature_mask_t)1UL<<5)
+#define CAM_QCOM_FEATURE_REGISTER_FACE  ((cam_feature_mask_t)1UL<<6)
+#define CAM_QCOM_FEATURE_SHARPNESS      ((cam_feature_mask_t)1UL<<7)
+#define CAM_QCOM_FEATURE_VIDEO_HDR      ((cam_feature_mask_t)1UL<<8)
+#define CAM_QCOM_FEATURE_CAC            ((cam_feature_mask_t)1UL<<9)
+#define CAM_QCOM_FEATURE_SCALE          ((cam_feature_mask_t)1UL<<10)
+#define CAM_QCOM_FEATURE_EFFECT         ((cam_feature_mask_t)1UL<<11)
+#define CAM_QCOM_FEATURE_UBIFOCUS       ((cam_feature_mask_t)1UL<<12)
+#define CAM_QCOM_FEATURE_CHROMA_FLASH   ((cam_feature_mask_t)1UL<<13)
+#define CAM_QCOM_FEATURE_OPTIZOOM       ((cam_feature_mask_t)1UL<<14)
+#define CAM_QCOM_FEATURE_SENSOR_HDR     ((cam_feature_mask_t)1UL<<15)
+#define CAM_QCOM_FEATURE_REFOCUS        ((cam_feature_mask_t)1UL<<16)
+#define CAM_QCOM_FEATURE_CPP_TNR        ((cam_feature_mask_t)1UL<<17)
+#define CAM_QCOM_FEATURE_RAW_PROCESSING ((cam_feature_mask_t)1UL<<18)
+#define CAM_QCOM_FEATURE_TRUEPORTRAIT   ((cam_feature_mask_t)1UL<<19)
+#define CAM_QCOM_FEATURE_LLVD           ((cam_feature_mask_t)1UL<<20)
+#define CAM_QCOM_FEATURE_DIS20          ((cam_feature_mask_t)1UL<<21)
+#define CAM_QCOM_FEATURE_STILLMORE      ((cam_feature_mask_t)1UL<<22)
+#define CAM_QCOM_FEATURE_DCRF           ((cam_feature_mask_t)1UL<<23)
+#define CAM_QCOM_FEATURE_CDS            ((cam_feature_mask_t)1UL<<24)
+#define CAM_QCOM_FEATURE_EZTUNE         ((cam_feature_mask_t)1UL<<25)
+#define CAM_QCOM_FEATURE_DSDN           ((cam_feature_mask_t)1UL<<26) //Special CDS in CPP block
+#define CAM_QCOM_FEATURE_SW2D           ((cam_feature_mask_t)1UL<<27)
+#define CAM_OEM_FEATURE_1               ((cam_feature_mask_t)1UL<<28)
+#define CAM_OEM_FEATURE_2               ((cam_feature_mask_t)1UL<<29)
+#define CAM_QTI_FEATURE_SW_TNR          ((cam_feature_mask_t)1UL<<30)
+#define CAM_QCOM_FEATURE_METADATA_PROCESSING ((cam_feature_mask_t)1UL<<31)
+#define CAM_QCOM_FEATURE_PAAF           (((cam_feature_mask_t)1UL)<<32)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
@@ -2463,7 +2487,7 @@ typedef struct {
 
 typedef struct {
     /* reprocess feature mask */
-    uint32_t feature_mask;
+    cam_feature_mask_t feature_mask;
 
     /* individual setting for features to be reprocessed */
     cam_denoise_param_t denoise2d;
@@ -2655,6 +2679,33 @@ typedef enum {
     CAM_MANUAL_CAPTURE_TYPE_4    /*Offline RAW processing with multiple RAW*/
 } cam_manual_capture_type;
 
+typedef enum {
+    CAM_ANALYSIS_INFO_FD_STILL,   /*Analysis requirements for STILL PREVIEW*/
+    CAM_ANALYSIS_INFO_FD_VIDEO,   /*Analysis requirements for VIDEO*/
+    CAM_ANALYSIS_INFO_PAAF,       /*Analysis requirements for PAAF*/
+    CAM_ANALYSIS_INFO_MAX,     /*Max number*/
+} cam_analysis_info_type;
+
+typedef struct {
+    /* Whether the information here is valid or not */
+    uint8_t valid;
+
+    /* Whether analysis supported by hw */
+    uint8_t hw_analysis_supported;
+
+    /* Analysis stream max supported size */
+    cam_dimension_t analysis_max_res;
+
+    /* Analysis stream padding info */
+    cam_padding_info_t analysis_padding_info;
+
+    /* Analysis format */
+    cam_format_t analysis_format;
+
+    /* Analysis recommended size */
+    cam_dimension_t analysis_recommended_res;
+} cam_analysis_info_t;
+
 /***********************************
 * ENUM definition for custom parameter type
 ************************************/
@@ -2662,4 +2713,5 @@ typedef enum {
     CAM_CUSTOM_PARM_EXAMPLE,
     CAM_CUSTOM_PARM_MAX,
 } cam_custom_parm_type;
+
 #endif /* __QCAMERA_TYPES_H__ */

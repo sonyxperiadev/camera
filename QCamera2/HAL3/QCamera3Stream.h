@@ -67,7 +67,7 @@ public:
                          cam_rotation_t streamRotation,
                          cam_stream_reproc_config_t* reprocess_config,
                          uint8_t minStreamBufNum,
-                         uint32_t postprocess_mask,
+                         cam_feature_mask_t postprocess_mask,
                          cam_is_type_t is_type,
                          uint32_t batchSize,
                          hal3_stream_cb_routine stream_cb,

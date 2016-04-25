@@ -111,8 +111,7 @@ public:
     QCamera3PostProcessor(QCamera3ProcessingChannel *ch_ctrl);
     virtual ~QCamera3PostProcessor();
 
-    int32_t init(QCamera3StreamMem *mMemory,
-            uint32_t postprocess_mask);
+    int32_t init(QCamera3StreamMem *mMemory);
     int32_t initJpeg(jpeg_encode_callback_t jpeg_cb,
             cam_dimension_t *m_max_pic_dim,
             void *user_data);
@@ -167,7 +166,6 @@ private:
     mm_jpeg_ops_t              mJpegHandle;
     uint32_t                   mJpegClientHandle;
     uint32_t                   mJpegSessionId;
-    uint32_t                   mPostProcMask;
 
     uint32_t                   m_bThumbnailNeeded;
     QCamera3StreamMem          *mOutputMem;

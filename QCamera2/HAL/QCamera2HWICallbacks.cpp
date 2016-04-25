@@ -2357,6 +2357,22 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         }
     }
 
+    IF_META_AVAILABLE(cam_bhist_buffer_exif_debug_t, bhist_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_BHIST, pMetaData) {
+        if (pme->mExifParams.debug_params) {
+            pme->mExifParams.debug_params->bhist_debug_params = *bhist_exif_debug_params;
+            pme->mExifParams.debug_params->bhist_debug_params_valid = TRUE;
+        }
+    }
+
+    IF_META_AVAILABLE(cam_q3a_tuning_info_t, q3a_tuning_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_3A_TUNING, pMetaData) {
+        if (pme->mExifParams.debug_params) {
+            pme->mExifParams.debug_params->q3a_tuning_debug_params = *q3a_tuning_exif_debug_params;
+            pme->mExifParams.debug_params->q3a_tuning_debug_params_valid = TRUE;
+        }
+    }
+
     IF_META_AVAILABLE(uint32_t, led_mode, CAM_INTF_META_LED_MODE_OVERRIDE, pMetaData) {
         qcamera_sm_internal_evt_payload_t *payload =
                 (qcamera_sm_internal_evt_payload_t *)

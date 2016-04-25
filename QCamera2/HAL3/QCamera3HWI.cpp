@@ -333,6 +333,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mAnalysisChannel(NULL),
       mRawDumpChannel(NULL),
       mDummyBatchChannel(NULL),
+      m_perfLock(),
+      mCommon(),
       mChannelHandle(0),
       mFirstConfiguration(true),
       mFlush(false),
@@ -366,6 +368,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 {
     getLogLevel();
     m_perfLock.lock_init();
+    mCommon.init(gCamCapability[cameraId]);
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
     mCameraDevice.common.version = CAMERA_DEVICE_API_VERSION_3_3;
     mCameraDevice.common.close = close_camera_device;
@@ -1121,7 +1124,7 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
         uint32_t stream_idx)
 {
     char feature_mask_value[PROPERTY_VALUE_MAX];
-    uint32_t feature_mask;
+    cam_feature_mask_t feature_mask;
     int args_converted;
     int property_len;
 
@@ -1130,9 +1133,9 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
             feature_mask_value, "0");
     if ((property_len > 2) && (feature_mask_value[0] == '0') &&
             (feature_mask_value[1] == 'x')) {
-        args_converted = sscanf(feature_mask_value, "0x%x", &feature_mask);
+        args_converted = sscanf(feature_mask_value, "0x%llx", &feature_mask);
     } else {
-        args_converted = sscanf(feature_mask_value, "%d", &feature_mask);
+        args_converted = sscanf(feature_mask_value, "%lld", &feature_mask);
     }
     if (1 != args_converted) {
         feature_mask = 0;
@@ -1157,7 +1160,7 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
     default:
         break;
     }
-    LOGD("PP feature mask %x",
+    LOGD("PP feature mask %llx",
             mStreamConfigInfo.postprocess_mask[stream_idx]);
 }
 
@@ -1334,7 +1337,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     cam_dimension_t maxViewfinderSize = {0, 0};
     bool bJpegExceeds4K = false;
     bool bUseCommonFeatureMask = false;
-    uint32_t commonFeatureMask = 0;
+    cam_feature_mask_t commonFeatureMask = 0;
     bool bSmallJpegSize = false;
     uint32_t width_ratio;
     uint32_t height_ratio;
@@ -1432,7 +1435,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 stallStreamCnt++;
                 if (isOnEncoder(maxViewfinderSize, newStream->width,
                         newStream->height)) {
-                    commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
                     numStreamsOnEncoder++;
                 }
                 width_ratio = CEIL_DIVISION(gCamCapability[mCameraId]->active_array_size.width,
@@ -1456,10 +1458,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 processedStreamCnt++;
                 if (isOnEncoder(maxViewfinderSize, newStream->width,
                         newStream->height)) {
-                    if (newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ||
-                            IS_USAGE_ZSL(newStream->usage)) {
-                        commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
-                    } else {
+                    if (newStream->stream_type != CAMERA3_STREAM_BIDIRECTIONAL &&
+                            !IS_USAGE_ZSL(newStream->usage)) {
                         commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                     }
                     numStreamsOnEncoder++;
@@ -1475,8 +1475,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     if (newStream->width <= VIDEO_4K_WIDTH &&
                             newStream->height <= VIDEO_4K_HEIGHT) {
                         commonFeatureMask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-                    } else {
-                        commonFeatureMask |= CAM_QCOM_FEATURE_NONE;
                     }
                     numStreamsOnEncoder++;
                     numYuv888OnEncoder++;
@@ -1553,7 +1551,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         commonFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
     }
 
-    LOGH("max viewfinder width %d height %d isZsl %d bUseCommonFeature %x commonFeatureMask %x",
+    LOGH("max viewfinder width %d height %d isZsl %d bUseCommonFeature %x commonFeatureMask %llx",
             maxViewfinderSize.width, maxViewfinderSize.height, isZsl, bUseCommonFeatureMask,
             commonFeatureMask);
     LOGH("numStreamsOnEncoder %d, processedStreamCnt %d, stallcnt %d bSmallJpegSize %d",
@@ -1676,9 +1674,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     }
 
     //Create metadata channel and initialize it
+    cam_feature_mask_t metadataFeatureMask = CAM_QCOM_FEATURE_NONE;
+    setPAAFSupport(metadataFeatureMask, CAM_STREAM_TYPE_METADATA,
+            gCamCapability[mCameraId]->color_arrangement);
     mMetadataChannel = new QCamera3MetadataChannel(mCameraHandle->camera_handle,
                     mChannelHandle, mCameraHandle->ops, captureResultCb,
-                    &padding_info, CAM_QCOM_FEATURE_NONE, this);
+                    &padding_info, metadataFeatureMask, this);
     if (mMetadataChannel == NULL) {
         LOGE("failed to allocate metadata channel");
         rc = -ENOMEM;
@@ -1696,18 +1697,28 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
     // Create analysis stream all the time, even when h/w support is not available
     {
+        cam_feature_mask_t analysisFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
+                gCamCapability[mCameraId]->color_arrangement);
+        cam_analysis_info_t analysisInfo;
+        mCommon.getAnalysisInfo(
+                FALSE,
+                TRUE,
+                analysisFeatureMask,
+                &analysisInfo);
+
         mAnalysisChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mChannelHandle,
                 mCameraHandle->ops,
-                &gCamCapability[mCameraId]->analysis_padding_info,
-                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
+                &analysisInfo.analysis_padding_info,
+                analysisFeatureMask,
                 CAM_STREAM_TYPE_ANALYSIS,
-                &gCamCapability[mCameraId]->analysis_recommended_res,
-                (gCamCapability[mCameraId]->analysis_recommended_format
+                &analysisInfo.analysis_max_res,
+                (analysisInfo.analysis_format
                 == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
                 : CAM_FORMAT_YUV_420_NV21),
-                gCamCapability[mCameraId]->hw_analysis_supported,
+                analysisInfo.hw_analysis_supported,
                 this,
                 0); // force buffer count to 0
         if (!mAnalysisChannel) {
@@ -1830,6 +1841,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             case HAL_PIXEL_FORMAT_RAW16:
             case HAL_PIXEL_FORMAT_RAW10:
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_RAW;
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = CAM_QCOM_FEATURE_NONE;
                 isRawStreamRequested = true;
                 break;
             default:
@@ -1838,6 +1850,10 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 break;
             }
         }
+
+        setPAAFSupport(mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                (cam_stream_type_t) mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                gCamCapability[mCameraId]->color_arrangement);
 
         if (newStream->priv == NULL) {
             //New stream, construct channel
@@ -1958,7 +1974,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             mCameraHandle->camera_handle, mChannelHandle,
                             mCameraHandle->ops, captureResultCb,
                             &padding_info,
-                            this, newStream, CAM_QCOM_FEATURE_NONE,
+                            this, newStream,
+                            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                             mMetadataChannel,
                             (newStream->format == HAL_PIXEL_FORMAT_RAW16));
                     if (mRawChannel == NULL) {
@@ -2037,12 +2054,16 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     if (mEnableRawDump && isRawStreamRequested == false){
         cam_dimension_t rawDumpSize;
         rawDumpSize = getMaxRawSize(mCameraId);
+        cam_feature_mask_t rawDumpFeatureMask = CAM_QCOM_FEATURE_NONE;
+        setPAAFSupport(rawDumpFeatureMask,
+                CAM_STREAM_TYPE_RAW,
+                gCamCapability[mCameraId]->color_arrangement);
         mRawDumpChannel = new QCamera3RawDumpChannel(mCameraHandle->camera_handle,
                                   mChannelHandle,
                                   mCameraHandle->ops,
                                   rawDumpSize,
                                   &padding_info,
-                                  this, CAM_QCOM_FEATURE_NONE);
+                                  this, rawDumpFeatureMask);
         if (!mRawDumpChannel) {
             LOGE("Raw Dump channel cannot be created");
             pthread_mutex_unlock(&mMutex);
@@ -2052,26 +2073,41 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
 
     if (mAnalysisChannel) {
-        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams] =
-                gCamCapability[mCameraId]->analysis_recommended_res;
+        cam_analysis_info_t analysisInfo;
+        memset(&analysisInfo, 0, sizeof(cam_analysis_info_t));
         mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
                 CAM_STREAM_TYPE_ANALYSIS;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                 CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        setPAAFSupport(mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                gCamCapability[mCameraId]->color_arrangement);
+        mCommon.getAnalysisInfo(FALSE, TRUE,
+                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                &analysisInfo);
+        mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams] =
+                analysisInfo.analysis_max_res;
         mStreamConfigInfo.num_streams++;
     }
 
     if (isSupportChannelNeeded(streamList, mStreamConfigInfo)) {
+        cam_analysis_info_t supportInfo;
+        memset(&supportInfo, 0, sizeof(cam_analysis_info_t));
+        cam_feature_mask_t callbackFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        setPAAFSupport(callbackFeatureMask,
+                CAM_STREAM_TYPE_CALLBACK,
+                gCamCapability[mCameraId]->color_arrangement);
+        mCommon.getAnalysisInfo(FALSE, TRUE, callbackFeatureMask, &supportInfo);
         mSupportChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mChannelHandle,
                 mCameraHandle->ops,
                 &gCamCapability[mCameraId]->padding_info,
-                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
+                callbackFeatureMask,
                 CAM_STREAM_TYPE_CALLBACK,
                 &QCamera3SupportChannel::kDim,
                 CAM_FORMAT_YUV_420_NV21,
-                gCamCapability[mCameraId]->hw_analysis_supported,
+                supportInfo.hw_analysis_supported,
                 this);
         if (!mSupportChannel) {
             LOGE("dummy channel cannot be created");
@@ -2087,6 +2123,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 CAM_STREAM_TYPE_CALLBACK;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                 CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        setPAAFSupport(mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                gCamCapability[mCameraId]->color_arrangement);
         mStreamConfigInfo.num_streams++;
     }
 
@@ -2099,6 +2138,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 CAM_STREAM_TYPE_RAW;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                 CAM_QCOM_FEATURE_NONE;
+        setPAAFSupport(mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                gCamCapability[mCameraId]->color_arrangement);
         mStreamConfigInfo.num_streams++;
     }
     /* In HFR mode, if video stream is not added, create a dummy channel so that
@@ -2106,6 +2148,10 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
      * never 'start'ed (no stream-on), it is only 'initialized'  */
     if ((mOpMode == CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) &&
             !m_bIsVideo) {
+        cam_feature_mask_t dummyFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        setPAAFSupport(dummyFeatureMask,
+                CAM_STREAM_TYPE_VIDEO,
+                gCamCapability[mCameraId]->color_arrangement);
         mDummyBatchChannel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                 mChannelHandle,
                 mCameraHandle->ops, captureResultCb,
@@ -2113,7 +2159,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 this,
                 &mDummyBatchStream,
                 CAM_STREAM_TYPE_VIDEO,
-                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3,
+                dummyFeatureMask,
                 mMetadataChannel);
         if (NULL == mDummyBatchChannel) {
             LOGE("creation of mDummyBatchChannel failed."
@@ -2129,6 +2175,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 CAM_STREAM_TYPE_VIDEO;
         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                 CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        setPAAFSupport(mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
+                mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                gCamCapability[mCameraId]->color_arrangement);
         mStreamConfigInfo.num_streams++;
     }
 
@@ -5352,6 +5401,20 @@ void QCamera3HardwareInterface::saveExifParams(metadata_buffer_t *metadata)
             mExifParams.debug_params->stats_debug_params_valid = TRUE;
         }
     }
+    IF_META_AVAILABLE(cam_bhist_buffer_exif_debug_t, bhist_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_BHIST, metadata) {
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->bhist_debug_params = *bhist_exif_debug_params;
+            mExifParams.debug_params->bhist_debug_params_valid = TRUE;
+        }
+    }
+    IF_META_AVAILABLE(cam_q3a_tuning_info_t, q3a_tuning_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_3A_TUNING, metadata) {
+        if (mExifParams.debug_params) {
+            mExifParams.debug_params->q3a_tuning_debug_params = *q3a_tuning_exif_debug_params;
+            mExifParams.debug_params->q3a_tuning_debug_params_valid = TRUE;
+        }
+    }
 }
 
 /*===========================================================================
@@ -5911,8 +5974,14 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
     }
     memcpy(gCamCapability[cameraId], DATA_PTR(capabilityHeap,0),
                                         sizeof(cam_capability_t));
-    gCamCapability[cameraId]->analysis_padding_info.offset_info.offset_x = 0;
-    gCamCapability[cameraId]->analysis_padding_info.offset_info.offset_y = 0;
+
+    int index;
+    for (index = 0; index < CAM_ANALYSIS_INFO_MAX; index++) {
+        cam_analysis_info_t *p_analysis_info =
+                &gCamCapability[cameraId]->analysis_info[index];
+        p_analysis_info->analysis_padding_info.offset_info.offset_x = 0;
+        p_analysis_info->analysis_padding_info.offset_info.offset_y = 0;
+    }
     rc = 0;
 
 query_failed:
@@ -6538,29 +6607,32 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         /* Advertise only MIN_FPS_FOR_BATCH_MODE or above as HIGH_SPEED_CONFIGS */
         if (fps >= MIN_FPS_FOR_BATCH_MODE) {
             /* For each HFR frame rate, need to advertise one variable fps range
-             * and one fixed fps range. Eg: for 120 FPS, advertise [30, 120] and
-             * [120, 120]. While camcorder preview alone is running [30, 120] is
+             * and one fixed fps range per dimension. Eg: for 120 FPS, advertise [30, 120]
+             * and [120, 120]. While camcorder preview alone is running [30, 120] is
              * set by the app. When video recording is started, [120, 120] is
              * set. This way sensor configuration does not change when recording
              * is started */
 
             /* (width, height, fps_min, fps_max, batch_size_max) */
-            available_hfr_configs.add(
-                    gCamCapability[cameraId]->hfr_tbl[i].dim.width);
-            available_hfr_configs.add(
-                    gCamCapability[cameraId]->hfr_tbl[i].dim.height);
-            available_hfr_configs.add(PREVIEW_FPS_FOR_HFR);
-            available_hfr_configs.add(fps);
-            available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
+            for (size_t j = 0; j < gCamCapability[cameraId]->hfr_tbl[i].dim_cnt &&
+                j < MAX_SIZES_CNT; j++) {
+                available_hfr_configs.add(
+                        gCamCapability[cameraId]->hfr_tbl[i].dim[j].width);
+                available_hfr_configs.add(
+                        gCamCapability[cameraId]->hfr_tbl[i].dim[j].height);
+                available_hfr_configs.add(PREVIEW_FPS_FOR_HFR);
+                available_hfr_configs.add(fps);
+                available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
 
-            /* (width, height, fps_min, fps_max, batch_size_max) */
-            available_hfr_configs.add(
-                    gCamCapability[cameraId]->hfr_tbl[i].dim.width);
-            available_hfr_configs.add(
-                    gCamCapability[cameraId]->hfr_tbl[i].dim.height);
-            available_hfr_configs.add(fps);
-            available_hfr_configs.add(fps);
-            available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
+                /* (width, height, fps_min, fps_max, batch_size_max) */
+                available_hfr_configs.add(
+                        gCamCapability[cameraId]->hfr_tbl[i].dim[j].width);
+                available_hfr_configs.add(
+                        gCamCapability[cameraId]->hfr_tbl[i].dim[j].height);
+                available_hfr_configs.add(fps);
+                available_hfr_configs.add(fps);
+                available_hfr_configs.add(fps / PREVIEW_FPS_FOR_HFR);
+            }
        }
     }
     //Advertise HFR capability only if the property is set
@@ -9411,7 +9483,7 @@ bool QCamera3HardwareInterface::needRotationReprocess()
  * RETURN     : true: needed
  *              false: no need
  *==========================================================================*/
-bool QCamera3HardwareInterface::needReprocess(uint32_t postprocess_mask)
+bool QCamera3HardwareInterface::needReprocess(cam_feature_mask_t postprocess_mask)
 {
     if (gCamCapability[mCameraId]->qcom_supported_feature_mask > 0) {
         // TODO: add for ZSL HDR later
@@ -10128,4 +10200,45 @@ void PendingBuffersMap::removeBuf(buffer_handle_t *buffer)
             get_num_overall_buffers());
 }
 
+/*===========================================================================
+ * FUNCTION   : setPAAFSupport
+ *
+ * DESCRIPTION: Set the preview-assisted auto focus support bit in
+ *              feature mask according to stream type and filter
+ *              arrangement
+ *
+ * PARAMETERS : @feature_mask: current feature mask, which may be modified
+ *              @stream_type: stream type
+ *              @filter_arrangement: filter arrangement
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCamera3HardwareInterface::setPAAFSupport(
+        cam_feature_mask_t& feature_mask,
+        cam_stream_type_t stream_type,
+        cam_color_filter_arrangement_t filter_arrangement)
+{
+    LOGD("feature_mask=0x%llx; stream_type=%d, filter_arrangement=%d",
+            feature_mask, stream_type, filter_arrangement);
+
+    switch (filter_arrangement) {
+    case CAM_FILTER_ARRANGEMENT_RGGB:
+    case CAM_FILTER_ARRANGEMENT_GRBG:
+    case CAM_FILTER_ARRANGEMENT_GBRG:
+    case CAM_FILTER_ARRANGEMENT_BGGR:
+        if ((stream_type == CAM_STREAM_TYPE_CALLBACK) ||
+                (stream_type == CAM_STREAM_TYPE_PREVIEW) ||
+                (stream_type == CAM_STREAM_TYPE_VIDEO)) {
+            feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        }
+        break;
+    case CAM_FILTER_ARRANGEMENT_Y:
+        if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
+            feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        }
+        break;
+    default:
+        break;
+    }
+}
 }; //end namespace qcamera

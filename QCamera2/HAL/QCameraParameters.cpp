@@ -395,7 +395,6 @@ const char QCameraParameters::KEY_QC_MIN_SCE_FACTOR[] = "min-sce-factor";
 const char QCameraParameters::KEY_QC_MAX_SCE_FACTOR[] = "max-sce-factor";
 const char QCameraParameters::KEY_QC_SCE_FACTOR_STEP[] = "sce-factor-step";
 
-const char QCameraParameters::KEY_QC_SUPPORTED_CAMERA_FEATURES[] = "qc-camera-features";
 const char QCameraParameters::KEY_QC_MAX_NUM_REQUESTED_FACES[] = "qc-max-num-requested-faces";
 
 //Values for DENOISE
@@ -893,6 +892,7 @@ static inline bool isOEMFeat1PropEnabled()
 QCameraParameters::QCameraParameters()
     : CameraParameters(),
       m_reprocScaleParam(),
+      mCommon(),
       m_pCapability(NULL),
       m_pCamOpsTbl(NULL),
       m_pParamHeap(NULL),
@@ -1329,12 +1329,12 @@ String8 QCameraParameters::createHfrSizesString(const cam_hfr_info_t *values, si
 
     if (len > 0) {
         snprintf(buffer, sizeof(buffer), "%dx%d",
-                 values[0].dim.width, values[0].dim.height);
+                 values[0].dim[0].width, values[0].dim[0].height);
         str.append(buffer);
     }
     for (size_t i = 1; i < len; i++) {
         snprintf(buffer, sizeof(buffer), ",%dx%d",
-                 values[i].dim.width, values[i].dim.height);
+                 values[i].dim[0].width, values[i].dim[0].height);
         str.append(buffer);
     }
     return str;
@@ -5200,8 +5200,6 @@ int32_t QCameraParameters::initDefaultParameters()
         m_pCapability->auto_exposure_lock_supported? VALUE_TRUE : VALUE_FALSE);
     set(KEY_AUTO_WHITEBALANCE_LOCK_SUPPORTED,
         m_pCapability->auto_wb_lock_supported? VALUE_TRUE : VALUE_FALSE);
-    set(KEY_QC_SUPPORTED_CAMERA_FEATURES,
-            (int)m_pCapability->qcom_supported_feature_mask);
     set(KEY_MAX_NUM_DETECTED_FACES_HW, m_pCapability->max_num_roi);
     set(KEY_MAX_NUM_DETECTED_FACES_SW, m_pCapability->max_num_roi);
     set(KEY_QC_MAX_NUM_REQUESTED_FACES, m_pCapability->max_num_roi);
@@ -5680,7 +5678,7 @@ int32_t QCameraParameters::initDefaultParameters()
             m_pCapability->hfr_tbl,
             m_pCapability->hfr_tbl_cnt);
     set(KEY_QC_SUPPORTED_HFR_SIZES, hfrSizeValues.string());
-    LOGD("HFR values %s HFR Sizes = %d", hfrValues.string(), hfrSizeValues.string());
+    LOGD("HFR values = %s HFR Sizes = %s", hfrValues.string(), hfrSizeValues.string());
     setHighFrameRate(CAM_HFR_MODE_OFF);
 
     // Set Focus algorithms
@@ -6011,7 +6009,7 @@ int32_t QCameraParameters::initDefaultParameters()
     }
 
     setOfflineRAW();
-    memset(mStreamPpMask, 0, sizeof(uint32_t)*CAM_STREAM_TYPE_MAX);
+    memset(mStreamPpMask, 0, sizeof(cam_feature_mask_t)*CAM_STREAM_TYPE_MAX);
     //Set video buffers as uncached by default
     set(KEY_QC_CACHE_VIDEO_BUFFERS, VALUE_DISABLE);
 
@@ -6186,6 +6184,8 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     }
 
     initDefaultParameters();
+
+    mCommon.init(capabilities);
 
     m_bInited = true;
 
@@ -9953,13 +9953,24 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         format = mAppPreviewFormat;
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
-        if (m_pCapability->hw_analysis_supported &&
-                m_pCapability->analysis_recommended_format == CAM_FORMAT_Y_ONLY) {
-            format = m_pCapability->analysis_recommended_format;
+        cam_analysis_info_t analysisInfo;
+        cam_feature_mask_t featureMask;
+
+        featureMask = 0;
+        getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
+        getAnalysisInfo(
+                ((getRecordingHintValue() == true) && fdModeInVideo()),
+                FALSE,
+                featureMask,
+                &analysisInfo);
+
+        if (analysisInfo.hw_analysis_supported &&
+                analysisInfo.analysis_format == CAM_FORMAT_Y_ONLY) {
+            format = analysisInfo.analysis_format;
         } else {
-            if (m_pCapability->hw_analysis_supported) {
-                LOGW("Invalid analysis_recommended_format %d\n",
-                        m_pCapability->analysis_recommended_format);
+            if (analysisInfo.hw_analysis_supported) {
+                LOGW("Invalid analysis_format %d\n",
+                        analysisInfo.analysis_format);
             }
             format = mAppPreviewFormat;
         }
@@ -10156,15 +10167,19 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         /* Analysis stream need aspect ratio as preview stream */
         getPreviewSize(&prv_dim.width, &prv_dim.height);
 
-        max_dim.width = m_pCapability->analysis_max_res.width;
-        max_dim.height = m_pCapability->analysis_max_res.height;
+        cam_analysis_info_t analysisInfo;
+        cam_feature_mask_t featureMask;
 
-        if ((getRecordingHintValue() == true)
-                && fdModeInVideo()
-                && m_pCapability->hw_analysis_supported) {
-            max_dim.width /= 2;
-            max_dim.height /= 2;
-        }
+        featureMask = 0;
+        getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
+        getAnalysisInfo(
+                ((getRecordingHintValue() == true) && fdModeInVideo()),
+                FALSE,
+                featureMask,
+                &analysisInfo);
+
+        max_dim.width = analysisInfo.analysis_max_res.width;
+        max_dim.height = analysisInfo.analysis_max_res.height;
 
         if (prv_dim.width > max_dim.width || prv_dim.height > max_dim.height) {
             double max_ratio, requested_ratio;
@@ -12705,12 +12720,6 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     stream_config_info.min_stride     = m_pCapability->min_stride;
     stream_config_info.min_scanline   = m_pCapability->min_scanline;
     stream_config_info.batch_size = getBufBatchCount();
-    LOGH("buf_alignment=%d stride X scan=%dx%d batch size = %d\n",
-            m_pCapability->buf_alignment,
-            m_pCapability->min_stride,
-            m_pCapability->min_scanline,
-            stream_config_info.batch_size);
-
 
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
@@ -12923,7 +12932,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         stream_config_info.num_streams++;
     }
     for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
-        LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%x Format = %d",
+        LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx Format = %d",
                 stream_config_info.type[k],
                 stream_config_info.stream_sizes[k].width,
                 stream_config_info.stream_sizes[k].height,
@@ -13014,7 +13023,7 @@ int32_t QCameraParameters::addOnlineRotation(uint32_t rotation, uint32_t streamI
  * RETURN     : true: needed
  *              false: no need
  *==========================================================================*/
-bool QCameraParameters::needThumbnailReprocess(uint32_t *pFeatureMask)
+bool QCameraParameters::needThumbnailReprocess(cam_feature_mask_t *pFeatureMask)
 {
     if (isUbiFocusEnabled() || isChromaFlashEnabled() ||
             isOptiZoomEnabled() || isUbiRefocus() ||
@@ -13323,7 +13332,7 @@ void QCameraParameters::setOfflineRAW(bool raw_value)
  *==========================================================================*/
 int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
-    uint32_t feature_mask = 0;
+    cam_feature_mask_t feature_mask = 0;
 
     if (stream_type >= CAM_STREAM_TYPE_MAX) {
         LOGE("Error!! stream type: %d not valid", stream_type);
@@ -13428,9 +13437,21 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         }
     }
 
+    // Preview assisted autofocus needs to be supported for
+    // callback, preview, or video streams
+    switch (stream_type) {
+    case CAM_STREAM_TYPE_CALLBACK:
+    case CAM_STREAM_TYPE_PREVIEW:
+    case CAM_STREAM_TYPE_VIDEO:
+        feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        break;
+    default:
+        break;
+    }
+
     // Store stream feature mask
     setStreamPpMask(stream_type, feature_mask);
-    LOGH("stream type: %d, pp_mask: 0x%x", stream_type, feature_mask);
+    LOGH("stream type: %d, pp_mask: 0x%llx", stream_type, feature_mask);
 
     return NO_ERROR;
 }
@@ -13448,7 +13469,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
  *              int32_t type of status
  *==========================================================================*/
 int32_t QCameraParameters::setStreamPpMask(cam_stream_type_t stream_type,
-        uint32_t pp_mask) {
+        cam_feature_mask_t pp_mask) {
 
     if(stream_type >= CAM_STREAM_TYPE_MAX) {
         return BAD_TYPE;
@@ -13471,7 +13492,7 @@ int32_t QCameraParameters::setStreamPpMask(cam_stream_type_t stream_type,
  *              int32_t type of status
  *==========================================================================*/
 int32_t QCameraParameters::getStreamPpMask(cam_stream_type_t stream_type,
-        uint32_t &pp_mask) {
+        cam_feature_mask_t &pp_mask) {
 
     if(stream_type >= CAM_STREAM_TYPE_MAX) {
         return BAD_TYPE;
@@ -14076,7 +14097,10 @@ uint8_t QCameraParameters::fdModeInVideo()
     char value[PROPERTY_VALUE_MAX];
     uint8_t fdvideo = 0;
 
-    if (!m_pCapability->hw_analysis_supported) {
+    cam_analysis_info_t *pAnalysisInfo =
+            &m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_VIDEO];
+
+    if (!pAnalysisInfo->hw_analysis_supported) {
         return 0;
     }
 
@@ -14285,6 +14309,31 @@ int32_t QCameraParameters::setAdvancedCaptureMode()
         return BAD_VALUE;
     }
     return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : getAnalysisInfo
+ *
+ * DESCRIPTION: Get the Analysis information based on
+ *     current mode and feature mask
+ *
+ * PARAMETERS :
+ *   @fdVideoEnabled : Whether fdVideo enabled currently
+ *   @videoEnabled   : Whether hal3 or hal1
+ *   @featureMask    : Feature mask
+ *   @analysis_info  : Analysis info to be filled
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::getAnalysisInfo(
+        bool fdVideoEnabled,
+        bool hal3,
+        uint32_t featureMask,
+        cam_analysis_info_t *pAnalysisInfo)
+{
+    return mCommon.getAnalysisInfo(fdVideoEnabled, hal3, featureMask, pAnalysisInfo);
 }
 
 }; // namespace qcamera

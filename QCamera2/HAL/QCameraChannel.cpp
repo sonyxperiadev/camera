@@ -896,7 +896,6 @@ int32_t QCameraVideoChannel::releaseFrame(const void * opaque, bool isMetaData)
  * PARAMETERS :
  *   @cam_handle : camera handle
  *   @cam_ops    : ptr to camera ops table
- *   @pp_mask    : post-proccess feature mask
  *
  * RETURN     : none
  *==========================================================================*/
@@ -1015,7 +1014,7 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                     pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
                     pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
                     pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
-                uint32_t feature_mask = featureConfig.feature_mask;
+                cam_feature_mask_t feature_mask = featureConfig.feature_mask;
 
                 // skip thumbnail reprocessing if not needed
                 if (!param.needThumbnailReprocess(&feature_mask)) {
