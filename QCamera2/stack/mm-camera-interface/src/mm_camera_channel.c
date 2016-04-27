@@ -2745,7 +2745,7 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
                 /* find a matched super buf, move to next one */
                 pos = pos->next;
                 continue;
-            } else if ( buf_info->frame_idx == super_buf->frame_idx
+            } else if (( buf_info->frame_idx == super_buf->frame_idx )
                     /*Pick metadata greater than available frameID*/
                     || ((queue->attr.priority == MM_CAMERA_SUPER_BUF_PRIORITY_LOW)
                     && (super_buf->super_buf[buf_s_idx].frame_idx == 0)
@@ -2755,11 +2755,20 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
                     || ((queue->attr.priority == MM_CAMERA_SUPER_BUF_PRIORITY_LOW)
                     && (buf_info->buf->stream_type != CAM_STREAM_TYPE_METADATA)
                     && (super_buf->super_buf[buf_s_idx].frame_idx == 0)
-                    && (super_buf->frame_idx > buf_info->frame_idx))){
+                    && (super_buf->unmatched_meta_idx > buf_info->frame_idx))){
                 /*super buffer frame IDs matching OR In low priority bundling
                 metadata frameID greater than avialbale super buffer frameID  OR
                 metadata frame closest to incoming frameID will be bundled*/
                 found_super_buf = 1;
+                /* If we are filling into a 'meta only' superbuf, make sure to reset
+                the super_buf frame_idx so that missing streams in this superbuf
+                are filled as per matching frame id logic. Note that, in low priority
+                queue, only meta frame id need not match (closest suffices) but
+                the other streams in this superbuf should have same frame id. */
+                if (super_buf->unmatched_meta_idx > 0) {
+                    super_buf->unmatched_meta_idx = 0;
+                    super_buf->frame_idx = buf_info->frame_idx;
+                }
                 break;
             } else {
                 unmatched_bundles++;
@@ -2934,6 +2943,13 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
                         mm_frame_sync_add(buf_info->frame_idx, ch_obj);
                         pthread_mutex_unlock(&fs_lock);
                     }
+                }
+                /* In low priority queue, this will become a 'meta only' superbuf. Set the
+                unmatched_frame_idx so that the upcoming stream buffers (other than meta)
+                can be filled into this which are nearest to this idx. */
+                if ((queue->attr.priority == MM_CAMERA_SUPER_BUF_PRIORITY_LOW)
+                    && (buf_info->buf->stream_type == CAM_STREAM_TYPE_METADATA)) {
+                    new_buf->unmatched_meta_idx = buf_info->frame_idx;
                 }
             } else {
                 /* No memory */

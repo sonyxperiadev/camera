@@ -3326,10 +3326,16 @@ int QCamera2HardwareInterface::enableMsgType(int32_t msg_type)
               Preview callback  in UBWC case*/
         if (!(msgTypeEnabled(CAMERA_MSG_PREVIEW_FRAME)) &&
                 (msg_type & CAMERA_MSG_PREVIEW_FRAME)) {
-            // Start callback channel only when preview channel is active
-            if ((m_channels[QCAMERA_CH_TYPE_CALLBACK] != NULL) &&
-                    (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) &&
-                    (m_channels[QCAMERA_CH_TYPE_PREVIEW]->isActive())){
+            // Start callback channel only when preview/zsl channel is active
+            QCameraChannel* previewCh = NULL;
+            if (isZSLMode() && (getRecordingHintValue() != true)) {
+                previewCh = m_channels[QCAMERA_CH_TYPE_ZSL];
+            } else {
+                previewCh = m_channels[QCAMERA_CH_TYPE_PREVIEW];
+            }
+            QCameraChannel* callbackCh = m_channels[QCAMERA_CH_TYPE_CALLBACK];
+            if ((callbackCh != NULL) &&
+                    (previewCh != NULL) && previewCh->isActive()) {
                 rc = startChannel(QCAMERA_CH_TYPE_CALLBACK);
                 if (rc != NO_ERROR) {
                     LOGE("START Callback Channel failed");
@@ -3762,8 +3768,6 @@ int QCamera2HardwareInterface::autoFocus()
     int rc = NO_ERROR;
     cam_focus_mode_type focusMode = mParameters.getFocusMode();
     LOGH("E");
-
-    m_currentFocusState = CAM_AF_STATE_INACTIVE;
 
     switch (focusMode) {
     case CAM_FOCUS_MODE_AUTO:
