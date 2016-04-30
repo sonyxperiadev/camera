@@ -6736,15 +6736,18 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
 
         featureMask = 0;
         mParameters.getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
-        mParameters.getAnalysisInfo(
+        rc = mParameters.getAnalysisInfo(
                 ((mParameters.getRecordingHintValue() == true) &&
                  mParameters.fdModeInVideo()),
                 FALSE,
                 featureMask,
                 &analysisInfo);
+        if (rc != NO_ERROR) {
+            LOGE("getAnalysisInfo failed, ret = %d", rc);
+            return rc;
+        }
 
-        padding_info =
-                analysisInfo.analysis_padding_info;
+        padding_info = analysisInfo.analysis_padding_info;
     } else {
         padding_info =
                 gCamCapability[mCameraId]->padding_info;

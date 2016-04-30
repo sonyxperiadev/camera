@@ -9958,11 +9958,15 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
 
         featureMask = 0;
         getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
-        getAnalysisInfo(
+        ret = getAnalysisInfo(
                 ((getRecordingHintValue() == true) && fdModeInVideo()),
                 FALSE,
                 featureMask,
                 &analysisInfo);
+        if (ret != NO_ERROR) {
+            LOGE("getAnalysisInfo failed, ret = %d", ret);
+            return ret;
+        }
 
         if (analysisInfo.hw_analysis_supported &&
                 analysisInfo.analysis_format == CAM_FORMAT_Y_ONLY) {
@@ -10172,11 +10176,15 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
 
         featureMask = 0;
         getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
-        getAnalysisInfo(
+        ret = getAnalysisInfo(
                 ((getRecordingHintValue() == true) && fdModeInVideo()),
                 FALSE,
                 featureMask,
                 &analysisInfo);
+        if (ret != NO_ERROR) {
+            LOGE("getAnalysisInfo failed, ret = %d", ret);
+            return ret;
+        }
 
         max_dim.width = analysisInfo.analysis_max_res.width;
         max_dim.height = analysisInfo.analysis_max_res.height;

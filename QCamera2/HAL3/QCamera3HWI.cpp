@@ -1701,11 +1701,16 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
                 gCamCapability[mCameraId]->color_arrangement);
         cam_analysis_info_t analysisInfo;
-        mCommon.getAnalysisInfo(
+        rc = mCommon.getAnalysisInfo(
                 FALSE,
                 TRUE,
                 analysisFeatureMask,
                 &analysisInfo);
+        if (rc != NO_ERROR) {
+            LOGE("getAnalysisInfo failed, ret = %d", rc);
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
 
         mAnalysisChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
@@ -2082,9 +2087,14 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         setPAAFSupport(mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
                 gCamCapability[mCameraId]->color_arrangement);
-        mCommon.getAnalysisInfo(FALSE, TRUE,
+        rc = mCommon.getAnalysisInfo(FALSE, TRUE,
                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                 &analysisInfo);
+        if (rc != NO_ERROR) {
+            LOGE("getAnalysisInfo failed, ret = %d", rc);
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams] =
                 analysisInfo.analysis_max_res;
         mStreamConfigInfo.num_streams++;
@@ -2097,7 +2107,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         setPAAFSupport(callbackFeatureMask,
                 CAM_STREAM_TYPE_CALLBACK,
                 gCamCapability[mCameraId]->color_arrangement);
-        mCommon.getAnalysisInfo(FALSE, TRUE, callbackFeatureMask, &supportInfo);
+        rc = mCommon.getAnalysisInfo(FALSE, TRUE, callbackFeatureMask, &supportInfo);
+        if (rc != NO_ERROR) {
+            LOGE("getAnalysisInfo failed, ret = %d", rc);
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
         mSupportChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mChannelHandle,
