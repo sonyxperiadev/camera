@@ -122,6 +122,8 @@ class QCamera3HardwareInterface {
 public:
     /* static variable and functions accessed by camera service */
     static camera3_device_ops_t mCameraOps;
+    //Id of each session in bundle/link
+    static uint32_t sessionId[MM_CAMERA_MAX_NUM_SENSORS];
     static int initialize(const struct camera3_device *,
                 const camera3_callback_ops_t *callback_ops);
     static int configure_streams(const struct camera3_device *,
@@ -511,6 +513,14 @@ private:
     uint32_t mSurfaceStridePadding;
 
     State mState;
+    //Dual camera related params
+    bool mIsDeviceLinked;
+    bool mIsMainCamera;
+    uint8_t mLinkedCameraId;
+    QCamera3HeapMemory *m_pRelCamSyncHeap;
+    cam_sync_related_sensors_event_info_t *m_pRelCamSyncBuf;
+    cam_sync_related_sensors_event_info_t m_relCamSyncInfo;
+
 };
 
 }; // namespace qcamera

@@ -310,6 +310,9 @@ camera3_device_ops_t QCamera3HardwareInterface::mCameraOps = {
     .reserved                           = {0},
 };
 
+// initialise to some default value
+uint32_t QCamera3HardwareInterface::sessionId[] = {0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF};
+
 /*===========================================================================
  * FUNCTION   : QCamera3HardwareInterface
  *
@@ -364,7 +367,12 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mLdafCalibExist(false),
       mPowerHintEnabled(false),
       mLastCustIntentFrmNum(-1),
-      mState(CLOSED)
+      mState(CLOSED),
+      mIsDeviceLinked(false),
+      mIsMainCamera(true),
+      mLinkedCameraId(0),
+      m_pRelCamSyncHeap(NULL),
+      m_pRelCamSyncBuf(NULL)
 {
     getLogLevel();
     m_perfLock.lock_init();
@@ -737,6 +745,43 @@ int QCamera3HardwareInterface::openCamera()
         pthread_mutex_unlock(&gCamLock);
     }
 
+    //fill the session id needed while linking dual cam
+    pthread_mutex_lock(&gCamLock);
+    rc = mCameraHandle->ops->get_session_id(mCameraHandle->camera_handle,
+        &sessionId[mCameraId]);
+    pthread_mutex_unlock(&gCamLock);
+
+    if (rc < 0) {
+        LOGE("Error, failed to get sessiion id");
+        return UNKNOWN_ERROR;
+    } else {
+        //Allocate related cam sync buffer
+        //this is needed for the payload that goes along with bundling cmd for related
+        //camera use cases
+        m_pRelCamSyncHeap = new QCamera3HeapMemory(1);
+        rc = m_pRelCamSyncHeap->allocate(sizeof(cam_sync_related_sensors_event_info_t));
+        if(rc != OK) {
+            rc = NO_MEMORY;
+            LOGE("Dualcam: Failed to allocate Related cam sync Heap memory");
+            return NO_MEMORY;
+        }
+
+        //Map memory for related cam sync buffer
+        rc = mCameraHandle->ops->map_buf(mCameraHandle->camera_handle,
+                CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF,
+                m_pRelCamSyncHeap->getFd(0),
+                sizeof(cam_sync_related_sensors_event_info_t));
+        if(rc < 0) {
+            LOGE("Dualcam: failed to map Related cam sync buffer");
+            rc = FAILED_TRANSACTION;
+            return NO_MEMORY;
+        }
+        m_pRelCamSyncBuf =
+                (cam_sync_related_sensors_event_info_t*) DATA_PTR(m_pRelCamSyncHeap,0);
+    }
+
+    LOGH("mCameraId=%d",mCameraId);
+
     return NO_ERROR;
 }
 
@@ -762,6 +807,11 @@ int QCamera3HardwareInterface::closeCamera()
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
 
+    //reset session id to some invalid id
+    pthread_mutex_lock(&gCamLock);
+    sessionId[mCameraId] = 0xDEADBEEF;
+    pthread_mutex_unlock(&gCamLock);
+
     //Notify display HAL that there is no active camera session
     //but avoid calling the same during bootup. Refer to openCamera
     //for more details.
@@ -772,6 +822,13 @@ int QCamera3HardwareInterface::closeCamera()
             setCameraLaunchStatus(false);
         }
         pthread_mutex_unlock(&gCamLock);
+    }
+
+    if (NULL != m_pRelCamSyncHeap) {
+        m_pRelCamSyncHeap->deallocate();
+        delete m_pRelCamSyncHeap;
+        m_pRelCamSyncHeap = NULL;
+        m_pRelCamSyncBuf = NULL;
     }
 
     if (mExifParams.debug_params) {
@@ -3551,6 +3608,63 @@ int QCamera3HardwareInterface::processCaptureRequest(
             goto error_exit;
         }
 
+        //update settings from app here
+        if (meta.exists(QCAMERA3_DUALCAM_LINK_ENABLE)) {
+            mIsDeviceLinked = meta.find(QCAMERA3_DUALCAM_LINK_ENABLE).data.u8[0];
+            LOGH("Dualcam: setting On=%d id =%d", mIsDeviceLinked, mCameraId);
+        }
+        if (meta.exists(QCAMERA3_DUALCAM_LINK_IS_MAIN)) {
+            mIsMainCamera = meta.find(QCAMERA3_DUALCAM_LINK_IS_MAIN).data.u8[0];
+            LOGH("Dualcam: Is this main camera = %d id =%d", mIsMainCamera, mCameraId);
+        }
+        if (meta.exists(QCAMERA3_DUALCAM_LINK_RELATED_CAMERA_ID)) {
+            mLinkedCameraId = meta.find(QCAMERA3_DUALCAM_LINK_RELATED_CAMERA_ID).data.u8[0];
+            LOGH("Dualcam: Linked camera Id %d id =%d", mLinkedCameraId, mCameraId);
+
+            if ( (mLinkedCameraId >= MM_CAMERA_MAX_NUM_SENSORS) &&
+                (mLinkedCameraId != mCameraId) ) {
+                LOGE("Dualcam: mLinkedCameraId %d is invalid, current cam id = %d",
+                    mLinkedCameraId, mCameraId);
+                goto error_exit;
+            }
+        }
+
+        // add bundle related cameras
+        LOGH("%s: Dualcam: id =%d, mIsDeviceLinked=%d", __func__,mCameraId, mIsDeviceLinked);
+        if (meta.exists(QCAMERA3_DUALCAM_LINK_ENABLE)) {
+            if (mIsDeviceLinked)
+                m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_ON;
+            else
+                m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+
+            pthread_mutex_lock(&gCamLock);
+
+            if (sessionId[mLinkedCameraId] == 0xDEADBEEF) {
+                LOGE("Dualcam: Invalid Session Id ");
+                pthread_mutex_unlock(&gCamLock);
+                goto error_exit;
+            }
+
+            if (mIsMainCamera == 1) {
+                m_pRelCamSyncBuf->mode = CAM_MODE_PRIMARY;
+                m_pRelCamSyncBuf->type = CAM_TYPE_MAIN;
+                // related session id should be session id of linked session
+                m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
+            } else {
+                m_pRelCamSyncBuf->mode = CAM_MODE_SECONDARY;
+                m_pRelCamSyncBuf->type = CAM_TYPE_AUX;
+                m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
+            }
+            pthread_mutex_unlock(&gCamLock);
+
+            rc = mCameraHandle->ops->sync_related_sensors(
+                    mCameraHandle->camera_handle, m_pRelCamSyncBuf);
+            if (rc < 0) {
+                LOGE("Dualcam: link failed");
+                goto error_exit;
+            }
+        }
+
         //Then start them.
         LOGH("Start META Channel");
         rc = mMetadataChannel->start();
@@ -3631,7 +3745,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 goto error_exit;
             }
         }
-
 
         goto no_error;
 error_exit:
@@ -4137,6 +4250,30 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     pthread_mutex_unlock(&mMutex);
 
     rc = stopAllChannels();
+    // unlink of dualcam
+    if (mIsDeviceLinked) {
+        m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+        pthread_mutex_lock(&gCamLock);
+
+        if (mIsMainCamera == 1) {
+            m_pRelCamSyncBuf->mode = CAM_MODE_PRIMARY;
+            m_pRelCamSyncBuf->type = CAM_TYPE_MAIN;
+            // related session id should be session id of linked session
+            m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
+        } else {
+            m_pRelCamSyncBuf->mode = CAM_MODE_SECONDARY;
+            m_pRelCamSyncBuf->type = CAM_TYPE_AUX;
+            m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
+        }
+        pthread_mutex_unlock(&gCamLock);
+
+        rc = mCameraHandle->ops->sync_related_sensors(
+                mCameraHandle->camera_handle, m_pRelCamSyncBuf);
+        if (rc < 0) {
+            LOGE("Dualcam: Unlink failed, but still proceed to close");
+        }
+    }
+
     if (rc < 0) {
         LOGE("stopAllChannels failed");
         return rc;
@@ -7929,6 +8066,15 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         LOGD("TNR:%d with process plate %d for template:%d",
                              tnr_enable, tnr_process_type, type);
     }
+
+    //Update Link tags to default
+    int32_t sync_type = CAM_TYPE_STANDALONE;
+    settings.update(QCAMERA3_DUALCAM_LINK_ENABLE, &sync_type, 1);
+
+    int32_t is_main = 0; //this doesn't matter as app should overwrite
+    settings.update(QCAMERA3_DUALCAM_LINK_IS_MAIN, &is_main, 1);
+
+    settings.update(QCAMERA3_DUALCAM_LINK_RELATED_CAMERA_ID, &is_main, 1);
 
     /* CDS default */
     char prop[PROPERTY_VALUE_MAX];
