@@ -2357,6 +2357,14 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         }
     }
 
+    IF_META_AVAILABLE(cam_bestats_buffer_exif_debug_t, bestats_exif_debug_params,
+            CAM_INTF_META_EXIF_DEBUG_BESTATS, pMetaData) {
+        if (pme->mExifParams.debug_params) {
+            pme->mExifParams.debug_params->bestats_debug_params = *bestats_exif_debug_params;
+            pme->mExifParams.debug_params->bestats_debug_params_valid = TRUE;
+        }
+    }
+
     IF_META_AVAILABLE(cam_bhist_buffer_exif_debug_t, bhist_exif_debug_params,
             CAM_INTF_META_EXIF_DEBUG_BHIST, pMetaData) {
         if (pme->mExifParams.debug_params) {
