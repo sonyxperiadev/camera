@@ -1601,21 +1601,31 @@ native_handle_t *QCameraVideoMemory::updateNativeHandle(uint32_t index, bool met
 int QCameraVideoMemory::closeNativeHandle(const void *data, bool metadata)
 {
     int32_t rc = NO_ERROR;
+    int32_t index = -1;
 
 #ifdef USE_MEDIA_EXTENSIONS
-    camera_memory_t *video_mem = (camera_memory_t *)data;
+    camera_memory_t *video_mem = NULL;
 
-    if(video_mem == NULL) {
-        LOGE("video_mem NULL. Failed");
-        return BAD_VALUE;
-    }
     if (metadata) {
-        media_metadata_buffer *packet =
-                (media_metadata_buffer *)video_mem->data;
-        if (packet->eType == kMetadataBufferTypeNativeHandleSource) {
+        index = getMatchBufIndex(data, metadata);
+        if (index < 0) {
+            LOGE("Invalid buffer");
+            return BAD_VALUE;
+        }
+        video_mem = getMemory(index, metadata);
+        media_metadata_buffer * packet = NULL;
+        if (video_mem) {
+             packet = (media_metadata_buffer *)video_mem->data;
+        }
+
+        if (packet != NULL && packet->eType ==
+                kMetadataBufferTypeNativeHandleSource) {
             native_handle_close(packet->pHandle);
             native_handle_delete(packet->pHandle);
             packet->pHandle = NULL;
+        } else {
+            LOGE("Invalid Data. Could not release");
+            return BAD_VALUE;
         }
     } else {
         LOGE("Not of type video meta buffer. Failed");

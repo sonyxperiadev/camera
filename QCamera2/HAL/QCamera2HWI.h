@@ -760,6 +760,7 @@ private:
     bool TsMakeupProcess(mm_camera_buf_def_t *frame,QCameraStream * stream,TSRect& faceRect);
 #endif
     QCameraMemory *mMetadataMem;
+    QCameraVideoMemory *mVideoMem;
 
     static uint32_t sNextJobId;
 
