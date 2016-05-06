@@ -379,6 +379,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
          }
          dlclose(lib_surface_utils);
     }
+    memset(&mFpsRange, 0, sizeof(cam_fps_range_t));
 }
 
 /*===========================================================================
@@ -867,7 +868,8 @@ bool QCamera3HardwareInterface::isSupportChannelNeeded(camera3_stream_configurat
  *              none-zero failure code
  *
  *==========================================================================*/
-int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_dim)
+int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_dim,
+                                                             CameraMetadata *frame_settings)
 {
     int32_t rc = NO_ERROR;
 
@@ -880,6 +882,13 @@ int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_d
     }
 
     clear_metadata_buffer(mParameters);
+
+    if (frame_settings) {
+        rc = setHalFpsRange(*frame_settings, mParameters);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: setHalFpsRange failed", __func__);
+        }
+    }
 
     rc = ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_MAX_DIMENSION,
             max_dim);
@@ -2691,6 +2700,28 @@ int QCamera3HardwareInterface::processCaptureRequest(
         mWokenUpByDaemon = false;
         mPendingRequest = 0;
         mFirstConfiguration = false;
+    }
+
+    if (!mFirstRequest && meta.exists(ANDROID_CONTROL_AE_TARGET_FPS_RANGE)) {
+        cam_dimension_t sensor_dim;
+        cam_fps_range_t fps_range;
+        fps_range.min_fps = (float)
+                meta.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[0];
+        fps_range.max_fps = (float)
+                meta.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
+        if ((fps_range.min_fps != mFpsRange.min_fps) ||
+                (fps_range.max_fps != mFpsRange.max_fps)) {
+            memset(&sensor_dim, 0, sizeof(sensor_dim));
+            rc = getSensorOutputSize(sensor_dim, &meta);
+            if (rc != NO_ERROR) {
+                ALOGE("%s: Failed to get sensor output size", __func__);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
+            mCropRegionMapper.update(gCamCapability[mCameraId]->active_array_size.width,
+                    gCamCapability[mCameraId]->active_array_size.height,
+                    sensor_dim.width, sensor_dim.height);
+        }
     }
 
     uint32_t frameNumber = request->frame_number;
@@ -6980,6 +7011,9 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
     fps_range.video_max_fps = fps_range.max_fps;
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_FPS_RANGE, fps_range)) {
         rc = BAD_VALUE;
+    }
+    if (rc == NO_ERROR) {
+        mFpsRange = fps_range;
     }
     CDBG("%s: fps: [%f %f] vid_fps: [%f %f]", __func__, fps_range.min_fps,
             fps_range.max_fps, fps_range.video_min_fps, fps_range.video_max_fps);
