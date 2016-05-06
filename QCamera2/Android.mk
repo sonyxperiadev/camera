@@ -51,6 +51,11 @@ ifeq ($(TARGET_USES_AOSP),true)
 LOCAL_CFLAGS += -DVANILLA_HAL
 endif
 
+#use media extension
+ifeq ($(TARGET_USES_MEDIA_EXTENSIONS), true)
+LOCAL_CFLAGS += -DUSE_MEDIA_EXTENSIONS
+endif
+
 #HAL 1.0 Flags
 LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3 -DQCAMERA_REDEFINE_LOG
 
@@ -109,5 +114,4 @@ LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 include $(BUILD_SHARED_LIBRARY)
 
 include $(call first-makefiles-under,$(LOCAL_PATH))
-
 endif
