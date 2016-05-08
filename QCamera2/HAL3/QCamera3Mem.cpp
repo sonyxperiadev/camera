@@ -665,6 +665,9 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
         return ALREADY_EXISTS;
     }
 
+    if (type < 0)
+        ALOGV("%s: type appears to be invalid!\n", __func__);
+
     Mutex::Autolock lock(mLock);
     if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - 1)) {
         ALOGE("%s: Number of buffers %d greater than what's supported %d",
