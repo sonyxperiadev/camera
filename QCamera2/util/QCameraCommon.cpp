@@ -147,7 +147,7 @@ uint32_t QCameraCommon::calculateLCM(int32_t num1, int32_t num2)
  *   @fdVideoEnabled : Whether fdVideo enabled currently
  *   @hal3           : Whether hal3 or hal1
  *   @featureMask    : Feature mask
- *   @analysis_info  : Analysis info to be filled
+ *   @pAnalysis_info : Analysis info to be filled
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -159,6 +159,12 @@ int32_t QCameraCommon::getAnalysisInfo(
         cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo)
 {
+    if (!pAnalysisInfo) {
+        return BAD_VALUE;
+    }
+
+    pAnalysisInfo->valid = 0;
+
     if ((fdVideoEnabled == TRUE) && (hal3 == FALSE) &&
             (m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_VIDEO].hw_analysis_supported) &&
             (m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_VIDEO].valid)) {
@@ -171,44 +177,50 @@ int32_t QCameraCommon::getAnalysisInfo(
             pAnalysisInfo->analysis_max_res = pAnalysisInfo->analysis_recommended_res;
         }
     }
+
     if ((featureMask & CAM_QCOM_FEATURE_PAAF) &&
       (m_pCapability->analysis_info[CAM_ANALYSIS_INFO_PAAF].valid)) {
         cam_analysis_info_t *pPaafInfo =
           &m_pCapability->analysis_info[CAM_ANALYSIS_INFO_PAAF];
 
-        pAnalysisInfo->analysis_max_res.width =
-            MAX(pAnalysisInfo->analysis_max_res.width,
-            pPaafInfo->analysis_max_res.width);
-        pAnalysisInfo->analysis_max_res.height =
-            MAX(pAnalysisInfo->analysis_max_res.height,
-            pPaafInfo->analysis_max_res.height);
-        pAnalysisInfo->analysis_padding_info.height_padding =
-            calculateLCM(pAnalysisInfo->analysis_padding_info.height_padding,
-            pPaafInfo->analysis_padding_info.height_padding);
-        pAnalysisInfo->analysis_padding_info.width_padding =
-            calculateLCM(pAnalysisInfo->analysis_padding_info.width_padding,
-            pPaafInfo->analysis_padding_info.width_padding);
-        pAnalysisInfo->analysis_padding_info.plane_padding =
-            calculateLCM(pAnalysisInfo->analysis_padding_info.plane_padding,
-            pPaafInfo->analysis_padding_info.plane_padding);
-        pAnalysisInfo->analysis_padding_info.min_stride =
-            MAX(pAnalysisInfo->analysis_padding_info.min_stride,
-            pPaafInfo->analysis_padding_info.min_stride);
-        pAnalysisInfo->analysis_padding_info.min_stride =
-            ALIGN(pAnalysisInfo->analysis_padding_info.min_stride,
-            pAnalysisInfo->analysis_padding_info.width_padding);
+        if (!pAnalysisInfo->valid) {
+            *pAnalysisInfo = *pPaafInfo;
+        } else {
+            pAnalysisInfo->analysis_max_res.width =
+                MAX(pAnalysisInfo->analysis_max_res.width,
+                pPaafInfo->analysis_max_res.width);
+            pAnalysisInfo->analysis_max_res.height =
+                MAX(pAnalysisInfo->analysis_max_res.height,
+                pPaafInfo->analysis_max_res.height);
+            pAnalysisInfo->analysis_padding_info.height_padding =
+                calculateLCM(pAnalysisInfo->analysis_padding_info.height_padding,
+                pPaafInfo->analysis_padding_info.height_padding);
+            pAnalysisInfo->analysis_padding_info.width_padding =
+                calculateLCM(pAnalysisInfo->analysis_padding_info.width_padding,
+                pPaafInfo->analysis_padding_info.width_padding);
+            pAnalysisInfo->analysis_padding_info.plane_padding =
+                calculateLCM(pAnalysisInfo->analysis_padding_info.plane_padding,
+                pPaafInfo->analysis_padding_info.plane_padding);
+            pAnalysisInfo->analysis_padding_info.min_stride =
+                MAX(pAnalysisInfo->analysis_padding_info.min_stride,
+                pPaafInfo->analysis_padding_info.min_stride);
+            pAnalysisInfo->analysis_padding_info.min_stride =
+                ALIGN(pAnalysisInfo->analysis_padding_info.min_stride,
+                pAnalysisInfo->analysis_padding_info.width_padding);
 
-        pAnalysisInfo->analysis_padding_info.min_scanline =
-            MAX(pAnalysisInfo->analysis_padding_info.min_scanline,
-            pPaafInfo->analysis_padding_info.min_scanline);
-        pAnalysisInfo->analysis_padding_info.min_scanline =
-            ALIGN(pAnalysisInfo->analysis_padding_info.min_scanline,
-            pAnalysisInfo->analysis_padding_info.height_padding);
+            pAnalysisInfo->analysis_padding_info.min_scanline =
+                MAX(pAnalysisInfo->analysis_padding_info.min_scanline,
+                pPaafInfo->analysis_padding_info.min_scanline);
+            pAnalysisInfo->analysis_padding_info.min_scanline =
+                ALIGN(pAnalysisInfo->analysis_padding_info.min_scanline,
+                pAnalysisInfo->analysis_padding_info.height_padding);
 
-        pAnalysisInfo->hw_analysis_supported |=
-           pPaafInfo->hw_analysis_supported;
+            pAnalysisInfo->hw_analysis_supported |=
+                pPaafInfo->hw_analysis_supported;
+        }
     }
-    return 0;
+
+    return pAnalysisInfo->valid ? NO_ERROR : BAD_VALUE;
 }
 
 }; // namespace qcamera
