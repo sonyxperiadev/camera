@@ -1875,6 +1875,7 @@ int QCamera2HardwareInterface::openCamera()
     //deadlock situation. Since boot time camera open/close calls are made only to fetch
     //capabilities, no need of this display bw optimization.
     //Use "service.bootanim.exit" property to know boot status.
+#ifndef VANILLA_HAL
     property_get("service.bootanim.exit", value, "0");
     if (atoi(value) == 1) {
         pthread_mutex_lock(&gCamLock);
@@ -1883,6 +1884,7 @@ int QCamera2HardwareInterface::openCamera()
         }
         pthread_mutex_unlock(&gCamLock);
     }
+#endif
 
     return NO_ERROR;
 error_exit:
@@ -2147,6 +2149,7 @@ int QCamera2HardwareInterface::closeCamera()
     //Notify display HAL that there is no active camera session
     //but avoid calling the same during bootup. Refer to openCamera
     //for more details.
+#ifndef VANILLA_HAL
     property_get("service.bootanim.exit", value, "0");
     if (atoi(value) == 1) {
         pthread_mutex_lock(&gCamLock);
@@ -2155,6 +2158,7 @@ int QCamera2HardwareInterface::closeCamera()
         }
         pthread_mutex_unlock(&gCamLock);
     }
+#endif
 
     if (mExifParams.debug_params) {
         free(mExifParams.debug_params);
