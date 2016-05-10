@@ -1,3 +1,4 @@
+ifneq ($(TARGET_USES_AOSP),true)
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -60,3 +61,4 @@ LOCAL_CFLAGS += -DUSE_L_MR1
 endif
 
 include $(BUILD_EXECUTABLE)
+endif

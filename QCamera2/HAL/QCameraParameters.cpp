@@ -9789,9 +9789,11 @@ int QCameraParameters::getPreviewHalPixelFormat()
     case CAM_FORMAT_YUV_420_NV12_VENUS:
         halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS;
         break;
+#ifndef VANILLA_HAL
     case CAM_FORMAT_YUV_420_NV21_VENUS:
         halPixelFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP_VENUS;
         break;
+#endif
     case CAM_FORMAT_YUV_420_NV12_UBWC:
         halPixelFormat = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS_UBWC;
         break;
