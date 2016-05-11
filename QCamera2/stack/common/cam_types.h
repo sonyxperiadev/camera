@@ -1609,7 +1609,7 @@ typedef struct {
     cam_stream_type_t type[MAX_NUM_STREAMS];
     cam_feature_mask_t postprocess_mask[MAX_NUM_STREAMS];
     cam_buffer_info_t buffer_info;
-    cam_is_type_t is_type;
+    cam_is_type_t is_type[MAX_NUM_STREAMS];
     cam_hfr_mode_t hfr_mode;
     cam_format_t format[MAX_NUM_STREAMS];
     uint32_t buf_alignment;

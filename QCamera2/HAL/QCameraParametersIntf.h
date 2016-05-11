@@ -156,6 +156,7 @@ public:
     int32_t updateRAW(cam_dimension_t max_dim);
     bool isDISEnabled();
     cam_is_type_t getISType();
+    cam_is_type_t getPreviewISType();
     uint8_t getMobicatMask();
 
     cam_focus_mode_type getFocusMode() const;
