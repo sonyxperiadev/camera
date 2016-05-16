@@ -4670,6 +4670,7 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
                     cam_dimension_t *dim,
                     cam_format_t streamFormat,
                     uint8_t hw_analysis_supported,
+                    cam_color_filter_arrangement_t color_arrangement,
                     void *userData, uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, channel_handle, cam_ops,
                                 NULL, paddingInfo, postprocess_mask,
@@ -4680,7 +4681,8 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
     mStreamType = streamType;
     mStreamFormat = streamFormat;
    // Make Analysis same as Preview format
-   if (!hw_analysis_supported && mStreamType == CAM_STREAM_TYPE_ANALYSIS) {
+   if (!hw_analysis_supported && mStreamType == CAM_STREAM_TYPE_ANALYSIS &&
+           color_arrangement != CAM_FILTER_ARRANGEMENT_Y) {
         mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW);
    }
 }
