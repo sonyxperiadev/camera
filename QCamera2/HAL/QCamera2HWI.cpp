@@ -2496,8 +2496,12 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             if (bufferCnt > CAMERA_ISP_PING_PONG_BUFFERS )
                 bufferCnt -= CAMERA_ISP_PING_PONG_BUFFERS;
 
-            if (mParameters.getRecordingHintValue() == true)
+            // Extra ZSL preview frames are not needed for HFR case.
+            // Thumbnail will not be derived from preview for HFR live snapshot case.
+            if ((mParameters.getRecordingHintValue() == true)
+                    && (!mParameters.isHfrMode())) {
                 bufferCnt += EXTRA_ZSL_PREVIEW_STREAM_BUF;
+            }
 
             // Add the display minUndequeCount count on top of camera requirement
             bufferCnt += minUndequeCount;
@@ -3504,10 +3508,8 @@ int QCamera2HardwareInterface::startPreview()
     m_perfLock.lock_rel();
 
     if (rc == NO_ERROR) {
-        if (!mParameters.isSeeMoreEnabled()) {
-            // Set power Hint for preview
-            m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
-        }
+        // Set power Hint for preview
+        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
     }
 
     LOGI("X rc = %d", rc);
@@ -3708,10 +3710,8 @@ int QCamera2HardwareInterface::startRecording()
     }
 
     if (rc == NO_ERROR) {
-        if (!mParameters.isSeeMoreEnabled()) {
-            // Set power Hint for video encoding
-            m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
-        }
+        // Set power Hint for video encoding
+        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
     }
 
     LOGI("X rc = %d", rc);
@@ -5444,7 +5444,10 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
                     if (NULL != pStream) {
                         if (CAM_STREAM_TYPE_METADATA == pStream->getMyType()) {
                             pMetaStream = pStream;
-                        } else if (CAM_STREAM_TYPE_PREVIEW == pStream->getMyType()) {
+                        } else if ((CAM_STREAM_TYPE_PREVIEW == pStream->getMyType())
+                                && (!mParameters.isHfrMode())) {
+                            // Do not link preview stream for HFR live snapshot.
+                            // Thumbnail will not be derived from preview for HFR live snapshot.
                             pPreviewStream = pStream;
                         }
                     }
