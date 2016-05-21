@@ -35,7 +35,7 @@
 // System dependencies
 #include <stdlib.h>
 #include <dlfcn.h>
-
+#include <utils/Timers.h>
 // Camera dependencies
 #include "QCameraPerf.h"
 #include "QCameraTrace.h"

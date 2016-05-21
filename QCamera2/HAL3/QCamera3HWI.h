@@ -37,7 +37,7 @@
 #include <utils/List.h>
 
 // Camera dependencies
-#include "camera3.h"
+#include "hardware/camera3.h"
 #include "QCamera3Channel.h"
 #include "QCamera3CropRegionMapper.h"
 #include "QCamera3HALHeader.h"

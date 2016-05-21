@@ -34,7 +34,7 @@
 #include <poll.h>
 
 // Camera dependencies
-#include "camera_common.h"
+#include "hardware/camera_common.h"
 #include "cam_semaphore.h"
 #include "mm_camera_interface.h"
 

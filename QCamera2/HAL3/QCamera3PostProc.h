@@ -31,7 +31,7 @@
 #define __QCamera3_POSTPROC_H__
 
 // Camera dependencies
-#include "camera3.h"
+#include "hardware/camera3.h"
 #include "QCamera3HALHeader.h"
 #include "QCameraCmdThread.h"
 #include "QCameraQueue.h"

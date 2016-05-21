@@ -31,7 +31,7 @@
 #define __QCAMERA3VENDORTAGS_H__
 
 // Camera dependencies
-#include "camera_metadata.h"
+#include "system/camera_metadata.h"
 
 namespace qcamera {
 

@@ -35,7 +35,7 @@
 #include <utils/Mutex.h>
 
 // Camera dependencies
-#include "camera3.h"
+#include "hardware/camera3.h"
 
 extern "C" {
 #include "mm_camera_interface.h"
