@@ -80,15 +80,18 @@ typedef struct {
 } mm_jpeg_exif_params_t;
 
 typedef struct {
-  /* Indicates if it is a single jpeg or part of a multi picture sequence*/
+  /* Indicates if it is a single jpeg or part of a multi picture sequence */
   mm_jpeg_image_type_t type;
 
-  /*Indicates if image is the primary image in a sequence of images.
-  Applicable only to multi picture formats*/
+  /* Indicates if image is the primary image in a sequence of images.
+  Applicable only to multi picture formats */
   uint8_t is_primary;
 
-  /*Number of images in the sequence*/
+  /* Number of images in the sequence */
   uint32_t num_of_images;
+
+  /* Flag to indicate if multi picture metadata need to be added to Exif */
+  uint8_t enable_metadata;
 } mm_jpeg_multi_image_t;
 
 typedef struct {

@@ -348,11 +348,14 @@ typedef enum {
 * @is_primary_image: Flag indicating if the image is a
     primary image in the sequence
 * @num_of_images: Number of images in the sequence
+* @enable_metadata: Flag indicating if multi image
+    metadata need to be added to the image
 **/
 typedef struct {
   OMX_IMAGE_TYPE image_type;
   OMX_U8 is_primary_image;
   OMX_U32 num_of_images;
+  OMX_U8 enable_metadata;
 } QOMX_JPEG_MULTI_IMAGE_INFO;
 
 #ifdef __cplusplus
