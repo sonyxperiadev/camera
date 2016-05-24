@@ -27,6 +27,7 @@
 *
 */
 
+
 #define LOG_TAG "QCamera3Channel"
 
 // To remove
@@ -838,43 +839,83 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
     } else if (stream->getMyType() == CAM_STREAM_TYPE_CALLBACK) {
         dumpYUV(super_frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_CALLBACK);
     }
-    ////Use below data to issue framework callback
-    resultBuffer = (buffer_handle_t *)mMemory.getBufferHandle(frameIndex);
-    resultFrameNumber = mMemory.getFrameNumber(frameIndex);
 
-    result.stream = mCamera3Stream;
-    result.buffer = resultBuffer;
-    if (IS_BUFFER_ERROR(super_frame->bufs[0]->flags)) {
-        result.status = CAMERA3_BUFFER_STATUS_ERROR;
-        LOGW("CAMERA3_BUFFER_STATUS_ERROR for stream_type: %d",
-                mStreams[0]->getMyType());
-    } else {
-        result.status = CAMERA3_BUFFER_STATUS_OK;
-    }
-    result.acquire_fence = -1;
-    result.release_fence = -1;
-    if(mPerFrameMapUnmapEnable) {
-        int32_t rc = stream->bufRelease(frameIndex);
-        if (NO_ERROR != rc) {
-            LOGE("Error %d releasing stream buffer %d",
-                     rc, frameIndex);
-        }
+    do {
 
-        rc = mMemory.unregisterBuffer(frameIndex);
-        if (NO_ERROR != rc) {
-            LOGE("Error %d unregistering stream buffer %d",
-                     rc, frameIndex);
-        }
-    }
+       //Use below data to issue framework callback
+       resultBuffer = (buffer_handle_t *)mMemory.getBufferHandle(frameIndex);
+       resultFrameNumber = mMemory.getFrameNumber(frameIndex);
+       uint32_t oldestBufIndex;
+       int32_t lowestFrameNumber = mMemory.getOldestFrameNumber(oldestBufIndex);
+       if ((lowestFrameNumber != -1 ) && (lowestFrameNumber < resultFrameNumber)) {
+           LOGE("Error buffer dropped for framenumber:%d with bufidx:%d",
+                   lowestFrameNumber, oldestBufIndex);
+           if (mOutOfSequenceBuffers.empty()) {
+              stream->cancelBuffer(oldestBufIndex);
+           }
+           mOutOfSequenceBuffers.push_back(super_frame);
+           return;
+       }
 
-    if (0 <= resultFrameNumber) {
-        if (mChannelCB) {
-            mChannelCB(NULL, &result, (uint32_t)resultFrameNumber, false, mUserData);
-        }
-    } else {
-        LOGE("Bad frame number");
-    }
-    free(super_frame);
+       result.stream = mCamera3Stream;
+       result.buffer = resultBuffer;
+       if (IS_BUFFER_ERROR(super_frame->bufs[0]->flags)) {
+           result.status = CAMERA3_BUFFER_STATUS_ERROR;
+           LOGW("CAMERA3_BUFFER_STATUS_ERROR for stream_type: %d",
+                   mStreams[0]->getMyType());
+       } else {
+           result.status = CAMERA3_BUFFER_STATUS_OK;
+       }
+       result.acquire_fence = -1;
+       result.release_fence = -1;
+       if(mPerFrameMapUnmapEnable) {
+           int32_t rc = stream->bufRelease(frameIndex);
+           if (NO_ERROR != rc) {
+               LOGE("Error %d releasing stream buffer %d",
+                        rc, frameIndex);
+           }
+
+           rc = mMemory.unregisterBuffer(frameIndex);
+           if (NO_ERROR != rc) {
+               LOGE("Error %d unregistering stream buffer %d",
+                        rc, frameIndex);
+           }
+       }
+
+       if (0 <= resultFrameNumber) {
+           if (mChannelCB) {
+               mChannelCB(NULL, &result, (uint32_t)resultFrameNumber, false, mUserData);
+           }
+       } else {
+           LOGE("Bad frame number");
+       }
+       free(super_frame);
+       super_frame = NULL;
+       if (mOutOfSequenceBuffers.empty()) {
+          break;
+       } else {
+          for (auto itr = mOutOfSequenceBuffers.begin();
+                  itr != mOutOfSequenceBuffers.end(); itr++) {
+             super_frame = *itr;
+             frameIndex = super_frame->bufs[0]->buf_idx;
+             resultFrameNumber = mMemory.getFrameNumber(frameIndex);
+             lowestFrameNumber = mMemory.getOldestFrameNumber(oldestBufIndex);
+             if ((lowestFrameNumber != -1 ) && (lowestFrameNumber < resultFrameNumber)) {
+                LOGE("Multiple frame dropped requesting cancel for frame %d, idx:%d",
+                        lowestFrameNumber, oldestBufIndex);
+                stream->cancelBuffer(oldestBufIndex);
+                return;
+             } else if (lowestFrameNumber == resultFrameNumber) {
+                LOGE("Time to flush out head of list continue loop with this new super frame");
+                itr = mOutOfSequenceBuffers.erase(itr);
+                break;
+             } else {
+                LOGE("Unexpected condition head of list is not the lowest frame number");
+                assert(0);
+             }
+          }
+       }
+    } while (1);
     return;
 }
 
@@ -1022,6 +1063,7 @@ int32_t QCamera3ProcessingChannel::initialize(__unused cam_is_type_t isType)
     } else {
         LOGE("Could not allocate offline meta buffers for input reprocess");
     }
+    mOutOfSequenceBuffers.clear();
     return rc;
 }
 

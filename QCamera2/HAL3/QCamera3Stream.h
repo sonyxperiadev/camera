@@ -73,6 +73,7 @@ public:
                          hal3_stream_cb_routine stream_cb,
                          void *userdata);
     virtual int32_t bufDone(uint32_t index);
+    virtual int32_t cancelBuffer(uint32_t index);
     virtual int32_t bufRelease(int32_t index);
     virtual int32_t processDataNotify(mm_camera_super_buf_t *bufs);
     virtual int32_t start();
