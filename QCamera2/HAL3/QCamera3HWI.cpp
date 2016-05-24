@@ -1764,11 +1764,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 &analysisInfo);
         if (rc != NO_ERROR) {
             LOGE("getAnalysisInfo failed, ret = %d", rc);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
         }
-
-        mAnalysisChannel = new QCamera3SupportChannel(
+        if (rc == NO_ERROR) {
+            mAnalysisChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
                 mChannelHandle,
                 mCameraHandle->ops,
@@ -1783,10 +1781,11 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 gCamCapability[mCameraId]->color_arrangement,
                 this,
                 0); // force buffer count to 0
-        if (!mAnalysisChannel) {
-            LOGE("H/W Analysis channel cannot be created");
-            pthread_mutex_unlock(&mMutex);
-            return -ENOMEM;
+            if (!mAnalysisChannel) {
+                LOGE("H/W Analysis channel cannot be created");
+                pthread_mutex_unlock(&mMutex);
+                return -ENOMEM;
+            }
         }
     }
 
