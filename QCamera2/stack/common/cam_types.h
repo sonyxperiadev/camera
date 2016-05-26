@@ -2317,11 +2317,6 @@ typedef enum {
 } cam_flash_ctrl_t;
 
 typedef struct {
-    uint8_t frame_dropped; /*  This flag indicates whether any stream buffer is dropped or not */
-    cam_stream_ID_t cam_stream_ID; /* if dropped, Stream ID of dropped streams */
-} cam_frame_dropped_t;
-
-typedef struct {
     uint8_t ae_mode;
     uint8_t awb_mode;
     uint8_t af_mode;

@@ -2786,7 +2786,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER_VALID, metadata);
     uint32_t *p_urgent_frame_number =
             POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER, metadata);
-    IF_META_AVAILABLE(cam_frame_dropped_t, p_cam_frame_drop, CAM_INTF_META_FRAME_DROPPED,
+    IF_META_AVAILABLE(cam_stream_ID_t, p_cam_frame_drop, CAM_INTF_META_FRAME_DROPPED,
             metadata) {
         LOGD("Dropped frame info for frame_number_valid %d, frame_number %d",
                  *p_frame_number_valid, *p_frame_number);
@@ -2889,7 +2889,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         // Check whether any stream buffer corresponding to this is dropped or not
         // If dropped, then send the ERROR_BUFFER for the corresponding stream
         // The API does not expect a blob buffer to be dropped
-        if (p_cam_frame_drop && p_cam_frame_drop->frame_dropped) {
+        if (p_cam_frame_drop) {
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
@@ -2898,8 +2898,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                if (j->stream->format != HAL_PIXEL_FORMAT_BLOB) {
                    QCamera3ProcessingChannel *channel = (QCamera3ProcessingChannel *)j->stream->priv;
                    uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
-                   for (uint32_t k = 0; k < p_cam_frame_drop->cam_stream_ID.num_streams; k++) {
-                       if (streamID == p_cam_frame_drop->cam_stream_ID.streamID[k]) {
+                   for (uint32_t k = 0; k < p_cam_frame_drop->num_streams; k++) {
+                       if (streamID == p_cam_frame_drop->streamID[k]) {
                            // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
                            LOGE("Start of reporting error frame#=%u, streamID=%u",
                                     i->frame_number, streamID);
