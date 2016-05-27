@@ -6130,7 +6130,8 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     rc = QCameraBufferMaps::makeSingletonBufMapList(
             CAM_MAPPING_BUF_TYPE_PARM_BUF, 0 /*stream id*/,
             0 /*buffer index*/, -1 /*plane index*/, 0 /*cookie*/,
-            m_pParamHeap->getFd(0), sizeof(parm_buffer_t), bufMapList);
+            m_pParamHeap->getFd(0), sizeof(parm_buffer_t), bufMapList,
+                    m_pParamHeap->getPtr(0));
 
     if (rc == NO_ERROR) {
         rc = m_pCamOpsTbl->ops->map_bufs(m_pCamOpsTbl->camera_handle,
@@ -6162,7 +6163,8 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
         rc = m_pCamOpsTbl->ops->map_buf(m_pCamOpsTbl->camera_handle,
                 CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF,
                 m_pRelCamSyncHeap->getFd(0),
-                sizeof(cam_sync_related_sensors_event_info_t));
+                sizeof(cam_sync_related_sensors_event_info_t),
+                (cam_sync_related_sensors_event_info_t*)DATA_PTR(m_pRelCamSyncHeap,0));
         if(rc < 0) {
             LOGE("failed to map Related cam sync buffer");
             rc = FAILED_TRANSACTION;
@@ -6171,11 +6173,8 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
         m_pRelCamSyncBuf =
                 (cam_sync_related_sensors_event_info_t*) DATA_PTR(m_pRelCamSyncHeap,0);
     }
-
     initDefaultParameters();
-
     mCommon.init(capabilities);
-
     m_bInited = true;
 
     goto TRANS_INIT_DONE;
@@ -11966,7 +11965,6 @@ int32_t QCameraParameters::getRelatedCamCalibration(
 int32_t QCameraParameters::initBatchUpdate(parm_buffer_t *p_table)
 {
     m_tempMap.clear();
-
     clear_metadata_buffer(p_table);
     return NO_ERROR;
 }

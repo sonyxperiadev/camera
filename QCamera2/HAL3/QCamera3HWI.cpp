@@ -770,7 +770,8 @@ int QCamera3HardwareInterface::openCamera()
         rc = mCameraHandle->ops->map_buf(mCameraHandle->camera_handle,
                 CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF,
                 m_pRelCamSyncHeap->getFd(0),
-                sizeof(cam_sync_related_sensors_event_info_t));
+                sizeof(cam_sync_related_sensors_event_info_t),
+                m_pRelCamSyncHeap->getPtr(0));
         if(rc < 0) {
             LOGE("Dualcam: failed to map Related cam sync buffer");
             rc = FAILED_TRANSACTION;
@@ -2785,7 +2786,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER_VALID, metadata);
     uint32_t *p_urgent_frame_number =
             POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER, metadata);
-    IF_META_AVAILABLE(cam_frame_dropped_t, p_cam_frame_drop, CAM_INTF_META_FRAME_DROPPED,
+    IF_META_AVAILABLE(cam_stream_ID_t, p_cam_frame_drop, CAM_INTF_META_FRAME_DROPPED,
             metadata) {
         LOGD("Dropped frame info for frame_number_valid %d, frame_number %d",
                  *p_frame_number_valid, *p_frame_number);
@@ -2888,7 +2889,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         // Check whether any stream buffer corresponding to this is dropped or not
         // If dropped, then send the ERROR_BUFFER for the corresponding stream
         // The API does not expect a blob buffer to be dropped
-        if (p_cam_frame_drop && p_cam_frame_drop->frame_dropped) {
+        if (p_cam_frame_drop) {
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
@@ -2897,8 +2898,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                if (j->stream->format != HAL_PIXEL_FORMAT_BLOB) {
                    QCamera3ProcessingChannel *channel = (QCamera3ProcessingChannel *)j->stream->priv;
                    uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
-                   for (uint32_t k = 0; k < p_cam_frame_drop->cam_stream_ID.num_streams; k++) {
-                       if (streamID == p_cam_frame_drop->cam_stream_ID.streamID[k]) {
+                   for (uint32_t k = 0; k < p_cam_frame_drop->num_streams; k++) {
+                       if (streamID == p_cam_frame_drop->streamID[k]) {
                            // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
                            LOGE("Start of reporting error frame#=%u, streamID=%u",
                                     i->frame_number, streamID);
@@ -6115,7 +6116,8 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
     rc = cameraHandle->ops->map_buf(cameraHandle->camera_handle,
                                 CAM_MAPPING_BUF_TYPE_CAPABILITY,
                                 capabilityHeap->getFd(0),
-                                sizeof(cam_capability_t));
+                                sizeof(cam_capability_t),
+                                capabilityHeap->getPtr(0));
     if(rc < 0) {
         LOGE("failed to map capability buffer");
         goto map_failed;
@@ -6209,7 +6211,8 @@ int QCamera3HardwareInterface::initParameters()
     rc = mCameraHandle->ops->map_buf(mCameraHandle->camera_handle,
             CAM_MAPPING_BUF_TYPE_PARM_BUF,
             mParamHeap->getFd(0),
-            sizeof(metadata_buffer_t));
+            sizeof(metadata_buffer_t),
+            (metadata_buffer_t *) DATA_PTR(mParamHeap,0));
     if(rc < 0) {
         LOGE("failed to map SETPARM buffer");
         rc = FAILED_TRANSACTION;
@@ -7397,6 +7400,15 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(QCAMERA3_OPAQUE_RAW_STRIDES, strides.array(),
             strides.size());
 
+    staticInfo.update(QCAMERA3_DUALCAM_CALIB_META_DATA_BLOB,
+            (const uint8_t*)&gCamCapability[cameraId]->related_cam_calibration,
+            sizeof(gCamCapability[cameraId]->related_cam_calibration));
+
+    uint8_t isMonoOnly =
+            (gCamCapability[cameraId]->color_arrangement == CAM_FILTER_ARRANGEMENT_Y);
+    staticInfo.update(QCAMERA3_SENSOR_IS_MONO_ONLY,
+            &isMonoOnly, 1);
+
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
 }
@@ -7841,6 +7853,7 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         tonemap_mode = ANDROID_TONEMAP_MODE_FAST;
         cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_CUSTOM;
+        focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
         break;
     }
@@ -7906,8 +7919,10 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     float default_focal_length = gCamCapability[mCameraId]->focal_length;
     settings.update(ANDROID_LENS_FOCAL_LENGTH, &default_focal_length, 1);
 
-    float default_focus_distance = 0;
-    settings.update(ANDROID_LENS_FOCUS_DISTANCE, &default_focus_distance, 1);
+    if (focusMode == ANDROID_CONTROL_AF_MODE_OFF) {
+        float default_focus_distance = 0;
+        settings.update(ANDROID_LENS_FOCUS_DISTANCE, &default_focus_distance, 1);
+    }
 
     static const uint8_t demosaicMode = ANDROID_DEMOSAIC_MODE_FAST;
     settings.update(ANDROID_DEMOSAIC_MODE, &demosaicMode, 1);
