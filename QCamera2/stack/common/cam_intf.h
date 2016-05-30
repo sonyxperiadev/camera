@@ -147,6 +147,19 @@ typedef struct {
     uint16_t   module_orientation_during_calibration;
     /* cal images required rotation: 0-no, 1-90 degrees right, 2-90 degrees left */
     uint16_t   rotation_flag;
+    /* AEC sync OTP data */
+    /* AEC sync brightness ration. Fixed Point Q10*/
+    int16_t    brightness_ratio;
+    /* Reference mono gain value obtained from setup stage and used during calibration stage */ 
+    /* Fixed Point Q10 */
+    int16_t    ref_mono_gain;
+    /* Reference mono line count obtained from setup stage and used during calibration stage */
+    uint16_t   ref_mono_linecount;
+    /* Reference bayer gain value obtained from setup stage and used during calibration stage */
+    /* Fixed Point Q10 */
+    int16_t    ref_bayer_gain;
+    /* Reference bayer line count obtained from setup stage and used during calibration stage */
+    uint16_t   ref_bayer_linecount;
     /* Reserved for future use */
     float      reserved[RELCAM_CALIB_RESERVED_MAX];
 } cam_related_system_calibration_data_t;
