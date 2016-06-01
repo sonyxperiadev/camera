@@ -53,7 +53,8 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_SENSOR_META_DATA_END,
         NEXUS_EXPERIMENTAL_2015_END,
         QCAMERA3_DUALCAM_LINK_META_DATA_END,
-        QCAMERA3_DUALCAM_CALIB_META_DATA_END
+        QCAMERA3_DUALCAM_CALIB_META_DATA_END,
+        QCAMERA3_HAL_PRIVATEDATA_END
 } ;
 
 typedef struct vendor_tag_info {
@@ -73,7 +74,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.sensor_meta_data",
     "com.google.nexus.experimental2015",
     "org.codeaurora.qcamera3.dualcam_link_meta_data",
-    "org.codeaurora.qcamera3.dualcam_calib_meta_data"
+    "org.codeaurora.qcamera3.dualcam_calib_meta_data",
+    "org.codeaurora.qcamera3.hal_private_data"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -139,6 +141,12 @@ vendor_tag_info_t
     { "dualcam_calib_meta_data_blob", TYPE_BYTE }
 };
 
+vendor_tag_info_t
+        qcamera3_hal_privatedata[QCAMERA3_HAL_PRIVATEDATA_END -
+        QCAMERA3_HAL_PRIVATEDATA_START] = {
+    { "reprocess_flags", TYPE_BYTE }
+};
+
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
     qcamera3_privatedata,
@@ -151,7 +159,8 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_sensor_meta_data,
     nexus_experimental_2015,
     qcamera3_dualcam_link_meta_data,
-    qcamera3_dualcam_calib_meta_data
+    qcamera3_dualcam_calib_meta_data,
+    qcamera3_hal_privatedata
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -195,6 +204,9 @@ uint32_t qcamera3_all_tags[] = {
 
     // QCAMERA3_DUALCAM_CALIB_META_DATA
     (uint32_t)QCAMERA3_DUALCAM_CALIB_META_DATA_BLOB,
+
+    // QCAMERA3_HAL_PRIVATEDATA
+    (uint32_t)QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;

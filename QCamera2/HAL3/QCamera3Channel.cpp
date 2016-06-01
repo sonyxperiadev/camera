@@ -4242,7 +4242,7 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
 /*===========================================================================
 * FUNCTION : overrideFwkMetadata
 *
-* DESCRIPTION: Override frameworks metadata such as crop, and CDS data.
+* DESCRIPTION: Override frameworks metadata such as rotation, crop, and CDS data.
 *
 * PARAMETERS :
 * @frame : input frame for reprocessing
@@ -4263,9 +4263,16 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
         LOGE("No metadata available");
         return BAD_VALUE;
     }
+    metadata_buffer_t *meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
+
+    // Not doing rotation at all
+    cam_rotation_info_t rotation_info;
+    memset(&rotation_info, 0, sizeof(rotation_info));
+    rotation_info.rotation = ROTATE_0;
+    rotation_info.streamId = mStreams[0]->getMyServerID();
+    ADD_SET_PARAM_ENTRY_TO_BATCH(meta, CAM_INTF_PARM_ROTATION, rotation_info);
 
     // Find and insert crop info for reprocess stream
-    metadata_buffer_t *meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
         if (1 == crop_data->num_of_streams) {
             // Store crop/roi information for offline reprocess
