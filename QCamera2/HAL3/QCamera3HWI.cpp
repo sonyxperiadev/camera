@@ -418,6 +418,10 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     property_get("persist.camera.tnr.video", prop, "0");
     m_bTnrVideo = (uint8_t)atoi(prop);
 
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.avtimer.debug", prop, "0");
+    m_debug_avtimer = (uint8_t)atoi(prop);
+
     //Load and read GPU library.
     lib_surface_utils = NULL;
     LINK_get_surface_pixel_alignment = NULL;
@@ -9298,9 +9302,17 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    if (frame_settings.exists(QCAMERA3_USE_AV_TIMER)) {
-        uint8_t* use_av_timer =
+    if (m_debug_avtimer || frame_settings.exists(QCAMERA3_USE_AV_TIMER)) {
+        uint8_t* use_av_timer = NULL;
+
+        if (m_debug_avtimer){
+            use_av_timer = &m_debug_avtimer;
+        }
+        else{
+            use_av_timer =
                 frame_settings.find(QCAMERA3_USE_AV_TIMER).data.u8;
+        }
+
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_USE_AV_TIMER, *use_av_timer)) {
             rc = BAD_VALUE;
         }
