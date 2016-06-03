@@ -12746,9 +12746,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
 
         stream_config_info.type[stream_config_info.num_streams] =
                 CAM_STREAM_TYPE_ANALYSIS;
+        updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
         getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
                 stream_config_info.stream_sizes[stream_config_info.num_streams]);
-        updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
         stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                 mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
         getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
@@ -12827,9 +12827,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 (fdModeInVideo())) {
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_ANALYSIS;
+            updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
             getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
                     stream_config_info.stream_sizes[stream_config_info.num_streams]);
-            updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
             stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                     mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
             getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
@@ -13455,14 +13455,26 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
     // Preview assisted autofocus needs to be supported for
     // callback, preview, or video streams
-    switch (stream_type) {
-    case CAM_STREAM_TYPE_CALLBACK:
-    case CAM_STREAM_TYPE_PREVIEW:
-        feature_mask |= CAM_QCOM_FEATURE_PAAF;
+    cam_color_filter_arrangement_t filter_arrangement;
+    filter_arrangement = m_pCapability->color_arrangement;
+    switch (filter_arrangement) {
+    case CAM_FILTER_ARRANGEMENT_RGGB:
+    case CAM_FILTER_ARRANGEMENT_GRBG:
+    case CAM_FILTER_ARRANGEMENT_GBRG:
+    case CAM_FILTER_ARRANGEMENT_BGGR:
+        if ((stream_type == CAM_STREAM_TYPE_CALLBACK) ||
+            (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
+            feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        } else if (stream_type == CAM_STREAM_TYPE_VIDEO) {
+            if (getISType() != IS_TYPE_EIS_3_0)
+                feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        }
         break;
-    case CAM_STREAM_TYPE_VIDEO:
-        if(getISType() != IS_TYPE_EIS_3_0)
-          feature_mask |= CAM_QCOM_FEATURE_PAAF;
+    case CAM_FILTER_ARRANGEMENT_Y:
+        if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
+            feature_mask |= CAM_QCOM_FEATURE_PAAF;
+            LOGH("add PAAF mask to feature_mask for mono device");
+        }
         break;
     default:
         break;
@@ -14342,7 +14354,7 @@ int32_t QCameraParameters::setAdvancedCaptureMode()
 int32_t QCameraParameters::getAnalysisInfo(
         bool fdVideoEnabled,
         bool hal3,
-        uint32_t featureMask,
+        cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo)
 {
     return mCommon.getAnalysisInfo(fdVideoEnabled, hal3, featureMask, pAnalysisInfo);

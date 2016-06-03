@@ -1396,7 +1396,7 @@ int32_t QCameraParametersIntf::setInstantAEC(uint8_t enable, bool initCommit)
 int32_t QCameraParametersIntf::getAnalysisInfo(
         bool fdVideoEnabled,
         bool hal3,
-        uint32_t featureMask,
+        cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo)
 {
     Mutex::Autolock lock(mLock);
