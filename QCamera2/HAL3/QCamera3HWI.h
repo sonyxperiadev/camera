@@ -221,6 +221,12 @@ public:
     const uint32_t *getLdafCalib();
     void get3AVersion(cam_q3a_version_t &swVersion);
 
+    // Get dual camera related info
+    bool isDeviceLinked() {return mIsDeviceLinked;}
+    bool isMainCamera() {return mIsMainCamera;}
+    uint32_t getSensorMountAngle();
+    const cam_related_system_calibration_data_t *getRelatedCalibrationData();
+
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
         halType hal_name;

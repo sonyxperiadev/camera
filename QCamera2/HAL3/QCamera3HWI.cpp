@@ -5539,6 +5539,39 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         }
     }
 
+    // DDM debug data through vendor tag
+    cam_ddm_info_t ddm_info;
+    memset(&ddm_info, 0, sizeof(cam_ddm_info_t));
+    IF_META_AVAILABLE(cam_stream_crop_info_t, sensorCropInfo,
+            CAM_INTF_META_SNAP_CROP_INFO_SENSOR, metadata) {
+        memcpy(&(ddm_info.sensor_crop_info), sensorCropInfo, sizeof(cam_stream_crop_info_t));
+    }
+    IF_META_AVAILABLE(cam_stream_crop_info_t, camifCropInfo,
+            CAM_INTF_META_SNAP_CROP_INFO_CAMIF, metadata) {
+        memcpy(&(ddm_info.camif_crop_info), camifCropInfo, sizeof(cam_stream_crop_info_t));
+    }
+    IF_META_AVAILABLE(cam_stream_crop_info_t, ispCropInfo,
+            CAM_INTF_META_SNAP_CROP_INFO_ISP, metadata) {
+        memcpy(&(ddm_info.isp_crop_info), ispCropInfo, sizeof(cam_stream_crop_info_t));
+    }
+    IF_META_AVAILABLE(cam_stream_crop_info_t, cppCropInfo,
+            CAM_INTF_META_SNAP_CROP_INFO_CPP, metadata) {
+        memcpy(&(ddm_info.cpp_crop_info), cppCropInfo, sizeof(cam_stream_crop_info_t));
+    }
+    IF_META_AVAILABLE(cam_focal_length_ratio_t, ratio,
+            CAM_INTF_META_AF_FOCAL_LENGTH_RATIO, metadata) {
+        memcpy(&(ddm_info.af_focal_length_ratio), ratio, sizeof(cam_focal_length_ratio_t));
+    }
+    IF_META_AVAILABLE(int32_t, flip, CAM_INTF_PARM_FLIP, metadata) {
+        memcpy(&(ddm_info.pipeline_flip), flip, sizeof(int32_t));
+    }
+    IF_META_AVAILABLE(cam_rotation_info_t, rotationInfo,
+            CAM_INTF_PARM_ROTATION, metadata) {
+        memcpy(&(ddm_info.rotation_info), rotationInfo, sizeof(cam_rotation_info_t));
+    }
+    camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB,
+            (uint8_t *)&ddm_info, sizeof(cam_ddm_info_t));
+
     resultMetadata = camMetadata.release();
     return resultMetadata;
 }
@@ -8365,6 +8398,39 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
                 rc = BAD_VALUE;
         }
     }
+
+    // Add metadata which DDM needs
+    if (frame_settings.exists(QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB)) {
+        cam_ddm_info_t *ddm_info =
+                (cam_ddm_info_t *)frame_settings.find
+                (QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB).data.u8;
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_SENSOR,
+                ddm_info->sensor_crop_info);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_CAMIF,
+                ddm_info->camif_crop_info);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_ISP,
+                ddm_info->isp_crop_info);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_CPP,
+                ddm_info->cpp_crop_info);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_AF_FOCAL_LENGTH_RATIO,
+                ddm_info->af_focal_length_ratio);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_FLIP,
+                ddm_info->pipeline_flip);
+        /* If there is ANDROID_JPEG_ORIENTATION in frame setting,
+           CAM_INTF_PARM_ROTATION metadata then has been added in
+           translateToHalMetadata. HAL need to keep this new rotation
+           metadata. Otherwise, the old rotation info saved in the vendor tag
+           would be used */
+        IF_META_AVAILABLE(cam_rotation_info_t, rotationInfo,
+                CAM_INTF_PARM_ROTATION, reprocParam) {
+            LOGD("CAM_INTF_PARM_ROTATION metadata is added in translateToHalMetadata");
+        } else {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_ROTATION,
+                    ddm_info->rotation_info);
+        }
+
+    }
+
     return rc;
 }
 
@@ -10476,5 +10542,34 @@ void QCamera3HardwareInterface::setPAAFSupport(
     default:
         break;
     }
+}
+
+/*===========================================================================
+* FUNCTION   : getSensorMountAngle
+*
+* DESCRIPTION: Retrieve sensor mount angle
+*
+* PARAMETERS : None
+*
+* RETURN     : sensor mount angle in uint32_t
+*==========================================================================*/
+uint32_t QCamera3HardwareInterface::getSensorMountAngle()
+{
+    return gCamCapability[mCameraId]->sensor_mount_angle;
+}
+
+/*===========================================================================
+* FUNCTION   : getRelatedCalibrationData
+*
+* DESCRIPTION: Retrieve related system calibration data
+*
+* PARAMETERS : None
+*
+* RETURN     : Pointer of related system calibration data
+*==========================================================================*/
+const cam_related_system_calibration_data_t *QCamera3HardwareInterface::getRelatedCalibrationData()
+{
+    return (const cam_related_system_calibration_data_t *)
+            &(gCamCapability[mCameraId]->related_cam_calibration);
 }
 }; //end namespace qcamera
