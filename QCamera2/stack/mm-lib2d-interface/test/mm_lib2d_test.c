@@ -503,7 +503,7 @@ int main(int32_t argc, const char * argv[])
       IMG_CACHE_CLEAN_INV, IMG_INTERNAL);
 
     lib2d_err = mm_lib2d_start_job(lib2d_handle, &src_buffer, &dst_buffer,
-      index, NULL, lib2d_test_client_cb);
+      index, NULL, lib2d_test_client_cb, 0);
     if (lib2d_err != MM_LIB2D_SUCCESS) {
       printf(" ] Error in mm_lib2d_start_job \n");
       goto release;
