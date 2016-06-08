@@ -3097,10 +3097,21 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
                     streamInfo->user_buf_info.frame_buf_cnt,
                     streamInfo->user_buf_info.frameInterval);
         }
-    case CAM_STREAM_TYPE_PREVIEW:
         if (mParameters.getRecordingHintValue()) {
             if(mParameters.isDISEnabled()) {
                 streamInfo->is_type = mParameters.getISType();
+            } else {
+                streamInfo->is_type = IS_TYPE_NONE;
+            }
+        }
+        if (mParameters.isSecureMode()) {
+            streamInfo->is_secure = SECURE;
+        }
+        break;
+    case CAM_STREAM_TYPE_PREVIEW:
+        if (mParameters.getRecordingHintValue()) {
+            if(mParameters.isDISEnabled()) {
+                streamInfo->is_type = mParameters.getPreviewISType();
             } else {
                 streamInfo->is_type = IS_TYPE_NONE;
             }

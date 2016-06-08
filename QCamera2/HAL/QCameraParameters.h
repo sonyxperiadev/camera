@@ -713,6 +713,7 @@ public:
     int32_t updateRAW(cam_dimension_t max_dim);
     bool isDISEnabled();
     cam_is_type_t getISType();
+    cam_is_type_t getPreviewISType();
     uint8_t getMobicatMask();
 
     cam_focus_mode_type getFocusMode() const {return mFocusMode;};
@@ -1113,6 +1114,7 @@ private:
     cam_sync_related_sensors_event_info_t m_relCamSyncInfo;
     bool m_bFrameSyncEnabled;
     cam_is_type_t mIsType;
+    cam_is_type_t mIsTypePreview;
 
     bool m_bZslMode;                // if ZSL is enabled
     bool m_bZslMode_new;
