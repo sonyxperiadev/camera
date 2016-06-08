@@ -847,7 +847,9 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
        resultFrameNumber = mMemory.getFrameNumber(frameIndex);
        uint32_t oldestBufIndex;
        int32_t lowestFrameNumber = mMemory.getOldestFrameNumber(oldestBufIndex);
-       if ((lowestFrameNumber != -1 ) && (lowestFrameNumber < resultFrameNumber)) {
+       QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+       if ((lowestFrameNumber != -1 ) && (lowestFrameNumber < resultFrameNumber) &&
+            hal_obj->mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE) {
            LOGE("Error buffer dropped for framenumber:%d with bufidx:%d",
                    lowestFrameNumber, oldestBufIndex);
            if (mOutOfSequenceBuffers.empty()) {

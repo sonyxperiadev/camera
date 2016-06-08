@@ -449,6 +449,7 @@ private:
     /* Use last frame number of the batch as key and first frame number of the
      * batch as value for that key */
     KeyedVector<uint32_t, uint32_t> mPendingBatchMap;
+    cam_stream_ID_t mBatchedStreamsArray;
 
     PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
@@ -482,7 +483,9 @@ private:
     uint8_t mToBeQueuedVidBufs;
     // Fixed video fps
     float mHFRVideoFps;
+public:
     uint8_t mOpMode;
+private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
     bool mNeedSensorRestart;
