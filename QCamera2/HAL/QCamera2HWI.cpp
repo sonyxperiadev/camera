@@ -4069,6 +4069,7 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         }
         rc = configureAEBracketing();
     } else if (mParameters.isStillMoreEnabled()) {
+        bSkipDisplay = false;
         rc = configureStillMore();
     } else if ((mParameters.isChromaFlashEnabled())
             || (mParameters.getLowLightLevel() != CAM_LOW_LIGHT_OFF)
