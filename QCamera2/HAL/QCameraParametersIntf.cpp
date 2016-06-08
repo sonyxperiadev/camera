@@ -588,6 +588,13 @@ cam_is_type_t QCameraParametersIntf::getISType()
     return mImpl->getISType();
 }
 
+cam_is_type_t QCameraParametersIntf::getPreviewISType()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getPreviewISType();
+}
+
 uint8_t QCameraParametersIntf::getMobicatMask()
 {
     Mutex::Autolock lock(mLock);

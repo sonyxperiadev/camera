@@ -727,6 +727,9 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
     }
 
     frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
+    // Convert Boottime from camera to Monotime for display if needed.
+    // Otherwise, mBootToMonoTimestampOffset value will be 0.
+    frameTime = frameTime - pme->mBootToMonoTimestampOffset;
     // Calculate the future presentation time stamp for displaying frames at regular interval
     mPreviewTimestamp = pme->mCameraDisplay.computePresentationTimeStamp(frameTime);
     stream->mStreamTimestamp = frameTime;
@@ -1555,6 +1558,11 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
             cbArg.cb_type = QCAMERA_DATA_TIMESTAMP_CALLBACK;
             cbArg.msg_type = CAMERA_MSG_VIDEO_FRAME;
             cbArg.data = video_mem;
+
+            // Convert Boottime from camera to Monotime for video if needed.
+            // Otherwise, mBootToMonoTimestampOffset value will be 0.
+            timeStamp = timeStamp - pme->mBootToMonoTimestampOffset;
+            LOGD("Final video buffer TimeStamp : %lld ", timeStamp);
             cbArg.timestamp = timeStamp;
             int32_t rc = pme->m_cbNotifier.notifyCallback(cbArg);
             if (rc != NO_ERROR) {

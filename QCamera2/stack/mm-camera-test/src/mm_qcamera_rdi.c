@@ -132,7 +132,7 @@ mm_camera_stream_t * mm_app_add_rdi_stream(mm_camera_test_obj_t *test_obj,
     abc.type[0] = CAM_STREAM_TYPE_RAW;
     abc.buffer_info.min_buffers = num_bufs;
     abc.buffer_info.max_buffers = num_bufs;
-    abc.is_type = IS_TYPE_NONE;
+    abc.is_type[0] = IS_TYPE_NONE;
 
     rc = setmetainfoCommand(test_obj, &abc);
     if (rc != MM_CAMERA_OK) {
