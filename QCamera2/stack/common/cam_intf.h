@@ -283,6 +283,11 @@ typedef struct{
     size_t zzhdr_sizes_tbl_cnt;                             /* Number of resolutions in zzHDR mode*/
     cam_dimension_t zzhdr_sizes_tbl[MAX_SIZES_CNT];         /* Table for ZZHDR supported sizes */
 
+    size_t supported_quadra_cfa_dim_cnt;              /* Number of resolutions in Quadra CFA mode */
+    cam_dimension_t quadra_cfa_dim[MAX_SIZES_CNT];    /* Table for Quadra CFA supported sizes */
+    cam_format_t quadra_cfa_format;                   /* Quadra CFA output format */
+    uint32_t is_remosaic_lib_present;                 /* Flag indicating if remosaic lib present */
+
     /* supported preview formats */
     size_t supported_preview_fmt_cnt;
     cam_format_t supported_preview_fmts[CAM_FORMAT_MAX];
@@ -928,6 +933,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_TOUCH_AE_RESULT,              int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_DUAL_LED_CALIBRATION,         int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ADV_CAPTURE_MODE,             uint8_t,                     1);
+    INCLUDE(CAM_INTF_PARM_QUADRA_CFA,                   int32_t,                     1);
 
     /* HAL3 specific */
     INCLUDE(CAM_INTF_META_STREAM_INFO,                  cam_stream_size_info_t,      1);
