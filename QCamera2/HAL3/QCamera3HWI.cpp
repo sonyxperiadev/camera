@@ -7689,10 +7689,12 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
 
     switch(gCamCapability[cameraId]->position) {
     case CAM_POSITION_BACK:
+    case CAM_POSITION_BACK_AUX:
         info->facing = CAMERA_FACING_BACK;
         break;
 
     case CAM_POSITION_FRONT:
+    case CAM_POSITION_FRONT_AUX:
         info->facing = CAMERA_FACING_FRONT;
         break;
 
