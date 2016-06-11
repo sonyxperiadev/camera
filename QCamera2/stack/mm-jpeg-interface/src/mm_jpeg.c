@@ -1490,28 +1490,27 @@ static OMX_ERRORTYPE mm_jpeg_config_multi_image_info(
   OMX_INDEXTYPE multi_image_index;
   mm_jpeg_encode_job_t *p_jobparams = &p_session->encode_job;
 
+  ret = OMX_GetExtensionIndex(p_session->omx_handle,
+    QOMX_IMAGE_EXT_MULTI_IMAGE_NAME, &multi_image_index);
+  if (ret) {
+    LOGE("Error getting multi image info extention index %d", ret);
+    return ret;
+  }
+  memset(&multi_image_info, 0, sizeof(multi_image_info));
   if (p_jobparams->multi_image_info.type == MM_JPEG_TYPE_MPO) {
-    ret = OMX_GetExtensionIndex(p_session->omx_handle,
-      QOMX_IMAGE_EXT_MULTI_IMAGE_NAME, &multi_image_index);
-    if (ret) {
-      LOGE("Error getting multi image info extention index %d", ret);
-      return ret;
-    }
-    memset(&multi_image_info, 0, sizeof(multi_image_info));
-    if (p_jobparams->multi_image_info.type == MM_JPEG_TYPE_MPO) {
-      multi_image_info.image_type = QOMX_JPEG_IMAGE_TYPE_MPO;
-    } else {
-      multi_image_info.image_type = QOMX_JPEG_IMAGE_TYPE_JPEG;
-    }
-    multi_image_info.is_primary_image = p_jobparams->multi_image_info.is_primary;
-    multi_image_info.num_of_images = p_jobparams->multi_image_info.num_of_images;
+    multi_image_info.image_type = QOMX_JPEG_IMAGE_TYPE_MPO;
+  } else {
+    multi_image_info.image_type = QOMX_JPEG_IMAGE_TYPE_JPEG;
+  }
+  multi_image_info.is_primary_image = p_jobparams->multi_image_info.is_primary;
+  multi_image_info.num_of_images = p_jobparams->multi_image_info.num_of_images;
+  multi_image_info.enable_metadata = p_jobparams->multi_image_info.enable_metadata;
 
-    ret = OMX_SetConfig(p_session->omx_handle, multi_image_index,
-      &multi_image_info);
-    if (ret) {
-      LOGE("Error setting multi image config");
-      return ret;
-    }
+  ret = OMX_SetConfig(p_session->omx_handle, multi_image_index,
+    &multi_image_info);
+  if (ret) {
+    LOGE("Error setting multi image config");
+    return ret;
   }
   return ret;
 }
