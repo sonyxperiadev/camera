@@ -159,6 +159,8 @@ private:
 
     static void *dataProcessRoutine(void *data);
 
+    bool needsReprocess(qcamera_fwk_input_pp_data_t *frame);
+
 private:
     QCamera3ProcessingChannel  *m_parent;
     jpeg_encode_callback_t     mJpegCB;

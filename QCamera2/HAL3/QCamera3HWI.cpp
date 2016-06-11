@@ -505,6 +505,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         delete mDummyBatchChannel;
         mDummyBatchChannel = NULL;
     }
+
     mPictureChannel = NULL;
 
     if (mMetadataChannel) {
@@ -1629,7 +1630,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     }
 
     camera3_stream_t *zslStream = NULL; //Only use this for size and not actual handle!
-    camera3_stream_t *jpegStream = NULL;
     for (size_t i = 0; i < streamList->num_streams; i++) {
         camera3_stream_t *newStream = streamList->streams[i];
         LOGH("newStream type = %d, stream format = %d "
@@ -1695,9 +1695,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 }
                 zslStream = newStream;
             }
-        }
-        if (newStream->format == HAL_PIXEL_FORMAT_BLOB) {
-            jpegStream = newStream;
         }
     }
 
@@ -8333,6 +8330,14 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
         LOGH("No flash state in reprocess settings");
     }
 
+    if (frame_settings.exists(QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS)) {
+        uint8_t *reprocessFlags =
+            frame_settings.find(QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS).data.u8;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_REPROCESS_FLAGS,
+                *reprocessFlags)) {
+                rc = BAD_VALUE;
+        }
+    }
     return rc;
 }
 
@@ -8363,6 +8368,13 @@ camera_metadata_t* QCamera3HardwareInterface::saveRequestSettings(
         thumbnail_size[1] = jpegMetadata.find(ANDROID_JPEG_THUMBNAIL_SIZE).data.i32[1];
         camMetadata.update(ANDROID_JPEG_THUMBNAIL_SIZE, thumbnail_size,
                 jpegMetadata.find(ANDROID_JPEG_THUMBNAIL_SIZE).count);
+    }
+
+    if (request->input_buffer != NULL) {
+        uint8_t reprocessFlags = 1;
+        camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS,
+                (uint8_t*)&reprocessFlags,
+                sizeof(reprocessFlags));
     }
 
     resultMetadata = camMetadata.release();
