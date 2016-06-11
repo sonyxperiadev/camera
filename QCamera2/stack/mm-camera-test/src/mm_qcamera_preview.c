@@ -621,6 +621,10 @@ mm_camera_stream_t * mm_app_add_analysis_stream(mm_camera_test_obj_t *test_obj,
     analysis_dim = mm_app_get_analysis_stream_dim(test_obj, &preview_dim);
     LOGI("analysis stream dimesion: %d x %d\n",
             analysis_dim.width, analysis_dim.height);
+    if (analysis_dim.width == 0 || analysis_dim.height == 0) {
+        /* FD or PAAF might not be enabled , use preview dim */
+        return NULL;
+    }
 
     stream->s_config.mem_vtbl.get_bufs = mm_app_stream_initbuf;
     stream->s_config.mem_vtbl.put_bufs = mm_app_stream_deinitbuf;
@@ -998,9 +1002,7 @@ int mm_app_start_preview(mm_camera_test_obj_t *test_obj)
                                             (void *)test_obj,
                                             PREVIEW_BUF_NUM);
     if (NULL == s_analysis) {
-        LOGE("add metadata stream failed\n");
-        mm_app_del_channel(test_obj, channel);
-        return rc;
+        LOGE("Analysis Stream could not be added\n");
     }
 
     rc = mm_app_start_channel(test_obj, channel);
