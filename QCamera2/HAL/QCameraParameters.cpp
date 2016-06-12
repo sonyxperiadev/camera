@@ -13458,8 +13458,11 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
     switch (stream_type) {
     case CAM_STREAM_TYPE_CALLBACK:
     case CAM_STREAM_TYPE_PREVIEW:
-    case CAM_STREAM_TYPE_VIDEO:
         feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        break;
+    case CAM_STREAM_TYPE_VIDEO:
+        if(getISType() != IS_TYPE_EIS_3_0)
+          feature_mask |= CAM_QCOM_FEATURE_PAAF;
         break;
     default:
         break;

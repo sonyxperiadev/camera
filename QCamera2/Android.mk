@@ -4,10 +4,12 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
+LOCAL_COPY_HEADERS_TO := qcom/camera
+LOCAL_COPY_HEADERS := QCameraFormat.h
+
 LOCAL_SRC_FILES := \
         util/QCameraBufferMaps.cpp \
         util/QCameraCmdThread.cpp \
-        util/QCameraDisplay.cpp \
         util/QCameraFlash.cpp \
         util/QCameraPerf.cpp \
         util/QCameraQueue.cpp \
@@ -26,12 +28,20 @@ LOCAL_SRC_FILES += \
         HAL3/QCamera3CropRegionMapper.cpp \
         HAL3/QCamera3StreamMem.cpp
 
+LOCAL_CFLAGS := -Wall -Wextra -Werror
+
 #HAL 1.0 source
+
+ifeq ($(TARGET_SUPPORT_HAL1),false)
+LOCAL_CFLAGS += -DQCAMERA_HAL3_SUPPORT
+else
+LOCAL_CFLAGS += -DQCAMERA_HAL1_SUPPORT
 LOCAL_SRC_FILES += \
         HAL/QCamera2HWI.cpp \
         HAL/QCameraMuxer.cpp \
         HAL/QCameraMem.cpp \
         HAL/QCameraStateMachine.cpp \
+        util/QCameraDisplay.cpp \
         HAL/QCameraChannel.cpp \
         HAL/QCameraStream.cpp \
         HAL/QCameraPostProc.cpp \
@@ -39,8 +49,7 @@ LOCAL_SRC_FILES += \
         HAL/QCameraParameters.cpp \
         HAL/QCameraParametersIntf.cpp \
         HAL/QCameraThermalAdapter.cpp
-
-LOCAL_CFLAGS := -Wall -Wextra -Werror
+endif
 
 # System header file path prefix
 LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
@@ -60,6 +69,7 @@ ifeq ($(TARGET_USES_MEDIA_EXTENSIONS), true)
 LOCAL_CFLAGS += -DUSE_MEDIA_EXTENSIONS
 endif
 
+LOCAL_CFLAGS += -std=c++11 -std=gnu++0x
 #HAL 1.0 Flags
 LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3 -DQCAMERA_REDEFINE_LOG
 

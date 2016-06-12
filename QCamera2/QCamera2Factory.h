@@ -31,7 +31,7 @@
 #define __QCAMERA2FACTORY_H__
 
 // Camera dependencies
-#include "camera_common.h"
+#include "hardware/camera_common.h"
 
 namespace qcamera {
 

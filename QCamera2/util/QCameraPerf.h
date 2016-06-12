@@ -35,7 +35,7 @@
 #include <utils/Mutex.h>
 
 // Camera dependencies
-#include "power.h"
+#include "hardware/power.h"
 
 typedef enum {
     ALL_CORES_ONLINE = 0x7FE,

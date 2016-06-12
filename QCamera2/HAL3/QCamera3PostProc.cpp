@@ -584,6 +584,50 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *input,
 }
 
 /*===========================================================================
+ * FUNCTION   : needsReprocess
+ *
+ * DESCRIPTION: Determine if reprocess is needed.
+ *
+ * PARAMETERS :
+ *   @frame   : process frame
+ *
+ * RETURN     :
+ *  TRUE if frame needs to be reprocessed
+ *  FALSE is frame does not need to be reprocessed
+ *
+ *==========================================================================*/
+bool QCamera3PostProcessor::needsReprocess(qcamera_fwk_input_pp_data_t *frame)
+{
+    metadata_buffer_t* meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
+    bool edgeModeOn = FALSE;
+    bool noiseRedModeOn = FALSE;
+    bool reproNotDone = TRUE;
+
+    if (frame->reproc_config.reprocess_type == REPROCESS_TYPE_NONE) {
+        return FALSE;
+    }
+
+    // edge detection
+    IF_META_AVAILABLE(cam_edge_application_t, edgeMode,
+            CAM_INTF_META_EDGE_MODE, meta) {
+        edgeModeOn = (CAM_EDGE_MODE_OFF != edgeMode->edge_mode);
+    }
+
+    // noise reduction
+    IF_META_AVAILABLE(uint32_t, noiseRedMode,
+            CAM_INTF_META_NOISE_REDUCTION_MODE, meta) {
+        noiseRedModeOn = (CAM_NOISE_REDUCTION_MODE_OFF != *noiseRedMode);
+    }
+
+    IF_META_AVAILABLE(uint8_t, reprocess_flags,
+            CAM_INTF_META_REPROCESS_FLAGS, meta) {
+        reproNotDone = FALSE;
+    }
+
+    return (edgeModeOn || noiseRedModeOn || reproNotDone);
+}
+
+/*===========================================================================
  * FUNCTION   : processData
  *
  * DESCRIPTION: enqueue data into dataProc thread
@@ -600,8 +644,9 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *input,
  *==========================================================================*/
 int32_t QCamera3PostProcessor::processData(qcamera_fwk_input_pp_data_t *frame)
 {
-    if (frame->reproc_config.reprocess_type != REPROCESS_TYPE_NONE) {
+    if (needsReprocess(frame)) {
         ATRACE_INT("Camera:Reprocess", 1);
+        LOGH("scheduling framework reprocess");
         pthread_mutex_lock(&mReprocJobLock);
         // enqueu to post proc input queue
         m_inputFWKPPQ.enqueue((void *)frame);
@@ -1168,7 +1213,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     dst_dim.width = recvd_frame->reproc_config.output_stream_dim.width;
     dst_dim.height = recvd_frame->reproc_config.output_stream_dim.height;
 
-    needJpegExifRotation = hal_obj->needJpegExifRotation();
+    needJpegExifRotation = (hal_obj->needJpegExifRotation() || !needsReprocess(recvd_frame));
 
     LOGH("Need new session?:%d", needNewSess);
     if (needNewSess) {
@@ -1185,16 +1230,60 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         // create jpeg encoding session
         mm_jpeg_encode_params_t encodeParam;
         memset(&encodeParam, 0, sizeof(mm_jpeg_encode_params_t));
-        encodeParam.main_dim.src_dim = src_dim;
+        getFWKJpegEncodeConfig(encodeParam, recvd_frame, jpeg_settings);
+        LOGH("#src bufs:%d # tmb bufs:%d #dst_bufs:%d",
+                     encodeParam.num_src_bufs,encodeParam.num_tmb_bufs,encodeParam.num_dst_bufs);
+        if (!needJpegExifRotation &&
+            (jpeg_settings->jpeg_orientation == 90 ||
+            jpeg_settings->jpeg_orientation == 270)) {
+            // swap src width and height, stride and scanline due to rotation
+            encodeParam.main_dim.src_dim.width = src_dim.height;
+            encodeParam.main_dim.src_dim.height = src_dim.width;
+            encodeParam.thumb_dim.src_dim.width = src_dim.height;
+            encodeParam.thumb_dim.src_dim.height = src_dim.width;
+
+            int32_t temp = encodeParam.src_main_buf[0].offset.mp[0].stride;
+            encodeParam.src_main_buf[0].offset.mp[0].stride =
+                encodeParam.src_main_buf[0].offset.mp[0].scanline;
+            encodeParam.src_main_buf[0].offset.mp[0].scanline = temp;
+
+            temp = encodeParam.src_thumb_buf[0].offset.mp[0].stride;
+            encodeParam.src_thumb_buf[0].offset.mp[0].stride =
+                encodeParam.src_thumb_buf[0].offset.mp[0].scanline;
+            encodeParam.src_thumb_buf[0].offset.mp[0].scanline = temp;
+        } else {
+            encodeParam.main_dim.src_dim = src_dim;
+            encodeParam.thumb_dim.src_dim = src_dim;
+            encodeParam.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
+        }
         encodeParam.main_dim.dst_dim = dst_dim;
-        encodeParam.thumb_dim.src_dim = src_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
 
         if (needJpegExifRotation) {
             encodeParam.thumb_rotation = (uint32_t)jpeg_settings->jpeg_orientation;
         }
 
-        getFWKJpegEncodeConfig(encodeParam, recvd_frame, jpeg_settings);
+        LOGI("Src Buffer cnt = %d, res = %dX%d len = %d rot = %d "
+            "src_dim = %dX%d dst_dim = %dX%d",
+            encodeParam.num_src_bufs,
+            encodeParam.src_main_buf[0].offset.mp[0].stride,
+            encodeParam.src_main_buf[0].offset.mp[0].scanline,
+            encodeParam.src_main_buf[0].offset.frame_len,
+            encodeParam.rotation,
+            src_dim.width, src_dim.height,
+            dst_dim.width, dst_dim.height);
+        LOGI("Src THUMB buf_cnt = %d, res = %dX%d len = %d rot = %d "
+            "src_dim = %dX%d, dst_dim = %dX%d",
+            encodeParam.num_tmb_bufs,
+            encodeParam.src_thumb_buf[0].offset.mp[0].stride,
+            encodeParam.src_thumb_buf[0].offset.mp[0].scanline,
+            encodeParam.src_thumb_buf[0].offset.frame_len,
+            encodeParam.thumb_rotation,
+            encodeParam.thumb_dim.src_dim.width,
+            encodeParam.thumb_dim.src_dim.height,
+            encodeParam.thumb_dim.dst_dim.width,
+            encodeParam.thumb_dim.dst_dim.height);
+
         LOGH("#src bufs:%d # tmb bufs:%d #dst_bufs:%d",
                      encodeParam.num_src_bufs,encodeParam.num_tmb_bufs,encodeParam.num_dst_bufs);
 
@@ -1236,6 +1325,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         jpg_job.encode_job.main_dim.src_dim = src_dim;
         jpg_job.encode_job.main_dim.dst_dim = dst_dim;
         jpg_job.encode_job.main_dim.crop = crop;
+        jpg_job.encode_job.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
     }
 
     QCamera3HardwareInterface* obj = (QCamera3HardwareInterface*)m_parent->mUserData;
@@ -1418,6 +1508,12 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     }
 
     needJpegExifRotation = hal_obj->needJpegExifRotation();
+    IF_META_AVAILABLE(cam_rotation_info_t, rotation_info, CAM_INTF_PARM_ROTATION, metadata) {
+        if (jpeg_settings->jpeg_orientation != 0 && rotation_info->rotation == ROTATE_0) {
+            needJpegExifRotation = TRUE;
+            LOGH("Need EXIF JPEG ROTATION");
+        }
+    }
     LOGH("Need new session?:%d", needNewSess);
     if (needNewSess) {
         //creating a new session, so we must destroy the old one
@@ -1457,6 +1553,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         } else {
            encodeParam.main_dim.src_dim  = src_dim;
            encodeParam.thumb_dim.src_dim = src_dim;
+           encodeParam.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
         }
         encodeParam.main_dim.dst_dim = dst_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
@@ -1523,6 +1620,7 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         jpg_job.encode_job.main_dim.src_dim = src_dim;
         jpg_job.encode_job.main_dim.dst_dim = dst_dim;
         jpg_job.encode_job.main_dim.crop = crop;
+        jpg_job.encode_job.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
     }
 
     QCamera3HardwareInterface* obj = (QCamera3HardwareInterface*)m_parent->mUserData;

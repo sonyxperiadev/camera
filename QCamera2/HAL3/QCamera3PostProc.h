@@ -31,7 +31,7 @@
 #define __QCamera3_POSTPROC_H__
 
 // Camera dependencies
-#include "camera3.h"
+#include "hardware/camera3.h"
 #include "QCamera3HALHeader.h"
 #include "QCameraCmdThread.h"
 #include "QCameraQueue.h"
@@ -158,6 +158,8 @@ private:
     static void releaseOngoingPPData(void *data, void *user_data);
 
     static void *dataProcessRoutine(void *data);
+
+    bool needsReprocess(qcamera_fwk_input_pp_data_t *frame);
 
 private:
     QCamera3ProcessingChannel  *m_parent;

@@ -31,7 +31,7 @@
 #define __QCAMERA_FLASH_H__
 
 // Camera dependencies
-#include "camera_common.h"
+#include "hardware/camera_common.h"
 
 extern "C" {
 #include "mm_camera_interface.h"

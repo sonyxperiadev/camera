@@ -36,13 +36,14 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "gralloc.h"
+#include "hardware/gralloc.h"
+#include <utils/Timers.h>
 
 // Camera dependencies
 #include "QCamera3Channel.h"
 #include "QCamera3HWI.h"
 #include "QCameraTrace.h"
-
+#include "QCameraFormat.h"
 extern "C" {
 #include "mm_camera_dbg.h"
 }
@@ -637,10 +638,14 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
             if (pFormat == 1) {
                 streamFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
-                streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
+                /* Changed to macro to ensure format sent to gralloc for preview
+                is also changed if the preview format is changed at camera HAL */
+                streamFormat = PREVIEW_STREAM_FORMAT;
             }
         } else {
-            streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
+            /* Changed to macro to ensure format sent to gralloc for preview
+            is also changed if the preview format is changed at camera HAL */
+            streamFormat = PREVIEW_STREAM_FORMAT;
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
@@ -667,7 +672,9 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
         streamFormat = CAM_FORMAT_YUV_420_NV21;
         break;
     case CAM_STREAM_TYPE_CALLBACK:
-        streamFormat = CAM_FORMAT_YUV_420_NV21;
+        /* Changed to macro to ensure format sent to gralloc for callback
+        is also changed if the preview format is changed at camera HAL */
+        streamFormat = CALLBACK_STREAM_FORMAT;
         break;
     case CAM_STREAM_TYPE_RAW:
         streamFormat = CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG;
@@ -3961,10 +3968,9 @@ int32_t QCamera3ReprocessChannel::stop()
     int32_t rc = NO_ERROR;
 
     rc = QCamera3Channel::stop();
-    unmapOfflineBuffers(true);
-
     rc |= m_camOps->stop_channel(m_camHandle, m_handle);
-
+    // Unmapping the buffers
+    unmapOfflineBuffers(true);
     return rc;
 }
 
@@ -4242,7 +4248,7 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
 /*===========================================================================
 * FUNCTION : overrideFwkMetadata
 *
-* DESCRIPTION: Override frameworks metadata such as crop, and CDS data.
+* DESCRIPTION: Override frameworks metadata such as rotation, crop, and CDS data.
 *
 * PARAMETERS :
 * @frame : input frame for reprocessing
@@ -4263,9 +4269,16 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
         LOGE("No metadata available");
         return BAD_VALUE;
     }
+    metadata_buffer_t *meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
+
+    // Not doing rotation at all
+    cam_rotation_info_t rotation_info;
+    memset(&rotation_info, 0, sizeof(rotation_info));
+    rotation_info.rotation = ROTATE_0;
+    rotation_info.streamId = mStreams[0]->getMyServerID();
+    ADD_SET_PARAM_ENTRY_TO_BATCH(meta, CAM_INTF_PARM_ROTATION, rotation_info);
 
     // Find and insert crop info for reprocess stream
-    metadata_buffer_t *meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
         if (1 == crop_data->num_of_streams) {
             // Store crop/roi information for offline reprocess
