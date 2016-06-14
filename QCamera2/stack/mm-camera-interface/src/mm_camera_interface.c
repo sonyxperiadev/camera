@@ -54,8 +54,12 @@ static mm_camera_ctrl_t g_cam_ctrl;
 static pthread_mutex_t g_handler_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint16_t g_handler_history_count = 0; /* history count for handler */
 
-#define CAM_SENSOR_TYPE_MASK (1U<<24) // 24th (starting from 0) bit tells its a MAIN or AUX camera
-#define CAM_SENSOR_FORMAT_MASK (1U<<25) // 25th(starting from 0) bit tells its YUV sensor or not
+// 16th (starting from 0) bit tells its a BACK or FRONT camera
+#define CAM_SENSOR_FACING_MASK (1U<<16)
+// 24th (starting from 0) bit tells its a MAIN or AUX camera
+#define CAM_SENSOR_TYPE_MASK (1U<<24)
+// 25th (starting from 0) bit tells its YUV sensor or not
+#define CAM_SENSOR_FORMAT_MASK (1U<<25)
 
 /*===========================================================================
  * FUNCTION   : mm_camera_util_generate_handler
@@ -1578,9 +1582,16 @@ void get_sensor_info()
                 entity.group_id == MSM_CAMERA_SUBDEV_SENSOR) {
                 temp = entity.flags >> 8;
                 mount_angle = (temp & 0xFF) * 90;
-                facing = (temp & 0xFF00) >> 8;
-                type = ((entity.flags & CAM_SENSOR_TYPE_MASK) ?
-                        CAM_TYPE_AUX:CAM_TYPE_MAIN);
+                facing = ((entity.flags & CAM_SENSOR_FACING_MASK) ?
+                        CAMERA_FACING_FRONT:CAMERA_FACING_BACK);
+                /* TODO: Need to revisit this logic if front AUX is available. */
+                if ((unsigned int)facing == CAMERA_FACING_FRONT) {
+                    type = CAM_TYPE_STANDALONE;
+                } else if (entity.flags & CAM_SENSOR_TYPE_MASK) {
+                    type = CAM_TYPE_AUX;
+                } else {
+                    type = CAM_TYPE_MAIN;
+                }
                 is_yuv = ((entity.flags & CAM_SENSOR_FORMAT_MASK) ?
                         CAM_SENSOR_YUV:CAM_SENSOR_RAW);
                 LOGL("index = %u flag = %x mount_angle = %u "
@@ -1638,10 +1649,15 @@ void sort_camera_info(int num_cam)
     is_yuv_aux_cam_exposed = atoi(prop);
     LOGI("YUV Aux camera exposed %d",is_yuv_aux_cam_exposed);
 
-    /* firstly save the main back cameras info*/
+    /* Order of the camera exposed is
+    Back main, Front main, Back Aux and then Front Aux.
+    It is because that lot of 3rd party cameras apps
+    blindly assume 0th is Back and 1st is front */
+
+    /* Firstly save the main back cameras info */
     for (i = 0; i < num_cam; i++) {
         if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
-            (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
+            (g_cam_ctrl.cam_type[i] != CAM_TYPE_AUX)) {
             temp_info[idx] = g_cam_ctrl.info[i];
             temp_type[idx] = g_cam_ctrl.cam_type[i];
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
@@ -1652,9 +1668,10 @@ void sort_camera_info(int num_cam)
         }
     }
 
+    /* Save the main front cameras info */
     for (i = 0; i < num_cam; i++) {
         if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
-            (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
+            (g_cam_ctrl.cam_type[i] != CAM_TYPE_AUX)) {
             temp_info[idx] = g_cam_ctrl.info[i];
             temp_type[idx] = g_cam_ctrl.cam_type[i];
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
@@ -1668,8 +1685,8 @@ void sort_camera_info(int num_cam)
     /* Expose YUV AUX camera if persist.camera.aux.yuv is set to 1.
     Otherwsie expose AUX camera if it is not YUV. */
     for (i = 0; i < num_cam; i++) {
-        if ((g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX) &&
-                (g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
+        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
+                (g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX) &&
                 (is_yuv_aux_cam_exposed || !(g_cam_ctrl.is_yuv[i]))) {
             temp_info[idx] = g_cam_ctrl.info[i];
             temp_type[idx] = g_cam_ctrl.cam_type[i];
