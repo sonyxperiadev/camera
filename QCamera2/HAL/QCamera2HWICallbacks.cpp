@@ -692,7 +692,6 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
     ATRACE_CALL();
     LOGH("[KPI Perf] : BEGIN");
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
-    QCameraGrallocMemory *memory = NULL;
 
     if (pme == NULL) {
         LOGE("Invalid hardware object");
@@ -718,9 +717,11 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
         pme->m_bPreviewStarted = false;
     }
 
+    QCameraGrallocMemory *memory = (QCameraGrallocMemory *) frame->mem_info;
     if (!pme->needProcessPreviewFrame(frame->frame_idx)) {
         pthread_mutex_lock(&pme->mGrallocLock);
         pme->mLastPreviewFrameID = frame->frame_idx;
+        memory->setBufferStatus(frame->buf_idx, STATUS_SKIPPED);
         pthread_mutex_unlock(&pme->mGrallocLock);
         LOGH("preview is not running, no need to process");
         return;
@@ -733,7 +734,6 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
     // Calculate the future presentation time stamp for displaying frames at regular interval
     mPreviewTimestamp = pme->mCameraDisplay.computePresentationTimeStamp(frameTime);
     stream->mStreamTimestamp = frameTime;
-    memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
 
 #ifdef TARGET_TS_MAKEUP
     pme->TsMakeupProcess_Preview(frame,stream);
@@ -817,19 +817,23 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     if (!stream->isSyncCBEnabled()) {
         pme->mLastPreviewFrameID = frame->frame_idx;
     }
-    if (((!stream->isSyncCBEnabled()) &&
-            (!pme->needProcessPreviewFrame(frame->frame_idx))) ||
-            ((stream->isSyncCBEnabled()) &&
-            (memory->isBufOwnedByCamera(frame->buf_idx)))) {
-        //If buffer owned by camera, then it is not enqueued to display.
-        // bufDone it back to backend.
-        pthread_mutex_unlock(&pme->mGrallocLock);
+    bool discardFrame = false;
+    if (!stream->isSyncCBEnabled() &&
+            !pme->needProcessPreviewFrame(frame->frame_idx))
+    {
+        discardFrame = true;
+    } else if (stream->isSyncCBEnabled() &&
+            memory->isBufSkipped(frame->buf_idx)) {
+        discardFrame = true;
+        memory->setBufferStatus(frame->buf_idx, STATUS_IDLE);
+    }
+    pthread_mutex_unlock(&pme->mGrallocLock);
+
+    if (discardFrame) {
         LOGH("preview is not running, no need to process");
         stream->bufDone(frame->buf_idx);
         free(super_frame);
         return;
-    } else {
-        pthread_mutex_unlock(&pme->mGrallocLock);
     }
 
     if (pme->needDebugFps()) {

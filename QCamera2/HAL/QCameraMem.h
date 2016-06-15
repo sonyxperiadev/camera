@@ -59,6 +59,11 @@ enum QCameraMemType {
     QCAMERA_MEM_TYPE_COMPRESSED   = (1 << 2),
 };
 
+typedef enum {
+    STATUS_IDLE,
+    STATUS_SKIPPED
+} BufferStatus;
+
 // Base class for all memory types. Abstract.
 class QCameraMemory {
 
@@ -273,11 +278,12 @@ public:
     void setMaxFPS(int maxFPS);
     int32_t enqueueBuffer(uint32_t index, nsecs_t timeStamp = 0);
     int32_t dequeueBuffer();
-    inline bool isBufOwnedByCamera(uint32_t index){return mLocalFlag[index] == BUFFER_OWNED;};
-
+    inline bool isBufSkipped(uint32_t index){return (mBufferStatus[index] == STATUS_SKIPPED);};
+    void setBufferStatus(uint32_t index, BufferStatus status);
 private:
     buffer_handle_t *mBufferHandle[MM_CAMERA_MAX_NUM_FRAMES];
     int mLocalFlag[MM_CAMERA_MAX_NUM_FRAMES];
+    bool mBufferStatus[MM_CAMERA_MAX_NUM_FRAMES];
     struct private_handle_t *mPrivateHandle[MM_CAMERA_MAX_NUM_FRAMES];
     preview_stream_ops_t *mWindow;
     int mWidth, mHeight, mFormat, mStride, mScanline, mUsage, mMaxFPS;
