@@ -5092,7 +5092,7 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     IF_META_AVAILABLE(cam_color_correct_gains_t, colorCorrectionGains,
             CAM_INTF_META_COLOR_CORRECT_GAINS, metadata) {
         camMetadata.update(ANDROID_COLOR_CORRECTION_GAINS, colorCorrectionGains->gains,
-                CC_GAINS_COUNT);
+                CC_GAIN_MAX);
     }
 
     IF_META_AVAILABLE(cam_color_correct_matrix_t, colorCorrectionMatrix,
@@ -8731,7 +8731,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
     if (frame_settings.exists(ANDROID_COLOR_CORRECTION_GAINS)) {
         cam_color_correct_gains_t colorCorrectGains;
-        for (size_t i = 0; i < CC_GAINS_COUNT; i++) {
+        for (size_t i = 0; i < CC_GAIN_MAX; i++) {
             colorCorrectGains.gains[i] =
                     frame_settings.find(ANDROID_COLOR_CORRECTION_GAINS).data.f[i];
         }
