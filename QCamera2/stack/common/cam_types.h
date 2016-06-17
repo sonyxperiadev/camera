@@ -884,9 +884,9 @@ typedef enum {
 
 typedef enum {
     IS_TYPE_NONE,
+    IS_TYPE_CROP,
     IS_TYPE_DIS,
     IS_TYPE_GA_DIS,
-    IS_TYPE_EIS_1_0,
     IS_TYPE_EIS_2_0,
     IS_TYPE_EIS_3_0,
     IS_TYPE_MAX
