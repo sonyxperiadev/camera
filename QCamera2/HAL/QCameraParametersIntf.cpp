@@ -1025,6 +1025,13 @@ bool QCameraParametersIntf::getofflineRAW()
     return mImpl->getofflineRAW();
 }
 
+bool QCameraParametersIntf::getQuadraCfa()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getQuadraCfa();
+}
+
 int32_t QCameraParametersIntf::updatePpFeatureMask(cam_stream_type_t stream_type)
 {
     Mutex::Autolock lock(mLock);
