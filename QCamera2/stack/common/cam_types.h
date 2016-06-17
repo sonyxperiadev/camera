@@ -1192,10 +1192,16 @@ typedef enum {
     NEED_FUTURE_FRAME,
 } cam_prep_snapshot_state_t;
 
-#define CC_GAINS_COUNT  4
+typedef enum {
+    CC_RED_GAIN,
+    CC_GREEN_RED_GAIN,
+    CC_GREEN_BLUE_GAIN,
+    CC_BLUE_GAIN,
+    CC_GAIN_MAX
+} cam_cc_gains_type_t;
 
 typedef struct {
-    float gains[CC_GAINS_COUNT];
+    float gains[CC_GAIN_MAX];
 } cam_color_correct_gains_t;
 
 typedef struct {
