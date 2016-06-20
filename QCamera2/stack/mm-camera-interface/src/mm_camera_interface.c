@@ -1618,7 +1618,7 @@ void get_sensor_info()
 void sort_camera_info(int num_cam)
 {
     int idx = 0, i;
-    int8_t is_dual_cam = 0, is_aux_cam_exposed = 0;
+    int8_t is_yuv_aux_cam_exposed = 0;
     char prop[PROPERTY_VALUE_MAX];
     struct camera_info temp_info[MM_CAMERA_MAX_NUM_SENSORS];
     cam_sync_type_t temp_type[MM_CAMERA_MAX_NUM_SENSORS];
@@ -1632,25 +1632,11 @@ void sort_camera_info(int num_cam)
     memset(temp_mode, 0, sizeof(temp_mode));
     memset(temp_is_yuv, 0, sizeof(temp_is_yuv));
 
-    // Signifies whether system has to enable dual camera mode
+    // Signifies whether YUV AUX camera has to be exposed as physical camera
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.dual.camera", prop, "0");
-    is_dual_cam = atoi(prop);
-
-    // Signifies whether AUX camera has to be exposed as physical camera
-    memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.aux.camera", prop, "0");
-    is_aux_cam_exposed = atoi(prop);
-    LOGI("dualCamera:%d auxCamera %d",
-            is_dual_cam, is_aux_cam_exposed);
-
-    /*
-    1. If dual camera is enabled, dont hide any camera here. Further logic to handle AUX
-       cameras is handled in setupLogicalCameras().
-    2. If dual camera is not enabled, hide Front camera if AUX camera property is set.
-        In such case, application will see only back MAIN and back AUX cameras.
-    3. TODO: Need to revisit this logic if front AUX is available.
-    */
+    property_get("persist.camera.aux.yuv", prop, "0");
+    is_yuv_aux_cam_exposed = atoi(prop);
+    LOGI("YUV Aux camera exposed %d",is_yuv_aux_cam_exposed);
 
     /* firstly save the main back cameras info*/
     for (i = 0; i < num_cam; i++) {
@@ -1666,43 +1652,41 @@ void sort_camera_info(int num_cam)
         }
     }
 
-    /* save the aux back cameras info*/
-    if (is_dual_cam || is_aux_cam_exposed) {
-        for (i = 0; i < num_cam; i++) {
-            if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
-                (g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX)) {
-                temp_info[idx] = g_cam_ctrl.info[i];
-                temp_type[idx] = g_cam_ctrl.cam_type[i];
-                temp_mode[idx] = g_cam_ctrl.cam_mode[i];
-                temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
-                LOGD("Found Back Aux Camera: i: %d idx: %d", i, idx);
-                memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
-                    MM_CAMERA_DEV_NAME_LEN);
-            }
-        }
-    }
-
-    if (is_dual_cam || !is_aux_cam_exposed) {
-        /* then save the front cameras info*/
-        for (i = 0; i < num_cam; i++) {
-            if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
-                (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
-                temp_info[idx] = g_cam_ctrl.info[i];
-                temp_type[idx] = g_cam_ctrl.cam_type[i];
-                temp_mode[idx] = g_cam_ctrl.cam_mode[i];
-                temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
-                LOGD("Found Front Main Camera: i: %d idx: %d", i, idx);
-                memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
-                    MM_CAMERA_DEV_NAME_LEN);
-            }
-        }
-    }
-
-    //TODO: Need to revisit this logic if front AUX is available.
-    /* save the aux front cameras info*/
     for (i = 0; i < num_cam; i++) {
         if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
-            (g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX)) {
+            (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
+            temp_info[idx] = g_cam_ctrl.info[i];
+            temp_type[idx] = g_cam_ctrl.cam_type[i];
+            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+            temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
+            LOGD("Found Front Main Camera: i: %d idx: %d", i, idx);
+            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+                    MM_CAMERA_DEV_NAME_LEN);
+        }
+    }
+
+    /* Expose YUV AUX camera if persist.camera.aux.yuv is set to 1.
+    Otherwsie expose AUX camera if it is not YUV. */
+    for (i = 0; i < num_cam; i++) {
+        if ((g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX) &&
+                (g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
+                (is_yuv_aux_cam_exposed || !(g_cam_ctrl.is_yuv[i]))) {
+            temp_info[idx] = g_cam_ctrl.info[i];
+            temp_type[idx] = g_cam_ctrl.cam_type[i];
+            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+            temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
+            LOGD("Found back Aux Camera: i: %d idx: %d", i, idx);
+            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+                MM_CAMERA_DEV_NAME_LEN);
+        }
+    }
+
+    /* Expose YUV AUX camera if persist.camera.aux.yuv is set to 1.
+    Otherwsie expose AUX camera if it is not YUV. */
+    for (i = 0; i < num_cam; i++) {
+        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
+                (g_cam_ctrl.cam_type[i] == CAM_TYPE_AUX) &&
+                (is_yuv_aux_cam_exposed || !(g_cam_ctrl.is_yuv[i]))) {
             temp_info[idx] = g_cam_ctrl.info[i];
             temp_type[idx] = g_cam_ctrl.cam_type[i];
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
