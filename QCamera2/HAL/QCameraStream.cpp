@@ -757,7 +757,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
 err1:
     mCamOps->delete_stream(mCamHandle, mChannelHandle, mHandle);
     mHandle = 0;
-    mNumBufs = 0;
 done:
     return rc;
 }
