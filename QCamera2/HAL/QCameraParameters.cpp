@@ -8025,6 +8025,9 @@ int32_t QCameraParameters::setInstantCapture(const QCameraParameters& params)
             LOGD("Set instant Capture from param = %d", value);
             if(value != NAME_NOT_FOUND) {
                 updateParamEntry(KEY_QC_INSTANT_CAPTURE, str);
+            } else {
+                LOGE("Invalid value for instant capture %s", str);
+                return BAD_VALUE;
             }
         }
     } else {
@@ -8037,6 +8040,9 @@ int32_t QCameraParameters::setInstantCapture(const QCameraParameters& params)
             LOGD("Set instant capture from setprop = %d", value);
             if (value != NAME_NOT_FOUND) {
                 updateParamEntry(KEY_QC_INSTANT_CAPTURE, prop);
+            } else {
+                LOGE("Invalid value for instant capture %s", prop);
+                return BAD_VALUE;
             }
         }
     }
@@ -8096,6 +8102,8 @@ int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
         // Check for instant AEC. Instant AEC will only enable fast AEC.
         // It will not enable instant capture.
         // This param will trigger the instant AEC param to backend
+        // Instant AEC param is session based param,
+        // the param change will be applicable for next camera open/close session.
         const char *str = params.get(KEY_QC_INSTANT_AEC);
         const char *prev_str = get(KEY_QC_INSTANT_AEC);
         if (str) {
@@ -8103,6 +8111,12 @@ int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
                 value = lookupAttr(INSTANT_AEC_MODES_MAP,
                         PARAM_MAP_SIZE(INSTANT_AEC_MODES_MAP), str);
                 LOGD("Set instant AEC from param = %d", value);
+                if(value != NAME_NOT_FOUND) {
+                    updateParamEntry(KEY_QC_INSTANT_AEC, str);
+                } else {
+                    LOGE("Invalid value for instant AEC %s", str);
+                    return BAD_VALUE;
+                }
             }
         } else {
             char prop[PROPERTY_VALUE_MAX];
@@ -8112,6 +8126,12 @@ int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
                 value = lookupAttr(INSTANT_AEC_MODES_MAP,
                         PARAM_MAP_SIZE(INSTANT_AEC_MODES_MAP), prop);
                 LOGD("Set instant AEC from setprop = %d", value);
+                if(value != NAME_NOT_FOUND) {
+                    updateParamEntry(KEY_QC_INSTANT_AEC, prop);
+                } else {
+                    LOGE("Invalid value for instant AEC %s", prop);
+                    return BAD_VALUE;
+                }
             }
         }
 
@@ -14293,11 +14313,6 @@ int32_t QCameraParameters::setInstantAEC(uint8_t value, bool initCommit)
         LOGE("Failed to instant aec value");
         return BAD_VALUE;
     }
-
-    // set the new value
-    char val[8];
-    snprintf(val, sizeof(val), "%d", value);
-    updateParamEntry(KEY_QC_INSTANT_AEC, val);
 
     if (initCommit) {
         rc = commitSetBatch();
