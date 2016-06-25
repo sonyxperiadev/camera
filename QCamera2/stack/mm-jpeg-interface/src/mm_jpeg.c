@@ -45,6 +45,9 @@
 #include "mm_jpeg_interface.h"
 #include "mm_jpeg.h"
 #include "mm_jpeg_inlines.h"
+#ifdef LIB2D_ROTATION_ENABLE
+#include "mm_lib2d.h"
+#endif
 
 #define ENCODING_MODE_PARALLEL 1
 
@@ -121,28 +124,60 @@ OMX_ERRORTYPE mm_jpeg_session_send_buffers(void *data)
   mm_jpeg_encode_params_t *p_params = &p_session->params;
 
   memset(&lbuffer_info, 0x0, sizeof(QOMX_BUFFER_INFO));
-  for (i = 0; i < p_params->num_src_bufs; i++) {
-    LOGD("Source buffer %d", i);
-    lbuffer_info.fd = (OMX_U32)p_params->src_main_buf[i].fd;
-    ret = OMX_UseBuffer(p_session->omx_handle, &(p_session->p_in_omx_buf[i]), 0,
-      &lbuffer_info, p_params->src_main_buf[i].buf_size,
-      p_params->src_main_buf[i].buf_vaddr);
-    if (ret) {
-      LOGE("Error %d", ret);
-      return ret;
+
+  if (p_session->lib2d_rotation_flag) {
+    for (i = 0; i < p_session->num_src_rot_bufs; i++) {
+      lbuffer_info.fd = (OMX_U32)p_session->src_rot_main_buf[i].fd;
+      LOGD("Source rot buffer %d", i);
+      ret = OMX_UseBuffer(p_session->omx_handle,
+        &(p_session->p_in_rot_omx_buf[i]), 0,
+        &lbuffer_info, p_session->src_rot_main_buf[i].buf_size,
+        p_session->src_rot_main_buf[i].buf_vaddr);
+      if (ret) {
+        LOGE("Error %d", ret);
+        return ret;
+      }
+    }
+  } else {
+    for (i = 0; i < p_params->num_src_bufs; i++) {
+      LOGD("Source buffer %d", i);
+      lbuffer_info.fd = (OMX_U32)p_params->src_main_buf[i].fd;
+      ret = OMX_UseBuffer(p_session->omx_handle,
+        &(p_session->p_in_omx_buf[i]), 0,
+        &lbuffer_info, p_params->src_main_buf[i].buf_size,
+        p_params->src_main_buf[i].buf_vaddr);
+      if (ret) {
+        LOGE("Error %d", ret);
+        return ret;
+      }
     }
   }
 
-  for (i = 0; i < p_params->num_tmb_bufs; i++) {
-    LOGD("Source buffer %d", i);
-    lbuffer_info.fd = (OMX_U32)p_params->src_thumb_buf[i].fd;
-    ret = OMX_UseBuffer(p_session->omx_handle,
+  if (p_session->lib2d_rotation_flag && p_session->thumb_from_main) {
+    for (i = 0; i < p_session->num_src_rot_bufs; i++) {
+      LOGD("Source rot buffer thumb %d", i);
+      lbuffer_info.fd = (OMX_U32)p_session->src_rot_main_buf[i].fd;
+      ret = OMX_UseBuffer(p_session->omx_handle,
+        &(p_session->p_in_rot_omx_thumb_buf[i]), 2,
+        &lbuffer_info, p_session->src_rot_main_buf[i].buf_size,
+        p_session->src_rot_main_buf[i].buf_vaddr);
+      if (ret) {
+        LOGE("Error %d", ret);
+        return ret;
+      }
+    }
+  } else {
+    for (i = 0; i < p_params->num_tmb_bufs; i++) {
+      LOGD("Source buffer %d", i);
+      lbuffer_info.fd = (OMX_U32)p_params->src_thumb_buf[i].fd;
+      ret = OMX_UseBuffer(p_session->omx_handle,
         &(p_session->p_in_omx_thumb_buf[i]), 2,
         &lbuffer_info, p_params->src_thumb_buf[i].buf_size,
-        p_params->src_thumb_buf[i].buf_vaddr);
-    if (ret) {
-      LOGE("Error %d", ret);
-      return ret;
+      p_params->src_thumb_buf[i].buf_vaddr);
+      if (ret) {
+        LOGE("Error %d", ret);
+        return ret;
+      }
     }
   }
 
@@ -156,6 +191,7 @@ OMX_ERRORTYPE mm_jpeg_session_send_buffers(void *data)
       return ret;
     }
   }
+
   return ret;
 }
 
@@ -179,21 +215,48 @@ OMX_ERRORTYPE mm_jpeg_session_free_buffers(void *data)
   mm_jpeg_job_session_t* p_session = (mm_jpeg_job_session_t *)data;
   mm_jpeg_encode_params_t *p_params = &p_session->params;
 
-  for (i = 0; i < p_params->num_src_bufs; i++) {
-    LOGD("Source buffer %d", i);
-    ret = OMX_FreeBuffer(p_session->omx_handle, 0, p_session->p_in_omx_buf[i]);
-    if (ret) {
-      LOGE("Error %d", ret);
-      return ret;
+
+  if (p_session->lib2d_rotation_flag) {
+    for (i = 0; i < p_session->num_src_rot_bufs; i++) {
+      LOGD("Source rot buffer %d", i);
+      ret = OMX_FreeBuffer(p_session->omx_handle, 0,
+        p_session->p_in_rot_omx_buf[i]);
+      if (ret) {
+        LOGE("Error %d", ret);
+        return ret;
+      }
+    }
+  } else {
+    for (i = 0; i < p_params->num_src_bufs; i++) {
+      LOGD("Source buffer %d", i);
+      ret = OMX_FreeBuffer(p_session->omx_handle, 0,
+        p_session->p_in_omx_buf[i]);
+      if (ret) {
+        LOGE("Error %d", ret);
+        return ret;
+      }
     }
   }
 
-  for (i = 0; i < p_params->num_tmb_bufs; i++) {
-    LOGD("Source buffer %d", i);
-    ret = OMX_FreeBuffer(p_session->omx_handle, 2, p_session->p_in_omx_thumb_buf[i]);
-    if (ret) {
-      LOGE("Error %d", ret);
-      return ret;
+  if (p_session->lib2d_rotation_flag && p_session->thumb_from_main) {
+    for (i = 0; i < p_session->num_src_rot_bufs; i++) {
+    LOGD("Source rot buffer thumb %d", i);
+      ret = OMX_FreeBuffer(p_session->omx_handle, 2,
+        p_session->p_in_rot_omx_thumb_buf[i]);
+      if (ret) {
+        LOGE("Error %d", ret);
+        return ret;
+      }
+    }
+  } else {
+    for (i = 0; i < p_params->num_tmb_bufs; i++) {
+      LOGD("Source buffer %d", i);
+      ret = OMX_FreeBuffer(p_session->omx_handle, 2,
+        p_session->p_in_omx_thumb_buf[i]);
+      if (ret) {
+        LOGE("Error %d", ret);
+        return ret;
+      }
     }
   }
 
@@ -353,6 +416,7 @@ void mm_jpeg_session_destroy(mm_jpeg_job_session_t* p_session)
 {
   OMX_ERRORTYPE rc = OMX_ErrorNone;
   OMX_STATETYPE state;
+  uint32_t i;
   mm_jpeg_obj *my_obj = (mm_jpeg_obj *) p_session->jpeg_obj;
 
   LOGD("E");
@@ -378,6 +442,14 @@ void mm_jpeg_session_destroy(mm_jpeg_job_session_t* p_session)
       mm_jpeg_session_free_buffers);
     if (rc) {
       LOGE("Error");
+    }
+  }
+
+  if (p_session->lib2d_rotation_flag) {
+    for (i = 0; i < p_session->num_src_rot_bufs; i++) {
+      if (p_session->src_rot_ion_buffer[i].addr) {
+        buffer_deallocate(&p_session->src_rot_ion_buffer[i]);
+      }
     }
   }
 
@@ -442,9 +514,11 @@ OMX_ERRORTYPE mm_jpeg_session_config_main_buffer_offset(
 
   frame_info.cbcrStartOffset[0] = p_src_buf->offset.mp[0].len;
   frame_info.cbcrStartOffset[1] = p_src_buf->offset.mp[1].len;
-  frame_info.yOffset = p_src_buf->offset.mp[0].offset;
-  frame_info.cbcrOffset[0] = p_src_buf->offset.mp[1].offset;
-  frame_info.cbcrOffset[1] = p_src_buf->offset.mp[2].offset;
+  if (!p_session->lib2d_rotation_flag) {
+    frame_info.yOffset = p_src_buf->offset.mp[0].offset;
+    frame_info.cbcrOffset[0] = p_src_buf->offset.mp[1].offset;
+    frame_info.cbcrOffset[1] = p_src_buf->offset.mp[2].offset;
+  }
   totalSize = p_src_buf->buf_size;
 
   rc = OMX_GetExtensionIndex(p_session->omx_handle,
@@ -833,6 +907,43 @@ int map_jpeg_format(mm_jpeg_color_format color_fmt)
   }
 }
 
+/** mm_jpeg_get_imgfmt_from_colorfmt:
+ *
+ *  Arguments:
+ *    @color_fmt: color format
+ *
+ *  Return:
+ *    cam format
+ *
+ *  Description:
+ *    Get camera image format from color format
+ *
+ **/
+cam_format_t mm_jpeg_get_imgfmt_from_colorfmt
+  (mm_jpeg_color_format color_fmt)
+{
+  switch (color_fmt) {
+  case MM_JPEG_COLOR_FORMAT_MONOCHROME:
+    return CAM_FORMAT_Y_ONLY;
+  case MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2:
+    return CAM_FORMAT_YUV_420_NV21;
+  case MM_JPEG_COLOR_FORMAT_YCBCRLP_H2V2:
+    return CAM_FORMAT_YUV_420_NV12;
+  case MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V1:
+  case MM_JPEG_COLOR_FORMAT_YCRCBLP_H1V2:
+    return CAM_FORMAT_YUV_422_NV61;
+  case MM_JPEG_COLOR_FORMAT_YCBCRLP_H2V1:
+  case MM_JPEG_COLOR_FORMAT_YCBCRLP_H1V2:
+    return CAM_FORMAT_YUV_422_NV16;
+  case MM_JPEG_COLOR_FORMAT_YCRCBLP_H1V1:
+    return CAM_FORMAT_YUV_444_NV42;
+  case MM_JPEG_COLOR_FORMAT_YCBCRLP_H1V1:
+    return CAM_FORMAT_YUV_444_NV24;
+  default:
+    return CAM_FORMAT_Y_ONLY;
+  }
+}
+
 /** mm_jpeg_session_config_port:
  *
  *  Arguments:
@@ -879,19 +990,41 @@ OMX_ERRORTYPE mm_jpeg_session_config_ports(mm_jpeg_job_session_t* p_session)
     return ret;
   }
 
-  p_session->inputPort.format.image.nFrameWidth =
-    (OMX_U32)p_params->main_dim.src_dim.width;
-  p_session->inputPort.format.image.nFrameHeight =
-    (OMX_U32)p_params->main_dim.src_dim.height;
-  p_session->inputPort.format.image.nStride =
-    p_src_buf->offset.mp[0].stride;
-  p_session->inputPort.format.image.nSliceHeight =
-    (OMX_U32)p_src_buf->offset.mp[0].scanline;
+  if (p_session->lib2d_rotation_flag &&
+    ((p_session->params.rotation == 90) ||
+    (p_session->params.rotation == 270))) {
+    p_session->inputPort.format.image.nFrameWidth =
+      (OMX_U32)p_params->main_dim.src_dim.height;
+    p_session->inputPort.format.image.nFrameHeight =
+      (OMX_U32)p_params->main_dim.src_dim.width;
+    p_session->inputPort.format.image.nStride =
+      p_src_buf->offset.mp[0].scanline;
+    p_session->inputPort.format.image.nSliceHeight =
+      (OMX_U32)p_src_buf->offset.mp[0].stride;
+  } else {
+    p_session->inputPort.format.image.nFrameWidth =
+      (OMX_U32)p_params->main_dim.src_dim.width;
+    p_session->inputPort.format.image.nFrameHeight =
+      (OMX_U32)p_params->main_dim.src_dim.height;
+    p_session->inputPort.format.image.nStride =
+      p_src_buf->offset.mp[0].stride;
+    p_session->inputPort.format.image.nSliceHeight =
+      (OMX_U32)p_src_buf->offset.mp[0].scanline;
+  }
+
   p_session->inputPort.format.image.eColorFormat =
     map_jpeg_format(p_params->color_format);
   p_session->inputPort.nBufferSize =
     p_params->src_main_buf[0/*p_jobparams->src_index*/].buf_size;
-  p_session->inputPort.nBufferCountActual = (OMX_U32)p_params->num_src_bufs;
+
+  if (p_session->lib2d_rotation_flag) {
+    p_session->inputPort.nBufferCountActual =
+      (OMX_U32)p_session->num_src_rot_bufs;
+  } else {
+    p_session->inputPort.nBufferCountActual =
+      (OMX_U32)p_params->num_src_bufs;
+  }
+
   ret = OMX_SetParameter(p_session->omx_handle, OMX_IndexParamPortDefinition,
     &p_session->inputPort);
   if (ret) {
@@ -902,19 +1035,40 @@ OMX_ERRORTYPE mm_jpeg_session_config_ports(mm_jpeg_job_session_t* p_session)
   if (p_session->params.encode_thumbnail) {
     mm_jpeg_buf_t *p_tmb_buf =
       &p_params->src_thumb_buf[0];
-    p_session->inputTmbPort.format.image.nFrameWidth =
-      (OMX_U32)p_params->thumb_dim.src_dim.width;
-    p_session->inputTmbPort.format.image.nFrameHeight =
-      (OMX_U32)p_params->thumb_dim.src_dim.height;
-    p_session->inputTmbPort.format.image.nStride =
-      p_tmb_buf->offset.mp[0].stride;
-    p_session->inputTmbPort.format.image.nSliceHeight =
-      (OMX_U32)p_tmb_buf->offset.mp[0].scanline;
+    if ((p_session->lib2d_rotation_flag && p_session->thumb_from_main) &&
+      ((p_session->params.rotation == 90) ||
+      (p_session->params.rotation == 270))) {
+      p_session->inputTmbPort.format.image.nFrameWidth =
+        (OMX_U32)p_params->thumb_dim.src_dim.height;
+      p_session->inputTmbPort.format.image.nFrameHeight =
+        (OMX_U32)p_params->thumb_dim.src_dim.width;
+      p_session->inputTmbPort.format.image.nStride =
+        p_tmb_buf->offset.mp[0].scanline;
+      p_session->inputTmbPort.format.image.nSliceHeight =
+        (OMX_U32)p_tmb_buf->offset.mp[0].stride;
+    } else {
+      p_session->inputTmbPort.format.image.nFrameWidth =
+        (OMX_U32)p_params->thumb_dim.src_dim.width;
+      p_session->inputTmbPort.format.image.nFrameHeight =
+        (OMX_U32)p_params->thumb_dim.src_dim.height;
+      p_session->inputTmbPort.format.image.nStride =
+        p_tmb_buf->offset.mp[0].stride;
+      p_session->inputTmbPort.format.image.nSliceHeight =
+        (OMX_U32)p_tmb_buf->offset.mp[0].scanline;
+    }
+
     p_session->inputTmbPort.format.image.eColorFormat =
       map_jpeg_format(p_params->thumb_color_format);
     p_session->inputTmbPort.nBufferSize =
       p_params->src_thumb_buf[0].buf_size;
-    p_session->inputTmbPort.nBufferCountActual = (OMX_U32)p_params->num_tmb_bufs;
+
+    if (p_session->lib2d_rotation_flag && p_session->thumb_from_main) {
+      p_session->inputTmbPort.nBufferCountActual =
+        (OMX_U32)p_session->num_src_rot_bufs;
+    } else {
+      p_session->inputTmbPort.nBufferCountActual =
+        (OMX_U32)p_params->num_tmb_bufs;
+    }
 
     ret = OMX_SetParameter(p_session->omx_handle, OMX_IndexParamPortDefinition,
       &p_session->inputTmbPort);
@@ -956,7 +1110,13 @@ OMX_ERRORTYPE mm_jpeg_session_config_ports(mm_jpeg_job_session_t* p_session)
   /* set rotation */
   memset(&rotate, 0, sizeof(rotate));
   rotate.nPortIndex = 1;
-  rotate.nRotation = (OMX_S32)p_params->rotation;
+
+  if (p_session->lib2d_rotation_flag) {
+    rotate.nRotation = 0;
+  } else {
+    rotate.nRotation = (OMX_S32)p_params->rotation;
+  }
+
   ret = OMX_SetConfig(p_session->omx_handle, OMX_IndexConfigCommonRotate,
       &rotate);
   if (OMX_ErrorNone != ret) {
@@ -1104,15 +1264,21 @@ OMX_ERRORTYPE mm_jpeg_session_config_thumbnail(mm_jpeg_job_session_t* p_session)
   thumbnail_info.output_height = (OMX_U32)p_thumb_dim->dst_dim.height;
 
   if (p_session->thumb_from_main) {
-    if ((p_session->params.thumb_rotation == 90 ||
-      p_session->params.thumb_rotation == 270) &&
-      (p_session->params.rotation == 0 ||
-      p_session->params.rotation == 180)) {
 
-      thumbnail_info.output_width = (OMX_U32)p_thumb_dim->dst_dim.height;
-      thumbnail_info.output_height = (OMX_U32)p_thumb_dim->dst_dim.width;
-      thumbnail_info.rotation = p_session->params.rotation;
+    if (p_session->lib2d_rotation_flag) {
+      thumbnail_info.rotation = 0;
+    } else {
+      if ((p_session->params.thumb_rotation == 90 ||
+        p_session->params.thumb_rotation == 270) &&
+        (p_session->params.rotation == 0 ||
+        p_session->params.rotation == 180)) {
+
+        thumbnail_info.output_width = (OMX_U32)p_thumb_dim->dst_dim.height;
+        thumbnail_info.output_height = (OMX_U32)p_thumb_dim->dst_dim.width;
+        thumbnail_info.rotation = p_session->params.rotation;
+      }
     }
+
     //Thumb FOV should be within main image FOV
     if (p_thumb_dim->crop.left < p_main_dim->crop.left) {
       p_thumb_dim->crop.left = p_main_dim->crop.left;
@@ -1175,6 +1341,12 @@ OMX_ERRORTYPE mm_jpeg_session_config_thumbnail(mm_jpeg_job_session_t* p_session)
   p_frame_info->yOffset = p_tmb_buf->offset.mp[0].offset;
   p_frame_info->cbcrOffset[0] = p_tmb_buf->offset.mp[1].offset;
   p_frame_info->cbcrOffset[1] = p_tmb_buf->offset.mp[2].offset;
+
+  if (p_session->lib2d_rotation_flag && p_session->thumb_from_main) {
+    p_frame_info->yOffset = 0;
+    p_frame_info->cbcrOffset[0] = 0;
+    p_frame_info->cbcrOffset[1] = 0;
+  }
 
   ret = OMX_SetConfig(p_session->omx_handle, thumb_indextype,
     &thumbnail_info);
@@ -1353,7 +1525,13 @@ OMX_ERRORTYPE mm_jpeg_session_config_common(mm_jpeg_job_session_t *p_session)
   /* set rotation */
   memset(&rotate, 0, sizeof(rotate));
   rotate.nPortIndex = 1;
-  rotate.nRotation = (OMX_S32)p_jobparams->rotation;
+
+  if (p_session->lib2d_rotation_flag) {
+    rotate.nRotation = 0;
+  } else {
+    rotate.nRotation = (OMX_S32)p_jobparams->rotation;
+  }
+
   rc = OMX_SetConfig(p_session->omx_handle, OMX_IndexConfigCommonRotate,
     &rotate);
   if (OMX_ErrorNone != rc) {
@@ -1690,6 +1868,8 @@ static OMX_ERRORTYPE mm_jpeg_session_encode(mm_jpeg_job_session_t *p_session)
   OMX_ERRORTYPE ret = OMX_ErrorNone;
   mm_jpeg_encode_job_t *p_jobparams = &p_session->encode_job;
   mm_jpeg_obj *my_obj = (mm_jpeg_obj *) p_session->jpeg_obj;
+  OMX_BUFFERHEADERTYPE *p_in_buf = NULL;
+  OMX_BUFFERHEADERTYPE *p_in_thumb_buf = NULL;
 
   pthread_mutex_lock(&p_session->lock);
   p_session->abort_state = MM_JPEG_ABORT_NONE;
@@ -1758,33 +1938,41 @@ static OMX_ERRORTYPE mm_jpeg_session_encode(mm_jpeg_job_session_t *p_session)
 
   MM_JPEG_CHK_ABORT(p_session, ret, error);
 
+  if (p_session->lib2d_rotation_flag) {
+    p_in_buf = p_session->p_in_rot_omx_buf[p_jobparams->src_index];
+  } else {
+    p_in_buf = p_session->p_in_omx_buf[p_jobparams->src_index];
+  }
+
 #ifdef MM_JPEG_DUMP_INPUT
   char filename[256];
   snprintf(filename, sizeof(filename),
-      QCAMERA_DUMP_FRM_LOCATION"jpeg/mm_jpeg_int%d.yuv", p_session->ebd_count);
-  DUMP_TO_FILE(filename,
-    p_session->p_in_omx_buf[p_jobparams->src_index]->pBuffer,
-    (size_t)p_session->p_in_omx_buf[p_jobparams->src_index]->nAllocLen);
+    QCAMERA_DUMP_FRM_LOCATION"jpeg/mm_jpeg_int%d.yuv", p_session->ebd_count);
+  DUMP_TO_FILE(filename, p_in_buf->pBuffer, (size_t)p_in_buf->nAllocLen);
 #endif
-
-  ret = OMX_EmptyThisBuffer(p_session->omx_handle,
-    p_session->p_in_omx_buf[p_jobparams->src_index]);
+  ret = OMX_EmptyThisBuffer(p_session->omx_handle, p_in_buf);
   if (ret) {
     LOGE("Error");
     goto error;
   }
 
   if (p_session->params.encode_thumbnail) {
+
+    if (p_session->thumb_from_main &&
+      p_session->lib2d_rotation_flag) {
+      p_in_thumb_buf = p_session->p_in_rot_omx_thumb_buf[p_jobparams->thumb_index];
+    } else {
+      p_in_thumb_buf = p_session->p_in_omx_thumb_buf[p_jobparams->thumb_index];
+    }
+
 #ifdef MM_JPEG_DUMP_INPUT
-  char thumb_filename[FILENAME_MAX];
-  snprintf(thumb_filename, sizeof(thumb_filename),
-    QCAMERA_DUMP_FRM_LOCATION"jpeg/mm_jpeg_int_t%d.yuv", p_session->ebd_count);
-  DUMP_TO_FILE(filename,
-    p_session->p_in_omx_thumb_buf[p_jobparams->thumb_index]->pBuffer,
-    (size_t)p_session->p_in_omx_thumb_buf[p_jobparams->thumb_index]->nAllocLen);
+    char thumb_filename[FILENAME_MAX];
+    snprintf(thumb_filename, sizeof(thumb_filename),
+      QCAMERA_DUMP_FRM_LOCATION"jpeg/mm_jpeg_int_t%d.yuv", p_session->ebd_count);
+    DUMP_TO_FILE(filename, p_in_thumb_buf->pBuffer,
+      (size_t)p_in_thumb_buf->nAllocLen);
 #endif
-    ret = OMX_EmptyThisBuffer(p_session->omx_handle,
-        p_session->p_in_omx_thumb_buf[p_jobparams->thumb_index]);
+    ret = OMX_EmptyThisBuffer(p_session->omx_handle, p_in_thumb_buf);
     if (ret) {
       LOGE("Error");
       goto error;
@@ -2308,6 +2496,193 @@ uint32_t mm_jpeg_new_client(mm_jpeg_obj *my_obj)
   return client_hdl;
 }
 
+#ifdef LIB2D_ROTATION_ENABLE
+/**
+ * Function: mm_jpeg_lib2d_rotation_cb
+ *
+ * Description: Callback that is called on completion of requested job.
+ *
+ * Input parameters:
+ *   userdata - App userdata
+ *   jobid - job id that is finished execution
+ *
+ * Return values:
+ *   MM_LIB2D_SUCCESS
+ *   MM_LIB2D_ERR_GENERAL
+ *
+ * Notes: none
+ **/
+lib2d_error mm_jpeg_lib2d_rotation_cb(void *userdata, int jobid)
+{
+  LOGE("_GM_ Received CB from lib2d\n");
+  return MM_LIB2D_SUCCESS;
+}
+
+/**
+ * Function: mm_jpeg_lib2d_rotation
+ *
+ * Description: lib2d rotation function.
+ *
+ * Input parameters:
+ *   p_session - pointer to session
+ *   p_node - pointer to job queue node
+ *   p_job - pointer to job
+ *   p_job_id - pointer to job id
+ *
+ * Return values:
+ *   0 - success
+ *   -1 - failure
+ *
+ * Notes: none
+ **/
+int32_t mm_jpeg_lib2d_rotation(mm_jpeg_job_session_t *p_session,
+  mm_jpeg_job_q_node_t* p_node, mm_jpeg_job_t *p_job, uint32_t *p_job_id)
+{
+  void *lib2d_handle = NULL;
+  lib2d_error lib2d_err = MM_LIB2D_SUCCESS;
+  mm_lib2d_buffer src_buffer;
+  mm_lib2d_buffer dst_buffer;
+  mm_jpeg_buf_t *p_src_main_buf = p_session->params.src_main_buf;
+  mm_jpeg_buf_t *p_src_rot_main_buf = p_session->src_rot_main_buf;
+  mm_jpeg_encode_job_t *p_jobparams  = &p_job->encode_job;
+  mm_jpeg_encode_job_t *p_jobparams_node = &p_node->enc_info.encode_job;
+  cam_format_t format;
+  int32_t scanline = 0;
+
+  memset(&src_buffer, 0x0, sizeof(mm_lib2d_buffer));
+  memset(&dst_buffer, 0x0, sizeof(mm_lib2d_buffer));
+
+  switch (p_session->params.rotation) {
+  case 0:
+    break;
+  case 90:
+    p_jobparams_node->main_dim.src_dim.width =
+      p_jobparams->main_dim.src_dim.height;
+    p_jobparams_node->main_dim.src_dim.height =
+      p_jobparams->main_dim.src_dim.width;
+
+    p_jobparams_node->main_dim.dst_dim.width =
+      p_jobparams->main_dim.dst_dim.height;
+    p_jobparams_node->main_dim.dst_dim.height =
+      p_jobparams->main_dim.dst_dim.width;
+
+    p_jobparams_node->main_dim.crop.width =
+      p_jobparams->main_dim.crop.height;
+    p_jobparams_node->main_dim.crop.height =
+      p_jobparams->main_dim.crop.width;
+    p_jobparams_node->main_dim.crop.left =
+      p_jobparams->main_dim.src_dim.height -
+      (p_jobparams->main_dim.crop.top +
+      p_jobparams->main_dim.crop.height);
+    p_jobparams_node->main_dim.crop.top =
+      p_jobparams->main_dim.crop.left;
+    break;
+  case 180:
+    p_jobparams_node->main_dim.crop.left =
+      p_jobparams->main_dim.src_dim.width -
+      (p_jobparams->main_dim.crop.left +
+      p_jobparams->main_dim.crop.width);
+    p_jobparams_node->main_dim.crop.top =
+      p_jobparams->main_dim.src_dim.height -
+      (p_jobparams->main_dim.crop.top +
+      p_jobparams->main_dim.crop.height);
+    break;
+  case 270:
+    p_jobparams_node->main_dim.src_dim.width =
+      p_jobparams->main_dim.src_dim.height;
+    p_jobparams_node->main_dim.src_dim.height =
+      p_jobparams->main_dim.src_dim.width;
+
+    p_jobparams_node->main_dim.dst_dim.width =
+      p_jobparams->main_dim.dst_dim.height;
+    p_jobparams_node->main_dim.dst_dim.height =
+      p_jobparams->main_dim.dst_dim.width;
+
+    p_jobparams_node->main_dim.crop.width =
+      p_jobparams->main_dim.crop.height;
+    p_jobparams_node->main_dim.crop.height =
+      p_jobparams->main_dim.crop.width;
+    p_jobparams_node->main_dim.crop.left =
+      p_jobparams->main_dim.crop.top;
+    p_jobparams_node->main_dim.crop.top =
+      p_jobparams->main_dim.src_dim.width -
+      (p_jobparams->main_dim.crop.left +
+      p_jobparams->main_dim.crop.width);
+    break;
+  }
+
+  format = mm_jpeg_get_imgfmt_from_colorfmt(p_session->params.color_format);
+  lib2d_err = mm_lib2d_init(MM_LIB2D_SYNC_MODE, format,
+    format, &lib2d_handle);
+  if (lib2d_err != MM_LIB2D_SUCCESS) {
+    LOGE("lib2d init for rotation failed\n");
+    return -1;
+  }
+
+  src_buffer.buffer_type = MM_LIB2D_BUFFER_TYPE_YUV;
+  src_buffer.yuv_buffer.fd =
+    p_src_main_buf[p_jobparams->src_index].fd;
+  src_buffer.yuv_buffer.format = format;
+  src_buffer.yuv_buffer.width = p_jobparams->main_dim.src_dim.width;
+  src_buffer.yuv_buffer.height = p_jobparams->main_dim.src_dim.height;
+  src_buffer.yuv_buffer.plane0 =
+    p_src_main_buf[p_jobparams->src_index].buf_vaddr;
+  src_buffer.yuv_buffer.stride0 =
+    p_src_main_buf[p_jobparams->src_index].offset.mp[0].stride;
+  scanline = p_src_main_buf[p_jobparams->src_index].offset.mp[0].scanline;
+  src_buffer.yuv_buffer.plane1 =
+    (uint8_t*)src_buffer.yuv_buffer.plane0 +
+    (src_buffer.yuv_buffer.stride0 * scanline);
+  src_buffer.yuv_buffer.stride1 = src_buffer.yuv_buffer.stride0;
+
+  LOGD(" lib2d SRC wxh = %dx%d , stxsl = %dx%d\n",
+    src_buffer.yuv_buffer.width, src_buffer.yuv_buffer.height,
+    src_buffer.yuv_buffer.stride0, scanline);
+
+  dst_buffer.buffer_type = MM_LIB2D_BUFFER_TYPE_YUV;
+  dst_buffer.yuv_buffer.fd =
+    p_src_rot_main_buf[p_jobparams->src_index].fd;
+  dst_buffer.yuv_buffer.format = format;
+  dst_buffer.yuv_buffer.width = p_jobparams_node->main_dim.src_dim.width;
+  dst_buffer.yuv_buffer.height = p_jobparams_node->main_dim.src_dim.height;
+  dst_buffer.yuv_buffer.plane0 =
+    p_src_rot_main_buf[p_jobparams->src_index].buf_vaddr;
+
+  if ((p_session->params.rotation == 90) ||
+    (p_session->params.rotation == 270)) {
+    dst_buffer.yuv_buffer.stride0 =
+      p_src_main_buf[p_jobparams->src_index].offset.mp[0].scanline;
+    scanline = p_src_main_buf[p_jobparams->src_index].offset.mp[0].stride;
+  } else {
+    dst_buffer.yuv_buffer.stride0 =
+      p_src_main_buf[p_jobparams->src_index].offset.mp[0].stride;
+    scanline = p_src_main_buf[p_jobparams->src_index].offset.mp[0].scanline;
+  }
+
+  dst_buffer.yuv_buffer.plane1 =
+    (uint8_t*) dst_buffer.yuv_buffer.plane0 +
+    (dst_buffer.yuv_buffer.stride0 * scanline);
+  dst_buffer.yuv_buffer.stride1 = dst_buffer.yuv_buffer.stride0;
+
+  LOGD(" lib2d DEST wxh = %dx%d , stxsl = %dx%d\n",
+    dst_buffer.yuv_buffer.width, dst_buffer.yuv_buffer.height,
+    dst_buffer.yuv_buffer.stride0, scanline);
+
+  LOGD(" lib2d rotation = %d\n", p_session->params.rotation);
+
+  lib2d_err = mm_lib2d_start_job(lib2d_handle, &src_buffer, &dst_buffer,
+    *p_job_id, NULL, mm_jpeg_lib2d_rotation_cb, p_session->params.rotation);
+  if (lib2d_err != MM_LIB2D_SUCCESS) {
+    LOGE("Error in mm_lib2d_start_job \n");
+    return -1;
+  }
+
+  buffer_clean(&p_session->src_rot_ion_buffer[p_jobparams->src_index]);
+
+  return 0;
+}
+#endif
+
 /** mm_jpeg_start_job:
  *
  *  Arguments:
@@ -2421,17 +2796,35 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
 
   memset(node, 0, sizeof(mm_jpeg_job_q_node_t));
   node->enc_info.encode_job = job->encode_job;
+
+#ifdef LIB2D_ROTATION_ENABLE
+  if (p_session->lib2d_rotation_flag) {
+    rc = mm_jpeg_lib2d_rotation(p_session, node, job, job_id);
+    if (rc < 0) {
+      LOGE("Lib2d rotation failed");
+      return rc;
+    }
+  }
+#endif
+
   if (p_session->thumb_from_main) {
     node->enc_info.encode_job.thumb_dim.src_dim =
       node->enc_info.encode_job.main_dim.src_dim;
     node->enc_info.encode_job.thumb_dim.crop =
       node->enc_info.encode_job.main_dim.crop;
+    if (p_session->lib2d_rotation_flag) {
+      if ((p_session->params.rotation == 90) ||
+        (p_session->params.rotation == 270)) {
+        node->enc_info.encode_job.thumb_dim.dst_dim.width =
+          job->encode_job.thumb_dim.dst_dim.height;
+        node->enc_info.encode_job.thumb_dim.dst_dim.height =
+          job->encode_job.thumb_dim.dst_dim.width;
+      }
+    }
   }
   node->enc_info.job_id = *job_id;
   node->enc_info.client_handle = p_session->client_hdl;
   node->type = MM_JPEG_CMD_TYPE_JOB;
-
-
 
   qdata.p = node;
   rc = mm_jpeg_queue_enq(&my_obj->job_mgr.job_queue, qdata);
@@ -2560,6 +2953,7 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
   mm_jpeg_job_session_t * p_prev_session = NULL;
   *p_session_id = 0;
   uint32_t i = 0;
+  uint32_t j = 0;
   uint32_t num_omx_sessions = 1;
   uint32_t work_buf_size;
   mm_jpeg_queue_t *p_session_handle_q, *p_out_buf_q;
@@ -2686,6 +3080,55 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
       p_session->params.thumb_dim.src_dim = p_session->params.main_dim.src_dim;
       p_session->params.thumb_dim.crop = p_session->params.main_dim.crop;
     }
+#ifdef LIB2D_ROTATION_ENABLE
+    if (p_session->params.rotation) {
+      LOGD("Enable lib2d rotation");
+      p_session->lib2d_rotation_flag = 1;
+    } else {
+      LOGD("Disable lib2d rotation");
+      p_session->lib2d_rotation_flag = 0;
+    }
+#else
+    p_session->lib2d_rotation_flag = 0;
+#endif
+
+    if (p_session->lib2d_rotation_flag) {
+      p_session->num_src_rot_bufs = p_session->params.num_src_bufs;
+      memset(p_session->src_rot_main_buf, 0,
+        sizeof(p_session->src_rot_main_buf));
+
+      for (j = 0; j < p_session->num_src_rot_bufs; j++) {
+        p_session->src_rot_main_buf[j].buf_size =
+          p_session->params.src_main_buf[j].buf_size;
+        p_session->src_rot_main_buf[j].format =
+          p_session->params.src_main_buf[j].format;
+        p_session->src_rot_main_buf[j].index = j;
+
+        memset(&p_session->src_rot_ion_buffer[j], 0, sizeof(buffer_t));
+        p_session->src_rot_ion_buffer[j].size =
+          p_session->src_rot_main_buf[j].buf_size;
+        p_session->src_rot_ion_buffer[j].addr =
+          (uint8_t *)buffer_allocate(&p_session->src_rot_ion_buffer[j], 1);
+
+        if (NULL == p_session->src_rot_ion_buffer[j].addr) {
+          LOGE("Ion buff alloc for rotation failed");
+          // deallocate all previously allocated rotation ion buffs
+          for (j = 0; j < p_session->num_src_rot_bufs; j++) {
+            if (p_session->src_rot_ion_buffer[j].addr) {
+              buffer_deallocate(&p_session->src_rot_ion_buffer[j]);
+            }
+          }
+          //fall back to SW encoding for rotation
+          p_session->lib2d_rotation_flag = 0;
+        } else {
+          p_session->src_rot_main_buf[j].buf_vaddr =
+            p_session->src_rot_ion_buffer[j].addr;
+          p_session->src_rot_main_buf[j].fd =
+            p_session->src_rot_ion_buffer[j].p_pmem_fd;
+        }
+      }
+    }
+
     p_session->client_hdl = client_hdl;
     p_session->sessionId = session_id;
     p_session->session_handle_q = p_session_handle_q;

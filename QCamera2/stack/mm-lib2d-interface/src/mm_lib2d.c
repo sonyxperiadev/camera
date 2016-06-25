@@ -47,6 +47,7 @@
 #include "img_buffer.h"
 #include "lib2d.h"
 #include "mm_lib2d.h"
+#include "img_meta.h"
 
 /** lib2d_job_private_info
  * @jobid: Job id of this process request
@@ -142,6 +143,7 @@ int lib2d_event_handler(void* p_appdata, img_event_t *p_event)
  *   p_appdata - lib2d test object
  *   p_in_frame - pointer to input frame
  *   p_out_frame - pointer to output frame
+ *   p_meta - pointer to meta data
  *
  * Return values:
  *   IMG_SUCCESS
@@ -150,7 +152,7 @@ int lib2d_event_handler(void* p_appdata, img_event_t *p_event)
  * Notes: none
  **/
 int lib2d_callback_handler(void *userdata, img_frame_t *p_in_frame,
-  img_frame_t *p_out_frame)
+  img_frame_t *p_out_frame, img_meta_t *p_meta)
 {
   mm_lib2d_obj *lib2d_obj = (mm_lib2d_obj *)userdata;
   lib2d_job_private_info *job_info = NULL;
@@ -170,6 +172,7 @@ int lib2d_callback_handler(void *userdata, img_frame_t *p_in_frame,
   free(p_in_frame->private_data);
   free(p_in_frame);
   free(p_out_frame);
+  free(p_meta);
 
   return IMG_SUCCESS;
 }
@@ -277,6 +280,7 @@ lib2d_error lib2d_fill_img_frame(img_frame_t *p_frame,
  *
  * Notes: none
  **/
+
 lib2d_error mm_lib2d_init(lib2d_mode mode, cam_format_t src_format,
   cam_format_t dst_format, void **my_obj)
 {
@@ -478,6 +482,7 @@ lib2d_error mm_lib2d_deinit(void *lib2d_obj_handle)
  *   jobid - job id of this request
  *   userdata - userdata that will be pass through callback function
  *   cb - callback function that will be called on completion of this job
+ *   rotation - rotation to be applied
  *
  * Return values:
  *   MM_LIB2D_SUCCESS
@@ -488,7 +493,7 @@ lib2d_error mm_lib2d_deinit(void *lib2d_obj_handle)
  **/
 lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
   mm_lib2d_buffer* src_buffer, mm_lib2d_buffer* dst_buffer,
-  int jobid, void *userdata, lib2d_client_cb cb)
+  int jobid, void *userdata, lib2d_client_cb cb, uint32_t rotation)
 {
   mm_lib2d_obj        *lib2d_obj  = (mm_lib2d_obj *)lib2d_obj_handle;
   int                  rc         = IMG_SUCCESS;
@@ -506,15 +511,24 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
     return MM_LIB2D_ERR_MEMORY;
   }
 
-  lib2d_job_private_info *p_job_info = malloc(sizeof(lib2d_job_private_info));
-  if (p_out_frame == NULL) {
+  img_meta_t *p_meta = malloc(sizeof(img_meta_t));
+  if (p_meta == NULL) {
     free(p_in_frame);
     free(p_out_frame);
     return MM_LIB2D_ERR_MEMORY;
   }
 
+  lib2d_job_private_info *p_job_info = malloc(sizeof(lib2d_job_private_info));
+  if (p_out_frame == NULL) {
+    free(p_in_frame);
+    free(p_out_frame);
+    free(p_meta);
+    return MM_LIB2D_ERR_MEMORY;
+  }
+
   memset(p_in_frame,  0x0, sizeof(img_frame_t));
   memset(p_out_frame, 0x0, sizeof(img_frame_t));
+  memset(p_meta, 0x0, sizeof(img_meta_t));
   memset(p_job_info,  0x0, sizeof(lib2d_job_private_info));
 
   // Fill up job info private data structure that can be used in callback to
@@ -532,6 +546,10 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
   lib2d_fill_img_frame(p_in_frame, src_buffer, jobid);
   lib2d_fill_img_frame(p_out_frame, dst_buffer, jobid);
 
+  p_meta->frame_id = jobid;
+  p_meta->rotation.device_rotation = (int32_t)rotation;
+  p_meta->rotation.frame_rotation = (int32_t)rotation;
+
   // call set_param to set the source, destination formats
 
   rc = IMG_COMP_Q_BUF(p_comp, p_in_frame, IMG_IN);
@@ -541,6 +559,12 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
   }
 
   rc = IMG_COMP_Q_BUF(p_comp, p_out_frame, IMG_OUT);
+  if (rc != IMG_SUCCESS) {
+    LOGE("rc %d", rc);
+    goto ERROR;
+  }
+
+  rc = IMG_COMP_Q_META_BUF(p_comp, p_meta);
   if (rc != IMG_SUCCESS) {
     LOGE("rc %d", rc);
     goto ERROR;
@@ -574,6 +598,7 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
 ERROR:
   free(p_in_frame);
   free(p_out_frame);
+  free(p_meta);
   free(p_job_info);
 
   return MM_LIB2D_ERR_GENERAL;

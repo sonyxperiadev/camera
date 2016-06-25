@@ -87,5 +87,19 @@ int buffer_deallocate(buffer_t *p_buffer);
  **/
 int buffer_invalidate(buffer_t *p_buffer);
 
+/** buffer_clean:
+ *
+ *  Arguments:
+ *     @p_buffer: ION buffer
+ *
+ *  Return:
+ *     error val
+ *
+ *  Description:
+ *      clean the cached buffer
+ *
+ **/
+int buffer_clean(buffer_t *p_buffer);
+
 #endif
 

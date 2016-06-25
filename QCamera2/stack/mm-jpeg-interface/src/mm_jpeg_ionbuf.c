@@ -170,3 +170,37 @@ int buffer_invalidate(buffer_t *p_buffer)
 
   return lrc;
 }
+
+/** buffer_clean:
+ *
+ *  Arguments:
+ *     @p_buffer: ION buffer
+ *
+ *  Return:
+ *     error val
+ *
+ *  Description:
+ *      Clean the cached buffer
+ *
+ **/
+int buffer_clean(buffer_t *p_buffer)
+{
+  int lrc = 0;
+  struct ion_flush_data cache_clean_data;
+  struct ion_custom_data custom_data;
+
+  memset(&cache_clean_data, 0, sizeof(cache_clean_data));
+  memset(&custom_data, 0, sizeof(custom_data));
+  cache_clean_data.vaddr = p_buffer->addr;
+  cache_clean_data.fd = p_buffer->ion_info_fd.fd;
+  cache_clean_data.handle = p_buffer->ion_info_fd.handle;
+  cache_clean_data.length = (unsigned int)p_buffer->size;
+  custom_data.cmd = (unsigned int)ION_IOC_CLEAN_CACHES;
+  custom_data.arg = (unsigned long)&cache_clean_data;
+
+  lrc = ioctl(p_buffer->ion_fd, ION_IOC_CUSTOM, &custom_data);
+  if (lrc < 0)
+    LOGW("Cache clean failed: %s\n", strerror(errno));
+
+  return lrc;
+}

@@ -8025,6 +8025,9 @@ int32_t QCameraParameters::setInstantCapture(const QCameraParameters& params)
             LOGD("Set instant Capture from param = %d", value);
             if(value != NAME_NOT_FOUND) {
                 updateParamEntry(KEY_QC_INSTANT_CAPTURE, str);
+            } else {
+                LOGE("Invalid value for instant capture %s", str);
+                return BAD_VALUE;
             }
         }
     } else {
@@ -8037,6 +8040,9 @@ int32_t QCameraParameters::setInstantCapture(const QCameraParameters& params)
             LOGD("Set instant capture from setprop = %d", value);
             if (value != NAME_NOT_FOUND) {
                 updateParamEntry(KEY_QC_INSTANT_CAPTURE, prop);
+            } else {
+                LOGE("Invalid value for instant capture %s", prop);
+                return BAD_VALUE;
             }
         }
     }
@@ -8096,6 +8102,8 @@ int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
         // Check for instant AEC. Instant AEC will only enable fast AEC.
         // It will not enable instant capture.
         // This param will trigger the instant AEC param to backend
+        // Instant AEC param is session based param,
+        // the param change will be applicable for next camera open/close session.
         const char *str = params.get(KEY_QC_INSTANT_AEC);
         const char *prev_str = get(KEY_QC_INSTANT_AEC);
         if (str) {
@@ -8103,6 +8111,12 @@ int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
                 value = lookupAttr(INSTANT_AEC_MODES_MAP,
                         PARAM_MAP_SIZE(INSTANT_AEC_MODES_MAP), str);
                 LOGD("Set instant AEC from param = %d", value);
+                if(value != NAME_NOT_FOUND) {
+                    updateParamEntry(KEY_QC_INSTANT_AEC, str);
+                } else {
+                    LOGE("Invalid value for instant AEC %s", str);
+                    return BAD_VALUE;
+                }
             }
         } else {
             char prop[PROPERTY_VALUE_MAX];
@@ -8112,6 +8126,12 @@ int32_t QCameraParameters::setInstantAEC(const QCameraParameters& params)
                 value = lookupAttr(INSTANT_AEC_MODES_MAP,
                         PARAM_MAP_SIZE(INSTANT_AEC_MODES_MAP), prop);
                 LOGD("Set instant AEC from setprop = %d", value);
+                if(value != NAME_NOT_FOUND) {
+                    updateParamEntry(KEY_QC_INSTANT_AEC, prop);
+                } else {
+                    LOGE("Invalid value for instant AEC %s", prop);
+                    return BAD_VALUE;
+                }
             }
         }
 
@@ -12746,9 +12766,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
 
         stream_config_info.type[stream_config_info.num_streams] =
                 CAM_STREAM_TYPE_ANALYSIS;
+        updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
         getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
                 stream_config_info.stream_sizes[stream_config_info.num_streams]);
-        updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
         stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                 mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
         getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
@@ -12827,9 +12847,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 (fdModeInVideo())) {
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_ANALYSIS;
+            updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
             getStreamDimension(CAM_STREAM_TYPE_ANALYSIS,
                     stream_config_info.stream_sizes[stream_config_info.num_streams]);
-            updatePpFeatureMask(CAM_STREAM_TYPE_ANALYSIS);
             stream_config_info.postprocess_mask[stream_config_info.num_streams] =
                     mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
             getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
@@ -13455,14 +13475,26 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
     // Preview assisted autofocus needs to be supported for
     // callback, preview, or video streams
-    switch (stream_type) {
-    case CAM_STREAM_TYPE_CALLBACK:
-    case CAM_STREAM_TYPE_PREVIEW:
-        feature_mask |= CAM_QCOM_FEATURE_PAAF;
+    cam_color_filter_arrangement_t filter_arrangement;
+    filter_arrangement = m_pCapability->color_arrangement;
+    switch (filter_arrangement) {
+    case CAM_FILTER_ARRANGEMENT_RGGB:
+    case CAM_FILTER_ARRANGEMENT_GRBG:
+    case CAM_FILTER_ARRANGEMENT_GBRG:
+    case CAM_FILTER_ARRANGEMENT_BGGR:
+        if ((stream_type == CAM_STREAM_TYPE_CALLBACK) ||
+            (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
+            feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        } else if (stream_type == CAM_STREAM_TYPE_VIDEO) {
+            if (getISType() != IS_TYPE_EIS_3_0)
+                feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        }
         break;
-    case CAM_STREAM_TYPE_VIDEO:
-        if(getISType() != IS_TYPE_EIS_3_0)
-          feature_mask |= CAM_QCOM_FEATURE_PAAF;
+    case CAM_FILTER_ARRANGEMENT_Y:
+        if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
+            feature_mask |= CAM_QCOM_FEATURE_PAAF;
+            LOGH("add PAAF mask to feature_mask for mono device");
+        }
         break;
     default:
         break;
@@ -14282,11 +14314,6 @@ int32_t QCameraParameters::setInstantAEC(uint8_t value, bool initCommit)
         return BAD_VALUE;
     }
 
-    // set the new value
-    char val[8];
-    snprintf(val, sizeof(val), "%d", value);
-    updateParamEntry(KEY_QC_INSTANT_AEC, val);
-
     if (initCommit) {
         rc = commitSetBatch();
         if (NO_ERROR != rc) {
@@ -14342,7 +14369,7 @@ int32_t QCameraParameters::setAdvancedCaptureMode()
 int32_t QCameraParameters::getAnalysisInfo(
         bool fdVideoEnabled,
         bool hal3,
-        uint32_t featureMask,
+        cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo)
 {
     return mCommon.getAnalysisInfo(fdVideoEnabled, hal3, featureMask, pAnalysisInfo);

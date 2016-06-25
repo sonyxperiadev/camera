@@ -32,12 +32,11 @@
 
 #include "cam_types.h"
 #ifdef QCAMERA_REDEFINE_LOG
+#ifndef CAM_MODULE
 #define CAM_MODULE CAM_NO_MODULE
-
+#endif
 // Camera dependencies
-extern "C" {
 #include "mm_camera_dbg.h"
-}
 #endif
 
 /** lib2d_error
@@ -192,6 +191,7 @@ lib2d_error mm_lib2d_deinit(void *lib2d_obj_handle);
  *   jobid - job id of this request
  *   userdata - userdata that will be pass through callback function
  *   cb - callback function that will be called on completion of this job
+ *   rotation - rotation to be applied
  *
  * Return values:
  *   MM_LIB2D_SUCCESS
@@ -202,7 +202,7 @@ lib2d_error mm_lib2d_deinit(void *lib2d_obj_handle);
  **/
 lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
     mm_lib2d_buffer* src_buffer, mm_lib2d_buffer* dst_buffer,
-    int jobid, void *userdata, lib2d_client_cb cb);
+    int jobid, void *userdata, lib2d_client_cb cb, uint32_t rotation);
 
 #endif /* MM_LIB2D_H_ */
 
