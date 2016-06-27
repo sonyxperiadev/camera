@@ -726,6 +726,10 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
         return;
     }
 
+    if (pme->needDebugFps()) {
+        pme->debugShowPreviewFPS();
+    }
+
     frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
     // Convert Boottime from camera to Monotime for display if needed.
     // Otherwise, mBootToMonoTimestampOffset value will be 0.
@@ -832,10 +836,6 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         pthread_mutex_unlock(&pme->mGrallocLock);
     }
 
-    if (pme->needDebugFps()) {
-        pme->debugShowPreviewFPS();
-    }
-
     uint32_t idx = frame->buf_idx;
 
     pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
@@ -846,6 +846,11 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     }
 
     if (!stream->isSyncCBEnabled()) {
+
+        if (pme->needDebugFps()) {
+            pme->debugShowPreviewFPS();
+        }
+
         LOGD("Enqueue Buffer to display %d", idx);
 #ifdef TARGET_TS_MAKEUP
         pme->TsMakeupProcess_Preview(frame,stream);
