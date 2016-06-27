@@ -2394,6 +2394,7 @@ typedef struct {
 #define CAM_QCOM_FEATURE_METADATA_PROCESSING ((cam_feature_mask_t)1UL<<31)
 #define CAM_QCOM_FEATURE_PAAF           (((cam_feature_mask_t)1UL)<<32)
 #define CAM_QCOM_FEATURE_QUADRA_CFA     (((cam_feature_mask_t)1UL)<<33)
+#define CAM_QTI_FEATURE_PPEISCORE       (((cam_feature_mask_t)1UL)<<34)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
