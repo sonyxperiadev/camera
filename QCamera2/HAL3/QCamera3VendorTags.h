@@ -48,6 +48,7 @@ enum qcamera3_ext_section {
     QCAMERA3_DUALCAM_LINK_META_DATA,
     QCAMERA3_DUALCAM_CALIB_META_DATA,
     QCAMERA3_HAL_PRIVATEDATA,
+    QCAMERA3_JPEG_ENCODE_CROP,
     QCAMERA3_SECTIONS_END
 };
 
@@ -63,7 +64,8 @@ enum qcamera3_ext_section_ranges {
     NEXUS_EXPERIMENTAL_2015_START = NEXUS_EXPERIMENTAL_2015 << 16,
     QCAMERA3_DUALCAM_LINK_META_DATA_START = QCAMERA3_DUALCAM_LINK_META_DATA << 16,
     QCAMERA3_DUALCAM_CALIB_META_DATA_START = QCAMERA3_DUALCAM_CALIB_META_DATA << 16,
-    QCAMERA3_HAL_PRIVATEDATA_START = QCAMERA3_HAL_PRIVATEDATA << 16
+    QCAMERA3_HAL_PRIVATEDATA_START = QCAMERA3_HAL_PRIVATEDATA << 16,
+    QCAMERA3_JPEG_ENCODE_CROP_START = QCAMERA3_JPEG_ENCODE_CROP << 16
 };
 
 enum qcamera3_ext_tags {
@@ -158,7 +160,34 @@ enum qcamera3_ext_tags {
 
     QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS = QCAMERA3_HAL_PRIVATEDATA_START,
     QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB,
-    QCAMERA3_HAL_PRIVATEDATA_END
+    QCAMERA3_HAL_PRIVATEDATA_END,
+
+    /* Property Name:  org.codeaurora.qcamera3.jpeg_encode_crop.enable
+       Type: byte
+       Description: If JPEG crop is enable
+    */
+    QCAMERA3_JPEG_ENCODE_CROP_ENABLE = QCAMERA3_JPEG_ENCODE_CROP_START,
+    /* Property Name:  org.codeaurora.qcamera3.jpeg_encode_crop.rect
+       Type: int32[4]
+       Description: Crop image into size width x height
+                    from [left, top] coordinate
+       rect[0] = left
+       rect[1] = top
+       rect[2] = width
+       rect[3] = height
+    */
+    QCAMERA3_JPEG_ENCODE_CROP_RECT,
+    /* Property Name:  org.codeaurora.qcamera3.jpeg_encode_crop.roi
+       Type: int32[4]
+       Description: Scale the crop image into size width x height
+                    from [left, top] coordinate.
+       roi[0] = left
+       roi[1] = top
+       roi[2] = width
+       roi[3] = height
+    */
+    QCAMERA3_JPEG_ENCODE_CROP_ROI,
+    QCAMERA3_JPEG_ENCODE_CROP_END
 };
 
 // QCAMERA3_OPAQUE_RAW_FORMAT
