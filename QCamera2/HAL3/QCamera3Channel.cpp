@@ -92,7 +92,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
     mIsType = IS_TYPE_NONE;
     mNumBuffers = numBuffers;
     mPerFrameMapUnmapEnable = true;
-    dumpFrmCnt = 0;
+    mDumpFrmCnt = 0;
 }
 
 /*===========================================================================
@@ -499,24 +499,24 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
     static int counter = 0;
     char prop[PROPERTY_VALUE_MAX];
     property_get("persist.camera.dumpimg", prop, "0");
-    mYUVDump = (uint8_t) atoi(prop);
+    mYUVDump = (uint32_t)atoi(prop);
     if (mYUVDump & dump_type) {
-        frm_num = ((mYUVDump & 0xffff0000) >> 16);
-        if (frm_num == 0) {
-            frm_num = 10;
+        mFrmNum = ((mYUVDump & 0xffff0000) >> 16);
+        if (mFrmNum == 0) {
+            mFrmNum = 10;
         }
-        if (frm_num > 256) {
-            frm_num = 256;
+        if (mFrmNum > 256) {
+            mFrmNum = 256;
         }
-        skip_mode = ((mYUVDump & 0x0000ff00) >> 8);
-        if (skip_mode == 0) {
-            skip_mode = 1;
+        mSkipMode = ((mYUVDump & 0x0000ff00) >> 8);
+        if (mSkipMode == 0) {
+            mSkipMode = 1;
         }
         if (mDumpSkipCnt == 0) {
             mDumpSkipCnt = 1;
         }
-        if (mDumpSkipCnt % skip_mode == 0) {
-            if (dumpFrmCnt <= frm_num) {
+        if (mDumpSkipCnt % mSkipMode == 0) {
+            if (mDumpFrmCnt <= mFrmNum) {
                 /* Note that the image dimension will be the unrotated stream dimension.
                 * If you feel that the image would have been rotated during reprocess
                 * then swap the dimensions while opening the file
@@ -565,7 +565,7 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
                         }
                     }
                     LOGH("written number of bytes %ld\n", written_len);
-                    dumpFrmCnt++;
+                    mDumpFrmCnt++;
                     close(file_fd);
                 } else {
                     LOGE("failed to open file to dump image");

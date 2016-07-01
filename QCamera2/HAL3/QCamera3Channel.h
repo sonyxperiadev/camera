@@ -158,9 +158,9 @@ protected:
      * for this flag is true and is selectively set to false for the usecases
      * such as HFR to avoid any performance hit due to mapping/unmapping */
     bool    mPerFrameMapUnmapEnable;
-    uint32_t frm_num;
-    uint32_t dumpFrmCnt;
-    uint32_t skip_mode;
+    uint32_t mFrmNum;
+    uint32_t mDumpFrmCnt;
+    uint32_t mSkipMode;
     uint32_t mDumpSkipCnt;
 };
 
