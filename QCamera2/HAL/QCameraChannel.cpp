@@ -1059,9 +1059,16 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                 rc = pStream->getFormat(streamInfo->fmt);
             }
 
-            if (pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
-                    pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
-                param.getThumbnailSize(&(streamInfo->dim.width), &(streamInfo->dim.height));
+            if (pStream->isTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
+                    pStream->isTypeOf(CAM_STREAM_TYPE_POSTVIEW) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_PREVIEW) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_POSTVIEW)) {
+                if (pp_featuremask.feature_mask & CAM_QCOM_FEATURE_SCALE) {
+                    param.getThumbnailSize(&(streamInfo->dim.width),
+                            &(streamInfo->dim.height));
+                } else {
+                    pStream->getFrameDimension(streamInfo->dim);
+                }
             } else {
                 if ((param.isPostProcScaling()) &&
                         (pp_featuremask.feature_mask & CAM_QCOM_FEATURE_SCALE)) {
