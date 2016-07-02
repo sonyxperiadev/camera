@@ -379,6 +379,7 @@ private:
     int8_t  mSupportedFaceDetectMode;
     uint8_t m_bTnrPreview;
     uint8_t m_bTnrVideo;
+    uint8_t m_debug_avtimer;
 
     /* Data structure to store pending request */
     typedef struct {

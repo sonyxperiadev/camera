@@ -418,6 +418,10 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     property_get("persist.camera.tnr.video", prop, "0");
     m_bTnrVideo = (uint8_t)atoi(prop);
 
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.avtimer.debug", prop, "0");
+    m_debug_avtimer = (uint8_t)atoi(prop);
+
     //Load and read GPU library.
     lib_surface_utils = NULL;
     LINK_get_surface_pixel_alignment = NULL;
@@ -1562,7 +1566,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     }
 
     if (gCamCapability[mCameraId]->position == CAM_POSITION_FRONT ||
-        !m_bIsVideo) {
+            gCamCapability[mCameraId]->position == CAM_POSITION_FRONT_AUX ||
+            !m_bIsVideo) {
         m_bEisEnable = false;
     }
 
@@ -1818,6 +1823,10 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         uint32_t stream_usage = newStream->usage;
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width = (int32_t)newStream->width;
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height = (int32_t)newStream->height;
+        struct camera_info *p_info = NULL;
+        pthread_mutex_lock(&gCamLock);
+        p_info = get_cam_info(mCameraId, &mStreamConfigInfo.sync_type);
+        pthread_mutex_unlock(&gCamLock);
         if ((newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
                 || IS_USAGE_ZSL(newStream->usage)) &&
             newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
@@ -6475,7 +6484,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL,
             &supportedHwLvl, 1);
 
-    bool facingBack = gCamCapability[cameraId]->position == CAM_POSITION_BACK;
+    bool facingBack = false;
+    if ((gCamCapability[cameraId]->position == CAM_POSITION_BACK) ||
+            (gCamCapability[cameraId]->position == CAM_POSITION_BACK_AUX)) {
+        facingBack = true;
+    }
     /*HAL 3 only*/
     staticInfo.update(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE,
                     &gCamCapability[cameraId]->min_focus_distance, 1);
@@ -7708,7 +7721,8 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
         break;
 
     default:
-        LOGE("Unknown position type for camera id:%d", cameraId);
+        LOGE("Unknown position type %d for camera id:%d",
+                gCamCapability[cameraId]->position, cameraId);
         rc = -1;
         break;
     }
@@ -7787,7 +7801,8 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     property_get("persist.camera.eis.enable", eis_prop, "0");
     const uint8_t eis_prop_set = (uint8_t)atoi(eis_prop);
 
-    const bool facingBack = gCamCapability[mCameraId]->position == CAM_POSITION_BACK;
+    const bool facingBack = ((gCamCapability[mCameraId]->position == CAM_POSITION_BACK) ||
+            (gCamCapability[mCameraId]->position == CAM_POSITION_BACK_AUX));
     // This is a bit hacky. EIS is enabled only when the above setprop
     // is set to non-zero value and on back camera (for 2015 Nexus).
     // Ideally, we should rely on m_bEisEnable, but we cannot guarantee
@@ -9306,9 +9321,17 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    if (frame_settings.exists(QCAMERA3_USE_AV_TIMER)) {
-        uint8_t* use_av_timer =
+    if (m_debug_avtimer || frame_settings.exists(QCAMERA3_USE_AV_TIMER)) {
+        uint8_t* use_av_timer = NULL;
+
+        if (m_debug_avtimer){
+            use_av_timer = &m_debug_avtimer;
+        }
+        else{
+            use_av_timer =
                 frame_settings.find(QCAMERA3_USE_AV_TIMER).data.u8;
+        }
+
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_USE_AV_TIMER, *use_av_timer)) {
             rc = BAD_VALUE;
         }
