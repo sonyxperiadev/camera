@@ -4271,12 +4271,16 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
     }
     metadata_buffer_t *meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
 
-    // Not doing rotation at all
-    cam_rotation_info_t rotation_info;
-    memset(&rotation_info, 0, sizeof(rotation_info));
-    rotation_info.rotation = ROTATE_0;
-    rotation_info.streamId = mStreams[0]->getMyServerID();
-    ADD_SET_PARAM_ENTRY_TO_BATCH(meta, CAM_INTF_PARM_ROTATION, rotation_info);
+    // Not doing rotation at all for YUV to YUV reprocess
+    if (mReprocessType != REPROCESS_TYPE_JPEG) {
+        LOGD("Override rotation to 0 for channel reprocess type %d",
+                mReprocessType);
+        cam_rotation_info_t rotation_info;
+        memset(&rotation_info, 0, sizeof(rotation_info));
+        rotation_info.rotation = ROTATE_0;
+        rotation_info.streamId = mStreams[0]->getMyServerID();
+        ADD_SET_PARAM_ENTRY_TO_BATCH(meta, CAM_INTF_PARM_ROTATION, rotation_info);
+    }
 
     // Find and insert crop info for reprocess stream
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {

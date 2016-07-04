@@ -87,6 +87,7 @@ QCamera3PostProcessor::QCamera3PostProcessor(QCamera3ProcessingChannel* ch_ctrl)
       m_jpegSettingsQ(NULL, this)
 {
     memset(&mJpegHandle, 0, sizeof(mJpegHandle));
+    memset(&mJpegMetadata, 0, sizeof(mJpegMetadata));
     pthread_mutex_init(&mReprocJobLock, NULL);
 }
 
@@ -188,13 +189,21 @@ int32_t QCamera3PostProcessor::initJpeg(jpeg_encode_callback_t jpeg_cb,
         return BAD_VALUE;
     }
 
-    //set max pic size
+    // set max pic size
     memset(&max_size, 0, sizeof(mm_dimension));
     max_size.w =  max_pic_dim->width;
     max_size.h =  max_pic_dim->height;
 
-    mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, NULL);
-    if(!mJpegClientHandle) {
+    // Pass OTP calibration data to JPEG
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+    mJpegMetadata.default_sensor_flip = FLIP_NONE;
+    mJpegMetadata.sensor_mount_angle = hal_obj->getSensorMountAngle();
+    memcpy(&mJpegMetadata.otp_calibration_data,
+            hal_obj->getRelatedCalibrationData(),
+            sizeof(cam_related_system_calibration_data_t));
+    mJpegClientHandle = jpeg_open(&mJpegHandle, NULL, max_size, &mJpegMetadata);
+
+    if (!mJpegClientHandle) {
         LOGE("jpeg_open did not work");
         return UNKNOWN_ERROR;
     }
@@ -1166,6 +1175,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     metadata_buffer_t *metadata = NULL;
     jpeg_settings_t *jpeg_settings = NULL;
     QCamera3HardwareInterface* hal_obj = NULL;
+    mm_jpeg_debug_exif_params_t *exif_debug_params = NULL;
     bool needJpegExifRotation = false;
 
     if (NULL == jpeg_job_data) {
@@ -1254,7 +1264,6 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         } else {
             encodeParam.main_dim.src_dim = src_dim;
             encodeParam.thumb_dim.src_dim = src_dim;
-            encodeParam.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
         }
         encodeParam.main_dim.dst_dim = dst_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
@@ -1325,18 +1334,16 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         jpg_job.encode_job.main_dim.src_dim = src_dim;
         jpg_job.encode_job.main_dim.dst_dim = dst_dim;
         jpg_job.encode_job.main_dim.crop = crop;
-        jpg_job.encode_job.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
     }
 
-    QCamera3HardwareInterface* obj = (QCamera3HardwareInterface*)m_parent->mUserData;
     // get 3a sw version info
     cam_q3a_version_t sw_version;
     memset(&sw_version, 0, sizeof(sw_version));
-    if (obj)
-        obj->get3AVersion(sw_version);
+    if (hal_obj)
+        hal_obj->get3AVersion(sw_version);
 
     // get exif data
-    QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings);
+    QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings, needJpegExifRotation);
     jpeg_job_data->pJpegExifObj = pJpegExifObj;
     if (pJpegExifObj != NULL) {
         jpg_job.encode_job.exif_info.exif_data = pJpegExifObj->getEntries();
@@ -1373,17 +1380,109 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         jpg_job.encode_job.thumb_index = 0;
     }
 
+    jpg_job.encode_job.cam_exif_params = hal_obj->get3AExifParams();
+    exif_debug_params = jpg_job.encode_job.cam_exif_params.debug_params;
+    // Fill in exif debug data
+    // Allocate for a local copy of debug parameters
+    jpg_job.encode_job.cam_exif_params.debug_params =
+            (mm_jpeg_debug_exif_params_t *) malloc (sizeof(mm_jpeg_debug_exif_params_t));
+    if (!jpg_job.encode_job.cam_exif_params.debug_params) {
+        LOGE("Out of Memory. Allocation failed for 3A debug exif params");
+        return NO_MEMORY;
+    }
+
+    jpg_job.encode_job.mobicat_mask = hal_obj->getMobicatMask();
+
     if (metadata != NULL) {
-       //Fill in the metadata passed as parameter
-       jpg_job.encode_job.p_metadata = metadata;
+        // Fill in the metadata passed as parameter
+        jpg_job.encode_job.p_metadata = metadata;
+
+       jpg_job.encode_job.p_metadata->is_mobicat_aec_params_valid =
+                jpg_job.encode_job.cam_exif_params.cam_3a_params_valid;
+
+       if (jpg_job.encode_job.cam_exif_params.cam_3a_params_valid) {
+            jpg_job.encode_job.p_metadata->mobicat_aec_params =
+                jpg_job.encode_job.cam_exif_params.cam_3a_params;
+       }
+
+        if (exif_debug_params) {
+            // Copy debug parameters locally.
+           memcpy(jpg_job.encode_job.cam_exif_params.debug_params,
+                   exif_debug_params, (sizeof(mm_jpeg_debug_exif_params_t)));
+           /* Save a copy of 3A debug params */
+            jpg_job.encode_job.p_metadata->is_statsdebug_ae_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->ae_debug_params_valid;
+            jpg_job.encode_job.p_metadata->is_statsdebug_awb_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->awb_debug_params_valid;
+            jpg_job.encode_job.p_metadata->is_statsdebug_af_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->af_debug_params_valid;
+            jpg_job.encode_job.p_metadata->is_statsdebug_asd_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->asd_debug_params_valid;
+            jpg_job.encode_job.p_metadata->is_statsdebug_stats_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params_valid;
+            jpg_job.encode_job.p_metadata->is_statsdebug_bestats_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params_valid;
+            jpg_job.encode_job.p_metadata->is_statsdebug_bhist_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->bhist_debug_params_valid;
+            jpg_job.encode_job.p_metadata->is_statsdebug_3a_tuning_params_valid =
+                    jpg_job.encode_job.cam_exif_params.debug_params->q3a_tuning_debug_params_valid;
+
+            if (jpg_job.encode_job.cam_exif_params.debug_params->ae_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_ae_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->ae_debug_params;
+            }
+            if (jpg_job.encode_job.cam_exif_params.debug_params->awb_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_awb_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->awb_debug_params;
+            }
+            if (jpg_job.encode_job.cam_exif_params.debug_params->af_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_af_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->af_debug_params;
+            }
+            if (jpg_job.encode_job.cam_exif_params.debug_params->asd_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_asd_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->asd_debug_params;
+            }
+            if (jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_stats_buffer_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params;
+            }
+            if (jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_bestats_buffer_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params;
+            }
+            if (jpg_job.encode_job.cam_exif_params.debug_params->bhist_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_bhist_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->bhist_debug_params;
+            }
+            if (jpg_job.encode_job.cam_exif_params.debug_params->q3a_tuning_debug_params_valid) {
+                jpg_job.encode_job.p_metadata->statsdebug_3a_tuning_data =
+                        jpg_job.encode_job.cam_exif_params.debug_params->q3a_tuning_debug_params;
+            }
+        }
     } else {
        LOGW("Metadata is null");
+    }
+
+    // Multi image info
+    if (hal_obj->isDeviceLinked() == TRUE) {
+        jpg_job.encode_job.multi_image_info.type = MM_JPEG_TYPE_JPEG;
+        jpg_job.encode_job.multi_image_info.num_of_images = 1;
+        jpg_job.encode_job.multi_image_info.enable_metadata = 1;
+        if (hal_obj->isMainCamera() == TRUE) {
+            jpg_job.encode_job.multi_image_info.is_primary = 1;
+        } else {
+            jpg_job.encode_job.multi_image_info.is_primary = 0;
+        }
     }
 
     jpg_job.encode_job.hal_version = CAM_HAL_V3;
 
     //Start jpeg encoding
     ret = mJpegHandle.start_job(&jpg_job, &jobId);
+    if (jpg_job.encode_job.cam_exif_params.debug_params) {
+        free(jpg_job.encode_job.cam_exif_params.debug_params);
+    }
     if (ret == NO_ERROR) {
         // remember job info
         jpeg_job_data->jobId = jobId;
@@ -1553,7 +1652,6 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         } else {
            encodeParam.main_dim.src_dim  = src_dim;
            encodeParam.thumb_dim.src_dim = src_dim;
-           encodeParam.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
         }
         encodeParam.main_dim.dst_dim = dst_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
@@ -1620,19 +1718,17 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         jpg_job.encode_job.main_dim.src_dim = src_dim;
         jpg_job.encode_job.main_dim.dst_dim = dst_dim;
         jpg_job.encode_job.main_dim.crop = crop;
-        jpg_job.encode_job.rotation = (uint32_t)jpeg_settings->jpeg_orientation;
     }
 
-    QCamera3HardwareInterface* obj = (QCamera3HardwareInterface*)m_parent->mUserData;
     // get 3a sw version info
     cam_q3a_version_t sw_version;
     memset(&sw_version, 0, sizeof(sw_version));
 
-    if (obj)
-        obj->get3AVersion(sw_version);
+    if (hal_obj)
+        hal_obj->get3AVersion(sw_version);
 
     // get exif data
-    QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings);
+    QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings, needJpegExifRotation);
     jpeg_job_data->pJpegExifObj = pJpegExifObj;
     if (pJpegExifObj != NULL) {
         jpg_job.encode_job.exif_info.exif_data = pJpegExifObj->getEntries();
@@ -1768,6 +1864,18 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         }
     } else {
        LOGW("Metadata is null");
+    }
+
+    // Multi image info
+    if (hal_obj->isDeviceLinked() == TRUE) {
+        jpg_job.encode_job.multi_image_info.type = MM_JPEG_TYPE_JPEG;
+        jpg_job.encode_job.multi_image_info.num_of_images = 1;
+        jpg_job.encode_job.multi_image_info.enable_metadata = 1;
+        if (hal_obj->isMainCamera() == TRUE) {
+            jpg_job.encode_job.multi_image_info.is_primary = 1;
+        } else {
+            jpg_job.encode_job.multi_image_info.is_primary = 0;
+        }
     }
 
     jpg_job.encode_job.hal_version = CAM_HAL_V3;
@@ -2439,11 +2547,12 @@ int32_t getExifExposureValue(srat_t* exposure_val, int32_t exposure_comp,
  * PARAMETERS :
  * @metadata      : metadata of the encoding request
  * @jpeg_settings : jpeg_settings for encoding
+ * @needJpegExifRotation: check if rotation need to added in EXIF
  *
  * RETURN     : exif data from user setting and GPS
  *==========================================================================*/
 QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
-        jpeg_settings_t *jpeg_settings)
+        jpeg_settings_t *jpeg_settings, bool needJpegExifRotation)
 {
     QCamera3Exif *exif = new QCamera3Exif();
     if (exif == NULL) {
@@ -2666,7 +2775,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
         }
     }
 
-    if( hal_obj->needJpegExifRotation()) {
+    if (needJpegExifRotation) {
         int16_t orientation;
         switch (jpeg_settings->jpeg_orientation) {
             case 0:
