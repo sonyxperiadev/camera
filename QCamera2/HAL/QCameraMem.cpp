@@ -1744,6 +1744,7 @@ QCameraGrallocMemory::QCameraGrallocMemory(camera_request_memory memory)
         mLocalFlag[i] = BUFFER_NOT_OWNED;
         mPrivateHandle[i] = NULL;
         mBufferStatus[i] = STATUS_IDLE;
+        mCameraMemory[i] = NULL;
     }
 }
 

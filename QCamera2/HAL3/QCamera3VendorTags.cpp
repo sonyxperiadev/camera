@@ -144,7 +144,8 @@ vendor_tag_info_t
 vendor_tag_info_t
         qcamera3_hal_privatedata[QCAMERA3_HAL_PRIVATEDATA_END -
         QCAMERA3_HAL_PRIVATEDATA_START] = {
-    { "reprocess_flags", TYPE_BYTE }
+    { "reprocess_flags",      TYPE_BYTE },
+    { "ddm_data_blob",        TYPE_BYTE }
 };
 
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
@@ -206,7 +207,8 @@ uint32_t qcamera3_all_tags[] = {
     (uint32_t)QCAMERA3_DUALCAM_CALIB_META_DATA_BLOB,
 
     // QCAMERA3_HAL_PRIVATEDATA
-    (uint32_t)QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS
+    (uint32_t)QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS,
+    (uint32_t)QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
