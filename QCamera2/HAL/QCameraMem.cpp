@@ -771,7 +771,7 @@ void *QCameraHeapMemory::getPtr(uint32_t index) const
 {
     if (index >= mBufferCount) {
         LOGE("index out of bound");
-        return (void *)BAD_INDEX;
+        return (void *)NULL;
     }
     return mPtr[index];
 }
@@ -1259,7 +1259,7 @@ void *QCameraStreamMemory::getPtr(uint32_t index) const
 {
     if (index >= mBufferCount) {
         LOGE("index out of bound");
-        return (void *)BAD_INDEX;
+        return NULL;
     }
     if (mCameraMemory[index] == 0) {
         return NULL;
@@ -2418,7 +2418,7 @@ void *QCameraGrallocMemory::getPtr(uint32_t index) const
 {
     if (index >= mMappableBuffers) {
         LOGE("index out of bound");
-        return (void *)BAD_INDEX;
+        return (void *)NULL;
     }
     return mCameraMemory[index]->data;
 }

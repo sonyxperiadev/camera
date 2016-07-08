@@ -6354,7 +6354,7 @@ void QCameraParameters::deinit()
     String8 emptyStr;
     QCameraParameters::unflatten(emptyStr);
 
-    if ((NULL != m_pCamOpsTbl) && (m_pCamOpsTbl->ops != NULL)) {
+    if (m_pCamOpsTbl->ops != NULL) {
         m_pCamOpsTbl->ops->unmap_buf(
                              m_pCamOpsTbl->camera_handle,
                              CAM_MAPPING_BUF_TYPE_PARM_BUF);
@@ -6382,7 +6382,6 @@ void QCameraParameters::deinit()
 
     m_AdjustFPS = NULL;
     m_tempMap.clear();
-    m_pCamOpsTbl = NULL;
     m_AdjustFPS = NULL;
 
     m_bInited = false;
@@ -12079,7 +12078,7 @@ int32_t QCameraParameters::bundleRelatedCameras(bool sync,
 {
     int32_t rc = NO_ERROR;
 
-    if (NULL == m_pCamOpsTbl) {
+    if (NULL == m_pCamOpsTbl->ops) {
         LOGE("Ops not initialized");
         return NO_INIT;
     }
@@ -12208,7 +12207,7 @@ int32_t QCameraParameters::commitSetBatch()
             break;
     }
 
-    if (NULL == m_pCamOpsTbl) {
+    if (NULL == m_pCamOpsTbl->ops) {
         LOGE("Ops not initialized");
         return NO_INIT;
     }
@@ -12250,7 +12249,7 @@ int32_t QCameraParameters::commitGetBatch()
             break;
     }
 
-    if (NULL == m_pCamOpsTbl) {
+    if (NULL == m_pCamOpsTbl->ops) {
         LOGE("Ops not initialized");
         return NO_INIT;
     }
