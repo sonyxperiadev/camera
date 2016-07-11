@@ -623,7 +623,8 @@ bool QCamera3Channel::isUBWCEnabled()
  ** RETURN    : format for stream type
  *
  *==========================================================================*/
-cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
+cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
+        uint32_t width, uint32_t height)
 {
     cam_format_t streamFormat;
 
@@ -649,7 +650,10 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
-        if (isUBWCEnabled()) {
+    {
+        /* Disable UBWC for smaller video resolutions due to CPP downscale
+            limits. Refer cpp_hw_params.h::CPP_DOWNSCALE_LIMIT_UBWC */
+        if (isUBWCEnabled() && (width >= 640) && (height >= 480)) {
             char prop[PROPERTY_VALUE_MAX];
             int pFormat;
             memset(prop, 0, sizeof(prop));
@@ -668,6 +672,7 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type)
 #endif
         }
         break;
+    }
     case CAM_STREAM_TYPE_SNAPSHOT:
         streamFormat = CAM_FORMAT_YUV_420_NV21;
         break;
@@ -1350,24 +1355,29 @@ int32_t QCamera3ProcessingChannel::translateStreamTypeAndFormat(camera3_stream_t
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
             if(stream->stream_type == CAMERA3_STREAM_INPUT){
                 streamType = CAM_STREAM_TYPE_SNAPSHOT;
-                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
+                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT,
+                        stream->width, stream->height);
             } else {
                 streamType = CAM_STREAM_TYPE_CALLBACK;
-                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK);
+                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK,
+                        stream->width, stream->height);
             }
             break;
         case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
             if (stream->usage & GRALLOC_USAGE_HW_VIDEO_ENCODER) {
                 streamType = CAM_STREAM_TYPE_VIDEO;
-                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_VIDEO);
+                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_VIDEO,
+                        stream->width, stream->height);
             } else if(stream->stream_type == CAMERA3_STREAM_INPUT ||
                     stream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ||
                     IS_USAGE_ZSL(stream->usage)){
                 streamType = CAM_STREAM_TYPE_SNAPSHOT;
-                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
+                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT,
+                        stream->width, stream->height);
             } else {
                 streamType = CAM_STREAM_TYPE_PREVIEW;
-                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW);
+                streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW,
+                        stream->width, stream->height);
             }
             break;
         case HAL_PIXEL_FORMAT_RAW_OPAQUE:
@@ -2072,8 +2082,9 @@ void QCamera3RawChannel::streamCbRoutine(
         dumpRawSnapshot(super_frame->bufs[0]);
 
     if (mIsRaw16) {
-        if (getStreamDefaultFormat(CAM_STREAM_TYPE_RAW) ==
-                CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG)
+        cam_format_t streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_RAW,
+                mCamera3Stream->width, mCamera3Stream->height);
+        if (streamFormat == CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG)
             convertMipiToRaw16(super_frame->bufs[0]);
         else
             convertLegacyToRaw16(super_frame->bufs[0]);
@@ -2545,7 +2556,8 @@ int32_t QCamera3YUVChannel::initialize(cam_is_type_t isType)
     }
 
     mIsType  = isType;
-    mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK);
+    mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_CALLBACK,
+            mCamera3Stream->width, mCamera3Stream->height);
     streamDim.width = mCamera3Stream->width;
     streamDim.height = mCamera3Stream->height;
 
@@ -3156,7 +3168,8 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
     mYuvHeight = stream->height;
     mStreamType = CAM_STREAM_TYPE_SNAPSHOT;
     // Use same pixelformat for 4K video case
-    mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT);
+    mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT,
+            stream->width, stream->height);
     int32_t rc = m_postprocessor.initJpeg(jpegEvtHandle, &m_max_pic_dim, this);
     if (rc != 0) {
         LOGE("Init Postprocessor failed");
@@ -4701,7 +4714,8 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
    // Make Analysis same as Preview format
    if (!hw_analysis_supported && mStreamType == CAM_STREAM_TYPE_ANALYSIS &&
            color_arrangement != CAM_FILTER_ARRANGEMENT_Y) {
-        mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW);
+        mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW,
+                dim->width, dim->height);
    }
 }
 

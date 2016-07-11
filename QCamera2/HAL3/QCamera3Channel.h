@@ -118,7 +118,8 @@ public:
     void dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
             cam_frame_len_offset_t offset, uint8_t name);
     bool isUBWCEnabled();
-    cam_format_t getStreamDefaultFormat(cam_stream_type_t type);
+    cam_format_t getStreamDefaultFormat(cam_stream_type_t type,
+            uint32_t width, uint32_t height);
 
     void *mUserData;
     cam_padding_info_t mPaddingInfo;
