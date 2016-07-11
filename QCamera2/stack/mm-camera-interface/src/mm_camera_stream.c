@@ -753,7 +753,7 @@ int32_t mm_stream_fsm_buffed(mm_stream_t * my_obj,
         }
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d), in(%p), out(%p)",
+        LOGW("invalid state (%d) for evt (%d), in(%p), out(%p)",
                     my_obj->state, evt, in_val, out_val);
     }
     LOGD("X rc = %d", rc);
@@ -4613,9 +4613,8 @@ int32_t mm_stream_buf_done(mm_stream_t * my_obj,
 
     pthread_mutex_lock(&my_obj->buf_lock);
     if(my_obj->buf_status[frame->buf_idx].buf_refcnt == 0) {
-        LOGE("Error Trying to free second time?(idx=%d) count=%d\n",
-                    frame->buf_idx,
-                   my_obj->buf_status[frame->buf_idx].buf_refcnt);
+        LOGW("Warning: trying to free buffer for the second time?(idx=%d)\n",
+                    frame->buf_idx);
         pthread_mutex_unlock(&my_obj->buf_lock);
         rc = -1;
         return rc;

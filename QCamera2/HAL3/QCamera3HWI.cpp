@@ -10399,10 +10399,9 @@ int32_t QCamera3HardwareInterface::notifyErrorForPendingRequests()
         } else {
 
             // Go through the pending requests info and send error request to framework
-            LOGE("Sending ERROR REQUEST for all pending requests");
             pendingRequestIterator i = mPendingRequestsList.begin(); //make sure i is at the beginning
 
-            LOGE("Sending ERROR REQUEST for frame %d", req->frame_number);
+            LOGH("Sending ERROR REQUEST for frame %d", req->frame_number);
 
             // Send error notify to frameworks
             camera3_notify_msg_t notify_msg;
