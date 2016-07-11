@@ -1223,6 +1223,25 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     dst_dim.width = recvd_frame->reproc_config.output_stream_dim.width;
     dst_dim.height = recvd_frame->reproc_config.output_stream_dim.height;
 
+    cam_rect_t crop;
+    memset(&crop, 0, sizeof(cam_rect_t));
+    //TBD_later - Zoom event removed in stream
+    //main_stream->getCropInfo(crop);
+
+    // Set JPEG encode crop in reprocess frame metadata
+    // If this JPEG crop info exist, encoder should
+    // crop and scale (if roi width and height is not 0)
+    IF_META_AVAILABLE(cam_stream_crop_info_t, jpeg_crop,
+            CAM_INTF_PARM_JPEG_ENCODE_CROP, metadata) {
+        memcpy(&crop, &(jpeg_crop->crop), sizeof(cam_rect_t));
+        // change the JPEG dst_dim if roi_map width and height is not 0
+        if (jpeg_crop->roi_map.width != 0 &&
+                jpeg_crop->roi_map.height != 0) {
+            dst_dim.width = jpeg_crop->roi_map.width;
+            dst_dim.height = jpeg_crop->roi_map.height;
+        }
+    }
+
     needJpegExifRotation = (hal_obj->needJpegExifRotation() || !needsReprocess(recvd_frame));
 
     LOGH("Need new session?:%d", needNewSess);
@@ -1311,11 +1330,6 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     jpg_job.encode_job.src_index = 0;
     jpg_job.encode_job.dst_index = 0;
 
-    cam_rect_t crop;
-    memset(&crop, 0, sizeof(cam_rect_t));
-    //TBD_later - Zoom event removed in stream
-    //main_stream->getCropInfo(crop);
-
     // Set main dim job parameters and handle rotation
     if (!needJpegExifRotation && (jpeg_settings->jpeg_orientation == 90 ||
             jpeg_settings->jpeg_orientation == 270)) {
@@ -1362,7 +1376,6 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     // thumbnail dim
     LOGH("Thumbnail needed:%d", m_bThumbnailNeeded);
     if (m_bThumbnailNeeded == TRUE) {
-        memset(&crop, 0, sizeof(cam_rect_t));
         jpg_job.encode_job.thumb_dim.dst_dim =
                 jpeg_settings->thumbnail_size;
 
@@ -1374,9 +1387,18 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
             jpg_job.encode_job.thumb_dim.dst_dim.width =
                     jpg_job.encode_job.thumb_dim.dst_dim.height;
             jpg_job.encode_job.thumb_dim.dst_dim.height = temp;
-        }
+
+            jpg_job.encode_job.thumb_dim.src_dim.width = src_dim.height;
+            jpg_job.encode_job.thumb_dim.src_dim.height = src_dim.width;
+
+            jpg_job.encode_job.thumb_dim.crop.width = crop.height;
+            jpg_job.encode_job.thumb_dim.crop.height = crop.width;
+            jpg_job.encode_job.thumb_dim.crop.left = crop.top;
+            jpg_job.encode_job.thumb_dim.crop.top = crop.left;
+        } else {
         jpg_job.encode_job.thumb_dim.src_dim = src_dim;
         jpg_job.encode_job.thumb_dim.crop = crop;
+        }
         jpg_job.encode_job.thumb_index = 0;
     }
 
@@ -1747,7 +1769,6 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     // thumbnail dim
     LOGH("Thumbnail needed:%d", m_bThumbnailNeeded);
     if (m_bThumbnailNeeded == TRUE) {
-        memset(&crop, 0, sizeof(cam_rect_t));
         jpg_job.encode_job.thumb_dim.dst_dim =
                 jpeg_settings->thumbnail_size;
 
@@ -1763,10 +1784,15 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
 
             jpg_job.encode_job.thumb_dim.src_dim.width = src_dim.height;
             jpg_job.encode_job.thumb_dim.src_dim.height = src_dim.width;
+
+            jpg_job.encode_job.thumb_dim.crop.width = crop.height;
+            jpg_job.encode_job.thumb_dim.crop.height = crop.width;
+            jpg_job.encode_job.thumb_dim.crop.left = crop.top;
+            jpg_job.encode_job.thumb_dim.crop.top = crop.left;
         } else {
            jpg_job.encode_job.thumb_dim.src_dim = src_dim;
+           jpg_job.encode_job.thumb_dim.crop = crop;
         }
-        jpg_job.encode_job.thumb_dim.crop = crop;
         jpg_job.encode_job.thumb_index = main_frame->buf_idx;
         LOGI("Thumbnail idx = %d src w/h (%dx%d), dst w/h (%dx%d)",
                 jpg_job.encode_job.thumb_index,
