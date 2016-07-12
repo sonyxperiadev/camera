@@ -891,6 +891,9 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     }
     stream->s_config.padding_info = cam_cap->padding_info;
+    /* Make offset as zero as CPP will not be used  */
+    stream->s_config.padding_info.offset_info.offset_x = 0;
+    stream->s_config.padding_info.offset_info.offset_y = 0;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
     if (MM_CAMERA_OK != rc) {
