@@ -1248,12 +1248,24 @@ typedef struct {
 } cam_faces_data_t;
 
 #define CAM_HISTOGRAM_STATS_SIZE 256
+
+typedef enum {
+  CAM_STATS_CHANNEL_Y,
+  CAM_STATS_CHANNEL_GR,
+  CAM_STATS_CHANNEL_GB,
+  CAM_STATS_CHANNEL_R,
+  CAM_STATS_CHANNEL_B,
+  CAM_STATS_CHANNEL_ALL,
+  CAM_STATS_CHANNEL_MAX
+} cam_histogram_data_type;
+
 typedef struct {
     uint32_t max_hist_value;
     uint32_t hist_buf[CAM_HISTOGRAM_STATS_SIZE]; /* buf holding histogram stats data */
 } cam_histogram_data_t;
 
 typedef struct {
+    cam_histogram_data_type data_type;
     cam_histogram_data_t r_stats;
     cam_histogram_data_t b_stats;
     cam_histogram_data_t gr_stats;
