@@ -126,6 +126,14 @@ const QCamera3HardwareInterface::QCameraMap<
 
 
 const QCamera3HardwareInterface::QCameraMap<
+        camera_metadata_enum_android_ir_mode_t,
+        cam_ir_mode_type_t> QCamera3HardwareInterface::IR_MODES_MAP [] = {
+    {QCAMERA3_IR_MODE_OFF,  CAM_IR_MODE_OFF},
+    {QCAMERA3_IR_MODE_ON, CAM_IR_MODE_ON},
+    {QCAMERA3_IR_MODE_AUTO, CAM_IR_MODE_AUTO}
+};
+
+const QCamera3HardwareInterface::QCameraMap<
         camera_metadata_enum_android_control_effect_mode_t,
         cam_effect_mode_type> QCamera3HardwareInterface::EFFECT_MODES_MAP[] = {
     { ANDROID_CONTROL_EFFECT_MODE_OFF,       CAM_EFFECT_MODE_OFF },
@@ -5567,6 +5575,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(QCAMERA3_VIDEO_HDR_MODE, &fwk_hdr, 1);
     }
 
+    IF_META_AVAILABLE(cam_ir_mode_type_t, ir, CAM_INTF_META_IR_MODE, metadata) {
+        camMetadata.update(QCAMERA3_IR_MODE,(int32_t *) &ir, 1);
+    }
+
     // TNR
     IF_META_AVAILABLE(cam_denoise_param_t, tnr, CAM_INTF_PARM_TEMPORAL_DENOISE, metadata) {
         uint8_t tnr_enable       = tnr->denoise_enable;
@@ -7775,6 +7787,23 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         LOGW("Warning: ANDROID_SENSOR_OPAQUE_RAW_SIZE is using rough estimation(2 bytes/pixel)");
 #endif
 
+    if (gCamCapability[cameraId]->supported_ir_mode_cnt > 0) {
+        int32_t avail_ir_modes[CAM_IR_MODE_MAX];
+        size = 0;
+        count = CAM_IR_MODE_MAX;
+        count = MIN(gCamCapability[cameraId]->supported_ir_mode_cnt, count);
+        for (size_t i = 0; i < count; i++) {
+            int val = lookupFwkName(IR_MODES_MAP, METADATA_MAP_SIZE(IR_MODES_MAP),
+                    gCamCapability[cameraId]->supported_ir_modes[i]);
+            if (NAME_NOT_FOUND != val) {
+                avail_ir_modes[size] = (int32_t)val;
+                size++;
+            }
+        }
+        staticInfo.update(QCAMERA3_IR_AVAILABLE_MODES,
+                avail_ir_modes, size);
+    }
+
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
 }
@@ -8489,6 +8518,10 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
 
     int32_t hdr_mode = (int32_t)QCAMERA3_VIDEO_HDR_MODE_OFF;
     settings.update(QCAMERA3_VIDEO_HDR_MODE, &hdr_mode, 1);
+
+    /* IR Mode Default Off */
+    int32_t ir_mode = (int32_t)QCAMERA3_IR_MODE_OFF;
+    settings.update(QCAMERA3_IR_MODE, &ir_mode, 1);
 
     mDefaultMetadata[type] = settings.release();
 
@@ -9595,6 +9628,21 @@ int QCamera3HardwareInterface::translateToHalMetadata
             LOGE("setVideoHDR is failed");
         }
     }
+
+    //IR
+    if(frame_settings.exists(QCAMERA3_IR_MODE)) {
+        cam_ir_mode_type_t fwk_ir = (cam_ir_mode_type_t)
+                frame_settings.find(QCAMERA3_IR_MODE).data.i32[0];
+        if ((CAM_IR_MODE_MAX <= fwk_ir) || (0 > fwk_ir)) {
+            LOGE("Invalid IR mode %d!", fwk_ir);
+        } else {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                    CAM_INTF_META_IR_MODE, fwk_ir)) {
+                rc = BAD_VALUE;
+            }
+        }
+    }
+
     // TNR
     if (frame_settings.exists(QCAMERA3_TEMPORAL_DENOISE_ENABLE) &&
         frame_settings.exists(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE)) {

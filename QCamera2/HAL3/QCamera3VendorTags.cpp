@@ -55,7 +55,8 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_DUALCAM_CALIB_META_DATA_END,
         QCAMERA3_HAL_PRIVATEDATA_END,
         QCAMERA3_JPEG_ENCODE_CROP_END,
-        QCAMERA3_VIDEO_HDR_END
+        QCAMERA3_VIDEO_HDR_END,
+        QCAMERA3_IR_END
 };
 
 typedef struct vendor_tag_info {
@@ -77,7 +78,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.dualcam_calib_meta_data",
     "org.codeaurora.qcamera3.hal_private_data",
     "org.codeaurora.qcamera3.jpeg_encode_crop",
-    "org.codeaurora.qcamera3.video_hdr_mode"
+    "org.codeaurora.qcamera3.video_hdr_mode",
+    "org.codeaurora.qcamera3.ir"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -158,6 +160,12 @@ vendor_tag_info_t qcamera3_video_hdr[QCAMERA3_VIDEO_HDR_END -
     { "vhdr_supported_modes", TYPE_INT32 }
 };
 
+vendor_tag_info_t qcamera3_ir[QCAMERA3_IR_END -
+        QCAMERA3_IR_START] = {
+    { "ir_mode", TYPE_INT32 },
+    { "ir_supported_modes", TYPE_INT32}
+};
+
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
     qcamera3_privatedata,
@@ -172,7 +180,8 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_dualcam_calib_meta_data,
     qcamera3_hal_privatedata,
     qcamera3_jpep_encode_crop,
-    qcamera3_video_hdr
+    qcamera3_video_hdr,
+    qcamera3_ir
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -224,7 +233,11 @@ uint32_t qcamera3_all_tags[] = {
 
     // QCAMERA3_VIDEO_HDR
     (uint32_t)QCAMERA3_VIDEO_HDR_MODE,
-    (uint32_t)QCAMERA3_AVAILABLE_VIDEO_HDR_MODES
+    (uint32_t)QCAMERA3_AVAILABLE_VIDEO_HDR_MODES,
+
+    // QCAMERA3_IR_MODE_ENABLE
+    (uint32_t)QCAMERA3_IR_MODE,
+    (uint32_t)QCAMERA3_IR_AVAILABLE_MODES
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;

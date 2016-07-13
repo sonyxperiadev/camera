@@ -867,6 +867,13 @@ typedef enum {
 } cam_cds_mode_type_t;
 
 typedef enum {
+    CAM_IR_MODE_OFF,
+    CAM_IR_MODE_ON,
+    CAM_IR_MODE_AUTO,
+    CAM_IR_MODE_MAX
+} cam_ir_mode_type_t;
+
+typedef enum {
     CAM_SENSOR_HDR_OFF,
     CAM_SENSOR_HDR_IN_SENSOR = 1,
     CAM_SENSOR_HDR_ZIGZAG,
@@ -2213,6 +2220,8 @@ typedef enum {
        current configuration for pic res*/
     CAM_INTF_META_STREAM_INFO_FOR_PIC_RES,
     CAM_INTF_META_FOCUS_DEPTH_INFO,
+    /* Operation Mode for IR */
+    CAM_INTF_META_IR_MODE,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

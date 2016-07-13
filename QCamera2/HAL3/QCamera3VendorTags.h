@@ -49,6 +49,7 @@ enum qcamera3_ext_section {
     QCAMERA3_HAL_PRIVATEDATA,
     QCAMERA3_JPEG_ENCODE_CROP,
     QCAMERA3_VIDEO_HDR,
+    QCAMERA3_IR,
     QCAMERA3_SECTIONS_END
 };
 
@@ -65,7 +66,8 @@ enum qcamera3_ext_section_ranges {
     QCAMERA3_DUALCAM_CALIB_META_DATA_START = QCAMERA3_DUALCAM_CALIB_META_DATA << 16,
     QCAMERA3_HAL_PRIVATEDATA_START = QCAMERA3_HAL_PRIVATEDATA << 16,
     QCAMERA3_JPEG_ENCODE_CROP_START = QCAMERA3_JPEG_ENCODE_CROP << 16,
-    QCAMERA3_VIDEO_HDR_START = QCAMERA3_VIDEO_HDR << 16
+    QCAMERA3_VIDEO_HDR_START = QCAMERA3_VIDEO_HDR << 16,
+    QCAMERA3_IR_START = QCAMERA3_IR << 16
 };
 
 enum qcamera3_ext_tags {
@@ -187,7 +189,11 @@ enum qcamera3_ext_tags {
 
     QCAMERA3_VIDEO_HDR_MODE = QCAMERA3_VIDEO_HDR_START,
     QCAMERA3_AVAILABLE_VIDEO_HDR_MODES,
-    QCAMERA3_VIDEO_HDR_END
+    QCAMERA3_VIDEO_HDR_END,
+
+    QCAMERA3_IR_MODE = QCAMERA3_IR_START,
+    QCAMERA3_IR_AVAILABLE_MODES,
+    QCAMERA3_IR_END
 };
 
 // QCAMERA3_OPAQUE_RAW_FORMAT
@@ -202,6 +208,13 @@ typedef enum camera_metadata_enum_android_video_hdr_mode {
     QCAMERA3_VIDEO_HDR_MODE_OFF,
     QCAMERA3_VIDEO_HDR_MODE_ON
 } camera_metadata_enum_android_video_hdr_mode_t;
+
+// QCAMERA3_IR_MODE
+typedef enum camera_metadata_enum_android_ir_mode {
+    QCAMERA3_IR_MODE_OFF,
+    QCAMERA3_IR_MODE_ON,
+    QCAMERA3_IR_MODE_AUTO
+} camera_metadata_enum_android_ir_mode_t;
 
 class QCamera3VendorTags {
 

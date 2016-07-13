@@ -523,7 +523,8 @@ private:
             cam_illuminat_t> REFERENCE_ILLUMINANT_MAP[];
     static const QCameraMap<int32_t,
             cam_hfr_mode_t> HFR_MODE_MAP[];
-
+    static const QCameraMap<camera_metadata_enum_android_ir_mode_t,
+            cam_ir_mode_type_t> IR_MODES_MAP[];
     static const QCameraPropMap CDS_MAP[];
 
     pendingRequestIterator erasePendingRequest(pendingRequestIterator i);
