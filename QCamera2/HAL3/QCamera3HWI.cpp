@@ -1257,7 +1257,7 @@ void QCamera3HardwareInterface::updateFpsInPreviewBuffer(metadata_buffer_t *meta
                 (1U << CAM_STREAM_TYPE_PREVIEW))) {
                 IF_META_AVAILABLE(cam_fps_range_t, float_range,
                     CAM_INTF_PARM_FPS_RANGE, metadata) {
-                    int32_t cameraFps = float_range->max_fps;
+                    typeof (MetaData_t::refreshrate) cameraFps = float_range->max_fps;
                     struct private_handle_t *priv_handle =
                         (struct private_handle_t *)(*(j->buffer));
                     setMetaData(priv_handle, UPDATE_REFRESH_RATE, &cameraFps);
@@ -8449,6 +8449,47 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
 
     }
 
+    /* Add additional JPEG cropping information. App add QCAMERA3_JPEG_ENCODE_CROP_RECT
+       to ask for cropping and use ROI for downscale/upscale during HW JPEG encoding.
+       roi.width and roi.height would be the final JPEG size.
+       For now, HAL only checks this for reprocess request */
+    if (frame_settings.exists(QCAMERA3_JPEG_ENCODE_CROP_ENABLE) &&
+            frame_settings.exists(QCAMERA3_JPEG_ENCODE_CROP_RECT)) {
+        uint8_t *enable =
+            frame_settings.find(QCAMERA3_JPEG_ENCODE_CROP_ENABLE).data.u8;
+        if (*enable == TRUE) {
+            int32_t *crop_data =
+                    frame_settings.find(QCAMERA3_JPEG_ENCODE_CROP_RECT).data.i32;
+            cam_stream_crop_info_t crop_meta;
+            memset(&crop_meta, 0, sizeof(cam_stream_crop_info_t));
+            crop_meta.stream_id = 0;
+            crop_meta.crop.left   = crop_data[0];
+            crop_meta.crop.top    = crop_data[1];
+            crop_meta.crop.width  = crop_data[2];
+            crop_meta.crop.height = crop_data[3];
+            if (frame_settings.exists(QCAMERA3_JPEG_ENCODE_CROP_ROI)) {
+                int32_t *roi =
+                    frame_settings.find(QCAMERA3_JPEG_ENCODE_CROP_ROI).data.i32;
+                crop_meta.roi_map.left =
+                        roi[0];
+                crop_meta.roi_map.top =
+                        roi[1];
+                crop_meta.roi_map.width =
+                        roi[2];
+                crop_meta.roi_map.height =
+                        roi[3];
+            }
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_JPEG_ENCODE_CROP,
+                    crop_meta);
+            LOGH("Add JPEG encode crop left %d, top %d, width %d, height %d",
+                    crop_meta.crop.left, crop_meta.crop.top,
+                    crop_meta.crop.width, crop_meta.crop.height);
+            LOGH("Add JPEG encode crop ROI left %d, top %d, width %d, height %d",
+                    crop_meta.roi_map.left, crop_meta.roi_map.top,
+                    crop_meta.roi_map.width, crop_meta.roi_map.height);
+        }
+    }
+
     return rc;
 }
 
@@ -10358,10 +10399,9 @@ int32_t QCamera3HardwareInterface::notifyErrorForPendingRequests()
         } else {
 
             // Go through the pending requests info and send error request to framework
-            LOGE("Sending ERROR REQUEST for all pending requests");
             pendingRequestIterator i = mPendingRequestsList.begin(); //make sure i is at the beginning
 
-            LOGE("Sending ERROR REQUEST for frame %d", req->frame_number);
+            LOGH("Sending ERROR REQUEST for frame %d", req->frame_number);
 
             // Send error notify to frameworks
             camera3_notify_msg_t notify_msg;

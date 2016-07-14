@@ -2168,6 +2168,8 @@ typedef enum {
     CAM_INTF_PARM_INSTANT_AEC,
     /* Param for tracking previous reprocessing activity */
     CAM_INTF_META_REPROCESS_FLAGS,
+    /* Param of cropping information for JPEG encoder */
+    CAM_INTF_PARM_JPEG_ENCODE_CROP,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

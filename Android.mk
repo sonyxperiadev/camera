@@ -16,6 +16,7 @@ MM_V4L2_DRIVER_LIST += msm8992
 MM_V4L2_DRIVER_LIST += msm8937
 MM_V4L2_DRIVER_LIST += msm8953
 MM_V4L2_DRIVER_LIST += msmcobalt
+MM_V4L2_DRIVER_LIST += msmfalcon
 
 ifneq (,$(filter $(MM_V4L2_DRIVER_LIST),$(TARGET_BOARD_PLATFORM)))
   ifneq ($(strip $(USE_CAMERA_STUB)),true)
