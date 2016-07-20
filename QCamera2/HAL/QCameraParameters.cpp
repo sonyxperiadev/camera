@@ -13500,6 +13500,12 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         break;
     }
 
+    // Enable PPEISCORE for EIS 3.0
+    if ((stream_type == CAM_STREAM_TYPE_VIDEO) &&
+            (getISType() == IS_TYPE_EIS_3_0)) {
+        feature_mask |= CAM_QTI_FEATURE_PPEISCORE;
+    }
+
     // Store stream feature mask
     setStreamPpMask(stream_type, feature_mask);
     LOGH("stream type: %d, pp_mask: 0x%llx", stream_type, feature_mask);
