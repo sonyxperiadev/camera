@@ -1400,7 +1400,7 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
     nsecs_t timeStamp = 0;
     bool triggerTCB = FALSE;
 
-    LOGH("[KPI Perf] : BEGIN");
+    LOGD("[KPI Perf] : BEGIN");
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
@@ -1429,16 +1429,15 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
         if (pme->mParameters.getVideoBatchSize() == 0) {
             timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL
                     + frame->ts.tv_nsec;
-            LOGD("Video frame to encoder TimeStamp : %lld batch = 0",
-                    timeStamp);
             pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_VIDEO);
             videoMemObj = (QCameraVideoMemory *)frame->mem_info;
             video_mem = NULL;
             if (NULL != videoMemObj) {
                 video_mem = videoMemObj->getMemory(frame->buf_idx,
                         (pme->mStoreMetaDataInFrame > 0)? true : false);
-                videoMemObj->updateNativeHandle(frame->buf_idx);
                 triggerTCB = TRUE;
+                LOGH("Video frame TimeStamp : %lld batch = 0 index = %d",
+                        timeStamp, frame->buf_idx);
             }
         } else {
             //Handle video batch callback
@@ -1459,7 +1458,7 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                 }
             }
             video_mem = stream->mCurMetaMemory;
-            nh = videoMemObj->updateNativeHandle(stream->mCurMetaIndex);
+            nh = videoMemObj->getNativeHandle(stream->mCurMetaIndex);
             if (video_mem == NULL || nh == NULL) {
                 LOGE("No Free metadata. Drop this frame");
                 stream->mCurBufIndex = -1;
@@ -1498,8 +1497,9 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
             stream->mCurBufIndex++;
             if (stream->mCurBufIndex == fd_cnt) {
                 timeStamp = stream->mFirstTimeStamp;
-                LOGD("Video frame to encoder TimeStamp : %lld batch = %d",
-                    timeStamp, fd_cnt);
+                LOGH("Video frame to encoder TimeStamp : %lld batch = %d Buffer idx = %d",
+                        timeStamp, fd_cnt,
+                        nh->data[nh->numFds + nh->numInts - VIDEO_METADATA_NUM_COMMON_INTS]);
                 stream->mCurBufIndex = -1;
                 stream->mCurMetaIndex = -1;
                 stream->mCurMetaMemory = NULL;
@@ -1513,7 +1513,7 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
         int fd_cnt = frame->user_buf.bufs_used;
         if (NULL != videoMemObj) {
             video_mem = videoMemObj->getMemory(frame->buf_idx, true);
-            nh = videoMemObj->updateNativeHandle(frame->buf_idx);
+            nh = videoMemObj->getNativeHandle(frame->buf_idx);
         } else {
             LOGE("videoMemObj NULL");
         }
@@ -1521,8 +1521,6 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
         if (nh != NULL) {
             timeStamp = nsecs_t(frame->ts.tv_sec) * 1000000000LL
                     + frame->ts.tv_nsec;
-            LOGD("Batch buffer TimeStamp : %lld FD = %d index = %d fd_cnt = %d",
-                    timeStamp, frame->fd, frame->buf_idx, fd_cnt);
 
             for (int i = 0; i < fd_cnt; i++) {
                 if (frame->user_buf.buf_idx[i] >= 0) {
@@ -1553,6 +1551,8 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                 }
             }
             triggerTCB = TRUE;
+            LOGH("Batch buffer TimeStamp : %lld FD = %d index = %d fd_cnt = %d",
+                    timeStamp, frame->fd, frame->buf_idx, fd_cnt);
         } else {
             LOGE("No Video Meta Available. Return Buffer");
             stream->bufDone(super_frame->bufs[0]->buf_idx);
@@ -1582,7 +1582,7 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
     }
 
     free(super_frame);
-    LOGH("[KPI Perf] : END");
+    LOGD("[KPI Perf] : END");
 }
 
 /*===========================================================================
