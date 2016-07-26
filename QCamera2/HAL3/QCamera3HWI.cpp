@@ -6382,6 +6382,96 @@ void QCamera3HardwareInterface::setInvalidLandmarks(
 }
 
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
+
+/*===========================================================================
+ * FUNCTION   : getCapabilities
+ *
+ * DESCRIPTION: query camera capability from back-end
+ *
+ * PARAMETERS :
+ *   @ops  : mm-interface ops structure
+ *   @cam_handle  : camera handle for which we need capability
+ *
+ * RETURN     : ptr type of capability structure
+ *              capability for success
+ *              NULL for failure
+ *==========================================================================*/
+cam_capability_t *QCamera3HardwareInterface::getCapabilities(mm_camera_ops_t *ops,
+        uint32_t cam_handle)
+{
+    int rc = NO_ERROR;
+    QCamera3HeapMemory *capabilityHeap = NULL;
+    cam_capability_t *cap_ptr = NULL;
+
+    if (ops == NULL) {
+        LOGE("Invalid arguments");
+        return NULL;
+    }
+
+    capabilityHeap = new QCamera3HeapMemory(1);
+    if (capabilityHeap == NULL) {
+        LOGE("creation of capabilityHeap failed");
+        return NULL;
+    }
+
+    /* Allocate memory for capability buffer */
+    rc = capabilityHeap->allocate(sizeof(cam_capability_t));
+    if(rc != OK) {
+        LOGE("No memory for cappability");
+        goto allocate_failed;
+    }
+
+    /* Map memory for capability buffer */
+    memset(DATA_PTR(capabilityHeap,0), 0, sizeof(cam_capability_t));
+
+    rc = ops->map_buf(cam_handle,
+            CAM_MAPPING_BUF_TYPE_CAPABILITY, capabilityHeap->getFd(0),
+            sizeof(cam_capability_t), capabilityHeap->getPtr(0));
+    if(rc < 0) {
+        LOGE("failed to map capability buffer");
+        rc = FAILED_TRANSACTION;
+        goto map_failed;
+    }
+
+    /* Query Capability */
+    rc = ops->query_capability(cam_handle);
+    if(rc < 0) {
+        LOGE("failed to query capability");
+        rc = FAILED_TRANSACTION;
+        goto query_failed;
+    }
+
+    cap_ptr = (cam_capability_t *)malloc(sizeof(cam_capability_t));
+    if (cap_ptr == NULL) {
+        LOGE("out of memory");
+        rc = NO_MEMORY;
+        goto query_failed;
+    }
+
+    memset(cap_ptr, 0, sizeof(cam_capability_t));
+    memcpy(cap_ptr, DATA_PTR(capabilityHeap, 0), sizeof(cam_capability_t));
+
+    int index;
+    for (index = 0; index < CAM_ANALYSIS_INFO_MAX; index++) {
+        cam_analysis_info_t *p_analysis_info = &cap_ptr->analysis_info[index];
+        p_analysis_info->analysis_padding_info.offset_info.offset_x = 0;
+        p_analysis_info->analysis_padding_info.offset_info.offset_y = 0;
+    }
+
+query_failed:
+    ops->unmap_buf(cam_handle, CAM_MAPPING_BUF_TYPE_CAPABILITY);
+map_failed:
+    capabilityHeap->deallocate();
+allocate_failed:
+    delete capabilityHeap;
+
+    if (rc != NO_ERROR) {
+        return NULL;
+    } else {
+        return cap_ptr;
+    }
+}
+
 /*===========================================================================
  * FUNCTION   : initCapabilities
  *
@@ -6398,7 +6488,7 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
 {
     int rc = 0;
     mm_camera_vtbl_t *cameraHandle = NULL;
-    QCamera3HeapMemory *capabilityHeap = NULL;
+    uint32_t handle = 0;
 
     rc = camera_open((uint8_t)cameraId, &cameraHandle);
     if (rc) {
@@ -6410,61 +6500,24 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
         goto open_failed;
     }
 
-    capabilityHeap = new QCamera3HeapMemory(1);
-    if (capabilityHeap == NULL) {
-        LOGE("creation of capabilityHeap failed");
-        goto heap_creation_failed;
-    }
-    /* Allocate memory for capability buffer */
-    rc = capabilityHeap->allocate(sizeof(cam_capability_t));
-    if(rc != OK) {
-        LOGE("No memory for cappability");
-        goto allocate_failed;
+    handle = get_main_camera_handle(cameraHandle->camera_handle);
+    gCamCapability[cameraId] = getCapabilities(cameraHandle->ops, handle);
+    if (gCamCapability[cameraId] == NULL) {
+        rc = FAILED_TRANSACTION;
+        goto failed_op;
     }
 
-    /* Map memory for capability buffer */
-    memset(DATA_PTR(capabilityHeap,0), 0, sizeof(cam_capability_t));
-    rc = cameraHandle->ops->map_buf(cameraHandle->camera_handle,
-                                CAM_MAPPING_BUF_TYPE_CAPABILITY,
-                                capabilityHeap->getFd(0),
-                                sizeof(cam_capability_t),
-                                capabilityHeap->getPtr(0));
-    if(rc < 0) {
-        LOGE("failed to map capability buffer");
-        goto map_failed;
+    if (is_dual_camera_by_idx(cameraId)) {
+        handle = get_aux_camera_handle(cameraHandle->camera_handle);
+        gCamCapability[cameraId]->aux_cam_cap =
+                getCapabilities(cameraHandle->ops, handle);
+        if (gCamCapability[cameraId]->aux_cam_cap == NULL) {
+            rc = FAILED_TRANSACTION;
+            free(gCamCapability[cameraId]);
+            goto failed_op;
+        }
     }
-
-    /* Query Capability */
-    rc = cameraHandle->ops->query_capability(cameraHandle->camera_handle);
-    if(rc < 0) {
-        LOGE("failed to query capability");
-        goto query_failed;
-    }
-    gCamCapability[cameraId] = (cam_capability_t *)malloc(sizeof(cam_capability_t));
-    if (!gCamCapability[cameraId]) {
-        LOGE("out of memory");
-        goto query_failed;
-    }
-    memcpy(gCamCapability[cameraId], DATA_PTR(capabilityHeap,0),
-                                        sizeof(cam_capability_t));
-
-    int index;
-    for (index = 0; index < CAM_ANALYSIS_INFO_MAX; index++) {
-        cam_analysis_info_t *p_analysis_info =
-                &gCamCapability[cameraId]->analysis_info[index];
-        p_analysis_info->analysis_padding_info.offset_info.offset_x = 0;
-        p_analysis_info->analysis_padding_info.offset_info.offset_y = 0;
-    }
-    rc = 0;
-
-query_failed:
-    cameraHandle->ops->unmap_buf(cameraHandle->camera_handle,
-                            CAM_MAPPING_BUF_TYPE_CAPABILITY);
-map_failed:
-    capabilityHeap->deallocate();
-allocate_failed:
-    delete capabilityHeap;
-heap_creation_failed:
+failed_op:
     cameraHandle->ops->close_camera(cameraHandle->camera_handle);
     cameraHandle = NULL;
 open_failed:

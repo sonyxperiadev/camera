@@ -140,7 +140,7 @@ int QCameraMemory::cacheOpsInternal(uint32_t index, unsigned int cmd, void *vadd
     custom_data.cmd = cmd;
     custom_data.arg = (unsigned long)&cache_inv_data;
 
-    LOGH("addr = %p, fd = %d, handle = %lx length = %d, ION Fd = %d",
+    LOGD("addr = %p, fd = %d, handle = %lx length = %d, ION Fd = %d",
           cache_inv_data.vaddr, cache_inv_data.fd,
          (unsigned long)cache_inv_data.handle, cache_inv_data.length,
          mMemInfo[index].main_ion_fd);

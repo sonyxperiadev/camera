@@ -3032,8 +3032,7 @@ uint8_t is_dual_camera_by_idx(uint32_t camera_id)
 
 uint8_t is_dual_camera_by_handle(uint32_t handle)
 {
-    return (((handle >> MM_CAMERA_HANDLE_SHIFT_MASK) &&
-            (handle & MM_CAMERA_HANDLE_BIT_MASK))
+    return ((handle >> MM_CAMERA_HANDLE_SHIFT_MASK)
             ? 1 : 0);
 }
 

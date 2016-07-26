@@ -64,6 +64,9 @@ ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) <= 23 ))" )))
 LOCAL_CFLAGS += -DUSE_HAL_3_3
 endif
 
+#Enable to simulate B+B snapshot use case. Will be removed later
+#LOCAL_CFLAGS += -DDUAL_CAM_TEST
+
 #use media extension
 ifeq ($(TARGET_USES_MEDIA_EXTENSIONS), true)
 LOCAL_CFLAGS += -DUSE_MEDIA_EXTENSIONS
