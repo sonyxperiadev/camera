@@ -2200,9 +2200,17 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 gCamCapability[mCameraId]->color_arrangement);
         rc = mCommon.getAnalysisInfo(FALSE, TRUE, callbackFeatureMask, &supportInfo);
         if (rc != NO_ERROR) {
-            LOGE("getAnalysisInfo failed, ret = %d", rc);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
+            /* Ignore the error for Mono camera
+             * because the PAAF bit mask is only set
+             * for CAM_STREAM_TYPE_ANALYSIS stream type
+             */
+            if (gCamCapability[mCameraId]->color_arrangement == CAM_FILTER_ARRANGEMENT_Y) {
+                rc = NO_ERROR;
+            } else {
+                LOGE("getAnalysisInfo failed, ret = %d", rc);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
         }
         mSupportChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
