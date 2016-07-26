@@ -191,7 +191,8 @@ public:
     camera_metadata_t* translateFromHalMetadata(metadata_buffer_t *metadata,
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
-                            uint8_t capture_intent, bool pprocDone, uint8_t fwk_cacMode);
+                            uint8_t capture_intent, bool pprocDone, uint8_t fwk_cacMode,
+                            bool firstMetadataInBatch);
     camera_metadata_t* saveRequestSettings(const CameraMetadata& jpegMetadata,
                             camera3_capture_request_t *request);
     int initParameters();
@@ -288,7 +289,8 @@ private:
     int32_t handlePendingReprocResults(uint32_t frame_number);
     int64_t getMinFrameDuration(const camera3_capture_request_t *request);
     void handleMetadataWithLock(mm_camera_super_buf_t *metadata_buf,
-            bool free_and_bufdone_meta_buf);
+            bool free_and_bufdone_meta_buf,
+            bool firstMetadataInBatch);
     void handleBatchMetadata(mm_camera_super_buf_t *metadata_buf,
             bool free_and_bufdone_meta_buf);
     void handleBufferWithLock(camera3_stream_buffer_t *buffer,
@@ -481,6 +483,7 @@ private:
     uint32_t mLdafCalib[2];
     bool mPowerHintEnabled;
     int32_t mLastCustIntentFrmNum;
+    CameraMetadata  mCachedMetadata;
 
     static const QCameraMap<camera_metadata_enum_android_control_effect_mode_t,
             cam_effect_mode_type> EFFECT_MODES_MAP[];
