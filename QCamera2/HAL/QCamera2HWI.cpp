@@ -770,17 +770,6 @@ void QCamera2HardwareInterface::release_recording_frame(
     }
     LOGD("E camera id %d", hw->getCameraId());
 
-    //Close and delete duplicated native handle and FD's.
-    if ((hw->mVideoMem != NULL) && (hw->mStoreMetaDataInFrame)) {
-         ret = hw->mVideoMem->closeNativeHandle(opaque, TRUE);
-        if (ret != NO_ERROR) {
-            LOGE("Invalid video metadata");
-            return;
-        }
-    } else {
-        LOGW("Possible FD leak. Release recording called after stop");
-    }
-
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     ret = hw->processAPI(QCAMERA_SM_EVT_RELEASE_RECORIDNG_FRAME, (void *)opaque);
@@ -1674,7 +1663,6 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mJpegClientHandle(0),
       mJpegHandleOwner(false),
       mMetadataMem(NULL),
-      mVideoMem(NULL),
       mCACDoneReceived(false),
       m_bNeedRestart(false),
       mBootToMonoTimestampOffset(0)
@@ -2878,10 +2866,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
             }
             videoMemory->setVideoInfo(usage, fmt);
             mem = videoMemory;
-            if (!mParameters.getBufBatchCount()) {
-                //For batch mode this will be part of user buffer.
-                mVideoMem = videoMemory;
-            }
         }
         break;
     case CAM_STREAM_TYPE_CALLBACK:
@@ -3223,7 +3207,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
         }
         video_mem->setVideoInfo(usage, fmt);
         mem = static_cast<QCameraMemory *>(video_mem);
-        mVideoMem = video_mem;
     }
     break;
 
@@ -3673,7 +3656,6 @@ int QCamera2HardwareInterface::startRecording()
     int32_t rc = NO_ERROR;
 
     LOGI("E");
-    mVideoMem = NULL;
     //link meta stream with video channel if low power mode.
     if (isLowPowerMode()) {
         // Find and try to link a metadata stream from preview channel
@@ -3773,7 +3755,6 @@ int QCamera2HardwareInterface::stopRecording()
     m_cbNotifier.flushVideoNotifications();
     // Disable power hint for video encoding
     m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, false);
-    mVideoMem = NULL;
     LOGI("X rc = %d", rc);
     return rc;
 }
@@ -8584,7 +8565,25 @@ int32_t QCamera2HardwareInterface::processHistogramStats(
 
     switch (stats_data.type) {
     case CAM_HISTOGRAM_TYPE_BAYER:
-        *pHistData = stats_data.bayer_stats.gb_stats;
+        switch (stats_data.bayer_stats.data_type) {
+            case CAM_STATS_CHANNEL_Y:
+            case CAM_STATS_CHANNEL_R:
+                *pHistData = stats_data.bayer_stats.r_stats;
+                break;
+            case CAM_STATS_CHANNEL_GR:
+                *pHistData = stats_data.bayer_stats.gr_stats;
+                break;
+            case CAM_STATS_CHANNEL_GB:
+            case CAM_STATS_CHANNEL_ALL:
+                *pHistData = stats_data.bayer_stats.gb_stats;
+                break;
+            case CAM_STATS_CHANNEL_B:
+                *pHistData = stats_data.bayer_stats.b_stats;
+                break;
+            default:
+                *pHistData = stats_data.bayer_stats.r_stats;
+                break;
+        }
         break;
     case CAM_HISTOGRAM_TYPE_YUV:
         *pHistData = stats_data.yuv_stats;

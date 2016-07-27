@@ -80,7 +80,6 @@ static void jpeg_encode_cb(jpeg_job_status_t status,
 int encodeData(mm_camera_test_obj_t *test_obj, mm_camera_super_buf_t* recvd_frame,
                mm_camera_stream_t *m_stream)
 {
-    cam_capability_t *cam_cap = (cam_capability_t *)(test_obj->cap_buf.buf.buffer);
 
     int rc = -MM_CAMERA_E_GENERAL;
     mm_jpeg_job_t job;
@@ -101,9 +100,6 @@ int encodeData(mm_camera_test_obj_t *test_obj, mm_camera_super_buf_t* recvd_fram
     // TODO: Rotation should be set according to
     //       sensor&device orientation
     job.encode_job.rotation = 0;
-    if (cam_cap->position == CAM_POSITION_BACK) {
-        job.encode_job.rotation = 270;
-    }
 
     /* fill in main src img encode param */
     job.encode_job.main_dim.src_dim = m_stream->s_config.stream_info->dim;

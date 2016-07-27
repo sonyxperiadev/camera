@@ -1976,24 +1976,20 @@ static int submain()
                 snap_dim.height = dimension_tbl[action_param].height;
                 break;
 
-      case ACTION_START_RECORDING:
-        LOGD("Start recording action\n");
-#if 0
-        if (mm_app_start_video(cam_id) < 0)
-          goto ERROR;
-        is_rec = 1;
-#endif
-        break;
-      case ACTION_STOP_RECORDING:
-        LOGD("Stop recording action\n");
-#if 0
-        if(is_rec) {
-          if (mm_app_stop_video(cam_id) < 0)
-            goto ERROR;
-          is_rec = 0;
-        }
-#endif
-        break;
+           case ACTION_START_RECORDING:
+             LOGD("Start recording action\n");
+             mm_app_start_record_preview(&lib_handle.test_obj);
+             is_rec = 1;
+             break;
+
+           case ACTION_STOP_RECORDING:
+             LOGD("Stop recording action\n");
+             if(is_rec) {
+                 mm_app_stop_record_preview(&lib_handle.test_obj);
+                 is_rec = 0;
+             }
+
+             break;
       case ACTION_TAKE_LIVE_SNAPSHOT:
         printf("Selection for live shot\n");
 #if 0

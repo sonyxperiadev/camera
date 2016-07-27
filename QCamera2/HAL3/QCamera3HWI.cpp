@@ -89,7 +89,6 @@ namespace qcamera {
 #define MAX_HFR_BATCH_SIZE     (8)
 #define REGIONS_TUPLE_COUNT    5
 #define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
-#define BURST_REPROCESS_PERF_TIME_OUT  (1000) // milliseconds
 // Set a threshold for detection of missing buffers //seconds
 #define MISSING_REQUEST_BUF_TIMEOUT 3
 #define FLUSH_TIMEOUT 3
@@ -2201,9 +2200,17 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 gCamCapability[mCameraId]->color_arrangement);
         rc = mCommon.getAnalysisInfo(FALSE, TRUE, callbackFeatureMask, &supportInfo);
         if (rc != NO_ERROR) {
-            LOGE("getAnalysisInfo failed, ret = %d", rc);
-            pthread_mutex_unlock(&mMutex);
-            return rc;
+            /* Ignore the error for Mono camera
+             * because the PAAF bit mask is only set
+             * for CAM_STREAM_TYPE_ANALYSIS stream type
+             */
+            if (gCamCapability[mCameraId]->color_arrangement == CAM_FILTER_ARRANGEMENT_Y) {
+                rc = NO_ERROR;
+            } else {
+                LOGE("getAnalysisInfo failed, ret = %d", rc);
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
         }
         mSupportChannel = new QCamera3SupportChannel(
                 mCameraHandle->camera_handle,
@@ -2757,9 +2764,9 @@ void QCamera3HardwareInterface::handleBatchMetadata(
             if (last_frame_capture_time) {
                 //Infer timestamp
                 first_frame_capture_time = last_frame_capture_time -
-                        (((loopCount - 1) * NSEC_PER_SEC) / mHFRVideoFps);
+                        (((loopCount - 1) * NSEC_PER_SEC) / (double) mHFRVideoFps);
                 capture_time =
-                        first_frame_capture_time + (i * NSEC_PER_SEC / mHFRVideoFps);
+                        first_frame_capture_time + (i * NSEC_PER_SEC / (double) mHFRVideoFps);
                 ADD_SET_PARAM_ENTRY_TO_BATCH(metadata,
                         CAM_INTF_META_SENSOR_TIMESTAMP, capture_time);
                 LOGD("batch capture_time: %lld, capture_time: %lld",
@@ -2768,7 +2775,8 @@ void QCamera3HardwareInterface::handleBatchMetadata(
         }
         pthread_mutex_lock(&mMutex);
         handleMetadataWithLock(metadata_buf,
-                false /* free_and_bufdone_meta_buf */);
+                false /* free_and_bufdone_meta_buf */,
+                (i == 0) /* first metadata in the batch metadata */);
         pthread_mutex_unlock(&mMutex);
     }
 
@@ -2787,12 +2795,15 @@ void QCamera3HardwareInterface::handleBatchMetadata(
  * PARAMETERS : @metadata_buf: metadata buffer
  *              @free_and_bufdone_meta_buf: Buf done on the meta buf and free
  *                 the meta buf in this method
+ *              @firstMetadataInBatch: Boolean to indicate whether this is the
+ *                  first metadata in a batch. Valid only for batch mode
  *
  * RETURN     :
  *
  *==========================================================================*/
 void QCamera3HardwareInterface::handleMetadataWithLock(
-    mm_camera_super_buf_t *metadata_buf, bool free_and_bufdone_meta_buf)
+    mm_camera_super_buf_t *metadata_buf, bool free_and_bufdone_meta_buf,
+    bool firstMetadataInBatch)
 {
     ATRACE_CALL();
     if ((mFlushPerf) || (ERROR == mState) || (DEINIT == mState)) {
@@ -3009,7 +3020,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
             result.result = translateFromHalMetadata(metadata,
                     i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
-                    i->capture_intent, internalPproc, i->fwkCacMode);
+                    i->capture_intent, internalPproc, i->fwkCacMode,
+                    firstMetadataInBatch);
 
             saveExifParams(metadata);
 
@@ -3533,6 +3545,23 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 LOGE("Failed to disable CDS for HFR mode");
 
         }
+
+        if (m_debug_avtimer || meta.exists(QCAMERA3_USE_AV_TIMER)) {
+            uint8_t* use_av_timer = NULL;
+
+            if (m_debug_avtimer){
+                use_av_timer = &m_debug_avtimer;
+            }
+            else{
+                use_av_timer =
+                    meta.find(QCAMERA3_USE_AV_TIMER).data.u8;
+            }
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_USE_AV_TIMER, *use_av_timer)) {
+                rc = BAD_VALUE;
+            }
+        }
+
         setMobicat();
 
         /* Set fps and hfr mode while sending meta stream info so that sensor
@@ -3552,6 +3581,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
 
+
         //TODO: validate the arguments, HSV scenemode should have only the
         //advertised fps ranges
 
@@ -3567,6 +3597,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     mStreamConfigInfo.postprocess_mask[i],
                     mStreamConfigInfo.format[i]);
         }
+
         rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
                     mParameters);
         if (rc < 0) {
@@ -3687,6 +3718,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 (mLinkedCameraId != mCameraId) ) {
                 LOGE("Dualcam: mLinkedCameraId %d is invalid, current cam id = %d",
                     mLinkedCameraId, mCameraId);
+                pthread_mutex_unlock(&mMutex);
                 goto error_exit;
             }
         }
@@ -3704,6 +3736,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (sessionId[mLinkedCameraId] == 0xDEADBEEF) {
                 LOGE("Dualcam: Invalid Session Id ");
                 pthread_mutex_unlock(&gCamLock);
+                pthread_mutex_unlock(&mMutex);
                 goto error_exit;
             }
 
@@ -3723,6 +3756,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     mCameraHandle->camera_handle, m_pRelCamSyncBuf);
             if (rc < 0) {
                 LOGE("Dualcam: link failed");
+                pthread_mutex_unlock(&mMutex);
                 goto error_exit;
             }
         }
@@ -3923,6 +3957,7 @@ no_error:
             if(ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_META_FRAME_NUMBER, request->frame_number)) {
                 LOGE("Failed to set the frame number in the parameters");
+                pthread_mutex_unlock(&mMutex);
                 return BAD_VALUE;
             }
         }
@@ -4086,17 +4121,6 @@ no_error:
             }
         } else if (output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
             bool needMetadata = false;
-
-            if (m_perfLock.isPerfLockTimedAcquired()) {
-                if (m_perfLock.isTimerReset())
-                {
-                    m_perfLock.lock_rel_timed();
-                    m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
-                }
-            } else {
-                m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
-            }
-
             QCamera3YUVChannel *yuvChannel = (QCamera3YUVChannel *)channel;
             rc = yuvChannel->request(output.buffer, frameNumber,
                     pInputBuffer,
@@ -4114,19 +4138,6 @@ no_error:
         } else {
             LOGD("request with buffer %p, frame_number %d",
                   output.buffer, frameNumber);
-            /* Set perf lock for API-2 zsl */
-            if (IS_USAGE_ZSL(output.stream->usage)) {
-                if (m_perfLock.isPerfLockTimedAcquired()) {
-                    if (m_perfLock.isTimerReset())
-                    {
-                        m_perfLock.lock_rel_timed();
-                        m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
-                    }
-                } else {
-                    m_perfLock.lock_acq_timed(BURST_REPROCESS_PERF_TIME_OUT);
-                }
-            }
-
             rc = channel->request(output.buffer, frameNumber);
             if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())
                     && mBatchSize) {
@@ -4198,9 +4209,6 @@ no_error:
         minInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
         maxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
     }
-    if (m_perfLock.isPerfLockTimedAcquired() && m_perfLock.isTimerReset())
-        m_perfLock.lock_rel_timed();
-
     while ((mPendingLiveRequest >= minInFlightRequests) && !pInputBuffer &&
             (mState != ERROR) && (mState != DEINIT)) {
         if (!isValidTimeout) {
@@ -4575,7 +4583,8 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
             hdrPlusPerfLock(metadata_buf);
             pthread_mutex_lock(&mMutex);
             handleMetadataWithLock(metadata_buf,
-                    true /* free_and_bufdone_meta_buf */);
+                    true /* free_and_bufdone_meta_buf */,
+                    false /* first frame of batch metadata */ );
             pthread_mutex_unlock(&mMutex);
         }
     } else if (isInputBuffer) {
@@ -4745,10 +4754,18 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                  uint8_t pipeline_depth,
                                  uint8_t capture_intent,
                                  bool pprocDone,
-                                 uint8_t fwk_cacMode)
+                                 uint8_t fwk_cacMode,
+                                 bool firstMetadataInBatch)
 {
     CameraMetadata camMetadata;
     camera_metadata_t *resultMetadata;
+
+    if (mBatchSize && !firstMetadataInBatch) {
+        /* In batch mode, use cached metadata from the first metadata
+            in the batch */
+        camMetadata.clear();
+        camMetadata = mCachedMetadata;
+    }
 
     if (jpegMetadata.entryCount())
         camMetadata.append(jpegMetadata);
@@ -4757,6 +4774,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     camMetadata.update(ANDROID_REQUEST_ID, &request_id, 1);
     camMetadata.update(ANDROID_REQUEST_PIPELINE_DEPTH, &pipeline_depth, 1);
     camMetadata.update(ANDROID_CONTROL_CAPTURE_INTENT, &capture_intent, 1);
+
+    if (mBatchSize && !firstMetadataInBatch) {
+        /* In batch mode, use cached metadata instead of parsing metadata buffer again */
+        resultMetadata = camMetadata.release();
+        return resultMetadata;
+    }
 
     IF_META_AVAILABLE(uint32_t, frame_number, CAM_INTF_META_FRAME_NUMBER, metadata) {
         int64_t fwk_frame_number = *frame_number;
@@ -5580,6 +5603,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
     camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB,
             (uint8_t *)&ddm_info, sizeof(cam_ddm_info_t));
+
+    /* In batch mode, cache the first metadata in the batch */
+    if (mBatchSize && firstMetadataInBatch) {
+        mCachedMetadata.clear();
+        mCachedMetadata = camMetadata;
+    }
 
     resultMetadata = camMetadata.release();
     return resultMetadata;
@@ -9424,22 +9453,6 @@ int QCamera3HardwareInterface::translateToHalMetadata
         ADD_SET_PARAM_ARRAY_TO_BATCH(hal_metadata, CAM_INTF_META_PRIVATE_DATA,
                 privatedata.data.i32, privatedata.count, count);
         if (privatedata.count != count) {
-            rc = BAD_VALUE;
-        }
-    }
-
-    if (m_debug_avtimer || frame_settings.exists(QCAMERA3_USE_AV_TIMER)) {
-        uint8_t* use_av_timer = NULL;
-
-        if (m_debug_avtimer){
-            use_av_timer = &m_debug_avtimer;
-        }
-        else{
-            use_av_timer =
-                frame_settings.find(QCAMERA3_USE_AV_TIMER).data.u8;
-        }
-
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_USE_AV_TIMER, *use_av_timer)) {
             rc = BAD_VALUE;
         }
     }

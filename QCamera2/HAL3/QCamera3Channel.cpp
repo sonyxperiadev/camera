@@ -2916,6 +2916,8 @@ int32_t QCamera3YUVChannel::handleOfflinePpCallback(uint32_t resultFrameNumber,
             return BAD_VALUE;
         }
         mFreeHeapBufferList.push_back(bufferIndex);
+        mMemory.markFrameNumber(bufferIndex, -1);
+        //Move heap buffer into free pool and invalidate the frame number
         ppInfo = mOfflinePpInfoList.erase(ppInfo);
 
         // Return pending buffer callbacks
