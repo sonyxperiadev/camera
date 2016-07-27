@@ -731,6 +731,10 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.stream_info->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     stream->s_config.stream_info->fmt = DEFAULT_PREVIEW_FORMAT;
 
+    if (test_obj->enable_EZTune) {
+        stream->s_config.stream_info->pp_config.feature_mask = CAM_QCOM_FEATURE_EZTUNE;
+    }
+
     stream->s_config.stream_info->dim.width = preview_dim.width;
     stream->s_config.stream_info->dim.height = preview_dim.height;
 

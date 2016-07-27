@@ -240,6 +240,7 @@ typedef struct {
     int32_t reproc_sharpness;
     cam_denoise_param_t reproc_wnr;
     int8_t enable_CAC;
+    int8_t enable_EZTune;
     mm_camera_queue_t pp_frames;
     mm_camera_stream_t *reproc_stream;
     metadata_buffer_t *metadata;
@@ -315,6 +316,7 @@ typedef enum {
     MM_CAMERA_LIB_FPS_RANGE,
     MM_CAMERA_LIB_WNR_ENABLE,
     MM_CAMERA_LIB_SET_TINTLESS,
+    MM_CAMERA_LIB_EZTUNE_ENABLE,
 } mm_camera_lib_commands;
 
 typedef struct {

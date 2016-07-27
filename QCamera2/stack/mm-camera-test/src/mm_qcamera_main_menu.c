@@ -83,14 +83,14 @@
 #define CAMERA_SHARPNESS_STEP 1
 
 const CAMERA_MAIN_MENU_TBL_T camera_main_menu_tbl[] = {
-  {START_PREVIEW,               "Start preview"},
+  {START_PREVIEW,              "Start preview"},
   {STOP_PREVIEW,               "Stop preview/video"},
   {SET_WHITE_BALANCE,          "Set white balance mode"},
   {SET_TINTLESS_ENABLE,        "Set Tintless Enable"},
   {SET_TINTLESS_DISABLE,       "Set Tintless Disable"},
   {SET_EXP_METERING,           "Set exposure metering mode"},
   {GET_CTRL_VALUE,             "Get control value menu"},
-  {TOGGLE_AFR,                 "Toggle auto frame rate. Default fixed frame rate"},
+  {TOGGLE_EZTUNE,              "Toggle EZtune. Default EZTune Off"},
   {SET_ISO,                    "ISO changes."},
   {BRIGHTNESS_GOTO_SUBMENU,    "Brightness changes."},
   {CONTRAST_GOTO_SUBMENU,      "Contrast changes."},
@@ -345,9 +345,9 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
           next_menu_id = MENU_ID_SATURATIONCHANGE;
           break;
 
-        case TOGGLE_AFR:
-          * action_id_ptr = ACTION_TOGGLE_AFR;
-          LOGD("next_menu_id = MENU_ID_TOGGLEAFR = %d\n", next_menu_id);
+        case TOGGLE_EZTUNE:
+          * action_id_ptr = ACTION_TOGGLE_EZTUNE;
+          LOGD("next_menu_id = MENU_ID_TOGGLE EZTUNE = %d\n", next_menu_id);
           break;
 
         case SET_ISO:
@@ -1304,7 +1304,6 @@ int toggle_afr () {
 #endif
   return 0;
 }
-
 int set_zoom (mm_camera_lib_handle *lib_handle, int zoom_action_param) {
 
     if (zoom_action_param == ZOOM_IN) {
@@ -1662,6 +1661,7 @@ static int submain()
     int action_param;
     uint8_t previewing = 0;
     int isZSL = 0;
+    int isezTune = 0;
     uint8_t wnr_enabled = 0;
     mm_camera_lib_handle lib_handle;
     int num_cameras;
@@ -1722,9 +1722,6 @@ static int submain()
             goto ERROR;
         }
     }
-    /*start the eztune server*/
-    LOGH("Starting eztune Server \n");
-    eztune_server_start(&lib_handle);
 
     do {
         print_current_menu (current_menu_id);
@@ -1844,6 +1841,26 @@ static int submain()
             case ACTION_TOGGLE_AFR:
                 LOGD("Select for auto frame rate toggling\n");
                 toggle_afr();
+                break;
+
+            case ACTION_TOGGLE_EZTUNE:
+                LOGE("Select for EzTune");
+                printf("EZTUNE Toggle\n");
+                isezTune = !isezTune;
+                if (isezTune) {
+                    printf("EZ TUNE On !!!");
+                } else {
+                    printf("EZ TUNE Off !!!");
+                }
+
+                rc = mm_camera_lib_send_command(&lib_handle,
+                                      MM_CAMERA_LIB_EZTUNE_ENABLE,
+                                      &isezTune,
+                                      NULL);
+                if (rc != MM_CAMERA_OK) {
+                    LOGE("mm_camera_lib_send_command() err=%d\n",  rc);
+                    goto ERROR;
+                }
                 break;
 
             case ACTION_SET_ISO:
