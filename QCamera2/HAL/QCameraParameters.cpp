@@ -975,7 +975,8 @@ QCameraParameters::QCameraParameters()
       m_bInstantAEC(false),
       m_bInstantCapture(false),
       mAecFrameBound(0),
-      mAecSkipDisplayFrameBound(0)
+      mAecSkipDisplayFrameBound(0),
+      m_bQuadraCfa(false)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1106,7 +1107,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bInstantAEC(false),
     m_bInstantCapture(false),
     mAecFrameBound(0),
-    mAecSkipDisplayFrameBound(0)
+    mAecSkipDisplayFrameBound(0),
+    m_bQuadraCfa(false)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -3913,6 +3915,75 @@ int32_t QCameraParameters::setHDRNeed1x(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : setQuadraCFA
+ *
+ * DESCRIPTION: set Quadra CFA mode
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
+{
+
+    int32_t width = 0,height = 0;
+    bool prev_quadracfa = getQuadraCfa();
+    int32_t rc = NO_ERROR;
+    int32_t value;
+
+    if (!m_pCapability->is_remosaic_lib_present) {
+        LOGD("Quadra CFA mode not supported");
+        return rc;
+    }
+
+    /*Checking if the user selected dim is more than maximum dim supported by
+    Quadra sensor in normal mode. If more then switch to Quadra CFA mode else
+    remain in normal zsl mode */
+    params.getPictureSize(&width, &height);
+    if (width > m_pCapability->raw_dim[0].width &&
+        height > m_pCapability->raw_dim[0].height) {
+        LOGI("Quadra CFA mode selected");
+        m_bQuadraCfa = TRUE;
+    } else {
+        LOGI("Quadra CFA mode not selected");
+        m_bQuadraCfa = FALSE;
+    }
+    value = m_bQuadraCfa;
+    if (prev_quadracfa == m_bQuadraCfa) {
+        LOGD("No change in Quadra CFA mode");
+    } else {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_QUADRA_CFA, value)) {
+            rc = BAD_VALUE;
+            LOGE("Error sending Quadra CFA set param to modules");
+            return rc;
+        }
+
+        if (m_bZslMode && m_bQuadraCfa) {
+            m_bNeedRestart = TRUE;
+            setZslMode(FALSE);
+        }
+
+        if (m_bQuadraCfa) {
+            setOfflineRAW(TRUE);
+        } else  {
+            setOfflineRAW(FALSE);
+            const char *str_val  = params.get(KEY_QC_ZSL);
+            int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
+                    str_val);
+            if (value != NAME_NOT_FOUND && value) {
+                rc = setZslMode(value);
+                // ZSL mode changed, need restart preview
+                m_bNeedRestart = true;
+            }
+        }
+    }
+    LOGH("Quadra CFA mode = %d", m_bQuadraCfa);
+    return rc;
+}
+/*===========================================================================
  * FUNCTION   : setSeeMore
  *
  * DESCRIPTION: set see more (llvd) from user setting
@@ -5114,6 +5185,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     if ((rc = setLongshotParam(params)))                final_rc = rc;
     if ((rc = setDualLedCalibration(params)))           final_rc = rc;
 
+    setQuadraCfa(params);
     setVideoBatchSize();
     setLowLightCapture();
 
@@ -10025,7 +10097,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_RAW:
-        if ((isRdiMode()) || (getofflineRAW())) {
+        if ((isRdiMode()) || (getofflineRAW())|| (getQuadraCfa())) {
             format = m_pCapability->rdi_mode_stream_fmt;
         } else if (mPictureFormat >= CAM_FORMAT_YUV_RAW_8BIT_YUYV) {
             format = (cam_format_t)mPictureFormat;
@@ -10041,8 +10113,12 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
                     format);
         }
         break;
-    case CAM_STREAM_TYPE_METADATA:
     case CAM_STREAM_TYPE_OFFLINE_PROC:
+        if (getQuadraCfa()) {
+            format = m_pCapability->quadra_cfa_format;
+        }
+        break;
+    case CAM_STREAM_TYPE_METADATA:
     case CAM_STREAM_TYPE_DEFAULT:
     default:
         break;
@@ -10357,6 +10433,19 @@ int QCameraParameters::getPreviewHalPixelFormat()
     return halPixelFormat;
 }
 
+/*===========================================================================
+ * FUNCTION   : getQuadraCFA
+ *
+ * DESCRIPTION: get QuadraCFA mode
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : none
+ *==========================================================================*/
+bool QCameraParameters::getQuadraCfa()
+{
+    return m_bQuadraCfa;
+}
 /*===========================================================================
  * FUNCTION   : getthumbnailSize
  *
@@ -11461,12 +11550,17 @@ int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
     // If offline raw is enabled, check the dimensions from Picture size since snapshot
     // stream is not added but final JPEG is required of snapshot size
     if (getofflineRAW()) {
-        getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, pic_dim);
-        if (pic_dim.width > max_dim.width) {
-            max_dim.width = pic_dim.width;
-        }
-        if (pic_dim.height > max_dim.height) {
-            max_dim.height = pic_dim.height;
+        if (getQuadraCfa()) {
+            max_dim.width = m_pCapability->quadra_cfa_dim[0].width;
+            max_dim.height = m_pCapability->quadra_cfa_dim[0].height;
+        } else {
+            getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, pic_dim);
+            if (pic_dim.width > max_dim.width) {
+                max_dim.width = pic_dim.width;
+            }
+            if (pic_dim.height > max_dim.height) {
+                max_dim.height = pic_dim.height;
+            }
         }
     }
 
@@ -11508,7 +11602,11 @@ int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
     LOGH("RAW Dimension = %d X %d",raw_dim.width,raw_dim.height);
     if (raw_dim.width == 0 || raw_dim.height == 0) {
         LOGW("Error getting RAW size. Setting to Capability value");
-        raw_dim = m_pCapability->raw_dim[0];
+        if (getQuadraCfa()) {
+            raw_dim = m_pCapability->quadra_cfa_dim[0];
+        } else {
+            raw_dim = m_pCapability->raw_dim[0];
+        }
     }
     setRawSize(raw_dim);
     return rc;
@@ -12947,14 +13045,20 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     if ((!raw_capture) && ((getofflineRAW() && !getRecordingHintValue())
             || (raw_yuv))) {
         cam_dimension_t max_dim = {0,0};
-        // Find the Maximum dimension admong all the streams
-        for (uint32_t j = 0; j < stream_config_info.num_streams; j++) {
-            if (stream_config_info.stream_sizes[j].width > max_dim.width) {
-                max_dim.width = stream_config_info.stream_sizes[j].width;
+
+        if (!getQuadraCfa()) {
+            // Find the Maximum dimension admong all the streams
+            for (uint32_t j = 0; j < stream_config_info.num_streams; j++) {
+                if (stream_config_info.stream_sizes[j].width > max_dim.width) {
+                    max_dim.width = stream_config_info.stream_sizes[j].width;
+                }
+                if (stream_config_info.stream_sizes[j].height > max_dim.height) {
+                    max_dim.height = stream_config_info.stream_sizes[j].height;
+                }
             }
-            if (stream_config_info.stream_sizes[j].height > max_dim.height) {
-                max_dim.height = stream_config_info.stream_sizes[j].height;
-            }
+        } else {
+            max_dim.width = m_pCapability->quadra_cfa_dim[0].width;
+            max_dim.height = m_pCapability->quadra_cfa_dim[0].height;
         }
         LOGH("Max Dimension = %d X %d", max_dim.width, max_dim.height);
         updateRAW(max_dim);
@@ -13065,7 +13169,7 @@ bool QCameraParameters::needThumbnailReprocess(cam_feature_mask_t *pFeatureMask)
             isOptiZoomEnabled() || isUbiRefocus() ||
             isStillMoreEnabled() ||
             (isHDREnabled() && !isHDRThumbnailProcessNeeded())
-            || isUBWCEnabled()) {
+            || isUBWCEnabled()|| getQuadraCfa()) {
         *pFeatureMask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_UBIFOCUS;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_REFOCUS;
@@ -13119,6 +13223,10 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
             numOfBufs += m_pCapability->stillmore_settings_need.burst_count - 1;
         }
     } else if (isOEMFeatEnabled()) {
+        numOfBufs += 1;
+    }
+
+    if (getQuadraCfa()) {
         numOfBufs += 1;
     }
 
@@ -13574,6 +13682,11 @@ bool QCameraParameters::isMultiPassReprocessing()
     char value[PROPERTY_VALUE_MAX];
     int multpass = 0;
 
+    if (getQuadraCfa()) {
+        multpass = TRUE;
+        return TRUE;
+    }
+
     property_get("persist.camera.multi_pass", value, "0");
     multpass = atoi(value);
 
@@ -13607,6 +13720,10 @@ void QCameraParameters::setReprocCount()
             && (getBurstCountForAdvancedCapture()
             == getNumOfSnapshots())) {
         LOGD("2 Pass postprocessing enabled");
+        mTotalPPCount++;
+    }
+
+    if (getQuadraCfa()) {
         mTotalPPCount++;
     }
 }

@@ -7514,6 +7514,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
         int8_t curIndex, bool multipass)
 {
     int32_t rc = NO_ERROR;
+    int32_t feature_set = 0;
 
     if (multipass) {
         LOGW("Multi pass enabled. Total Pass = %d, cur index = %d",
@@ -7530,7 +7531,22 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
     pp_config.cur_reproc_count = curIndex + 1;
     pp_config.total_reproc_count = mParameters.getReprocCount();
 
-    switch(curIndex) {
+    //Checking what feature mask to enable
+    if (curIndex == 0) {
+        if (mParameters.getQuadraCfa()) {
+            feature_set = 2;
+        } else {
+            feature_set = 0;
+        }
+    } else if (curIndex == 1) {
+        if (mParameters.getQuadraCfa()) {
+            feature_set = 0;
+        } else {
+            feature_set = 1;
+        }
+    }
+
+    switch(feature_set) {
         case 0:
             //Configure feature mask for first pass of reprocessing
             //check if any effects are enabled
@@ -7705,9 +7721,15 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
             pp_config.feature_mask &= ~CAM_QCOM_FEATURE_METADATA_PROCESSING;
             break;
 
+        case 2:
+            //Setting feature for Quadra CFA
+            pp_config.feature_mask |= CAM_QCOM_FEATURE_QUADRA_CFA;
+            break;
+
     }
+
     LOGH("pproc feature mask set = %llx pass count = %d",
-             pp_config.feature_mask, curIndex);
+        pp_config.feature_mask, curIndex);
     return rc;
 }
 
@@ -10234,7 +10256,7 @@ bool QCamera2HardwareInterface::isRegularCapture()
         !isLongshotEnabled() &&
         !mParameters.isHDREnabled() &&
         !mParameters.getRecordingHintValue() &&
-        !isZSLMode() && !mParameters.getofflineRAW()) {
+        !isZSLMode() && (!mParameters.getofflineRAW()|| mParameters.getQuadraCfa())) {
             ret = true;
     }
     return ret;
