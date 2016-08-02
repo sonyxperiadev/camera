@@ -26,7 +26,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
+/*for test */
 #ifndef __QCAMERA_INTF_H__
 #define __QCAMERA_INTF_H__
 
