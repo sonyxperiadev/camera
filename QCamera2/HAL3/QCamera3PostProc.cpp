@@ -1291,10 +1291,6 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         encodeParam.main_dim.dst_dim = dst_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
 
-        if (needJpegExifRotation) {
-            encodeParam.thumb_rotation = (uint32_t)jpeg_settings->jpeg_orientation;
-        }
-
         LOGI("Src Buffer cnt = %d, res = %dX%d len = %d rot = %d "
             "src_dim = %dX%d dst_dim = %dX%d",
             encodeParam.num_src_bufs,
@@ -1685,10 +1681,6 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         }
         encodeParam.main_dim.dst_dim = dst_dim;
         encodeParam.thumb_dim.dst_dim = jpeg_settings->thumbnail_size;
-
-        if (needJpegExifRotation) {
-            encodeParam.thumb_rotation = (uint32_t)jpeg_settings->jpeg_orientation;
-        }
 
         LOGI("Src Buffer cnt = %d, res = %dX%d len = %d rot = %d "
             "src_dim = %dX%d dst_dim = %dX%d",
