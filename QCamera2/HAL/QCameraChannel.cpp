@@ -1053,8 +1053,13 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             // Enable CPP high performance mode to put it in turbo frequency mode for
             // burst/longshot/HDR snapshot cases
             streamInfo->perf_mode = CAM_PERF_HIGH_PERFORMANCE;
-            if (param.getofflineRAW() && pStream->isTypeOf(CAM_STREAM_TYPE_RAW)) {
-                streamInfo->fmt = CAM_FORMAT_YUV_420_NV21;
+            if (param.getofflineRAW() && (pStream->isTypeOf(CAM_STREAM_TYPE_RAW)
+                    || pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW))) {
+                if (pp_featuremask.feature_mask & CAM_QCOM_FEATURE_QUADRA_CFA) {
+                    param.getStreamFormat(CAM_STREAM_TYPE_OFFLINE_PROC, streamInfo->fmt);
+                } else {
+                    streamInfo->fmt = CAM_FORMAT_YUV_420_NV21;
+                }
             } else {
                 rc = pStream->getFormat(streamInfo->fmt);
             }
@@ -1075,8 +1080,14 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                     rc = param.getStreamDimension(CAM_STREAM_TYPE_OFFLINE_PROC,
                             streamInfo->dim);
                 } else if ((param.getofflineRAW()) &&
-                        (pStream->isTypeOf(CAM_STREAM_TYPE_RAW))) {
-                    param.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,streamInfo->dim);
+                        ((pStream->isTypeOf(CAM_STREAM_TYPE_RAW)) ||
+                        (pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW)))) {
+                         if ((param.getQuadraCfa()) &&
+                             (pp_featuremask.feature_mask & CAM_QCOM_FEATURE_QUADRA_CFA)) {
+                             rc = pStream->getFrameDimension(streamInfo->dim);
+                         } else {
+                             param.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,streamInfo->dim);
+                         }
                 } else {
                     rc = pStream->getFrameDimension(streamInfo->dim);
                 }

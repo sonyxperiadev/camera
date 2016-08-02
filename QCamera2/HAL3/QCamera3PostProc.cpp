@@ -1207,6 +1207,10 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
     }
 
     hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+    if (hal_obj == NULL) {
+        LOGE("hal_obj is NULL, Error");
+        return BAD_VALUE;
+    }
 
     if (mJpegClientHandle <= 0) {
         LOGE("Error: bug here, mJpegClientHandle is 0");
@@ -1546,10 +1550,14 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     QCamera3HardwareInterface* hal_obj = NULL;
     mm_jpeg_debug_exif_params_t *exif_debug_params = NULL;
     if (m_parent != NULL) {
-       hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+        hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+        if (hal_obj == NULL) {
+            LOGE("hal_obj is NULL, Error");
+            return BAD_VALUE;
+        }
     } else {
-       LOGE("m_parent is NULL, Error");
-       return BAD_VALUE;
+        LOGE("m_parent is NULL, Error");
+        return BAD_VALUE;
     }
     bool needJpegExifRotation = false;
 
