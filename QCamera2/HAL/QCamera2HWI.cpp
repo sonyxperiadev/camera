@@ -8895,9 +8895,10 @@ bool QCamera2HardwareInterface::isCaptureShutterEnabled()
  *==========================================================================*/
 bool QCamera2HardwareInterface::needProcessPreviewFrame()
 {
-    return m_stateMachine.isPreviewRunning()
+    return ((m_stateMachine.isPreviewRunning()
             && mParameters.isDisplayFrameNeeded()
-            && !mParameters.isInstantAECEnabled();
+            && (!mParameters.isInstantAECEnabled()))
+            || isPreviewRestartEnabled());
 };
 
 /*===========================================================================
