@@ -538,4 +538,30 @@ int32_t QCamera3StreamMem::getHeapBufferIndex(uint32_t frameNumber)
     return index;
 }
 
+
+/*===========================================================================
+ * FUNCTION   : getBufferIndex
+ *
+ * DESCRIPTION: We use this to fetch the buffer index based on frameNumber
+ *
+ * PARAMETERS :
+ *   @frameNumber : frame Number
+ *
+ * RETURN     : int32_t buffer index
+ *              positive/zero  -- success
+ *              negative failure
+ *==========================================================================*/
+int32_t QCamera3StreamMem::getBufferIndex(uint32_t frameNumber)
+{
+    Mutex::Autolock lock(mLock);
+    int32_t index = mGrallocMem.getBufferIndex(frameNumber);
+
+    if (index < 0)
+        return mHeapMem.getBufferIndex(frameNumber);
+    else
+        return index;
+}
+
+
+
 }; //namespace qcamera

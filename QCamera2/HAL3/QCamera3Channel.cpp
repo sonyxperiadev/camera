@@ -943,6 +943,33 @@ void QCamera3YUVChannel::putStreamBufs()
 }
 
 /*===========================================================================
+ * FUNCTION   : timeoutFrame
+ *
+ * DESCRIPTION: Method to indicate to channel that a given frame has take too
+ *              long to be generated
+ *
+ * PARAMETERS : framenumber indicating the framenumber of the buffer timingout
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3ProcessingChannel::timeoutFrame(uint32_t frameNumber)
+{
+    int32_t bufIdx;
+
+    bufIdx = mMemory.getBufferIndex(frameNumber);
+
+    if (bufIdx < 0) {
+        LOGE("%s: Buffer not found for frame:%d", __func__, frameNumber);
+        return -1;
+    }
+
+    mStreams[0]->timeoutFrame(bufIdx);
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : request
  *
  * DESCRIPTION: handle the request - either with an input buffer or a direct
