@@ -321,6 +321,7 @@ private:
 
     void addToPPFeatureMask(int stream_format, uint32_t stream_idx);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
+    void updateTimeStampInPendingBuffers(uint32_t frameNumber, nsecs_t timestamp);
 
     void enablePowerHint();
     void disablePowerHint();
