@@ -49,7 +49,7 @@ extern "C" {
 
 #define CAMERA_TRACE_BUF 32
 
-#define ATRACE_TAG ATRACE_TAG_CAMERA
+#define ATRACE_TAG ATRACE_TAG_ALWAYS
 
 //to enable only KPI logs
 #define KPI_ATRACE_BEGIN(name) ({\
