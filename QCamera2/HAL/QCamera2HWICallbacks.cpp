@@ -2586,7 +2586,7 @@ void QCamera2HardwareInterface::dumpJpegToFile(const void *data,
     memset(buf, 0, sizeof(buf));
     memset(&dim, 0, sizeof(dim));
 
-    if(((enabled & QCAMERA_DUMP_FRM_JPEG) && data) ||
+    if(((enabled & QCAMERA_DUMP_FRM_OUTPUT_JPEG) && data) ||
         ((true == m_bIntJpegEvtPending) && data)) {
         frm_num = ((enabled & 0xffff0000) >> 16);
         if(frm_num == 0) {
@@ -2812,7 +2812,7 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                                     dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
                         }
                         break;
-                    case QCAMERA_DUMP_FRM_SNAPSHOT:
+                    case QCAMERA_DUMP_FRM_INPUT_JPEG:
                         {
                             if (!mParameters.isPostProcScaling()) {
                                 mParameters.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, dim);
@@ -2853,7 +2853,7 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                                     dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
                         }
                         break;
-                    case QCAMERA_DUMP_FRM_JPEG:
+                    case QCAMERA_DUMP_FRM_OUTPUT_JPEG:
                         {
                             mParameters.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, dim);
                             snprintf(buf, sizeof(buf), "%dj_%dx%d_%d.yuv",

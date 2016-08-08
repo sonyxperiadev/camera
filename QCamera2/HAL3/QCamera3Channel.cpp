@@ -516,7 +516,7 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
             mDumpSkipCnt = 1;
         }
         if (mDumpSkipCnt % mSkipMode == 0) {
-            if (mDumpFrmCnt <= mFrmNum) {
+            if (mDumpFrmCnt < mFrmNum) {
                 /* Note that the image dimension will be the unrotated stream dimension.
                 * If you feel that the image would have been rotated during reprocess
                 * then swap the dimensions while opening the file
@@ -530,7 +530,7 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
                         snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"v_%d_%d_%dx%d.yuv",
                             counter, frame->frame_idx, dim.width, dim.height);
                     break;
-                    case QCAMERA_DUMP_FRM_SNAPSHOT:
+                    case QCAMERA_DUMP_FRM_INPUT_JPEG:
                         snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"s_%d_%d_%dx%d.yuv",
                             counter, frame->frame_idx, dim.width, dim.height);
                     break;
@@ -540,6 +540,10 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
                     break;
                     case QCAMERA_DUMP_FRM_CALLBACK:
                         snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"c_%d_%d_%dx%d.yuv",
+                            counter, frame->frame_idx, dim.width, dim.height);
+                    break;
+                    case QCAMERA_DUMP_FRM_OUTPUT_JPEG:
+                        snprintf(buf, sizeof(buf), QCAMERA_DUMP_FRM_LOCATION"j_%d_%d_%dx%d.jpg",
                             counter, frame->frame_idx, dim.width, dim.height);
                     break;
                     default :
@@ -552,16 +556,21 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
                 if (file_fd >= 0) {
                     void *data = NULL;
                     fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-                    for (uint32_t i = 0; i < offset.num_planes; i++) {
-                        uint32_t index = offset.mp[i].offset;
-                        if (i > 0) {
-                            index += offset.mp[i-1].len;
-                        }
-                        for (int j = 0; j < offset.mp[i].height; j++) {
-                            data = (void *)((uint8_t *)frame->buffer + index);
-                            written_len += write(file_fd, data,
-                                    (size_t)offset.mp[i].width);
-                            index += (uint32_t)offset.mp[i].stride;
+                    if( dump_type == QCAMERA_DUMP_FRM_OUTPUT_JPEG ) {
+                        written_len = write(file_fd, frame->buffer, frame->frame_len);
+                    }
+                    else {
+                        for (uint32_t i = 0; i < offset.num_planes; i++) {
+                            uint32_t index = offset.mp[i].offset;
+                            if (i > 0) {
+                                index += offset.mp[i-1].len;
+                            }
+                            for (int j = 0; j < offset.mp[i].height; j++) {
+                                data = (void *)((uint8_t *)frame->buffer + index);
+                                written_len += write(file_fd, data,
+                                        (size_t)offset.mp[i].width);
+                                index += (uint32_t)offset.mp[i].stride;
+                            }
                         }
                     }
                     LOGH("written number of bytes %ld\n", written_len);
@@ -3009,6 +3018,22 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             if (JPEG_JOB_STATUS_DONE == status) {
                 jpegHeader.jpeg_size = (uint32_t)p_output->buf_filled_len;
                 char* jpeg_buf = (char *)p_output->buf_vaddr;
+                cam_frame_len_offset_t offset;
+                memset(&offset, 0, sizeof(cam_frame_len_offset_t));
+                mm_camera_buf_def_t *jpeg_dump_buffer = NULL;
+                cam_dimension_t dim;
+                dim.width = obj->mCamera3Stream->width;
+                dim.height = obj->mCamera3Stream->height;
+                jpeg_dump_buffer = (mm_camera_buf_def_t *)malloc(sizeof(mm_camera_buf_def_t));
+                if(!jpeg_dump_buffer) {
+                    LOGE("Could not allocate jpeg dump buffer");
+                } else {
+                    jpeg_dump_buffer->buffer = p_output->buf_vaddr;
+                    jpeg_dump_buffer->frame_len = p_output->buf_filled_len;
+                    jpeg_dump_buffer->frame_idx = obj->mMemory.getFrameNumber(bufIdx);
+                    obj->dumpYUV(jpeg_dump_buffer, dim, offset, QCAMERA_DUMP_FRM_OUTPUT_JPEG);
+                    free(jpeg_dump_buffer);
+                }
 
                 ssize_t maxJpegSize = -1;
 
@@ -3780,7 +3805,7 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
 
         stream->getFrameDimension(dim);
         stream->getFrameOffset(offset);
-        dumpYUV(frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_SNAPSHOT);
+        dumpYUV(frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_INPUT_JPEG);
         /* Since reprocessing is done, send the callback to release the input buffer */
         if (mChannelCB) {
             mChannelCB(NULL, NULL, resultFrameNumber, true, mUserData);

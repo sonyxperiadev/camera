@@ -2143,7 +2143,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
 
     // dump snapshot frame if enabled
     m_parent->dumpFrameToFile(main_stream, main_frame,
-            QCAMERA_DUMP_FRM_SNAPSHOT, (char *)"CPP");
+            QCAMERA_DUMP_FRM_INPUT_JPEG, (char *)"CPP");
 
     // send upperlayer callback for raw image
     camera_memory_t *mem = memObj->getMemory(main_frame->buf_idx, false);
@@ -2624,7 +2624,7 @@ int32_t QCameraPostProcessor::processRawImageImpl(mm_camera_super_buf_t *recvd_f
         if (frame->stream_type == CAM_STREAM_TYPE_SNAPSHOT ||
             pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
             // for YUV422 NV16 case
-            m_parent->dumpFrameToFile(pStream, frame, QCAMERA_DUMP_FRM_SNAPSHOT);
+            m_parent->dumpFrameToFile(pStream, frame, QCAMERA_DUMP_FRM_INPUT_JPEG);
         } else {
             //Received RAW snapshot taken notification
             m_parent->dumpFrameToFile(pStream, frame, QCAMERA_DUMP_FRM_RAW);
