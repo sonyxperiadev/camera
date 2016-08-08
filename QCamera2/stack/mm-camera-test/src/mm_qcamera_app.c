@@ -1555,7 +1555,11 @@ ERROR:
     return rc;
 }
 
-
+int setEZTune(mm_camera_test_obj_t *test_obj, uint8_t enable)
+{
+    test_obj->enable_EZTune = enable;
+    return 0;
+}
 /** tuneserver_capture
  *    @lib_handle: the camera handle object
  *    @dim: snapshot dimensions
@@ -1878,14 +1882,26 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
     camera_cap = (cam_capability_t *) handle->test_obj.cap_buf.mem_info.data;
 
     switch(cmd) {
-        case MM_CAMERA_LIB_FPS_RANGE:
-            if ( NULL != in_data ) {
-                cam_fps_range_t range = *(( cam_fps_range_t * )in_data);
-                rc = setFPSRange(&handle->test_obj, range);
-                if (rc != MM_CAMERA_OK) {
-                        LOGE("setFPSRange() err=%d\n",
+        case MM_CAMERA_LIB_EZTUNE_ENABLE:
+            if ( NULL != in_data) {
+                int enable_eztune = *(( int * )in_data);
+                if ( ( enable_eztune != handle->test_obj.enable_EZTune) &&
+                        handle->stream_running ) {
+                    rc = mm_camera_lib_stop_stream(handle);
+                    if (rc != MM_CAMERA_OK) {
+                        LOGE("mm_camera_lib_stop_stream() err=%d\n",
                                     rc);
                         goto EXIT;
+                    }
+                    handle->test_obj.enable_EZTune= enable_eztune;
+                    rc = mm_camera_lib_start_stream(handle);
+                    if (rc != MM_CAMERA_OK) {
+                        LOGE("mm_camera_lib_start_stream() err=%d\n",
+                                    rc);
+                        goto EXIT;
+                    }
+                } else {
+                    handle->test_obj.enable_EZTune= enable_eztune;
                 }
             }
             break;
