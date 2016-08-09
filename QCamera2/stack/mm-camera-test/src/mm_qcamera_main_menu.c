@@ -243,6 +243,8 @@ int brightness = CAMERA_DEF_BRIGHTNESS;
 int contrast = CAMERA_DEF_CONTRAST;
 int saturation = CAMERA_DEF_SATURATION;
 int sharpness = CAMERA_DEF_SHARPNESS;
+int ev_numerator = 0;
+
 #else
 int brightness = 0;
 int contrast = 0;
@@ -996,27 +998,20 @@ int increase_brightness (mm_camera_lib_handle *lib_handle) {
  * DESCRIPTION:
  * ===========================================================================*/
 
-int increase_EV (void) {
-#if 0
-   int rc = 0;
-   int32_t value = 0;
-   rc = cam_config_is_parm_supported(cam_id, MM_CAMERA_PARM_EXPOSURE_COMPENSATION);
-    if(!rc) {
-       printf("MM_CAMERA_PARM_EXPOSURE_COMPENSATION mode is not supported for this sensor");
-       return -1;
-    }
-    ev_numerator += 1;
+int increase_EV (mm_camera_lib_handle *lib_handle) {
+
+    ev_numerator += 4;
     if(ev_numerator >= EXPOSURE_COMPENSATION_MINIMUM_NUMERATOR &&
             ev_numerator <= EXPOSURE_COMPENSATION_MAXIMUM_NUMERATOR){
-        int16_t  numerator16 = (int16_t)(ev_numerator & 0x0000ffff);
-        uint16_t denominator16 = EXPOSURE_COMPENSATION_DENOMINATOR;
-        value = numerator16 << 16 | denominator16;
+
     } else {
        printf("Reached max EV.\n");
     }
-    return mm_app_set_config_parm(cam_id, MM_CAMERA_PARM_EXPOSURE_COMPENSATION, value);
-#endif
-  return 0;
+    printf("Increase EV to %d\n", ev_numerator);
+    return mm_camera_lib_send_command(lib_handle,
+                                       MM_CAMERA_LIB_EV,
+                                       &ev_numerator,
+                                       NULL);
 }
 
 /*===========================================================================
@@ -1024,27 +1019,21 @@ int increase_EV (void) {
  *
  * DESCRIPTION:
  * ===========================================================================*/
-int decrease_EV (void) {
-#if 0
-   int rc = 0;
-   int32_t  value = 0;
-   rc = cam_config_is_parm_supported(cam_id, MM_CAMERA_PARM_EXPOSURE_COMPENSATION);
-    if(!rc) {
-       printf("MM_CAMERA_PARM_EXPOSURE_COMPENSATION mode is not supported for this sensor");
-       return -1;
-    }
-    ev_numerator -= 1;
+int decrease_EV (mm_camera_lib_handle *lib_handle) {
+
+    ev_numerator -= 4;
     if(ev_numerator >= EXPOSURE_COMPENSATION_MINIMUM_NUMERATOR &&
             ev_numerator <= EXPOSURE_COMPENSATION_MAXIMUM_NUMERATOR){
-        int16_t  numerator16 = (int16_t)(ev_numerator & 0x0000ffff);
-        uint16_t denominator16 = EXPOSURE_COMPENSATION_DENOMINATOR;
-        value = numerator16 << 16 | denominator16;
+
     } else {
        printf("Reached min EV.\n");
     }
-    return mm_app_set_config_parm(cam_id, MM_CAMERA_PARM_EXPOSURE_COMPENSATION, value);
-#endif
-  return 0;
+    printf("Decrease EV to %d\n", ev_numerator);
+    return mm_camera_lib_send_command(lib_handle,
+                                       MM_CAMERA_LIB_EV,
+                                       &ev_numerator,
+                                       NULL);
+
 }
 
 /*===========================================================================
@@ -1823,12 +1812,12 @@ static int submain()
 
             case ACTION_EV_INCREASE:
                 LOGD("Selection for the EV increase\n");
-                increase_EV ();
+                increase_EV (&lib_handle);
                 break;
 
             case ACTION_EV_DECREASE:
                 LOGD("Selection for the EV decrease\n");
-                decrease_EV ();
+                decrease_EV (&lib_handle);
                 break;
 
             case ACTION_SATURATION_INCREASE:
