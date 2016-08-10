@@ -525,6 +525,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
             stream_config_info.buffer_info.min_buffers = MIN_INFLIGHT_REQUESTS;
             stream_config_info.buffer_info.max_buffers =
                     m_bIs4KVideo ? 0 : MAX_INFLIGHT_REQUESTS;
+            clear_metadata_buffer(mParameters);
             ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STREAM_INFO,
                     stream_config_info);
             int rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
@@ -1782,35 +1783,33 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
                 gCamCapability[mCameraId]->color_arrangement);
         cam_analysis_info_t analysisInfo;
-        rc = mCommon.getAnalysisInfo(
+        int32_t ret = NO_ERROR;
+        ret = mCommon.getAnalysisInfo(
                 FALSE,
                 TRUE,
                 analysisFeatureMask,
                 &analysisInfo);
-        if (rc != NO_ERROR) {
-            LOGE("getAnalysisInfo failed, ret = %d", rc);
-        }
-        if (rc == NO_ERROR) {
+        if (ret == NO_ERROR) {
             mAnalysisChannel = new QCamera3SupportChannel(
-                mCameraHandle->camera_handle,
-                mChannelHandle,
-                mCameraHandle->ops,
-                &analysisInfo.analysis_padding_info,
-                analysisFeatureMask,
-                CAM_STREAM_TYPE_ANALYSIS,
-                &analysisInfo.analysis_max_res,
-                (analysisInfo.analysis_format
-                == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
-                : CAM_FORMAT_YUV_420_NV21),
-                analysisInfo.hw_analysis_supported,
-                gCamCapability[mCameraId]->color_arrangement,
-                this,
-                0); // force buffer count to 0
-            if (!mAnalysisChannel) {
-                LOGE("H/W Analysis channel cannot be created");
-                pthread_mutex_unlock(&mMutex);
-                return -ENOMEM;
-            }
+                    mCameraHandle->camera_handle,
+                    mChannelHandle,
+                    mCameraHandle->ops,
+                    &analysisInfo.analysis_padding_info,
+                    analysisFeatureMask,
+                    CAM_STREAM_TYPE_ANALYSIS,
+                    &analysisInfo.analysis_max_res,
+                    (analysisInfo.analysis_format
+                    == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
+                    : CAM_FORMAT_YUV_420_NV21),
+                    analysisInfo.hw_analysis_supported,
+                    gCamCapability[mCameraId]->color_arrangement,
+                    this,
+                    0); // force buffer count to 0
+        } else {
+            LOGW("getAnalysisInfo failed, ret = %d", ret);
+        }
+        if (!mAnalysisChannel) {
+            LOGW("Analysis channel cannot be created");
         }
     }
 
@@ -2198,18 +2197,15 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         setPAAFSupport(callbackFeatureMask,
                 CAM_STREAM_TYPE_CALLBACK,
                 gCamCapability[mCameraId]->color_arrangement);
-        rc = mCommon.getAnalysisInfo(FALSE, TRUE, callbackFeatureMask, &supportInfo);
-        if (rc != NO_ERROR) {
+        int32_t ret = NO_ERROR;
+        ret = mCommon.getAnalysisInfo(FALSE, TRUE, callbackFeatureMask, &supportInfo);
+        if (ret != NO_ERROR) {
             /* Ignore the error for Mono camera
              * because the PAAF bit mask is only set
              * for CAM_STREAM_TYPE_ANALYSIS stream type
              */
-            if (gCamCapability[mCameraId]->color_arrangement == CAM_FILTER_ARRANGEMENT_Y) {
-                rc = NO_ERROR;
-            } else {
-                LOGE("getAnalysisInfo failed, ret = %d", rc);
-                pthread_mutex_unlock(&mMutex);
-                return rc;
+            if (gCamCapability[mCameraId]->color_arrangement != CAM_FILTER_ARRANGEMENT_Y) {
+                LOGW("getAnalysisInfo failed, ret = %d", ret);
             }
         }
         mSupportChannel = new QCamera3SupportChannel(
@@ -5075,6 +5071,55 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     IF_META_AVAILABLE(uint32_t, histogramMode, CAM_INTF_META_STATS_HISTOGRAM_MODE, metadata) {
         uint8_t fwk_histogramMode = (uint8_t) *histogramMode;
         camMetadata.update(ANDROID_STATISTICS_HISTOGRAM_MODE, &fwk_histogramMode, 1);
+
+        if (fwk_histogramMode == ANDROID_STATISTICS_HISTOGRAM_MODE_ON) {
+            IF_META_AVAILABLE(cam_hist_stats_t, stats_data, CAM_INTF_META_HISTOGRAM, metadata) {
+                // process histogram statistics info
+                uint32_t hist_buf[3][CAM_HISTOGRAM_STATS_SIZE];
+                uint32_t hist_size = sizeof(cam_histogram_data_t::hist_buf);
+                cam_histogram_data_t rHistData, gHistData, bHistData;
+                memset(&rHistData, 0, sizeof(rHistData));
+                memset(&gHistData, 0, sizeof(gHistData));
+                memset(&bHistData, 0, sizeof(bHistData));
+
+                switch (stats_data->type) {
+                case CAM_HISTOGRAM_TYPE_BAYER:
+                    switch (stats_data->bayer_stats.data_type) {
+                        case CAM_STATS_CHANNEL_GR:
+                            rHistData = gHistData = bHistData = stats_data->bayer_stats.gr_stats;
+                            break;
+                        case CAM_STATS_CHANNEL_GB:
+                            rHistData = gHistData = bHistData = stats_data->bayer_stats.gb_stats;
+                            break;
+                        case CAM_STATS_CHANNEL_B:
+                            rHistData = gHistData = bHistData = stats_data->bayer_stats.b_stats;
+                            break;
+                        case CAM_STATS_CHANNEL_ALL:
+                            rHistData = stats_data->bayer_stats.r_stats;
+                            //Framework expects only 3 channels. So, for now,
+                            //use gb stats for G channel.
+                            gHistData = stats_data->bayer_stats.gb_stats;
+                            bHistData = stats_data->bayer_stats.b_stats;
+                            break;
+                        case CAM_STATS_CHANNEL_Y:
+                        case CAM_STATS_CHANNEL_R:
+                        default:
+                            rHistData = gHistData = bHistData = stats_data->bayer_stats.r_stats;
+                            break;
+                    }
+                    break;
+                case CAM_HISTOGRAM_TYPE_YUV:
+                    rHistData = gHistData = bHistData = stats_data->yuv_stats;
+                    break;
+                }
+
+                memcpy(hist_buf, rHistData.hist_buf, hist_size);
+                memcpy(hist_buf[1], gHistData.hist_buf, hist_size);
+                memcpy(hist_buf[2], bHistData.hist_buf, hist_size);
+
+                camMetadata.update(ANDROID_STATISTICS_HISTOGRAM, (int32_t*)hist_buf, hist_size*3);
+            }
+        }
     }
 
     IF_META_AVAILABLE(uint32_t, sharpnessMapMode,
