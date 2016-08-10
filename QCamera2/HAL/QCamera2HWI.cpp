@@ -3955,6 +3955,10 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
 {
     int32_t rc = NO_ERROR;
 
+    /*Disable Quadra CFA mode*/
+    LOGH("Disabling Quadra CFA mode");
+    mParameters.setQuadraCfaMode(false, true);
+
     if (mAdvancedCaptureConfigured) {
 
         mAdvancedCaptureConfigured = false;
@@ -4025,6 +4029,9 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         LOGE("Cannot support Advanced capture modes");
         return rc;
     }
+    /*Enable Quadra CFA mode*/
+    LOGH("Enabling Quadra CFA mode");
+    mParameters.setQuadraCfaMode(true, true);
 
     setOutputImageCount(0);
     mInputCount = 0;
@@ -4928,6 +4935,7 @@ int QCamera2HardwareInterface::stopCaptureChannel(bool destroy)
     if (mParameters.isJpegPictureFormat() ||
         mParameters.isNV16PictureFormat() ||
         mParameters.isNV21PictureFormat()) {
+        mParameters.setQuadraCfaMode(false, true);
         rc = stopChannel(QCAMERA_CH_TYPE_CAPTURE);
         if (destroy && (NO_ERROR == rc)) {
             // Destroy camera channel but dont release context
@@ -8129,7 +8137,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
             }
         }
 
-        if (mParameters.getofflineRAW()) {
+        if (mParameters.getofflineRAW() && !mParameters.getQuadraCfa()) {
             addChannel(QCAMERA_CH_TYPE_RAW);
         }
     } else {

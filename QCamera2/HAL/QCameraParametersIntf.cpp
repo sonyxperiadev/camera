@@ -1203,6 +1203,13 @@ void QCameraParametersIntf::setCurPPCount(int8_t count)
     mImpl->setCurPPCount(count);
 }
 
+int32_t QCameraParametersIntf::setQuadraCfaMode(uint32_t value, bool initCommit)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setQuadraCfaMode(value, initCommit);
+}
+
 int32_t QCameraParametersIntf::setToneMapMode(uint32_t value, bool initCommit)
 {
     Mutex::Autolock lock(mLock);
