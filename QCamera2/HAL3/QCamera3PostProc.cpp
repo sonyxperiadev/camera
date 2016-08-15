@@ -119,7 +119,7 @@ QCamera3PostProcessor::~QCamera3PostProcessor()
  *==========================================================================*/
 int32_t QCamera3PostProcessor::init(QCamera3StreamMem *memory)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PPROC_INIT);
     mOutputMem = memory;
     m_dataProcTh.launch(dataProcessRoutine, this);
 
@@ -178,7 +178,7 @@ int32_t QCamera3PostProcessor::initJpeg(jpeg_encode_callback_t jpeg_cb,
         cam_dimension_t* max_pic_dim,
         void *user_data)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PPROC_INIT_JPEG);
     mJpegCB = jpeg_cb;
     mJpegUserData = user_data;
     mm_dimension max_size;
@@ -1002,7 +1002,7 @@ int32_t QCamera3PostProcessor::releaseOfflineBuffers(bool allBuffers)
  *==========================================================================*/
 void QCamera3PostProcessor::releaseJpegJobData(qcamera_hal3_jpeg_data_t *job)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PPROC_REL_JPEG_JOB_DATA);
     int32_t rc = NO_ERROR;
     LOGD("E");
     if (NULL != job) {
@@ -1066,7 +1066,7 @@ void QCamera3PostProcessor::releaseJpegJobData(qcamera_hal3_jpeg_data_t *job)
  *==========================================================================*/
 void QCamera3PostProcessor::releasePPJobData(qcamera_hal3_pp_data_t *pp_job)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PPROC_REL_PP_JOB_DATA);
     LOGD("E");
     if (NULL != pp_job) {
         if (NULL != pp_job->src_frame) {
@@ -1556,7 +1556,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
 int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_data,
                           uint8_t &needNewSess)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PPROC_ENCODEDATA);
     LOGD("E");
     int32_t ret = NO_ERROR;
     mm_jpeg_job_t jpg_job;
