@@ -930,6 +930,9 @@ private:
     int32_t setTruePortrait(const QCameraParameters& );
     int32_t setSeeMore(const QCameraParameters& );
     int32_t setStillMore(const QCameraParameters& );
+#ifdef TARGET_TS_MAKEUP
+    int32_t setTsMakeup(const QCameraParameters& );
+#endif
     int32_t setNoiseReductionMode(const QCameraParameters& );
     int32_t setRedeyeReduction(const QCameraParameters& );
     int32_t setGpsLocation(const QCameraParameters& );
