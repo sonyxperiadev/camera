@@ -9392,9 +9392,10 @@ bool QCamera2HardwareInterface::isCaptureShutterEnabled()
  *==========================================================================*/
 bool QCamera2HardwareInterface::needProcessPreviewFrame(uint32_t frameID)
 {
-    return ((m_stateMachine.isPreviewRunning()) &&
+    return (((m_stateMachine.isPreviewRunning()) &&
             (!isDisplayFrameToSkip(frameID)) &&
-            (!mParameters.isInstantAECEnabled()));
+            (!mParameters.isInstantAECEnabled())) ||
+            (isPreviewRestartEnabled()));
 }
 
 /*===========================================================================
