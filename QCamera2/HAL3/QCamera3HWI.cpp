@@ -6107,7 +6107,7 @@ void QCamera3HardwareInterface::extractJpegMetadata(
         if (frame_settings.exists(ANDROID_JPEG_ORIENTATION)) {
             int32_t orientation =
                   frame_settings.find(ANDROID_JPEG_ORIENTATION).data.i32[0];
-            if ((orientation == 90) || (orientation == 270)) {
+            if ((!needJpegExifRotation()) && ((orientation == 90) || (orientation == 270))) {
                //swap thumbnail dimensions for rotations 90 and 270 in jpeg metadata.
                int32_t temp;
                temp = thumbnail_size[0];
