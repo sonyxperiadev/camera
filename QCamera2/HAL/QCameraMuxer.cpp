@@ -1832,6 +1832,7 @@ int QCameraMuxer::setupLogicalCameras()
             m_pLogicalCamera[index].pId[0] = i;
             m_pLogicalCamera[index].type[0] = CAM_TYPE_MAIN;
             m_pLogicalCamera[index].mode[0] = CAM_MODE_PRIMARY;
+            m_pLogicalCamera[index].sync_3a[0] = CAM_3A_SYNC_FOLLOW;
             m_pLogicalCamera[index].facing = m_pPhyCamera[i].cam_info.facing;
             m_pLogicalCamera[index].numCameras++;
             LOGH("Logical Main Camera ID: %d, facing: %d,"
@@ -1857,6 +1858,7 @@ int QCameraMuxer::setupLogicalCameras()
                     m_pLogicalCamera[j].pId[n] = i;
                     m_pLogicalCamera[j].type[n] = CAM_TYPE_AUX;
                     m_pLogicalCamera[j].mode[n] = CAM_MODE_SECONDARY;
+                    m_pLogicalCamera[j].sync_3a[n] = CAM_3A_SYNC_FOLLOW;
                     m_pLogicalCamera[j].numCameras++;
                     LOGH("Aux %d for Logical Camera ID: %d,"
                         "aux phy id:%d, type: %d mode: %d",

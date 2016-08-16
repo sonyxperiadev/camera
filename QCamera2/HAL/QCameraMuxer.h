@@ -88,6 +88,8 @@ typedef struct {
     cam_sync_type_t type[MAX_NUM_CAMERA_PER_BUNDLE];
     // Signifies mode of each camera
     cam_sync_mode_t mode[MAX_NUM_CAMERA_PER_BUNDLE];
+    // Signifies mode of each 3a used by the camera
+    cam_3a_sync_mode_t sync_3a[MAX_NUM_CAMERA_PER_BUNDLE];
 } qcamera_logical_descriptor_t;
 
 /* Struct@ cam_compose_jpeg_info_t

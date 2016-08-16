@@ -1640,6 +1640,12 @@ typedef enum {
     CAM_TYPE_AUX
 } cam_sync_type_t;
 
+typedef enum {
+    CAM_3A_SYNC_NONE,     /* Default for single camera, not link */
+    CAM_3A_SYNC_FOLLOW,   /* Master->Slave: Master updates slave */
+    CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
+} cam_3a_sync_mode_t;
+
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
     uint32_t num_streams;
