@@ -6833,6 +6833,10 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
              supportedFaceDetectMode);
 
     int32_t maxFaces = gCamCapability[cameraId]->max_num_roi;
+    /* support mode should be OFF if max number of face is 0 */
+    if (maxFaces <= 0) {
+        supportedFaceDetectMode = 0;
+    }
     Vector<uint8_t> availableFaceDetectModes;
     availableFaceDetectModes.add(ANDROID_STATISTICS_FACE_DETECT_MODE_OFF);
     if (supportedFaceDetectMode == 1) {
