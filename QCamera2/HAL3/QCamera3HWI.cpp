@@ -8551,7 +8551,6 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
             ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_ROTATION,
                     ddm_info->rotation_info);
         }
-
     }
 
     /* Add additional JPEG cropping information. App add QCAMERA3_JPEG_ENCODE_CROP_RECT
@@ -8572,26 +8571,36 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
             crop_meta.crop.top    = crop_data[1];
             crop_meta.crop.width  = crop_data[2];
             crop_meta.crop.height = crop_data[3];
-            if (frame_settings.exists(QCAMERA3_JPEG_ENCODE_CROP_ROI)) {
-                int32_t *roi =
-                    frame_settings.find(QCAMERA3_JPEG_ENCODE_CROP_ROI).data.i32;
-                crop_meta.roi_map.left =
-                        roi[0];
-                crop_meta.roi_map.top =
-                        roi[1];
-                crop_meta.roi_map.width =
-                        roi[2];
-                crop_meta.roi_map.height =
-                        roi[3];
+            // The JPEG crop roi should match cpp output size
+            IF_META_AVAILABLE(cam_stream_crop_info_t, cpp_crop,
+                    CAM_INTF_META_SNAP_CROP_INFO_CPP, reprocParam) {
+                crop_meta.roi_map.left = 0;
+                crop_meta.roi_map.top = 0;
+                crop_meta.roi_map.width = cpp_crop->crop.width;
+                crop_meta.roi_map.height = cpp_crop->crop.height;
             }
             ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_JPEG_ENCODE_CROP,
                     crop_meta);
-            LOGH("Add JPEG encode crop left %d, top %d, width %d, height %d",
+            LOGH("Add JPEG encode crop left %d, top %d, width %d, height %d, mCameraId %d",
                     crop_meta.crop.left, crop_meta.crop.top,
-                    crop_meta.crop.width, crop_meta.crop.height);
-            LOGH("Add JPEG encode crop ROI left %d, top %d, width %d, height %d",
+                    crop_meta.crop.width, crop_meta.crop.height, mCameraId);
+            LOGH("Add JPEG encode crop ROI left %d, top %d, width %d, height %d, mCameraId %d",
                     crop_meta.roi_map.left, crop_meta.roi_map.top,
-                    crop_meta.roi_map.width, crop_meta.roi_map.height);
+                    crop_meta.roi_map.width, crop_meta.roi_map.height, mCameraId);
+
+            // Add JPEG scale information
+            cam_dimension_t scale_dim;
+            memset(&scale_dim, 0, sizeof(cam_dimension_t));
+            if (frame_settings.exists(QCAMERA3_JPEG_ENCODE_CROP_ROI)) {
+                int32_t *roi =
+                    frame_settings.find(QCAMERA3_JPEG_ENCODE_CROP_ROI).data.i32;
+                scale_dim.width = roi[2];
+                scale_dim.height = roi[3];
+                ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_JPEG_SCALE_DIMENSION,
+                    scale_dim);
+                LOGH("Add JPEG encode scale width %d, height %d, mCameraId %d",
+                    scale_dim.width, scale_dim.height, mCameraId);
+            }
         }
     }
 
