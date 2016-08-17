@@ -791,6 +791,7 @@ private:
     uint32_t mFrameSkipEnd;
     //The offset between BOOTTIME and MONOTONIC timestamps
     nsecs_t mBootToMonoTimestampOffset;
+    bool bDepthAFCallbacks;
 };
 
 }; // namespace qcamera
