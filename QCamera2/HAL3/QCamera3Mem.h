@@ -76,7 +76,6 @@ public:
 protected:
     struct QCamera3MemInfo {
         int fd;
-        int main_ion_fd;
         ion_user_handle_t handle;
         size_t size;
     };
@@ -88,6 +87,7 @@ protected:
     struct QCamera3MemInfo mMemInfo[MM_CAMERA_MAX_NUM_FRAMES];
     void *mPtr[MM_CAMERA_MAX_NUM_FRAMES];
     Mutex mLock;
+    int main_ion_fd = -1;
 };
 
 // Internal heap memory is used for memories used internally
