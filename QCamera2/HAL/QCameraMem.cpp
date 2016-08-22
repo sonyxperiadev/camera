@@ -1623,8 +1623,6 @@ int QCameraVideoMemory::closeNativeHandle(const void *data, bool metadata)
         if ((packet != NULL) && (packet->eType ==
                 kMetadataBufferTypeNativeHandleSource)
                 && (packet->pHandle)) {
-            native_handle_close(packet->pHandle);
-            native_handle_delete(packet->pHandle);
             for (int i = 0; i < mMetaBufCount; i++) {
                 if(mMetadata[i]->data == data) {
                     media_metadata_buffer *mem =

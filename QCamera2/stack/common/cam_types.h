@@ -109,6 +109,7 @@
 #define MAX_INFLIGHT_REQUESTS  6
 #define MAX_INFLIGHT_BLOB      3
 #define MIN_INFLIGHT_REQUESTS  3
+#define MIN_INFLIGHT_60FPS_REQUESTS (6)
 #define MAX_INFLIGHT_REPROCESS_REQUESTS 1
 #define MAX_INFLIGHT_HFR_REQUESTS (48)
 #define MIN_INFLIGHT_HFR_REQUESTS (40)
@@ -2193,6 +2194,8 @@ typedef enum {
     CAM_INTF_META_REPROCESS_FLAGS,
     /* Param of cropping information for JPEG encoder */
     CAM_INTF_PARM_JPEG_ENCODE_CROP,
+    /* Param of scaling information for JPEG encoder */
+    CAM_INTF_PARM_JPEG_SCALE_DIMENSION,
     /*Param for updating Quadra CFA mode */
     CAM_INTF_PARM_QUADRA_CFA,
     /* Meta Raw Dim */

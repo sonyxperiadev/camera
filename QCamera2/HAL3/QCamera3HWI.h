@@ -326,6 +326,8 @@ private:
     int32_t startAllChannels();
     int32_t stopAllChannels();
     int32_t notifyErrorForPendingRequests();
+    void notifyError(uint32_t frameNumber,
+            camera3_error_msg_code_t errorCode);
     int32_t getReprocessibleOutputStreamId(uint32_t &id);
     int32_t handleCameraDeviceError();
 
@@ -474,6 +476,8 @@ private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
     bool mNeedSensorRestart;
+    uint32_t mMinInFlightRequests;
+    uint32_t mMaxInFlightRequests;
 
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;

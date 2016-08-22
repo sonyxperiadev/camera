@@ -365,6 +365,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
       mFirstFrameNumberInBatch(0),
       mNeedSensorRestart(false),
+      mMinInFlightRequests(MIN_INFLIGHT_REQUESTS),
+      mMaxInFlightRequests(MAX_INFLIGHT_REQUESTS),
       mLdafCalibExist(false),
       mPowerHintEnabled(false),
       mLastCustIntentFrmNum(-1),
@@ -2783,6 +2785,19 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     }
 }
 
+void QCamera3HardwareInterface::notifyError(uint32_t frameNumber,
+        camera3_error_msg_code_t errorCode)
+{
+    camera3_notify_msg_t notify_msg;
+    memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+    notify_msg.type = CAMERA3_MSG_ERROR;
+    notify_msg.message.error.error_code = errorCode;
+    notify_msg.message.error.error_stream = NULL;
+    notify_msg.message.error.frame_number = frameNumber;
+    mCallbackOps->notify(mCallbackOps, &notify_msg);
+
+    return;
+}
 /*===========================================================================
  * FUNCTION   : handleMetadataWithLock
  *
@@ -2975,6 +2990,15 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 /* this will be handled in handleInputBufferWithLock */
                 i++;
                 continue;
+            } else if (mBatchSize) {
+
+                mPendingLiveRequest--;
+
+                CameraMetadata dummyMetadata;
+                dummyMetadata.update(ANDROID_REQUEST_ID, &(i->request_id), 1);
+                result.result = dummyMetadata.release();
+
+                notifyError(i->frame_number, CAMERA3_MSG_ERROR_RESULT);
             } else {
                 LOGE("Fatal: Missing metadata buffer for frame number %d", i->frame_number);
                 if (free_and_bufdone_meta_buf) {
@@ -3417,8 +3441,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
     int rc = NO_ERROR;
     int32_t request_id;
     CameraMetadata meta;
-    uint32_t minInFlightRequests = MIN_INFLIGHT_REQUESTS;
-    uint32_t maxInFlightRequests = MAX_INFLIGHT_REQUESTS;
     bool isVidBufRequested = false;
     camera3_stream_buffer_t *pInputBuffer = NULL;
 
@@ -3563,9 +3585,23 @@ int QCamera3HardwareInterface::processCaptureRequest(
         /* Set fps and hfr mode while sending meta stream info so that sensor
          * can configure appropriate streaming mode */
         mHFRVideoFps = DEFAULT_VIDEO_FPS;
+        mMinInFlightRequests = MIN_INFLIGHT_REQUESTS;
+        mMaxInFlightRequests = MAX_INFLIGHT_REQUESTS;
         if (meta.exists(ANDROID_CONTROL_AE_TARGET_FPS_RANGE)) {
             rc = setHalFpsRange(meta, mParameters);
-            if (rc != NO_ERROR) {
+            if (rc == NO_ERROR) {
+                int32_t max_fps =
+                    (int32_t) meta.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
+                if (max_fps == 60) {
+                    mMinInFlightRequests = MIN_INFLIGHT_60FPS_REQUESTS;
+                }
+                /* For HFR, more buffers are dequeued upfront to improve the performance */
+                if (mBatchSize) {
+                    mMinInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
+                    mMaxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
+                }
+            }
+            else {
                 LOGE("setHalFpsRange failed");
             }
         }
@@ -4200,12 +4236,7 @@ no_error:
       ts.tv_sec += 5;
     }
     //Block on conditional variable
-    if (mBatchSize) {
-        /* For HFR, more buffers are dequeued upfront to improve the performance */
-        minInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
-        maxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
-    }
-    while ((mPendingLiveRequest >= minInFlightRequests) && !pInputBuffer &&
+    while ((mPendingLiveRequest >= mMinInFlightRequests) && !pInputBuffer &&
             (mState != ERROR) && (mState != DEINIT)) {
         if (!isValidTimeout) {
             LOGD("Blocking on conditional wait");
@@ -4223,7 +4254,7 @@ no_error:
         LOGD("Unblocked");
         if (mWokenUpByDaemon) {
             mWokenUpByDaemon = false;
-            if (mPendingLiveRequest < maxInFlightRequests)
+            if (mPendingLiveRequest < mMaxInFlightRequests)
                 break;
         }
     }
@@ -6076,7 +6107,7 @@ void QCamera3HardwareInterface::extractJpegMetadata(
         if (frame_settings.exists(ANDROID_JPEG_ORIENTATION)) {
             int32_t orientation =
                   frame_settings.find(ANDROID_JPEG_ORIENTATION).data.i32[0];
-            if ((orientation == 90) || (orientation == 270)) {
+            if ((!needJpegExifRotation()) && ((orientation == 90) || (orientation == 270))) {
                //swap thumbnail dimensions for rotations 90 and 270 in jpeg metadata.
                int32_t temp;
                temp = thumbnail_size[0];
@@ -8520,7 +8551,6 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
             ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_ROTATION,
                     ddm_info->rotation_info);
         }
-
     }
 
     /* Add additional JPEG cropping information. App add QCAMERA3_JPEG_ENCODE_CROP_RECT
@@ -8541,26 +8571,36 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
             crop_meta.crop.top    = crop_data[1];
             crop_meta.crop.width  = crop_data[2];
             crop_meta.crop.height = crop_data[3];
-            if (frame_settings.exists(QCAMERA3_JPEG_ENCODE_CROP_ROI)) {
-                int32_t *roi =
-                    frame_settings.find(QCAMERA3_JPEG_ENCODE_CROP_ROI).data.i32;
-                crop_meta.roi_map.left =
-                        roi[0];
-                crop_meta.roi_map.top =
-                        roi[1];
-                crop_meta.roi_map.width =
-                        roi[2];
-                crop_meta.roi_map.height =
-                        roi[3];
+            // The JPEG crop roi should match cpp output size
+            IF_META_AVAILABLE(cam_stream_crop_info_t, cpp_crop,
+                    CAM_INTF_META_SNAP_CROP_INFO_CPP, reprocParam) {
+                crop_meta.roi_map.left = 0;
+                crop_meta.roi_map.top = 0;
+                crop_meta.roi_map.width = cpp_crop->crop.width;
+                crop_meta.roi_map.height = cpp_crop->crop.height;
             }
             ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_JPEG_ENCODE_CROP,
                     crop_meta);
-            LOGH("Add JPEG encode crop left %d, top %d, width %d, height %d",
+            LOGH("Add JPEG encode crop left %d, top %d, width %d, height %d, mCameraId %d",
                     crop_meta.crop.left, crop_meta.crop.top,
-                    crop_meta.crop.width, crop_meta.crop.height);
-            LOGH("Add JPEG encode crop ROI left %d, top %d, width %d, height %d",
+                    crop_meta.crop.width, crop_meta.crop.height, mCameraId);
+            LOGH("Add JPEG encode crop ROI left %d, top %d, width %d, height %d, mCameraId %d",
                     crop_meta.roi_map.left, crop_meta.roi_map.top,
-                    crop_meta.roi_map.width, crop_meta.roi_map.height);
+                    crop_meta.roi_map.width, crop_meta.roi_map.height, mCameraId);
+
+            // Add JPEG scale information
+            cam_dimension_t scale_dim;
+            memset(&scale_dim, 0, sizeof(cam_dimension_t));
+            if (frame_settings.exists(QCAMERA3_JPEG_ENCODE_CROP_ROI)) {
+                int32_t *roi =
+                    frame_settings.find(QCAMERA3_JPEG_ENCODE_CROP_ROI).data.i32;
+                scale_dim.width = roi[2];
+                scale_dim.height = roi[3];
+                ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_JPEG_SCALE_DIMENSION,
+                    scale_dim);
+                LOGH("Add JPEG encode scale width %d, height %d, mCameraId %d",
+                    scale_dim.width, scale_dim.height, mCameraId);
+            }
         }
     }
 

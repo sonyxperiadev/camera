@@ -6890,6 +6890,10 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         } else {
             rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                     preview_stream_cb_routine, this);
+#ifdef TARGET_TS_MAKEUP
+            int whiteLevel, cleanLevel;
+            if(mParameters.getTsMakeupInfo(whiteLevel, cleanLevel) == false)
+#endif
             pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                     synchronous_stream_cb_routine);
         }
@@ -7207,6 +7211,10 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     } else {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                 preview_stream_cb_routine, this);
+#ifdef TARGET_TS_MAKEUP
+        int whiteLevel, cleanLevel;
+        if(mParameters.getTsMakeupInfo(whiteLevel, cleanLevel) == false)
+#endif
         pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                 synchronous_stream_cb_routine);
     }
@@ -7329,6 +7337,10 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
             LOGE("add preview stream failed, ret = %d", rc);
             return rc;
         }
+#ifdef TARGET_TS_MAKEUP
+        int whiteLevel, cleanLevel;
+        if(mParameters.getTsMakeupInfo(whiteLevel, cleanLevel) == false)
+#endif
         pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                 synchronous_stream_cb_routine);
     }
@@ -9380,9 +9392,10 @@ bool QCamera2HardwareInterface::isCaptureShutterEnabled()
  *==========================================================================*/
 bool QCamera2HardwareInterface::needProcessPreviewFrame(uint32_t frameID)
 {
-    return ((m_stateMachine.isPreviewRunning()) &&
+    return (((m_stateMachine.isPreviewRunning()) &&
             (!isDisplayFrameToSkip(frameID)) &&
-            (!mParameters.isInstantAECEnabled()));
+            (!mParameters.isInstantAECEnabled())) ||
+            (isPreviewRestartEnabled()));
 }
 
 /*===========================================================================
