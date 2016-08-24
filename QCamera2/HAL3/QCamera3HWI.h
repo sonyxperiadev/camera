@@ -163,7 +163,6 @@ public:
     static void convertFromRegions(cam_area_t &roi, const camera_metadata_t *settings,
                                    uint32_t tag);
     static bool resetIfNeededROI(cam_area_t* roi, const cam_crop_region_t* scalerCropRegion);
-    static void convertLandmarks(cam_face_landmarks_info_t face, int32_t* landmarks);
     static int32_t getSensorSensitivity(int32_t iso_mode);
 
     double computeNoiseModelEntryS(int32_t sensitivity);
@@ -337,6 +336,9 @@ private:
 
     static bool supportBurstCapture(uint32_t cameraId);
     int32_t setBundleInfo();
+
+    static void convertLandmarks(cam_face_landmarks_info_t face, int32_t* landmarks);
+    static void setInvalidLandmarks(int32_t* landmarks);
 
     static void setPAAFSupport(cam_feature_mask_t& feature_mask,
             cam_stream_type_t stream_type,
