@@ -1255,7 +1255,8 @@ QCameraVideoMemory::QCameraVideoMemory(camera_request_memory memory,
     memset(mMetadata, 0, sizeof(mMetadata));
     mMetaBufCount = 0;
     mBufType = bufType;
-    mUsage = 0;
+    //Set Default color conversion format
+    mUsage = private_handle_t::PRIV_FLAGS_ITU_R_601_FR;
 }
 
 /*===========================================================================
@@ -1293,7 +1294,7 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size, uint32_t isSecure)
         return rc;
     }
 
-    int usage = mUsage | private_handle_t::PRIV_FLAGS_ITU_R_709;
+    int usage = mUsage | private_handle_t::PRIV_FLAGS_ITU_R_601_FR;
 
     if (mBufType != CAM_STREAM_BUF_TYPE_USERPTR) {
         rc = allocateMeta(count);
@@ -1349,7 +1350,7 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
         return rc;
     }
 
-    int usage = mUsage | private_handle_t::PRIV_FLAGS_ITU_R_709;
+    int usage = mUsage | private_handle_t::PRIV_FLAGS_ITU_R_601_FR;
 
     if (mBufType != CAM_STREAM_BUF_TYPE_USERPTR) {
         for (int i = mBufferCount; i < count + mBufferCount; i ++) {
