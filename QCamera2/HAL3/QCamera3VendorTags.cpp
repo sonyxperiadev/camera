@@ -147,7 +147,7 @@ vendor_tag_info_t
         qcamera3_hal_privatedata[QCAMERA3_HAL_PRIVATEDATA_END -
         QCAMERA3_HAL_PRIVATEDATA_START] = {
     { "reprocess_flags",      TYPE_BYTE },
-    { "ddm_data_blob",        TYPE_BYTE }
+    { "reprocess_data_blob",  TYPE_BYTE }
 };
 
 vendor_tag_info_t
@@ -219,7 +219,7 @@ uint32_t qcamera3_all_tags[] = {
 
     // QCAMERA3_HAL_PRIVATEDATA
     (uint32_t)QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS,
-    (uint32_t)QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB,
+    (uint32_t)QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB,
 
     // QCAMERA3_JPEG_ENCODE_CROP
     (uint32_t)QCAMERA3_JPEG_ENCODE_CROP_ENABLE,

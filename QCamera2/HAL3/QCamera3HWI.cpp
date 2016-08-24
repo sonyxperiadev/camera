@@ -5616,38 +5616,44 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         }
     }
 
-    // DDM debug data through vendor tag
-    cam_ddm_info_t ddm_info;
-    memset(&ddm_info, 0, sizeof(cam_ddm_info_t));
+    // Reprocess and DDM debug data through vendor tag
+    cam_reprocess_info_t repro_info;
+    memset(&repro_info, 0, sizeof(cam_reprocess_info_t));
     IF_META_AVAILABLE(cam_stream_crop_info_t, sensorCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_SENSOR, metadata) {
-        memcpy(&(ddm_info.sensor_crop_info), sensorCropInfo, sizeof(cam_stream_crop_info_t));
+        memcpy(&(repro_info.sensor_crop_info), sensorCropInfo, sizeof(cam_stream_crop_info_t));
     }
     IF_META_AVAILABLE(cam_stream_crop_info_t, camifCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_CAMIF, metadata) {
-        memcpy(&(ddm_info.camif_crop_info), camifCropInfo, sizeof(cam_stream_crop_info_t));
+        memcpy(&(repro_info.camif_crop_info), camifCropInfo, sizeof(cam_stream_crop_info_t));
     }
     IF_META_AVAILABLE(cam_stream_crop_info_t, ispCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_ISP, metadata) {
-        memcpy(&(ddm_info.isp_crop_info), ispCropInfo, sizeof(cam_stream_crop_info_t));
+        memcpy(&(repro_info.isp_crop_info), ispCropInfo, sizeof(cam_stream_crop_info_t));
     }
     IF_META_AVAILABLE(cam_stream_crop_info_t, cppCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_CPP, metadata) {
-        memcpy(&(ddm_info.cpp_crop_info), cppCropInfo, sizeof(cam_stream_crop_info_t));
+        memcpy(&(repro_info.cpp_crop_info), cppCropInfo, sizeof(cam_stream_crop_info_t));
     }
     IF_META_AVAILABLE(cam_focal_length_ratio_t, ratio,
             CAM_INTF_META_AF_FOCAL_LENGTH_RATIO, metadata) {
-        memcpy(&(ddm_info.af_focal_length_ratio), ratio, sizeof(cam_focal_length_ratio_t));
+        memcpy(&(repro_info.af_focal_length_ratio), ratio, sizeof(cam_focal_length_ratio_t));
     }
     IF_META_AVAILABLE(int32_t, flip, CAM_INTF_PARM_FLIP, metadata) {
-        memcpy(&(ddm_info.pipeline_flip), flip, sizeof(int32_t));
+        memcpy(&(repro_info.pipeline_flip), flip, sizeof(int32_t));
     }
     IF_META_AVAILABLE(cam_rotation_info_t, rotationInfo,
             CAM_INTF_PARM_ROTATION, metadata) {
-        memcpy(&(ddm_info.rotation_info), rotationInfo, sizeof(cam_rotation_info_t));
+        memcpy(&(repro_info.rotation_info), rotationInfo, sizeof(cam_rotation_info_t));
     }
-    camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB,
-            (uint8_t *)&ddm_info, sizeof(cam_ddm_info_t));
+    IF_META_AVAILABLE(cam_area_t, afRoi, CAM_INTF_META_AF_ROI, metadata) {
+        memcpy(&(repro_info.af_roi), afRoi, sizeof(cam_area_t));
+    }
+    IF_META_AVAILABLE(cam_dyn_img_data_t, dynMask, CAM_INTF_META_IMG_DYN_FEAT, metadata) {
+        memcpy(&(repro_info.dyn_mask), dynMask, sizeof(cam_dyn_img_data_t));
+    }
+    camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB,
+        (uint8_t *)&repro_info, sizeof(cam_reprocess_info_t));
 
     /* In batch mode, cache the first metadata in the batch */
     if (mBatchSize && firstMetadataInBatch) {
@@ -8491,23 +8497,27 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
         }
     }
 
-    // Add metadata which DDM needs
-    if (frame_settings.exists(QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB)) {
-        cam_ddm_info_t *ddm_info =
-                (cam_ddm_info_t *)frame_settings.find
-                (QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB).data.u8;
+    // Add metadata which reprocess needs
+    if (frame_settings.exists(QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB)) {
+        cam_reprocess_info_t *repro_info =
+                (cam_reprocess_info_t *)frame_settings.find
+                (QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB).data.u8;
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_SENSOR,
-                ddm_info->sensor_crop_info);
+                repro_info->sensor_crop_info);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_CAMIF,
-                ddm_info->camif_crop_info);
+                repro_info->camif_crop_info);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_ISP,
-                ddm_info->isp_crop_info);
+                repro_info->isp_crop_info);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_CPP,
-                ddm_info->cpp_crop_info);
+                repro_info->cpp_crop_info);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_AF_FOCAL_LENGTH_RATIO,
-                ddm_info->af_focal_length_ratio);
+                repro_info->af_focal_length_ratio);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_FLIP,
-                ddm_info->pipeline_flip);
+                repro_info->pipeline_flip);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_AF_ROI,
+                repro_info->af_roi);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_IMG_DYN_FEAT,
+                repro_info->dyn_mask);
         /* If there is ANDROID_JPEG_ORIENTATION in frame setting,
            CAM_INTF_PARM_ROTATION metadata then has been added in
            translateToHalMetadata. HAL need to keep this new rotation
@@ -8518,7 +8528,7 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
             LOGD("CAM_INTF_PARM_ROTATION metadata is added in translateToHalMetadata");
         } else {
             ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_ROTATION,
-                    ddm_info->rotation_info);
+                    repro_info->rotation_info);
         }
 
     }
