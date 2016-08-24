@@ -2979,7 +2979,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     QCamera3Channel *ch = (QCamera3Channel *)(missed.stream->priv);
                     assert(ch->mStreams[0]);
                     if (ch->mStreams[0]) {
-                        LOGW("Missing: frame = %d, buffer = %p,"
+                        LOGE("Cancel missing frame = %d, buffer = %p,"
                             "stream type = %d, stream format = %d",
                             req.frame_number, missed.buffer,
                             ch->mStreams[0]->getMyType(), missed.stream->format);

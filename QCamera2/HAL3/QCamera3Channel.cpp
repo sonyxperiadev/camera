@@ -900,13 +900,15 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
        if (mOutOfSequenceBuffers.empty()) {
           break;
        } else {
-          for (auto itr = mOutOfSequenceBuffers.begin();
-                  itr != mOutOfSequenceBuffers.end(); itr++) {
-             super_frame = *itr;
-             frameIndex = super_frame->bufs[0]->buf_idx;
-             resultFrameNumber = mMemory.getFrameNumber(frameIndex);
-             lowestFrameNumber = mMemory.getOldestFrameNumber(oldestBufIndex);
-             if ((lowestFrameNumber != -1 ) && (lowestFrameNumber < resultFrameNumber)) {
+            auto itr = mOutOfSequenceBuffers.begin();
+            super_frame = *itr;
+            frameIndex = super_frame->bufs[0]->buf_idx;
+            resultFrameNumber = mMemory.getFrameNumber(frameIndex);
+            lowestFrameNumber = mMemory.getOldestFrameNumber(oldestBufIndex);
+            LOGE("Attempting to recover next frame: result Frame#: %d, resultIdx: %d, "
+                    "Lowest Frame#: %d, oldestBufIndex: %d",
+                    resultFrameNumber, frameIndex, lowestFrameNumber, oldestBufIndex);
+            if ((lowestFrameNumber != -1) && (lowestFrameNumber < resultFrameNumber)) {
                 LOGE("Multiple frame dropped requesting cancel for frame %d, idx:%d",
                         lowestFrameNumber, oldestBufIndex);
                 stream->cancelBuffer(oldestBufIndex);
@@ -914,13 +916,11 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
              } else if (lowestFrameNumber == resultFrameNumber) {
                 LOGE("Time to flush out head of list continue loop with this new super frame");
                 itr = mOutOfSequenceBuffers.erase(itr);
-                break;
              } else {
                 LOGE("Unexpected condition head of list is not the lowest frame number");
-                assert(0);
+                itr = mOutOfSequenceBuffers.erase(itr);
              }
           }
-       }
     } while (1);
     return;
 }
@@ -1060,12 +1060,18 @@ int32_t QCamera3ProcessingChannel::request(buffer_handle_t *buffer,
                 return DEAD_OBJECT;
             }
         }
+        rc = mMemory.markFrameNumber(index, frameNumber);
+        if(rc != NO_ERROR) {
+            LOGE("Error marking frame number:%d for index %d", frameNumber,
+                index);
+            return rc;
+        }
         rc = mStreams[0]->bufDone(index);
         if(rc != NO_ERROR) {
             LOGE("Failed to Q new buffer to stream");
+            mMemory.markFrameNumber(index, -1);
             return rc;
         }
-        rc = mMemory.markFrameNumber(index, frameNumber);
         indexUsed = index;
     }
     return rc;
@@ -1996,14 +2002,19 @@ int32_t QCamera3RegularChannel::request(buffer_handle_t *buffer, uint32_t frameN
         }
     }
 
+    rc = mMemory.markFrameNumber((uint32_t)index, frameNumber);
+    if(rc != NO_ERROR) {
+        LOGE("Failed to mark FrameNumber:%d,idx:%d",frameNumber,index);
+        return rc;
+    }
     rc = mStreams[0]->bufDone((uint32_t)index);
     if(rc != NO_ERROR) {
         LOGE("Failed to Q new buffer to stream");
+        mMemory.markFrameNumber(index, -1);
         return rc;
     }
 
     indexUsed = index;
-    rc = mMemory.markFrameNumber((uint32_t)index, frameNumber);
     return rc;
 }
 
@@ -3040,8 +3051,8 @@ int32_t QCamera3YUVChannel::handleOfflinePpCallback(uint32_t resultFrameNumber,
                      bufferIndex, resultFrameNumber);
             return BAD_VALUE;
         }
-        mFreeHeapBufferList.push_back(bufferIndex);
         mMemory.markFrameNumber(bufferIndex, -1);
+        mFreeHeapBufferList.push_back(bufferIndex);
         //Move heap buffer into free pool and invalidate the frame number
         ppInfo = mOfflinePpInfoList.erase(ppInfo);
 
@@ -4587,12 +4598,17 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
                 return DEAD_OBJECT;
             }
         }
+        rc = mGrallocMemory.markFrameNumber(index, frame->frameNumber);
+        if(rc != NO_ERROR) {
+            LOGE("Failed to mark frame#:%d, index:%d",frame->frameNumber,index);
+            return rc;
+        }
         rc = pStream->bufDone(index);
         if(rc != NO_ERROR) {
             LOGE("Failed to Q new buffer to stream");
+            mGrallocMemory.markFrameNumber(index, -1);
             return rc;
         }
-        rc = mGrallocMemory.markFrameNumber(index, frame->frameNumber);
 
     } else if (mReprocessType == REPROCESS_TYPE_JPEG) {
         Mutex::Autolock lock(mFreeBuffersLock);
