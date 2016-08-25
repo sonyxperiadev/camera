@@ -583,6 +583,7 @@ private:
     uint32_t getCamHandleForChannel(qcamera_ch_type_enum_t ch_type);
     int32_t switchCameraCb();
     int32_t processCameraControl(uint32_t camState);
+    bool needSyncCB(cam_stream_type_t stream_type);
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;

@@ -7372,11 +7372,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         } else {
             rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                     preview_stream_cb_routine, this);
-#ifdef TARGET_TS_MAKEUP
-            int whiteLevel, cleanLevel;
-            if(mParameters.getTsMakeupInfo(whiteLevel, cleanLevel) == false)
-#endif
-            if (!isDualCamera()) {
+            if (needSyncCB(CAM_STREAM_TYPE_PREVIEW) == TRUE) {
                 pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                         synchronous_stream_cb_routine);
             }
@@ -7697,11 +7693,7 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     } else {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                 preview_stream_cb_routine, this);
-#ifdef TARGET_TS_MAKEUP
-        int whiteLevel, cleanLevel;
-        if(mParameters.getTsMakeupInfo(whiteLevel, cleanLevel) == false)
-#endif
-        if (!isDualCamera()) {
+        if (needSyncCB(CAM_STREAM_TYPE_PREVIEW) == TRUE) {
             pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                     synchronous_stream_cb_routine);
         }
@@ -7816,11 +7808,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
             LOGE("add preview stream failed, ret = %d", rc);
             return rc;
         }
-#ifdef TARGET_TS_MAKEUP
-        int whiteLevel, cleanLevel;
-        if(mParameters.getTsMakeupInfo(whiteLevel, cleanLevel) == false)
-#endif
-        if (!isDualCamera()) {
+        if (needSyncCB(CAM_STREAM_TYPE_PREVIEW) == TRUE) {
             pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                     synchronous_stream_cb_routine);
         }
@@ -10776,6 +10764,37 @@ bool QCamera2HardwareInterface::needDeferred(cam_stream_type_t stream_type)
 
     if (stream_type == CAM_STREAM_TYPE_VIDEO) {
         return FALSE;
+    }
+    return FALSE;
+}
+
+/*===========================================================================
+ * FUNCTION   : needSyncCB
+ *
+ * DESCRIPTION: Decide syncronous callback per stream
+ *
+ * PARAMETERS :
+ *  @stream_type: stream type
+ *
+ * RETURN     : true - if background task is needed
+ *              false -  if background task is NOT needed
+ *==========================================================================*/
+bool QCamera2HardwareInterface::needSyncCB(cam_stream_type_t stream_type)
+{
+#ifdef TARGET_TS_MAKEUP
+    int whiteLevel, cleanLevel;
+    if(mParameters.getTsMakeupInfo(whiteLevel, cleanLevel) == TRUE) {
+        return FALSE;
+    }
+#endif
+
+    if (isDualCamera() == TRUE) {
+        return FALSE;
+    }
+    char value[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.preview.sync_cb", value, "1");
+    if ((atoi(value) == 1) && (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
+        return TRUE;
     }
     return FALSE;
 }

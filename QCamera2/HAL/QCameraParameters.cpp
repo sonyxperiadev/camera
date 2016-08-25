@@ -4483,8 +4483,8 @@ int32_t QCameraParameters::setZslMode(bool value)
             LOGI("ZSL Mode forced to be enabled");
         }
     } else {
-        LOGI("ZSL Mode  -> %s", m_bZslMode_new ? "Enabled" : "Disabled");
         m_bZslMode_new = (value > 0)? true : false;
+        LOGI("ZSL Mode  -> %s", m_bZslMode_new ? "Enabled" : "Disabled");
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
             rc = BAD_VALUE;
         }
