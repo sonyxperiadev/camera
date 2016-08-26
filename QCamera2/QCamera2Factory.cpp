@@ -39,7 +39,7 @@
 #include "HAL/QCamera2HWI.h"
 #include "HAL3/QCamera3HWI.h"
 #include "QCamera2Factory.h"
-#include "QCameraMuxer.h"
+#include "HAL/QCameraMuxer.h"
 
 using namespace android;
 
