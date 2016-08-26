@@ -7322,15 +7322,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
         return rc;
     }
 
-    if (!mLongshotEnabled) {
-        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_POSTVIEW,
-                                NULL, this);
-
-        if (rc != NO_ERROR) {
-            LOGE("add postview stream failed, ret = %d", rc);
-            return rc;
-        }
-    } else {
+    if (mLongshotEnabled) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                 preview_stream_cb_routine, this);
 
@@ -7344,6 +7336,15 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
 #endif
         pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                 synchronous_stream_cb_routine);
+    //Not adding the postview stream to the capture channel if Quadra CFA is enabled.
+    } else if (!mParameters.getQuadraCfa()) {
+        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_POSTVIEW,
+                                NULL, this);
+
+        if (rc != NO_ERROR) {
+            LOGE("add postview stream failed, ret = %d", rc);
+            return rc;
+        }
     }
 
     if (!mParameters.getofflineRAW()) {
