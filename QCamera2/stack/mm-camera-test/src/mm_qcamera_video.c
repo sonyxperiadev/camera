@@ -571,6 +571,11 @@ int mm_app_start_record_preview(mm_camera_test_obj_t *test_obj)
                               NULL,
                               NULL,
                               NULL);
+    if (NULL == v_ch) {
+        LOGE("add channel failed");
+        return -MM_CAMERA_E_GENERAL;
+    }
+
    /* Add Video Stream */
     s_video = mm_app_add_video_stream(test_obj,
                                       v_ch,
@@ -613,6 +618,10 @@ int mm_app_start_record_preview(mm_camera_test_obj_t *test_obj)
                               NULL,
                               NULL,
                               NULL);
+    if (NULL == s_ch) {
+        LOGE("add channel failed");
+        return -MM_CAMERA_E_GENERAL;
+    }
 
     /* Add Snapshot Stream */
     s_main = mm_app_add_video_snapshot_stream(test_obj,
@@ -623,7 +632,6 @@ int mm_app_start_record_preview(mm_camera_test_obj_t *test_obj)
                                            1);
     if (NULL == s_main) {
         LOGE("add main snapshot stream failed\n");
-        mm_app_del_stream(test_obj, s_ch, s_main);
         mm_app_del_channel(test_obj, s_ch);
         return rc;
     }
