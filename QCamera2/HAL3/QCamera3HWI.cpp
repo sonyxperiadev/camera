@@ -5359,7 +5359,10 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       availableVstabModes, sizeof(availableVstabModes));
 
     /*HAL 1 and HAL 3 common*/
-    float maxZoom = 4;
+    uint32_t zoomSteps = gCamCapability[cameraId]->zoom_ratio_tbl_cnt;
+    uint32_t maxZoomStep = gCamCapability[cameraId]->zoom_ratio_tbl[zoomSteps - 1];
+    uint32_t minZoomStep = 100; //as per HAL1/API1 spec
+    float maxZoom = maxZoomStep/minZoomStep;
     staticInfo.update(ANDROID_SCALER_AVAILABLE_MAX_DIGITAL_ZOOM,
             &maxZoom, 1);
 
