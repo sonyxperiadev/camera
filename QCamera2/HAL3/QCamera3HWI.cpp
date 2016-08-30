@@ -106,6 +106,15 @@ namespace qcamera {
 
 #define TIMEOUT_NEVER -1
 
+/* Face landmarks indices */
+#define LEFT_EYE_X             0
+#define LEFT_EYE_Y             1
+#define RIGHT_EYE_X            2
+#define RIGHT_EYE_Y            3
+#define MOUTH_X                4
+#define MOUTH_Y                5
+#define TOTAL_LANDMARK_INDICES 6
+
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
 extern pthread_mutex_t gCamLock;
@@ -5124,7 +5133,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                         landmarks->face_landmarks[i].mouth_center.y);
 
                                 convertLandmarks(landmarks->face_landmarks[i], faceLandmarks+k);
-                                k+= 6;
+                                k+= TOTAL_LANDMARK_INDICES;
+                            }
+                        } else {
+                            for (size_t i = 0; i < numFaces; i++) {
+                                setInvalidLandmarks(faceLandmarks+k);
+                                k+= TOTAL_LANDMARK_INDICES;
                             }
                         }
 
@@ -6283,12 +6297,50 @@ void QCamera3HardwareInterface::convertLandmarks(
         cam_face_landmarks_info_t landmark_data,
         int32_t *landmarks)
 {
-    landmarks[0] = (int32_t)landmark_data.left_eye_center.x;
-    landmarks[1] = (int32_t)landmark_data.left_eye_center.y;
-    landmarks[2] = (int32_t)landmark_data.right_eye_center.x;
-    landmarks[3] = (int32_t)landmark_data.right_eye_center.y;
-    landmarks[4] = (int32_t)landmark_data.mouth_center.x;
-    landmarks[5] = (int32_t)landmark_data.mouth_center.y;
+    if (landmark_data.is_left_eye_valid) {
+        landmarks[LEFT_EYE_X] = (int32_t)landmark_data.left_eye_center.x;
+        landmarks[LEFT_EYE_Y] = (int32_t)landmark_data.left_eye_center.y;
+    } else {
+        landmarks[LEFT_EYE_X] = FACE_INVALID_POINT;
+        landmarks[LEFT_EYE_Y] = FACE_INVALID_POINT;
+    }
+
+    if (landmark_data.is_right_eye_valid) {
+        landmarks[RIGHT_EYE_X] = (int32_t)landmark_data.right_eye_center.x;
+        landmarks[RIGHT_EYE_Y] = (int32_t)landmark_data.right_eye_center.y;
+    } else {
+        landmarks[RIGHT_EYE_X] = FACE_INVALID_POINT;
+        landmarks[RIGHT_EYE_Y] = FACE_INVALID_POINT;
+    }
+
+    if (landmark_data.is_mouth_valid) {
+        landmarks[MOUTH_X] = (int32_t)landmark_data.mouth_center.x;
+        landmarks[MOUTH_Y] = (int32_t)landmark_data.mouth_center.y;
+    } else {
+        landmarks[MOUTH_X] = FACE_INVALID_POINT;
+        landmarks[MOUTH_Y] = FACE_INVALID_POINT;
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : setInvalidLandmarks
+ *
+ * DESCRIPTION: helper method to set invalid landmarks
+ *
+ * PARAMETERS :
+ *   @landmarks : int32_t destination array
+ *
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::setInvalidLandmarks(
+        int32_t *landmarks)
+{
+    landmarks[LEFT_EYE_X] = FACE_INVALID_POINT;
+    landmarks[LEFT_EYE_Y] = FACE_INVALID_POINT;
+    landmarks[RIGHT_EYE_X] = FACE_INVALID_POINT;
+    landmarks[RIGHT_EYE_Y] = FACE_INVALID_POINT;
+    landmarks[MOUTH_X] = FACE_INVALID_POINT;
+    landmarks[MOUTH_Y] = FACE_INVALID_POINT;
 }
 
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
