@@ -78,6 +78,9 @@ static void camera_device_status_change(
         int camera_id, int new_status)
 {
     /* Stub function */
+    if (callbacks == NULL) {
+        LOGD("Parameters are NULL %d %d", camera_id, new_status);
+    }
 }
 
 static void torch_mode_status_change(
@@ -85,6 +88,9 @@ static void torch_mode_status_change(
         const char* camera_id, int new_status)
 {
     /* Stub function */
+    if((callbacks == NULL) || (camera_id == NULL)) {
+        LOGD("Parameters are NULL %d", new_status);
+    }
 }
 
 static void Notify(
@@ -92,6 +98,9 @@ static void Notify(
         const camera3_notify_msg *msg)
 {
     /* Stub function */
+    if((cb == NULL) || (msg == NULL)) {
+        LOGD("Parameters are NULL ");
+    }
 }
 
 static void ProcessCaptureResult(
@@ -104,9 +113,10 @@ static void ProcessCaptureResult(
     extern int req_sent;
     extern int preview_buffer_allocated;
     extern int video_buffer_allocated;
-    double elapsedTime;
     int num;
-    struct timeval end_time;
+    if(cb == NULL) {
+        LOGD("callback returned is NULL");
+    }
     LOGD("Cam Capture Result Callback %d and %d",
             result->num_output_buffers, mCamHal3Base->mFrameCount);
     if (mCamHal3Base->mTestCaseSelected == MENU_START_PREVIEW ||
@@ -196,10 +206,30 @@ int CameraHAL3Base::hal3appCameraTestLoad()
     my_test_obj->module_cb.camera_device_status_change = &camera_device_status_change;
     my_if_handle->set_callbacks(&(my_test_obj->module_cb));
     my_if_handle->get_camera_info(0, &(mLibHandle->test_obj.cam_info));
+    camcap_info = mLibHandle->test_obj.cam_info;
+    hal3app_cam_settings = (camcap_info.static_camera_characteristics);
+    display_capability();
     return numCam;
     EXIT:
     return rc;
 
+}
+
+void CameraHAL3Base::display_capability()
+{
+    ALOGE("Camera Here");
+    int i,j;
+    int *available_ir_modes = NULL, *available_svhdr_mode = NULL, count_stream;
+    if(hal3app_cam_settings.exists(QCAMERA3_IR_AVAILABLE_MODES)) {
+        ALOGE("\n mrad check1 ");
+        entry_hal3app = hal3app_cam_settings.find(QCAMERA3_IR_AVAILABLE_MODES);
+        available_ir_modes = (int *) malloc((entry_hal3app.count)*sizeof(int ));
+        for(i =0;i < (int)entry_hal3app.count; i++){
+                    available_ir_modes[i] = entry_hal3app.data.i32[i];
+            ALOGE("\n mrad cap %d ", available_ir_modes[i]);
+
+        }
+    }
 }
 
 int CameraHAL3Base::hal3appCameraLibOpen(int camid)
@@ -242,8 +272,6 @@ int CameraHAL3Base::hal3appCamOpen(
         int camid,
         hal3_camera_test_obj_t *my_test_obj)
 {
-    int rc = 0;
-    int numCam;
     camera_module_t *my_if_handle = my_hal3_app->hal3_lib.halModule_t;
     my_if_handle->common.methods->open(&(my_if_handle->common), "0",
             reinterpret_cast<hw_device_t**>(&(my_test_obj->device)));
@@ -305,12 +333,19 @@ int CameraHAL3Base::hal3appCameraPreviewInit(int testcase, int camid, int w, int
 {
     extern int req_sent;
     int testCaseEndComplete = 0;
-    int CaptureRequestSent = 0;
     if (w == 0 || h == 0) {
         printf("\n Frame dimension is wrong");
         return -1;
     }
     if ( mPreviewtestCase != NULL) {
+        if(testcase == MENU_TOGGLE_IR_MODE) {
+            ALOGE("\n IR mode requested is :%d", ir_mode);
+            mPreviewtestCase->ir_mode = ir_mode;
+        }
+        if(testcase == MENU_TOGGLE_SVHDR_MODE) {
+            ALOGE("\n SVHDR mode requested is :%d", svhdr_mode);
+            mPreviewtestCase->svhdr_mode = svhdr_mode;
+        }
         return 0;
     }
     else {
@@ -331,6 +366,7 @@ int CameraHAL3Base::hal3appCameraPreviewInit(int testcase, int camid, int w, int
             capture_received = 0; mSecElapsed = 1;
             snapshot_buffer = -1; mFrameCount = 0;
             mPreviewtestCase->width = w; mPreviewtestCase->height = h;
+            mPreviewtestCase->ir_mode = 0; mPreviewtestCase->svhdr_mode = 0;
             mPreviewtestCase->initTest(mLibHandle,
                     (int) MENU_START_PREVIEW, camid, w, h);
             testCaseEndComplete = 1;
@@ -343,14 +379,14 @@ int CameraHAL3Base::hal3appCameraVideoInit(int testcase, int camid, int w, int h
 {
     extern int req_sent;
     int testCaseEndComplete = 0;
-    int CaptureRequestSent = 0;
     if (w == 0 || h == 0) {
         printf("\n Frame dimension is wrong");
         return -1;
     }
 
     if (mVideotestCase != NULL) {
-            return 0;
+        LOGD("testcase is : %d", testcase);
+        return 0;
     }
     else {
         testCaseEndComplete = 0;
@@ -382,6 +418,9 @@ int CameraHAL3Base::hal3appCameraVideoInit(int testcase, int camid, int w, int h
 int CameraHAL3Base::hal3appRawCaptureInit(hal3_camera_lib_test *handle, int camid, int req_cap)
 {
     int testCaseEndComplete = 0;
+    if(handle == NULL) {
+        LOGE("Camera Handle is NULL");
+    }
     if (mSnapShotRunning != 1) {
         hal3appCheckStream(MENU_START_RAW_CAPTURE, camid);
     }
@@ -407,6 +446,9 @@ int CameraHAL3Base::hal3appCameraCaptureInit(hal3_camera_lib_test *handle,
         int camid, int req_cap)
 {
     int testCaseEndComplete = 0;
+    if(handle == NULL) {
+        LOGE("Camera Handle is NULL");
+    }
     if (mSnapShotRunning != 1) {
         hal3appCheckStream(MENU_START_CAPTURE, camid);
     }
@@ -425,22 +467,6 @@ int CameraHAL3Base::hal3appCameraCaptureInit(hal3_camera_lib_test *handle,
         testCaseEndComplete = 1;
     }while(testCaseEndComplete != 1);
     return 0;
-}
-
-void CameraHAL3Base::hal3appCamCapabilityGet(hal3_camera_lib_test *handle, int camid)
-{
-    camera_module_t *my_if_handle = ((handle->app_obj).hal3_lib).halModule_t;
-    hal3_camera_test_obj_t *test_obj_handle = &(handle->test_obj);
-    camera_metadata_entry entry_hal3app;
-    camera_info info;
-    int i = 0, count = 0, j = 0;
-    long int num = 0;
-    int32_t *available_hdr = NULL, *available_svhdr = NULL, *available_ir = NULL;
-    android::CameraMetadata hal3_cam_settings;
-    printf("\n Number of Cameras are : %d and %p", camid, &(test_obj_handle->cam_info));
-    my_if_handle->get_camera_info(camid, &(test_obj_handle->cam_info));
-    info = test_obj_handle->cam_info;
-    hal3_cam_settings = (info.static_camera_characteristics);
 }
 
 }
