@@ -5350,6 +5350,9 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
     int rc = NO_ERROR;
 
     QCameraChannel *pChannel = NULL;
+    QCameraChannel *pPreviewChannel = NULL;
+    QCameraStream  *pPreviewStream = NULL;
+    QCameraStream  *pStream = NULL;
 
     //Set rotation value from user settings as Jpeg rotation
     //to configure back-end modules.
@@ -5372,6 +5375,45 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
         LOGE("Snapshot/Video channel not initialized");
         rc = NO_INIT;
         goto end;
+    }
+
+    // Check if all preview buffers are mapped before creating
+    // a jpeg session as preview stream buffers are queried during the same
+    pPreviewChannel = m_channels[QCAMERA_CH_TYPE_PREVIEW];
+    if (pPreviewChannel != NULL) {
+        uint32_t numStreams = pPreviewChannel->getNumOfStreams();
+
+        for (uint8_t i = 0 ; i < numStreams ; i++ ) {
+            pStream = pPreviewChannel->getStreamByIndex(i);
+            if (!pStream)
+                continue;
+            if (CAM_STREAM_TYPE_PREVIEW == pStream->getMyType()) {
+                pPreviewStream = pStream;
+                break;
+            }
+        }
+
+        if (pPreviewStream != NULL) {
+            Mutex::Autolock l(mMapLock);
+            QCameraMemory *pMemory = pStream->getStreamBufs();
+            if (!pMemory) {
+                LOGE("Error!! pMemory is NULL");
+                return -ENOMEM;
+            }
+
+            uint8_t waitCnt = 2;
+            while (!pMemory->checkIfAllBuffersMapped() && (waitCnt > 0)) {
+                LOGL(" Waiting for preview buffers to be mapped");
+                mMapCond.waitRelative(
+                        mMapLock, CAMERA_DEFERRED_MAP_BUF_TIMEOUT);
+                LOGL("Wait completed!!");
+                waitCnt--;
+            }
+            // If all buffers are not mapped after retries, assert
+            assert(pMemory->checkIfAllBuffersMapped());
+        } else {
+            assert(pPreviewStream);
+        }
     }
 
     DeferWorkArgs args;
@@ -8435,38 +8477,53 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *
 
             if (faces_data->landmark_valid) {
                 // Center of left eye
-                faces[i].left_eye[0] = MAP_TO_DRIVER_COORDINATE(
-                        faces_data->landmark_data.face_landmarks[i].left_eye_center.x,
-                        display_dim.width, 2000, -1000);
-                faces[i].left_eye[1] = MAP_TO_DRIVER_COORDINATE(
-                        faces_data->landmark_data.face_landmarks[i].left_eye_center.y,
-                        display_dim.height, 2000, -1000);
+                if (faces_data->landmark_data.face_landmarks[i].is_left_eye_valid) {
+                    faces[i].left_eye[0] = MAP_TO_DRIVER_COORDINATE(
+                            faces_data->landmark_data.face_landmarks[i].left_eye_center.x,
+                            display_dim.width, 2000, -1000);
+                    faces[i].left_eye[1] = MAP_TO_DRIVER_COORDINATE(
+                            faces_data->landmark_data.face_landmarks[i].left_eye_center.y,
+                            display_dim.height, 2000, -1000);
+                } else {
+                    faces[i].left_eye[0] = FACE_INVALID_POINT;
+                    faces[i].left_eye[1] = FACE_INVALID_POINT;
+                }
 
                 // Center of right eye
-                faces[i].right_eye[0] = MAP_TO_DRIVER_COORDINATE(
-                        faces_data->landmark_data.face_landmarks[i].right_eye_center.x,
-                        display_dim.width, 2000, -1000);
-                faces[i].right_eye[1] = MAP_TO_DRIVER_COORDINATE(
-                        faces_data->landmark_data.face_landmarks[i].right_eye_center.y,
-                        display_dim.height, 2000, -1000);
+                if (faces_data->landmark_data.face_landmarks[i].is_right_eye_valid) {
+                    faces[i].right_eye[0] = MAP_TO_DRIVER_COORDINATE(
+                            faces_data->landmark_data.face_landmarks[i].right_eye_center.x,
+                            display_dim.width, 2000, -1000);
+                    faces[i].right_eye[1] = MAP_TO_DRIVER_COORDINATE(
+                            faces_data->landmark_data.face_landmarks[i].right_eye_center.y,
+                            display_dim.height, 2000, -1000);
+                } else {
+                    faces[i].right_eye[0] = FACE_INVALID_POINT;
+                    faces[i].right_eye[1] = FACE_INVALID_POINT;
+                }
 
                 // Center of mouth
-                faces[i].mouth[0] = MAP_TO_DRIVER_COORDINATE(
-                        faces_data->landmark_data.face_landmarks[i].mouth_center.x,
-                        display_dim.width, 2000, -1000);
-                faces[i].mouth[1] = MAP_TO_DRIVER_COORDINATE(
-                        faces_data->landmark_data.face_landmarks[i].mouth_center.y,
-                        display_dim.height, 2000, -1000);
+                if (faces_data->landmark_data.face_landmarks[i].is_mouth_valid) {
+                    faces[i].mouth[0] = MAP_TO_DRIVER_COORDINATE(
+                            faces_data->landmark_data.face_landmarks[i].mouth_center.x,
+                            display_dim.width, 2000, -1000);
+                    faces[i].mouth[1] = MAP_TO_DRIVER_COORDINATE(
+                            faces_data->landmark_data.face_landmarks[i].mouth_center.y,
+                            display_dim.height, 2000, -1000);
+                } else {
+                    faces[i].mouth[0] = FACE_INVALID_POINT;
+                    faces[i].mouth[1] = FACE_INVALID_POINT;
+                }
             } else {
                 // return -2000 if invalid
-                faces[i].left_eye[0] = -2000;
-                faces[i].left_eye[1] = -2000;
+                faces[i].left_eye[0] = FACE_INVALID_POINT;
+                faces[i].left_eye[1] = FACE_INVALID_POINT;
 
-                faces[i].right_eye[0] = -2000;
-                faces[i].right_eye[1] = -2000;
+                faces[i].right_eye[0] = FACE_INVALID_POINT;
+                faces[i].right_eye[1] = FACE_INVALID_POINT;
 
-                faces[i].mouth[0] = -2000;
-                faces[i].mouth[1] = -2000;
+                faces[i].mouth[0] = FACE_INVALID_POINT;
+                faces[i].mouth[1] = FACE_INVALID_POINT;
             }
 
 #ifndef VANILLA_HAL

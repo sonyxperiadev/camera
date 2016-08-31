@@ -1062,6 +1062,9 @@ typedef struct {
 #define CAM_FACE_PROCESS_MASK_SMILE         (1U<<4)
 #define CAM_FACE_PROCESS_MASK_GAZE          (1U<<5)
 
+/* Keep this in sync with invalid landmark value : system/core/include/system/camera.h */
+#define FACE_INVALID_POINT -2000
+
 typedef struct {
     uint32_t fd_mode;          /* mask of face process */
     uint32_t num_fd;
@@ -1168,8 +1171,11 @@ typedef struct {
 } cam_face_contour_data_t;
 
 typedef struct {
+    uint8_t is_left_eye_valid;
     cam_coordinate_type_t left_eye_center;  /* coordinate of center of left eye */
+    uint8_t is_right_eye_valid;
     cam_coordinate_type_t right_eye_center; /* coordinate of center of right eye */
+    uint8_t is_mouth_valid;
     cam_coordinate_type_t mouth_center;     /* coordinate of center of mouth */
 } cam_face_landmarks_info_t;
 
