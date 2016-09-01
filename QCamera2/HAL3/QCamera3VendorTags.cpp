@@ -51,6 +51,7 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_TEMPORAL_DENOISE_END,
         QCAMERA3_ISO_EXP_PRIORITY_END,
         QCAMERA3_SATURATION_END,
+        QCAMERA3_EXPOSURE_METER_END,
         QCAMERA3_AV_TIMER_END,
         QCAMERA3_SENSOR_META_DATA_END,
         QCAMERA3_DUALCAM_LINK_META_DATA_END,
@@ -74,6 +75,7 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.temporal_denoise",
     "org.codeaurora.qcamera3.iso_exp_priority",
     "org.codeaurora.qcamera3.saturation",
+    "org.codeaurora.qcamera3.exposure_metering",
     "org.codeaurora.qcamera3.av_timer",
     "org.codeaurora.qcamera3.sensor_meta_data",
     "org.codeaurora.qcamera3.dualcam_link_meta_data",
@@ -122,7 +124,12 @@ vendor_tag_info qcamera3_iso_exp_priority[QCAMERA3_ISO_EXP_PRIORITY_END -
 
 vendor_tag_info qcamera3_saturation[QCAMERA3_SATURATION_END -
                                   QCAMERA3_SATURATION_START] = {
-   { "use_saturation", TYPE_INT32 }
+    { "use_saturation", TYPE_INT32 }
+};
+
+vendor_tag_info qcamera3_exposure_metering[QCAMERA3_EXPOSURE_METER_END -
+                                  QCAMERA3_EXPOSURE_METER_START] = {
+    { "exposure_metering_mode", TYPE_INT32}
 };
 
 vendor_tag_info qcamera3_av_timer[QCAMERA3_AV_TIMER_END -
@@ -175,6 +182,7 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_temporal_denoise,
     qcamera3_iso_exp_priority,
     qcamera3_saturation,
+    qcamera3_exposure_metering,
     qcamera3_av_timer,
     qcamera3_sensor_meta_data,
     qcamera3_dualcam_link_meta_data,
@@ -213,6 +221,9 @@ uint32_t qcamera3_all_tags[] = {
 
     // QCAMERA3_SATURATION
     (uint32_t)QCAMERA3_USE_SATURATION,
+
+    // QCAMERA3_EXPOSURE_METERING
+    (uint32_t)QCAMERA3_EXPOSURE_METER,
 
     //QCAMERA3_AVTIMER
     (uint32_t)QCAMERA3_USE_AV_TIMER,
