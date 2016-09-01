@@ -44,6 +44,7 @@ typedef enum
     MENU_START_RAW_CAPTURE,
     MENU_TOGGLE_IR_MODE,
     MENU_TOGGLE_SVHDR_MODE,
+    MENU_TOGGLE_BINNING_CORRECTION,
     MENU_EXIT
 } menu_id;
 
@@ -64,7 +65,6 @@ typedef struct {
 class CameraHAL3Base;
 class MainTestContext
 {
-    int choice;
     bool mTestRunning;
     bool irmode;
     bool svhdrmode;

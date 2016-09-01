@@ -166,7 +166,8 @@ CameraHAL3Base::CameraHAL3Base(int cameraIndex) :
     mTestCaseSelected(0),
     mPreviewRunning(0),
     mVideoRunning(0),
-    mSnapShotRunning(0)
+    mSnapShotRunning(0),
+    binning_mode(0)
 {
 
 }
@@ -218,8 +219,8 @@ int CameraHAL3Base::hal3appCameraTestLoad()
 void CameraHAL3Base::display_capability()
 {
     ALOGE("Camera Here");
-    int i,j;
-    int *available_ir_modes = NULL, *available_svhdr_mode = NULL, count_stream;
+    int i;
+    int *available_ir_modes = NULL;
     if(hal3app_cam_settings.exists(QCAMERA3_IR_AVAILABLE_MODES)) {
         ALOGE("\n mrad check1 ");
         entry_hal3app = hal3app_cam_settings.find(QCAMERA3_IR_AVAILABLE_MODES);
@@ -385,7 +386,10 @@ int CameraHAL3Base::hal3appCameraVideoInit(int testcase, int camid, int w, int h
     }
 
     if (mVideotestCase != NULL) {
-        LOGD("testcase is : %d", testcase);
+        if(testcase == MENU_TOGGLE_BINNING_CORRECTION) {
+            ALOGE("\n Binning Mode Requested is :%d", binning_mode);
+            mVideotestCase->binning_mode = binning_mode;
+        }
         return 0;
     }
     else {
