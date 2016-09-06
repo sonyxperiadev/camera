@@ -461,11 +461,38 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 {
     LOGD("E");
 
+    int32_t rc = 0;
+
     /* Turn off current power hint before acquiring perfLock in case they
      * conflict with each other */
     disablePowerHint();
 
     m_perfLock.lock_acq();
+
+    // unlink of dualcam
+    if (mIsDeviceLinked) {
+        m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+        pthread_mutex_lock(&gCamLock);
+
+        if (mIsMainCamera == 1) {
+            m_pRelCamSyncBuf->mode = CAM_MODE_PRIMARY;
+            m_pRelCamSyncBuf->type = CAM_TYPE_MAIN;
+            // related session id should be session id of linked session
+            m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
+        } else {
+            m_pRelCamSyncBuf->mode = CAM_MODE_SECONDARY;
+            m_pRelCamSyncBuf->type = CAM_TYPE_AUX;
+            m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
+        }
+        pthread_mutex_unlock(&gCamLock);
+
+        rc = mCameraHandle->ops->sync_related_sensors(
+                mCameraHandle->camera_handle, m_pRelCamSyncBuf);
+        if (rc < 0) {
+            LOGE("Dualcam: Unlink failed, but still proceed to close");
+        }
+        mIsDeviceLinked = false;
+    }
 
     /* We need to stop all streams before deleting any stream */
     if (mRawDumpChannel) {
