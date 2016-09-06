@@ -171,6 +171,8 @@ int mm_app_tc_start_stop_video_preview(mm_camera_app_t *cam_app)
     int rc = MM_CAMERA_OK;
     int i, j;
     mm_camera_test_obj_t test_obj;
+    mm_camera_lib_snapshot_params dim;
+    memset(&dim, 0, sizeof(mm_camera_lib_snapshot_params));
 
     printf("\n Verifying start/stop video preview...\n");
     for (i = 0; i < cam_app->num_cameras; i++) {
@@ -183,7 +185,7 @@ int mm_app_tc_start_stop_video_preview(mm_camera_app_t *cam_app)
         }
 
         for (j = 0; j < MM_QCAMERA_APP_UTEST_INNER_LOOP; j++) {
-            rc = mm_app_start_record_preview(&test_obj);
+            rc = mm_app_start_record_preview(&test_obj, &dim);
             if (rc != MM_CAMERA_OK) {
                 LOGE("mm_app_start_record_preview() cam_idx=%d, err=%d\n",
                             i, rc);
@@ -219,6 +221,8 @@ int mm_app_tc_start_stop_video_record(mm_camera_app_t *cam_app)
     int rc = MM_CAMERA_OK;
     int i, j;
     mm_camera_test_obj_t test_obj;
+    mm_camera_lib_snapshot_params dim;
+    memset(&dim, 0, sizeof(mm_camera_lib_snapshot_params));
 
     printf("\n Verifying start/stop recording...\n");
     for (i = 0; i < cam_app->num_cameras; i++) {
@@ -230,7 +234,7 @@ int mm_app_tc_start_stop_video_record(mm_camera_app_t *cam_app)
             break;
         }
 
-        rc = mm_app_start_record_preview(&test_obj);
+        rc = mm_app_start_record_preview(&test_obj, &dim);
         if (rc != MM_CAMERA_OK) {
             LOGE("mm_app_start_record_preview() cam_idx=%d, err=%d\n",
                         i, rc);
@@ -294,6 +298,8 @@ int mm_app_tc_start_stop_live_snapshot(mm_camera_app_t *cam_app)
     int rc = MM_CAMERA_OK;
     int i, j;
     mm_camera_test_obj_t test_obj;
+    mm_camera_lib_snapshot_params dim;
+    memset(&dim, 0, sizeof(mm_camera_lib_snapshot_params));
 
     printf("\n Verifying start/stop live snapshot...\n");
     for (i = 0; i < cam_app->num_cameras; i++) {
@@ -305,7 +311,7 @@ int mm_app_tc_start_stop_live_snapshot(mm_camera_app_t *cam_app)
             break;
         }
 
-        rc = mm_app_start_record_preview(&test_obj);
+        rc = mm_app_start_record_preview(&test_obj, &dim);
         if (rc != MM_CAMERA_OK) {
             LOGE("mm_app_start_record_preview() cam_idx=%d, err=%d\n",
                         i, rc);

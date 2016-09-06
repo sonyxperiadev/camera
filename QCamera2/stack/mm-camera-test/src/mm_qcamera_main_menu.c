@@ -1667,6 +1667,7 @@ static int submain()
 
     mm_camera_test_obj_t test_obj;
     memset(&test_obj, 0, sizeof(mm_camera_test_obj_t));
+    memset(&snap_dim, 0, sizeof(mm_camera_lib_snapshot_params));
 
     rc = mm_camera_lib_open(&lib_handle, 0);
     if (rc != MM_CAMERA_OK) {
@@ -1929,9 +1930,10 @@ static int submain()
                 } else {
                     printf("ZSL off !!!\n");
                 }
+                snap_dim.isZSL = isZSL;
                 rc = mm_camera_lib_send_command(&lib_handle,
                                                 MM_CAMERA_LIB_ZSL_ENABLE,
-                                                &isZSL,
+                                                &snap_dim,
                                                 NULL);
                 if (rc != MM_CAMERA_OK) {
                     LOGE("mm_camera_lib_send_command() err=%d\n",  rc);
@@ -1984,7 +1986,7 @@ static int submain()
 
            case ACTION_START_RECORDING:
              LOGD("Start recording action\n");
-             mm_app_start_record_preview(&lib_handle.test_obj);
+             mm_app_start_record_preview(&lib_handle.test_obj, &snap_dim);
              is_rec = 1;
              break;
 

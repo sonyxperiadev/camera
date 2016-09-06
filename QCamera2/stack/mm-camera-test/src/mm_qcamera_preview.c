@@ -920,8 +920,13 @@ mm_camera_stream_t * mm_app_add_ZSL_snapshot_stream(mm_camera_test_obj_t *test_o
     abc_snap.type[1] = CAM_STREAM_TYPE_PREVIEW;
 
     abc_snap.postprocess_mask[0] = 0;
-    abc_snap.stream_sizes[0].width = DEFAULT_SNAPSHOT_WIDTH;
-    abc_snap.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+    if ( test_obj->buffer_width == 0 || test_obj->buffer_height == 0 ) {
+        abc_snap.stream_sizes[0].width = DEFAULT_SNAPSHOT_WIDTH;
+        abc_snap.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+    } else {
+        abc_snap.stream_sizes[0].width = test_obj->buffer_width;
+        abc_snap.stream_sizes[0].height = test_obj->buffer_height;
+    }
     abc_snap.type[0] = CAM_STREAM_TYPE_SNAPSHOT;
 
     abc_snap.buffer_info.min_buffers = 7;
@@ -964,8 +969,8 @@ mm_camera_stream_t * mm_app_add_ZSL_snapshot_stream(mm_camera_test_obj_t *test_o
         stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
         stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     } else {
-        stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
-        stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
+        stream->s_config.stream_info->dim.width = test_obj->buffer_width;
+        stream->s_config.stream_info->dim.height = test_obj->buffer_height;
     }
     stream->s_config.padding_info = cam_cap->padding_info;
     /* Make offset as zero as CPP will not be used  */
@@ -997,13 +1002,18 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
 
     abc_snap.num_streams = 2;
     abc_snap.postprocess_mask[1] = 2178;
-    abc_snap.stream_sizes[1].width = DEFAULT_PREVIEW_WIDTH;
+    abc_snap.stream_sizes[1].width  = DEFAULT_PREVIEW_WIDTH;
     abc_snap.stream_sizes[1].height = DEFAULT_PREVIEW_HEIGHT;
     abc_snap.type[1] = CAM_STREAM_TYPE_POSTVIEW;
 
     abc_snap.postprocess_mask[0] = 0;
-    abc_snap.stream_sizes[0].width = DEFAULT_SNAPSHOT_WIDTH;
-    abc_snap.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+    if ( test_obj->buffer_width == 0 || test_obj->buffer_height == 0 ) {
+        abc_snap.stream_sizes[0].width  = DEFAULT_SNAPSHOT_WIDTH;
+        abc_snap.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+    } else {
+        abc_snap.stream_sizes[0].width  = test_obj->buffer_width;
+        abc_snap.stream_sizes[0].height = test_obj->buffer_height;
+    }
     abc_snap.type[0] = CAM_STREAM_TYPE_SNAPSHOT;
 
     abc_snap.buffer_info.min_buffers = 7;
@@ -1046,8 +1056,8 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
         stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     } else {
-        stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
-        stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
+        stream->s_config.stream_info->dim.width = test_obj->buffer_width;
+        stream->s_config.stream_info->dim.height = test_obj->buffer_height;
     }
     stream->s_config.padding_info = cam_cap->padding_info;
     /* Make offset as zero as CPP will not be used  */

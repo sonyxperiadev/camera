@@ -2050,8 +2050,8 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
             break;
         case MM_CAMERA_LIB_ZSL_ENABLE:
             if ( NULL != in_data) {
-                int enable_zsl = *(( int * )in_data);
-                if ( ( enable_zsl != handle->test_obj.zsl_enabled ) &&
+                dim = ( mm_camera_lib_snapshot_params * ) in_data;
+                if ( ( dim->isZSL!= handle->test_obj.zsl_enabled ) &&
                         handle->stream_running ) {
                     rc = mm_camera_lib_stop_stream(handle);
                     if (rc != MM_CAMERA_OK) {
@@ -2059,7 +2059,10 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                                     rc);
                         goto EXIT;
                     }
-                    handle->test_obj.zsl_enabled = enable_zsl;
+                    handle->test_obj.zsl_enabled   = dim->isZSL;
+                    handle->test_obj.buffer_width  = dim->width;
+                    handle->test_obj.buffer_height = dim->height;
+
                     rc = mm_camera_lib_start_stream(handle);
                     if (rc != MM_CAMERA_OK) {
                         LOGE("mm_camera_lib_start_stream() err=%d\n",
@@ -2067,7 +2070,7 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                         goto EXIT;
                     }
                 } else {
-                    handle->test_obj.zsl_enabled = enable_zsl;
+                    handle->test_obj.zsl_enabled = dim->isZSL;
                 }
             }
             break;

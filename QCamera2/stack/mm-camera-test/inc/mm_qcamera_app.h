@@ -267,6 +267,7 @@ typedef struct {
 typedef struct {
     uint32_t width;
     uint32_t height;
+    int isZSL;
 } mm_camera_lib_snapshot_params;
 
 typedef enum {
@@ -440,7 +441,7 @@ extern mm_camera_stream_t * mm_app_add_metadata_stream(mm_camera_test_obj_t *tes
                                                mm_camera_buf_notify_t stream_cb,
                                                void *userdata,
                                                uint8_t num_bufs);
-extern int mm_app_start_record_preview(mm_camera_test_obj_t *test_obj);
+extern int mm_app_start_record_preview(mm_camera_test_obj_t *test_obj, mm_camera_lib_snapshot_params *dim);
 extern int mm_app_stop_record_preview(mm_camera_test_obj_t *test_obj);
 extern int mm_app_start_record(mm_camera_test_obj_t *test_obj);
 extern int mm_app_stop_record(mm_camera_test_obj_t *test_obj);
