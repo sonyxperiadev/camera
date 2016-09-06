@@ -84,6 +84,7 @@ protected:
     Vector<QCameraStream *> mStreams;
     mm_camera_buf_notify_t mDataCB;
     void *mUserData;
+    Mutex mStreamLock;
 };
 
 // burst pic channel: i.e. zsl burst mode
