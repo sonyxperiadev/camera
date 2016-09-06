@@ -4100,17 +4100,22 @@ int32_t QCameraParameters::setTsMakeup(const QCameraParameters& params)
         if (prev_str == NULL || strcmp(str, prev_str) != 0) {
             m_bNeedRestart = true;
             set(KEY_TS_MAKEUP, str);
-            const char *str1 = params.get(KEY_TS_MAKEUP_WHITEN);
-            if (str1 != NULL) {
-                set(KEY_TS_MAKEUP_WHITEN, str1);
+        }
+        str = params.get(KEY_TS_MAKEUP_WHITEN);
+        prev_str = get(KEY_TS_MAKEUP_WHITEN);
+        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
+            if (str != NULL) {
+                set(KEY_TS_MAKEUP_WHITEN, str);
             }
-            const char *str2 = params.get(KEY_TS_MAKEUP_CLEAN);
-            if (str2 != NULL) {
-                set(KEY_TS_MAKEUP_CLEAN, str2);
+        }
+        str = params.get(KEY_TS_MAKEUP_CLEAN);
+        prev_str = get(KEY_TS_MAKEUP_CLEAN);
+        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
+            if (str != NULL) {
+                set(KEY_TS_MAKEUP_CLEAN, str);
             }
         }
     }
-
     return NO_ERROR;
 }
 
