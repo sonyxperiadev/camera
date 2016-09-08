@@ -1106,11 +1106,11 @@ int32_t QCameraParametersIntf::configFrameCapture(bool commitSettings)
     return mImpl->configFrameCapture(commitSettings);
 }
 
-int32_t QCameraParametersIntf::resetFrameCapture(bool commitSettings)
+int32_t QCameraParametersIntf::resetFrameCapture(bool commitSettings, bool lowLightEnabled)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->resetFrameCapture(commitSettings);
+    return mImpl->resetFrameCapture(commitSettings,lowLightEnabled);
 }
 
 cam_still_more_t QCameraParametersIntf::getStillMoreSettings()
@@ -1201,6 +1201,13 @@ void QCameraParametersIntf::setCurPPCount(int8_t count)
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     mImpl->setCurPPCount(count);
+}
+
+int32_t QCameraParametersIntf::setQuadraCfaMode(uint32_t value, bool initCommit)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setQuadraCfaMode(value, initCommit);
 }
 
 int32_t QCameraParametersIntf::setToneMapMode(uint32_t value, bool initCommit)

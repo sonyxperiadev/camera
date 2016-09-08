@@ -3917,6 +3917,51 @@ int32_t QCameraParameters::setHDRNeed1x(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : setQuadraCfaMode
+ *
+ * DESCRIPTION: enable or disable Quadra CFA mode
+ *
+ * PARAMETERS :
+ *   @enable : enable: 1; disable 0
+ *   @initCommit: if configuration list needs to be initialized and commited
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setQuadraCfaMode(uint32_t enable, bool initCommit) {
+
+   int32_t rc = NO_ERROR;
+
+    if (getQuadraCfa()) {
+        if (enable) {
+            setOfflineRAW(TRUE);
+        } else  {
+            setOfflineRAW(FALSE);
+        }
+         if (initCommit) {
+             if (initBatchUpdate(m_pParamBuf) < 0) {
+                 LOGE("Failed to initialize group update table");
+                 return FAILED_TRANSACTION;
+             }
+         }
+         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_QUADRA_CFA, enable)) {
+             LOGE("Failed to update Quadra CFA mode");
+             return BAD_VALUE;
+         }
+         if (initCommit) {
+             rc = commitSetBatch();
+             if (rc != NO_ERROR) {
+                 LOGE("Failed to commit Quadra CFA mode");
+                 return rc;
+             }
+         }
+    }
+    LOGI("Quadra CFA mode %d ", enable);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setQuadraCFA
  *
  * DESCRIPTION: set Quadra CFA mode
@@ -3957,21 +4002,10 @@ int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
     if (prev_quadracfa == m_bQuadraCfa) {
         LOGD("No change in Quadra CFA mode");
     } else {
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_QUADRA_CFA, value)) {
-            rc = BAD_VALUE;
-            LOGE("Error sending Quadra CFA set param to modules");
-            return rc;
-        }
-
         if (m_bZslMode && m_bQuadraCfa) {
             m_bNeedRestart = TRUE;
             setZslMode(FALSE);
-        }
-
-        if (m_bQuadraCfa) {
-            setOfflineRAW(TRUE);
-        } else  {
-            setOfflineRAW(FALSE);
+        } else {
             const char *str_val  = params.get(KEY_QC_ZSL);
             int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
                     str_val);
@@ -6979,10 +7013,10 @@ int32_t QCameraParameters::setVideoHDR(const char *videoHDR)
 
             char zz_prop[PROPERTY_VALUE_MAX];
             memset(zz_prop, 0, sizeof(zz_prop));
-            property_get("persist.camera.zzhdr.video", zz_prop, "0");
+            property_get("persist.camera.hdr.video", zz_prop, "0");
             uint8_t use_zzhdr_video = (uint8_t)atoi(zz_prop);
 
-            if (use_zzhdr_video) {
+            if (use_zzhdr_video == CAM_SENSOR_HDR_ZIGZAG) {
                 LOGH("%s: Using ZZ HDR for video mode", __func__);
                 if (value)
                     value = CAM_SENSOR_HDR_ZIGZAG;
@@ -7648,8 +7682,7 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
     }
 
     if (isHDREnabled() || m_bAeBracketingEnabled || m_bAFBracketingOn ||
-          m_bOptiZoomOn || m_bReFocusOn || m_LowLightLevel
-          || getManualCaptureMode()) {
+          m_bOptiZoomOn || m_bReFocusOn || getManualCaptureMode()) {
         value = CAM_FLASH_MODE_OFF;
     } else if (isChromaFlashEnabled()) {
         value = CAM_FLASH_MODE_ON;
@@ -7657,13 +7690,7 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
         value = mFlashValue;
     }
 
-    if (value != CAM_FLASH_MODE_OFF) {
-        configureFlash(m_captureFrameConfig);
-    } else if(isHDREnabled()) {
-        configureHDRBracketing (m_captureFrameConfig);
-    } else if(isAEBracketEnabled()) {
-        configureAEBracketing (m_captureFrameConfig);
-    } else if (m_LowLightLevel) {
+    if (m_LowLightLevel && (value != CAM_FLASH_MODE_ON)) {
         configureLowLight (m_captureFrameConfig);
 
         //Added reset capture type as a last batch for back-end to restore settings.
@@ -7671,6 +7698,12 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
         m_captureFrameConfig.configs[batch_count].type = CAM_CAPTURE_RESET;
         m_captureFrameConfig.configs[batch_count].num_frames = 0;
         m_captureFrameConfig.num_batch++;
+    } else if (value != CAM_FLASH_MODE_OFF) {
+        configureFlash(m_captureFrameConfig);
+    } else if(isHDREnabled()) {
+        configureHDRBracketing (m_captureFrameConfig);
+    } else if(isAEBracketEnabled()) {
+        configureAEBracketing (m_captureFrameConfig);
     } else if (getManualCaptureMode() >= CAM_MANUAL_CAPTURE_TYPE_2){
         rc = configureManualCapture (m_captureFrameConfig);
         //Added reset capture type as a last batch for back-end to restore settings.
@@ -7705,12 +7738,13 @@ int32_t QCameraParameters::configFrameCapture(bool commitSettings)
  *
  * PARAMETERS :
  *   @commitSettings : flag to enable or disable commit this this settings
+ *   @lowLightEnabled: flag to indicate if low light scene detected
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
+int32_t QCameraParameters::resetFrameCapture(bool commitSettings, bool lowLightEnabled)
 {
     int32_t rc = NO_ERROR;
     memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
@@ -7729,7 +7763,7 @@ int32_t QCameraParameters::resetFrameCapture(bool commitSettings)
         }
         rc = stopAEBracket();
     } else if ((isChromaFlashEnabled()) || (mFlashValue != CAM_FLASH_MODE_OFF)
-            || (getLowLightLevel() != CAM_LOW_LIGHT_OFF)) {
+            || (lowLightEnabled == true)) {
         rc = setToneMapMode(true, false);
         if (rc != NO_ERROR) {
             LOGH("Failed to enable tone map during chroma flash");
@@ -9740,7 +9774,7 @@ int32_t QCameraParameters::updateFlash(bool commitSettings)
     }
 
     if (isHDREnabled() || m_bAeBracketingEnabled || m_bAFBracketingOn ||
-          m_bOptiZoomOn || m_bReFocusOn || m_LowLightLevel || m_bStillMoreOn) {
+          m_bOptiZoomOn || m_bReFocusOn || m_bStillMoreOn) {
         value = CAM_FLASH_MODE_OFF;
     } else if (m_bChromaFlashOn) {
         value = CAM_FLASH_MODE_ON;
@@ -11474,6 +11508,10 @@ int32_t QCameraParameters::setFaceDetection(bool enabled, bool initCommit)
     uint32_t faceProcMask = m_nFaceProcMask;
     // set face detection mask
     if (enabled) {
+        if (m_pCapability->max_num_roi == 0) {
+            LOGE("Face detection is not support becuase max number of face is 0");
+            return BAD_VALUE;
+        }
         faceProcMask |= CAM_FACE_PROCESS_MASK_DETECTION;
         if (getRecordingHintValue() > 0) {
             faceProcMask = 0;

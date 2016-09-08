@@ -49,7 +49,8 @@ QCameraHAL3VideoTest::QCameraHAL3VideoTest(int camid) :
     QCameraHAL3Test(0),
     mVideoHandle(NULL),
     mCaptureHandle(NULL),
-    mVideoStream(NULL)
+    mVideoStream(NULL),
+    mCameraId(camid)
 {
 
 }
@@ -60,7 +61,7 @@ void QCameraHAL3VideoTest::initTest(hal3_camera_lib_test *handle,
     int i;
     CamObj_handle = handle; thread_exit = 0;
     test_case_end = 0;
-    LOGD("\n buffer thread created");
+    LOGD("\n buffer thread created for testcase %d  %d and %d ",testcase, w, h);
     configureVideoStream(&(handle->test_obj), camid, w, h);
     LOGD("\n video stream configured");
     constructDefaultRequest(&(handle->test_obj), camid);
@@ -83,7 +84,7 @@ void QCameraHAL3VideoTest::initTest(hal3_camera_lib_test *handle,
 void QCameraHAL3VideoTest::snapshotCaptureRequest(hal3_camera_lib_test *handle,
         int testcase, int camid, int w, int h)
 {
-
+    LOGD("Requested Capture Sizes for testcase:%d are :%d  X %d",testcase, w, h);
     captureRequestRepeat(handle, camid, MENU_START_CAPTURE);
     pthread_mutex_unlock(&mCaptureRequestLock);
 }
@@ -109,6 +110,7 @@ void QCameraHAL3VideoTest::constructDefaultRequest(
         hal3_camera_test_obj_t *my_test_obj, int camid)
 {
     camera3_device_t *device_handle = my_test_obj->device;
+    LOGD("Camera ID : %d",camid);
     mMetaDataPtr[0] = device_handle->ops->construct_default_request_settings(
             my_test_obj->device, CAMERA3_TEMPLATE_VIDEO_RECORD);
     mMetaDataPtr[1] = device_handle->ops->construct_default_request_settings(my_test_obj->device,
@@ -120,14 +122,12 @@ void QCameraHAL3VideoTest::constructDefaultRequest(
 void QCameraHAL3VideoTest::captureRequestRepeat(
         hal3_camera_lib_test *my_hal3test_obj, int camid, int testcase)
 {
-    struct timeval current_time;
     int num1, num2;
-    double total_elapsedTime;
     hal3_camera_test_obj_t *my_test_obj = &(my_hal3test_obj->test_obj);
     camera3_device_t *device_handle = my_test_obj->device;
     if (testcase == MENU_START_VIDEO) {
         if (VideoQueue.empty()) {
-            LOGE("no Video buffer");
+            LOGE("no Video buffer for CamID : %d", camid);
         }
         else {
             if (test_case_end == 0) {
@@ -174,12 +174,11 @@ void QCameraHAL3VideoTest::captureRequestRepeat(
 void QCameraHAL3VideoTest::videoTestEnd(
                     hal3_camera_lib_test *my_hal3test_obj, int camid)
 {
-    buffer_thread_msg_t msg;
     test_case_end = 1;
     hal3_camera_test_obj_t *my_test_obj = &(my_hal3test_obj->test_obj);
     camera3_device_t *device_handle = my_test_obj->device;
     device_handle->ops->flush(my_test_obj->device);
-    LOGD("%s Closing Camera", __func__);
+    LOGD("%s Closing Camera %d", __func__, camid);
     ioctl(mVideoMeminfo.ion_fd, ION_IOC_FREE, &mVideoMeminfo.ion_handle);
     close(mVideoMeminfo.ion_fd);
     mVideoMeminfo.ion_fd = -1;
@@ -199,6 +198,9 @@ void QCameraHAL3VideoTest::snapshotAllocateBuffers(int width, int height)
 
 bool QCameraHAL3VideoTest::videoProcessThreadCreate(
                     hal3_camera_lib_test *handle) {
+    if(handle == NULL) {
+        LOGD("Camera Hanle is NULL");
+    }
     processThreadCreate(this, MENU_START_VIDEO);
     return 1;
 }

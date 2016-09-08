@@ -44,6 +44,7 @@
 #include "QCamera3Mem.h"
 #include "QCameraPerf.h"
 #include "QCameraCommon.h"
+#include "QCamera3VendorTags.h"
 
 extern "C" {
 #include "mm_camera_interface.h"
@@ -313,6 +314,8 @@ private:
             metadata_buffer_t *hal_metadata);
     int32_t extractSceneMode(const CameraMetadata &frame_settings, uint8_t metaMode,
             metadata_buffer_t *hal_metadata);
+    int32_t setVideoHdrMode(metadata_buffer_t *hal_metadata,
+            cam_video_hdr_mode_t vhdr);
     int32_t numOfSizesOnEncoder(const camera3_stream_configuration_t *streamList,
             const cam_dimension_t &maxViewfinderSize);
 
@@ -516,11 +519,14 @@ private:
             cam_focus_calibration_t> FOCUS_CALIBRATION_MAP[];
     static const QCameraMap<camera_metadata_enum_android_sensor_test_pattern_mode_t,
             cam_test_pattern_mode_t> TEST_PATTERN_MAP[];
+    static const QCameraMap<camera_metadata_enum_android_video_hdr_mode_t,
+            cam_video_hdr_mode_t> VIDEO_HDR_MODES_MAP[];
     static const QCameraMap<camera_metadata_enum_android_sensor_reference_illuminant1_t,
             cam_illuminat_t> REFERENCE_ILLUMINANT_MAP[];
     static const QCameraMap<int32_t,
             cam_hfr_mode_t> HFR_MODE_MAP[];
-
+    static const QCameraMap<camera_metadata_enum_android_ir_mode_t,
+            cam_ir_mode_type_t> IR_MODES_MAP[];
     static const QCameraPropMap CDS_MAP[];
 
     pendingRequestIterator erasePendingRequest(pendingRequestIterator i);

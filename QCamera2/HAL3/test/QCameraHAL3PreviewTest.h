@@ -45,6 +45,7 @@ private:
     camera3_stream_t *mPreviewStream;
     camera3_stream_t *mSnapshotStream;
     camera3_capture_request mRequest;
+    android::CameraMetadata hal3app_preview_settings;
     camera3_stream_buffer_t mPreviewStreamBuffs;
     camera3_stream_buffer_t mSnapshotStreamBuffs;
     camera3_stream_configuration mPreviewConfig;
@@ -53,7 +54,8 @@ public:
     int height;
     int nobuffer;
     int mPipelineDepthPreview;
-
+    bool ir_mode;
+    bool svhdr_mode;
     QCameraHAL3PreviewTest(int cameraIndex);
     void configurePreviewStream(hal3_camera_test_obj_t *my_test_obj, int camid,
             int w, int h);
@@ -71,6 +73,8 @@ public:
     void previewTestEnd(hal3_camera_lib_test *my_hal3test_obj, int camid);
     void snapshotAllocateBuffers(int, int );
     virtual ~QCameraHAL3PreviewTest();
+    int get_ir_mode(int ir_mode);
+    int get_svhdr_mode(int hdr_mode);
 };
 
     void * hal3appPreviewProcessBuffers(void *);

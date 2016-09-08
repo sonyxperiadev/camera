@@ -1647,6 +1647,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mPLastFrameCount(0),
       mPLastFpsTime(0),
       mPFps(0),
+      mLowLightConfigured(false),
       mInstantAecFrameCount(0),
       m_bIntJpegEvtPending(false),
       m_bIntRawEvtPending(false),
@@ -1666,7 +1667,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mMetadataMem(NULL),
       mCACDoneReceived(false),
       m_bNeedRestart(false),
-      mBootToMonoTimestampOffset(0)
+      mBootToMonoTimestampOffset(0),
+      bDepthAFCallbacks(true)
 {
 #ifdef TARGET_TS_MAKEUP
     memset(&mFaceRect, -1, sizeof(mFaceRect));
@@ -1973,6 +1975,10 @@ int QCamera2HardwareInterface::openCamera()
         mBootToMonoTimestampOffset = getBootToMonoTimeOffset();
     }
     LOGH("mBootToMonoTimestampOffset = %lld", mBootToMonoTimestampOffset);
+
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.depth.focus.cb", value, "1");
+    bDepthAFCallbacks = atoi(value);
 
     return NO_ERROR;
 
@@ -3955,6 +3961,10 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
 {
     int32_t rc = NO_ERROR;
 
+    /*Disable Quadra CFA mode*/
+    LOGH("Disabling Quadra CFA mode");
+    mParameters.setQuadraCfaMode(false, true);
+
     if (mAdvancedCaptureConfigured) {
 
         mAdvancedCaptureConfigured = false;
@@ -3972,9 +3982,9 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
             rc = mParameters.stopAEBracket();
         } else if ((mParameters.isChromaFlashEnabled())
                 || (mFlashConfigured && !mLongshotEnabled)
-                || (mParameters.getLowLightLevel() != CAM_LOW_LIGHT_OFF)
+                || (mLowLightConfigured == true)
                 || (mParameters.getManualCaptureMode() >= CAM_MANUAL_CAPTURE_TYPE_2)) {
-            rc = mParameters.resetFrameCapture(TRUE);
+            rc = mParameters.resetFrameCapture(TRUE, mLowLightConfigured);
         } else if (mParameters.isUbiFocusEnabled() || mParameters.isUbiRefocus()) {
             rc = configureAFBracketing(false);
         } else if (mParameters.isOptiZoomEnabled()) {
@@ -4025,6 +4035,9 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         LOGE("Cannot support Advanced capture modes");
         return rc;
     }
+    /*Enable Quadra CFA mode*/
+    LOGH("Enabling Quadra CFA mode");
+    mParameters.setQuadraCfaMode(true, true);
 
     setOutputImageCount(0);
     mInputCount = 0;
@@ -4068,6 +4081,9 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
             || (mParameters.getLowLightLevel() != CAM_LOW_LIGHT_OFF)
             || (mParameters.getManualCaptureMode() >= CAM_MANUAL_CAPTURE_TYPE_2)) {
         rc = mParameters.configFrameCapture(TRUE);
+        if (mParameters.getLowLightLevel() != CAM_LOW_LIGHT_OFF) {
+            mLowLightConfigured = true;
+        }
     } else if (mFlashNeeded && !mLongshotEnabled) {
         rc = mParameters.configFrameCapture(TRUE);
         mFlashConfigured = true;
@@ -4346,10 +4362,11 @@ int32_t QCamera2HardwareInterface::stopAdvancedCapture(
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_AF_BRACKETING);
     } else if (mParameters.isChromaFlashEnabled()
             || (mFlashConfigured && !mLongshotEnabled)
-            || (mParameters.getLowLightLevel() != CAM_LOW_LIGHT_OFF)
+            || (mLowLightConfigured == true)
             || (mParameters.getManualCaptureMode() >= CAM_MANUAL_CAPTURE_TYPE_2)) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_FRAME_CAPTURE);
         mFlashConfigured = false;
+        mLowLightConfigured = false;
     } else if(mParameters.isHDREnabled()
             || mParameters.isAEBracketEnabled()) {
         rc = pChannel->stopAdvancedCapture(MM_CAMERA_AE_BRACKETING);
@@ -4393,7 +4410,7 @@ int32_t QCamera2HardwareInterface::startAdvancedCapture(
         rc = pChannel->startAdvancedCapture(MM_CAMERA_AE_BRACKETING);
     } else if (mParameters.isChromaFlashEnabled()
             || (mFlashNeeded && !mLongshotEnabled)
-            || (mParameters.getLowLightLevel() != CAM_LOW_LIGHT_OFF)
+            || (mLowLightConfigured == true)
             || (mParameters.getManualCaptureMode() >= CAM_MANUAL_CAPTURE_TYPE_2)) {
         cam_capture_frame_config_t config = mParameters.getCaptureFrameConfig();
         rc = pChannel->startAdvancedCapture(MM_CAMERA_FRAME_CAPTURE, &config);
@@ -4928,6 +4945,7 @@ int QCamera2HardwareInterface::stopCaptureChannel(bool destroy)
     if (mParameters.isJpegPictureFormat() ||
         mParameters.isNV16PictureFormat() ||
         mParameters.isNV21PictureFormat()) {
+        mParameters.setQuadraCfaMode(false, true);
         rc = stopChannel(QCAMERA_CH_TYPE_CAPTURE);
         if (destroy && (NO_ERROR == rc)) {
             // Destroy camera channel but dont release context
@@ -6216,8 +6234,8 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
         return ret;
     }
     cam_focus_mode_type focusMode = mParameters.getFocusMode();
-    LOGH("[AF_DBG]  focusMode=%d, focusState=%d",
-             focusMode, focus_data.focus_state);
+    LOGH("[AF_DBG]  focusMode=%d, focusState=%d isDepth=%d",
+             focusMode, focus_data.focus_state, focus_data.isDepth);
 
     switch (focusMode) {
     case CAM_FOCUS_MODE_AUTO:
@@ -6284,6 +6302,12 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
         if (((focus_data.focus_state == CAM_AF_STATE_PASSIVE_FOCUSED) ||
                 (focus_data.focus_state == CAM_AF_STATE_PASSIVE_UNFOCUSED) ||
                 (focus_data.focus_state == CAM_AF_STATE_PASSIVE_SCAN)) && mActiveAF) {
+            break;
+        }
+
+        if (!bDepthAFCallbacks && focus_data.isDepth &&
+                (focus_data.focus_state == CAM_AF_STATE_PASSIVE_SCAN)) {
+            LOGD("Skip sending scan state to app, if depth focus");
             break;
         }
 
@@ -8172,7 +8196,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
             }
         }
 
-        if (mParameters.getofflineRAW()) {
+        if (mParameters.getofflineRAW() && !mParameters.getQuadraCfa()) {
             addChannel(QCAMERA_CH_TYPE_RAW);
         }
     } else {

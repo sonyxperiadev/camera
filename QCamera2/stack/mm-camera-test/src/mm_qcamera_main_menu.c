@@ -89,7 +89,7 @@ const CAMERA_MAIN_MENU_TBL_T camera_main_menu_tbl[] = {
   {SET_TINTLESS_ENABLE,        "Set Tintless Enable"},
   {SET_TINTLESS_DISABLE,       "Set Tintless Disable"},
   {SET_EXP_METERING,           "Set exposure metering mode"},
-  {GET_CTRL_VALUE,             "Get control value menu"},
+  {TOGGLE_IRLED,               "Toggle IR Mode, Default is Off"},
   {TOGGLE_EZTUNE,              "Toggle EZtune. Default EZTune Off"},
   {SET_ISO,                    "ISO changes."},
   {BRIGHTNESS_GOTO_SUBMENU,    "Brightness changes."},
@@ -324,12 +324,6 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
           next_menu_id = MENU_ID_EXPMETERINGCHANGE;
           LOGD("next_menu_id = MENU_ID_EXPMETERINGCHANGE = %d\n", next_menu_id);
           break;
-
-        case GET_CTRL_VALUE:
-          next_menu_id = MENU_ID_GET_CTRL_VALUE;
-          LOGD("next_menu_id = MENU_ID_GET_CTRL_VALUE = %d\n", next_menu_id);
-          break;
-
         case BRIGHTNESS_GOTO_SUBMENU:
           next_menu_id = MENU_ID_BRIGHTNESSCHANGE;
           LOGD("next_menu_id = MENU_ID_BRIGHTNESSCHANGE = %d\n", next_menu_id);
@@ -350,6 +344,10 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
         case TOGGLE_EZTUNE:
           * action_id_ptr = ACTION_TOGGLE_EZTUNE;
           LOGD("next_menu_id = MENU_ID_TOGGLE EZTUNE = %d\n", next_menu_id);
+          break;
+        case TOGGLE_IRLED:
+          * action_id_ptr = ACTION_TOGGLE_IR_MODE;
+          LOGD("next_menu_id = MENU_ID_TOGGLE IRLED = %d\n", next_menu_id);
           break;
 
         case SET_ISO:
@@ -467,19 +465,6 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
         next_menu_id = MENU_ID_MAIN;
         * action_id_ptr = ACTION_SET_EXP_METERING;
         * action_param = output_to_event;
-      }
-      break;
-
-    case MENU_ID_GET_CTRL_VALUE:
-      printf("MENU_ID_GET_CTRL_VALUE\n");
-      * action_id_ptr = ACTION_GET_CTRL_VALUE;
-      if (output_to_event > 0 &&
-        output_to_event <= (int)(sizeof(get_ctrl_tbl)/sizeof(get_ctrl_tbl[0]))) {
-          next_menu_id = MENU_ID_MAIN;
-          * action_param = output_to_event;
-      }
-      else {
-        next_menu_id = current_menu_id;
       }
       break;
 
@@ -1651,6 +1636,7 @@ static int submain()
     uint8_t previewing = 0;
     int isZSL = 0;
     int isezTune = 0;
+    int isirmode = 0;
     uint8_t wnr_enabled = 0;
     mm_camera_lib_handle lib_handle;
     int num_cameras;
@@ -1782,11 +1768,6 @@ static int submain()
                 set_exp_metering(&lib_handle, action_param);
                 break;
 
-            case ACTION_GET_CTRL_VALUE:
-                LOGD("Selection for getting control value\n");
-                get_ctrl_value(action_param);
-                break;
-
             case ACTION_BRIGHTNESS_INCREASE:
                 printf("Increase brightness\n");
                 increase_brightness(&lib_handle);
@@ -1845,6 +1826,26 @@ static int submain()
                 rc = mm_camera_lib_send_command(&lib_handle,
                                       MM_CAMERA_LIB_EZTUNE_ENABLE,
                                       &isezTune,
+                                      NULL);
+                if (rc != MM_CAMERA_OK) {
+                    LOGE("mm_camera_lib_send_command() err=%d\n",  rc);
+                    goto ERROR;
+                }
+                break;
+
+            case ACTION_TOGGLE_IR_MODE:
+                LOGE("Select for IR Mode");
+                printf("IR Mode Toggle\n");
+                isirmode = !isirmode;
+                if (isirmode) {
+                    printf("IR Mode On !!!");
+                } else {
+                    printf("IR Mode Off !!!");
+                }
+
+                rc = mm_camera_lib_send_command(&lib_handle,
+                                      MM_CAMERA_LIB_IRMODE,
+                                      &isirmode,
                                       NULL);
                 if (rc != MM_CAMERA_OK) {
                     LOGE("mm_camera_lib_send_command() err=%d\n",  rc);

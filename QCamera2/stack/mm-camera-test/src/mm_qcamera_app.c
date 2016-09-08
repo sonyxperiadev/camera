@@ -1550,10 +1550,40 @@ int setWNR(mm_camera_test_obj_t *test_obj, uint8_t enable)
 
     test_obj->reproc_wnr = param;
     LOGE("WNR enabled: %d",  enable);
+ERROR:
+    return rc;
+}
+
+
+int setIRMode(mm_camera_test_obj_t *test_obj, cam_ir_mode_type_t ir_mode)
+{
+    int rc = MM_CAMERA_OK;
+
+    rc = initBatchUpdate(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch camera parameter update failed\n");
+        goto ERROR;
+    }
+
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
+            CAM_INTF_META_IR_MODE, ir_mode)) {
+        LOGE("Flash parameter not added to batch\n");
+        rc = -1;
+        goto ERROR;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch parameters commit failed\n");
+        goto ERROR;
+    }
+
+    LOGE("IR LED set to: %d",  (int)ir_mode);
 
 ERROR:
     return rc;
 }
+
 
 int setEZTune(mm_camera_test_obj_t *test_obj, uint8_t enable)
 {
@@ -1902,6 +1932,21 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                     }
                 } else {
                     handle->test_obj.enable_EZTune= enable_eztune;
+                }
+            }
+            break;
+
+        case MM_CAMERA_LIB_IRMODE:
+            if ( NULL != in_data) {
+                int enable_ir = *(( int * )in_data);
+                if (enable_ir != handle->test_obj.enable_ir) {
+                    handle->test_obj.enable_ir = enable_ir;
+                    rc = setIRMode(&handle->test_obj, enable_ir);
+                    if (rc != MM_CAMERA_OK) {
+                        LOGE("setZoom() err=%d\n",
+                                    rc);
+                        goto EXIT;
+                    }
                 }
             }
             break;

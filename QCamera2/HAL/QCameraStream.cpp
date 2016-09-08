@@ -1906,6 +1906,14 @@ int32_t QCameraStream::releaseBuffs()
 {
     int rc = NO_ERROR;
 
+    if (mBufAllocPid != 0) {
+        cond_signal(true);
+        LOGD("wait for buf allocation thread dead");
+        pthread_join(mBufAllocPid, NULL);
+        mBufAllocPid = 0;
+        LOGD("return from buf allocation thread");
+    }
+
     if (mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH) {
         return releaseBatchBufs(NULL);
     }

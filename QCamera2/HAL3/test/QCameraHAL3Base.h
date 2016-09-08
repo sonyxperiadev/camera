@@ -43,6 +43,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <poll.h>
+#include "QCamera3VendorTags.h"
 
 extern "C" {
 #include "mm_camera_dbg.h"
@@ -150,7 +151,11 @@ public:
     int mPreviewRunning;
     int mVideoRunning;
     int mSnapShotRunning;
-
+    bool ir_mode;
+    bool svhdr_mode;
+    camera_info camcap_info;
+    camera_metadata_entry entry_hal3app;
+    android::CameraMetadata hal3app_cam_settings;
     int hal3appCamInitialize(int camid, hal3_camera_test_obj_t *my_test_obj);
     void hal3appCamCapabilityGet(hal3_camera_lib_test *handle,int camid);
     int hal3appCameraLibOpen(int );
@@ -160,6 +165,7 @@ public:
              hal3_camera_test_obj_t *);
     int hal3appCameraPreviewInit(int, int, int, int);
     int hal3appCameraVideoInit(int, int camid, int w, int h);
+    void display_capability();
     int hal3appCameraCaptureInit(hal3_camera_lib_test *, int, int);
     int hal3appRawCaptureInit(hal3_camera_lib_test *handle, int camid, int );
     int hal3appCameraTestLoad();
