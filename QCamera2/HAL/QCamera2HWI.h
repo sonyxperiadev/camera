@@ -650,6 +650,7 @@ private:
     int mPLastFrameCount;
     nsecs_t mPLastFpsTime;
     double mPFps;
+    bool mLowLightConfigured;
     uint8_t mInstantAecFrameCount;
 
     //eztune variables for communication with eztune server at backend
