@@ -56,6 +56,7 @@ public:
     int height;
     int nobuffer;
     int mPipelineDepthVideo;
+    int mCameraId;
 
     QCameraHAL3VideoTest(int cameraIndex);
 

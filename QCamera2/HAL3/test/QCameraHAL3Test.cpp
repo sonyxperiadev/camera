@@ -42,6 +42,7 @@ extern pthread_mutex_t TestAppLock, mCaptureRequestLock;
 camera3_stream_t *QCameraHAL3Test::initStream(int streamtype,
         int camid, int w, int h, int usage, int format, int dataspace)
 {
+    LOGD("Stream init for Camera : %d", camid);
     requested_stream =  new camera3_stream_t;
     memset(requested_stream, 0, sizeof(camera3_stream_t));
 
@@ -63,7 +64,6 @@ QCameraHAL3Test::QCameraHAL3Test(int id)
 camera3_stream_configuration QCameraHAL3Test::configureStream(
         int opmode, int num_streams)
 {
-    int i;
     camera3_stream_configuration requested_config;
     requested_config.operation_mode  = opmode;
     requested_config.num_streams = num_streams;
@@ -86,6 +86,7 @@ camera3_capture_request QCameraHAL3Test::hal3appGetRequestSettings(
 {
     camera3_capture_request request_settings;
     request_settings.input_buffer = NULL;
+    LOGD("Number of buffer sent : %d", num_buffer);
     request_settings.num_output_buffers = 1;
     request_settings.output_buffers = stream_buffs;
     return request_settings;
@@ -94,12 +95,10 @@ camera3_capture_request QCameraHAL3Test::hal3appGetRequestSettings(
 native_handle_t *QCameraHAL3Test::allocateBuffers(int width, int height,
         hal3_camtest_meminfo_t *req_meminfo)
 {
-    struct ion_handle_data handle_data;
     struct ion_allocation_data alloc;
     struct ion_fd_data ion_info_fd;
     int main_ion_fd = -1, rc;
     size_t buf_size;
-    void *data = NULL;
     native_handle_t *nh_test;
     main_ion_fd = open("/dev/ion", O_RDONLY);
     if (main_ion_fd <= 0) {
@@ -141,7 +140,9 @@ native_handle_t *QCameraHAL3Test::allocateBuffers(int width, int height,
 void QCameraHAL3Test::captureRequestRepeat(
         hal3_camera_lib_test *my_hal3test_obj, int camid, int testcase)
 {
-
+    if(my_hal3test_obj == NULL) {
+        LOGE("TestCase : %d Camera:%d Handle is NULL", testcase, camid);
+    }
 }
 
 bool QCameraHAL3Test::processThreadCreate(
@@ -185,9 +186,6 @@ void * processBuffers(void *data) {
     testcase = thread->testcase;
     QCameraHAL3Test *obj;
     obj = (QCameraHAL3Test *)thread->data_obj;
-    struct pollfd pollfds;
-    int32_t num_of_fds = 1;
-    int32_t ready = 0;
     while(!thread_exit) {
         pthread_mutex_lock(&thread->mutex);
         clock_gettime(CLOCK_REALTIME, &ts1);

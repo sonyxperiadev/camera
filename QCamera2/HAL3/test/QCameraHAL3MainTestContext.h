@@ -42,6 +42,8 @@ typedef enum
     MENU_START_VIDEO,
     MENU_START_CAPTURE,
     MENU_START_RAW_CAPTURE,
+    MENU_TOGGLE_IR_MODE,
+    MENU_TOGGLE_SVHDR_MODE,
     MENU_EXIT
 } menu_id;
 
@@ -51,12 +53,12 @@ typedef struct {
 } HAL3TEST_BASE_MENU_TBL_T;
 
 typedef struct {
-    char * menu_name;
+    const char * menu_name;
 } HAL3TEST_SENSOR_MENU_TBL_T;
 
 typedef struct {
     menu_id main_menu;
-    char * menu_name;
+    const char * menu_name;
 } CAMERA_BASE_MENU_TBL_T;
 
 class CameraHAL3Base;
@@ -64,6 +66,8 @@ class MainTestContext
 {
     int choice;
     bool mTestRunning;
+    bool irmode;
+    bool svhdrmode;
 public:
     MainTestContext();
     int hal3appGetUserEvent();

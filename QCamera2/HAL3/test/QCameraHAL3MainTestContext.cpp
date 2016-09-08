@@ -39,6 +39,8 @@ const CAMERA_BASE_MENU_TBL_T camera_main_menu_tbl[] = {
     {MENU_START_VIDEO,               "To Start Video"},
     {MENU_START_CAPTURE,             "To Capture"},
     {MENU_START_RAW_CAPTURE,         "To Raw Capture"},
+    {MENU_TOGGLE_IR_MODE,            "Toggle IR Mode"},
+    {MENU_TOGGLE_SVHDR_MODE,         "Toggle SVHDR Mode"},
     {MENU_EXIT,                      "EXIT"},
 };
 
@@ -52,21 +54,18 @@ pthread_mutex_t gCamLock = PTHREAD_MUTEX_INITIALIZER;
 
 MainTestContext::MainTestContext()
 {
-    int i = 0;
     mTestRunning = false;
     mCamHal3Base = NULL;
+    irmode = 0;
+    svhdrmode = 0;
 }
 
 int MainTestContext::hal3appGetUserEvent()
 {
-    char tc_buf[3];
     int choice;
     int rc = 0, req_capture = 0;
-    int num_testcase = MENU_EXIT+1;
-    int submenu_choice, num;
     int preview_restart;
-    static int prev_menu_choice;
-    uint8_t camid, num_of_cameras;
+    uint8_t num_of_cameras;
     if (mCamHal3Base != NULL) {
         delete mCamHal3Base;
     }
@@ -107,7 +106,7 @@ int MainTestContext::hal3appGetUserEvent()
 
             case MENU_START_CAPTURE:
                 hal3appDisplaySnapshotMenu();
-                req_capture = 3; preview_restart = 0;
+                req_capture = 1; preview_restart = 0;
                 if (mCamHal3Base->mPreviewRunning == 1) {
                     preview_restart = 1;
                 }
@@ -128,6 +127,34 @@ int MainTestContext::hal3appGetUserEvent()
                 mCamHal3Base->hal3appRawCaptureInit(0, 0, req_capture);
                 mCamHal3Base->mPreviewRunning = 0; mCamHal3Base->mVideoRunning = 0;
                 mCamHal3Base->mSnapShotRunning = 1;
+            break;
+
+            case MENU_TOGGLE_IR_MODE:
+                 if(mCamHal3Base->mPreviewRunning == NULL)
+                    printf(" Cant set IR/SVHDR mode in preview mode only");
+                 else {
+                     irmode = !irmode;
+                     printf("\n Switching IR/SVHDR mode to %s",(irmode ? "On" : "Off"));
+                     ALOGE("\n Switching IR/SVHDR mode to %s and %d",
+                             (irmode ? "On" : "Off"),irmode);
+                     mCamHal3Base->ir_mode = irmode;
+                     mCamHal3Base->hal3appCameraPreviewInit(MENU_TOGGLE_IR_MODE,
+                             mCamHal3Base->mCameraIndex, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                 }
+            break;
+
+            case MENU_TOGGLE_SVHDR_MODE:
+                 if(mCamHal3Base->mPreviewRunning == NULL)
+                    printf(" Cant set IR/SVHDR mode in preview mode only");
+                 else {
+                     svhdrmode = !svhdrmode;
+                     printf("\n Switching IR/SVHDR mode to %s",(svhdrmode ? "On" : "Off"));
+                     ALOGE("\n Switching IR/SVHDR mode to %s and %d",
+                             (svhdrmode ? "On" : "Off"),svhdrmode);
+                     mCamHal3Base->svhdr_mode = svhdrmode;
+                     mCamHal3Base->hal3appCameraPreviewInit(MENU_TOGGLE_SVHDR_MODE,
+                             mCamHal3Base->mCameraIndex, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                 }
             break;
 
             case MENU_EXIT:
@@ -206,7 +233,6 @@ int MainTestContext::hal3appDisplayVideoMenu()
 
 void MainTestContext::hal3appDisplayRawCaptureMenu()
 {
-    int req_cap;
     printf("\n");
     printf("===========================================\n");
     printf("Testing RAW Camera Capture on Different Resolution::\n");
@@ -215,7 +241,6 @@ void MainTestContext::hal3appDisplayRawCaptureMenu()
 
 void MainTestContext::hal3appDisplaySnapshotMenu()
 {
-    int req_cap;
     printf("\n");
     printf("===========================================\n");
     printf("Testing Normal Camera Capture on Resolution 5344 X 4008\n");

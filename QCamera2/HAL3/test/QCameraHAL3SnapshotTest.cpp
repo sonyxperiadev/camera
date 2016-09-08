@@ -47,9 +47,9 @@ QCameraHAL3SnapshotTest::QCameraHAL3SnapshotTest(int req_cap) :
 void QCameraHAL3SnapshotTest::initTest(hal3_camera_lib_test *handle,
         int testcase, int camid, int w, int h)
 {
-    int i;
     fcount_captured = 0;
     Snapshot_CamObj_handle = handle;
+    LOGD("\ntestcase %d  %d and %d ",testcase, w, h);
     configureSnapshotStream(&(handle->test_obj), camid, w, h);
 
     constructDefaultRequest(&(handle->test_obj), 0);
@@ -66,6 +66,7 @@ void QCameraHAL3SnapshotTest::constructDefaultRequest(
         hal3_camera_test_obj_t *my_test_obj, int camid)
 {
     camera3_device_t *device_handle = my_test_obj->device;
+    LOGD("Camera ID : %d",camid);
     mMetaDataPtr[0]= device_handle->ops->construct_default_request_settings(my_test_obj->device,
             CAMERA3_TEMPLATE_PREVIEW);
     mMetaDataPtr[1] = device_handle->ops->construct_default_request_settings(my_test_obj->device,
@@ -75,8 +76,8 @@ void QCameraHAL3SnapshotTest::constructDefaultRequest(
 void QCameraHAL3SnapshotTest::configureSnapshotStream(hal3_camera_test_obj_t *my_test_obj,
         int camid, int w, int h)
 {
-    camera3_stream_t *s_stream, *p_stream;
     camera3_device_t *device_handle = my_test_obj->device;
+    LOGD(" configureSnapshotStream testcase dim :%d  X %d", w, h);
     mPreviewStream = new camera3_stream_t;
     mSnapshotStream = new camera3_stream_t;
 
@@ -110,7 +111,7 @@ void QCameraHAL3SnapshotTest::snapshotProcessCaptureRequest(
     mSnapshotStreamBuffs.release_fence = -1;
     mSnapshotStreamBuffs.acquire_fence = -1;
     mRequest.output_buffers = &(mSnapshotStreamBuffs);
-    LOGD("Calling HAL3APP capture request ");
+    LOGD("Calling HAL3APP capture request for camid : %d", camid);
     device_handle->ops->process_capture_request(my_test_obj->device, &(mRequest));
     (mRequest.frame_number)++;
 }
@@ -152,7 +153,7 @@ void QCameraHAL3SnapshotTest::snapshotTestEnd(
     hal3_camera_test_obj_t *my_test_obj = &(my_hal3test_obj->test_obj);
     camera3_device_t *device_handle = my_test_obj->device;
     device_handle->ops->flush(my_test_obj->device);
-    LOGD("%s Closing Camera", __func__);
+    LOGD("%s Closing Camera %d", __func__, camid);
     ioctl(mCaptureMemInfo.ion_fd, ION_IOC_FREE, &mCaptureMemInfo.ion_handle);
     close(mCaptureMemInfo.ion_fd);
     mCaptureMemInfo.ion_fd = -1;
@@ -173,7 +174,7 @@ bool QCameraHAL3SnapshotTest::snapshotThreadCreate(int testcase_id,
     buffer_thread_t thread;
     pthread_attr_t attr;
     if (pipe(pfd) < 0) {
-        LOGE("%s: Error in creating the pipe", __func__);
+        LOGE("%s:Test:%d Error in creating the pipe", __func__, testcase_id);
     }
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
@@ -250,6 +251,9 @@ void * hal3appSnapshotProcessBuffers(void *data)
 void QCameraHAL3SnapshotTest::captureRequestRepeat(
         hal3_camera_lib_test *my_hal3test_obj, int camid, int testcase)
 {
+    if(my_hal3test_obj == NULL) {
+        LOGD("camid :%d and testcase : %d handle is NULL", camid, testcase);
+    }
 }
 
 QCameraHAL3SnapshotTest::~QCameraHAL3SnapshotTest()
