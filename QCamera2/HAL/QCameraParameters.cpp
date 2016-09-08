@@ -3917,6 +3917,51 @@ int32_t QCameraParameters::setHDRNeed1x(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : setQuadraCfaMode
+ *
+ * DESCRIPTION: enable or disable Quadra CFA mode
+ *
+ * PARAMETERS :
+ *   @enable : enable: 1; disable 0
+ *   @initCommit: if configuration list needs to be initialized and commited
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setQuadraCfaMode(uint32_t enable, bool initCommit) {
+
+   int32_t rc = NO_ERROR;
+
+    if (getQuadraCfa()) {
+        if (enable) {
+            setOfflineRAW(TRUE);
+        } else  {
+            setOfflineRAW(FALSE);
+        }
+         if (initCommit) {
+             if (initBatchUpdate(m_pParamBuf) < 0) {
+                 LOGE("Failed to initialize group update table");
+                 return FAILED_TRANSACTION;
+             }
+         }
+         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_QUADRA_CFA, enable)) {
+             LOGE("Failed to update Quadra CFA mode");
+             return BAD_VALUE;
+         }
+         if (initCommit) {
+             rc = commitSetBatch();
+             if (rc != NO_ERROR) {
+                 LOGE("Failed to commit Quadra CFA mode");
+                 return rc;
+             }
+         }
+    }
+    LOGI("Quadra CFA mode %d ", enable);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setQuadraCFA
  *
  * DESCRIPTION: set Quadra CFA mode
@@ -3957,21 +4002,10 @@ int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
     if (prev_quadracfa == m_bQuadraCfa) {
         LOGD("No change in Quadra CFA mode");
     } else {
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_QUADRA_CFA, value)) {
-            rc = BAD_VALUE;
-            LOGE("Error sending Quadra CFA set param to modules");
-            return rc;
-        }
-
         if (m_bZslMode && m_bQuadraCfa) {
             m_bNeedRestart = TRUE;
             setZslMode(FALSE);
-        }
-
-        if (m_bQuadraCfa) {
-            setOfflineRAW(TRUE);
-        } else  {
-            setOfflineRAW(FALSE);
+        } else {
             const char *str_val  = params.get(KEY_QC_ZSL);
             int32_t value = lookupAttr(ON_OFF_MODES_MAP, PARAM_MAP_SIZE(ON_OFF_MODES_MAP),
                     str_val);
