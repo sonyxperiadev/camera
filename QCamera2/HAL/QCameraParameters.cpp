@@ -7013,10 +7013,10 @@ int32_t QCameraParameters::setVideoHDR(const char *videoHDR)
 
             char zz_prop[PROPERTY_VALUE_MAX];
             memset(zz_prop, 0, sizeof(zz_prop));
-            property_get("persist.camera.zzhdr.video", zz_prop, "0");
+            property_get("persist.camera.hdr.video", zz_prop, "0");
             uint8_t use_zzhdr_video = (uint8_t)atoi(zz_prop);
 
-            if (use_zzhdr_video) {
+            if (use_zzhdr_video == CAM_SENSOR_HDR_ZIGZAG) {
                 LOGH("%s: Using ZZ HDR for video mode", __func__);
                 if (value)
                     value = CAM_SENSOR_HDR_ZIGZAG;

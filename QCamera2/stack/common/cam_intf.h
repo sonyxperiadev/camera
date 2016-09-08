@@ -557,6 +557,9 @@ typedef struct{
     cam_format_t supported_meta_raw_fmts[CAM_FORMAT_MAX];
     cam_dimension_t raw_meta_dim[MAX_SIZES_CNT];
     cam_sub_format_type_t sub_fmt[CAM_FORMAT_SUBTYPE_MAX];
+    /* Supported IR Mode */
+    size_t supported_ir_mode_cnt;
+    cam_ir_mode_type_t supported_ir_modes[CAM_IR_MODE_MAX];
 } cam_capability_t;
 
 typedef enum {
@@ -969,6 +972,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_LENS_SHADING_MAP_MODE,        uint32_t,                    1);
     INCLUDE(CAM_INTF_META_SHADING_STRENGTH,             uint32_t,                    1);
     INCLUDE(CAM_INTF_META_TONEMAP_MODE,                 uint32_t,                    1);
+    INCLUDE(CAM_INTF_META_IR_MODE,                      cam_ir_mode_type_t,          1);
     INCLUDE(CAM_INTF_META_STREAM_ID,                    cam_stream_ID_t,             1);
     INCLUDE(CAM_INTF_PARM_STATS_DEBUG_MASK,             uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_STATS_AF_PAAF,                uint32_t,                    1);

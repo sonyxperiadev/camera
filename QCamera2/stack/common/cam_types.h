@@ -867,11 +867,26 @@ typedef enum {
 } cam_cds_mode_type_t;
 
 typedef enum {
+    CAM_IR_MODE_OFF,
+    CAM_IR_MODE_ON,
+    CAM_IR_MODE_AUTO,
+    CAM_IR_MODE_MAX
+} cam_ir_mode_type_t;
+
+typedef enum {
     CAM_SENSOR_HDR_OFF,
     CAM_SENSOR_HDR_IN_SENSOR = 1,
     CAM_SENSOR_HDR_ZIGZAG,
+    CAM_SENSOR_HDR_STAGGERED,
     CAM_SENSOR_HDR_MAX,
 } cam_sensor_hdr_type_t;
+
+typedef enum {
+    CAM_VIDEO_HDR_MODE_OFF,
+    CAM_VIDEO_HDR_MODE_ON,
+    CAM_VIDEO_HDR_MODE_MAX,
+} cam_video_hdr_mode_t;
+
 
 typedef struct  {
     int32_t left;
@@ -2211,6 +2226,8 @@ typedef enum {
        current configuration for pic res*/
     CAM_INTF_META_STREAM_INFO_FOR_PIC_RES,
     CAM_INTF_META_FOCUS_DEPTH_INFO,
+    /* Operation Mode for IR */
+    CAM_INTF_META_IR_MODE,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -2434,6 +2451,8 @@ typedef struct {
 #define CAM_QCOM_FEATURE_PAAF           (((cam_feature_mask_t)1UL)<<32)
 #define CAM_QCOM_FEATURE_QUADRA_CFA     (((cam_feature_mask_t)1UL)<<33)
 #define CAM_QTI_FEATURE_PPEISCORE       (((cam_feature_mask_t)1UL)<<34)
+#define CAM_QCOM_FEATURE_ZIGZAG_VIDEO_HDR (((cam_feature_mask_t)1UL)<<35)
+#define CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR (((cam_feature_mask_t)1UL)<<36)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
