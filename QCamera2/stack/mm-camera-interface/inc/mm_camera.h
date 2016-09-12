@@ -802,8 +802,7 @@ extern int32_t mm_camera_do_stream_action(mm_camera_obj_t *my_obj,
                                           void *actions);
 extern int32_t mm_camera_get_session_id(mm_camera_obj_t *my_obj,
                                         uint32_t* sessionid);
-extern int32_t mm_camera_sync_related_sensors(mm_camera_obj_t *my_obj,
-                                   cam_sync_related_sensors_event_info_t *parms);
+extern int32_t mm_camera_set_dual_cam_cmd(mm_camera_obj_t *my_obj);
 extern int32_t mm_camera_reg_frame_sync(mm_camera_obj_t *my_obj,
         uint32_t ch_id, uint32_t stream_id,
         mm_camera_frame_sync_t *sync_attr);

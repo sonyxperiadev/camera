@@ -846,6 +846,10 @@ public:
     bool getLowLightCapture() { return m_LLCaptureEnabled; };
 
     /* Dual camera specific */
+    int32_t sendDualCamCmd(cam_dual_camera_cmd_type type,
+            uint8_t num_cam, void *info);
+    int32_t setDualCamBundleInfo(bool enable_sync,
+            uint8_t bundle_cam_idx);
     bool getDcrf() { return m_bDcrfEnabled; }
     int32_t setRelatedCamSyncInfo(
             cam_sync_related_sensors_event_info_t* info);
@@ -855,7 +859,7 @@ public:
     bool isFrameSyncEnabled(void);
     int32_t getRelatedCamCalibration(
             cam_related_system_calibration_data_t* calib);
-    int32_t bundleRelatedCameras(bool sync, uint32_t sessionid);
+    int32_t bundleRelatedCameras(bool sync);
     uint8_t fdModeInVideo();
     bool isOEMFeatEnabled() { return m_bOEMFeatEnabled; }
 
@@ -881,7 +885,8 @@ public:
 
     int32_t SetDualCamera(bool value);
     bool isDualCamera() {return m_bDualCamera;};
-    int32_t setCameraControls(int32_t controls, bool initCommit= true);
+    int32_t setCameraControls(int32_t controls);
+    int32_t setSwitchCamera();
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1079,6 +1084,7 @@ private:
     int32_t commitGetBatch();
     int32_t commitSetBatchAux();
     int32_t commitGetBatchAux();
+    int32_t setAuxParameter(uint32_t meta_id, void *value);
 
     void * getPointerofParam(cam_intf_parm_type_t meta_id,
             metadata_buffer_t* metadata);
@@ -1126,6 +1132,9 @@ private:
     static const QCameraMap<int> STILL_MORE_MODES_MAP[];
     static const QCameraMap<int> NOISE_REDUCTION_MODES_MAP[];
 
+    /*Common for all objects*/
+    static uint32_t sessionId[MM_CAMERA_MAX_NUM_SENSORS];
+
     QCameraReprocScaleParam m_reprocScaleParam;
     QCameraCommon           mCommon;
 
@@ -1135,9 +1144,8 @@ private:
     parm_buffer_t     *m_pParamBuf;  // ptr to param buf in m_pParamHeap
     parm_buffer_t     *m_pParamBufAux;  // ptr to Aux param buf in m_pParamHeap
     /* heap for mapping dual cam event info */
-    QCameraHeapMemory *m_pRelCamSyncHeap;
-    /* ptr to sync buffer in m_pRelCamSyncHeap */
-    cam_sync_related_sensors_event_info_t *m_pRelCamSyncBuf;
+    QCameraHeapMemory *m_pDualCamCmdHeap;
+    cam_dual_camera_cmd_info_t *m_pDualCamCmdPtr[MM_CAMERA_MAX_CAM_CNT];
     cam_sync_related_sensors_event_info_t m_relCamSyncInfo;
     bool m_bFrameSyncEnabled;
     cam_is_type_t mIsTypeVideo;
@@ -1252,6 +1260,8 @@ private:
     uint8_t mAecSkipDisplayFrameBound;
     bool m_bQuadraCfa;
     bool m_bDualCamera;
+    uint32_t mActiveState;
+    uint32_t mActiveCamera;
 };
 
 }; // namespace qcamera

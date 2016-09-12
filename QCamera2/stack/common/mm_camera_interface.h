@@ -855,16 +855,13 @@ typedef struct {
     int32_t (*get_session_id) (uint32_t camera_handle,
             uint32_t* sessionid);
 
-    /** sync_related_sensors: sends sync cmd
+    /** set_dual_cam_cmd: sends sync cmd
       *    @camera_handle : camera handle
-      *    @related_cam_info : related cam info to be sent to server
       *     Return value: 0 -- success
       *                -1 -- failure
       *  Note: if this call succeeds, we will get linking established in back end
       **/
-     int32_t (*sync_related_sensors) (uint32_t camera_handle,
-            cam_sync_related_sensors_event_info_t*
-            related_cam_info);
+     int32_t (*set_dual_cam_cmd)(uint32_t camera_handle);
     /** flush: function definition for flush
      *  @camera_handle: camera handler
      *  Return value: 0 -- success

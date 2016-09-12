@@ -56,7 +56,7 @@ typedef enum {
     /* stop ZSL snapshot.*/
     CAM_PRIV_STOP_ZSL_SNAPSHOT,
     /* event for related sensors synchronization. */
-    CAM_PRIV_SYNC_RELATED_SENSORS,
+    CAM_PRIV_DUAL_CAM_CMD,
     /* flush */
     CAM_PRIV_FLUSH
 } cam_private_ioctl_enum_t;
@@ -92,7 +92,31 @@ typedef struct {
        backend */
     uint32_t related_sensor_session_id;
     uint8_t is_frame_sync_enabled;
-}cam_sync_related_sensors_event_info_t;
+} cam_dual_camera_bundle_info_t;
+typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
+
+/* Structrue to update master camera info in dual camera case*/
+typedef struct {
+    cam_sync_mode_t mode;
+} cam_dual_camera_master_info_t;
+
+/* Structrue to control performance info in dual camera case*/
+typedef struct {
+    uint8_t low_fps; /*Control perf using FPS if set*/
+    uint8_t enable;  /*Enable or diable Low power mode*/
+} cam_dual_camera_perf_control_t;
+
+/* dual camera event payload */
+typedef struct {
+    cam_dual_camera_cmd_type cmd_type; /*dual camera command type*/
+
+    /*Payload to carry command info*/
+    union {
+        cam_dual_camera_bundle_info_t  bundle_info;
+        cam_dual_camera_master_info_t  mode;
+        cam_dual_camera_perf_control_t value;
+    };
+} cam_dual_camera_cmd_info_t;
 
 /* Related camera sensor specific calibration data */
 // Align bytes according to API document.
@@ -265,6 +289,7 @@ typedef struct cam_capability{
     float focal_length;                                     /* focal length */
     float hor_view_angle;                                   /* horizontal view angle */
     float ver_view_angle;                                   /* vertical view angle */
+    cam_lens_type_t lens_type;                              /*Lens type info - Wide, Tele*/
 
     size_t preview_sizes_tbl_cnt;                           /* preview sizes table size */
     cam_dimension_t preview_sizes_tbl[MAX_SIZES_CNT];       /* preiew sizes table */
@@ -562,6 +587,9 @@ typedef struct cam_capability{
     /* Supported IR Mode */
     size_t supported_ir_mode_cnt;
     cam_ir_mode_type_t supported_ir_modes[CAM_IR_MODE_MAX];
+
+    /*camera index*/
+    uint32_t camera_index;
 
     /*Slave capability*/
     struct cam_capability *aux_cam_cap;
@@ -1035,8 +1063,6 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_JPEG_ENCODE_CROP,             cam_stream_crop_info_t,      1);
     INCLUDE(CAM_INTF_PARM_JPEG_SCALE_DIMENSION,         cam_dimension_t,             1);
     INCLUDE(CAM_INTF_META_FOCUS_DEPTH_INFO,             uint8_t,                     1);
-    INCLUDE(CAM_INTF_PARM_SUSPEND_RESUME_CAMERAS,       uint32_t,                    2);
-    INCLUDE(CAM_INTF_PARM_CAMERA_MASTER_INFO,           uint32_t,                    2);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

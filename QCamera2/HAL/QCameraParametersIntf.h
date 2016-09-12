@@ -288,7 +288,7 @@ public:
     bool isFrameSyncEnabled(void);
     int32_t getRelatedCamCalibration(
             cam_related_system_calibration_data_t* calib);
-    int32_t bundleRelatedCameras(bool sync, uint32_t sessionid);
+    int32_t bundleRelatedCameras(bool sync);
     uint8_t fdModeInVideo();
     bool isOEMFeatEnabled();
 
@@ -309,7 +309,8 @@ public:
         cam_analysis_info_t *pAnalysisInfo);
     int32_t updateDtVc(int32_t *dt, int32_t *vc);
     int32_t SetDualCamera(bool value);
-    int32_t setCameraControls(int32_t controls, bool initCommit = true);
+    int32_t setCameraControls(int32_t controls);
+    int32_t setSwitchCamera();
 
 private:
     QCameraParameters *mImpl;

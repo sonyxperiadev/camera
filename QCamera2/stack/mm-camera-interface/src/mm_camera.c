@@ -2329,13 +2329,12 @@ int32_t mm_camera_get_session_id(mm_camera_obj_t *my_obj,
 }
 
 /*===========================================================================
- * FUNCTION   : mm_camera_sync_related_sensors
+ * FUNCTION   : mm_camera_set_dual_cam_cmd
  *
  * DESCRIPTION: send sync cmd
  *
  * PARAMETERS :
  *   @my_obj       : camera object
- *   @parms        : ptr to the related cam info to be sent to server
  *
  * RETURN     : int32_t type of status
  *              0  -- success
@@ -2344,15 +2343,12 @@ int32_t mm_camera_get_session_id(mm_camera_obj_t *my_obj,
  *              domain socket. Corresponding fields of parameters to be set
  *              are already filled in by upper layer caller.
  *==========================================================================*/
-int32_t mm_camera_sync_related_sensors(mm_camera_obj_t *my_obj,
-        cam_sync_related_sensors_event_info_t* parms)
+int32_t mm_camera_set_dual_cam_cmd(mm_camera_obj_t *my_obj)
 {
     int32_t rc = -1;
     int32_t value = 0;
-    if (parms !=  NULL) {
-        rc = mm_camera_util_s_ctrl(my_obj, 0, my_obj->ctrl_fd,
-                CAM_PRIV_SYNC_RELATED_SENSORS, &value);
-    }
+    rc = mm_camera_util_s_ctrl(my_obj, 0, my_obj->ctrl_fd,
+            CAM_PRIV_DUAL_CAM_CMD, &value);
     pthread_mutex_unlock(&my_obj->cam_lock);
     return rc;
 }

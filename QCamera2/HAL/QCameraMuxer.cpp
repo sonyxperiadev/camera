@@ -576,7 +576,7 @@ int QCameraMuxer::start_preview(struct camera_device * device)
                     LOGH("Related cam id: %d, server id: %d sync ON"
                             " related session_id %d",
                             cam->pId[i], cam->sId[i], sessionId);
-                    rc = hwi->bundleRelatedCameras(true, sessionId);
+                    rc = hwi->bundleRelatedCameras(true);
                     if (rc != NO_ERROR) {
                         LOGE("Error Bundling physical cameras !! ");
                         return rc;
@@ -590,7 +590,7 @@ int QCameraMuxer::start_preview(struct camera_device * device)
                 LOGH("Related cam id: %d, server id: %d sync ON"
                         " related session_id %d",
                         cam->pId[i], cam->sId[i], sessionId);
-                rc = hwi->bundleRelatedCameras(true, sessionId);
+                rc = hwi->bundleRelatedCameras(true);
                 if (rc != NO_ERROR) {
                     LOGE("Error Bundling physical cameras !! ");
                     return rc;
@@ -1690,7 +1690,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
                         LOGH("Related cam id: %d, server id: %d sync OFF"
                                 " related session_id %d",
                                 cam->pId[i], cam->sId[i], sessionId);
-                        rc = hwi->bundleRelatedCameras(false, sessionId);
+                        rc = hwi->bundleRelatedCameras(false);
                         if (rc != NO_ERROR) {
                             LOGE("Error Bundling physical cameras !! ");
                             break;
@@ -1704,7 +1704,7 @@ int QCameraMuxer::close_camera_device(hw_device_t *hw_dev)
                     LOGH("Related cam id: %d, server id: %d sync OFF"
                             " related session_id %d",
                             cam->pId[i], cam->sId[i], sessionId);
-                    rc = hwi->bundleRelatedCameras(false, sessionId);
+                    rc = hwi->bundleRelatedCameras(false);
                     if (rc != NO_ERROR) {
                         LOGE("Error Bundling physical cameras !! ");
                         break;
