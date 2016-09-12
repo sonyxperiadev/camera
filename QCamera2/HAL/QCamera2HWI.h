@@ -650,6 +650,7 @@ private:
     int mPLastFrameCount;
     nsecs_t mPLastFpsTime;
     double mPFps;
+    bool mLowLightConfigured;
     uint8_t mInstantAecFrameCount;
 
     //eztune variables for communication with eztune server at backend
@@ -791,6 +792,7 @@ private:
     uint32_t mFrameSkipEnd;
     //The offset between BOOTTIME and MONOTONIC timestamps
     nsecs_t mBootToMonoTimestampOffset;
+    bool bDepthAFCallbacks;
 };
 
 }; // namespace qcamera

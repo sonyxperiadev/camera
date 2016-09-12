@@ -2162,6 +2162,10 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
                 IF_META_AVAILABLE(uint32_t, focusMode, CAM_INTF_PARM_FOCUS_MODE, pMetaData) {
                     payload->focus_data.focus_mode = (cam_focus_mode_type)(*focusMode);
                 }
+                IF_META_AVAILABLE(uint8_t, isDepthFocus,
+                        CAM_INTF_META_FOCUS_DEPTH_INFO, pMetaData) {
+                    payload->focus_data.isDepth = *isDepthFocus;
+                }
                 int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
                 if (rc != NO_ERROR) {
                     LOGW("processEvt focus failed");

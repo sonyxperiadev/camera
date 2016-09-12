@@ -1230,7 +1230,6 @@ int mm_app_start_preview_zsl(mm_camera_test_obj_t *test_obj)
                                         0);
     if (NULL == s_main) {
         LOGE("add main snapshot stream failed\n");
-        mm_app_del_stream(test_obj, channel, s_preview);
         mm_app_del_channel(test_obj, channel);
         return rc;
     }
