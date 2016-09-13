@@ -1955,8 +1955,7 @@ int32_t QCameraPostProcessor::queryStreams(QCameraStream **main,
                     pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
                     pStream->isTypeOf(CAM_STREAM_TYPE_VIDEO) ||
                     pStream->isOrignalTypeOf(CAM_STREAM_TYPE_VIDEO) ||
-                    (m_parent->mParameters.getofflineRAW() &&
-                            pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW))) {
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW)) {
                 *main= pStream;
                 *main_image = frame->bufs[i];
             } else if (thumb_stream_needed &&
