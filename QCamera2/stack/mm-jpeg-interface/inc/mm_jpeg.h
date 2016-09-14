@@ -356,6 +356,9 @@ typedef struct mm_jpeg_job_session {
 
   /* src rotate img bufs */
   mm_jpeg_buf_t src_rot_main_buf[MM_JPEG_MAX_BUF];
+
+  /* lib2d handle*/
+  void *lib2d_handle;
 } mm_jpeg_job_session_t;
 
 typedef struct {
