@@ -154,7 +154,6 @@ int lib2d_event_handler(void* p_appdata, img_event_t *p_event)
 int lib2d_callback_handler(void *userdata, img_frame_t *p_in_frame,
   img_frame_t *p_out_frame, img_meta_t *p_meta)
 {
-  mm_lib2d_obj *lib2d_obj = (mm_lib2d_obj *)userdata;
   lib2d_job_private_info *job_info = NULL;
 
   if (NULL == userdata) {
@@ -497,7 +496,6 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
 {
   mm_lib2d_obj        *lib2d_obj  = (mm_lib2d_obj *)lib2d_obj_handle;
   int                  rc         = IMG_SUCCESS;
-  img_core_ops_t      *p_core_ops = &lib2d_obj->core_ops;
   img_component_ops_t *p_comp     = &lib2d_obj->comp;
 
   img_frame_t *p_in_frame = malloc(sizeof(img_frame_t));
