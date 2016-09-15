@@ -432,8 +432,8 @@ mm_camera_stream_t * mm_app_add_video_snapshot_stream(mm_camera_test_obj_t *test
         stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
         stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
     } else {
-        stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
-        stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;
+        stream->s_config.stream_info->dim.width = test_obj->buffer_width;
+        stream->s_config.stream_info->dim.height = test_obj->buffer_height;
     }
     stream->s_config.padding_info = cam_cap->padding_info;
     /* Make offset as zero as CPP will not be used  */
@@ -476,8 +476,13 @@ mm_camera_stream_t * mm_app_add_video_stream(mm_camera_test_obj_t *test_obj,
     abc_snap.type[1] = CAM_STREAM_TYPE_VIDEO;
 
     abc_snap.postprocess_mask[0] = 0;
-    abc_snap.stream_sizes[0].width = DEFAULT_SNAPSHOT_WIDTH;
-    abc_snap.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+	if ( test_obj->buffer_width == 0 || test_obj->buffer_height == 0 ) {
+        abc_snap.stream_sizes[0].width = DEFAULT_SNAPSHOT_WIDTH;
+        abc_snap.stream_sizes[0].height = DEFAULT_SNAPSHOT_HEIGHT;
+	} else {
+        abc_snap.stream_sizes[0].width = test_obj->buffer_width;
+        abc_snap.stream_sizes[0].height = test_obj->buffer_height;
+	}
     abc_snap.type[0] = CAM_STREAM_TYPE_SNAPSHOT;
 
     abc_snap.buffer_info.min_buffers = 7;
@@ -553,7 +558,8 @@ mm_camera_channel_t * mm_app_add_video_channel(mm_camera_test_obj_t *test_obj)
     return channel;
 }
 
-int mm_app_start_record_preview(mm_camera_test_obj_t *test_obj)
+int mm_app_start_record_preview(mm_camera_test_obj_t *test_obj,
+	mm_camera_lib_snapshot_params *dim)
 {
     int rc = MM_CAMERA_OK;
     mm_camera_channel_t *p_ch = NULL;
@@ -565,6 +571,10 @@ int mm_app_start_record_preview(mm_camera_test_obj_t *test_obj)
     mm_camera_stream_t *s_video = NULL;
 
 
+	if (dim != NULL) {
+        test_obj->buffer_width  = dim->width;
+        test_obj->buffer_height = dim->height;
+	}
     /* Create Video Channel */
     v_ch = mm_app_add_channel(test_obj,
                               MM_CHANNEL_TYPE_VIDEO,
