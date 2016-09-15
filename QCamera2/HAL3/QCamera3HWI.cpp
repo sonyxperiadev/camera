@@ -61,6 +61,8 @@ namespace qcamera {
 
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
 
+#define TIME_SOURCE ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN
+
 #define EMPTY_PIPELINE_DELAY 2
 #define PARTIAL_RESULT_COUNT 2
 #define FRAME_SKIP_DELAY     0
@@ -326,7 +328,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mUpdateDebugLevel(false),
       mCallbacks(callbacks),
       mCaptureIntent(0),
-      mCacMode(0)
+      mCacMode(0),
+      mBootToMonoTimestampOffset(0)
 {
     getLogLevel();
     mCameraDevice.common.tag = HARDWARE_DEVICE_TAG;
@@ -644,6 +647,23 @@ int QCamera3HardwareInterface::openCamera()
         pthread_mutex_unlock(&gCamLock);
     }
 #endif
+
+    // Setprop to decide the time source (whether boottime or monotonic).
+    // By default, use monotonic time.
+    property_get("persist.camera.time.monotonic", value, "1");
+    mBootToMonoTimestampOffset = 0;
+    if (atoi(value) == 1) {
+        // if monotonic is set, then need to use time in monotonic.
+        // So, Measure the clock offset between BOOTTIME and MONOTONIC
+        // The clock domain source for ISP is BOOTTIME and
+        // for display is MONOTONIC
+        // The below offset is used to convert from clock domain of other subsystem
+        // (hardware composer) to that of camera. Assumption is that this
+        // offset won't change during the life cycle of the camera device. In other
+        // words, camera device shouldn't be open during CPU suspend.
+        mBootToMonoTimestampOffset = getBootToMonoTimeOffset();
+    }
+    CDBG_HIGH("mBootToMonoTimestampOffset = %lld", mBootToMonoTimestampOffset);
 
     return NO_ERROR;
 }
@@ -1955,6 +1975,12 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     uint32_t frame_number, urgent_frame_number;
     int64_t capture_time;
 
+    // Convert Boottime from camera to Monotime.
+    uint8_t timestampSource = TIME_SOURCE;
+    nsecs_t timeOffset = mBootToMonoTimestampOffset;
+    if (ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN != timestampSource)
+        timeOffset = 0;
+
     int32_t *p_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
     uint32_t *p_frame_number = POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
@@ -1978,7 +2004,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     } else {
         frame_number_valid = *p_frame_number_valid;
         frame_number = *p_frame_number;
-        capture_time = *p_capture_time;
+        capture_time = *p_capture_time - timeOffset;
         urgent_frame_number_valid = *p_urgent_frame_number_valid;
         urgent_frame_number = *p_urgent_frame_number;
     }
@@ -5297,7 +5323,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_TONEMAP_MAX_CURVE_POINTS,
                       &gCamCapability[cameraId]->max_tone_map_curve_points, 1);
 
-    uint8_t timestampSource = ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN;
+    uint8_t timestampSource = TIME_SOURCE;
     staticInfo.update(ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE,
             &timestampSource, 1);
 

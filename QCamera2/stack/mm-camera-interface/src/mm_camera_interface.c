@@ -56,6 +56,27 @@ volatile uint32_t gMmCameraIntfLogLevel = 1;
 #define CAM_SENSOR_TYPE_MASK (1U<<24) // 24th (starting from 0) bit tells its a MAIN or AUX camera
 #define CAM_SENSOR_FORMAT_MASK (1U<<25) // 25th(starting from 0) bit tells its YUV sensor or not
 
+nsecs_t getBootToMonoTimeOffset()
+{
+    // try three times to get the clock offset, choose the one
+    // with the minimum gap in measurements.
+    const int tries = 3;
+    int i;
+    nsecs_t bestGap, measured;
+    nsecs_t tmono, tbase, tmono2, gap;
+    for (i = 0; i < tries; ++i) {
+        tmono = systemTime(SYSTEM_TIME_MONOTONIC);
+        tbase = systemTime(SYSTEM_TIME_BOOTTIME);
+        tmono2 = systemTime(SYSTEM_TIME_MONOTONIC);
+        gap = tmono2 - tmono;
+        if (i == 0 || gap < bestGap) {
+            bestGap = gap;
+            measured = tbase - ((tmono + tmono2) >> 1);
+        }
+    }
+    return measured;
+}
+
 /*===========================================================================
  * FUNCTION   : mm_camera_util_generate_handler
  *

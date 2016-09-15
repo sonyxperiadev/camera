@@ -9699,35 +9699,4 @@ bool QCamera2HardwareInterface::isLowPowerMode()
     return isLowpower;
 }
 
-/*===========================================================================
- * FUNCTION   : getBootToMonoTimeOffset
- *
- * DESCRIPTION: Calculate offset that is used to convert from
- *              clock domain of boot to monotonic
- *
- * PARAMETERS :
- *   None
- *
- * RETURN     : clock offset between boottime and monotonic time.
- *
- *==========================================================================*/
-nsecs_t QCamera2HardwareInterface::getBootToMonoTimeOffset()
-{
-    // try three times to get the clock offset, choose the one
-    // with the minimum gap in measurements.
-    const int tries = 3;
-    nsecs_t bestGap, measured;
-    for (int i = 0; i < tries; ++i) {
-        const nsecs_t tmono = systemTime(SYSTEM_TIME_MONOTONIC);
-        const nsecs_t tbase = systemTime(SYSTEM_TIME_BOOTTIME);
-        const nsecs_t tmono2 = systemTime(SYSTEM_TIME_MONOTONIC);
-        const nsecs_t gap = tmono2 - tmono;
-        if (i == 0 || gap < bestGap) {
-            bestGap = gap;
-            measured = tbase - ((tmono + tmono2) >> 1);
-        }
-    }
-    return measured;
-}
-
 }; // namespace qcamera
