@@ -190,7 +190,8 @@ const QCamera3HardwareInterface::QCameraMap<
     { ANDROID_CONTROL_SCENE_MODE_SPORTS ,        CAM_SCENE_MODE_SPORTS },
     { ANDROID_CONTROL_SCENE_MODE_PARTY,          CAM_SCENE_MODE_PARTY },
     { ANDROID_CONTROL_SCENE_MODE_CANDLELIGHT,    CAM_SCENE_MODE_CANDLELIGHT },
-    { ANDROID_CONTROL_SCENE_MODE_BARCODE,        CAM_SCENE_MODE_BARCODE}
+    { ANDROID_CONTROL_SCENE_MODE_BARCODE,        CAM_SCENE_MODE_BARCODE},
+    { ANDROID_CONTROL_SCENE_MODE_HDR,            CAM_SCENE_MODE_HDR}
 };
 
 const QCamera3HardwareInterface::QCameraMap<
@@ -415,7 +416,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mIsMainCamera(true),
       mLinkedCameraId(0),
       m_pDualCamCmdHeap(NULL),
-      m_pDualCamCmdPtr(NULL)
+      m_pDualCamCmdPtr(NULL),
+      m_bSensorHDREnabled(false)
 {
     getLogLevel();
     mCommon.init(gCamCapability[cameraId]);
@@ -8054,6 +8056,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             int val = lookupFwkName(SCENE_MODES_MAP,
                     METADATA_MAP_SIZE(SCENE_MODES_MAP),
                     gCamCapability[cameraId]->supported_scene_modes[i]);
+
             if (NAME_NOT_FOUND != val) {
                 avail_scene_modes[supported_scene_modes_cnt] = (uint8_t)val;
                 supported_indexes[supported_scene_modes_cnt] = (uint8_t)i;
@@ -8656,7 +8659,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     //Video HDR default
     if ((gCamCapability[cameraId]->qcom_supported_feature_mask) &
             (CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR |
-            CAM_QCOM_FEATURE_ZIGZAG_VIDEO_HDR | CAM_QCOM_FEATURE_SENSOR_HDR)) {
+            CAM_QCOM_FEATURE_ZIGZAG_HDR | CAM_QCOM_FEATURE_SENSOR_HDR)) {
         int32_t vhdr_mode[] = {
                 QCAMERA3_VIDEO_HDR_MODE_OFF,
                 QCAMERA3_VIDEO_HDR_MODE_ON};
@@ -9463,9 +9466,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
 
     int32_t mode = cds_mode;
     settings.update(QCAMERA3_CDS_MODE, &mode, 1);
-
-    int32_t hdr_mode = (int32_t)QCAMERA3_VIDEO_HDR_MODE_OFF;
-    settings.update(QCAMERA3_VIDEO_HDR_MODE, &hdr_mode, 1);
 
     /* IR Mode Default Off */
     int32_t ir_mode = (int32_t)QCAMERA3_IR_MODE_OFF;
@@ -11227,6 +11227,12 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
         metadata_buffer_t *hal_metadata)
 {
     int32_t rc = NO_ERROR;
+    uint8_t sceneMode = CAM_SCENE_MODE_OFF;
+
+    if (ANDROID_CONTROL_MODE_OFF_KEEP_STATE == metaMode) {
+        LOGD("Ignoring control mode OFF_KEEP_STATE");
+        return NO_ERROR;
+    }
 
     if (metaMode == ANDROID_CONTROL_MODE_USE_SCENE_MODE) {
         camera_metadata_ro_entry entry =
@@ -11240,15 +11246,17 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
                 sizeof(SCENE_MODES_MAP)/sizeof(SCENE_MODES_MAP[0]),
                 fwk_sceneMode);
         if (NAME_NOT_FOUND != val) {
-            uint8_t sceneMode = (uint8_t)val;
+            sceneMode = (uint8_t)val;
             LOGD("sceneMode: %d", sceneMode);
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
-                    CAM_INTF_PARM_BESTSHOT_MODE, sceneMode)) {
-                rc = BAD_VALUE;
-            }
         }
+    }
 
-        if (fwk_sceneMode == ANDROID_CONTROL_SCENE_MODE_HDR) {
+    if ((sceneMode == CAM_SCENE_MODE_HDR) || m_bSensorHDREnabled) {
+        rc = setSensorHDR(hal_metadata, (sceneMode == CAM_SCENE_MODE_HDR));
+    }
+
+    if ((rc == NO_ERROR) && !m_bSensorHDREnabled) {
+        if (sceneMode == ANDROID_CONTROL_SCENE_MODE_HDR) {
             cam_hdr_param_t hdr_params;
             hdr_params.hdr_enable = 1;
             hdr_params.hdr_mode = CAM_HDR_MODE_MULTIFRAME;
@@ -11258,10 +11266,7 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
                 rc = BAD_VALUE;
             }
         }
-    } else if ((ANDROID_CONTROL_MODE_OFF == metaMode) ||
-            (ANDROID_CONTROL_MODE_AUTO == metaMode)) {
-        uint8_t sceneMode = CAM_SCENE_MODE_OFF;
-        LOGD("sceneMode: %d", sceneMode);
+
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
                 CAM_INTF_PARM_BESTSHOT_MODE, sceneMode)) {
             rc = BAD_VALUE;
@@ -11296,48 +11301,83 @@ int32_t QCamera3HardwareInterface::extractSceneMode(
 int32_t QCamera3HardwareInterface::setVideoHdrMode(
         metadata_buffer_t *hal_metadata, cam_video_hdr_mode_t vhdr)
 {
+    if ( (vhdr >= CAM_VIDEO_HDR_MODE_OFF) && (vhdr < CAM_VIDEO_HDR_MODE_MAX)) {
+        return setSensorHDR(hal_metadata, (vhdr == CAM_VIDEO_HDR_MODE_ON), true);
+    }
+
+    LOGE("Invalid Video HDR mode %d!", vhdr);
+    return BAD_VALUE;
+}
+
+/*===========================================================================
+ * FUNCTION   : setSensorHDR
+ *
+ * DESCRIPTION: Enable/disable sensor HDR.
+ *
+ * PARAMETERS :
+ *      @hal_metadata: hal metadata structure
+ *      @enable: boolean whether to enable/disable sensor HDR
+ *
+ * RETURN     : None
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::setSensorHDR(
+        metadata_buffer_t *hal_metadata, bool enable, bool isVideoHdrEnable)
+{
     int32_t rc = NO_ERROR;
-    if ((CAM_VIDEO_HDR_MODE_MAX <= (vhdr)) || (0 > (vhdr))) {
-        LOGE("%s: Invalid Video HDR mode %d!", __func__, vhdr);
-        rc = BAD_VALUE;
-    } else {
-        cam_sensor_hdr_type_t vhdr_type = CAM_SENSOR_HDR_MAX;
-        if(vhdr == QCAMERA3_VIDEO_HDR_MODE_OFF) {
-            LOGD("Setting HDR mode Off");
-            vhdr_type = CAM_SENSOR_HDR_OFF;
-        } else {
-            char video_hdr_prop[PROPERTY_VALUE_MAX];
-            memset(video_hdr_prop, 0, sizeof(video_hdr_prop));
-            property_get("persist.camera.hdr.video", video_hdr_prop, "3");
-            uint8_t use_hdr_video = (uint8_t)atoi(video_hdr_prop);
-            if ((gCamCapability[mCameraId]->qcom_supported_feature_mask &
-                    CAM_QCOM_FEATURE_SENSOR_HDR) &&
-                    (use_hdr_video == CAM_SENSOR_HDR_IN_SENSOR)) {
+    cam_sensor_hdr_type_t sensor_hdr = CAM_SENSOR_HDR_OFF;
+
+    if (enable) {
+        char sensor_hdr_prop[PROPERTY_VALUE_MAX];
+        memset(sensor_hdr_prop, 0, sizeof(sensor_hdr_prop));
+        #ifdef _LE_CAMERA_
+        //Default to staggered HDR for IOT
+        property_get("persist.camera.sensor.hdr", sensor_hdr_prop, "3");
+        #else
+        property_get("persist.camera.sensor.hdr", sensor_hdr_prop, "0");
+        #endif
+        sensor_hdr = (cam_sensor_hdr_type_t) atoi(sensor_hdr_prop);
+    }
+
+    bool isSupported = false;
+    switch (sensor_hdr) {
+        case CAM_SENSOR_HDR_IN_SENSOR:
+            if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                    CAM_QCOM_FEATURE_SENSOR_HDR) {
+                isSupported = true;
                 LOGD("Setting HDR mode In Sensor");
-                vhdr_type = CAM_SENSOR_HDR_IN_SENSOR;
             }
-            if ((gCamCapability[mCameraId]->qcom_supported_feature_mask &
-                    CAM_QCOM_FEATURE_ZIGZAG_VIDEO_HDR) &&
-                    (use_hdr_video == CAM_SENSOR_HDR_ZIGZAG)) {
+            break;
+        case CAM_SENSOR_HDR_ZIGZAG:
+            if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                    CAM_QCOM_FEATURE_ZIGZAG_HDR) {
+                isSupported = true;
                 LOGD("Setting HDR mode Zigzag");
-                vhdr_type = CAM_SENSOR_HDR_ZIGZAG;
             }
-            if ((gCamCapability[mCameraId]->qcom_supported_feature_mask &
-                    CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) &&
-                    (use_hdr_video == CAM_SENSOR_HDR_STAGGERED)) {
+            break;
+        case CAM_SENSOR_HDR_STAGGERED:
+            if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                    CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) {
+                isSupported = true;
                 LOGD("Setting HDR mode Staggered");
-                vhdr_type = CAM_SENSOR_HDR_STAGGERED;
             }
-            if(vhdr_type == CAM_SENSOR_HDR_MAX) {
-                LOGD("HDR mode not supported");
-                rc = BAD_VALUE;
-            }
-        }
-        if(rc == NO_ERROR) {
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
-                    CAM_INTF_PARM_SENSOR_HDR, vhdr_type)) {
-                rc = BAD_VALUE;
-            }
+            break;
+        case CAM_SENSOR_HDR_OFF:
+            isSupported = true;
+            LOGD("Turning off sensor HDR");
+            break;
+        default:
+            LOGE("HDR mode %d not supported", sensor_hdr);
+            rc = BAD_VALUE;
+            break;
+    }
+
+    if(isSupported) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                CAM_INTF_PARM_SENSOR_HDR, sensor_hdr)) {
+            rc = BAD_VALUE;
+        } else {
+            if(!isVideoHdrEnable)
+                m_bSensorHDREnabled = (sensor_hdr != CAM_SENSOR_HDR_OFF);
         }
     }
     return rc;
