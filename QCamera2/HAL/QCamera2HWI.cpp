@@ -370,10 +370,7 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
     LOGI("[KPI Perf]: E PROFILE_START_PREVIEW camera id %d",
              hw->getCameraId());
 
-    // Release the timed perf lock acquired in openCamera
-    hw->m_perfLock.lock_rel_timed();
-
-    hw->m_perfLock.lock_acq();
+    hw->m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_START_PREVIEW);
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     qcamera_sm_evt_enum_t evt = QCAMERA_SM_EVT_START_PREVIEW;
@@ -414,9 +411,10 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
              hw->getCameraId());
 
     // Disable power Hint for preview
-    hw->m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, false);
+    hw->m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);
 
-    hw->m_perfLock.lock_acq();
+    hw->m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_STOP_PREVIEW);
+
     hw->lockAPI();
     qcamera_api_result_t apiResult;
     int32_t ret = hw->processAPI(QCAMERA_SM_EVT_STOP_PREVIEW, NULL);
@@ -651,6 +649,9 @@ int QCamera2HardwareInterface::start_recording(struct camera_device *device)
         LOGE("NULL camera device");
         return BAD_VALUE;
     }
+
+    hw->m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_START_RECORDING);
+
     LOGI("[KPI Perf]: E PROFILE_START_RECORDING camera id %d",
           hw->getCameraId());
     // Give HWI control to call pre_start_recording in single camera mode.
@@ -659,6 +660,7 @@ int QCamera2HardwareInterface::start_recording(struct camera_device *device)
         ret = pre_start_recording(device);
         if (ret != NO_ERROR) {
             LOGE("pre_start_recording failed with ret = %d", ret);
+            hw->m_perfLockMgr.releasePerfLock(PERF_LOCK_START_RECORDING);
             return ret;
         }
     }
@@ -696,6 +698,9 @@ void QCamera2HardwareInterface::stop_recording(struct camera_device *device)
         LOGE("NULL camera device");
         return;
     }
+
+    hw->m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_STOP_RECORDING);
+
     LOGI("[KPI Perf]: E PROFILE_STOP_RECORDING camera id %d",
              hw->getCameraId());
 
@@ -915,9 +920,12 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
     }
     LOGI("[KPI Perf]: E PROFILE_TAKE_PICTURE camera id %d",
              hw->getCameraId());
-    if (!hw->mLongshotEnabled) {
-        hw->m_perfLock.lock_acq();
+
+    // Acquire the perf lock for JPEG snapshot only
+    if (hw->mParameters.isJpegPictureFormat()) {
+        hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
     }
+
     qcamera_api_result_t apiResult;
 
    /** Added support for Retro-active Frames:
@@ -1623,6 +1631,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       m_postprocessor(this),
       m_thermalAdapter(QCameraThermalAdapter::getInstance()),
       m_cbNotifier(this),
+      m_perfLockMgr(),
       m_bPreviewStarted(false),
       m_bRecordStarted(false),
       m_currentFocusState(CAM_AF_STATE_INACTIVE),
@@ -1714,7 +1723,6 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
 
     mDeferredWorkThread.launch(deferredWorkRoutine, this);
     mDeferredWorkThread.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, FALSE, FALSE);
-    m_perfLock.lock_init();
 
     pthread_mutex_init(&mGrallocLock, NULL);
     mEnqueuedBuffers = 0;
@@ -1763,14 +1771,14 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
         m_pFovControl = NULL;
     }
 
-    m_perfLock.lock_acq();
+    m_perfLockMgr.acquirePerfLock(PERF_LOCK_CLOSE_CAMERA);
     lockAPI();
     m_smThreadActive = false;
     unlockAPI();
     m_stateMachine.releaseThread();
     closeCamera();
-    m_perfLock.lock_rel();
-    m_perfLock.lock_deinit();
+    m_perfLockMgr.releasePerfLock(PERF_LOCK_CLOSE_CAMERA);
+
     pthread_mutex_destroy(&m_lock);
     pthread_cond_destroy(&m_cond);
     pthread_mutex_destroy(&m_evtLock);
@@ -1831,7 +1839,9 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
     }
     LOGI("[KPI Perf]: E PROFILE_OPEN_CAMERA camera id %d",
             mCameraId);
-    m_perfLock.lock_acq_timed(CAMERA_OPEN_PERF_TIME_OUT);
+
+    m_perfLockMgr.acquirePerfLock(PERF_LOCK_OPEN_CAMERA);
+
     rc = openCamera();
     if (rc == NO_ERROR){
         *hw_device = &mCameraDevice.common;
@@ -3783,7 +3793,7 @@ int QCamera2HardwareInterface::startPreview()
     LOGI("E ZSL = %d Recording Hint = %d", mParameters.isZSLMode(),
             mParameters.getRecordingHintValue());
 
-    m_perfLock.lock_acq();
+    m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_START_PREVIEW);
 
     updateThermalLevel((void *)&mThermalLevel);
 
@@ -3798,7 +3808,7 @@ int QCamera2HardwareInterface::startPreview()
 
     if (rc != NO_ERROR) {
         LOGE("failed to start channels");
-        m_perfLock.lock_rel();
+        m_perfLockMgr.releasePerfLock(PERF_LOCK_START_PREVIEW);
         return rc;
     }
 
@@ -3809,7 +3819,7 @@ int QCamera2HardwareInterface::startPreview()
             LOGE("failed to start callback stream");
             stopChannel(QCAMERA_CH_TYPE_ZSL);
             stopChannel(QCAMERA_CH_TYPE_PREVIEW);
-            m_perfLock.lock_rel();
+            m_perfLockMgr.releasePerfLock(PERF_LOCK_START_PREVIEW);
             return rc;
         }
     }
@@ -3825,15 +3835,9 @@ int QCamera2HardwareInterface::startPreview()
             LOGE("Unable to initialize postprocessor, mCameraHandle = %p",
                      mCameraHandle);
             rc = -ENOMEM;
-            m_perfLock.lock_rel();
+            m_perfLockMgr.releasePerfLock(PERF_LOCK_START_PREVIEW);
             return rc;
         }
-    }
-    m_perfLock.lock_rel();
-
-    if (rc == NO_ERROR) {
-        // Set power Hint for preview
-        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
     }
 
     LOGI("X rc = %d", rc);
@@ -3866,9 +3870,9 @@ int QCamera2HardwareInterface::stopPreview()
     mActiveAF = false;
 
     // Disable power Hint for preview
-    m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, false);
+    m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);
 
-    m_perfLock.lock_acq();
+    m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_STOP_PREVIEW);
 
     // stop preview stream
     stopChannel(QCAMERA_CH_TYPE_CALLBACK);
@@ -3884,7 +3888,7 @@ int QCamera2HardwareInterface::stopPreview()
     // delete all channels from preparePreview
     unpreparePreview();
 
-    m_perfLock.lock_rel();
+    m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_PREVIEW);
 
     LOGI("X");
     return NO_ERROR;
@@ -3966,6 +3970,9 @@ int QCamera2HardwareInterface::startRecording()
     int32_t rc = NO_ERROR;
 
     LOGI("E");
+
+    m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_START_RECORDING);
+
     //link meta stream with video channel if low power mode.
     if (isLowPowerMode()) {
         // Find and try to link a metadata stream from preview channel
@@ -4032,9 +4039,11 @@ int QCamera2HardwareInterface::startRecording()
         rc = pChannel->start();
     }
 
+    m_perfLockMgr.releasePerfLock(PERF_LOCK_START_RECORDING);
+
     if (rc == NO_ERROR) {
         // Set power Hint for video encoding
-        m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, true);
+        m_perfLockMgr.acquirePerfLock(PERF_LOCK_POWERHINT_ENCODE, 0);
     }
 
     LOGI("X rc = %d", rc);
@@ -4055,6 +4064,12 @@ int QCamera2HardwareInterface::startRecording()
 int QCamera2HardwareInterface::stopRecording()
 {
     LOGI("E");
+
+    // Disable power hint for video encoding
+    m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_ENCODE);
+
+    m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_STOP_RECORDING);
+
     // stop snapshot channel
     if (mParameters.isTNRSnapshotEnabled()) {
         LOGH("STOP snapshot Channel for TNR processing");
@@ -4063,8 +4078,9 @@ int QCamera2HardwareInterface::stopRecording()
     int rc = stopChannel(QCAMERA_CH_TYPE_VIDEO);
 
     m_cbNotifier.flushVideoNotifications();
-    // Disable power hint for video encoding
-    m_perfLock.powerHint(POWER_HINT_VIDEO_ENCODE, false);
+
+    m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_RECORDING);
+
     LOGI("X rc = %d", rc);
     return rc;
 }
@@ -5278,10 +5294,6 @@ int QCamera2HardwareInterface::cancelPicture()
     LOGH("Enable display frames again");
     setDisplaySkip(FALSE);
 
-    if (!mLongshotEnabled) {
-        m_perfLock.lock_rel();
-    }
-
     if (mParameters.isZSLMode()) {
         QCameraPicChannel *pPicChannel = NULL;
         if (mParameters.getofflineRAW()) {
@@ -5907,10 +5919,6 @@ int QCamera2HardwareInterface::cancelLiveSnapshot_internal() {
     LOGH("Enable display frames again");
     setDisplaySkip(FALSE);
 
-    if (!mLongshotEnabled) {
-        m_perfLock.lock_rel();
-    }
-
     //stop post processor
     m_postprocessor.stop();
 
@@ -5986,7 +5994,6 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
     switch (command) {
 #ifndef VANILLA_HAL
     case CAMERA_CMD_LONGSHOT_ON:
-        m_perfLock.lock_acq();
         arg1 = arg2 = 0;
         // Longshot can only be enabled when image capture
         // is not active.
@@ -6037,7 +6044,6 @@ int QCamera2HardwareInterface::sendCommand(int32_t command,
         }
         break;
     case CAMERA_CMD_LONGSHOT_OFF:
-        m_perfLock.lock_rel();
         if ( mLongshotEnabled && m_stateMachine.isCaptureRunning() ) {
             cancelPicture();
             processEvt(QCAMERA_SM_EVT_SNAPSHOT_DONE, NULL);
