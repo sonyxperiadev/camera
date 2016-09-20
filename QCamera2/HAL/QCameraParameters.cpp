@@ -4003,7 +4003,7 @@ int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
     Quadra sensor in normal mode. If more then switch to Quadra CFA mode else
     remain in normal zsl mode */
     params.getPictureSize(&width, &height);
-    if (width > m_pCapability->raw_dim[0].width &&
+    if (width > m_pCapability->raw_dim[0].width ||
         height > m_pCapability->raw_dim[0].height) {
         LOGI("Quadra CFA mode selected");
         m_bQuadraCfa = TRUE;
