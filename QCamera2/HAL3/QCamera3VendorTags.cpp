@@ -56,8 +56,10 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_HAL_PRIVATEDATA_END,
         QCAMERA3_JPEG_ENCODE_CROP_END,
         QCAMERA3_VIDEO_HDR_END,
-        QCAMERA3_IR_END
-};
+        QCAMERA3_IR_END,
+        QCAMERA3_AEC_CONVERGENCE_SPEED_END,
+        QCAMERA3_AWB_CONVERGENCE_SPEED_END
+} ;
 
 typedef struct vendor_tag_info {
     const char *tag_name;
@@ -79,7 +81,9 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.hal_private_data",
     "org.codeaurora.qcamera3.jpeg_encode_crop",
     "org.codeaurora.qcamera3.video_hdr_mode",
-    "org.codeaurora.qcamera3.ir"
+    "org.codeaurora.qcamera3.ir",
+    "org.codeaurora.qcamera3.aec_convergence_speed",
+    "org.codeaurora.qcamera3.awb_convergence_speed"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -166,6 +170,16 @@ vendor_tag_info_t qcamera3_ir[QCAMERA3_IR_END -
     { "ir_supported_modes", TYPE_INT32}
 };
 
+vendor_tag_info_t qcamera3_aec_speed[QCAMERA3_AEC_CONVERGENCE_SPEED_END -
+        QCAMERA3_AEC_CONVERGENCE_SPEED_START] = {
+    {"aec_speed", TYPE_FLOAT }
+};
+
+vendor_tag_info_t qcamera3_awb_speed[QCAMERA3_AWB_CONVERGENCE_SPEED_END -
+        QCAMERA3_AWB_CONVERGENCE_SPEED_START] = {
+    {"awb_speed", TYPE_FLOAT }
+};
+
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
     qcamera3_privatedata,
@@ -181,7 +195,9 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_hal_privatedata,
     qcamera3_jpep_encode_crop,
     qcamera3_video_hdr,
-    qcamera3_ir
+    qcamera3_ir,
+    qcamera3_aec_speed,
+    qcamera3_awb_speed
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -237,7 +253,13 @@ uint32_t qcamera3_all_tags[] = {
 
     // QCAMERA3_IR_MODE_ENABLE
     (uint32_t)QCAMERA3_IR_MODE,
-    (uint32_t)QCAMERA3_IR_AVAILABLE_MODES
+    (uint32_t)QCAMERA3_IR_AVAILABLE_MODES,
+
+    //QCAMERA3_AEC_CONVERGENCE_SPEED
+    (uint32_t)QCAMERA3_AEC_CONVERGENCE_SPEED,
+
+    //QCAMERA3_AWB_CONVERGENCE_SPEED
+    (uint32_t)QCAMERA3_AWB_CONVERGENCE_SPEED
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;

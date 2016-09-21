@@ -2228,6 +2228,9 @@ typedef enum {
     CAM_INTF_META_FOCUS_DEPTH_INFO,
     /* Operation Mode for IR */
     CAM_INTF_META_IR_MODE,
+    /* AEC,AWB Speed control enabled */
+    CAM_INTF_META_AEC_CONVERGENCE_SPEED,
+    CAM_INTF_META_AWB_CONVERGENCE_SPEED,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
