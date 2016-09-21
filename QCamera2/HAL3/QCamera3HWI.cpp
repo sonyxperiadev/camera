@@ -1225,8 +1225,15 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
     int property_len;
 
     /* Get feature mask from property */
+#ifdef _LE_CAMERA_
+    char swtnr_feature_mask_value[PROPERTY_VALUE_MAX];
+    snprintf(swtnr_feature_mask_value, PROPERTY_VALUE_MAX, "%lld", CAM_QTI_FEATURE_SW_TNR);
+    property_len = property_get("persist.camera.hal3.feature",
+            feature_mask_value, swtnr_feature_mask_value);
+#else
     property_len = property_get("persist.camera.hal3.feature",
             feature_mask_value, "0");
+#endif
     if ((property_len > 2) && (feature_mask_value[0] == '0') &&
             (feature_mask_value[1] == 'x')) {
         args_converted = sscanf(feature_mask_value, "0x%llx", &feature_mask);
