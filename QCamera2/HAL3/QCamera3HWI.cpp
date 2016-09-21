@@ -1225,8 +1225,15 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
     int property_len;
 
     /* Get feature mask from property */
+#ifdef _LE_CAMERA_
+    char swtnr_feature_mask_value[PROPERTY_VALUE_MAX];
+    snprintf(swtnr_feature_mask_value, PROPERTY_VALUE_MAX, "%lld", CAM_QTI_FEATURE_SW_TNR);
+    property_len = property_get("persist.camera.hal3.feature",
+            feature_mask_value, swtnr_feature_mask_value);
+#else
     property_len = property_get("persist.camera.hal3.feature",
             feature_mask_value, "0");
+#endif
     if ((property_len > 2) && (feature_mask_value[0] == '0') &&
             (feature_mask_value[1] == 'x')) {
         args_converted = sscanf(feature_mask_value, "0x%llx", &feature_mask);
@@ -5573,6 +5580,16 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(QCAMERA3_IR_MODE,(int32_t *) &ir, 1);
     }
 
+    // AEC SPEED
+    IF_META_AVAILABLE(float, aec, CAM_INTF_META_AEC_CONVERGENCE_SPEED, metadata) {
+        camMetadata.update(QCAMERA3_AEC_CONVERGENCE_SPEED, aec, 1);
+    }
+
+    // AWB SPEED
+    IF_META_AVAILABLE(float, awb, CAM_INTF_META_AWB_CONVERGENCE_SPEED, metadata) {
+        camMetadata.update(QCAMERA3_AWB_CONVERGENCE_SPEED, awb, 1);
+    }
+
     // TNR
     IF_META_AVAILABLE(cam_denoise_param_t, tnr, CAM_INTF_PARM_TEMPORAL_DENOISE, metadata) {
         uint8_t tnr_enable       = tnr->denoise_enable;
@@ -8563,6 +8580,14 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     int32_t ir_mode = (int32_t)QCAMERA3_IR_MODE_OFF;
     settings.update(QCAMERA3_IR_MODE, &ir_mode, 1);
 
+    /* Manual Convergence AEC Speed is disabled by default*/
+    float default_aec_speed = 0;
+    settings.update(QCAMERA3_AEC_CONVERGENCE_SPEED, &default_aec_speed, 1);
+
+    /* Manual Convergence AWB Speed is disabled by default*/
+    float default_awb_speed = 0;
+    settings.update(QCAMERA3_AWB_CONVERGENCE_SPEED, &default_awb_speed, 1);
+
     mDefaultMetadata[type] = settings.release();
 
     return mDefaultMetadata[type];
@@ -9678,6 +9703,34 @@ int QCamera3HardwareInterface::translateToHalMetadata
         } else {
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
                     CAM_INTF_META_IR_MODE, fwk_ir)) {
+                rc = BAD_VALUE;
+            }
+        }
+    }
+
+    if (frame_settings.exists(QCAMERA3_AEC_CONVERGENCE_SPEED)) {
+        float aec_speed;
+        aec_speed = frame_settings.find(QCAMERA3_AEC_CONVERGENCE_SPEED).data.f[0];
+        LOGD("AEC Speed :%f", aec_speed);
+        if ( aec_speed < 0 ) {
+            LOGE("Invalid AEC mode %f!", aec_speed);
+        } else {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_AEC_CONVERGENCE_SPEED,
+                    aec_speed)) {
+                rc = BAD_VALUE;
+            }
+        }
+    }
+
+    if (frame_settings.exists(QCAMERA3_AWB_CONVERGENCE_SPEED)) {
+        float awb_speed;
+        awb_speed = frame_settings.find(QCAMERA3_AWB_CONVERGENCE_SPEED).data.f[0];
+        LOGD("AWB Speed :%f", awb_speed);
+        if ( awb_speed < 0 ) {
+            LOGE("Invalid AWB mode %f!", awb_speed);
+        } else {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_AWB_CONVERGENCE_SPEED,
+                    awb_speed)) {
                 rc = BAD_VALUE;
             }
         }

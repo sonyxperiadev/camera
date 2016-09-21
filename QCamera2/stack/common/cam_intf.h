@@ -827,6 +827,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_WHITE_BALANCE,                int32_t,                     1);
     INCLUDE(CAM_INTF_META_AWB_REGIONS,                  cam_area_t,                  1);
     INCLUDE(CAM_INTF_META_AWB_STATE,                    uint32_t,                    1);
+    INCLUDE(CAM_INTF_META_AWB_CONVERGENCE_SPEED,        float,                       1);
     INCLUDE(CAM_INTF_META_BLACK_LEVEL_LOCK,             uint32_t,                    1);
     INCLUDE(CAM_INTF_META_MODE,                         uint32_t,                    1);
     INCLUDE(CAM_INTF_META_EDGE_MODE,                    cam_edge_application_t,      1);
@@ -962,6 +963,7 @@ typedef struct {
     /* HAL3 specific */
     INCLUDE(CAM_INTF_META_STREAM_INFO,                  cam_stream_size_info_t,      1);
     INCLUDE(CAM_INTF_META_AEC_MODE,                     uint32_t,                    1);
+    INCLUDE(CAM_INTF_META_AEC_CONVERGENCE_SPEED,        float,                       1);
     INCLUDE(CAM_INTF_META_AEC_PRECAPTURE_TRIGGER,       cam_trigger_t,               1);
     INCLUDE(CAM_INTF_META_AF_TRIGGER,                   cam_trigger_t,               1);
     INCLUDE(CAM_INTF_META_CAPTURE_INTENT,               uint32_t,                    1);
