@@ -86,6 +86,7 @@ typedef struct {
     cam_sync_related_sensors_control_t sync_control;
     cam_sync_type_t type;
     cam_sync_mode_t mode;
+    cam_3a_sync_mode_t sync_3a_mode;
     /* session Id of the other camera session
        Linking will be done with this session in the
        backend */
