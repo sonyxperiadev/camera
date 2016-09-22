@@ -546,7 +546,7 @@ private:
     QCamera3HeapMemory *m_pRelCamSyncHeap;
     cam_sync_related_sensors_event_info_t *m_pRelCamSyncBuf;
     cam_sync_related_sensors_event_info_t m_relCamSyncInfo;
-
+    Mutex mFlushLock;
 };
 
 }; // namespace qcamera

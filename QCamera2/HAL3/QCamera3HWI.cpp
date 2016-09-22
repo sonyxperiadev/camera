@@ -4649,22 +4649,25 @@ int32_t QCamera3HardwareInterface::handleCameraDeviceError()
 {
     int32_t rc = NO_ERROR;
 
-    pthread_mutex_lock(&mMutex);
-    if (mState != ERROR) {
-        //if mState != ERROR, nothing to be done
+    {
+        Mutex::Autolock lock(mFlushLock);
+        pthread_mutex_lock(&mMutex);
+        if (mState != ERROR) {
+            //if mState != ERROR, nothing to be done
+            pthread_mutex_unlock(&mMutex);
+            return NO_ERROR;
+        }
         pthread_mutex_unlock(&mMutex);
-        return NO_ERROR;
-    }
-    pthread_mutex_unlock(&mMutex);
 
-    rc = flush(false /* restart channels */);
-    if (NO_ERROR != rc) {
-        LOGE("internal flush to handle mState = ERROR failed");
-    }
+        rc = flush(false /* restart channels */);
+        if (NO_ERROR != rc) {
+            LOGE("internal flush to handle mState = ERROR failed");
+        }
 
-    pthread_mutex_lock(&mMutex);
-    mState = DEINIT;
-    pthread_mutex_unlock(&mMutex);
+        pthread_mutex_lock(&mMutex);
+        mState = DEINIT;
+        pthread_mutex_unlock(&mMutex);
+    }
 
     camera3_notify_msg_t notify_msg;
     memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
