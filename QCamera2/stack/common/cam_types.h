@@ -873,6 +873,13 @@ typedef enum {
     CAM_SENSOR_HDR_MAX,
 } cam_sensor_hdr_type_t;
 
+typedef enum {
+    CAM_LED_CALIBRATION_MODE_OFF,
+    CAM_LED_CALIBRATION_MODE_DUAL,
+    CAM_LED_CALIBRATION_MODE_SINGLE,
+    CAM_LED_CALIBRATION_MODE_MAX
+} cam_led_calibration_mode_t;
+
 typedef struct  {
     int32_t left;
     int32_t top;
@@ -1368,6 +1375,8 @@ typedef struct {
     int32_t focus_pos;
     cam_af_flush_info_t flush_info;
     uint8_t isDepth;
+    float focus_value;
+    uint8_t spot_light_detected;
 } cam_auto_focus_data_t;
 
 typedef struct {
@@ -1921,7 +1930,7 @@ typedef enum {
     CAM_INTF_PARM_CDS_MODE,
     CAM_INTF_PARM_TONE_MAP_MODE,
     CAM_INTF_PARM_CAPTURE_FRAME_CONFIG, /* 90 */
-    CAM_INTF_PARM_DUAL_LED_CALIBRATION,
+    CAM_INTF_PARM_LED_CALIBRATION,
     CAM_INTF_PARM_ADV_CAPTURE_MODE,
 
     /* stream based parameters */
@@ -2205,6 +2214,10 @@ typedef enum {
        current configuration for pic res*/
     CAM_INTF_META_STREAM_INFO_FOR_PIC_RES,
     CAM_INTF_META_FOCUS_DEPTH_INFO,
+    /*Focus value output from af core*/
+    CAM_INTF_META_FOCUS_VALUE,
+    /*Spot light detection result output from af core*/
+    CAM_INTF_META_SPOT_LIGHT_DETECT,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

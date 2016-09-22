@@ -2905,8 +2905,8 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
         }
         bufferCnt = mem->getCnt();
     }
-    LOGH("rc = %d type = %d count = %d size = %d cache = %d, pool = %d",
-            rc, stream_type, bufferCnt, size, bCachedMem, bPoolMem);
+    LOGH("rc = %d type = %d count = %d size = %d cache = %d, pool = %d mEnqueuedBuffers = %d",
+            rc, stream_type, bufferCnt, size, bCachedMem, bPoolMem, mEnqueuedBuffers);
     return mem;
 }
 
@@ -3961,6 +3961,10 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
 {
     int32_t rc = NO_ERROR;
 
+    /*Disable Quadra CFA mode*/
+    LOGH("Disabling Quadra CFA mode");
+    mParameters.setQuadraCfaMode(false, true);
+
     if (mAdvancedCaptureConfigured) {
 
         mAdvancedCaptureConfigured = false;
@@ -4031,6 +4035,9 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         LOGE("Cannot support Advanced capture modes");
         return rc;
     }
+    /*Enable Quadra CFA mode*/
+    LOGH("Enabling Quadra CFA mode");
+    mParameters.setQuadraCfaMode(true, true);
 
     setOutputImageCount(0);
     mInputCount = 0;
@@ -4938,6 +4945,7 @@ int QCamera2HardwareInterface::stopCaptureChannel(bool destroy)
     if (mParameters.isJpegPictureFormat() ||
         mParameters.isNV16PictureFormat() ||
         mParameters.isNV21PictureFormat()) {
+        mParameters.setQuadraCfaMode(false, true);
         rc = stopChannel(QCAMERA_CH_TYPE_CAPTURE);
         if (destroy && (NO_ERROR == rc)) {
             // Destroy camera channel but dont release context
@@ -7380,15 +7388,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
         return rc;
     }
 
-    if (!mLongshotEnabled) {
-        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_POSTVIEW,
-                                NULL, this);
-
-        if (rc != NO_ERROR) {
-            LOGE("add postview stream failed, ret = %d", rc);
-            return rc;
-        }
-    } else {
+    if (mLongshotEnabled) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
                                 preview_stream_cb_routine, this);
 
@@ -7402,6 +7402,15 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
 #endif
         pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                 synchronous_stream_cb_routine);
+    //Not adding the postview stream to the capture channel if Quadra CFA is enabled.
+    } else if (!mParameters.getQuadraCfa()) {
+        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_POSTVIEW,
+                                NULL, this);
+
+        if (rc != NO_ERROR) {
+            LOGE("add postview stream failed, ret = %d", rc);
+            return rc;
+        }
     }
 
     if (!mParameters.getofflineRAW()) {
@@ -8187,7 +8196,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
             }
         }
 
-        if (mParameters.getofflineRAW()) {
+        if (mParameters.getofflineRAW() && !mParameters.getQuadraCfa()) {
             addChannel(QCAMERA_CH_TYPE_RAW);
         }
     } else {

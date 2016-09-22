@@ -257,6 +257,7 @@ public:
     bool isPostProcScaling();
     bool isLLNoiseEnabled();
     void setCurPPCount(int8_t count);
+    int32_t setQuadraCfaMode(uint32_t value, bool initCommit);
     int32_t setToneMapMode(uint32_t value, bool initCommit);
     void setTintless(bool enable);
     uint8_t getLongshotStages();
