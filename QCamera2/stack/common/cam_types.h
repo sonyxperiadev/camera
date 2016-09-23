@@ -1701,6 +1701,11 @@ typedef enum {
 } cam_3a_sync_mode_t;
 
 typedef struct {
+    float widthMargins;  /*Width margin in %*/
+    float heightMargins; /*Height margin in %*/
+} cam_frame_margins_t;
+
+typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
     uint32_t num_streams;
     cam_stream_type_t type[MAX_NUM_STREAMS];
@@ -1717,6 +1722,8 @@ typedef struct {
     uint32_t dt[MAX_NUM_STREAMS];
     uint32_t vc[MAX_NUM_STREAMS];
     cam_sub_format_type_t sub_format_type[MAX_NUM_STREAMS];
+    cam_frame_margins_t margins[MAX_NUM_STREAMS];
+    cam_dimension_t stream_sz_plus_margin[MAX_NUM_STREAMS]; /*stream sizes + margin*/
 } cam_stream_size_info_t;
 
 typedef enum {
