@@ -160,6 +160,7 @@ public:
     int32_t stopAEBracket();
     int32_t updateRAW(cam_dimension_t max_dim);
     bool isDISEnabled();
+    bool isAVTimerEnabled();
     int32_t setISType();
     cam_is_type_t getVideoISType();
     cam_is_type_t getPreviewISType();
