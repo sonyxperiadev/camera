@@ -1389,6 +1389,8 @@ typedef struct {
     int32_t focus_pos;
     cam_af_flush_info_t flush_info;
     uint8_t isDepth;
+    float focus_value;
+    uint8_t spot_light_detected;
 } cam_auto_focus_data_t;
 
 typedef struct {
@@ -1655,6 +1657,12 @@ typedef enum {
     /* Aux camera of the related cam subsystem */
     CAM_TYPE_AUX
 } cam_sync_type_t;
+
+typedef enum {
+    CAM_3A_SYNC_NONE,     /* Default for single camera, not link */
+    CAM_3A_SYNC_FOLLOW,   /* Master->Slave: Master updates slave */
+    CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
+} cam_3a_sync_mode_t;
 
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
@@ -2231,6 +2239,10 @@ typedef enum {
     /* AEC,AWB Speed control enabled */
     CAM_INTF_META_AEC_CONVERGENCE_SPEED,
     CAM_INTF_META_AWB_CONVERGENCE_SPEED,
+    /*Focus value output from af core*/
+    CAM_INTF_META_FOCUS_VALUE,
+    /*Spot light detection result output from af core*/
+    CAM_INTF_META_SPOT_LIGHT_DETECT,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
