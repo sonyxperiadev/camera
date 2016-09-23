@@ -372,11 +372,12 @@ int32_t QCamera3Channel::setBundleInfo(const cam_bundle_config_t &bundleInfo)
     memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
     param.type = CAM_STREAM_PARAM_TYPE_SET_BUNDLE_INFO;
     param.bundleInfo = bundleInfo;
-    rc = mStreams[0]->setParameter(param);
-    if (rc != NO_ERROR) {
-        LOGE("stream setParameter for set bundle failed");
+    if (m_numStreams > 0 && mStreams[0]) {
+        rc = mStreams[0]->setParameter(param);
+        if (rc != NO_ERROR) {
+            LOGE("stream setParameter for set bundle failed");
+        }
     }
-
     return rc;
 }
 
