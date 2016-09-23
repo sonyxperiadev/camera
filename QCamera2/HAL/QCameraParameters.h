@@ -720,6 +720,7 @@ public:
     bool isAutoHDREnabled();
     int32_t stopAEBracket();
     int32_t updateRAW(cam_dimension_t max_dim);
+    bool isAVTimerEnabled();
     bool isDISEnabled();
     int32_t setISType();
     cam_is_type_t getVideoISType();
@@ -1047,7 +1048,6 @@ private:
     bool isTNRPreviewEnabled() {return m_bTNRPreviewOn;};
     bool isTNRVideoEnabled() {return m_bTNRVideoOn;};
     bool getFaceDetectionOption() { return  m_bFaceDetectionOn;}
-    bool isAVTimerEnabled();
     void getLiveSnapshotSize(cam_dimension_t &dim);
     int32_t getRawSize(cam_dimension_t &dim) {dim = m_rawSize; return NO_ERROR;};
     int getAutoFlickerMode();
