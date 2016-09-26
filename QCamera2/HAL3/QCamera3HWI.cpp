@@ -6676,6 +6676,17 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
             free(gCamCapability[cameraId]);
             goto failed_op;
         }
+
+        // Copy the main camera capability to main_cam_cap struct
+        gCamCapability[cameraId]->main_cam_cap =
+                        (cam_capability_t *)malloc(sizeof(cam_capability_t));
+        if (gCamCapability[cameraId]->main_cam_cap == NULL) {
+            LOGE("out of memory");
+            rc = NO_MEMORY;
+            goto failed_op;
+        }
+        memcpy(gCamCapability[cameraId]->main_cam_cap, gCamCapability[cameraId],
+                sizeof(cam_capability_t));
     }
 failed_op:
     cameraHandle->ops->close_camera(cameraHandle->camera_handle);

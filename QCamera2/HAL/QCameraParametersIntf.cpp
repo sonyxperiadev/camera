@@ -75,12 +75,13 @@ int32_t QCameraParametersIntf::allocate(uint8_t bufCount)
 }
 
 int32_t QCameraParametersIntf::init(cam_capability_t *capabilities,
-                                mm_camera_vtbl_t *mmOps,
-                                QCameraAdjustFPS *adjustFPS)
+        mm_camera_vtbl_t *mmOps,
+        QCameraAdjustFPS *adjustFPS,
+        QCameraFOVControl *fovControl)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->init(capabilities, mmOps, adjustFPS);
+    return mImpl->init(capabilities, mmOps, adjustFPS, fovControl);
 }
 
 void QCameraParametersIntf::deinit()

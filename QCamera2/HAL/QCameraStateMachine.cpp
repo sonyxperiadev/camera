@@ -1637,7 +1637,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                 rc = m_parent->processZSLCaptureDone();
                 break;
             case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                rc = m_parent->processDCFOVControl();
+                m_parent->processDualCamFovControl();
                 break;
             default:
                 LOGE("Invalid internal event %d in state(%d)",
@@ -1825,7 +1825,7 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
                 rc = m_parent->processZSLCaptureDone();
                 break;
             case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                rc = m_parent->processDCFOVControl();
+                m_parent->processDualCamFovControl();
                 break;
             default:
                 LOGE("Invalid internal event %d in state(%d)",
@@ -2225,7 +2225,7 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 rc = m_parent->processZSLCaptureDone();
                 break;
             case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                rc = m_parent->processDCFOVControl();
+                m_parent->processDualCamFovControl();
                 break;
             default:
                 break;
@@ -2702,7 +2702,7 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
                 rc = m_parent->processZSLCaptureDone();
                 break;
             case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                rc = m_parent->processDCFOVControl();
+                m_parent->processDualCamFovControl();
                 break;
             default:
                 break;
@@ -3085,7 +3085,7 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
                 rc = m_parent->processZSLCaptureDone();
                 break;
             case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                rc = m_parent->processDCFOVControl();
+                m_parent->processDualCamFovControl();
                 break;
             default:
                 break;
@@ -3597,7 +3597,7 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                 rc = m_parent->processZSLCaptureDone();
                 break;
             case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                rc = m_parent->processDCFOVControl();
+                m_parent->processDualCamFovControl();
                 break;
             default:
                 break;

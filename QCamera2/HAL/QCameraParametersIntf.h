@@ -35,6 +35,7 @@
 #include "cam_intf.h"
 #include "cam_types.h"
 #include "QCameraThermalAdapter.h"
+#include "QCameraFOVControl.h"
 
 extern "C" {
 #include <mm_camera_interface.h>
@@ -69,7 +70,8 @@ public:
     int32_t allocate(uint8_t bufCount = 1);
     int32_t init(cam_capability_t *capabilities,
                  mm_camera_vtbl_t *mmOps,
-                 QCameraAdjustFPS *adjustFPS);
+                 QCameraAdjustFPS *adjustFPS,
+                 QCameraFOVControl *fovControl);
 
     void deinit();
     int32_t updateParameters(const String8& params, bool &needRestart);

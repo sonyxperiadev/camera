@@ -49,6 +49,7 @@
 #include "QCameraStream.h"
 #include "QCameraStateMachine.h"
 #include "QCameraThermalAdapter.h"
+#include "QCameraFOVControl.h"
 
 #ifdef TARGET_TS_MAKEUP
 #include "ts_makeup_engine.h"
@@ -406,7 +407,7 @@ private:
     int32_t transAwbMetaToParams(cam_awb_params_t &awb_params);
     int32_t processFocusPositionInfo(cam_focus_pos_info_t &cur_pos_info);
     int32_t processAEInfo(cam_3a_params_t &ae_params);
-    int32_t processDCFOVControl();
+    void    processDualCamFovControl();
 
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
     int32_t sendDataNotify(int32_t msg_type,
@@ -587,8 +588,10 @@ private:
     mm_camera_vtbl_t *mCameraHandle;
     uint32_t m_ActiveHandle;
     uint32_t mActiveCamera;
+    uint32_t mMasterCamera;
     bool mCameraOpened;
     bool mDualCamera;
+    QCameraFOVControl *m_pFovControl;
 
     cam_jpeg_metadata_t mJpegMetadata;
     bool m_bRelCamCalibValid;
@@ -807,7 +810,6 @@ private:
     //The offset between BOOTTIME and MONOTONIC timestamps
     nsecs_t mBootToMonoTimestampOffset;
     bool bDepthAFCallbacks;
-    int32_t prev_zoomLevel;
     bool m_bOptimizeCacheOps;
 };
 
