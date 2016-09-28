@@ -377,7 +377,7 @@ mm_camera_stream_t * mm_app_add_video_preview_stream(mm_camera_test_obj_t *test_
 
     stream->s_config.stream_info->dim.width = preview_dim.width;
     stream->s_config.stream_info->dim.height = preview_dim.height;
-
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
@@ -439,7 +439,7 @@ mm_camera_stream_t * mm_app_add_video_snapshot_stream(mm_camera_test_obj_t *test
     /* Make offset as zero as CPP will not be used  */
     stream->s_config.padding_info.offset_info.offset_x = 0;
     stream->s_config.padding_info.offset_info.offset_y = 0;
-
+    stream->s_config.stream_info->num_bufs = num_bufs;
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
     if (MM_CAMERA_OK != rc) {
         LOGE("config preview stream err=%d\n",  rc);
@@ -518,6 +518,7 @@ mm_camera_stream_t * mm_app_add_video_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.stream_info->fmt = DEFAULT_VIDEO_FORMAT;
     stream->s_config.stream_info->dim.width = DEFAULT_PREVIEW_WIDTH;
     stream->s_config.stream_info->dim.height = DEFAULT_PREVIEW_HEIGHT;
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);

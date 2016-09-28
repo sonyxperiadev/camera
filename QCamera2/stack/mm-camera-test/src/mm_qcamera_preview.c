@@ -546,6 +546,7 @@ mm_camera_stream_t * mm_app_add_metadata_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.stream_info->fmt = DEFAULT_PREVIEW_FORMAT;
     stream->s_config.stream_info->dim.width = sizeof(metadata_buffer_t);
     stream->s_config.stream_info->dim.height = 1;
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
@@ -643,6 +644,7 @@ mm_camera_stream_t * mm_app_add_analysis_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.stream_info->dim = analysis_dim;
     stream->s_config.padding_info =
         cam_cap->analysis_info[CAM_ANALYSIS_INFO_FD_STILL].analysis_padding_info;
+    stream->s_config.stream_info->num_bufs = num_bufs;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
     if (MM_CAMERA_OK != rc) {
@@ -708,7 +710,7 @@ mm_camera_stream_t * mm_app_add_ZSL_preview_stream(mm_camera_test_obj_t *test_ob
 
     stream->s_config.stream_info->dim.width = preview_dim.width;
     stream->s_config.stream_info->dim.height = preview_dim.height;
-
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
@@ -810,7 +812,7 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
 
     stream->s_config.stream_info->dim.width = preview_dim.width;
     stream->s_config.stream_info->dim.height = preview_dim.height;
-
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
@@ -889,6 +891,7 @@ mm_camera_stream_t * mm_app_add_raw_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->dim.width = (int32_t)test_obj->buffer_width;
         stream->s_config.stream_info->dim.height = (int32_t)test_obj->buffer_height;
     }
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
@@ -972,6 +975,7 @@ mm_camera_stream_t * mm_app_add_ZSL_snapshot_stream(mm_camera_test_obj_t *test_o
         stream->s_config.stream_info->dim.width = test_obj->buffer_width;
         stream->s_config.stream_info->dim.height = test_obj->buffer_height;
     }
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
     /* Make offset as zero as CPP will not be used  */
     stream->s_config.padding_info.offset_info.offset_x = 0;
@@ -1059,6 +1063,7 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->dim.width = test_obj->buffer_width;
         stream->s_config.stream_info->dim.height = test_obj->buffer_height;
     }
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
     /* Make offset as zero as CPP will not be used  */
     stream->s_config.padding_info.offset_info.offset_x = 0;

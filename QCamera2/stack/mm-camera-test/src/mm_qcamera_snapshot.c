@@ -513,6 +513,7 @@ mm_camera_stream_t * mm_app_add_postview_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.stream_info->fmt = DEFAULT_PREVIEW_FORMAT;
     stream->s_config.stream_info->dim.width = DEFAULT_PREVIEW_WIDTH;
     stream->s_config.stream_info->dim.height = DEFAULT_PREVIEW_HEIGHT;
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.padding_info = cam_cap->padding_info;
 
     rc = mm_app_config_stream(test_obj, channel, stream, &stream->s_config);
