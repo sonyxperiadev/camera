@@ -87,7 +87,7 @@ const CAMERA_MAIN_MENU_TBL_T camera_main_menu_tbl[] = {
   {STOP_PREVIEW,               "Stop preview/video"},
   {SET_WHITE_BALANCE,          "Set white balance mode"},
   {SET_TINTLESS_ENABLE,        "Set Tintless Enable"},
-  {SET_TINTLESS_DISABLE,       "Set Tintless Disable"},
+  {TOGGLE_SHDR,                "Toggle sHDR Mode , Default is Off"},
   {SET_EXP_METERING,           "Set exposure metering mode"},
   {TOGGLE_IRLED,               "Toggle IR Mode, Default is Off"},
   {TOGGLE_EZTUNE,              "Toggle EZtune. Default EZTune Off"},
@@ -314,10 +314,9 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
           LOGD("next_menu_id = MENU_ID_TINTLESSENABLE = %d\n", next_menu_id);
           break;
 
-        case SET_TINTLESS_DISABLE:
-          * action_id_ptr = ACTION_SET_TINTLESS_DISABLE;
-          next_menu_id = MENU_ID_MAIN;
-          LOGD("next_menu_id = MENU_ID_TINTLESSDISABLE = %d\n", next_menu_id);
+        case TOGGLE_SHDR:
+          * action_id_ptr = ACTION_TOGGLE_SHDR;
+          LOGD("next_menu_id = MENU_ID_TOGGLE SHDR = %d\n", next_menu_id);
           break;
 
         case SET_EXP_METERING:
@@ -1637,6 +1636,7 @@ static int submain()
     int isZSL = 0;
     int isezTune = 0;
     int isirmode = 0;
+    int isshdrmode = 0;
     uint8_t wnr_enabled = 0;
     mm_camera_lib_handle lib_handle;
     int num_cameras;
@@ -1751,19 +1751,6 @@ static int submain()
                 }
                 break;
 
-            case ACTION_SET_TINTLESS_DISABLE:
-                LOGD("Selection for the Tintless disable changes\n");
-                set_tintless = 0;
-                rc =  mm_camera_lib_send_command(&lib_handle,
-                                                 MM_CAMERA_LIB_SET_TINTLESS,
-                                                 &set_tintless,
-                                                 NULL);
-                if (rc != MM_CAMERA_OK) {
-                    LOGE("mm_camera_lib_send_command() err=%d\n",  rc);
-                    goto ERROR;
-                }
-                break;
-
             case ACTION_SET_EXP_METERING:
                 LOGD("Selection for the Exposure Metering changes\n");
                 set_exp_metering(&lib_handle, action_param);
@@ -1853,6 +1840,27 @@ static int submain()
                     goto ERROR;
                 }
                 break;
+
+
+            case ACTION_TOGGLE_SHDR:
+                LOGE("Select for SHDR Mode");
+                printf("SHDR Mode Toggle\n");
+                isshdrmode = !isshdrmode;
+                if (!isshdrmode) {
+                    printf("sHDR ON !!!");
+                } else {
+                    printf("sHDR OFF !!!");
+                }
+                rc = mm_camera_lib_send_command(&lib_handle,
+                                       MM_CAMERA_LIB_SHDR_MODE,
+                                       &isshdrmode,
+                                       NULL);
+                if (rc != MM_CAMERA_OK) {
+                    LOGE("mm_camera_lib_send_command() err=%d\n", rc);
+                    goto ERROR;
+                }
+                break;
+
 
             case ACTION_SET_ISO:
                 LOGD("Select for ISO changes\n");

@@ -1584,6 +1584,42 @@ ERROR:
     return rc;
 }
 
+int setsHDRMode(mm_camera_test_obj_t *test_obj, uint8_t shdr_mode)
+{
+    int rc = MM_CAMERA_OK;
+   cam_sensor_hdr_type_t vhdr_type = CAM_SENSOR_HDR_MAX;
+
+    rc = initBatchUpdate(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch camera parameter update failed\n");
+        goto ERROR;
+    }
+
+   if (shdr_mode) {
+        vhdr_type = CAM_SENSOR_HDR_STAGGERED;
+   } else {
+        vhdr_type = CAM_SENSOR_HDR_OFF;
+   }
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
+            CAM_INTF_PARM_SENSOR_HDR, vhdr_type)) {
+        LOGE("Flash parameter not added to batch\n");
+        rc = -1;
+        goto ERROR;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch parameters commit failed\n");
+        goto ERROR;
+    }
+
+    LOGE("sHDR set to: %d",  (int)shdr_mode);
+
+ERROR:
+    return rc;
+}
+
+
 
 int setEZTune(mm_camera_test_obj_t *test_obj, uint8_t enable)
 {
@@ -1935,7 +1971,6 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                 }
             }
             break;
-
         case MM_CAMERA_LIB_IRMODE:
             if ( NULL != in_data) {
                 int enable_ir = *(( int * )in_data);
@@ -1944,6 +1979,20 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                     rc = setIRMode(&handle->test_obj, enable_ir);
                     if (rc != MM_CAMERA_OK) {
                         LOGE("setZoom() err=%d\n",
+                                    rc);
+                        goto EXIT;
+                    }
+                }
+            }
+            break;
+        case MM_CAMERA_LIB_SHDR_MODE:
+            if ( NULL != in_data) {
+                int enable_shdr= *(( int * )in_data);
+                if (enable_shdr != handle->test_obj.enable_ir) {
+                    handle->test_obj.enable_ir = enable_shdr;
+                    rc = setsHDRMode(&handle->test_obj, enable_shdr);
+                    if (rc != MM_CAMERA_OK) {
+                        LOGE("setHDR() err=%d\n",
                                     rc);
                         goto EXIT;
                     }
