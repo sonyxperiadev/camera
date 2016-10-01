@@ -15005,6 +15005,27 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         feature_mask |= CAM_QTI_FEATURE_PPEISCORE;
     }
 
+    if(isDualCamera()) {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        bool satEnabledFlag = FALSE;
+        property_get("persist.camera.sat.enable", prop, "0");
+        satEnabledFlag = atoi(prop);
+
+        if (satEnabledFlag) {
+        LOGH("SAT flag enabled");
+            if (stream_type == CAM_STREAM_TYPE_VIDEO &&
+                !is4k2kVideoResolution()) {
+                feature_mask |= CAM_QTI_FEATURE_SAT;
+                LOGH("SAT feature mask set");
+            } else if ((stream_type == CAM_STREAM_TYPE_PREVIEW)||
+                (stream_type == CAM_STREAM_TYPE_CALLBACK)) {
+                feature_mask |= CAM_QTI_FEATURE_SAT;
+                LOGH("SAT feature mask set");
+            }
+        }
+    }
+
     // Store stream feature mask
     setStreamPpMask(stream_type, feature_mask);
     LOGH("stream type: %d, pp_mask: 0x%llx", stream_type, feature_mask);
