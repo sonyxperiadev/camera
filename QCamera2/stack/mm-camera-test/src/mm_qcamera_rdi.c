@@ -166,6 +166,7 @@ mm_camera_stream_t * mm_app_add_rdi_stream(mm_camera_test_obj_t *test_obj,
         stream->s_config.stream_info->num_of_burst = num_burst;
     }
     stream->s_config.stream_info->fmt = DEFAULT_RAW_FORMAT;
+    stream->s_config.stream_info->num_bufs = num_bufs;
     LOGD(" RAW: w: %d, h: %d ",
        cam_cap->raw_dim[0].width, cam_cap->raw_dim[0].height);
 
@@ -225,6 +226,7 @@ mm_camera_stream_t * mm_app_add_rdi_snapshot_stream(mm_camera_test_obj_t *test_o
         stream->s_config.stream_info->streaming_mode = CAM_STREAMING_MODE_BURST;
         stream->s_config.stream_info->num_of_burst = num_burst;
     }
+    stream->s_config.stream_info->num_bufs = num_bufs;
     stream->s_config.stream_info->fmt = DEFAULT_SNAPSHOT_FORMAT;
     stream->s_config.stream_info->dim.width = DEFAULT_SNAPSHOT_WIDTH;
     stream->s_config.stream_info->dim.height = DEFAULT_SNAPSHOT_HEIGHT;

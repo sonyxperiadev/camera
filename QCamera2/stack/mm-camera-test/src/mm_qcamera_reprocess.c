@@ -151,7 +151,7 @@ mm_camera_stream_t * mm_app_add_reprocess_stream_from_source(mm_camera_test_obj_
     stream->s_config.stream_info->fmt = source_stream_info->fmt;
     stream->s_config.stream_info->dim = source_stream_info->dim;
     stream->s_config.padding_info = cam_cap->padding_info;
-
+    stream->s_config.stream_info->num_bufs = num_bufs;
 
     stream->s_config.stream_info->reprocess_config.pp_type = CAM_ONLINE_REPROCESS_TYPE;
     stream->s_config.stream_info->reprocess_config.online.input_stream_id = source->s_config.stream_info->stream_svr_id;
