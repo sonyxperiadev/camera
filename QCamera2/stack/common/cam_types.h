@@ -2825,7 +2825,7 @@ typedef struct {
 } cam_event_t;
 
 typedef struct {
-    /* Information for DDM */
+    /* Information for DDM metadata*/
     cam_stream_crop_info_t   sensor_crop_info; /* sensor crop info */
     cam_stream_crop_info_t   camif_crop_info; /* CAMIF crop info */
     cam_stream_crop_info_t   isp_crop_info; /* ISP crop info */
@@ -2833,7 +2833,10 @@ typedef struct {
     cam_focal_length_ratio_t af_focal_length_ratio; /* AF focal length ratio */
     int32_t                  pipeline_flip; /* current pipeline flip and rotational parameters */
     cam_rotation_info_t      rotation_info; /* rotation information */
-} cam_ddm_info_t;
+    cam_area_t               af_roi;        /* AF roi info */
+    /* Information for CPP reprocess */
+    cam_dyn_img_data_t       dyn_mask;      /* Post processing dynamic feature mask */
+} cam_reprocess_info_t;
 
 /***********************************
 * ENUM definition for custom parameter type
