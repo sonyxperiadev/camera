@@ -1310,6 +1310,37 @@ void QCamera3HardwareInterface::updateFpsInPreviewBuffer(metadata_buffer_t *meta
     }
 }
 
+/*==============================================================================
+ * FUNCTION   : updateTimeStampInPendingBuffers
+ *
+ * DESCRIPTION: update timestamp in display metadata for all pending buffers
+ *              of a frame number
+ *
+ * PARAMETERS :
+ *   @frame_number: frame_number. Timestamp will be set on pending buffers of this frame number
+ *   @timestamp   : timestamp to be set
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::updateTimeStampInPendingBuffers(
+        uint32_t frameNumber, nsecs_t timestamp)
+{
+    for (auto req = mPendingBuffersMap.mPendingBuffersInRequest.begin();
+            req != mPendingBuffersMap.mPendingBuffersInRequest.end(); req++) {
+        if (req->frame_number != frameNumber)
+            continue;
+
+        for (auto k = req->mPendingBufferList.begin();
+                k != req->mPendingBufferList.end(); k++ ) {
+            struct private_handle_t *priv_handle =
+                    (struct private_handle_t *) (*(k->buffer));
+            setMetaData(priv_handle, SET_VT_TIMESTAMP, &timestamp);
+        }
+    }
+    return;
+}
+
 /*===========================================================================
  * FUNCTION   : configureStreams
  *
@@ -3056,6 +3087,11 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
             i->timestamp = capture_time;
 
+            /* Set the timestamp in display metadata so that clients aware of
+               private_handle such as VT can use this un-modified timestamps.
+               Camera framework is unaware of this timestamp and cannot change this */
+            updateTimeStampInPendingBuffers(i->frame_number, i->timestamp);
+
             // Find channel requiring metadata, meaning internal offline postprocess
             // is needed.
             //TODO: for now, we don't support two streams requiring metadata at the same time.
@@ -3147,6 +3183,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                         j->buffer = NULL;
                     }
                 }
+
                 result.output_buffers = result_buffers;
                 mCallbackOps->process_capture_result(mCallbackOps, &result);
                 LOGD("meta frame_number = %u, capture_time = %lld",
