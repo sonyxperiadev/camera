@@ -81,6 +81,7 @@ typedef enum {
     QCAMERA_CH_TYPE_METADATA,
     QCAMERA_CH_TYPE_ANALYSIS,
     QCAMERA_CH_TYPE_CALLBACK,
+    QCAMERA_CH_TYPE_REPROCESSING,
     QCAMERA_CH_TYPE_MAX
 } qcamera_ch_type_enum_t;
 
@@ -267,6 +268,8 @@ public:
     static int getCapabilities(uint32_t cameraId,
             struct camera_info *info, cam_sync_type_t *cam_type);
     static int initCapabilities(uint32_t cameraId, mm_camera_vtbl_t *cameraHandle);
+    static cam_capability_t *getCapabilities(mm_camera_ops_t *ops,
+            uint32_t cam_handle);
     cam_capability_t *getCamHalCapabilities();
 
     // Implementation of QCameraAllocator
@@ -274,8 +277,8 @@ public:
             size_t size, int stride, int scanline, uint8_t &bufferCnt);
     virtual int32_t allocateMoreStreamBuf(QCameraMemory *mem_obj,
             size_t size, uint8_t &bufferCnt);
-
-    virtual QCameraHeapMemory *allocateStreamInfoBuf(cam_stream_type_t stream_type);
+    virtual QCameraHeapMemory *allocateStreamInfoBuf(
+            cam_stream_type_t stream_type, uint8_t bufCount = 1);
     virtual QCameraHeapMemory *allocateMiscBuf(cam_stream_info_t *streamInfo);
     virtual QCameraMemory *allocateStreamUserBuf(cam_stream_info_t *streamInfo);
     virtual void waitForDeferredAlloc(cam_stream_type_t stream_type);
@@ -293,6 +296,8 @@ public:
     friend class QCameraCbNotifier;
     friend class QCameraMuxer;
 
+    int32_t initStreamInfoBuf(cam_stream_type_t stream_type,
+            cam_stream_info_t *streamInfo);
     void setJpegCallBacks(jpeg_data_callback jpegCb,
             void *callbackCookie);
     int32_t initJpegHandle();
@@ -369,6 +374,7 @@ private:
     bool isCaptureShutterEnabled();
     bool needDebugFps();
     bool isRegularCapture();
+    bool needOfflineReprocessing();
     bool isCACEnabled();
     bool is4k2kResolution(cam_dimension_t* resolution);
     bool isPreviewRestartEnabled();
@@ -402,6 +408,7 @@ private:
     int32_t transAwbMetaToParams(cam_awb_params_t &awb_params);
     int32_t processFocusPositionInfo(cam_focus_pos_info_t &cur_pos_info);
     int32_t processAEInfo(cam_3a_params_t &ae_params);
+    int32_t processDCFOVControl();
 
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
     int32_t sendDataNotify(int32_t msg_type,
@@ -466,6 +473,7 @@ private:
     bool isRetroPicture() {return bRetroPicture; };
     bool isHDRMode() {return mParameters.isHDREnabled();};
     uint8_t getBufNumRequired(cam_stream_type_t stream_type);
+    uint8_t getBufNumForAux(cam_stream_type_t stream_type);
     bool needFDMetadata(qcamera_ch_type_enum_t channel_type);
     int32_t configureOnlineRotation(QCameraChannel &ch);
     int32_t declareSnapshotStreams();
@@ -569,11 +577,18 @@ private:
     void setDisplayFrameSkip(uint32_t start = 0, uint32_t end = 0);
     /*Verifies if frameId is valid to skip*/
     bool isDisplayFrameToSkip(uint32_t frameId);
-    bool isDualCamera() {return mDualCamera;};
+    bool isDualCamera() { return mDualCamera; };
+    void fillDualCameraFOVControl();
+    uint8_t getStreamRefCount(cam_stream_type_t stream_type);
+    uint32_t getCamHandleForChannel(qcamera_ch_type_enum_t ch_type);
+    int32_t switchCameraCb();
+    int32_t processCameraControl(uint32_t camState);
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
     mm_camera_vtbl_t *mCameraHandle;
+    uint32_t m_ActiveHandle;
+    uint32_t mActiveCamera;
     bool mCameraOpened;
     bool mDualCamera;
 
@@ -794,6 +809,7 @@ private:
     //The offset between BOOTTIME and MONOTONIC timestamps
     nsecs_t mBootToMonoTimestampOffset;
     bool bDepthAFCallbacks;
+    int32_t prev_zoomLevel;
 };
 
 }; // namespace qcamera

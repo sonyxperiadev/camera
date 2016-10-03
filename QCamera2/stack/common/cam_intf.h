@@ -564,7 +564,7 @@ typedef struct cam_capability{
     cam_ir_mode_type_t supported_ir_modes[CAM_IR_MODE_MAX];
 
     /*Slave capability*/
-    struct cam_capability *s_cam_cap;
+    struct cam_capability *aux_cam_cap;
     cam_sync_type_t cam_sensor_mode;
 } cam_capability_t;
 
@@ -692,7 +692,7 @@ typedef struct cam_stream_info {
     cam_sub_format_type_t sub_format_type;
 
     /*Stream info for Slave Stream*/
-    struct cam_stream_info *s_strm_info;
+    struct cam_stream_info *aux_str_info;
 } cam_stream_info_t;
 
 /*****************************************************************************
@@ -721,6 +721,13 @@ typedef struct cam_stream_info {
     (TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
     ((LOGE("Unable to set metadata TABLE_PTR:%p META_ID:%d", \
             TABLE_PTR, META_ID)), (-1))) \
+
+#define ADD_SET_PARAM_ENTRY_TO_BATCH_FOR_AUX(TABLE_PTR, AUX_TABLE_PTR, META_ID) \
+    ((NULL != TABLE_PTR || (NULL != AUX_TABLE_PTR)) ? \
+    ((AUX_TABLE_PTR->data.member_variable_##META_ID[ 0 ] = TABLE_PTR->data.member_variable_##META_ID[ 0 ]), \
+    (AUX_TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
+    ((LOGE("Unable to set metadata AUX_TABLE_PTR:%p META_ID:%d", \
+            AUX_TABLE_PTR, META_ID)), (-1))) \
 
 #define ADD_SET_PARAM_ARRAY_TO_BATCH(TABLE_PTR, META_ID, PDATA, COUNT, RCOUNT) \
 { \
@@ -1075,7 +1082,6 @@ typedef struct {
 
     uint8_t is_statsdebug_3a_tuning_params_valid;
     cam_q3a_tuning_info_t statsdebug_3a_tuning_data;
-
 } metadata_buffer_t;
 
 typedef metadata_buffer_t parm_buffer_t;

@@ -1003,5 +1003,4 @@ uint32_t get_aux_camera_handle(uint32_t handle);
 
 /*Validate 2 handle if it is belong to same instance of camera/channel/stream*/
 uint8_t validate_handle(uint32_t src_handle, uint32_t handle);
-
 #endif /*__MM_CAMERA_INTERFACE_H__*/

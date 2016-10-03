@@ -50,7 +50,8 @@ public:
             size_t size, int stride, int scanline, uint8_t &bufferCnt) = 0;
     virtual int32_t allocateMoreStreamBuf(QCameraMemory *mem_obj,
             size_t size, uint8_t &bufferCnt) = 0;
-    virtual QCameraHeapMemory *allocateStreamInfoBuf(cam_stream_type_t stream_type) = 0;
+    virtual QCameraHeapMemory *allocateStreamInfoBuf(
+            cam_stream_type_t stream_type, uint8_t bufCount = 1) = 0;
     virtual QCameraHeapMemory *allocateMiscBuf(cam_stream_info_t *streamInfo) = 0;
     virtual QCameraMemory *allocateStreamUserBuf(cam_stream_info_t *streamInfo) = 0;
     virtual void waitForDeferredAlloc(cam_stream_type_t stream_type) = 0;

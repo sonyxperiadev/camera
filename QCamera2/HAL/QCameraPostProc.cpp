@@ -1309,7 +1309,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
     if (pChannel == NULL) {
         for (int8_t i = 0; i < mPPChannelCount; i++) {
             if ((mPPChannels[i] != NULL) &&
-                    (mPPChannels[i]->getMyHandle() == frame->ch_id)) {
+                    (validate_handle(mPPChannels[i]->getMyHandle(), frame->ch_id))) {
                 pChannel = mPPChannels[i];
                 break;
             }
@@ -1650,7 +1650,8 @@ void QCameraPostProcessor::releaseSuperBuf(mm_camera_super_buf_t *super_buf)
         if ( NULL == pChannel ) {
             for (int8_t i = 0; i < mPPChannelCount; i++) {
                 if ((mPPChannels[i] != NULL) &&
-                        (mPPChannels[i]->getMyHandle() == super_buf->ch_id)) {
+                        (validate_handle(mPPChannels[i]->getMyHandle(),
+                         super_buf->ch_id))) {
                     pChannel = mPPChannels[i];
                     break;
                 }
@@ -1687,7 +1688,8 @@ void QCameraPostProcessor::releaseSuperBuf(mm_camera_super_buf_t *super_buf,
         if (pChannel == NULL) {
             for (int8_t i = 0; i < mPPChannelCount; i++) {
                 if ((mPPChannels[i] != NULL) &&
-                        (mPPChannels[i]->getMyHandle() == super_buf->ch_id)) {
+                        (validate_handle(mPPChannels[i]->getMyHandle(),
+                        super_buf->ch_id))) {
                     pChannel = mPPChannels[i];
                     break;
                 }
@@ -1925,7 +1927,7 @@ int32_t QCameraPostProcessor::queryStreams(QCameraStream **main,
     if (pChannel == NULL) {
         for (int8_t i = 0; i < mPPChannelCount; i++) {
             if ((mPPChannels[i] != NULL) &&
-                    (mPPChannels[i]->getMyHandle() == frame->ch_id)) {
+                    validate_handle(mPPChannels[i]->getMyHandle(), frame->ch_id)) {
                 pChannel = mPPChannels[i];
                 break;
             }
@@ -2100,7 +2102,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
     if (pChannel == NULL) {
         for (int8_t i = 0; i < mPPChannelCount; i++) {
             if ((mPPChannels[i] != NULL) &&
-                    (mPPChannels[i]->getMyHandle() == recvd_frame->ch_id)) {
+                    (validate_handle(mPPChannels[i]->getMyHandle(), recvd_frame->ch_id))) {
                 pChannel = mPPChannels[i];
                 break;
             }
@@ -2565,7 +2567,7 @@ int32_t QCameraPostProcessor::processRawImageImpl(mm_camera_super_buf_t *recvd_f
     if (pChannel == NULL) {
         for (int8_t i = 0; i < mPPChannelCount; i++) {
             if ((mPPChannels[i] != NULL) &&
-                    (mPPChannels[i]->getMyHandle() == recvd_frame->ch_id)) {
+                    (validate_handle(mPPChannels[i]->getMyHandle(), recvd_frame->ch_id))) {
                 pChannel = mPPChannels[i];
                 break;
             }
@@ -3125,11 +3127,12 @@ int32_t QCameraPostProcessor::doReprocess()
         // Reduces the latency for normal snapshot.
         syncStreamParams(src_frame, src_reproc_frame);
     }
+
     if (mPPChannels[mCurChannelIdx] != NULL) {
         // add into ongoing PP job Q
         ppreq_job->reprocCount = (int8_t) (mCurReprocCount + 1);
 
-        if ((m_parent->isRegularCapture()) || (ppreq_job->offline_buffer)) {
+        if ((m_parent->needOfflineReprocessing()) || (ppreq_job->offline_buffer)) {
             m_bufCountPPQ++;
             if (m_ongoingPPQ.enqueue((void *)ppreq_job)) {
                 pthread_mutex_lock(&m_reprocess_lock);
@@ -3245,7 +3248,6 @@ int32_t QCameraPostProcessor::stopCapture()
                         QCAMERA_SM_EVT_STOP_CAPTURE_CHANNEL,
                         NULL);
      }
-
      return rc;
 }
 
@@ -3293,7 +3295,7 @@ int32_t QCameraPostProcessor::setYUVFrameInfo(mm_camera_super_buf_t *recvd_frame
     if (pChannel == NULL) {
         for (int8_t i = 0; i < mPPChannelCount; i++) {
             if ((mPPChannels[i] != NULL) &&
-                    (mPPChannels[i]->getMyHandle() == recvd_frame->ch_id)) {
+                    (validate_handle(mPPChannels[i]->getMyHandle(), recvd_frame->ch_id))) {
                 pChannel = mPPChannels[i];
                 break;
             }

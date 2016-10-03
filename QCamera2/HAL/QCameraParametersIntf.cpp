@@ -62,7 +62,7 @@ QCameraParametersIntf::~QCameraParametersIntf()
 }
 
 
-int32_t QCameraParametersIntf::allocate()
+int32_t QCameraParametersIntf::allocate(uint8_t bufCount)
 {
     Mutex::Autolock lock(mLock);
     mImpl = new QCameraParameters();
@@ -71,7 +71,7 @@ int32_t QCameraParametersIntf::allocate()
         return NO_MEMORY;
     }
 
-    return mImpl->allocate();
+    return mImpl->allocate(bufCount);
 }
 
 int32_t QCameraParametersIntf::init(cam_capability_t *capabilities,
@@ -1446,6 +1446,20 @@ int32_t QCameraParametersIntf::updateDtVc(int32_t *dt, int32_t *vc)
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->updateDtVc(dt, vc);
+}
+
+int32_t QCameraParametersIntf::SetDualCamera(bool value)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->SetDualCamera(value);
+}
+
+int32_t QCameraParametersIntf::setCameraControls(int32_t controls, bool initCommit)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setCameraControls(controls, initCommit);
 }
 
 }; // namespace qcamera

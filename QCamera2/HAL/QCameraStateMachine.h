@@ -163,6 +163,7 @@ typedef enum {
     QCAMERA_INTERNAL_EVT_HDR_UPDATE,         // HDR scene update
     QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK,   // retro burst AEC unlock event
     QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE,   // ZSL capture done event
+    QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL,   // FOV Control event
     QCAMERA_INTERNAL_EVT_MAX
 } qcamera_internal_evt_type_t;
 

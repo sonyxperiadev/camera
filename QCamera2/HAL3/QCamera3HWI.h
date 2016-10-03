@@ -148,6 +148,8 @@ public:
     camera_metadata_t* translateCapabilityToMetadata(int type);
 
     static int getCamInfo(uint32_t cameraId, struct camera_info *info);
+    static cam_capability_t *getCapabilities(mm_camera_ops_t *ops,
+            uint32_t cam_handle);
     static int initCapabilities(uint32_t cameraId);
     static int initStaticMetadata(uint32_t cameraId);
     static void makeTable(cam_dimension_t *dimTable, size_t size,

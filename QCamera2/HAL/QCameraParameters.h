@@ -621,7 +621,7 @@ public:
     QCameraParameters(const String8 &params);
     ~QCameraParameters();
 
-    int32_t allocate();
+    int32_t allocate(uint8_t bufCount);
     int32_t init(cam_capability_t *,
                  mm_camera_vtbl_t *,
                  QCameraAdjustFPS *);
@@ -879,6 +879,9 @@ public:
     bool sendStreamConfigForPickRes(cam_stream_size_info_t &stream_config_info);
     int32_t updateDtVc(int32_t *dt, int32_t *vc);
 
+    int32_t SetDualCamera(bool value);
+    bool isDualCamera() {return m_bDualCamera;};
+    int32_t setCameraControls(int32_t controls, bool initCommit= true);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1071,9 +1074,17 @@ private:
     int32_t setAdvancedCaptureMode();
 
     // ops for batch set/get params with server
-    int32_t initBatchUpdate(parm_buffer_t *p_table);
+    int32_t initBatchUpdate();
     int32_t commitSetBatch();
     int32_t commitGetBatch();
+    int32_t commitSetBatchAux();
+    int32_t commitGetBatchAux();
+
+    void * getPointerofParam(cam_intf_parm_type_t meta_id,
+            metadata_buffer_t* metadata);
+    uint32_t getSizeofParam(cam_intf_parm_type_t param_id);
+    int32_t setAUXParameter(cam_intf_parm_type_t paramType,
+            void *paramValue, uint32_t paramLength);
 
     // ops to tempororily update parameter entries and commit
     int32_t updateParamEntry(const char *key, const char *value);
@@ -1122,6 +1133,7 @@ private:
     mm_camera_vtbl_t *m_pCamOpsTbl;
     QCameraHeapMemory *m_pParamHeap;
     parm_buffer_t     *m_pParamBuf;  // ptr to param buf in m_pParamHeap
+    parm_buffer_t     *m_pParamBufAux;  // ptr to Aux param buf in m_pParamHeap
     /* heap for mapping dual cam event info */
     QCameraHeapMemory *m_pRelCamSyncHeap;
     /* ptr to sync buffer in m_pRelCamSyncHeap */
@@ -1239,6 +1251,7 @@ private:
     // Number of preview frames, that HAL will hold without displaying, for instant AEC mode.
     uint8_t mAecSkipDisplayFrameBound;
     bool m_bQuadraCfa;
+    bool m_bDualCamera;
 };
 
 }; // namespace qcamera

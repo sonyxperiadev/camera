@@ -66,7 +66,7 @@ public:
     QCameraParametersIntf();
     ~QCameraParametersIntf();
 
-    int32_t allocate();
+    int32_t allocate(uint8_t bufCount = 1);
     int32_t init(cam_capability_t *capabilities,
                  mm_camera_vtbl_t *mmOps,
                  QCameraAdjustFPS *adjustFPS);
@@ -308,6 +308,8 @@ public:
         cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo);
     int32_t updateDtVc(int32_t *dt, int32_t *vc);
+    int32_t SetDualCamera(bool value);
+    int32_t setCameraControls(int32_t controls, bool initCommit = true);
 
 private:
     QCameraParameters *mImpl;
