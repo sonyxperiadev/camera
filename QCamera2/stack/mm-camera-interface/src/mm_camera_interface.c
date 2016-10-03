@@ -660,6 +660,10 @@ static int32_t mm_camera_intf_close(uint32_t camera_handle)
     }
 
     LOGH("camera_handler = %d rc = %d", camera_handle, rc);
+#ifdef QCAMERA_REDEFINE_LOG
+    mm_camera_debug_close();
+#endif
+
     return rc;
 }
 
@@ -3128,7 +3132,7 @@ int32_t camera_open(uint8_t camera_idx, mm_camera_vtbl_t **camera_vtbl)
     uint8_t is_multi_camera = 0;
 
 #ifdef QCAMERA_REDEFINE_LOG
-    mm_camera_set_dbg_log_properties();
+    mm_camera_debug_open();
 #endif
 
     LOGD("E camera_idx = %d\n", camera_idx);

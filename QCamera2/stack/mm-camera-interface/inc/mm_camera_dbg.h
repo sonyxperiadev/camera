@@ -114,6 +114,9 @@ void mm_camera_debug_log(const cam_modules_t module,
                    const cam_global_debug_level_t level,
                    const char *func, const int line, const char *fmt, ...);
 
+void mm_camera_debug_open(void);
+void mm_camera_debug_close(void);
+
 #else
 
 #undef LOGD

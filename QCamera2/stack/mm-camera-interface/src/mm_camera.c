@@ -35,6 +35,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <dlfcn.h>
 #define IOCTL_H <SYSTEM_HEADER_PREFIX/ioctl.h>
 #include IOCTL_H
@@ -2573,6 +2574,10 @@ int32_t mm_camera_switch_stream_cb(mm_camera_obj_t *my_obj,
  *==========================================================================*/
 pthread_mutex_t dbg_log_mutex;
 
+static int         cam_soft_assert     = 0;
+static FILE       *cam_log_fd          = NULL;
+static const char *cam_log_filename    = "/data/misc/camera/cam_dbg_log_hal.txt";
+
 #undef LOG_TAG
 #define LOG_TAG "QCamera"
 #define CDBG_MAX_STR_LEN 1024
@@ -2721,6 +2726,27 @@ void mm_camera_debug_log(const cam_modules_t module,
     ALOGD("%s%s %s: %d: %s", cam_loginfo[module].name,
       cam_dbg_level_to_str[level], func, line, str_buffer);
   }
+
+
+  if (cam_log_fd != NULL) {
+    char new_str_buffer[CDBG_MAX_STR_LEN];
+    pthread_mutex_lock(&dbg_log_mutex);
+
+    struct timeval tv;
+    struct timezone tz;
+    gettimeofday(&tv, &tz);
+
+    struct tm *now;
+    now = gmtime((time_t *)&tv.tv_sec);
+    snprintf(new_str_buffer, CDBG_MAX_STR_LEN, "%2d %02d:%02d:%02d.%03ld %d:%d Camera%s%s %d: %s: %s",
+              now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec, tv.tv_usec, getpid(),gettid(),
+              cam_dbg_level_to_str[level], cam_loginfo[module].name,
+              line, func, str_buffer);
+
+    fprintf(cam_log_fd, "%s", new_str_buffer);
+    pthread_mutex_unlock(&dbg_log_mutex);
+  }
+
 }
 
  /** mm_camera_set_dbg_log_properties
@@ -2732,14 +2758,8 @@ void mm_camera_debug_log(const cam_modules_t module,
 void mm_camera_set_dbg_log_properties(void) {
   int          i;
   unsigned int j;
-  static int   boot_init = 1;
   char         property_value[PROPERTY_VALUE_MAX] = {0};
   char         default_value[PROPERTY_VALUE_MAX]  = {0};
-
-  if (boot_init) {
-      boot_init = 0;
-      pthread_mutex_init(&dbg_log_mutex, 0);
-  }
 
   /* set global and individual module logging levels */
   pthread_mutex_lock(&dbg_log_mutex);
@@ -2770,4 +2790,62 @@ void mm_camera_set_dbg_log_properties(void) {
   pthread_mutex_unlock(&dbg_log_mutex);
 }
 
+ /** mm_camera_debug_open
+   *
+   * Open log file if it is enabled
+   *
+   *  Return: N/A
+   **/
+  void mm_camera_debug_open(void) {
+    char         property_value[PROPERTY_VALUE_MAX] = {0};
+
+    pthread_mutex_init(&dbg_log_mutex, 0);
+    mm_camera_set_dbg_log_properties();
+
+    /* configure asserts */
+    property_get("persist.camera.debug.assert", property_value, "0");
+    cam_soft_assert = atoi(property_value);
+
+    /* open default log file according to property setting */
+    if (cam_log_fd == NULL) {
+      property_get("persist.camera.debug.logfile", property_value, "0");
+      if (atoi(property_value)) {
+        /* we always put the current process id at end of log file name */
+        char pid_str[255] = {0};
+        char new_log_file_name[1024] = {0};
+
+        snprintf(pid_str, 255, "_%d", getpid());
+        strlcpy(new_log_file_name, cam_log_filename, sizeof(new_log_file_name));
+        strlcat(new_log_file_name, pid_str, sizeof(new_log_file_name));
+
+        cam_log_fd = fopen(new_log_file_name, "a");
+        if (cam_log_fd == NULL) {
+          ALOGE("Failed to create debug log file %s\n",
+              new_log_file_name);
+        } else {
+          ALOGD("Debug log file %s open\n", new_log_file_name);
+        }
+      } else {
+        property_set("persist.camera.debug.logfile", "0");
+        ALOGD("Debug log file is not enabled");
+        return;
+      }
+    }
+  }
+
+   /** cam_debug_close
+   *
+   *  Release logging resources.
+   *
+   *  Return: N/A
+   **/
+  void mm_camera_debug_close(void) {
+
+    if (cam_log_fd != NULL) {
+      fclose(cam_log_fd);
+      cam_log_fd = NULL;
+    }
+
+    pthread_mutex_destroy(&dbg_log_mutex);
+  }
 #endif
