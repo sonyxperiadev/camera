@@ -62,6 +62,8 @@ extern "C" {
 #define CAMERA_MIN_CAMERA_BATCH_BUFFERS  6
 #define CAMERA_ISP_PING_PONG_BUFFERS     2
 #define MIN_UNDEQUEUED_BUFFERS           1 // This is required if preview window is not set
+#define CAMERA_MIN_DISPLAY_BUFFERS       2
+#define CAMERA_DEFAULT_FPS               30000
 
 #define HDR_CONFIDENCE_THRESHOLD 0.4
 
@@ -2560,6 +2562,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
     char value[PROPERTY_VALUE_MAX];
     bool raw_yuv = false;
     int persist_cnt = 0;
+    int minPrevFps, maxPrevFps;
 
     int zslQBuffers = mParameters.getZSLQueueDepth();
 
@@ -2630,6 +2633,11 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             if ((mParameters.getRecordingHintValue() == true)
                     && (!mParameters.isHfrMode())) {
                 bufferCnt += EXTRA_ZSL_PREVIEW_STREAM_BUF;
+            }
+            //Adding Extra preview buffers for 60FPS usecase.
+            mParameters.getPreviewFpsRange(&minPrevFps, &maxPrevFps);
+            if (maxPrevFps > CAMERA_DEFAULT_FPS) {
+                bufferCnt += CAMERA_MIN_DISPLAY_BUFFERS;
             }
 
             // Add the display minUndequeCount count on top of camera requirement
