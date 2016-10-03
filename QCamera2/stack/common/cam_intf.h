@@ -175,7 +175,8 @@ typedef struct {
 } cam_jpeg_metadata_t;
 
 /* capability struct definition for HAL 1*/
-typedef struct{
+struct cam_capability;
+typedef struct cam_capability{
     cam_hal_version_t version;
 
     cam_position_t position;                                /* sensor position: front, back */
@@ -561,6 +562,10 @@ typedef struct{
     /* Supported IR Mode */
     size_t supported_ir_mode_cnt;
     cam_ir_mode_type_t supported_ir_modes[CAM_IR_MODE_MAX];
+
+    /*Slave capability*/
+    struct cam_capability *s_cam_cap;
+    cam_sync_type_t cam_sensor_mode;
 } cam_capability_t;
 
 typedef enum {
@@ -620,7 +625,7 @@ typedef struct {
 } cam_stream_parm_buffer_t;
 
 /* stream info */
-typedef struct {
+typedef struct cam_stream_info {
     /* stream ID from server */
     uint32_t stream_svr_id;
 
@@ -640,6 +645,9 @@ typedef struct {
 
     /* number of stream bufs will be allocated */
     uint32_t num_bufs;
+
+    /* number of stream bufs allocated for this stream*/
+    uint32_t buf_cnt;
 
     /* streaming type */
     cam_streaming_mode_t streaming_mode;
@@ -683,6 +691,8 @@ typedef struct {
    /* Subformat for this stream */
     cam_sub_format_type_t sub_format_type;
 
+    /*Stream info for Slave Stream*/
+    struct cam_stream_info *s_strm_info;
 } cam_stream_info_t;
 
 /*****************************************************************************
@@ -1018,6 +1028,8 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_JPEG_ENCODE_CROP,             cam_stream_crop_info_t,      1);
     INCLUDE(CAM_INTF_PARM_JPEG_SCALE_DIMENSION,         cam_dimension_t,             1);
     INCLUDE(CAM_INTF_META_FOCUS_DEPTH_INFO,             uint8_t,                     1);
+    INCLUDE(CAM_INTF_PARM_SUSPEND_RESUME_CAMERAS,       uint32_t,                    2);
+    INCLUDE(CAM_INTF_PARM_CAMERA_MASTER_INFO,           uint32_t,                    2);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

@@ -7,6 +7,7 @@ include $(CLEAR_VARS)
 MM_CAM_FILES := \
         src/mm_camera_interface.c \
         src/mm_camera.c \
+        src/mm_camera_muxer.c \
         src/mm_camera_channel.c \
         src/mm_camera_stream.c \
         src/mm_camera_thread.c \

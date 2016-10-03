@@ -396,6 +396,7 @@ int32_t mm_camera_poll_thread_commit_updates(mm_camera_poll_thread_t * poll_cb)
  *
  * PARAMETERS :
  *   @poll_cb   : ptr to poll thread object
+ *   @idx       : Object index.
  *   @handler   : stream handle if channel data polling thread,
  *                0 if event polling thread
  *   @fd        : file descriptor need to be added into polling thread
@@ -406,22 +407,10 @@ int32_t mm_camera_poll_thread_commit_updates(mm_camera_poll_thread_t * poll_cb)
  * RETURN     : none
  *==========================================================================*/
 int32_t mm_camera_poll_thread_add_poll_fd(mm_camera_poll_thread_t * poll_cb,
-                                          uint32_t handler,
-                                          int32_t fd,
-                                          mm_camera_poll_notify_t notify_cb,
-                                          void* userdata,
-                                          mm_camera_call_type_t call_type)
+        uint8_t idx, uint32_t handler, int32_t fd, mm_camera_poll_notify_t notify_cb,
+        void* userdata, mm_camera_call_type_t call_type)
 {
     int32_t rc = -1;
-    uint8_t idx = 0;
-
-    if (MM_CAMERA_POLL_TYPE_DATA == poll_cb->poll_type) {
-        /* get stream idx from handler if CH type */
-        idx = mm_camera_util_get_index_by_handler(handler);
-    } else {
-        /* for EVT type, only idx=0 is valid */
-        idx = 0;
-    }
 
     if (MAX_STREAM_NUM_IN_BUNDLE > idx) {
         poll_cb->poll_entries[idx].fd = fd;
@@ -447,6 +436,7 @@ int32_t mm_camera_poll_thread_add_poll_fd(mm_camera_poll_thread_t * poll_cb,
  *
  * PARAMETERS :
  *   @poll_cb   : ptr to poll thread object
+ *   @idx       : Object index.
  *   @handler   : stream handle if channel data polling thread,
  *                0 if event polling thread
  *
@@ -455,19 +445,9 @@ int32_t mm_camera_poll_thread_add_poll_fd(mm_camera_poll_thread_t * poll_cb,
  *              -1 -- failure
  *==========================================================================*/
 int32_t mm_camera_poll_thread_del_poll_fd(mm_camera_poll_thread_t * poll_cb,
-                                          uint32_t handler,
-                                          mm_camera_call_type_t call_type)
+        uint8_t idx, uint32_t handler, mm_camera_call_type_t call_type)
 {
     int32_t rc = -1;
-    uint8_t idx = 0;
-
-    if (MM_CAMERA_POLL_TYPE_DATA == poll_cb->poll_type) {
-        /* get stream idx from handler if CH type */
-        idx = mm_camera_util_get_index_by_handler(handler);
-    } else {
-        /* for EVT type, only idx=0 is valid */
-        idx = 0;
-    }
 
     if ((MAX_STREAM_NUM_IN_BUNDLE > idx) &&
         (handler == poll_cb->poll_entries[idx].handler)) {

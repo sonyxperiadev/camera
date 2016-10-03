@@ -45,6 +45,7 @@
 #include "mm_camera_sock.h"
 #include "mm_camera_interface.h"
 #include "mm_camera.h"
+#include "mm_camera_muxer.h"
 
 #define SET_PARM_BIT32(parm, parm_arr) \
     (parm_arr[parm/32] |= (1<<(parm%32)))
@@ -269,7 +270,9 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
     if (NULL == my_obj) {
         goto on_error;
     }
-    dev_name_value = mm_camera_util_get_dev_name(my_obj->my_hdl);
+
+    dev_name_value = mm_camera_util_get_dev_name_by_num(my_obj->my_num,
+            my_obj->my_hdl);
     if (NULL == dev_name_value) {
         goto on_error;
     }
@@ -439,6 +442,10 @@ int32_t mm_camera_close(mm_camera_obj_t *my_obj)
     }
 #endif
 
+    if (my_obj->master_cam_obj != NULL) {
+        my_obj->master_cam_obj->num_s_cnt--;
+        my_obj->master_cam_obj->aux_cam_obj[my_obj->master_cam_obj->num_s_cnt] = NULL;
+    }
     pthread_mutex_destroy(&my_obj->msg_lock);
     pthread_mutex_destroy(&my_obj->cb_lock);
     pthread_mutex_destroy(&my_obj->evt_lock);
@@ -864,7 +871,7 @@ uint32_t mm_camera_add_channel(mm_camera_obj_t *my_obj,
     if (NULL != ch_obj) {
         /* initialize channel obj */
         memset(ch_obj, 0, sizeof(mm_channel_t));
-        ch_hdl = mm_camera_util_generate_handler(ch_idx);
+        ch_hdl = mm_camera_util_generate_handler_by_num(my_obj->my_num, ch_idx);
         ch_obj->my_hdl = ch_hdl;
         ch_obj->state = MM_CHANNEL_STATE_STOPPED;
         ch_obj->cam_obj = my_obj;
@@ -874,7 +881,6 @@ uint32_t mm_camera_add_channel(mm_camera_obj_t *my_obj,
     }
 
     pthread_mutex_unlock(&my_obj->cam_lock);
-
     return ch_hdl;
 }
 
@@ -909,6 +915,10 @@ int32_t mm_camera_del_channel(mm_camera_obj_t *my_obj,
                                NULL,
                                NULL);
 
+        if (ch_obj->master_ch_obj != NULL) {
+            ch_obj->master_ch_obj->num_s_cnt--;
+            ch_obj->master_ch_obj->aux_ch_obj[ch_obj->master_ch_obj->num_s_cnt] = NULL;
+        }
         pthread_mutex_destroy(&ch_obj->ch_lock);
         memset(ch_obj, 0, sizeof(mm_channel_t));
     } else {
@@ -1090,8 +1100,8 @@ int32_t mm_camera_start_zsl_snapshot_ch(mm_camera_obj_t *my_obj,
         uint32_t ch_id)
 {
     int32_t rc = -1;
-    mm_channel_t * ch_obj =
-        mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+    mm_channel_t *ch_obj =
+            mm_camera_util_get_channel_by_handler(my_obj, ch_id);
 
     if (NULL != ch_obj) {
         pthread_mutex_lock(&ch_obj->ch_lock);
@@ -1530,9 +1540,8 @@ int32_t mm_camera_do_stream_action(mm_camera_obj_t *my_obj,
         payload.actions = actions;
 
         rc = mm_channel_fsm_fn(ch_obj,
-                               MM_CHANNEL_EVT_DO_STREAM_ACTION,
-                               (void*)&payload,
-                               NULL);
+                MM_CHANNEL_EVT_DO_ACTION,
+                (void*)&payload, NULL);
     } else {
         pthread_mutex_unlock(&my_obj->cam_lock);
     }
@@ -1731,8 +1740,7 @@ int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
         }
         /* remove evt fd from the polling thraed when unreg the last event */
         rc = mm_camera_poll_thread_del_poll_fd(&my_obj->evt_poll_thread,
-                                               my_obj->my_hdl,
-                                               mm_camera_sync_call);
+                0, my_obj->my_hdl, mm_camera_sync_call);
     } else {
         rc = ioctl(my_obj->ctrl_fd, VIDIOC_SUBSCRIBE_EVENT, &sub);
         if (rc < 0) {
@@ -1742,11 +1750,8 @@ int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
         }
         /* add evt fd to polling thread when subscribe the first event */
         rc = mm_camera_poll_thread_add_poll_fd(&my_obj->evt_poll_thread,
-                                               my_obj->my_hdl,
-                                               my_obj->ctrl_fd,
-                                               mm_camera_event_notify,
-                                               (void*)my_obj,
-                                               mm_camera_sync_call);
+                0, my_obj->my_hdl, my_obj->ctrl_fd, mm_camera_event_notify,
+               (void*)my_obj, mm_camera_sync_call);
     }
     return rc;
 }
@@ -2400,8 +2405,168 @@ int32_t mm_camera_reg_stream_buf_cb(mm_camera_obj_t *my_obj,
     return rc;
 }
 
-#ifdef QCAMERA_REDEFINE_LOG
+/*===========================================================================
+ * FUNCTION   : mm_camera_register_frame_sync
+ *
+ * DESCRIPTION: register/configure frame sync for this camera
+ *
+ * PARAMETERS :
+ *   @my_obj    : camera object
+ *   @ch_id     : channel handle
+ *   @stream_id : stream that will be linked
+ *   @sync_attr : attibutes for sync queue
+ *
+ * RETURN    : int32_t type of status
+ *             0  -- success
+ *             1 --  failure
+ *==========================================================================*/
+int32_t mm_camera_reg_frame_sync(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id,
+        mm_camera_frame_sync_t *sync_attr)
+{
+    int32_t rc = -1;
+    uint32_t sync_id = 0;
+    mm_evt_paylod_reg_frame_sync payload;
 
+    mm_channel_t *ch_obj =
+            mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+    mm_channel_t *a_ch_obj = NULL;
+
+    if (sync_attr != NULL && sync_attr->a_cam_obj != NULL) {
+        a_ch_obj = mm_camera_util_get_channel_by_handler(
+                sync_attr->a_cam_obj, sync_attr->a_ch_id);
+    } else {
+        LOGE("Invalid arguments");
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        return rc;
+    }
+
+    if (NULL != ch_obj && a_ch_obj != NULL) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        memset(&payload, 0, sizeof(payload));
+        payload.stream_id = stream_id;
+        payload.sync_attr = sync_attr;
+        payload.a_ch_obj = a_ch_obj;
+        rc = mm_channel_fsm_fn(ch_obj,
+                MM_CHANNEL_EVT_REG_FRAME_SYNC,
+                (void*)&payload, (void*)&sync_id);
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_start_frame_sync
+ *
+ * DESCRIPTION: start frame sync under this camera
+ *
+ * PARAMETERS :
+ *   @my_obj    : camera object
+ *   @ch_id     : channel handle
+ *   @stream_id : stream that will be linked
+ *
+ * RETURN    : int32_t type of status
+ *             0  -- success
+ *             1 --  failure
+ *==========================================================================*/
+int32_t mm_camera_start_frame_sync(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id)
+{
+    int32_t rc = -1;
+
+    mm_channel_t *ch_obj =
+            mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+    if (NULL != ch_obj) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        mm_evt_paylod_trigger_frame_sync payload;
+        payload.enable_frame_sync = 1;
+        payload.stream_id = stream_id;
+        rc = mm_channel_fsm_fn(ch_obj,
+                MM_CHANNEL_EVT_TRIGGER_FRAME_SYNC,
+                (void*)&payload, NULL);
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_stop_frame_sync
+ *
+ * DESCRIPTION: stop frame sync under this camera
+ *
+ * PARAMETERS :
+ *   @my_obj    : camera object
+ *   @ch_id     : channel handle
+ *   @stream_id : stream that will be linked
+ *
+ * RETURN    : int32_t type of status
+ *             0  -- success
+ *             1 --  failure
+ *==========================================================================*/
+int32_t mm_camera_stop_frame_sync(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id)
+{
+    int32_t rc = -1;
+
+    mm_channel_t *ch_obj =
+            mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+
+    if (NULL != ch_obj) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        mm_evt_paylod_trigger_frame_sync payload;
+        payload.enable_frame_sync = 0;
+        payload.stream_id = stream_id;
+        rc = mm_channel_fsm_fn(ch_obj,
+                MM_CHANNEL_EVT_TRIGGER_FRAME_SYNC,
+                (void*)&payload, NULL);
+
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : mm_camera_switch_stream_cb
+ *
+ * DESCRIPTION: switch stream callbacks in case of multiple instance of streams
+ *
+ * PARAMETERS :
+ *   @my_obj    : camera object
+ *   @ch_id     : channel handle
+ *   @stream_id : stream id
+ *
+ * RETURN    : int32_t type of status
+ *             0  -- success
+ *             1 --  failure
+ *==========================================================================*/
+int32_t mm_camera_switch_stream_cb(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id)
+{
+    int rc = -1;
+    mm_channel_t *ch_obj = NULL;
+    ch_obj = mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+
+    if (NULL != ch_obj) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        rc = mm_channel_fsm_fn(ch_obj,
+                MM_CHANNEL_EVT_SWITCH_STREAM_CB,
+                (void *)&stream_id,
+                NULL);
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+    }
+
+    return rc;
+}
+
+#ifdef QCAMERA_REDEFINE_LOG
 /*===========================================================================
  * DESCRIPTION: mm camera debug interface
  *

@@ -396,7 +396,7 @@ void *QCamera3HeapMemory::getPtrLocked(uint32_t index)
 {
     if (index >= mBufferCount) {
         LOGE("index out of bound");
-        return (void *)BAD_INDEX;
+        return NULL;
     }
     return mPtr[index];
 }

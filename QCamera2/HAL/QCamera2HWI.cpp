@@ -1681,6 +1681,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
     mCameraDevice.ops = &mCameraOps;
     mCameraDevice.priv = this;
 
+    mDualCamera = is_dual_camera_by_idx(cameraId);
+
     pthread_mutex_init(&m_lock, NULL);
     pthread_cond_init(&m_cond, NULL);
 

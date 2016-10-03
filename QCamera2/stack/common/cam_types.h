@@ -163,13 +163,13 @@ typedef enum {
 } cam_status_t;
 
 typedef enum {
-    /* back main camera */
+    /*back main camera*/
     CAM_POSITION_BACK,
-    /* front main camera */
+    /*front main camera*/
     CAM_POSITION_FRONT,
-    /* back aux camera */
+    /*back aux camera*/
     CAM_POSITION_BACK_AUX,
-    /* front aux camera */
+    /*front aux camera*/
     CAM_POSITION_FRONT_AUX
 } cam_position_t;
 
@@ -1651,11 +1651,16 @@ typedef struct {
 typedef enum {
     /* Standalone camera (won't be linked) */
     CAM_TYPE_STANDALONE=0,
+
     /* Main camera of the related cam subsystem which controls
        HW sync at sensor level*/
-    CAM_TYPE_MAIN,
+    CAM_TYPE_MAIN = (1 << 0),
+
     /* Aux camera of the related cam subsystem */
-    CAM_TYPE_AUX
+    CAM_TYPE_AUX = (1 << 1),
+
+    /*Secure camera. Is not published*/
+    CAM_TYPE_SECURE = (1 << 2),
 } cam_sync_type_t;
 
 typedef enum {
@@ -2243,6 +2248,10 @@ typedef enum {
     CAM_INTF_META_FOCUS_VALUE,
     /*Spot light detection result output from af core*/
     CAM_INTF_META_SPOT_LIGHT_DETECT,
+    /*parameter to control dual camera's from HAL*/
+    CAM_INTF_PARM_SUSPEND_RESUME_CAMERAS,
+    /*Camera module master info*/
+    CAM_INTF_PARM_CAMERA_MASTER_INFO,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
