@@ -12138,7 +12138,7 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
     cam_dual_camera_bundle_info_t bundle_info;
     uint8_t num_cam = 0;
     int32_t sync = 0;
-    uint32_t mode, type;
+    uint32_t mode, type, role = 0;
     cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
@@ -12160,10 +12160,16 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
         type = CAM_TYPE_MAIN;
     }
 
+    if (m_pCapability->lens_type == CAM_LENS_WIDE) {
+        role = CAM_ROLE_WIDE;
+    } else if (m_pCapability->lens_type == CAM_LENS_TELE) {
+        role = CAM_ROLE_TELE;
+    }
     bundle_info.sync_control =
             (cam_sync_related_sensors_control_t)sync;
     bundle_info.mode = (cam_sync_mode_t)mode;
     bundle_info.type = (cam_sync_type_t)type;
+    bundle_info.cam_role = (cam_dual_camera_role_t)role;
     bundle_info.related_sensor_session_id = sessionId[bundle_cam_idx];
     num_cam++;
 
@@ -14438,6 +14444,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
         bundle_info[num_cam].type = CAM_TYPE_MAIN;
         bundle_info[num_cam].mode = CAM_MODE_PRIMARY;
+        bundle_info[num_cam].cam_role = CAM_ROLE_WIDE;
         bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
         m_pCamOpsTbl->ops->get_session_id(
                 get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
@@ -14447,6 +14454,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
         bundle_info[num_cam].type = CAM_TYPE_AUX;
         bundle_info[num_cam].mode = CAM_MODE_SECONDARY;
+        bundle_info[num_cam].cam_role = CAM_ROLE_TELE;
         bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
         m_pCamOpsTbl->ops->get_session_id(
                 get_main_camera_handle(m_pCamOpsTbl->camera_handle),
