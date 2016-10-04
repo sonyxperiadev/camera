@@ -1972,7 +1972,7 @@ int QCamera2HardwareInterface::openCamera()
         // (video/hardware composer) to that of camera. Assumption is that this
         // offset won't change during the life cycle of the camera device. In other
         // words, camera device shouldn't be open during CPU suspend.
-        mBootToMonoTimestampOffset = getBootToMonoTimeOffset();
+        mBootToMonoTimestampOffset = QCameraCommon::getBootToMonoTimeOffset();
     }
     LOGH("mBootToMonoTimestampOffset = %lld", mBootToMonoTimestampOffset);
 
@@ -10482,37 +10482,6 @@ bool QCamera2HardwareInterface::isLowPowerMode()
     bool isLowpower = mParameters.getRecordingHintValue() && enable
             && ((dim.width * dim.height) >= (2048 * 1080));
     return isLowpower;
-}
-
-/*===========================================================================
- * FUNCTION   : getBootToMonoTimeOffset
- *
- * DESCRIPTION: Calculate offset that is used to convert from
- *              clock domain of boot to monotonic
- *
- * PARAMETERS :
- *   None
- *
- * RETURN     : clock offset between boottime and monotonic time.
- *
- *==========================================================================*/
-nsecs_t QCamera2HardwareInterface::getBootToMonoTimeOffset()
-{
-    // try three times to get the clock offset, choose the one
-    // with the minimum gap in measurements.
-    const int tries = 3;
-    nsecs_t bestGap, measured;
-    for (int i = 0; i < tries; ++i) {
-        const nsecs_t tmono = systemTime(SYSTEM_TIME_MONOTONIC);
-        const nsecs_t tbase = systemTime(SYSTEM_TIME_BOOTTIME);
-        const nsecs_t tmono2 = systemTime(SYSTEM_TIME_MONOTONIC);
-        const nsecs_t gap = tmono2 - tmono;
-        if (i == 0 || gap < bestGap) {
-            bestGap = gap;
-            measured = tbase - ((tmono + tmono2) >> 1);
-        }
-    }
-    return measured;
 }
 
 }; // namespace qcamera

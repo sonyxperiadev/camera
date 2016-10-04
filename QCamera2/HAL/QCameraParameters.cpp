@@ -4003,7 +4003,7 @@ int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
     Quadra sensor in normal mode. If more then switch to Quadra CFA mode else
     remain in normal zsl mode */
     params.getPictureSize(&width, &height);
-    if (width > m_pCapability->raw_dim[0].width &&
+    if (width > m_pCapability->raw_dim[0].width ||
         height > m_pCapability->raw_dim[0].height) {
         LOGI("Quadra CFA mode selected");
         m_bQuadraCfa = TRUE;
@@ -6364,6 +6364,13 @@ TRANS_INIT_DONE:
  *==========================================================================*/
 void QCameraParameters::deinit()
 {
+    if (NULL != m_pParamHeap) {
+        m_pParamHeap->deallocate();
+        delete m_pParamHeap;
+        m_pParamHeap = NULL;
+        m_pParamBuf = NULL;
+    }
+
     if (!m_bInited) {
         return;
     }
@@ -6385,12 +6392,7 @@ void QCameraParameters::deinit()
     }
 
     m_pCapability = NULL;
-    if (NULL != m_pParamHeap) {
-        m_pParamHeap->deallocate();
-        delete m_pParamHeap;
-        m_pParamHeap = NULL;
-        m_pParamBuf = NULL;
-    }
+
     if (NULL != m_pRelCamSyncHeap) {
         m_pRelCamSyncHeap->deallocate();
         delete m_pRelCamSyncHeap;
