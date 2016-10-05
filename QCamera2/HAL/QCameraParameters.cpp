@@ -6184,21 +6184,25 @@ int32_t QCameraParameters::initDefaultParameters()
     pic_dim.width = 0;
     pic_dim.height = 0;
 
-    for(uint32_t i = 0;
-            i < (m_pCapability->picture_sizes_tbl_cnt - 1);
-            i++) {
-        if ((pic_dim.width * pic_dim.height) <
-                (int32_t)(m_pCapability->picture_sizes_tbl[i].width *
-                m_pCapability->picture_sizes_tbl[i].height)) {
-            pic_dim.width =
-                    m_pCapability->picture_sizes_tbl[i].width;
-            pic_dim.height =
-                    m_pCapability->picture_sizes_tbl[i].height;
+    if (m_pCapability->picture_sizes_tbl_cnt > 0 &&
+        m_pCapability->picture_sizes_tbl_cnt <= MAX_SIZES_CNT) {
+        for(uint32_t i = 0;
+                i < m_pCapability->picture_sizes_tbl_cnt; i++) {
+            if ((pic_dim.width * pic_dim.height) <
+                    (int32_t)(m_pCapability->picture_sizes_tbl[i].width *
+                    m_pCapability->picture_sizes_tbl[i].height)) {
+                pic_dim.width =
+                        m_pCapability->picture_sizes_tbl[i].width;
+                pic_dim.height =
+                        m_pCapability->picture_sizes_tbl[i].height;
+            }
         }
+        LOGD("max pic size = %d %d", pic_dim.width,
+                pic_dim.height);
+        setMaxPicSize(pic_dim);
+    } else {
+        LOGW("supported picture sizes cnt is 0 or exceeds max!!!");
     }
-    LOGD("max pic size = %d %d", pic_dim.width,
-            pic_dim.height);
-    setMaxPicSize(pic_dim);
 
     setManualCaptureMode(CAM_MANUAL_CAPTURE_TYPE_OFF);
     return rc;
