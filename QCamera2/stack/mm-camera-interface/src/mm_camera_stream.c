@@ -142,11 +142,10 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
 uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt);
 int32_t mm_stream_reg_frame_sync(mm_stream_t *my_obj,
         mm_evt_paylod_reg_frame_sync *sync);
-int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj, uint8_t start_sync);
-int32_t mm_stream_switch_stream_callback(mm_stream_t *my_obj);
 int32_t mm_stream_handle_cache_ops(mm_stream_t* my_obj,
         mm_camera_buf_def_t* buf, bool deque);
-
+int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj,
+        mm_camera_cb_req_type type);
 
 /*===========================================================================
  * FUNCTION   : mm_stream_notify_channel
@@ -270,10 +269,15 @@ static void mm_stream_dispatch_sync_data(mm_stream_t * my_obj,
          mm_stream_data_cb_t *buf_cb, mm_camera_buf_info_t *buf_info)
 {
     mm_camera_super_buf_t super_buf;
+    mm_stream_t *m_obj = my_obj;
 
     if (NULL == my_obj || buf_info == NULL ||
             buf_cb == NULL) {
         return;
+    }
+
+    if (m_obj->master_str_obj != NULL) {
+        m_obj = m_obj->master_str_obj;
     }
 
     memset(&super_buf, 0, sizeof(mm_camera_super_buf_t));
@@ -282,7 +286,8 @@ static void mm_stream_dispatch_sync_data(mm_stream_t * my_obj,
     super_buf.camera_handle = my_obj->ch_obj->cam_obj->my_hdl;
     super_buf.ch_id = my_obj->ch_obj->my_hdl;
     if ((buf_cb != NULL) && (buf_cb->cb_type == MM_CAMERA_STREAM_CB_TYPE_SYNC)
-            && (buf_cb->cb_count != 0)) {
+            && (buf_cb->cb_count != 0)
+            && my_obj->is_cb_active) {
         /* callback */
         buf_cb->cb(&super_buf, buf_cb->user_data);
 
@@ -665,8 +670,9 @@ int32_t mm_stream_fsm_acquired(mm_stream_t *my_obj,
         break;
     case MM_STREAM_EVT_TRIGGER_FRAME_SYNC:
         {
-            uint8_t trigger = *((uint8_t *)in_val);
-            rc = mm_stream_trigger_frame_sync(my_obj, trigger);
+            mm_camera_cb_req_type type =
+                    *((mm_camera_cb_req_type *)in_val);
+            rc = mm_stream_trigger_frame_sync(my_obj, type);
         }
         break;
     default:
@@ -741,8 +747,9 @@ int32_t mm_stream_fsm_cfg(mm_stream_t * my_obj,
         break;
     case MM_STREAM_EVT_TRIGGER_FRAME_SYNC:
         {
-            uint8_t trigger = *((uint8_t *)in_val);
-            rc = mm_stream_trigger_frame_sync(my_obj, trigger);
+            mm_camera_cb_req_type type =
+                    *((mm_camera_cb_req_type *)in_val);
+            rc = mm_stream_trigger_frame_sync(my_obj, type);
         }
         break;
     default:
@@ -981,13 +988,9 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
         break;
     case MM_STREAM_EVT_TRIGGER_FRAME_SYNC:
         {
-            uint8_t trigger = *((uint8_t *)in_val);
-            rc = mm_stream_trigger_frame_sync(my_obj, trigger);
-        }
-        break;
-    case MM_STREAM_EVT_SWITCH_STREAM_CB:
-        {
-            rc = mm_stream_switch_stream_callback(my_obj);
+            mm_camera_cb_req_type type =
+                    *((mm_camera_cb_req_type *)in_val);
+            rc = mm_stream_trigger_frame_sync(my_obj, type);
         }
         break;
     default:
@@ -1147,8 +1150,7 @@ int32_t mm_stream_reg_frame_sync(mm_stream_t *str_obj, mm_evt_paylod_reg_frame_s
     queue->bundled_objs[queue->num_objs] = sync->a_str_obj->my_hdl;
     queue->num_objs++;
     queue->expected_frame_id = 0;
-    queue->max_unmatched_frames = sync->sync_attr->max_unmatched_frames;
-    queue->priority = sync->sync_attr->priority;
+    queue->attr = sync->sync_attr->attr;
 
     sync->a_str_obj->is_res_shared = sync->sync_attr->is_res_shared;
     my_obj->aux_str_obj[my_obj->num_s_cnt++] = sync->a_str_obj;
@@ -1164,72 +1166,65 @@ int32_t mm_stream_reg_frame_sync(mm_stream_t *str_obj, mm_evt_paylod_reg_frame_s
  *
  * PARAMETERS :
  *   @my_obj  : stream object
- *   @start_sync  : flag to start/stop frame sync.
+ *   @type  : flag to start/stop frame sync.
  *
  * RETURN     : uint32_t type of stream handle
  *              0  -- invalid stream handle, meaning the op failed
  *              >0 -- successfully added a stream with a valid handle
  *==========================================================================*/
-int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj, uint8_t start_sync)
+int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj,
+        mm_camera_cb_req_type type)
 {
     int32_t rc = 0;
     mm_stream_t *m_obj = my_obj;
+    mm_stream_t *s_obj = NULL;
     mm_frame_sync_t *frame_sync = NULL;
 
     if (m_obj->master_str_obj != NULL) {
         m_obj = m_obj->master_str_obj;
     }
-    frame_sync = &m_obj->frame_sync;
-    pthread_mutex_lock(&frame_sync->sync_lock);
-    if (start_sync == 0 && frame_sync->is_active) {
-        mm_camera_muxer_stream_frame_sync_flush(m_obj);
-    }
-    frame_sync->is_active = start_sync;
-    pthread_mutex_unlock(&frame_sync->sync_lock);
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : mm_stream_switch_stream_callback
- *
- * DESCRIPTION: switch stream callbacks
- *
- * PARAMETERS :
- *   @my_obj  : stream object
- *
- * RETURN     : uint32_t type of stream handle
- *              0  -- invalid stream handle, meaning the op failed
- *              >0 -- successfully added a stream with a valid handle
- *==========================================================================*/
-int32_t mm_stream_switch_stream_callback(mm_stream_t *my_obj)
-{
-    int32_t rc = 0;
-    mm_stream_t *m_obj = my_obj;
-    mm_stream_t *s_obj = NULL;
-
-    if (my_obj->master_str_obj != NULL) {
-        m_obj = my_obj->master_str_obj;
-    }
-    if (m_obj->num_s_cnt == 0) {
-        LOGE("No slave stream to switch");
-        return -1;
-    }
     s_obj = m_obj->aux_str_obj[0];
 
-    pthread_mutex_lock(&m_obj->frame_sync.sync_lock);
-    if (m_obj->frame_sync.is_active) {
-        mm_camera_muxer_stream_frame_sync_flush(m_obj);
+    frame_sync = &m_obj->frame_sync;
+    pthread_mutex_lock(&frame_sync->sync_lock);
+    switch (type) {
+        case MM_CAMERA_CB_REQ_TYPE_SWITCH:
+            if (m_obj->frame_sync.is_active) {
+                mm_camera_muxer_stream_frame_sync_flush(m_obj);
+            }
+            m_obj->frame_sync.is_active = 0;
+
+            pthread_mutex_lock(&s_obj->cb_lock);
+            s_obj->is_cb_active = !s_obj->is_cb_active;
+            pthread_mutex_unlock(&s_obj->cb_lock);
+
+            pthread_mutex_lock(&m_obj->cb_lock);
+            m_obj->is_cb_active = !m_obj->is_cb_active;
+            if (s_obj->is_cb_active == 0
+                    && m_obj->is_cb_active == 0) {
+                m_obj->is_cb_active = 1;
+            }
+            pthread_mutex_unlock(&m_obj->cb_lock);
+        break;
+
+        case MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC:
+            m_obj->frame_sync.is_active = 1;
+        break;
+
+        case MM_CAMERA_CB_REQ_TYPE_ALL_CB:
+            pthread_mutex_lock(&m_obj->cb_lock);
+            m_obj->is_cb_active = 1;
+            pthread_mutex_unlock(&m_obj->cb_lock);
+
+            pthread_mutex_lock(&s_obj->cb_lock);
+            s_obj->is_cb_active = 1;
+            pthread_mutex_unlock(&s_obj->cb_lock);
+        break;
+        default:
+            //no-op
+            break;
     }
-    m_obj->frame_sync.is_active = 0;
-    pthread_mutex_lock(&m_obj->cb_lock);
-    m_obj->is_cb_active = !m_obj->is_cb_active;
-    pthread_mutex_unlock(&m_obj->cb_lock);
-
-    pthread_mutex_lock(&s_obj->cb_lock);
-    s_obj->is_cb_active = !s_obj->is_cb_active;
-    pthread_mutex_unlock(&s_obj->cb_lock);
-
-    pthread_mutex_unlock(&m_obj->frame_sync.sync_lock);
+    pthread_mutex_unlock(&frame_sync->sync_lock);
     return rc;
 }
 

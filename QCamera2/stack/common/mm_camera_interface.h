@@ -194,7 +194,7 @@ typedef struct {
     mm_camera_req_buf_type_t type;
     uint32_t num_buf_requested;
     uint32_t num_retro_buf_requested;
-    uint8_t primary_only;
+    uint8_t cam_num;    //Frame from which camera
     uint32_t frame_idx; //Client can request frameId to pick from ZSL queue
 } mm_camera_req_buf_t;
 
@@ -402,7 +402,15 @@ typedef struct {
     uint8_t user_expected_frame_id;
 } mm_camera_channel_attr_t;
 
-/** mm_camera_intf_frame_sync_t: structure to register frame sync
+/** mm_camera_cb_req_type: Callback request type**/
+typedef enum {
+    MM_CAMERA_CB_REQ_TYPE_DEFAULT,
+    MM_CAMERA_CB_REQ_TYPE_SWITCH,
+    MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC,
+    MM_CAMERA_CB_REQ_TYPE_ALL_CB,
+} mm_camera_cb_req_type;
+
+/** mm_camera_intf_cb_req_type: structure to request different mode of stream callback
 *    @camera_handle  : camera handle to be syced
 *    @ch_id          : channel id to be synced
 *    @stream_id      : stream id to be synced
@@ -414,7 +422,7 @@ typedef struct {
     uint32_t camera_handle;
     uint32_t ch_id;
     uint32_t stream_id;
-    uint8_t max_unmatched_frames;
+    mm_camera_channel_attr_t attr;
     mm_camera_buf_notify_t buf_cb;
     void *userdata;
 } mm_camera_intf_frame_sync_t;
@@ -916,35 +924,17 @@ typedef struct {
             uint32_t ch_id, uint32_t stream_id,
             mm_camera_intf_frame_sync_t *sync_attr);
 
-   /** start_stream_frame_sync:  function definition to start frame buffer sync
+   /** handle_frame_sync_cb: function to handle frame sync
      *    @camera_handle : camer handler
      *    @ch_id : channel handler
      *    @stream_id : stream handler
+     *    @req_type : Frame sync request type
      *  Return value: 0 -- success
      *                -1 -- failure
      **/
-    int32_t (*start_stream_frame_sync) (uint32_t camera_handle,
-            uint32_t ch_id, uint32_t stream_id);
-
-   /** stop_stream_frame_sync:  function definition to stop frame buffer sync
-     *    @camera_handle : camer handler
-     *    @ch_id : channel handler
-     *    @stream_id : stream handler
-     *  Return value: 0 -- success
-     *                -1 -- failure
-     **/
-    int32_t (*stop_stream_frame_sync) (uint32_t camera_handle,
-            uint32_t ch_id, uint32_t stream_id);
-
-   /** switch_stream: function definition to switch stream frame
-     *    @camera_handle : camer handler
-     *    @ch_id : channel handler
-     *    @stream_id : stream handler
-     *  Return value: 0 -- success
-     *                -1 -- failure
-     **/
-    int32_t (*switch_stream_callback) (uint32_t camera_handle,
-            uint32_t ch_id, uint32_t stream_id);
+    int32_t (*handle_frame_sync_cb) (uint32_t camera_handle,
+            uint32_t ch_id, uint32_t stream_id,
+            mm_camera_cb_req_type req_type);
 } mm_camera_ops_t;
 
 /** mm_camera_vtbl_t: virtual table for camera operations

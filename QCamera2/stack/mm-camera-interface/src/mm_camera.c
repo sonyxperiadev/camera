@@ -1074,7 +1074,6 @@ uint32_t mm_camera_add_stream(mm_camera_obj_t *my_obj,
     } else {
         pthread_mutex_unlock(&my_obj->cam_lock);
     }
-
     return s_hdl;
 }
 
@@ -2487,83 +2486,9 @@ int32_t mm_camera_reg_frame_sync(mm_camera_obj_t *my_obj,
 }
 
 /*===========================================================================
- * FUNCTION   : mm_camera_start_frame_sync
+ * FUNCTION   : mm_camera_handle_frame_sync_cb
  *
- * DESCRIPTION: start frame sync under this camera
- *
- * PARAMETERS :
- *   @my_obj    : camera object
- *   @ch_id     : channel handle
- *   @stream_id : stream that will be linked
- *
- * RETURN    : int32_t type of status
- *             0  -- success
- *             1 --  failure
- *==========================================================================*/
-int32_t mm_camera_start_frame_sync(mm_camera_obj_t *my_obj,
-        uint32_t ch_id, uint32_t stream_id)
-{
-    int32_t rc = -1;
-
-    mm_channel_t *ch_obj =
-            mm_camera_util_get_channel_by_handler(my_obj, ch_id);
-    if (NULL != ch_obj) {
-        pthread_mutex_lock(&ch_obj->ch_lock);
-        pthread_mutex_unlock(&my_obj->cam_lock);
-        mm_evt_paylod_trigger_frame_sync payload;
-        payload.enable_frame_sync = 1;
-        payload.stream_id = stream_id;
-        rc = mm_channel_fsm_fn(ch_obj,
-                MM_CHANNEL_EVT_TRIGGER_FRAME_SYNC,
-                (void*)&payload, NULL);
-    } else {
-        pthread_mutex_unlock(&my_obj->cam_lock);
-    }
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : mm_camera_stop_frame_sync
- *
- * DESCRIPTION: stop frame sync under this camera
- *
- * PARAMETERS :
- *   @my_obj    : camera object
- *   @ch_id     : channel handle
- *   @stream_id : stream that will be linked
- *
- * RETURN    : int32_t type of status
- *             0  -- success
- *             1 --  failure
- *==========================================================================*/
-int32_t mm_camera_stop_frame_sync(mm_camera_obj_t *my_obj,
-        uint32_t ch_id, uint32_t stream_id)
-{
-    int32_t rc = -1;
-
-    mm_channel_t *ch_obj =
-            mm_camera_util_get_channel_by_handler(my_obj, ch_id);
-
-    if (NULL != ch_obj) {
-        pthread_mutex_lock(&ch_obj->ch_lock);
-        pthread_mutex_unlock(&my_obj->cam_lock);
-        mm_evt_paylod_trigger_frame_sync payload;
-        payload.enable_frame_sync = 0;
-        payload.stream_id = stream_id;
-        rc = mm_channel_fsm_fn(ch_obj,
-                MM_CHANNEL_EVT_TRIGGER_FRAME_SYNC,
-                (void*)&payload, NULL);
-
-    } else {
-        pthread_mutex_unlock(&my_obj->cam_lock);
-    }
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : mm_camera_switch_stream_cb
- *
- * DESCRIPTION: switch stream callbacks in case of multiple instance of streams
+ * DESCRIPTION: enable or disable callbacks in case of frame sync
  *
  * PARAMETERS :
  *   @my_obj    : camera object
@@ -2574,8 +2499,8 @@ int32_t mm_camera_stop_frame_sync(mm_camera_obj_t *my_obj,
  *             0  -- success
  *             1 --  failure
  *==========================================================================*/
-int32_t mm_camera_switch_stream_cb(mm_camera_obj_t *my_obj,
-        uint32_t ch_id, uint32_t stream_id)
+int32_t mm_camera_handle_frame_sync_cb(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id, mm_camera_cb_req_type req_type)
 {
     int rc = -1;
     mm_channel_t *ch_obj = NULL;
@@ -2584,14 +2509,15 @@ int32_t mm_camera_switch_stream_cb(mm_camera_obj_t *my_obj,
     if (NULL != ch_obj) {
         pthread_mutex_lock(&ch_obj->ch_lock);
         pthread_mutex_unlock(&my_obj->cam_lock);
+        mm_evt_paylod_trigger_frame_sync payload;
+        payload.type = req_type;
+        payload.stream_id = stream_id;
         rc = mm_channel_fsm_fn(ch_obj,
-                MM_CHANNEL_EVT_SWITCH_STREAM_CB,
-                (void *)&stream_id,
-                NULL);
+                MM_CHANNEL_EVT_TRIGGER_FRAME_SYNC,
+                (void*)&payload, NULL);
     } else {
         pthread_mutex_unlock(&my_obj->cam_lock);
     }
-
     return rc;
 }
 
