@@ -5623,7 +5623,8 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
 
     IF_META_AVAILABLE(cam_ir_mode_type_t, ir, CAM_INTF_META_IR_MODE, metadata) {
-        camMetadata.update(QCAMERA3_IR_MODE,(int32_t *) &ir, 1);
+        int32_t fwk_ir = (int32_t) *ir;
+        camMetadata.update(QCAMERA3_IR_MODE, &fwk_ir, 1);
     }
 
     // AEC SPEED
