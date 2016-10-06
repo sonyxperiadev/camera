@@ -844,6 +844,17 @@ int QCamera3HardwareInterface::closeCamera()
 
     LOGI("[KPI Perf]: E PROFILE_CLOSE_CAMERA camera id %d",
              mCameraId);
+
+    // unmap memory for related cam sync buffer
+    mCameraHandle->ops->unmap_buf(mCameraHandle->camera_handle,
+            CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
+    if (NULL != m_pRelCamSyncHeap) {
+        m_pRelCamSyncHeap->deallocate();
+        delete m_pRelCamSyncHeap;
+        m_pRelCamSyncHeap = NULL;
+        m_pRelCamSyncBuf = NULL;
+    }
+
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
 
@@ -862,13 +873,6 @@ int QCamera3HardwareInterface::closeCamera()
             setCameraLaunchStatus(false);
         }
         pthread_mutex_unlock(&gCamLock);
-    }
-
-    if (NULL != m_pRelCamSyncHeap) {
-        m_pRelCamSyncHeap->deallocate();
-        delete m_pRelCamSyncHeap;
-        m_pRelCamSyncHeap = NULL;
-        m_pRelCamSyncBuf = NULL;
     }
 
     if (mExifParams.debug_params) {
@@ -1304,6 +1308,37 @@ void QCamera3HardwareInterface::updateFpsInPreviewBuffer(metadata_buffer_t *meta
             }
         }
     }
+}
+
+/*==============================================================================
+ * FUNCTION   : updateTimeStampInPendingBuffers
+ *
+ * DESCRIPTION: update timestamp in display metadata for all pending buffers
+ *              of a frame number
+ *
+ * PARAMETERS :
+ *   @frame_number: frame_number. Timestamp will be set on pending buffers of this frame number
+ *   @timestamp   : timestamp to be set
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCamera3HardwareInterface::updateTimeStampInPendingBuffers(
+        uint32_t frameNumber, nsecs_t timestamp)
+{
+    for (auto req = mPendingBuffersMap.mPendingBuffersInRequest.begin();
+            req != mPendingBuffersMap.mPendingBuffersInRequest.end(); req++) {
+        if (req->frame_number != frameNumber)
+            continue;
+
+        for (auto k = req->mPendingBufferList.begin();
+                k != req->mPendingBufferList.end(); k++ ) {
+            struct private_handle_t *priv_handle =
+                    (struct private_handle_t *) (*(k->buffer));
+            setMetaData(priv_handle, SET_VT_TIMESTAMP, &timestamp);
+        }
+    }
+    return;
 }
 
 /*===========================================================================
@@ -2156,7 +2191,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             QCamera3Channel *channel = (QCamera3Channel*) newStream->priv;
             if (channel != NULL && channel->isUBWCEnabled()) {
                 cam_format_t fmt = channel->getStreamDefaultFormat(
-                        mStreamConfigInfo.type[mStreamConfigInfo.num_streams]);
+                        mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
+                        newStream->width, newStream->height);
                 if(fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
                     newStream->usage |= GRALLOC_USAGE_PRIVATE_ALLOC_UBWC;
                 }
@@ -3051,6 +3087,11 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
             i->timestamp = capture_time;
 
+            /* Set the timestamp in display metadata so that clients aware of
+               private_handle such as VT can use this un-modified timestamps.
+               Camera framework is unaware of this timestamp and cannot change this */
+            updateTimeStampInPendingBuffers(i->frame_number, i->timestamp);
+
             // Find channel requiring metadata, meaning internal offline postprocess
             // is needed.
             //TODO: for now, we don't support two streams requiring metadata at the same time.
@@ -3142,6 +3183,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                         j->buffer = NULL;
                     }
                 }
+
                 result.output_buffers = result_buffers;
                 mCallbackOps->process_capture_result(mCallbackOps, &result);
                 LOGD("meta frame_number = %u, capture_time = %lld",
@@ -5737,38 +5779,44 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         }
     }
 
-    // DDM debug data through vendor tag
-    cam_ddm_info_t ddm_info;
-    memset(&ddm_info, 0, sizeof(cam_ddm_info_t));
+    // Reprocess and DDM debug data through vendor tag
+    cam_reprocess_info_t repro_info;
+    memset(&repro_info, 0, sizeof(cam_reprocess_info_t));
     IF_META_AVAILABLE(cam_stream_crop_info_t, sensorCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_SENSOR, metadata) {
-        memcpy(&(ddm_info.sensor_crop_info), sensorCropInfo, sizeof(cam_stream_crop_info_t));
+        memcpy(&(repro_info.sensor_crop_info), sensorCropInfo, sizeof(cam_stream_crop_info_t));
     }
     IF_META_AVAILABLE(cam_stream_crop_info_t, camifCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_CAMIF, metadata) {
-        memcpy(&(ddm_info.camif_crop_info), camifCropInfo, sizeof(cam_stream_crop_info_t));
+        memcpy(&(repro_info.camif_crop_info), camifCropInfo, sizeof(cam_stream_crop_info_t));
     }
     IF_META_AVAILABLE(cam_stream_crop_info_t, ispCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_ISP, metadata) {
-        memcpy(&(ddm_info.isp_crop_info), ispCropInfo, sizeof(cam_stream_crop_info_t));
+        memcpy(&(repro_info.isp_crop_info), ispCropInfo, sizeof(cam_stream_crop_info_t));
     }
     IF_META_AVAILABLE(cam_stream_crop_info_t, cppCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_CPP, metadata) {
-        memcpy(&(ddm_info.cpp_crop_info), cppCropInfo, sizeof(cam_stream_crop_info_t));
+        memcpy(&(repro_info.cpp_crop_info), cppCropInfo, sizeof(cam_stream_crop_info_t));
     }
     IF_META_AVAILABLE(cam_focal_length_ratio_t, ratio,
             CAM_INTF_META_AF_FOCAL_LENGTH_RATIO, metadata) {
-        memcpy(&(ddm_info.af_focal_length_ratio), ratio, sizeof(cam_focal_length_ratio_t));
+        memcpy(&(repro_info.af_focal_length_ratio), ratio, sizeof(cam_focal_length_ratio_t));
     }
     IF_META_AVAILABLE(int32_t, flip, CAM_INTF_PARM_FLIP, metadata) {
-        memcpy(&(ddm_info.pipeline_flip), flip, sizeof(int32_t));
+        memcpy(&(repro_info.pipeline_flip), flip, sizeof(int32_t));
     }
     IF_META_AVAILABLE(cam_rotation_info_t, rotationInfo,
             CAM_INTF_PARM_ROTATION, metadata) {
-        memcpy(&(ddm_info.rotation_info), rotationInfo, sizeof(cam_rotation_info_t));
+        memcpy(&(repro_info.rotation_info), rotationInfo, sizeof(cam_rotation_info_t));
     }
-    camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB,
-            (uint8_t *)&ddm_info, sizeof(cam_ddm_info_t));
+    IF_META_AVAILABLE(cam_area_t, afRoi, CAM_INTF_META_AF_ROI, metadata) {
+        memcpy(&(repro_info.af_roi), afRoi, sizeof(cam_area_t));
+    }
+    IF_META_AVAILABLE(cam_dyn_img_data_t, dynMask, CAM_INTF_META_IMG_DYN_FEAT, metadata) {
+        memcpy(&(repro_info.dyn_mask), dynMask, sizeof(cam_dyn_img_data_t));
+    }
+    camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB,
+        (uint8_t *)&repro_info, sizeof(cam_reprocess_info_t));
 
     /* In batch mode, cache the first metadata in the batch */
     if (mBatchSize && firstMetadataInBatch) {
@@ -6382,6 +6430,96 @@ void QCamera3HardwareInterface::setInvalidLandmarks(
 }
 
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
+
+/*===========================================================================
+ * FUNCTION   : getCapabilities
+ *
+ * DESCRIPTION: query camera capability from back-end
+ *
+ * PARAMETERS :
+ *   @ops  : mm-interface ops structure
+ *   @cam_handle  : camera handle for which we need capability
+ *
+ * RETURN     : ptr type of capability structure
+ *              capability for success
+ *              NULL for failure
+ *==========================================================================*/
+cam_capability_t *QCamera3HardwareInterface::getCapabilities(mm_camera_ops_t *ops,
+        uint32_t cam_handle)
+{
+    int rc = NO_ERROR;
+    QCamera3HeapMemory *capabilityHeap = NULL;
+    cam_capability_t *cap_ptr = NULL;
+
+    if (ops == NULL) {
+        LOGE("Invalid arguments");
+        return NULL;
+    }
+
+    capabilityHeap = new QCamera3HeapMemory(1);
+    if (capabilityHeap == NULL) {
+        LOGE("creation of capabilityHeap failed");
+        return NULL;
+    }
+
+    /* Allocate memory for capability buffer */
+    rc = capabilityHeap->allocate(sizeof(cam_capability_t));
+    if(rc != OK) {
+        LOGE("No memory for cappability");
+        goto allocate_failed;
+    }
+
+    /* Map memory for capability buffer */
+    memset(DATA_PTR(capabilityHeap,0), 0, sizeof(cam_capability_t));
+
+    rc = ops->map_buf(cam_handle,
+            CAM_MAPPING_BUF_TYPE_CAPABILITY, capabilityHeap->getFd(0),
+            sizeof(cam_capability_t), capabilityHeap->getPtr(0));
+    if(rc < 0) {
+        LOGE("failed to map capability buffer");
+        rc = FAILED_TRANSACTION;
+        goto map_failed;
+    }
+
+    /* Query Capability */
+    rc = ops->query_capability(cam_handle);
+    if(rc < 0) {
+        LOGE("failed to query capability");
+        rc = FAILED_TRANSACTION;
+        goto query_failed;
+    }
+
+    cap_ptr = (cam_capability_t *)malloc(sizeof(cam_capability_t));
+    if (cap_ptr == NULL) {
+        LOGE("out of memory");
+        rc = NO_MEMORY;
+        goto query_failed;
+    }
+
+    memset(cap_ptr, 0, sizeof(cam_capability_t));
+    memcpy(cap_ptr, DATA_PTR(capabilityHeap, 0), sizeof(cam_capability_t));
+
+    int index;
+    for (index = 0; index < CAM_ANALYSIS_INFO_MAX; index++) {
+        cam_analysis_info_t *p_analysis_info = &cap_ptr->analysis_info[index];
+        p_analysis_info->analysis_padding_info.offset_info.offset_x = 0;
+        p_analysis_info->analysis_padding_info.offset_info.offset_y = 0;
+    }
+
+query_failed:
+    ops->unmap_buf(cam_handle, CAM_MAPPING_BUF_TYPE_CAPABILITY);
+map_failed:
+    capabilityHeap->deallocate();
+allocate_failed:
+    delete capabilityHeap;
+
+    if (rc != NO_ERROR) {
+        return NULL;
+    } else {
+        return cap_ptr;
+    }
+}
+
 /*===========================================================================
  * FUNCTION   : initCapabilities
  *
@@ -6398,7 +6536,7 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
 {
     int rc = 0;
     mm_camera_vtbl_t *cameraHandle = NULL;
-    QCamera3HeapMemory *capabilityHeap = NULL;
+    uint32_t handle = 0;
 
     rc = camera_open((uint8_t)cameraId, &cameraHandle);
     if (rc) {
@@ -6410,61 +6548,24 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
         goto open_failed;
     }
 
-    capabilityHeap = new QCamera3HeapMemory(1);
-    if (capabilityHeap == NULL) {
-        LOGE("creation of capabilityHeap failed");
-        goto heap_creation_failed;
-    }
-    /* Allocate memory for capability buffer */
-    rc = capabilityHeap->allocate(sizeof(cam_capability_t));
-    if(rc != OK) {
-        LOGE("No memory for cappability");
-        goto allocate_failed;
+    handle = get_main_camera_handle(cameraHandle->camera_handle);
+    gCamCapability[cameraId] = getCapabilities(cameraHandle->ops, handle);
+    if (gCamCapability[cameraId] == NULL) {
+        rc = FAILED_TRANSACTION;
+        goto failed_op;
     }
 
-    /* Map memory for capability buffer */
-    memset(DATA_PTR(capabilityHeap,0), 0, sizeof(cam_capability_t));
-    rc = cameraHandle->ops->map_buf(cameraHandle->camera_handle,
-                                CAM_MAPPING_BUF_TYPE_CAPABILITY,
-                                capabilityHeap->getFd(0),
-                                sizeof(cam_capability_t),
-                                capabilityHeap->getPtr(0));
-    if(rc < 0) {
-        LOGE("failed to map capability buffer");
-        goto map_failed;
+    if (is_dual_camera_by_idx(cameraId)) {
+        handle = get_aux_camera_handle(cameraHandle->camera_handle);
+        gCamCapability[cameraId]->aux_cam_cap =
+                getCapabilities(cameraHandle->ops, handle);
+        if (gCamCapability[cameraId]->aux_cam_cap == NULL) {
+            rc = FAILED_TRANSACTION;
+            free(gCamCapability[cameraId]);
+            goto failed_op;
+        }
     }
-
-    /* Query Capability */
-    rc = cameraHandle->ops->query_capability(cameraHandle->camera_handle);
-    if(rc < 0) {
-        LOGE("failed to query capability");
-        goto query_failed;
-    }
-    gCamCapability[cameraId] = (cam_capability_t *)malloc(sizeof(cam_capability_t));
-    if (!gCamCapability[cameraId]) {
-        LOGE("out of memory");
-        goto query_failed;
-    }
-    memcpy(gCamCapability[cameraId], DATA_PTR(capabilityHeap,0),
-                                        sizeof(cam_capability_t));
-
-    int index;
-    for (index = 0; index < CAM_ANALYSIS_INFO_MAX; index++) {
-        cam_analysis_info_t *p_analysis_info =
-                &gCamCapability[cameraId]->analysis_info[index];
-        p_analysis_info->analysis_padding_info.offset_info.offset_x = 0;
-        p_analysis_info->analysis_padding_info.offset_info.offset_y = 0;
-    }
-    rc = 0;
-
-query_failed:
-    cameraHandle->ops->unmap_buf(cameraHandle->camera_handle,
-                            CAM_MAPPING_BUF_TYPE_CAPABILITY);
-map_failed:
-    capabilityHeap->deallocate();
-allocate_failed:
-    delete capabilityHeap;
-heap_creation_failed:
+failed_op:
     cameraHandle->ops->close_camera(cameraHandle->camera_handle);
     cameraHandle = NULL;
 open_failed:
@@ -6851,7 +6952,10 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_TONEMAP_MAX_CURVE_POINTS,
             &gCamCapability[cameraId]->max_tone_map_curve_points, 1);
 
-    uint8_t timestampSource = ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN;
+    // SOF timestamp is based on monotonic_boottime. So advertize REALTIME timesource
+    // REALTIME defined in HAL3 API is same as linux's CLOCK_BOOTTIME
+    // Ref: kernel/...../msm_isp_util.c: msm_isp_get_timestamp: get_monotonic_boottime
+    uint8_t timestampSource = ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
     staticInfo.update(ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE,
             &timestampSource, 1);
 
@@ -8790,23 +8894,27 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
         }
     }
 
-    // Add metadata which DDM needs
-    if (frame_settings.exists(QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB)) {
-        cam_ddm_info_t *ddm_info =
-                (cam_ddm_info_t *)frame_settings.find
-                (QCAMERA3_HAL_PRIVATEDATA_DDM_DATA_BLOB).data.u8;
+    // Add metadata which reprocess needs
+    if (frame_settings.exists(QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB)) {
+        cam_reprocess_info_t *repro_info =
+                (cam_reprocess_info_t *)frame_settings.find
+                (QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB).data.u8;
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_SENSOR,
-                ddm_info->sensor_crop_info);
+                repro_info->sensor_crop_info);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_CAMIF,
-                ddm_info->camif_crop_info);
+                repro_info->camif_crop_info);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_ISP,
-                ddm_info->isp_crop_info);
+                repro_info->isp_crop_info);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_SNAP_CROP_INFO_CPP,
-                ddm_info->cpp_crop_info);
+                repro_info->cpp_crop_info);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_AF_FOCAL_LENGTH_RATIO,
-                ddm_info->af_focal_length_ratio);
+                repro_info->af_focal_length_ratio);
         ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_FLIP,
-                ddm_info->pipeline_flip);
+                repro_info->pipeline_flip);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_AF_ROI,
+                repro_info->af_roi);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_IMG_DYN_FEAT,
+                repro_info->dyn_mask);
         /* If there is ANDROID_JPEG_ORIENTATION in frame setting,
            CAM_INTF_PARM_ROTATION metadata then has been added in
            translateToHalMetadata. HAL need to keep this new rotation
@@ -8817,7 +8925,7 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
             LOGD("CAM_INTF_PARM_ROTATION metadata is added in translateToHalMetadata");
         } else {
             ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_PARM_ROTATION,
-                    ddm_info->rotation_info);
+                    repro_info->rotation_info);
         }
     }
 

@@ -1944,7 +1944,6 @@ static int submain()
 
             case ACTION_TAKE_RAW_SNAPSHOT:
                 LOGH("\n Take RAW snapshot\n");
-
                 rc = mm_camera_lib_send_command(&lib_handle,
                                                 MM_CAMERA_LIB_DO_AF,
                                                 NULL,
@@ -1954,7 +1953,6 @@ static int submain()
                     LOGE("mm_camera_lib_send_command() err=%d\n",  rc);
                     goto ERROR;
                 }
-
                 rc = mm_camera_lib_send_command(&lib_handle,
                                                 MM_CAMERA_LIB_RAW_CAPTURE,
                                                 NULL,

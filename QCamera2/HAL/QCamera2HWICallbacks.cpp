@@ -72,16 +72,19 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
     bool dump_raw = false;
     bool log_matching = false;
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
+
     if (pme == NULL ||
-        pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != recvd_frame->camera_handle){
+        pme->mCameraHandle == 0 ||
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        recvd_frame->camera_handle)) {
        LOGE("camera obj not valid");
        return;
     }
 
     QCameraChannel *pChannel = pme->m_channels[QCAMERA_CH_TYPE_ZSL];
     if (pChannel == NULL ||
-        pChannel->getMyHandle() != recvd_frame->ch_id) {
+            !validate_handle(pChannel->getMyHandle(),
+            recvd_frame->ch_id)) {
         LOGE("ZSL channel doesn't exist, return here");
         return;
     }
@@ -180,7 +183,7 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
             break;
         }
     }
-    //
+
     // whether need FD Metadata along with Snapshot frame in ZSL mode
     if(pme->needFDMetadata(QCAMERA_CH_TYPE_ZSL)){
         //Need Face Detection result for snapshot frames
@@ -390,7 +393,8 @@ void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t
 
     QCameraChannel *pChannel = pme->m_channels[QCAMERA_CH_TYPE_CAPTURE];
     if (pChannel == NULL ||
-        pChannel->getMyHandle() != recvd_frame->ch_id) {
+            !validate_handle(pChannel->getMyHandle(),
+            recvd_frame->ch_id)) {
         LOGE("Capture channel doesn't exist, return here");
         return;
     }
@@ -638,9 +642,11 @@ void QCamera2HardwareInterface::postproc_channel_cb_routine(mm_camera_super_buf_
     ATRACE_CALL();
     LOGH("[KPI Perf]: E");
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
+
     if (pme == NULL ||
-        pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != recvd_frame->camera_handle){
+            pme->mCameraHandle == 0 ||
+            !validate_handle(pme->mCameraHandle->camera_handle,
+            recvd_frame->camera_handle)) {
         LOGE("camera obj not valid");
         return;
     }
@@ -1403,9 +1409,9 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
     LOGD("[KPI Perf] : BEGIN");
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
-        pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
-        LOGE("camera obj not valid");
+            pme->mCameraHandle == 0 ||
+            !validate_handle(pme->mCameraHandle->camera_handle,
+            super_frame->camera_handle)) {
         // simply free super frame
         free(super_frame);
         return;
@@ -1628,7 +1634,9 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
         pChannel = pme->m_channels[QCAMERA_CH_TYPE_SNAPSHOT];
     }
 
-    if ((pChannel == NULL) || (pChannel->getMyHandle() != super_frame->ch_id)) {
+    if ((pChannel == NULL)
+            || (!validate_handle(pChannel->getMyHandle(),
+            super_frame->ch_id))) {
         LOGE("Snapshot channel doesn't exist, return here");
         return;
     }
@@ -1636,11 +1644,6 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
     property_get("persist.camera.dumpmetadata", value, "0");
     int32_t enabled = atoi(value);
     if (enabled) {
-        if (pChannel == NULL ||
-            pChannel->getMyHandle() != super_frame->ch_id) {
-            LOGE("Capture channel doesn't exist, return here");
-            return;
-        }
         mm_camera_buf_def_t *pMetaFrame = NULL;
         QCameraStream *pStream = NULL;
         for (uint32_t i = 0; i < super_frame->num_bufs; i++) {
@@ -1763,7 +1766,7 @@ void QCamera2HardwareInterface::raw_channel_cb_routine(mm_camera_super_buf_t *su
         return;
     }
 
-    if (pChannel->getMyHandle() != super_frame->ch_id) {
+    if (!validate_handle(pChannel->getMyHandle(), super_frame->ch_id)) {
         LOGE("Invalid Input super buffer");
         pChannel->bufDone(super_frame);
         return;
@@ -2041,10 +2044,11 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
     ATRACE_CALL();
     LOGD("[KPI Perf] : BEGIN");
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
+
     if (pme == NULL ||
-        pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
-        LOGE("camera obj not valid");
+            pme->mCameraHandle == 0 ||
+            !validate_handle(pme->mCameraHandle->camera_handle,
+            super_frame->camera_handle)) {
         // simply free super frame
         free(super_frame);
         return;
@@ -2460,7 +2464,11 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
       LOGD("touch_ae_status: %d", *touch_ae_status);
     }
 
-    stream->bufDone(frame->buf_idx);
+    if (pme->isDualCamera()) {
+        pme->fillDualCameraFOVControl();
+    }
+
+    stream->bufDone(super_frame);
     free(super_frame);
 
     LOGD("[KPI Perf] : END");
@@ -2527,9 +2535,9 @@ void QCamera2HardwareInterface::callback_stream_cb_routine(mm_camera_super_buf_t
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
 
     if (pme == NULL ||
-            pme->mCameraHandle == NULL ||
-            pme->mCameraHandle->camera_handle != super_frame->camera_handle) {
-        LOGE("camera obj not valid");
+            pme->mCameraHandle == 0 ||
+            !validate_handle(pme->mCameraHandle->camera_handle,
+            super_frame->camera_handle)) {
         // simply free super frame
         free(super_frame);
         return;
@@ -2590,7 +2598,7 @@ void QCamera2HardwareInterface::dumpJpegToFile(const void *data,
     memset(buf, 0, sizeof(buf));
     memset(&dim, 0, sizeof(dim));
 
-    if(((enabled & QCAMERA_DUMP_FRM_JPEG) && data) ||
+    if(((enabled & QCAMERA_DUMP_FRM_OUTPUT_JPEG) && data) ||
         ((true == m_bIntJpegEvtPending) && data)) {
         frm_num = ((enabled & 0xffff0000) >> 16);
         if(frm_num == 0) {
@@ -2816,7 +2824,7 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                                     dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
                         }
                         break;
-                    case QCAMERA_DUMP_FRM_SNAPSHOT:
+                    case QCAMERA_DUMP_FRM_INPUT_JPEG:
                         {
                             if (!mParameters.isPostProcScaling()) {
                                 mParameters.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, dim);
@@ -2857,7 +2865,7 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                                     dumpFrmCnt, dim.width, dim.height, frame->frame_idx);
                         }
                         break;
-                    case QCAMERA_DUMP_FRM_JPEG:
+                    case QCAMERA_DUMP_FRM_OUTPUT_JPEG:
                         {
                             mParameters.getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, dim);
                             snprintf(buf, sizeof(buf), "%dj_%dx%d_%d.yuv",

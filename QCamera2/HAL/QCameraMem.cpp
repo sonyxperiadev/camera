@@ -140,7 +140,7 @@ int QCameraMemory::cacheOpsInternal(uint32_t index, unsigned int cmd, void *vadd
     custom_data.cmd = cmd;
     custom_data.arg = (unsigned long)&cache_inv_data;
 
-    LOGH("addr = %p, fd = %d, handle = %lx length = %d, ION Fd = %d",
+    LOGD("addr = %p, fd = %d, handle = %lx length = %d, ION Fd = %d",
           cache_inv_data.vaddr, cache_inv_data.fd,
          (unsigned long)cache_inv_data.handle, cache_inv_data.length,
          mMemInfo[index].main_ion_fd);
@@ -771,7 +771,7 @@ void *QCameraHeapMemory::getPtr(uint32_t index) const
 {
     if (index >= mBufferCount) {
         LOGE("index out of bound");
-        return (void *)BAD_INDEX;
+        return (void *)NULL;
     }
     return mPtr[index];
 }
@@ -1259,7 +1259,7 @@ void *QCameraStreamMemory::getPtr(uint32_t index) const
 {
     if (index >= mBufferCount) {
         LOGE("index out of bound");
-        return (void *)BAD_INDEX;
+        return NULL;
     }
     if (mCameraMemory[index] == 0) {
         return NULL;
@@ -2418,7 +2418,7 @@ void *QCameraGrallocMemory::getPtr(uint32_t index) const
 {
     if (index >= mMappableBuffers) {
         LOGE("index out of bound");
-        return (void *)BAD_INDEX;
+        return (void *)NULL;
     }
     return mCameraMemory[index]->data;
 }

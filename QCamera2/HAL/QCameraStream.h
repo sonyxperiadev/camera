@@ -61,7 +61,6 @@ public:
     virtual ~QCameraStream();
     virtual int32_t init(QCameraHeapMemory *streamInfoBuf,
             QCameraHeapMemory *miscBuf,
-            uint8_t minStreamBufNum,
             stream_cb_routine stream_cb,
             void *userdata,
             bool bDynallocBuf);
@@ -69,6 +68,7 @@ public:
                                     cam_crop_data_t &crop_info);
     virtual int32_t bufDone(uint32_t index);
     virtual int32_t bufDone(const void *opaque, bool isMetaData);
+    virtual int32_t bufDone(mm_camera_super_buf_t *super_buf);
     virtual int32_t processDataNotify(mm_camera_super_buf_t *bufs);
     virtual int32_t start();
     virtual int32_t stop();
@@ -131,6 +131,11 @@ public:
     void cond_signal(bool forceExit = false);
 
     int32_t setSyncDataCB(stream_cb_routine data_cb);
+    int32_t setBundleInfo();
+    int32_t switchStreamCb();
+    int32_t processCameraControl(uint32_t camState);
+    bool isDualStream(){return mDualStream;};
+    bool needFrameSync();
     //Stream time stamp. We need this for preview stream to update display
     nsecs_t mStreamTimestamp;
 
@@ -153,6 +158,8 @@ private:
     uint32_t mCamHandle;
     uint32_t mChannelHandle;
     uint32_t mHandle; // stream handle from mm-camera-interface
+    uint32_t mActiveHandle;
+    uint32_t mActiveCamera;
     mm_camera_ops_t *mCamOps;
     cam_stream_info_t *mStreamInfo; // ptr to stream info buf
     mm_camera_stream_mem_vtbl_t mMemVtbl;
@@ -263,8 +270,8 @@ private:
     uint32_t mAllocTaskId;
     BackgroundTask mMapTask;
     uint32_t mMapTaskId;
-
     bool mSyncCBEnabled;
+    bool mDualStream;
 };
 
 }; // namespace qcamera

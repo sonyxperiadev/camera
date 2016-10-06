@@ -2152,7 +2152,6 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
             }
 
             mm_camera_app_wait();
-
             rc = mm_app_stop_capture_raw(&handle->test_obj);
             if (rc != MM_CAMERA_OK) {
                 LOGE("mm_app_stop_capture() err=%d\n",

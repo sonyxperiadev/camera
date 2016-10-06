@@ -57,8 +57,9 @@ using namespace android;
 
 #define QCAMERA_DUMP_FRM_PREVIEW          1
 #define QCAMERA_DUMP_FRM_VIDEO            (1<<1)
-#define QCAMERA_DUMP_FRM_SNAPSHOT         (1<<2)
+#define QCAMERA_DUMP_FRM_INPUT_JPEG       (1<<2)
 #define QCAMERA_DUMP_FRM_CALLBACK         (1<<3)
+#define QCAMERA_DUMP_FRM_OUTPUT_JPEG      (1<<5)
 #define QCAMERA_DUMP_FRM_INPUT_REPROCESS  (1<<6)
 
 typedef int64_t nsecs_t;
@@ -118,7 +119,8 @@ public:
     void dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
             cam_frame_len_offset_t offset, uint8_t name);
     bool isUBWCEnabled();
-    cam_format_t getStreamDefaultFormat(cam_stream_type_t type);
+    cam_format_t getStreamDefaultFormat(cam_stream_type_t type,
+            uint32_t width, uint32_t height);
 
     void *mUserData;
     cam_padding_info_t mPaddingInfo;

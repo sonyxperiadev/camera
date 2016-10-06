@@ -175,7 +175,8 @@ typedef struct {
 } cam_jpeg_metadata_t;
 
 /* capability struct definition for HAL 1*/
-typedef struct{
+struct cam_capability;
+typedef struct cam_capability{
     cam_hal_version_t version;
 
     cam_position_t position;                                /* sensor position: front, back */
@@ -561,6 +562,10 @@ typedef struct{
     /* Supported IR Mode */
     size_t supported_ir_mode_cnt;
     cam_ir_mode_type_t supported_ir_modes[CAM_IR_MODE_MAX];
+
+    /*Slave capability*/
+    struct cam_capability *aux_cam_cap;
+    cam_sync_type_t cam_sensor_mode;
 } cam_capability_t;
 
 typedef enum {
@@ -620,7 +625,7 @@ typedef struct {
 } cam_stream_parm_buffer_t;
 
 /* stream info */
-typedef struct {
+typedef struct cam_stream_info {
     /* stream ID from server */
     uint32_t stream_svr_id;
 
@@ -640,6 +645,9 @@ typedef struct {
 
     /* number of stream bufs will be allocated */
     uint32_t num_bufs;
+
+    /* number of stream bufs allocated for this stream*/
+    uint32_t buf_cnt;
 
     /* streaming type */
     cam_streaming_mode_t streaming_mode;
@@ -683,6 +691,8 @@ typedef struct {
    /* Subformat for this stream */
     cam_sub_format_type_t sub_format_type;
 
+    /*Stream info for Slave Stream*/
+    struct cam_stream_info *aux_str_info;
 } cam_stream_info_t;
 
 /*****************************************************************************
@@ -711,6 +721,13 @@ typedef struct {
     (TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
     ((LOGE("Unable to set metadata TABLE_PTR:%p META_ID:%d", \
             TABLE_PTR, META_ID)), (-1))) \
+
+#define ADD_SET_PARAM_ENTRY_TO_BATCH_FOR_AUX(TABLE_PTR, AUX_TABLE_PTR, META_ID) \
+    ((NULL != TABLE_PTR || (NULL != AUX_TABLE_PTR)) ? \
+    ((AUX_TABLE_PTR->data.member_variable_##META_ID[ 0 ] = TABLE_PTR->data.member_variable_##META_ID[ 0 ]), \
+    (AUX_TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
+    ((LOGE("Unable to set metadata AUX_TABLE_PTR:%p META_ID:%d", \
+            AUX_TABLE_PTR, META_ID)), (-1))) \
 
 #define ADD_SET_PARAM_ARRAY_TO_BATCH(TABLE_PTR, META_ID, PDATA, COUNT, RCOUNT) \
 { \
@@ -1018,6 +1035,8 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_JPEG_ENCODE_CROP,             cam_stream_crop_info_t,      1);
     INCLUDE(CAM_INTF_PARM_JPEG_SCALE_DIMENSION,         cam_dimension_t,             1);
     INCLUDE(CAM_INTF_META_FOCUS_DEPTH_INFO,             uint8_t,                     1);
+    INCLUDE(CAM_INTF_PARM_SUSPEND_RESUME_CAMERAS,       uint32_t,                    2);
+    INCLUDE(CAM_INTF_PARM_CAMERA_MASTER_INFO,           uint32_t,                    2);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
@@ -1063,7 +1082,6 @@ typedef struct {
 
     uint8_t is_statsdebug_3a_tuning_params_valid;
     cam_q3a_tuning_info_t statsdebug_3a_tuning_data;
-
 } metadata_buffer_t;
 
 typedef metadata_buffer_t parm_buffer_t;
