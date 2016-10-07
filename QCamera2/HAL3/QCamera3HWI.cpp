@@ -5442,6 +5442,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                 MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES / sizeof(int32_t));
     }
 
+    IF_META_AVAILABLE(int32_t, meteringMode, CAM_INTF_PARM_AEC_ALGO_TYPE, metadata) {
+        camMetadata.update(QCAMERA3_EXPOSURE_METERING_MODE,
+                meteringMode, 1);
+    }
+
     if (metadata->is_tuning_params_valid) {
         uint8_t tuning_meta_data_blob[sizeof(tuning_params_t)];
         uint8_t *data = (uint8_t *)&tuning_meta_data_blob[0];
@@ -9860,6 +9865,15 @@ int QCamera3HardwareInterface::translateToHalMetadata
             QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE).data.i32[0];
         b_TnrRequested = tnr.denoise_enable;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_TEMPORAL_DENOISE, tnr)) {
+            rc = BAD_VALUE;
+        }
+    }
+
+    if (frame_settings.exists(QCAMERA3_EXPOSURE_METERING_MODE)) {
+        int32_t* exposure_metering_mode =
+                frame_settings.find(QCAMERA3_EXPOSURE_METERING_MODE).data.i32;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_AEC_ALGO_TYPE,
+                *exposure_metering_mode)) {
             rc = BAD_VALUE;
         }
     }
