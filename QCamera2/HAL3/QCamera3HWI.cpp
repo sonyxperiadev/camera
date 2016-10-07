@@ -4686,7 +4686,10 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
                 camera3_stream_buffer_t *buffer, uint32_t frame_number, bool isInputBuffer)
 {
     if (metadata_buf) {
-        if (mBatchSize) {
+        pthread_mutex_lock(&mMutex);
+        uint8_t batchSize = mBatchSize;
+        pthread_mutex_unlock(&mMutex);
+        if (batchSize) {
             handleBatchMetadata(metadata_buf,
                     true /* free_and_bufdone_meta_buf */);
         } else { /* mBatchSize = 0 */
