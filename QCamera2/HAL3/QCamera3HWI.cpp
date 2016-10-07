@@ -9994,6 +9994,41 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
+    // ISO/Exposure Priority
+    if (frame_settings.exists(QCAMERA3_USE_ISO_EXP_PRIORITY) &&
+        frame_settings.exists(QCAMERA3_SELECT_PRIORITY)) {
+        cam_priority_mode_t mode =
+                (cam_priority_mode_t)frame_settings.find(QCAMERA3_SELECT_PRIORITY).data.i32[0];
+        if((CAM_ISO_PRIORITY == mode) || (CAM_EXP_PRIORITY == mode)) {
+            cam_intf_parm_manual_3a_t use_iso_exp_pty;
+            use_iso_exp_pty.previewOnly = FALSE;
+            uint64_t* ptr = (uint64_t*)frame_settings.find(QCAMERA3_USE_ISO_EXP_PRIORITY).data.i64;
+            use_iso_exp_pty.value = *ptr;
+
+            if(CAM_ISO_PRIORITY == mode) {
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ISO,
+                        use_iso_exp_pty)) {
+                    rc = BAD_VALUE;
+                }
+            }
+            else {
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_EXPOSURE_TIME,
+                        use_iso_exp_pty)) {
+                    rc = BAD_VALUE;
+                }
+            }
+        }
+    }
+
+    // Saturation
+    if (frame_settings.exists(QCAMERA3_USE_SATURATION)) {
+        int32_t* use_saturation =
+                frame_settings.find(QCAMERA3_USE_SATURATION).data.i32;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_SATURATION, *use_saturation)) {
+            rc = BAD_VALUE;
+        }
+    }
+
     // EV step
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_EV_STEP,
             gCamCapability[mCameraId]->exp_compensation_step)) {
