@@ -10227,7 +10227,18 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         break;
     case CAM_STREAM_TYPE_OFFLINE_PROC:
         if (getQuadraCfa()) {
-            format = m_pCapability->quadra_cfa_format;
+            if (m_pCapability->color_arrangement == CAM_FILTER_ARRANGEMENT_BGGR) {
+                format = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_BGGR;
+            } else if (m_pCapability->color_arrangement == CAM_FILTER_ARRANGEMENT_GBRG) {
+                format = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_GBRG;
+            } else if (m_pCapability->color_arrangement == CAM_FILTER_ARRANGEMENT_GRBG) {
+                format = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_GRBG;
+            } else if (m_pCapability->color_arrangement == CAM_FILTER_ARRANGEMENT_RGGB) {
+                format = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_RGGB;
+            } else {
+                LOGW("Unrecognized format set by sensor, setting default");
+                format = m_pCapability->quadra_cfa_format;
+            }
         }
         break;
     case CAM_STREAM_TYPE_METADATA:
