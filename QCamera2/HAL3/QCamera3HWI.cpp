@@ -2761,8 +2761,15 @@ void QCamera3HardwareInterface::handleBatchMetadata(
      * corresponding frame numbers and time stamps */
     pthread_mutex_lock(&mMutex);
     if (urgent_frame_number_valid) {
-        first_urgent_frame_number =
-                mPendingBatchMap.valueFor(last_urgent_frame_number);
+        ssize_t idx = mPendingBatchMap.indexOfKey(last_urgent_frame_number);
+        if(idx < 0) {
+            LOGE("Invalid urgent frame number received: %d. Irrecoverable error",
+                last_urgent_frame_number);
+            mState = ERROR;
+            pthread_mutex_unlock(&mMutex);
+            return;
+        }
+        first_urgent_frame_number = mPendingBatchMap.valueAt(idx);
         urgentFrameNumDiff = last_urgent_frame_number + 1 -
                 first_urgent_frame_number;
 
@@ -2772,7 +2779,15 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     }
 
     if (frame_number_valid) {
-        first_frame_number = mPendingBatchMap.valueFor(last_frame_number);
+        ssize_t idx = mPendingBatchMap.indexOfKey(last_frame_number);
+        if(idx < 0) {
+            LOGE("Invalid frame number received: %d. Irrecoverable error",
+                last_frame_number);
+            mState = ERROR;
+            pthread_mutex_unlock(&mMutex);
+            return;
+        }
+        first_frame_number = mPendingBatchMap.valueAt(idx);
         frameNumDiff = last_frame_number + 1 -
                 first_frame_number;
         mPendingBatchMap.removeItem(last_frame_number);
