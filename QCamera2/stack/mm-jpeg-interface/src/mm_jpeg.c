@@ -183,8 +183,9 @@ OMX_ERRORTYPE mm_jpeg_session_send_buffers(void *data)
 
   for (i = 0; i < p_params->num_dst_bufs; i++) {
     LOGD("Dest buffer %d", i);
+    lbuffer_info.fd = (OMX_U32)p_params->dest_buf[i].fd;
     ret = OMX_UseBuffer(p_session->omx_handle, &(p_session->p_out_omx_buf[i]),
-      1, NULL, p_params->dest_buf[i].buf_size,
+      1, &lbuffer_info, p_params->dest_buf[i].buf_size,
       p_params->dest_buf[i].buf_vaddr);
     if (ret) {
       LOGE("Error");
