@@ -30,6 +30,8 @@
 #ifndef __QCAMERA_COMMON_H__
 #define __QCAMERA_COMMON_H__
 
+#include <utils/Timers.h>
+
 // Camera dependencies
 #include "cam_types.h"
 #include "cam_intf.h"
@@ -50,6 +52,7 @@ public:
         bool fdVideoEnabled, bool hal3, cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo);
     static uint32_t calculateLCM(int32_t num1, int32_t num2);
+    static nsecs_t getBootToMonoTimeOffset();
 
 private:
     cam_capability_t *m_pCapability;

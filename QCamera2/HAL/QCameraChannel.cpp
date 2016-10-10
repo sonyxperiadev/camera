@@ -239,6 +239,7 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
     rc = pStream->init(streamInfoBuf, miscBuf, minStreamBufNum,
                        stream_cb, userdata, bDynAllocBuf);
     if (rc == 0) {
+        Mutex::Autolock lock(mStreamLock);
         mStreams.add(pStream);
     } else {
         delete pStream;
@@ -275,6 +276,7 @@ int32_t QCameraChannel::linkStream(QCameraChannel *ch, QCameraStream *stream)
         LOGE("Linking of stream failed");
         rc = INVALID_OPERATION;
     } else {
+        Mutex::Autolock lock(mStreamLock);
         mStreams.add(stream);
     }
 
@@ -382,14 +384,17 @@ int32_t QCameraChannel::stop()
         return NO_INIT;
     }
 
-    while(i < mStreams.size()) {
-        if (mStreams[i] != NULL) {
-            if (m_handle == mStreams[i]->getChannelHandle()) {
-                mStreams[i]->stop();
-                i++;
-            } else {
-                // Remove linked stream from stream list
-                mStreams.removeAt(i);
+    {
+        Mutex::Autolock lock(mStreamLock);
+        while(i < mStreams.size()) {
+            if (mStreams[i] != NULL) {
+                if (m_handle == mStreams[i]->getChannelHandle()) {
+                    mStreams[i]->stop();
+                    i++;
+                } else {
+                    // Remove linked stream from stream list
+                    mStreams.removeAt(i);
+                }
             }
         }
     }
@@ -490,6 +495,7 @@ int32_t QCameraChannel::processZoomDone(preview_stream_ops_t *previewWindow,
                                         cam_crop_data_t &crop_info)
 {
     int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mStreamLock);
     for (size_t i = 0; i < mStreams.size(); i++) {
         if ((mStreams[i] != NULL) &&
                 (m_handle == mStreams[i]->getChannelHandle())) {
@@ -576,6 +582,7 @@ QCameraStream *QCameraChannel::getStreamByIndex(uint32_t index)
 int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param)
 {
     int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mStreamLock);
     if (param.isPreviewFlipChanged()) {
         // try to find preview stream
         for (size_t i = 0; i < mStreams.size(); i++) {
