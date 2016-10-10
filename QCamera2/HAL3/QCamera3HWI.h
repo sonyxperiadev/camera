@@ -342,6 +342,7 @@ private:
 
     static bool supportBurstCapture(uint32_t cameraId);
     int32_t setBundleInfo();
+    int32_t setInstantAEC(const CameraMetadata &meta);
 
     static void convertLandmarks(cam_face_landmarks_info_t face, int32_t* landmarks);
     static void setInvalidLandmarks(int32_t* landmarks);
@@ -487,7 +488,16 @@ private:
     bool mNeedSensorRestart;
     uint32_t mMinInFlightRequests;
     uint32_t mMaxInFlightRequests;
-
+    // Param to trigger instant AEC.
+    bool mInstantAEC;
+    // Param to know when to reset AEC
+    bool mResetInstantAEC;
+    // Frame number, untill which we need to drop the frames.
+    uint32_t mInstantAECSettledFrameNumber;
+    // Max number of frames, that HAL will hold without displaying, for instant AEC mode.
+    uint8_t mAecSkipDisplayFrameBound;
+    // Counter to keep track of number of frames that took for AEC convergence.
+    uint8_t mInstantAecFrameIdxCount;
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;
 
@@ -530,6 +540,8 @@ private:
             cam_hfr_mode_t> HFR_MODE_MAP[];
     static const QCameraMap<camera_metadata_enum_android_ir_mode_t,
             cam_ir_mode_type_t> IR_MODES_MAP[];
+    static const QCameraMap<qcamera3_ext_instant_aec_mode_t,
+            cam_aec_convergence_type> INSTANT_AEC_MODES_MAP[];
     static const QCameraPropMap CDS_MAP[];
 
     pendingRequestIterator erasePendingRequest(pendingRequestIterator i);

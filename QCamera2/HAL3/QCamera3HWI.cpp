@@ -325,6 +325,13 @@ const QCamera3HardwareInterface::QCameraMap<
     { 480, CAM_HFR_MODE_480FPS},
 };
 
+const QCamera3HardwareInterface::QCameraMap<
+        qcamera3_ext_instant_aec_mode_t,
+        cam_aec_convergence_type> QCamera3HardwareInterface::INSTANT_AEC_MODES_MAP[] = {
+    { QCAMERA3_INSTANT_AEC_NORMAL_CONVERGENCE, CAM_AEC_NORMAL_CONVERGENCE},
+    { QCAMERA3_INSTANT_AEC_AGGRESSIVE_CONVERGENCE, CAM_AEC_AGGRESSIVE_CONVERGENCE},
+    { QCAMERA3_INSTANT_AEC_FAST_CONVERGENCE, CAM_AEC_FAST_CONVERGENCE},
+};
 camera3_device_ops_t QCamera3HardwareInterface::mCameraOps = {
     .initialize                         = QCamera3HardwareInterface::initialize,
     .configure_streams                  = QCamera3HardwareInterface::configure_streams,
@@ -393,6 +400,11 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mNeedSensorRestart(false),
       mMinInFlightRequests(MIN_INFLIGHT_REQUESTS),
       mMaxInFlightRequests(MAX_INFLIGHT_REQUESTS),
+      mInstantAEC(false),
+      mResetInstantAEC(false),
+      mInstantAECSettledFrameNumber(0),
+      mAecSkipDisplayFrameBound(0),
+      mInstantAecFrameIdxCount(0),
       mLdafCalibExist(false),
       mPowerHintEnabled(false),
       mLastCustIntentFrmNum(-1),
@@ -1494,6 +1506,13 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     uint8_t eis_prop_set;
     uint32_t maxEisWidth = 0;
     uint32_t maxEisHeight = 0;
+
+    // Initialize all instant AEC related variables
+    mInstantAEC = false;
+    mResetInstantAEC = false;
+    mInstantAECSettledFrameNumber = 0;
+    mAecSkipDisplayFrameBound = 0;
+    mInstantAecFrameIdxCount = 0;
 
     memset(&mInputStreamInfo, 0, sizeof(mInputStreamInfo));
 
@@ -3000,6 +3019,11 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 mCallbackOps->process_capture_result(mCallbackOps, &result);
                 LOGD("urgent frame_number = %u, capture_time = %lld",
                       result.frame_number, capture_time);
+                if (mResetInstantAEC && mInstantAECSettledFrameNumber == 0) {
+                    // Instant AEC settled for this frame.
+                    LOGH("instant AEC settled for frame number %d", urgent_frame_number);
+                    mInstantAECSettledFrameNumber = urgent_frame_number;
+                }
                 free_camera_metadata((camera_metadata_t *)result.result);
                 break;
             }
@@ -3030,33 +3054,63 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
 
         // Check whether any stream buffer corresponding to this is dropped or not
         // If dropped, then send the ERROR_BUFFER for the corresponding stream
-        if (p_cam_frame_drop) {
+        // OR check if instant AEC is enabled, then need to drop frames untill AEC is settled.
+        if (p_cam_frame_drop ||
+                (mInstantAEC || i->frame_number < mInstantAECSettledFrameNumber)) {
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
             for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
                     j != i->buffers.end(); j++) {
+                bool dropFrame = false;
                 QCamera3ProcessingChannel *channel = (QCamera3ProcessingChannel *)j->stream->priv;
                 uint32_t streamID = channel->getStreamID(channel->getStreamTypeMask());
-                for (uint32_t k = 0; k < p_cam_frame_drop->num_streams; k++) {
-                    if (streamID == p_cam_frame_drop->streamID[k]) {
-                        // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
+                if (p_cam_frame_drop) {
+                    for (uint32_t k = 0; k < p_cam_frame_drop->num_streams; k++) {
+                        if (streamID == p_cam_frame_drop->streamID[k]) {
+                            // Got the stream ID for drop frame.
+                            dropFrame = true;
+                            break;
+                        }
+                    }
+                } else {
+                    // This is instant AEC case.
+                    // For instant AEC drop the stream untill AEC is settled.
+                    dropFrame = true;
+                }
+                if (dropFrame) {
+                    // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
+                    if (p_cam_frame_drop) {
+                        // Treat msg as error for system buffer drops
                         LOGE("Start of reporting error frame#=%u, streamID=%u",
                                  i->frame_number, streamID);
-                        notify_msg.type = CAMERA3_MSG_ERROR;
-                        notify_msg.message.error.frame_number = i->frame_number;
-                        notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER ;
-                        notify_msg.message.error.error_stream = j->stream;
-                        mCallbackOps->notify(mCallbackOps, &notify_msg);
+                    } else {
+                        // For instant AEC, inform frame drop and frame number
+                        LOGH("Start of reporting error frame#=%u for instant AEC, streamID=%u, "
+                                "AEC settled frame number = %u",
+                                i->frame_number, streamID, mInstantAECSettledFrameNumber);
+                    }
+                    notify_msg.type = CAMERA3_MSG_ERROR;
+                    notify_msg.message.error.frame_number = i->frame_number;
+                    notify_msg.message.error.error_code = CAMERA3_MSG_ERROR_BUFFER ;
+                    notify_msg.message.error.error_stream = j->stream;
+                    mCallbackOps->notify(mCallbackOps, &notify_msg);
+                    if (p_cam_frame_drop) {
+                        // Treat msg as error for system buffer drops
                         LOGE("End of reporting error frame#=%u, streamID=%u",
                                 i->frame_number, streamID);
-                        PendingFrameDropInfo PendingFrameDrop;
-                        PendingFrameDrop.frame_number=i->frame_number;
-                        PendingFrameDrop.stream_ID = streamID;
-                        // Add the Frame drop info to mPendingFrameDropList
-                        mPendingFrameDropList.push_back(PendingFrameDrop);
-                   }
-                }
+                    } else {
+                        // For instant AEC, inform frame drop and frame number
+                        LOGH("End of reporting error frame#=%u for instant AEC, streamID=%u, "
+                                "AEC settled frame number = %u",
+                                i->frame_number, streamID, mInstantAECSettledFrameNumber);
+                    }
+                    PendingFrameDropInfo PendingFrameDrop;
+                    PendingFrameDrop.frame_number=i->frame_number;
+                    PendingFrameDrop.stream_ID = streamID;
+                    // Add the Frame drop info to mPendingFrameDropList
+                    mPendingFrameDropList.push_back(PendingFrameDrop);
+               }
             }
         }
 
@@ -3577,7 +3631,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
             ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_HAL_VERSION, hal_version);
             ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_CAPTURE_INTENT, captureIntent);
         }
-
+        if (mFirstConfiguration) {
+            // configure instant AEC
+            // Instant AEC is a session based parameter and it is needed only
+            // once per complete session after open camera.
+            // i.e. This is set only once for the first capture request, after open camera.
+            setInstantAEC(meta);
+        }
         uint8_t fwkVideoStabMode=0;
         if (meta.exists(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE)) {
             fwkVideoStabMode = meta.find(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE).data.u8[0];
@@ -4101,6 +4161,11 @@ no_error:
             }
             mNeedSensorRestart = false;
             pthread_mutex_lock(&mMutex);
+        }
+        if(mResetInstantAEC) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                    CAM_INTF_PARM_INSTANT_AEC, (uint8_t)CAM_AEC_NORMAL_CONVERGENCE);
+            mResetInstantAEC = false;
         }
     } else {
 
@@ -5834,6 +5899,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB,
         (uint8_t *)&repro_info, sizeof(cam_reprocess_info_t));
 
+    // INSTANT AEC MODE
+    IF_META_AVAILABLE(uint8_t, instant_aec_mode,
+            CAM_INTF_PARM_INSTANT_AEC, metadata) {
+        camMetadata.update(QCAMERA3_INSTANT_AEC_MODE, instant_aec_mode, 1);
+    }
+
     /* In batch mode, cache the first metadata in the batch */
     if (mBatchSize && firstMetadataInBatch) {
         mCachedMetadata.clear();
@@ -6044,7 +6115,23 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
               "flashMode:%d, aeMode:%u!!!",
                  redeye, flashMode, aeMode);
     }
-
+    if (mInstantAEC) {
+        // Increment frame Idx count untill a bound reached for instant AEC.
+        mInstantAecFrameIdxCount++;
+        IF_META_AVAILABLE(cam_3a_params_t, ae_params,
+                CAM_INTF_META_AEC_INFO, metadata) {
+            LOGH("ae_params->settled = %d",ae_params->settled);
+            // If AEC settled, or if number of frames reached bound value,
+            // should reset instant AEC.
+            if (ae_params->settled ||
+                    (mInstantAecFrameIdxCount > mAecSkipDisplayFrameBound)) {
+                LOGH("AEC settled or Frames reached instantAEC bound, resetting instantAEC");
+                mInstantAEC = false;
+                mResetInstantAEC = true;
+                mInstantAecFrameIdxCount = 0;
+            }
+        }
+    }
     resultMetadata = camMetadata.release();
     return resultMetadata;
 }
@@ -7981,6 +8068,23 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                 avail_ir_modes, size);
     }
 
+    if (gCamCapability[cameraId]->supported_instant_aec_modes_cnt > 0) {
+        int32_t available_instant_aec_modes[CAM_AEC_CONVERGENCE_MAX];
+        size = 0;
+        count = CAM_AEC_CONVERGENCE_MAX;
+        count = MIN(gCamCapability[cameraId]->supported_instant_aec_modes_cnt, count);
+        for (size_t i = 0; i < count; i++) {
+            int val = lookupFwkName(INSTANT_AEC_MODES_MAP, METADATA_MAP_SIZE(INSTANT_AEC_MODES_MAP),
+                    gCamCapability[cameraId]->supported_instant_aec_modes[i]);
+            if (NAME_NOT_FOUND != val) {
+                available_instant_aec_modes[size] = (int32_t)val;
+                size++;
+            }
+        }
+        staticInfo.update(QCAMERA3_INSTANT_AEC_AVAILABLE_MODES,
+                available_instant_aec_modes, size);
+    }
+
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
 }
@@ -8711,6 +8815,10 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     /* Manual Convergence AWB Speed is disabled by default*/
     float default_awb_speed = 0;
     settings.update(QCAMERA3_AWB_CONVERGENCE_SPEED, &default_awb_speed, 1);
+
+    // Set instant AEC to normal convergence by default
+    int32_t instant_aec_mode = (int32_t)QCAMERA3_INSTANT_AEC_NORMAL_CONVERGENCE;
+    settings.update(QCAMERA3_INSTANT_AEC_MODE, &instant_aec_mode, 1);
 
     mDefaultMetadata[type] = settings.release();
 
@@ -11179,6 +11287,60 @@ int32_t QCamera3HardwareInterface::setBundleInfo()
         }
     }
 
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setInstantAEC
+ *
+ * DESCRIPTION: Set Instant AEC related params.
+ *
+ * PARAMETERS :
+ *      @meta: CameraMetadata reference
+ *
+ * RETURN     : NO_ERROR on success
+ *              Error codes on failure
+ *==========================================================================*/
+int32_t QCamera3HardwareInterface::setInstantAEC(const CameraMetadata &meta)
+{
+    int32_t rc = NO_ERROR;
+    uint8_t val = 0;
+    char prop[PROPERTY_VALUE_MAX];
+
+    // First try to configure instant AEC from framework metadata
+    if (meta.exists(QCAMERA3_INSTANT_AEC_MODE)) {
+        val = (uint8_t)meta.find(QCAMERA3_INSTANT_AEC_MODE).data.i32[0];
+    }
+
+    // If framework did not set this value, try to read from set prop.
+    if (val == 0) {
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.instant.aec", prop, "0");
+        val = (uint8_t)atoi(prop);
+    }
+
+    if ((val >= (uint8_t)CAM_AEC_NORMAL_CONVERGENCE) &&
+           ( val < (uint8_t)CAM_AEC_CONVERGENCE_MAX)) {
+        ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_INSTANT_AEC, val);
+        mInstantAEC = val;
+        mInstantAECSettledFrameNumber = 0;
+        mInstantAecFrameIdxCount = 0;
+        LOGH("instantAEC value set %d",val);
+        if (mInstantAEC) {
+            memset(prop, 0, sizeof(prop));
+            property_get("persist.camera.ae.instant.bound", prop, "10");
+            int32_t aec_frame_skip_cnt = atoi(prop);
+            if (aec_frame_skip_cnt >= 0) {
+                mAecSkipDisplayFrameBound = (uint8_t)aec_frame_skip_cnt;
+            } else {
+                LOGE("Invalid prop for aec frame bound %d", aec_frame_skip_cnt);
+                rc = BAD_VALUE;
+            }
+        }
+    } else {
+        LOGE("Bad instant aec value set %d", val);
+        rc = BAD_VALUE;
+    }
     return rc;
 }
 
