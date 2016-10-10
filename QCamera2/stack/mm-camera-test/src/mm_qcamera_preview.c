@@ -100,9 +100,98 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
         return;
     }
   }
+
   memcpy(pme->metadata, frame->buffer, sizeof(metadata_buffer_t));
 
   pMetadata = (metadata_buffer_t *)frame->buffer;
+
+  IF_META_AVAILABLE(uint32_t, flash_mode, CAM_INTF_META_FLASH_MODE, pMetadata) {
+      pme->mExifParams.sensor_params.flash_mode = (cam_flash_mode_t)*flash_mode;
+  }
+
+  IF_META_AVAILABLE(int32_t, flash_state, CAM_INTF_META_FLASH_STATE, pMetadata) {
+      pme->mExifParams.sensor_params.flash_state = (cam_flash_state_t) *flash_state;
+  }
+
+  IF_META_AVAILABLE(float, aperture_value, CAM_INTF_META_LENS_APERTURE, pMetadata) {
+      pme->mExifParams.sensor_params.aperture_value = *aperture_value;
+  }
+
+
+  IF_META_AVAILABLE(int32_t, wb_mode, CAM_INTF_PARM_WHITE_BALANCE, pMetadata) {
+      pme->mExifParams.cam_3a_params.wb_mode = (cam_wb_mode_type) *wb_mode;
+  }
+
+  IF_META_AVAILABLE(cam_sensor_params_t, sensor_params, CAM_INTF_META_SENSOR_INFO, pMetadata) {
+      pme->mExifParams.sensor_params = *sensor_params;
+  }
+
+  IF_META_AVAILABLE(cam_ae_exif_debug_t, ae_exif_debug_params,
+          CAM_INTF_META_EXIF_DEBUG_AE, pMetadata) {
+      if (pme->mExifParams.debug_params) {
+          pme->mExifParams.debug_params->ae_debug_params = *ae_exif_debug_params;
+          pme->mExifParams.debug_params->ae_debug_params_valid = TRUE;
+
+       }
+
+  }
+
+  IF_META_AVAILABLE(cam_awb_exif_debug_t, awb_exif_debug_params,
+          CAM_INTF_META_EXIF_DEBUG_AWB, pMetadata) {
+      if (pme->mExifParams.debug_params) {
+          pme->mExifParams.debug_params->awb_debug_params = *awb_exif_debug_params;
+          pme->mExifParams.debug_params->awb_debug_params_valid = TRUE;
+          LOGE("Storing AWB Metadata");
+      }
+  }
+
+  IF_META_AVAILABLE(cam_af_exif_debug_t, af_exif_debug_params,
+          CAM_INTF_META_EXIF_DEBUG_AF, pMetadata) {
+      if (pme->mExifParams.debug_params) {
+          pme->mExifParams.debug_params->af_debug_params = *af_exif_debug_params;
+          pme->mExifParams.debug_params->af_debug_params_valid = TRUE;
+      }
+  }
+
+  IF_META_AVAILABLE(cam_asd_exif_debug_t, asd_exif_debug_params,
+          CAM_INTF_META_EXIF_DEBUG_ASD, pMetadata) {
+      if (pme->mExifParams.debug_params) {
+          pme->mExifParams.debug_params->asd_debug_params = *asd_exif_debug_params;
+          pme->mExifParams.debug_params->asd_debug_params_valid = TRUE;
+      }
+  }
+
+  IF_META_AVAILABLE(cam_stats_buffer_exif_debug_t, stats_exif_debug_params,
+          CAM_INTF_META_EXIF_DEBUG_STATS, pMetadata) {
+      if (pme->mExifParams.debug_params) {
+          pme->mExifParams.debug_params->stats_debug_params = *stats_exif_debug_params;
+          pme->mExifParams.debug_params->stats_debug_params_valid = TRUE;
+      }
+  }
+
+  IF_META_AVAILABLE(cam_bestats_buffer_exif_debug_t, bestats_exif_debug_params,
+          CAM_INTF_META_EXIF_DEBUG_BESTATS, pMetadata) {
+      if (pme->mExifParams.debug_params) {
+          pme->mExifParams.debug_params->bestats_debug_params = *bestats_exif_debug_params;
+          pme->mExifParams.debug_params->bestats_debug_params_valid = TRUE;
+      }
+  }
+
+  IF_META_AVAILABLE(cam_bhist_buffer_exif_debug_t, bhist_exif_debug_params,
+          CAM_INTF_META_EXIF_DEBUG_BHIST, pMetadata) {
+      if (pme->mExifParams.debug_params) {
+          pme->mExifParams.debug_params->bhist_debug_params = *bhist_exif_debug_params;
+          pme->mExifParams.debug_params->bhist_debug_params_valid = TRUE;
+      }
+  }
+
+  IF_META_AVAILABLE(cam_q3a_tuning_info_t, q3a_tuning_exif_debug_params,
+          CAM_INTF_META_EXIF_DEBUG_3A_TUNING, pMetadata) {
+      if (pme->mExifParams.debug_params) {
+          pme->mExifParams.debug_params->q3a_tuning_debug_params = *q3a_tuning_exif_debug_params;
+          pme->mExifParams.debug_params->q3a_tuning_debug_params_valid = TRUE;
+      }
+  }
   IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, pMetadata) {
     if ((cam_af_state_t)(*afState) == CAM_AF_STATE_FOCUSED_LOCKED ||
             (cam_af_state_t)(*afState) == CAM_AF_STATE_NOT_FOCUSED_LOCKED) {

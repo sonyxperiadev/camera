@@ -580,6 +580,10 @@ int mm_app_open(mm_camera_app_t *cam_app,
         goto error_after_getparm_buf_map;
     }
     memset(&test_obj->jpeg_ops, 0, sizeof(mm_jpeg_ops_t));
+    test_obj->mExifParams.debug_params = \
+        (mm_jpeg_debug_exif_params_t *) malloc (sizeof(mm_jpeg_debug_exif_params_t));
+    memset(test_obj->mExifParams.debug_params, 0,
+        sizeof(mm_jpeg_debug_exif_params_t));
     mm_dimension pic_size;
     memset(&pic_size, 0, sizeof(mm_dimension));
     pic_size.w = 4000;
@@ -691,6 +695,11 @@ int mm_app_close(mm_camera_test_obj_t *test_obj)
     if (rc != MM_CAMERA_OK) {
         LOGE("release setparm buf failed, rc=%d",  rc);
     }
+
+    if (test_obj->mExifParams.debug_params) {
+        free(test_obj->mExifParams.debug_params);
+        test_obj->mExifParams.debug_params = NULL;
+   }
 
     return MM_CAMERA_OK;
 }
@@ -1095,6 +1104,33 @@ int setFocusMode(mm_camera_test_obj_t *test_obj, cam_focus_mode_type mode)
 ERROR:
     return rc;
 }
+
+int updateDebuglevel(mm_camera_test_obj_t *test_obj)
+{
+
+    int rc = MM_CAMERA_OK;
+
+    rc = initBatchUpdate(test_obj);
+    if ( rc != MM_CAMERA_OK ) {
+        LOGE("Failed to initialize group update table");
+        return rc;
+    }
+
+    uint32_t dummyDebugLevel = 0;
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data, CAM_INTF_PARM_UPDATE_DEBUG_LEVEL, dummyDebugLevel)) {
+        LOGE("Parameters batch failed");
+        rc = -1;
+        goto ERROR;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if ( rc != MM_CAMERA_OK ) {
+        LOGE("Failed to commit batch parameters");
+        return rc;
+    }
+ERROR:
+    return rc;
+ }
 
 int setEVCompensation(mm_camera_test_obj_t *test_obj, int ev)
 {
@@ -1829,6 +1865,13 @@ int mm_camera_lib_start_stream(mm_camera_lib_handle *handle)
     if (rc != MM_CAMERA_OK) {
       LOGE("autofocus error\n");
       goto EXIT;
+    }
+
+    rc = updateDebuglevel(&handle->test_obj);
+
+    if (rc != MM_CAMERA_OK) {
+        LOGE("autofocus error\n");
+        goto EXIT;
     }
     handle->stream_running = 1;
 
