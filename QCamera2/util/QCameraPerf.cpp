@@ -64,9 +64,11 @@ QCameraPerfLock::QCameraPerfLock() :
         mPerfLockEnable(0),
         mPerfLockHandle(-1),
         mPerfLockHandleTimed(-1),
+        m_pPowerModule(NULL),
         mTimerSet(0),
         mPerfLockTimeout(0),
         mStartTimeofLock(0)
+
 {
 }
 
