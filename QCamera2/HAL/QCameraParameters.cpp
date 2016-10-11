@@ -7095,7 +7095,7 @@ int32_t QCameraParameters::setVtEnable(const char *vtEnable)
         int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
                 PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), vtEnable);
         if (value != NAME_NOT_FOUND) {
-            LOGH("Setting Vt Enable %s", vtEnable);
+            LOGI("Setting Vt Enable %s", vtEnable);
             m_bAVTimerEnabled = true;
             updateParamEntry(KEY_QC_VT_ENABLE, vtEnable);
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_VT, value)) {
