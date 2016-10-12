@@ -3110,8 +3110,8 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
         }
         bufferCnt = mem->getCnt();
     }
-    LOGH("rc = %d type = %d count = %d size = %d cache = %d, pool = %d",
-            rc, stream_type, bufferCnt, size, bCachedMem, bPoolMem);
+    LOGH("rc = %d type = %d count = %d size = %d cache = %d, pool = %d mEnqueuedBuffers = %d",
+            rc, stream_type, bufferCnt, size, bCachedMem, bPoolMem, mEnqueuedBuffers);
     return mem;
 }
 
@@ -7283,7 +7283,7 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     } else {
         padding_info =
                 gCamCapability[mCameraId]->padding_info;
-        if (streamType == CAM_STREAM_TYPE_PREVIEW) {
+        if (streamType == CAM_STREAM_TYPE_PREVIEW || streamType == CAM_STREAM_TYPE_POSTVIEW) {
             padding_info.width_padding = mSurfaceStridePadding;
             padding_info.height_padding = CAM_PAD_TO_2;
         }
