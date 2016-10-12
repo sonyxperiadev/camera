@@ -342,6 +342,7 @@ int32_t QCamera2HardwareInterface::selectScene(QCameraChannel *pChannel,
             if (preview_frame) {
                 QCameraGrallocMemory *memory = (QCameraGrallocMemory *)preview_frame->mem_info;
                 uint32_t idx = preview_frame->buf_idx;
+                preview_frame->cache_flags |= CPU_HAS_READ;
                 rc = sendPreviewCallback(pStream, memory, idx);
                 if (NO_ERROR != rc) {
                     LOGE("Error triggering scene select preview callback");
@@ -928,6 +929,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     if (pme->m_channels[QCAMERA_CH_TYPE_CALLBACK] == NULL) {
         if (pme->needSendPreviewCallback() &&
                 (!pme->mParameters.isSceneSelectionEnabled())) {
+            frame->cache_flags |= CPU_HAS_READ;
             int32_t rc = pme->sendPreviewCallback(stream, memory, idx);
             if (NO_ERROR != rc) {
                 LOGW("Preview callback was not sent succesfully");
@@ -1189,6 +1191,8 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
             cbArg.user_data = (void *) &frame->buf_idx;
             cbArg.cookie = stream;
             cbArg.release_cb = returnStreamBuffer;
+            // Preset cache flags to be handled when the buffer comes back
+            frame->cache_flags |= CPU_HAS_READ;
             int32_t rc = pme->m_cbNotifier.notifyCallback(cbArg);
             if (rc != NO_ERROR) {
                 LOGE ("fail sending data notify");
@@ -1272,6 +1276,8 @@ void QCamera2HardwareInterface::rdi_mode_stream_cb_routine(
                 cbArg.user_data = (void *) &frame->buf_idx;
                 cbArg.cookie     = stream;
                 cbArg.release_cb = returnStreamBuffer;
+                // Preset cache flags to be handled when the buffer comes back
+                frame->cache_flags |= CPU_HAS_READ;
                 pme->m_cbNotifier.notifyCallback(cbArg);
             } else {
                 LOGE("preview_mem is NULL");
@@ -1309,6 +1315,8 @@ void QCamera2HardwareInterface::rdi_mode_stream_cb_routine(
             cbArg.user_data  = (void *) &frame->buf_idx;
             cbArg.cookie     = stream;
             cbArg.release_cb = returnStreamBuffer;
+            // Preset cache flags to be handled when the buffer comes back
+            frame->cache_flags |= CPU_HAS_READ;
             pme->m_cbNotifier.notifyCallback(cbArg);
         } else {
             LOGH("No need to process preview frame, return buffer");
@@ -2565,6 +2573,8 @@ void QCamera2HardwareInterface::callback_stream_cb_routine(mm_camera_super_buf_t
     if (pme->mDataCb != NULL &&
             (pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) &&
             (!pme->mParameters.isSceneSelectionEnabled())) {
+        // Preset cache flags to be handled when the buffer comes back
+        frame->cache_flags |= CPU_HAS_READ;
         int32_t rc = pme->sendPreviewCallback(stream, previewMemObj, frame->buf_idx);
         if (NO_ERROR != rc) {
             LOGE("Preview callback was not sent succesfully");
@@ -2912,6 +2922,7 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                         LOGH("written number of bytes %ld\n",
                              written_len);
                         close(file_fd);
+                        frame->cache_flags |= CPU_HAS_READ;
                     } else {
                         LOGE("fail to open file for image dumping");
                     }

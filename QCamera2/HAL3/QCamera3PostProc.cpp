@@ -1201,7 +1201,7 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         return BAD_VALUE;
     }
 
-    if ((NULL != jpeg_job_data->src_frame) && (NULL != jpeg_job_data->src_frame)) {
+    if ((NULL != jpeg_job_data->fwk_frame) && (NULL != jpeg_job_data->src_frame)) {
         LOGE("Unsupported case both framework and camera source buffers are invalid!");
         return BAD_VALUE;
     }
@@ -1280,6 +1280,14 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         mm_jpeg_encode_params_t encodeParam;
         memset(&encodeParam, 0, sizeof(mm_jpeg_encode_params_t));
         getFWKJpegEncodeConfig(encodeParam, recvd_frame, jpeg_settings);
+        QCamera3StreamMem *memObj = (QCamera3StreamMem *)(recvd_frame->input_buffer.mem_info);
+        if (NULL == memObj) {
+            LOGE("Memeory Obj of main frame is NULL");
+            return NO_MEMORY;
+        }
+        // clean and invalidate cache ops through mem obj of the frame
+        memObj->cleanInvalidateCache(recvd_frame->input_buffer.buf_idx);
+
         LOGH("#src bufs:%d # tmb bufs:%d #dst_bufs:%d",
                      encodeParam.num_src_bufs,encodeParam.num_tmb_bufs,encodeParam.num_dst_bufs);
         if (!needJpegExifRotation &&

@@ -810,6 +810,7 @@ private:
     nsecs_t mBootToMonoTimestampOffset;
     bool bDepthAFCallbacks;
     int32_t prev_zoomLevel;
+    bool m_bOptimizeCacheOps;
 };
 
 }; // namespace qcamera

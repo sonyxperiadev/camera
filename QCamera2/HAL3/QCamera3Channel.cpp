@@ -576,6 +576,7 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
                     }
                     LOGH("written number of bytes %ld\n", written_len);
                     mDumpFrmCnt++;
+                    frame->cache_flags |= CPU_HAS_READ;
                     close(file_fd);
                 } else {
                     LOGE("failed to open file to dump image");
@@ -2136,6 +2137,7 @@ void QCamera3RawChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
        if (file_fd >= 0) {
           ssize_t written_len = write(file_fd, frame->buffer, frame->frame_len);
           LOGD("written number of bytes %zd", written_len);
+          frame->cache_flags |= CPU_HAS_READ;
           close(file_fd);
        } else {
           LOGE("failed to open file to dump image");
@@ -2349,6 +2351,7 @@ void QCamera3RawDumpChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
                 ssize_t written_len =
                         write(file_fd, frame->buffer, offset.frame_len);
                 LOGD("written number of bytes %zd", written_len);
+                frame->cache_flags |= CPU_HAS_READ;
                 close(file_fd);
             } else {
                 LOGE("failed to open file to dump image");
@@ -4494,6 +4497,12 @@ int32_t QCamera3ReprocessChannel::overrideFwkMetadata(
        mOfflineBuffersIndex = -1;
     }
     uint32_t buf_idx = (uint32_t)(mOfflineBuffersIndex + 1);
+
+    //Do cache ops before sending for reprocess
+    if (mMemory != NULL) {
+        mMemory->cleanInvalidateCache(buf_idx);
+    }
+
     rc = pStream->mapBuf(
             CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF,
             buf_idx, -1,
@@ -4613,6 +4622,11 @@ int32_t QCamera3ReprocessChannel::doReprocess(int buf_fd, void *buffer, size_t b
         rc = mStreams[i]->mapBuf(CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF,
                                  buf_idx, -1,
                                  buf_fd, buffer, buf_length);
+
+        //Do cache ops before sending for reprocess
+        if (mMemory != NULL) {
+            mMemory->cleanInvalidateCache(buf_idx);
+        }
 
         if (rc == NO_ERROR) {
             cam_stream_parm_buffer_t param;

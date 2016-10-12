@@ -1606,6 +1606,14 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
                 LOGE("Metadata NULL");
             }
 
+            if (mParameter.getofflineRAW()) {
+                //For offline RAW reprocessing, make sure cache is clean & invalidated
+                frame->bufs[i]->cache_flags |= CPU_HAS_READ_WRITTEN;
+            }
+            //Do Cache ops before sending to reprocess
+            if (frame->bufs[i] != NULL) {
+                pStream->handleCacheOps(frame->bufs[i]);
+            }
             rc = doReprocessOffline (frame->bufs[i], meta_buf, pStream);
         }
     }
@@ -1662,6 +1670,11 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
                 // Skip metadata for reprocess now because PP module cannot handle meta data
                 // May need furthur discussion if Imaginglib need meta data
                 continue;
+            }
+
+            //Do Cache ops before sending to reprocess
+            if (frame->bufs[i] != NULL) {
+                pStream->handleCacheOps(frame->bufs[i]);
             }
 
             cam_stream_parm_buffer_t param;

@@ -262,6 +262,44 @@ int32_t QCameraStream::clean_invalidate_buf(uint32_t index, void *user_data)
 }
 
 /*===========================================================================
+ * FUNCTION   : clean_buf
+ *
+ * DESCRIPTION: static function entry to clean a specific stream buffer
+ *
+ * PARAMETERS :
+ *   @index      : index of the stream buffer to clean invalidate
+ *   @user_data  : user data ptr of ops_tbl
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::clean_buf(uint32_t index, void *user_data)
+{
+    QCameraStream *stream = reinterpret_cast<QCameraStream *>(user_data);
+    if (!stream) {
+        LOGE("invalid stream pointer");
+        return NO_MEMORY;
+    }
+
+    if (stream->mStreamInfo->is_secure == SECURE){
+        return 0;
+    }
+
+    if (stream->mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH) {
+        for (int i = 0; i < stream->mBufDefs[index].user_buf.bufs_used; i++) {
+            uint32_t buf_idx = stream->mBufDefs[index].user_buf.buf_idx[i];
+            stream->cleanBuf(buf_idx);
+        }
+    } else {
+        return stream->cleanBuf(index);
+    }
+
+    return 0;
+}
+
+
+/*===========================================================================
  * FUNCTION   : set_config_ops
  *
  * DESCRIPTION: static function update mm-interface ops functions
@@ -354,6 +392,7 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
     }
     mMemVtbl.invalidate_buf = invalidate_buf;
     mMemVtbl.clean_invalidate_buf = clean_invalidate_buf;
+    mMemVtbl.clean_buf = clean_buf;
     mMemVtbl.set_config_ops = set_config_ops;
     memset(&mFrameLenOffset, 0, sizeof(mFrameLenOffset));
     memcpy(&mPaddingInfo, paddingInfo, sizeof(cam_padding_info_t));
@@ -2251,6 +2290,27 @@ int32_t QCameraStream::cleanInvalidateBuf(uint32_t index)
 }
 
 /*===========================================================================
+ * FUNCTION   : cleanBuf
+ *
+ * DESCRIPTION: clean a specific stream buffer
+ *
+ * PARAMETERS :
+ *   @index   : index of the buffer to clean
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::cleanBuf(uint32_t index)
+{
+    if (mStreamBufs == NULL) {
+        LOGE("Invalid Operation");
+        return INVALID_OPERATION;
+    }
+    return mStreamBufs->cleanCache(index);
+}
+
+/*===========================================================================
  * FUNCTION   : isTypeOf
  *
  * DESCRIPTION: helper function to determine if the stream is of the queried type
@@ -2875,6 +2935,59 @@ int32_t QCameraStream::setBundleInfo()
         return ret;
     }
     return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : handleCacheOps
+ *
+ * DESCRIPTION: handle cache ops for this stream buffer
+ *
+ * PARAMETERS :
+       @buf   : stream buffer
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              non-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::handleCacheOps(mm_camera_buf_def_t* buf)
+{
+    int32_t rc = 0;
+    if( !buf) {
+        LOGE("Error!! buf_info: %p", buf);
+        rc = -1;
+        return rc;
+    }
+    if ((mMemVtbl.clean_invalidate_buf  == NULL) ||
+            (mMemVtbl.invalidate_buf  == NULL) ||
+            (mMemVtbl.clean_buf  == NULL)) {
+        LOGI("Clean/Invalidate cache ops not supported");
+        rc = -1;
+        return rc;
+    }
+
+    LOGH("[CACHE_OPS] Stream type: %d buf index: %d cache ops flags: 0x%x",
+            buf->stream_type, buf->buf_idx, buf->cache_flags);
+
+    if ((buf->cache_flags & CPU_HAS_READ_WRITTEN) ==
+        CPU_HAS_READ_WRITTEN) {
+        rc = mMemVtbl.clean_invalidate_buf(
+                buf->buf_idx, mMemVtbl.user_data);
+    } else if ((buf->cache_flags & CPU_HAS_READ) ==
+        CPU_HAS_READ) {
+        rc = mMemVtbl.invalidate_buf(
+                buf->buf_idx, mMemVtbl.user_data);
+    } else if ((buf->cache_flags & CPU_HAS_WRITTEN) ==
+        CPU_HAS_WRITTEN) {
+        rc = mMemVtbl.clean_buf(
+                buf->buf_idx, mMemVtbl.user_data);
+    }
+    if (rc != 0) {
+        LOGW("Warning!! Clean/Invalidate cache failed on buffer index: %d",
+                buf->buf_idx);
+    }
+    // Reset buffer cache flags after cache ops
+    buf->cache_flags = 0;
+    return rc;
 }
 
 

@@ -145,6 +145,10 @@
 /* Defines the number of columns in the color correction matrix (CCM) */
 #define AWB_NUM_CCM_COLS (3)
 
+#define CPU_HAS_READ  (1 << 0)
+#define CPU_HAS_WRITTEN  (1 << 1)
+#define CPU_HAS_READ_WRITTEN (CPU_HAS_READ |CPU_HAS_WRITTEN)
+
 typedef uint64_t cam_feature_mask_t;
 
 typedef enum {
@@ -2851,5 +2855,11 @@ typedef enum {
     CAM_CUSTOM_PARM_EXAMPLE,
     CAM_CUSTOM_PARM_MAX,
 } cam_custom_parm_type;
+
+typedef enum {
+    CAM_STREAM_CACHE_OPS_CLEAR_FLAGS,
+    CAM_STREAM_CACHE_OPS_HONOUR_FLAGS,
+    CAM_STREAM_CACHE_OPS_DISABLED
+} cam_stream_cache_ops_t;
 
 #endif /* __QCAMERA_TYPES_H__ */
