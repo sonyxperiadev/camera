@@ -2,6 +2,7 @@
 PLATFORM_SDK_NPDK = 24
 ENABLE_CAM_SDLLVM  := $(shell if [ $(PLATFORM_SDK_VERSION) -ge $(PLATFORM_SDK_NPDK) ] ; then echo true ; else echo false ; fi)
 ifeq ($(ENABLE_CAM_SDLLVM),true)
+SDCLANGSAVE := $(SDCLANG)
 SDCLANG := true
 endif
 
@@ -138,6 +139,6 @@ include $(BUILD_SHARED_LIBRARY)
 include $(call first-makefiles-under,$(LOCAL_PATH))
 endif
 ifeq ($(ENABLE_CAM_SDLLVM),true)
-SDCLANG := false
+SDCLANG := $(SDCLANGSAVE)
 endif
 
