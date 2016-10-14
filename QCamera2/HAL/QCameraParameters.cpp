@@ -6580,13 +6580,14 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
 
     if ( NULL != m_AdjustFPS ) {
         if (m_ThermalMode == QCAMERA_THERMAL_ADJUST_FPS &&
-                !m_bRecordingHint) {
+                !m_bRecordingHint_new) {
             float minVideoFps = min_fps, maxVideoFps = max_fps;
             if (isHfrMode()) {
                 minVideoFps = m_hfrFpsRange.video_min_fps;
                 maxVideoFps = m_hfrFpsRange.video_max_fps;
             }
-            m_AdjustFPS->recalcFPSRange(min_fps, max_fps, minVideoFps, maxVideoFps, fps_range);
+            m_AdjustFPS->recalcFPSRange(min_fps, max_fps, minVideoFps,
+                                         maxVideoFps, fps_range, m_bRecordingHint_new);
             LOGH("Thermal adjusted Preview fps range %3.2f,%3.2f, %3.2f, %3.2f",
                    fps_range.min_fps, fps_range.max_fps,
                   fps_range.video_min_fps, fps_range.video_max_fps);
