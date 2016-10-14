@@ -9182,6 +9182,7 @@ int32_t QCamera2HardwareInterface::processHistogramStats(
  *   @maxVideoFps: maximum configured fps range
  *   @adjustedRange : target fps range
  *   @skipPattern : target skip pattern
+ *   @bRecordingHint : recording hint value
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -9194,7 +9195,8 @@ int QCamera2HardwareInterface::calcThermalLevel(
             const float &minVideoFps,
             const float &maxVideoFps,
             cam_fps_range_t &adjustedRange,
-            enum msm_vfe_frame_skip_pattern &skipPattern)
+            enum msm_vfe_frame_skip_pattern &skipPattern,
+            bool bRecordingHint)
 {
     const float minFPS = (float)minFPSi;
     const float maxFPS = (float)maxFPSi;
@@ -9299,6 +9301,19 @@ int QCamera2HardwareInterface::calcThermalLevel(
         }
         break;
     }
+    if (level >= QCAMERA_THERMAL_NO_ADJUSTMENT && level <= QCAMERA_THERMAL_MAX_ADJUSTMENT) {
+        if (bRecordingHint) {
+            adjustedRange.min_fps = minFPS / 1000.0f;
+            adjustedRange.max_fps = maxFPS / 1000.0f;
+            adjustedRange.video_min_fps = minVideoFps / 1000.0f;
+            adjustedRange.video_max_fps = maxVideoFps / 1000.0f;
+            skipPattern = NO_SKIP;
+            LOGH("No FPS mitigation in camcorder mode");
+        }
+        LOGH("Thermal level %d, FPS [%3.2f,%3.2f, %3.2f,%3.2f], frameskip %d",
+                  level, adjustedRange.min_fps, adjustedRange.max_fps,
+                    adjustedRange.video_min_fps, adjustedRange.video_max_fps, skipPattern);
+    }
 
     return NO_ERROR;
 }
@@ -9315,6 +9330,7 @@ int QCamera2HardwareInterface::calcThermalLevel(
  *   @minVideoFPS : minimum configured video fps
  *   @maxVideoFPS : maximum configured video fps
  *   @adjustedRange : target fps range
+ *   @bRecordingHint : recording hint value
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -9322,7 +9338,7 @@ int QCamera2HardwareInterface::calcThermalLevel(
  *==========================================================================*/
 int QCamera2HardwareInterface::recalcFPSRange(int &minFPS, int &maxFPS,
         const float &minVideoFPS, const float &maxVideoFPS,
-        cam_fps_range_t &adjustedRange)
+        cam_fps_range_t &adjustedRange, bool bRecordingHint)
 {
     enum msm_vfe_frame_skip_pattern skipPattern;
     calcThermalLevel(mThermalLevel,
@@ -9331,7 +9347,8 @@ int QCamera2HardwareInterface::recalcFPSRange(int &minFPS, int &maxFPS,
                      minVideoFPS,
                      maxVideoFPS,
                      adjustedRange,
-                     skipPattern);
+                     skipPattern,
+                     bRecordingHint);
     return NO_ERROR;
 }
 
@@ -9354,15 +9371,12 @@ int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
     int minFPS, maxFPS;
     float minVideoFPS, maxVideoFPS;
     enum msm_vfe_frame_skip_pattern skipPattern;
+    bool value;
     qcamera_thermal_level_enum_t level = *(qcamera_thermal_level_enum_t *)thermal_level;
 
 
     if (!mCameraOpened) {
         LOGH("Camera is not opened, no need to update camera parameters");
-        return NO_ERROR;
-    }
-    if (mParameters.getRecordingHintValue()) {
-        LOGH("Thermal mitigation isn't enabled in camcorder mode");
         return NO_ERROR;
     }
 
@@ -9378,8 +9392,9 @@ int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
         maxVideoFPS = maxFPS;
     }
 
+    value = mParameters.getRecordingHintValue();
     calcThermalLevel(level, minFPS, maxFPS, minVideoFPS, maxVideoFPS,
-            adjustedRange, skipPattern);
+            adjustedRange, skipPattern, value );
     mThermalLevel = level;
 
     if (thermalMode == QCAMERA_THERMAL_ADJUST_FPS)
