@@ -4946,8 +4946,12 @@ int32_t mm_stream_handle_cache_ops(mm_stream_t* my_obj,
     if ((my_obj->mem_vtbl.clean_invalidate_buf  == NULL) ||
             (my_obj->mem_vtbl.invalidate_buf  == NULL) ||
             (my_obj->mem_vtbl.clean_buf  == NULL)) {
-        LOGI("Clean/Invalidate cache ops not supported");
-        rc = -1;
+        LOGI("Clean/Invalidate cache ops not supported %p %p %p",
+            my_obj->mem_vtbl.clean_invalidate_buf,
+            my_obj->mem_vtbl.invalidate_buf,
+            my_obj->mem_vtbl.clean_buf);
+        // Not a fatal error
+        rc = 0;
         return rc;
     }
 
