@@ -4141,15 +4141,15 @@ int32_t QCameraParameters::setTsMakeup(const QCameraParameters& params)
         }
         str = params.get(KEY_TS_MAKEUP_WHITEN);
         prev_str = get(KEY_TS_MAKEUP_WHITEN);
-        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
-            if (str != NULL) {
+        if (str != NULL) {
+            if (prev_str == NULL || strcmp(str, prev_str) != 0) {
                 set(KEY_TS_MAKEUP_WHITEN, str);
             }
         }
         str = params.get(KEY_TS_MAKEUP_CLEAN);
         prev_str = get(KEY_TS_MAKEUP_CLEAN);
-        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
-            if (str != NULL) {
+        if (str != NULL) {
+            if (prev_str == NULL || strcmp(str, prev_str) != 0) {
                 set(KEY_TS_MAKEUP_CLEAN, str);
             }
         }
