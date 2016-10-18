@@ -3007,8 +3007,29 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
     switch (streamInfo->stream_type) {
     case CAM_STREAM_TYPE_VIDEO: {
         QCameraVideoMemory *video_mem = new QCameraVideoMemory(
-                mGetMemory, FALSE, CAM_STREAM_BUF_TYPE_USERPTR);
-        video_mem->allocateMeta(streamInfo->num_bufs);
+                mGetMemory, FALSE, QCAMERA_MEM_TYPE_BATCH);
+           if (video_mem == NULL) {
+            ALOGE("Out of memory for video obj");
+            return NULL;
+        }
+        /*
+        *   numFDs = BATCH size
+        *  numInts = 5  // OFFSET, SIZE, USAGE, TIMESTAMP, FORMAT
+        */
+        rc = video_mem->allocateMeta(streamInfo->num_bufs,
+                mParameters.getBufBatchCount(), VIDEO_METADATA_NUM_INTS);
+        if (rc < 0) {
+            ALOGE("allocateMeta failed");
+            delete video_mem;
+            return NULL;
+        }
+        int usage = 0;
+        cam_format_t fmt;
+        mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO, fmt);
+        if(mParameters.isUBWCEnabled() && (fmt == CAM_FORMAT_YUV_420_NV12_UBWC)) {
+            usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
+        }
+        video_mem->setVideoInfo(usage, fmt);
         mem = static_cast<QCameraMemory *>(video_mem);
     }
     break;
