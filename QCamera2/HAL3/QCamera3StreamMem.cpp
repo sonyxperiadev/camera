@@ -191,6 +191,29 @@ int QCamera3StreamMem::cleanInvalidateCache(uint32_t index)
 }
 
 /*===========================================================================
+ * FUNCTION   : cleanCache
+ *
+ * DESCRIPTION: clean the cache of the indexed buffer
+ *
+ * PARAMETERS :
+ *   @index   : index of the buffer
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCamera3StreamMem::cleanCache(uint32_t index)
+{
+    Mutex::Autolock lock(mLock);
+
+    if (index < mMaxHeapBuffers)
+        return mHeapMem.cleanCache(index);
+    else
+        return mGrallocMem.cleanCache(index);
+}
+
+
+/*===========================================================================
  * FUNCTION   : getBufDef
  *
  * DESCRIPTION: query detailed buffer information

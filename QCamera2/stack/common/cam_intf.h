@@ -731,6 +731,9 @@ typedef struct cam_stream_info {
 
     /*Stream info for Slave Stream*/
     struct cam_stream_info *aux_str_info;
+
+    /* Cache ops for this stream */
+    cam_stream_cache_ops_t cache_ops;
 } cam_stream_info_t;
 
 /*****************************************************************************

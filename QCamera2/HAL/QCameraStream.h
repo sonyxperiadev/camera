@@ -153,6 +153,7 @@ public:
         uint8_t buf_index[CAMERA_MAX_CONSUMER_BATCH_BUFFER_SIZE];
     } MetaMemory;
     MetaMemory mStreamMetaMemory[CAMERA_MIN_VIDEO_BATCH_BUFFERS];
+    int32_t handleCacheOps(mm_camera_buf_def_t* buf);
 
 private:
     uint32_t mCamHandle;
@@ -225,6 +226,7 @@ private:
 
     static int32_t invalidate_buf(uint32_t index, void *user_data);
     static int32_t clean_invalidate_buf(uint32_t index, void *user_data);
+    static int32_t clean_buf(uint32_t index, void *user_data);
 
     static int32_t backgroundAllocate(void* data);
     static int32_t backgroundMap(void* data);
@@ -251,6 +253,7 @@ private:
 
     int32_t invalidateBuf(uint32_t index);
     int32_t cleanInvalidateBuf(uint32_t index);
+    int32_t cleanBuf(uint32_t index);
     int32_t calcOffset(cam_stream_info_t *streamInfo);
     int32_t unmapStreamInfoBuf();
     int32_t releaseStreamInfoBuf();

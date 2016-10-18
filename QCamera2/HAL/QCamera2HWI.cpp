@@ -1991,6 +1991,10 @@ int QCamera2HardwareInterface::openCamera()
     property_get("persist.camera.depth.focus.cb", value, "1");
     bDepthAFCallbacks = atoi(value);
 
+    memset(value, 0, sizeof(value));
+    property_get("persist.camera.cache.optimize", value, "1");
+    m_bOptimizeCacheOps = atoi(value);
+
     return NO_ERROR;
 
 error_exit3:
@@ -3219,6 +3223,12 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     streamInfo->buf_cnt = streamInfo->num_bufs;
     streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     streamInfo->is_secure = NON_SECURE;
+    // Initialize cache ops
+    if (!m_bOptimizeCacheOps) {
+        streamInfo->cache_ops = CAM_STREAM_CACHE_OPS_DISABLED;
+    } else {
+        streamInfo->cache_ops = CAM_STREAM_CACHE_OPS_HONOUR_FLAGS;
+    }
 
     switch (stream_type) {
     case CAM_STREAM_TYPE_SNAPSHOT:
@@ -3311,6 +3321,9 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
         streamInfo->noFrameExpected = 1;
+        break;
+    case CAM_STREAM_TYPE_METADATA:
+        streamInfo->cache_ops = CAM_STREAM_CACHE_OPS_CLEAR_FLAGS;
         break;
     default:
         break;
@@ -6083,6 +6096,8 @@ int QCamera2HardwareInterface::registerFaceImage(void *img_ptr,
         return NO_MEMORY;
     }
     memcpy(pBufPtr, img_ptr, config->input_buf_planes.plane_info.frame_len);
+    //Do cache ops before sending for reprocess
+    imgBuf->cacheOps(0, ION_IOC_CLEAN_INV_CACHES);
 
     cam_pp_feature_config_t pp_feature;
     memset(&pp_feature, 0, sizeof(cam_pp_feature_config_t));

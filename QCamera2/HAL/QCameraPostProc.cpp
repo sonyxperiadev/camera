@@ -2157,6 +2157,8 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         cbArg.msg_type = CAMERA_MSG_RAW_IMAGE;
         cbArg.data = mem;
         cbArg.index = 0;
+        // Data callback, set read/write flags
+        main_frame->cache_flags |= CPU_HAS_READ;
         m_parent->m_cbNotifier.notifyCallback(cbArg);
     }
     if (NULL != m_parent->mNotifyCb &&
@@ -2530,6 +2532,13 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         jpg_job.encode_job.multi_image_info.is_primary = FALSE;
         jpg_job.encode_job.multi_image_info.num_of_images = 1;
     }
+    //Do Cache ops before sending to encode
+    if (main_frame != NULL) {
+        main_stream->handleCacheOps(main_frame);
+    }
+    if (thumb_frame != NULL) {
+        thumb_stream->handleCacheOps(thumb_frame);
+    }
 
     LOGI("[KPI Perf] : PROFILE_JPEG_JOB_START");
     ret = mJpegHandle.start_job(&jpg_job, &jobId);
@@ -2652,6 +2661,7 @@ int32_t QCameraPostProcessor::processRawImageImpl(mm_camera_super_buf_t *recvd_f
             cbArg.msg_type = CAMERA_MSG_RAW_IMAGE;
             cbArg.data = raw_mem;
             cbArg.index = 0;
+            frame->cache_flags |= CPU_HAS_READ;
             m_parent->m_cbNotifier.notifyCallback(cbArg);
         }
         if (NULL != m_parent->mNotifyCb &&
@@ -2662,6 +2672,7 @@ int32_t QCameraPostProcessor::processRawImageImpl(mm_camera_super_buf_t *recvd_f
             cbArg.msg_type = CAMERA_MSG_RAW_IMAGE_NOTIFY;
             cbArg.ext1 = 0;
             cbArg.ext2 = 0;
+            frame->cache_flags |= CPU_HAS_READ;
             m_parent->m_cbNotifier.notifyCallback(cbArg);
         }
 

@@ -133,6 +133,7 @@ typedef struct {
 *               mem allocation
 *    @mem_info : user specific pointer to additional mem info
 *    @flags:  v4l2_buffer flags, used to report error in data buffers
+*    @cache_flags: Stores cache related read/write flags
 **/
 typedef struct mm_camera_buf_def {
     uint32_t stream_id;
@@ -151,6 +152,7 @@ typedef struct mm_camera_buf_def {
     size_t frame_len;
     void *mem_info;
     uint32_t flags;
+    uint32_t cache_flags;
 } mm_camera_buf_def_t;
 
 /** mm_camera_super_buf_t: super buf structure for bundled
@@ -288,6 +290,7 @@ typedef struct {
                        void *user_data);
   int32_t (*invalidate_buf)(uint32_t index, void *user_data);
   int32_t (*clean_invalidate_buf)(uint32_t index, void *user_data);
+  int32_t (*clean_buf)(uint32_t index, void *user_data);
 } mm_camera_stream_mem_vtbl_t;
 
 /** mm_camera_stream_config_t: structure for stream

@@ -43,6 +43,10 @@
 #define QTABLE_MAX 2
 #define MM_JPEG_MAX_MPO_IMAGES 2
 
+/* bit mask for buffer usage*/
+#define MM_JPEG_HAS_READ_BUF CPU_HAS_READ
+#define MM_JPEG_HAS_WRITTEN_BUF CPU_HAS_WRITTEN
+
 typedef enum {
   MM_JPEG_FMT_YUV,
   MM_JPEG_FMT_BITSTREAM
@@ -240,6 +244,24 @@ typedef struct {
 
 } mm_jpeg_decode_params_t;
 
+/* This structure is populated by HAL to notify buffer
+  usage like has read or has written. This info is then
+  used to perform cache ops in jpeg */
+typedef struct {
+  /* main image source buff usage */
+  uint8_t main_src_buf;
+
+  /* thumbnail source buff usage */
+  uint8_t thumb_src_buf;
+
+  /* destination buff usage */
+  uint8_t dest_buf;
+
+  /* work buff usage */
+  uint8_t work_buf;
+
+} mm_jpeg_buf_usage_t;
+
 typedef struct {
   /* active indices of the buffers for encoding */
   int32_t src_index;
@@ -288,6 +310,11 @@ typedef struct {
 
   /* work buf */
   mm_jpeg_buf_t work_buf;
+
+  /* Input from HAL notifing the prior usage of buffers,
+  this info will be used to perform cache ops*/
+  mm_jpeg_buf_usage_t buf_usage;
+
 } mm_jpeg_encode_job_t;
 
 typedef struct {
