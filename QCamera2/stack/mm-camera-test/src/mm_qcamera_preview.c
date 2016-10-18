@@ -622,6 +622,7 @@ mm_camera_stream_t * mm_app_add_metadata_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.mem_vtbl.clean_invalidate_buf =
       mm_app_stream_clean_invalidate_buf;
     stream->s_config.mem_vtbl.invalidate_buf = mm_app_stream_invalidate_buf;
+    stream->s_config.mem_vtbl.clean_buf = mm_app_stream_clean_buf;
     stream->s_config.mem_vtbl.user_data = (void *)stream;
     stream->s_config.stream_cb = stream_cb;
     stream->s_config.stream_cb_sync = NULL;
@@ -720,6 +721,7 @@ mm_camera_stream_t * mm_app_add_analysis_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.mem_vtbl.clean_invalidate_buf =
       mm_app_stream_clean_invalidate_buf;
     stream->s_config.mem_vtbl.invalidate_buf = mm_app_stream_invalidate_buf;
+    stream->s_config.mem_vtbl.clean_buf = mm_app_stream_clean_buf;
     stream->s_config.mem_vtbl.user_data = (void *)stream;
     stream->s_config.stream_cb = stream_cb;
     stream->s_config.userdata = userdata;
@@ -785,6 +787,7 @@ mm_camera_stream_t * mm_app_add_ZSL_preview_stream(mm_camera_test_obj_t *test_ob
     stream->s_config.mem_vtbl.clean_invalidate_buf =
       mm_app_stream_clean_invalidate_buf;
     stream->s_config.mem_vtbl.invalidate_buf = mm_app_stream_invalidate_buf;
+    stream->s_config.mem_vtbl.clean_buf = mm_app_stream_clean_buf;
     stream->s_config.mem_vtbl.user_data = (void *)stream;
     stream->s_config.stream_cb = stream_cb;
     stream->s_config.stream_cb_sync = NULL;
@@ -883,6 +886,7 @@ mm_camera_stream_t * mm_app_add_preview_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.mem_vtbl.clean_invalidate_buf =
       mm_app_stream_clean_invalidate_buf;
     stream->s_config.mem_vtbl.invalidate_buf = mm_app_stream_invalidate_buf;
+    stream->s_config.mem_vtbl.clean_buf = mm_app_stream_clean_buf;
     stream->s_config.mem_vtbl.user_data = (void *)stream;
     stream->s_config.stream_cb = stream_cb;
     stream->s_config.stream_cb_sync = NULL;
@@ -956,7 +960,10 @@ mm_camera_stream_t * mm_app_add_raw_stream(mm_camera_test_obj_t *test_obj,
 
     stream->s_config.mem_vtbl.get_bufs = mm_app_stream_initbuf;
     stream->s_config.mem_vtbl.put_bufs = mm_app_stream_deinitbuf;
+    stream->s_config.mem_vtbl.clean_invalidate_buf =
+      mm_app_stream_clean_invalidate_buf;
     stream->s_config.mem_vtbl.invalidate_buf = mm_app_stream_invalidate_buf;
+    stream->s_config.mem_vtbl.clean_buf = mm_app_stream_clean_buf;
     stream->s_config.mem_vtbl.user_data = (void *)stream;
     stream->s_config.stream_cb = stream_cb;
     stream->s_config.stream_cb_sync = NULL;
@@ -1041,6 +1048,7 @@ mm_camera_stream_t * mm_app_add_ZSL_snapshot_stream(mm_camera_test_obj_t *test_o
     stream->s_config.mem_vtbl.clean_invalidate_buf =
       mm_app_stream_clean_invalidate_buf;
     stream->s_config.mem_vtbl.invalidate_buf = mm_app_stream_invalidate_buf;
+    stream->s_config.mem_vtbl.clean_buf = mm_app_stream_clean_buf;
     stream->s_config.mem_vtbl.user_data = (void *)stream;
     stream->s_config.stream_cb = stream_cb;
     stream->s_config.stream_cb_sync = NULL;
@@ -1129,6 +1137,7 @@ mm_camera_stream_t * mm_app_add_snapshot_stream(mm_camera_test_obj_t *test_obj,
     stream->s_config.mem_vtbl.clean_invalidate_buf =
       mm_app_stream_clean_invalidate_buf;
     stream->s_config.mem_vtbl.invalidate_buf = mm_app_stream_invalidate_buf;
+    stream->s_config.mem_vtbl.clean_buf = mm_app_stream_clean_buf;
     stream->s_config.mem_vtbl.user_data = (void *)stream;
     stream->s_config.stream_cb = stream_cb;
     stream->s_config.stream_cb_sync = NULL;
