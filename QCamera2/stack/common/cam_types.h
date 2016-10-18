@@ -174,6 +174,12 @@ typedef enum {
 } cam_position_t;
 
 typedef enum {
+    CAM_LENS_NORMAL,
+    CAM_LENS_WIDE,
+    CAM_LENS_TELE
+} cam_lens_type_t;
+
+typedef enum {
     CAM_FLICKER_NONE,
     CAM_FLICKER_50_HZ,
     CAM_FLICKER_60_HZ
@@ -413,6 +419,7 @@ typedef enum {
     CAM_MAPPING_BUF_TYPE_PARM_BUF,    /* mapping parameters buffer */
     /* this buffer is needed for the payload to be sent with bundling related cameras cmd */
     CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF, /* mapping sync buffer.*/
+    CAM_MAPPING_BUF_TYPE_DUAL_CAM_CMD_BUF, /*Dual camera cmd ion memory*/
 
     /* followings are per stream */
     CAM_MAPPING_BUF_TYPE_STREAM_BUF,        /* mapping stream buffers */
@@ -1654,6 +1661,16 @@ typedef struct {
    uint32_t max_buffers;
 } cam_buffer_info_t;
 
+
+typedef enum {
+    /* cmd to bundle cameras*/
+    CAM_DUAL_CAMERA_BUNDLE_INFO,
+    /*cmd to suspend or resume cameras*/
+    CAM_DUAL_CAMERA_LOW_POWER_MODE,
+    /*cmd to send information about role switch*/
+    CAM_DUAL_CAMERA_MASTER_INFO
+} cam_dual_camera_cmd_type;
+
 typedef enum {
     /* Standalone camera (won't be linked) */
     CAM_TYPE_STANDALONE=0,
@@ -2254,10 +2271,6 @@ typedef enum {
     CAM_INTF_META_FOCUS_VALUE,
     /*Spot light detection result output from af core*/
     CAM_INTF_META_SPOT_LIGHT_DETECT,
-    /*parameter to control dual camera's from HAL*/
-    CAM_INTF_PARM_SUSPEND_RESUME_CAMERAS,
-    /*Camera module master info*/
-    CAM_INTF_PARM_CAMERA_MASTER_INFO,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

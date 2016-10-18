@@ -2014,19 +2014,14 @@ error_exit1:
  *
  * PARAMETERS :
  *   @sync        :indicates whether syncing is On or Off
- *   @sessionid  :session id for other camera session
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCamera2HardwareInterface::bundleRelatedCameras(bool syncOn,
-            uint32_t sessionid)
+int QCamera2HardwareInterface::bundleRelatedCameras(bool syncOn)
 {
-    LOGD("bundleRelatedCameras sync %d with sessionid %d",
-            syncOn, sessionid);
-
-    int32_t rc = mParameters.bundleRelatedCameras(syncOn, sessionid);
+    int32_t rc = mParameters.bundleRelatedCameras(syncOn);
     if (rc != NO_ERROR) {
         LOGE("bundleRelatedCameras failed %d", rc);
         return rc;
@@ -2443,6 +2438,7 @@ int QCamera2HardwareInterface::initCapabilities(uint32_t cameraId,
         goto failed_op;
     }
 
+    gCamCapability[cameraId]->camera_index = cameraId;
     if (is_dual_camera_by_idx(cameraId)) {
         handle = get_aux_camera_handle(cameraHandle->camera_handle);
         gCamCapability[cameraId]->aux_cam_cap =
@@ -6987,7 +6983,7 @@ int32_t QCamera2HardwareInterface::processCameraControl(uint32_t camState)
     int32_t ret = NO_ERROR;
 
     //Set camera controls to parameter and back-end
-    ret = mParameters.setCameraControls(camState, TRUE);
+    ret = mParameters.setCameraControls(camState);
 
     //Update camera status to internal channel
     for (int i = 0; i < QCAMERA_CH_TYPE_MAX; i++) {
@@ -7035,7 +7031,12 @@ int32_t QCamera2HardwareInterface::switchCameraCb()
             }
         }
     }
+
     if (ret == NO_ERROR && mActiveCamera == MM_CAMERA_DUAL_CAM) {
+        //Trigger Event to modules to update Master info
+        mParameters.setSwitchCamera();
+
+        //Change active handle
         if (get_aux_camera_handle(mCameraHandle->camera_handle)
                 == m_ActiveHandle) {
             m_ActiveHandle = get_main_camera_handle(mCameraHandle->camera_handle);

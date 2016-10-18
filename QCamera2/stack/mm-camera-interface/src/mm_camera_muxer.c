@@ -1754,6 +1754,36 @@ int32_t mm_camera_muxer_switch_stream(uint32_t camera_handle,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_muxer_set_dual_cam_cmd
+ *
+ * DESCRIPTION: send event to trigger read on dual camera cmd buffer
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *   @cam_obj        : header object
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              1 -- failure
+ *==========================================================================*/
+int32_t mm_camera_muxer_set_dual_cam_cmd(uint32_t camera_handle,
+        mm_camera_obj_t *cam_obj)
+{
+    int32_t rc = 0;
+    mm_camera_obj_t * my_obj = NULL;
+    my_obj = mm_muxer_util_get_camera_by_obj(camera_handle, cam_obj);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&cam_obj->muxer_lock);
+        rc = mm_camera_set_dual_cam_cmd(my_obj);
+    } else {
+        pthread_mutex_unlock(&cam_obj->muxer_lock);
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_muxer_stream_frame_sync
  *
  * DESCRIPTION: Handle stream buffers for frame sync

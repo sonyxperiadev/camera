@@ -497,13 +497,6 @@ int QCamera2Factory::openLegacy(
 {
     int rc = NO_ERROR;
 
-#ifdef DUAL_CAM_TEST
-    char prop[PROPERTY_VALUE_MAX];
-    memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.id", prop, "0");
-    cameraId = atoi(prop);
-#endif
-
     LOGI("openLegacy halVersion: %d cameraId = %d", halVersion, cameraId);
     //Assumption: all cameras can support legacy API version
     if (cameraId < 0 || cameraId >= gQCamera2Factory->getNumberOfCameras())
