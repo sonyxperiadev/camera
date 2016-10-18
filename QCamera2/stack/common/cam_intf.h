@@ -81,12 +81,22 @@ typedef enum {
     CAM_MODE_SECONDARY
 } cam_sync_mode_t;
 
+/*Enum to inform about camera type in dual camera use-cases*/
+typedef enum {
+    CAM_ROLE_DEFAULT,
+    CAM_ROLE_BAYER,
+    CAM_ROLE_MONO,
+    CAM_ROLE_WIDE,
+    CAM_ROLE_TELE
+} cam_dual_camera_role_t;
+
 /* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;
     cam_sync_type_t type;
     cam_sync_mode_t mode;
     cam_3a_sync_mode_t sync_3a_mode;
+    cam_dual_camera_role_t cam_role;
     /* session Id of the other camera session
        Linking will be done with this session in the
        backend */
