@@ -9567,11 +9567,11 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             if (pFormat == 1) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
-                format = CAM_FORMAT_YUV_420_NV12_VENUS;
+                format = CAM_FORMAT_YUV_420_NV21_VENUS;
             }
         } else {
 #if VENUS_PRESENT
-            format = CAM_FORMAT_YUV_420_NV12_VENUS;
+            format = CAM_FORMAT_YUV_420_NV21_VENUS;
 #else
             format = CAM_FORMAT_YUV_420_NV21;
 #endif
