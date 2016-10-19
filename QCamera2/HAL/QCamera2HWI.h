@@ -192,7 +192,6 @@ class QCamera2HardwareInterface : public QCameraAllocator,
 public:
     /* static variable and functions accessed by camera service */
     static camera_device_ops_t mCameraOps;
-
     static int set_preview_window(struct camera_device *,
         struct preview_stream_ops *window);
     static void set_CallBacks(struct camera_device *,
@@ -251,8 +250,7 @@ public:
     int openCamera(struct hw_device_t **hw_device);
 
     // Dual camera specific oprations
-    int bundleRelatedCameras(bool syncOn,
-            uint32_t related_sensor_session_id);
+    int bundleRelatedCameras(bool syncOn);
     int getCameraSessionId(uint32_t* session_id);
     const cam_sync_related_sensors_event_info_t* getRelatedCamSyncInfo(
             void);
@@ -810,6 +808,7 @@ private:
     nsecs_t mBootToMonoTimestampOffset;
     bool bDepthAFCallbacks;
     int32_t prev_zoomLevel;
+    bool m_bOptimizeCacheOps;
 };
 
 }; // namespace qcamera

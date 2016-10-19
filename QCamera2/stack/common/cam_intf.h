@@ -56,7 +56,7 @@ typedef enum {
     /* stop ZSL snapshot.*/
     CAM_PRIV_STOP_ZSL_SNAPSHOT,
     /* event for related sensors synchronization. */
-    CAM_PRIV_SYNC_RELATED_SENSORS,
+    CAM_PRIV_DUAL_CAM_CMD,
     /* flush */
     CAM_PRIV_FLUSH
 } cam_private_ioctl_enum_t;
@@ -81,18 +81,52 @@ typedef enum {
     CAM_MODE_SECONDARY
 } cam_sync_mode_t;
 
+/*Enum to inform about camera type in dual camera use-cases*/
+typedef enum {
+    CAM_ROLE_DEFAULT,
+    CAM_ROLE_BAYER,
+    CAM_ROLE_MONO,
+    CAM_ROLE_WIDE,
+    CAM_ROLE_TELE
+} cam_dual_camera_role_t;
+
 /* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;
     cam_sync_type_t type;
     cam_sync_mode_t mode;
     cam_3a_sync_mode_t sync_3a_mode;
+    cam_dual_camera_role_t cam_role;
     /* session Id of the other camera session
        Linking will be done with this session in the
        backend */
     uint32_t related_sensor_session_id;
     uint8_t is_frame_sync_enabled;
-}cam_sync_related_sensors_event_info_t;
+} cam_dual_camera_bundle_info_t;
+typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
+
+/* Structrue to update master camera info in dual camera case*/
+typedef struct {
+    cam_sync_mode_t mode;
+} cam_dual_camera_master_info_t;
+
+/* Structrue to control performance info in dual camera case*/
+typedef struct {
+    uint8_t low_fps; /*Control perf using FPS if set*/
+    uint8_t enable;  /*Enable or diable Low power mode*/
+} cam_dual_camera_perf_control_t;
+
+/* dual camera event payload */
+typedef struct {
+    cam_dual_camera_cmd_type cmd_type; /*dual camera command type*/
+
+    /*Payload to carry command info*/
+    union {
+        cam_dual_camera_bundle_info_t  bundle_info;
+        cam_dual_camera_master_info_t  mode;
+        cam_dual_camera_perf_control_t value;
+    };
+} cam_dual_camera_cmd_info_t;
 
 /* Related camera sensor specific calibration data */
 // Align bytes according to API document.
@@ -265,6 +299,7 @@ typedef struct cam_capability{
     float focal_length;                                     /* focal length */
     float hor_view_angle;                                   /* horizontal view angle */
     float ver_view_angle;                                   /* vertical view angle */
+    cam_lens_type_t lens_type;                              /*Lens type info - Wide, Tele*/
 
     size_t preview_sizes_tbl_cnt;                           /* preview sizes table size */
     cam_dimension_t preview_sizes_tbl[MAX_SIZES_CNT];       /* preiew sizes table */
@@ -563,6 +598,9 @@ typedef struct cam_capability{
     size_t supported_ir_mode_cnt;
     cam_ir_mode_type_t supported_ir_modes[CAM_IR_MODE_MAX];
 
+    /*camera index*/
+    uint32_t camera_index;
+
     /*Slave capability*/
     struct cam_capability *aux_cam_cap;
     cam_sync_type_t cam_sensor_mode;
@@ -693,6 +731,9 @@ typedef struct cam_stream_info {
 
     /*Stream info for Slave Stream*/
     struct cam_stream_info *aux_str_info;
+
+    /* Cache ops for this stream */
+    cam_stream_cache_ops_t cache_ops;
 } cam_stream_info_t;
 
 /*****************************************************************************
@@ -1035,8 +1076,6 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_JPEG_ENCODE_CROP,             cam_stream_crop_info_t,      1);
     INCLUDE(CAM_INTF_PARM_JPEG_SCALE_DIMENSION,         cam_dimension_t,             1);
     INCLUDE(CAM_INTF_META_FOCUS_DEPTH_INFO,             uint8_t,                     1);
-    INCLUDE(CAM_INTF_PARM_SUSPEND_RESUME_CAMERAS,       uint32_t,                    2);
-    INCLUDE(CAM_INTF_PARM_CAMERA_MASTER_INFO,           uint32_t,                    2);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

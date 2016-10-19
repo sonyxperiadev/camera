@@ -162,6 +162,8 @@ int32_t mm_camera_muxer_stop_frame_sync(mm_camera_obj_t *cam_obj,
 int32_t mm_camera_muxer_switch_stream(uint32_t camera_handle,
         uint32_t ch_id, uint32_t stream_id,
         mm_camera_obj_t *cam_obj);
+int32_t mm_camera_muxer_set_dual_cam_cmd(uint32_t camera_handle,
+        mm_camera_obj_t *cam_obj);
 
 /*Muxer internal functions*/
 void mm_camera_muxer_stream_frame_sync(mm_camera_super_buf_t *super_buf,

@@ -2265,7 +2265,7 @@ static int32_t mm_camera_intf_get_session_id(uint32_t camera_handle,
 }
 
 /*===========================================================================
- * FUNCTION   : mm_camera_intf_sync_related_sensors
+ * FUNCTION   : mm_camera_intf_set_dual_cam_cmd
  *
  * DESCRIPTION: retrieve the session ID from the kernel for this HWI instance
  *
@@ -2278,21 +2278,37 @@ static int32_t mm_camera_intf_get_session_id(uint32_t camera_handle,
  *              -1 -- failure
  * NOTE       : if this call succeeds, we will get linking established in back end
  *==========================================================================*/
-static int32_t mm_camera_intf_sync_related_sensors(uint32_t camera_handle,
-                              cam_sync_related_sensors_event_info_t* related_cam_info)
+static int32_t mm_camera_intf_set_dual_cam_cmd(uint32_t camera_handle)
 {
     int32_t rc = -1;
     mm_camera_obj_t * my_obj = NULL;
+    uint32_t handle = get_main_camera_handle(camera_handle);
+    uint32_t aux_handle = get_aux_camera_handle(camera_handle);
 
-    pthread_mutex_lock(&g_intf_lock);
-    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+    if (handle) {
+        pthread_mutex_lock(&g_intf_lock);
+        my_obj = mm_camera_util_get_camera_by_handler(handle);
 
-    if(my_obj) {
-        pthread_mutex_lock(&my_obj->cam_lock);
-        pthread_mutex_unlock(&g_intf_lock);
-        rc = mm_camera_sync_related_sensors(my_obj, related_cam_info);
-    } else {
-        pthread_mutex_unlock(&g_intf_lock);
+        if(my_obj) {
+            pthread_mutex_lock(&my_obj->cam_lock);
+            pthread_mutex_unlock(&g_intf_lock);
+            rc = mm_camera_set_dual_cam_cmd(my_obj);
+        } else {
+            pthread_mutex_unlock(&g_intf_lock);
+        }
+    }
+
+    if (aux_handle) {
+        pthread_mutex_lock(&g_intf_lock);
+        my_obj = mm_camera_util_get_camera_head(aux_handle);
+        if (my_obj) {
+            pthread_mutex_lock(&my_obj->muxer_lock);
+            pthread_mutex_unlock(&g_intf_lock);
+            rc = mm_camera_muxer_set_dual_cam_cmd(
+                    aux_handle, my_obj);
+        } else {
+            pthread_mutex_unlock(&g_intf_lock);
+        }
     }
     return rc;
 }
@@ -2364,10 +2380,7 @@ void get_sensor_info()
                 facing = ((entity.flags & CAM_SENSOR_FACING_MASK) ?
                         CAMERA_FACING_FRONT:CAMERA_FACING_BACK);
 
-                /* TODO: Need to revisit this logic if front AUX is available. */
-                if ((unsigned int)facing == CAMERA_FACING_FRONT) {
-                    type = CAM_TYPE_STANDALONE;
-                } else if (entity.flags & CAM_SENSOR_TYPE_MASK) {
+                if (entity.flags & CAM_SENSOR_TYPE_MASK) {
                     type = CAM_TYPE_AUX;
                 } else {
                     type = CAM_TYPE_MAIN;
@@ -2410,15 +2423,15 @@ void get_sensor_info()
 void sort_camera_info(int num_cam)
 {
     int idx = 0, i;
-    int8_t is_yuv_aux_cam_exposed = 0;
-    char prop[PROPERTY_VALUE_MAX];
     struct camera_info temp_info[MM_CAMERA_MAX_NUM_SENSORS];
     cam_sync_type_t temp_type[MM_CAMERA_MAX_NUM_SENSORS];
     cam_sync_mode_t temp_mode[MM_CAMERA_MAX_NUM_SENSORS];
     uint8_t temp_is_yuv[MM_CAMERA_MAX_NUM_SENSORS];
     char temp_dev_name[MM_CAMERA_MAX_NUM_SENSORS][MM_CAMERA_DEV_NAME_LEN];
     uint32_t cam_idx[MM_CAMERA_MAX_NUM_SENSORS] = {0};
-    uint8_t prime_cam_idx = 0, aux_cam_idx = 0;
+    uint8_t b_prime_idx = 0, b_aux_idx = 0, f_prime_idx = 0, f_aux_idx = 0;
+    int8_t expose_aux = 0;
+    char prop[PROPERTY_VALUE_MAX];
 
     memset(temp_info, 0, sizeof(temp_info));
     memset(temp_dev_name, 0, sizeof(temp_dev_name));
@@ -2426,137 +2439,118 @@ void sort_camera_info(int num_cam)
     memset(temp_mode, 0, sizeof(temp_mode));
     memset(temp_is_yuv, 0, sizeof(temp_is_yuv));
 
-    // Signifies whether YUV AUX camera has to be exposed as physical camera
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.aux.yuv", prop, "0");
-    is_yuv_aux_cam_exposed = atoi(prop);
-    LOGI("YUV Aux camera exposed %d",is_yuv_aux_cam_exposed);
+    property_get("persist.camera.expose.aux", prop, "0");
+    expose_aux = atoi(prop);
 
     /* Order of the camera exposed is
-    Back main, Front main, Back Aux and then Front Aux.
-    It is because that lot of 3rd party cameras apps
-    blindly assume 0th is Back and 1st is front */
-
-    /* Firstly save the main back cameras info */
+        0  - Back Main Camera
+        1  - Front Main Camera
+        ++  - Back Aux Camera
+        ++  - Front Aux Camera
+        ++  - Back Main + Back Aux camera
+        ++  - Front Main + Front Aux camera
+        ++  - Secure Camera
+       */
     for (i = 0; i < num_cam; i++) {
         if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
-            !(g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX)
-            && ((g_cam_ctrl.cam_type[i] & CAM_TYPE_MAIN)
-            || (g_cam_ctrl.cam_type[i] == CAM_TYPE_STANDALONE))) {
+            (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
             temp_info[idx] = g_cam_ctrl.info[i];
             temp_type[idx] = CAM_TYPE_MAIN;
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
-            prime_cam_idx = idx;
-            LOGD("Found Back Main Camera: i: %d idx: %d", i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+            b_prime_idx = idx;
+            LOGH("Found Back Main Camera: i: %d idx: %d", i, idx);
+            memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
-        }
-    }
-
-    /* Save the main front cameras info */
-    for (i = 0; i < num_cam; i++) {
-        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
-            !(g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX)
-            && ((g_cam_ctrl.cam_type[i] & CAM_TYPE_MAIN)
-            || (g_cam_ctrl.cam_type[i] == CAM_TYPE_STANDALONE))) {
-            temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = CAM_TYPE_MAIN;
-            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
-            temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
-            cam_idx[idx] = idx;
-            LOGD("Found Front Main Camera: i: %d idx: %d", i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
-                    MM_CAMERA_DEV_NAME_LEN);
-        }
-    }
-
-    /*Expose Bayer Aux as a valid sensor*/
-    for (i = 0; i < num_cam; i++) {
-        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
-                (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX) &&
-                (g_cam_ctrl.cam_type[i] & CAM_TYPE_MAIN)) {
-            temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = CAM_TYPE_MAIN;
-            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
-            temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
-            cam_idx[idx] = idx;
-            LOGD("Found Bayer + Aux: i: %d idx: %d", i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
-                MM_CAMERA_DEV_NAME_LEN);
+            idx++;
         }
     }
 
     for (i = 0; i < num_cam; i++) {
         if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
-                (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX) &&
-                (g_cam_ctrl.cam_type[i] & CAM_TYPE_MAIN)) {
+            (g_cam_ctrl.cam_type[i] == CAM_TYPE_MAIN)) {
             temp_info[idx] = g_cam_ctrl.info[i];
             temp_type[idx] = CAM_TYPE_MAIN;
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
-            aux_cam_idx = idx;
-            LOGD("Found Bayer + Aux: i: %d idx: %d", i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+            f_prime_idx = idx;
+            LOGH("Found Front Main Camera: i: %d idx: %d", i, idx);
+            memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
+            idx++;
         }
     }
 
-    /* Expose YUV AUX camera if persist.camera.aux.yuv is set to 1.
-    Otherwsie expose AUX camera if it is not YUV. */
     for (i = 0; i < num_cam; i++) {
         if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
-                (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX) &&
-                !(g_cam_ctrl.cam_type[i] & CAM_TYPE_MAIN) &&
-                (is_yuv_aux_cam_exposed || !(g_cam_ctrl.is_yuv[i]))) {
+            (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX)
+            && expose_aux) {
             temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = CAM_TYPE_AUX;
+            temp_type[idx] = CAM_TYPE_MAIN;
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
-            LOGD("Found back Aux Camera: i: %d idx: %d", i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+            b_aux_idx = idx;
+            LOGH("Found Back Aux Camera: i: %d idx: %d", i, idx);
+            memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
+            idx++;
         }
     }
 
-    /* Expose YUV AUX camera if persist.camera.aux.yuv is set to 1.
-    Otherwsie expose AUX camera if it is not YUV. */
     for (i = 0; i < num_cam; i++) {
         if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
-                (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX) &&
-                !(g_cam_ctrl.cam_type[i] & CAM_TYPE_MAIN) &&
-                (is_yuv_aux_cam_exposed || !(g_cam_ctrl.is_yuv[i]))) {
+            (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX)
+            && expose_aux) {
             temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = CAM_TYPE_AUX;
+            temp_type[idx] = CAM_TYPE_MAIN;
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
-            LOGD("Found Front Aux Camera: i: %d idx: %d", i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+            f_aux_idx = idx;
+            LOGH("Found front Aux Camera: i: %d idx: %d", i, idx);
+            memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
+            idx++;
         }
     }
 
-    /*Expose AUX + MAIN camera*/
     for (i = 0; i < num_cam; i++) {
-        if (((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) ||
-                (g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT)) &&
-                (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX) &&
-                (g_cam_ctrl.cam_type[i] & CAM_TYPE_MAIN)) {
+        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_BACK) &&
+            (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX)
+            && expose_aux) { // Need Main check here after sensor change
             temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = CAM_TYPE_AUX | CAM_TYPE_MAIN;
+            temp_type[idx] = CAM_TYPE_MAIN | CAM_TYPE_AUX;
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
-            //Assuming primary is back
-            cam_idx[idx] = (aux_cam_idx << MM_CAMERA_HANDLE_SHIFT_MASK) | prime_cam_idx;
-            LOGD("Add additional Bayer + Aux: i: %d idx: %d", i, idx);
-            memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+            cam_idx[idx] = (b_aux_idx << MM_CAMERA_HANDLE_SHIFT_MASK) | b_prime_idx;
+            LOGH("Found Back Main+AUX Camera: i: %d idx: %d", i, idx);
+            memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
+            idx++;
         }
     }
+
+    for (i = 0; i < num_cam; i++) {
+        if ((g_cam_ctrl.info[i].facing == CAMERA_FACING_FRONT) &&
+            (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX)
+            &&expose_aux) { // Need Main check here after sensor change
+            temp_info[idx] = g_cam_ctrl.info[i];
+            temp_type[idx] = CAM_TYPE_MAIN | CAM_TYPE_AUX;
+            temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+            temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
+            cam_idx[idx] = (f_aux_idx << MM_CAMERA_HANDLE_SHIFT_MASK) | f_prime_idx;
+            LOGH("Found Back Main Camera: i: %d idx: %d", i, idx);
+            memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
+                MM_CAMERA_DEV_NAME_LEN);
+            idx++;
+        }
+    }
+
+    /*NOTE: Add logic here to modify cameraID again here*/
 
     if (idx != 0) {
         memcpy(g_cam_ctrl.info, temp_info, sizeof(temp_info));
@@ -3101,7 +3095,7 @@ static mm_camera_ops_t mm_camera_ops = {
     .configure_notify_mode = mm_camera_intf_configure_notify_mode,
     .process_advanced_capture = mm_camera_intf_process_advanced_capture,
     .get_session_id = mm_camera_intf_get_session_id,
-    .sync_related_sensors = mm_camera_intf_sync_related_sensors,
+    .set_dual_cam_cmd = mm_camera_intf_set_dual_cam_cmd,
     .flush = mm_camera_intf_flush,
     .register_stream_buf_cb = mm_camera_intf_register_stream_buf_cb,
     .register_frame_sync = mm_camera_intf_reg_frame_sync,

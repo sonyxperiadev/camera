@@ -863,6 +863,9 @@ const QCameraParameters::QCameraMap<int>
 #define TOTAL_RAM_SIZE_512MB 536870912
 #define PARAM_MAP_SIZE(MAP) (sizeof(MAP)/sizeof(MAP[0]))
 
+// initialise to some default value
+uint32_t QCameraParameters::sessionId[] = {0};
+
 /*===========================================================================
  * FUNCTION   : isOEMFeat1PropEnabled
  *
@@ -898,8 +901,7 @@ QCameraParameters::QCameraParameters()
       m_pParamHeap(NULL),
       m_pParamBuf(NULL),
       m_pParamBufAux(NULL),
-      m_pRelCamSyncHeap(NULL),
-      m_pRelCamSyncBuf(NULL),
+      m_pDualCamCmdHeap(NULL),
       m_bFrameSyncEnabled(false),
       mIsTypeVideo(IS_TYPE_NONE),
       mIsTypePreview(IS_TYPE_NONE),
@@ -1009,6 +1011,7 @@ QCameraParameters::QCameraParameters()
     memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
     memset(&m_captureFrameConfig, 0, sizeof(cam_capture_frame_config_t));
     memset(&m_relCamSyncInfo, 0, sizeof(cam_sync_related_sensors_event_info_t));
+    memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
     mTotalPPCount = 1;
     mZoomLevel = 0;
     mParmZoomLevel = 0;
@@ -1039,8 +1042,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_pParamHeap(NULL),
     m_pParamBuf(NULL),
     m_pParamBufAux(NULL),
-    m_pRelCamSyncHeap(NULL),
-    m_pRelCamSyncBuf(NULL),
+    m_pDualCamCmdHeap(NULL),
     m_bFrameSyncEnabled(false),
     m_bZslMode(false),
     m_bZslMode_new(false),
@@ -1119,6 +1121,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     memset(&m_hfrFpsRange, 0, sizeof(m_hfrFpsRange));
     memset(&m_stillmore_config, 0, sizeof(cam_still_more_t));
     memset(&m_relCamSyncInfo, 0, sizeof(cam_sync_related_sensors_event_info_t));
+    memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
     mTotalPPCount = 0;
     mZoomLevel = 0;
     mParmZoomLevel = 0;
@@ -6262,6 +6265,7 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
         mm_camera_vtbl_t *mmOps, QCameraAdjustFPS *adjustFPS)
 {
     int32_t rc = NO_ERROR;
+    uint8_t buf_cnt = 1;
 
     m_pCapability = capabilities;
     m_pCamOpsTbl = mmOps;
@@ -6311,34 +6315,54 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
         m_pParamBufAux = (parm_buffer_t*)DATA_PTR(m_pParamHeap, 1);
     }
 
-    // Check if it is dual camera mode
-    if(m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
-        //Allocate related cam sync buffer
-        //this is needed for the payload that goes along with bundling cmd for related
-        //camera use cases
-        m_pRelCamSyncHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
-        rc = m_pRelCamSyncHeap->allocate(1,
-                sizeof(cam_sync_related_sensors_event_info_t), NON_SECURE);
-        if(rc != OK) {
-            rc = NO_MEMORY;
-            LOGE("Failed to allocate Related cam sync Heap memory");
-            goto TRANS_INIT_ERROR3;
-        }
+    //Handle Dual camera cmd buffer
+    if (m_bDualCamera) {
+        buf_cnt = MM_CAMERA_MAX_CAM_CNT;
+    }
 
-        //Map memory for related cam sync buffer
-        rc = m_pCamOpsTbl->ops->map_buf(m_pCamOpsTbl->camera_handle,
-                CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF,
-                m_pRelCamSyncHeap->getFd(0),
-                sizeof(cam_sync_related_sensors_event_info_t),
-                (cam_sync_related_sensors_event_info_t*)DATA_PTR(m_pRelCamSyncHeap,0));
+    m_pDualCamCmdHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
+    rc = m_pDualCamCmdHeap->allocate(buf_cnt,
+            sizeof(cam_dual_camera_cmd_info_t), NON_SECURE);
+    if(rc != OK) {
+        rc = NO_MEMORY;
+        LOGE("Failed to allocate dual cam Heap memory");
+        goto TRANS_INIT_ERROR3;
+    }
+
+    for (int i = 0; i < buf_cnt; i++) {
+        m_pDualCamCmdPtr[i] = (cam_dual_camera_cmd_info_t *)
+                DATA_PTR(m_pDualCamCmdHeap, i);
+    }
+
+    //Map memory for related cam sync buffer
+    rc = m_pCamOpsTbl->ops->map_buf(
+            get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+            CAM_MAPPING_BUF_TYPE_DUAL_CAM_CMD_BUF,
+            m_pDualCamCmdHeap->getFd(0),
+            sizeof(cam_dual_camera_cmd_info_t),
+            m_pDualCamCmdPtr[0]);
+    if(rc < 0) {
+        LOGE("failed to map Related cam sync buffer");
+        rc = FAILED_TRANSACTION;
+        goto TRANS_INIT_ERROR4;
+    }
+
+    if (m_bDualCamera) {
+        rc = m_pCamOpsTbl->ops->map_buf(
+                get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
+                CAM_MAPPING_BUF_TYPE_DUAL_CAM_CMD_BUF,
+                m_pDualCamCmdHeap->getFd(1),
+                sizeof(cam_dual_camera_cmd_info_t),
+                m_pDualCamCmdPtr[1]);
         if(rc < 0) {
             LOGE("failed to map Related cam sync buffer");
             rc = FAILED_TRANSACTION;
             goto TRANS_INIT_ERROR4;
         }
-        m_pRelCamSyncBuf =
-                (cam_sync_related_sensors_event_info_t*) DATA_PTR(m_pRelCamSyncHeap,0);
     }
+    rc = m_pCamOpsTbl->ops->get_session_id(m_pCamOpsTbl->camera_handle,
+            &sessionId[m_pCapability->camera_index]);
+
     initDefaultParameters();
     mCommon.init(capabilities);
     m_bInited = true;
@@ -6346,11 +6370,11 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities,
     goto TRANS_INIT_DONE;
 
 TRANS_INIT_ERROR4:
-    m_pRelCamSyncHeap->deallocate();
+    m_pDualCamCmdHeap->deallocate();
 
 TRANS_INIT_ERROR3:
-    delete m_pRelCamSyncHeap;
-    m_pRelCamSyncHeap = NULL;
+    delete m_pDualCamCmdHeap;
+    m_pDualCamCmdHeap = NULL;
 
 TRANS_INIT_ERROR2:
     m_pParamHeap->deallocate();
@@ -6397,19 +6421,22 @@ void QCameraParameters::deinit()
         m_pCamOpsTbl->ops->unmap_buf(
                              m_pCamOpsTbl->camera_handle,
                              CAM_MAPPING_BUF_TYPE_PARM_BUF);
-        if (m_relCamSyncInfo.sync_control == CAM_SYNC_RELATED_SENSORS_ON) {
+        m_pCamOpsTbl->ops->unmap_buf(
+                get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+                CAM_MAPPING_BUF_TYPE_DUAL_CAM_CMD_BUF);
+        if (isDualCamera()) {
             m_pCamOpsTbl->ops->unmap_buf(
-                    m_pCamOpsTbl->camera_handle,
-                    CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
+                    get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
+                    CAM_MAPPING_BUF_TYPE_DUAL_CAM_CMD_BUF);
         }
     }
 
     m_pCapability = NULL;
-    if (NULL != m_pRelCamSyncHeap) {
-        m_pRelCamSyncHeap->deallocate();
-        delete m_pRelCamSyncHeap;
-        m_pRelCamSyncHeap = NULL;
-        m_pRelCamSyncBuf = NULL;
+    if (NULL != m_pDualCamCmdHeap) {
+        m_pDualCamCmdHeap->deallocate();
+        delete m_pDualCamCmdHeap;
+        m_pDualCamCmdHeap = NULL;
+        memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
     }
 
     m_tempMap.clear();
@@ -12104,6 +12131,160 @@ bool QCameraParameters::isFrameSyncEnabled(void)
 }
 
 /*===========================================================================
+ * FUNCTION   : sendDualCamBundle
+ *
+ * DESCRIPTION: send trigger for bundling related camera sessions in the server
+ *
+ * PARAMETERS :
+ *   @sync_enable :indicates whether syncing is On or Off
+ *   @sessionid   :session id for other camera session
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *NOTE: This bundle info needs to called only once per session.
+ * Should be called after open and before start stream.
+ * Application can trigger this function to enable module SYNC in dual camera case
+ *==========================================================================*/
+int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
+        uint8_t bundle_cam_idx)
+{
+    int32_t rc = NO_ERROR;
+    cam_dual_camera_bundle_info_t bundle_info;
+    uint8_t num_cam = 0;
+    int32_t sync = 0;
+    uint32_t mode, type, role = 0;
+    cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+
+    if(enable_sync) {
+        sync = (int32_t)CAM_SYNC_RELATED_SENSORS_ON;
+    } else {
+        sync = (int32_t)CAM_SYNC_RELATED_SENSORS_OFF;
+    }
+
+    property_get("persist.camera.stats.test.2outs", prop, "0");
+    sync_3a_mode = (atoi(prop) > 0) ? CAM_3A_SYNC_ALGO_CTRL : sync_3a_mode;
+
+    if (m_pCapability->position == CAM_POSITION_BACK_AUX) {
+        mode = CAM_MODE_SECONDARY;
+        type = CAM_TYPE_AUX;
+    } else {
+        mode = CAM_MODE_PRIMARY;
+        type = CAM_TYPE_MAIN;
+    }
+
+    if (m_pCapability->lens_type == CAM_LENS_WIDE) {
+        role = CAM_ROLE_WIDE;
+    } else if (m_pCapability->lens_type == CAM_LENS_TELE) {
+        role = CAM_ROLE_TELE;
+    }
+    bundle_info.sync_control =
+            (cam_sync_related_sensors_control_t)sync;
+    bundle_info.mode = (cam_sync_mode_t)mode;
+    bundle_info.type = (cam_sync_type_t)type;
+    bundle_info.cam_role = (cam_dual_camera_role_t)role;
+    bundle_info.related_sensor_session_id = sessionId[bundle_cam_idx];
+    num_cam++;
+
+    rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
+            num_cam, &bundle_info);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : sendDualCamCmd
+ *
+ * DESCRIPTION: send dual camera related commands
+ *
+ * PARAMETERS :
+ *   @sync_enable        :indicates whether syncing is On or Off
+ *   @sessionid  :session id for other camera session
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *NOTE: This bundle info needs to called only once per session.
+ * Should be called after open and before start stream.
+ *==========================================================================*/
+int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
+        uint8_t num_cam, void *cmd_value)
+{
+    int32_t rc = NO_ERROR;
+    if (NULL == m_pCamOpsTbl) {
+        LOGE("Ops not initialized");
+        return NO_INIT;
+    }
+
+    if (cmd_value == NULL || num_cam > MM_CAMERA_MAX_CAM_CNT
+            || m_pDualCamCmdPtr[0] == NULL) {
+        LOGE("Invalid argument = %d, %p", num_cam, cmd_value);
+        return BAD_VALUE;
+    }
+
+    for (int i = 0; i < MM_CAMERA_MAX_CAM_CNT; i++) {
+        memset(m_pDualCamCmdPtr[i], 0,
+                sizeof(cam_dual_camera_cmd_info_t));
+    }
+
+    switch(type) {
+        case CAM_DUAL_CAMERA_BUNDLE_INFO: {
+            for (int i = 0; i < num_cam; i++) {
+                cam_dual_camera_bundle_info_t *info =
+                        (cam_dual_camera_bundle_info_t *)cmd_value;
+                m_pDualCamCmdPtr[i]->cmd_type = type;
+                memcpy(&m_pDualCamCmdPtr[i]->bundle_info,
+                        &info[i],
+                        sizeof(cam_dual_camera_bundle_info_t));
+                LOGH("SYNC CMD %d: cmd %d mode %d type %d session - %d", i,
+                        m_pDualCamCmdPtr[i]->cmd_type,
+                        m_pDualCamCmdPtr[i]->bundle_info.mode,
+                        m_pDualCamCmdPtr[i]->bundle_info.type,
+                        m_pDualCamCmdPtr[i]->bundle_info.related_sensor_session_id);
+            }
+        }
+        break;
+
+        case CAM_DUAL_CAMERA_LOW_POWER_MODE: {
+            for (int i = 0; i < num_cam; i++) {
+                cam_dual_camera_perf_control_t *info =
+                        (cam_dual_camera_perf_control_t *)cmd_value;
+                m_pDualCamCmdPtr[i]->cmd_type = type;
+                memcpy(&m_pDualCamCmdPtr[i]->value,
+                        &info[i],
+                        sizeof(cam_dual_camera_perf_control_t));
+                LOGH("LPM CMD %d: cmd %d LPM Enable - %d fps = %d", i,
+                        m_pDualCamCmdPtr[i]->cmd_type,
+                        m_pDualCamCmdPtr[i]->value.enable,
+                        m_pDualCamCmdPtr[i]->value.low_fps);
+            }
+        }
+        break;
+
+        case CAM_DUAL_CAMERA_MASTER_INFO: {
+            for (int i = 0; i < num_cam; i++) {
+                cam_dual_camera_master_info_t *info =
+                        (cam_dual_camera_master_info_t *)cmd_value;
+                m_pDualCamCmdPtr[i]->cmd_type = type;
+                memcpy(&m_pDualCamCmdPtr[i]->mode,
+                        &info[i],
+                        sizeof(cam_dual_camera_master_info_t));
+                LOGH("MASTER INFO CMD %d: cmd %d value %d", i,
+                        m_pDualCamCmdPtr[i]->cmd_type,
+                        m_pDualCamCmdPtr[i]->mode);
+            }
+        }
+        break;
+        default :
+        break;
+    }
+
+    rc = m_pCamOpsTbl->ops->set_dual_cam_cmd(m_pCamOpsTbl->camera_handle);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : bundleRelatedCameras
  *
  * DESCRIPTION: send trigger for bundling related camera sessions in the server
@@ -12116,36 +12297,10 @@ bool QCameraParameters::isFrameSyncEnabled(void)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::bundleRelatedCameras(bool sync,
-        uint32_t sessionid)
+int32_t QCameraParameters::bundleRelatedCameras(bool sync)
 {
     int32_t rc = NO_ERROR;
-
-    if (NULL == m_pCamOpsTbl) {
-        LOGE("Ops not initialized");
-        return NO_INIT;
-    }
-
-    LOGD("Sending Bundling cmd sync %d, SessionId %d ",
-            sync, sessionid);
-
-    if(m_pRelCamSyncBuf) {
-        if(sync) {
-            m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_ON;
-        }
-        else {
-            m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
-        }
-        m_pRelCamSyncBuf->mode = m_relCamSyncInfo.mode;
-        m_pRelCamSyncBuf->type = m_relCamSyncInfo.type;
-        m_pRelCamSyncBuf->related_sensor_session_id = sessionid;
-        rc = m_pCamOpsTbl->ops->sync_related_sensors(
-                m_pCamOpsTbl->camera_handle, m_pRelCamSyncBuf);
-    } else {
-        LOGE("Related Cam SyncBuffer not allocated", rc);
-        return NO_INIT;
-    }
-
+    setDualCamBundleInfo(sync, m_pCapability->camera_index);
     return rc;
 }
 
@@ -13134,6 +13289,34 @@ int32_t QCameraParameters::commitSetBatch()
 }
 
 /*===========================================================================
+ * FUNCTION   : setAuxParameter
+ *
+ * DESCRIPTION: Parameter only required for auxillary camera is set.
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *NOTE: We can use this function configure auxillary camera related parameters.
+ *==========================================================================*/
+int32_t QCameraParameters::setAuxParameter(uint32_t meta_id, void *value)
+{
+    int32_t rc = NO_ERROR;
+
+    switch (meta_id) {
+        case CAM_INTF_META_STREAM_INFO: {
+            cam_stream_size_info_t *info = (cam_stream_size_info_t *)value;
+            info->sync_type = CAM_TYPE_AUX;
+        }
+        break;
+        default :
+        break;
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : commitSetBatchAux
  *
  * DESCRIPTION: commit all Aux set parameters in the batch work to backend
@@ -13168,6 +13351,7 @@ int32_t QCameraParameters::commitSetBatchAux()
                 param_length = getSizeofParam((cam_intf_parm_type_t)i);
                 if (param_length) {
                     memcpy(aux_param, main_param, getSizeofParam((cam_intf_parm_type_t)i));
+                    setAuxParameter(i, aux_param);
                     m_pParamBufAux->is_valid[i] = 1;
                 }
             }
@@ -14242,6 +14426,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         stream_config_info.num_streams++;
     }
 
+    //For dual camera.
+    stream_config_info.sync_type = CAM_TYPE_MAIN;
+
     for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
         LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
                 Format = %d, dt =%d cid =%d subformat =%d, is_type %d",
@@ -14257,6 +14444,42 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     }
 
     rc = sendStreamConfigInfo(stream_config_info);
+
+    if (rc == NO_ERROR && isDualCamera()) {
+        cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        cam_dual_camera_bundle_info_t bundle_info[MM_CAMERA_MAX_CAM_CNT];
+        uint8_t num_cam = 0;
+        uint32_t sessionID = 0;
+
+        property_get("persist.camera.stats.test.2outs", prop, "0");
+        sync_3a_mode = (atoi(prop) > 0) ? CAM_3A_SYNC_ALGO_CTRL : sync_3a_mode;
+
+        bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
+        bundle_info[num_cam].type = CAM_TYPE_MAIN;
+        bundle_info[num_cam].mode = CAM_MODE_PRIMARY;
+        bundle_info[num_cam].cam_role = CAM_ROLE_WIDE;
+        bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
+        m_pCamOpsTbl->ops->get_session_id(
+                get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
+                &sessionID);
+        bundle_info[num_cam].related_sensor_session_id = sessionID;
+        num_cam++;
+        bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
+        bundle_info[num_cam].type = CAM_TYPE_AUX;
+        bundle_info[num_cam].mode = CAM_MODE_SECONDARY;
+        bundle_info[num_cam].cam_role = CAM_ROLE_TELE;
+        bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
+        m_pCamOpsTbl->ops->get_session_id(
+                get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+                &sessionID);
+        bundle_info[num_cam].related_sensor_session_id = sessionID;
+        num_cam++;
+        rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
+                num_cam, &bundle_info[0]);
+    }
+
     return rc;
 }
 
@@ -15842,49 +16065,95 @@ int32_t QCameraParameters::SetDualCamera(bool value)
 }
 
 /*===========================================================================
- * FUNCTION   : setCameraControls
+ * FUNCTION   : setSwitchCamera
  *
- * DESCRIPTION: activate or deactive camera's
+ * DESCRIPTION: Trigger event to inform about camera role switch
  *
- * PARAMETERS : bool dual camera value
+ * PARAMETERS :
+ *         @controls : Flag with camera bit field set in case of dual camera
  *
  * RETURN     : NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setCameraControls(int32_t controls, bool initCommit)
+int32_t QCameraParameters::setSwitchCamera()
+{
+    int32_t rc = NO_ERROR;
+
+    if (mActiveState != MM_CAMERA_DUAL_CAM) {
+        LOGW("Both cameras are not active. Cannot switch");
+        return rc;
+    }
+
+    cam_dual_camera_master_info_t camState[MM_CAMERA_MAX_CAM_CNT];
+    uint8_t num_cam = 0;
+
+    if (mActiveCamera == MM_CAMERA_TYPE_MAIN) {
+        camState[0].mode = CAM_MODE_SECONDARY;
+        camState[1].mode = CAM_MODE_PRIMARY;
+        mActiveCamera = MM_CAMERA_TYPE_AUX;
+    } else if (mActiveCamera == MM_CAMERA_TYPE_AUX) {
+        camState[0].mode = CAM_MODE_PRIMARY;
+        camState[1].mode = CAM_MODE_SECONDARY;
+        mActiveCamera = MM_CAMERA_TYPE_MAIN;
+    } else {
+        LOGW("Invalid state");
+        return rc;
+    }
+
+    num_cam = MM_CAMERA_MAX_CAM_CNT;
+    rc = sendDualCamCmd(CAM_DUAL_CAMERA_MASTER_INFO,
+              num_cam, &camState[0]);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setCameraControls
+ *
+ * DESCRIPTION: activate or deactive camera's
+ *
+ * PARAMETERS :
+ *         @controls : Flag with camera bit field set in case of dual camera
+ *
+ * RETURN     : NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setCameraControls(int32_t state)
 {
     int32_t rc = NO_ERROR;
     int32_t cameraControl[MM_CAMERA_MAX_CAM_CNT] = {0};
+    char prop[PROPERTY_VALUE_MAX];
+    int value = 0;
 
-    if (initCommit) {
-        if (initBatchUpdate() < 0) {
-            LOGE("Failed to initialize group update table");
-            return FAILED_TRANSACTION;
-        }
-    }
-
-    if (controls & MM_CAMERA_TYPE_MAIN) {
+    if (state & MM_CAMERA_TYPE_MAIN) {
         cameraControl[0] = 1;
     } else {
         cameraControl[0] = 0;
     }
-    if (controls & MM_CAMERA_TYPE_AUX) {
+    if (state & MM_CAMERA_TYPE_AUX) {
         cameraControl[1] = 1;
     } else {
         cameraControl[1] = 0;
     }
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SUSPEND_RESUME_CAMERAS,
-            *cameraControl)) {
-        LOGE("Failed to instant aec value");
-        return BAD_VALUE;
-    }
 
-    if (initCommit) {
-        rc = commitSetBatch();
-        if (NO_ERROR != rc) {
-            LOGE("Failed to instant aec value");
-            return rc;
-        }
+    cam_dual_camera_perf_control_t perf_value[MM_CAMERA_MAX_CAM_CNT];
+    uint8_t num_cam = 0;
+
+    property_get("persist.dualcam.lpm.fps", prop, "0");
+    value = atoi(prop);
+
+    perf_value[num_cam].low_fps = value;
+    perf_value[num_cam].enable = cameraControl[0] ? 0 : 1;
+    num_cam++;
+    perf_value[num_cam].low_fps = value;
+    perf_value[num_cam].enable = cameraControl[1] ? 0 : 1;
+    num_cam++;
+
+    rc = sendDualCamCmd(CAM_DUAL_CAMERA_LOW_POWER_MODE,
+          num_cam, &perf_value[0]);
+    mActiveState = state;
+
+    if (state != MM_CAMERA_DUAL_CAM) {
+        mActiveCamera = state;
     }
 
 #ifdef DUAL_CAM_TEST //Temporary macro. Added to simulate B+B snapshot. Will be removed
@@ -15895,7 +16164,7 @@ int32_t QCameraParameters::setCameraControls(int32_t controls, bool initCommit)
     }
 #endif
 
-    return NO_ERROR;
+    return rc;
 }
 
 }; // namespace qcamera

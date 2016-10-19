@@ -37,6 +37,7 @@
 #include TIME_H
 #define IOCTL_H <SYSTEM_HEADER_PREFIX/ioctl.h>
 #include IOCTL_H
+#include <cutils/properties.h>
 
 // Camera dependencies
 #include "cam_semaphore.h"
@@ -141,6 +142,9 @@ int32_t mm_stream_reg_frame_sync(mm_stream_t *my_obj,
         mm_evt_paylod_reg_frame_sync *sync);
 int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj, uint8_t start_sync);
 int32_t mm_stream_switch_stream_callback(mm_stream_t *my_obj);
+int32_t mm_stream_handle_cache_ops(mm_stream_t* my_obj,
+        mm_camera_buf_def_t* buf, bool deque);
+
 
 /*===========================================================================
  * FUNCTION   : mm_stream_notify_channel
@@ -1693,6 +1697,9 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
         buf_info->buf->ts.tv_sec  = vb.timestamp.tv_sec;
         buf_info->buf->ts.tv_nsec = vb.timestamp.tv_usec * 1000;
         buf_info->buf->flags = vb.flags;
+        // Buffers are cleaned/invalidated when received by HAL
+        // Cache ops not required on DQBUF
+        buf_info->buf->cache_flags = 0;
 
         LOGH("VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d,"
                 "queued: %d, buf_type = %d flags = %d",
@@ -1709,15 +1716,9 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
             mm_stream_read_user_buf(my_obj, buf_info);
         }
 
-        if ( NULL != my_obj->mem_vtbl.clean_invalidate_buf ) {
-            rc = my_obj->mem_vtbl.clean_invalidate_buf(idx,
-                my_obj->mem_vtbl.user_data);
-            if (0 > rc) {
-                LOGE("Clean invalidate cache failed on buffer index: %d",
-                     idx);
-            }
-        } else {
-            LOGE("Clean invalidate cache op not supported");
+        rc = mm_stream_handle_cache_ops(my_obj, buf_info->buf, TRUE);
+        if (rc != 0) {
+            LOGE("Error cleaning/invalidating the buffer");
         }
     }
 
@@ -1910,18 +1911,10 @@ int32_t mm_stream_qbuf(mm_stream_t *my_obj, mm_camera_buf_def_t *buf)
     buffer.m.planes = &planes[0];
     buffer.length = (__u32)length;
 
-    if ( NULL != my_obj->mem_vtbl.invalidate_buf ) {
-        rc = my_obj->mem_vtbl.invalidate_buf(buffer.index,
-                                             my_obj->mem_vtbl.user_data);
-        if ( 0 > rc ) {
-            LOGE("Cache invalidate failed on buffer index: %d",
-                       buffer.index);
-            return rc;
-        }
-    } else {
-        LOGE("Cache invalidate op not added");
+    rc = mm_stream_handle_cache_ops(my_obj, buf, FALSE);
+    if (rc != 0) {
+        LOGE("Error cleaning/invalidating the buffer");
     }
-
     pthread_mutex_lock(&my_obj->buf_lock);
     my_obj->queued_buffer_count++;
     if (1 == my_obj->queued_buffer_count) {
@@ -4927,3 +4920,84 @@ int32_t mm_stream_reg_buf_cb(mm_stream_t *my_obj,
 
     return rc;
 }
+
+/*===========================================================================
+ * FUNCTION   : mm_stream_handle_cache_ops
+ *
+ * DESCRIPTION: handles cache ops of a stream buffer
+ *
+ * PARAMETERS :
+ *   @my_obj       : stream object
+ *   @buf     : ptr to a stream buffer
+ *   @deque  : specifies if enqueue or dequeue
+ *
+ * RETURN     : zero for success
+ *                  non-zero error value
+ *==========================================================================*/
+int32_t mm_stream_handle_cache_ops(mm_stream_t* my_obj,
+        mm_camera_buf_def_t* buf, bool deque)
+{
+    int32_t rc = 0;
+    if(!my_obj || !buf) {
+        LOGE("Error!! my_obj: %p, buf_info: %p", my_obj, buf);
+        rc = -1;
+        return rc;
+    }
+    if ((my_obj->mem_vtbl.clean_invalidate_buf  == NULL) ||
+            (my_obj->mem_vtbl.invalidate_buf  == NULL) ||
+            (my_obj->mem_vtbl.clean_buf  == NULL)) {
+        LOGI("Clean/Invalidate cache ops not supported %p %p %p",
+            my_obj->mem_vtbl.clean_invalidate_buf,
+            my_obj->mem_vtbl.invalidate_buf,
+            my_obj->mem_vtbl.clean_buf);
+        // Not a fatal error
+        rc = 0;
+        return rc;
+    }
+
+    // Modify clean and invalidate flags depending on cache ops for stream
+    switch (my_obj->stream_info->cache_ops) {
+        case CAM_STREAM_CACHE_OPS_CLEAR_FLAGS:
+            buf->cache_flags = 0;
+            break;
+        case CAM_STREAM_CACHE_OPS_DISABLED:
+            if (deque) {
+                buf->cache_flags = CPU_HAS_READ_WRITTEN;
+            }
+            else {
+                buf->cache_flags = CPU_HAS_READ;
+            }
+        case CAM_STREAM_CACHE_OPS_HONOUR_FLAGS:
+        default:
+            // Do not change flags
+            break;
+    }
+
+    if ((buf->cache_flags & CPU_HAS_READ_WRITTEN) ==
+        CPU_HAS_READ_WRITTEN) {
+        rc = my_obj->mem_vtbl.clean_invalidate_buf(
+                buf->buf_idx, my_obj->mem_vtbl.user_data);
+    } else if ((buf->cache_flags & CPU_HAS_READ) ==
+        CPU_HAS_READ) {
+        rc = my_obj->mem_vtbl.invalidate_buf(
+                buf->buf_idx, my_obj->mem_vtbl.user_data);
+    } else if ((buf->cache_flags & CPU_HAS_WRITTEN) ==
+        CPU_HAS_WRITTEN) {
+        rc = my_obj->mem_vtbl.clean_buf(
+                buf->buf_idx, my_obj->mem_vtbl.user_data);
+    }
+
+    LOGH("[CACHE_OPS] Stream type: %d buf index: %d cache ops flags: 0x%x",
+            buf->stream_type, buf->buf_idx, buf->cache_flags);
+
+    if (rc != 0) {
+        LOGE("Clean/Invalidate cache failed on buffer index: %d",
+                buf->buf_idx);
+    } else {
+       // Reset buffer cache flags after cache ops
+        buf->cache_flags = 0;
+    }
+
+    return rc;
+}
+

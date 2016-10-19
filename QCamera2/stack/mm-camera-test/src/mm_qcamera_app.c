@@ -470,6 +470,12 @@ int32_t mm_app_stream_invalidate_buf(uint32_t index, void *user_data)
     return mm_app_cache_ops(&stream->s_bufs[index].mem_info, ION_IOC_INV_CACHES);
 }
 
+int32_t mm_app_stream_clean_buf(uint32_t index, void *user_data)
+{
+    mm_camera_stream_t *stream = (mm_camera_stream_t *)user_data;
+    return mm_app_cache_ops(&stream->s_bufs[index].mem_info, ION_IOC_CLEAN_CACHES);
+}
+
 static void notify_evt_cb(uint32_t camera_handle,
                           mm_camera_event_t *evt,
                           void *user_data)
@@ -580,6 +586,10 @@ int mm_app_open(mm_camera_app_t *cam_app,
         goto error_after_getparm_buf_map;
     }
     memset(&test_obj->jpeg_ops, 0, sizeof(mm_jpeg_ops_t));
+    test_obj->mExifParams.debug_params = \
+        (mm_jpeg_debug_exif_params_t *) malloc (sizeof(mm_jpeg_debug_exif_params_t));
+    memset(test_obj->mExifParams.debug_params, 0,
+        sizeof(mm_jpeg_debug_exif_params_t));
     mm_dimension pic_size;
     memset(&pic_size, 0, sizeof(mm_dimension));
     pic_size.w = 4000;
@@ -691,6 +701,11 @@ int mm_app_close(mm_camera_test_obj_t *test_obj)
     if (rc != MM_CAMERA_OK) {
         LOGE("release setparm buf failed, rc=%d",  rc);
     }
+
+    if (test_obj->mExifParams.debug_params) {
+        free(test_obj->mExifParams.debug_params);
+        test_obj->mExifParams.debug_params = NULL;
+   }
 
     return MM_CAMERA_OK;
 }
@@ -1095,6 +1110,33 @@ int setFocusMode(mm_camera_test_obj_t *test_obj, cam_focus_mode_type mode)
 ERROR:
     return rc;
 }
+
+int updateDebuglevel(mm_camera_test_obj_t *test_obj)
+{
+
+    int rc = MM_CAMERA_OK;
+
+    rc = initBatchUpdate(test_obj);
+    if ( rc != MM_CAMERA_OK ) {
+        LOGE("Failed to initialize group update table");
+        return rc;
+    }
+
+    uint32_t dummyDebugLevel = 0;
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data, CAM_INTF_PARM_UPDATE_DEBUG_LEVEL, dummyDebugLevel)) {
+        LOGE("Parameters batch failed");
+        rc = -1;
+        goto ERROR;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if ( rc != MM_CAMERA_OK ) {
+        LOGE("Failed to commit batch parameters");
+        return rc;
+    }
+ERROR:
+    return rc;
+ }
 
 int setEVCompensation(mm_camera_test_obj_t *test_obj, int ev)
 {
@@ -1584,6 +1626,42 @@ ERROR:
     return rc;
 }
 
+int setsHDRMode(mm_camera_test_obj_t *test_obj, uint8_t shdr_mode)
+{
+    int rc = MM_CAMERA_OK;
+   cam_sensor_hdr_type_t vhdr_type = CAM_SENSOR_HDR_MAX;
+
+    rc = initBatchUpdate(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch camera parameter update failed\n");
+        goto ERROR;
+    }
+
+   if (shdr_mode) {
+        vhdr_type = CAM_SENSOR_HDR_STAGGERED;
+   } else {
+        vhdr_type = CAM_SENSOR_HDR_OFF;
+   }
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
+            CAM_INTF_PARM_SENSOR_HDR, vhdr_type)) {
+        LOGE("Flash parameter not added to batch\n");
+        rc = -1;
+        goto ERROR;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch parameters commit failed\n");
+        goto ERROR;
+    }
+
+    LOGE("sHDR set to: %d",  (int)shdr_mode);
+
+ERROR:
+    return rc;
+}
+
+
 
 int setEZTune(mm_camera_test_obj_t *test_obj, uint8_t enable)
 {
@@ -1830,6 +1908,13 @@ int mm_camera_lib_start_stream(mm_camera_lib_handle *handle)
       LOGE("autofocus error\n");
       goto EXIT;
     }
+
+    rc = updateDebuglevel(&handle->test_obj);
+
+    if (rc != MM_CAMERA_OK) {
+        LOGE("autofocus error\n");
+        goto EXIT;
+    }
     handle->stream_running = 1;
 
 EXIT:
@@ -1935,7 +2020,6 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                 }
             }
             break;
-
         case MM_CAMERA_LIB_IRMODE:
             if ( NULL != in_data) {
                 int enable_ir = *(( int * )in_data);
@@ -1944,6 +2028,20 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                     rc = setIRMode(&handle->test_obj, enable_ir);
                     if (rc != MM_CAMERA_OK) {
                         LOGE("setZoom() err=%d\n",
+                                    rc);
+                        goto EXIT;
+                    }
+                }
+            }
+            break;
+        case MM_CAMERA_LIB_SHDR_MODE:
+            if ( NULL != in_data) {
+                int enable_shdr= *(( int * )in_data);
+                if (enable_shdr != handle->test_obj.enable_ir) {
+                    handle->test_obj.enable_ir = enable_shdr;
+                    rc = setsHDRMode(&handle->test_obj, enable_shdr);
+                    if (rc != MM_CAMERA_OK) {
+                        LOGE("setHDR() err=%d\n",
                                     rc);
                         goto EXIT;
                     }

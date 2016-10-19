@@ -1361,11 +1361,11 @@ int32_t QCameraParametersIntf::getRelatedCamCalibration(
     return mImpl->getRelatedCamCalibration(calib);
 }
 
-int32_t QCameraParametersIntf::bundleRelatedCameras(bool sync, uint32_t sessionid)
+int32_t QCameraParametersIntf::bundleRelatedCameras(bool sync)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->bundleRelatedCameras(sync, sessionid);
+    return mImpl->bundleRelatedCameras(sync);
 }
 
 uint8_t QCameraParametersIntf::fdModeInVideo()
@@ -1455,11 +1455,18 @@ int32_t QCameraParametersIntf::SetDualCamera(bool value)
     return mImpl->SetDualCamera(value);
 }
 
-int32_t QCameraParametersIntf::setCameraControls(int32_t controls, bool initCommit)
+int32_t QCameraParametersIntf::setCameraControls(int32_t controls)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->setCameraControls(controls, initCommit);
+    return mImpl->setCameraControls(controls);
+}
+
+int32_t QCameraParametersIntf::setSwitchCamera()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setSwitchCamera();
 }
 
 }; // namespace qcamera

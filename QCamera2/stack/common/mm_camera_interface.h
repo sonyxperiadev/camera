@@ -133,6 +133,7 @@ typedef struct {
 *               mem allocation
 *    @mem_info : user specific pointer to additional mem info
 *    @flags:  v4l2_buffer flags, used to report error in data buffers
+*    @cache_flags: Stores cache related read/write flags
 **/
 typedef struct mm_camera_buf_def {
     uint32_t stream_id;
@@ -151,6 +152,7 @@ typedef struct mm_camera_buf_def {
     size_t frame_len;
     void *mem_info;
     uint32_t flags;
+    uint32_t cache_flags;
 } mm_camera_buf_def_t;
 
 /** mm_camera_super_buf_t: super buf structure for bundled
@@ -288,6 +290,7 @@ typedef struct {
                        void *user_data);
   int32_t (*invalidate_buf)(uint32_t index, void *user_data);
   int32_t (*clean_invalidate_buf)(uint32_t index, void *user_data);
+  int32_t (*clean_buf)(uint32_t index, void *user_data);
 } mm_camera_stream_mem_vtbl_t;
 
 /** mm_camera_stream_config_t: structure for stream
@@ -855,16 +858,13 @@ typedef struct {
     int32_t (*get_session_id) (uint32_t camera_handle,
             uint32_t* sessionid);
 
-    /** sync_related_sensors: sends sync cmd
+    /** set_dual_cam_cmd: sends sync cmd
       *    @camera_handle : camera handle
-      *    @related_cam_info : related cam info to be sent to server
       *     Return value: 0 -- success
       *                -1 -- failure
       *  Note: if this call succeeds, we will get linking established in back end
       **/
-     int32_t (*sync_related_sensors) (uint32_t camera_handle,
-            cam_sync_related_sensors_event_info_t*
-            related_cam_info);
+     int32_t (*set_dual_cam_cmd)(uint32_t camera_handle);
     /** flush: function definition for flush
      *  @camera_handle: camera handler
      *  Return value: 0 -- success

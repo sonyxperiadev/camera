@@ -242,9 +242,11 @@ typedef struct {
     int8_t enable_CAC;
     int8_t enable_EZTune;
     int8_t enable_ir;
+    int8_t enable_shdr;
     mm_camera_queue_t pp_frames;
     mm_camera_stream_t *reproc_stream;
     metadata_buffer_t *metadata;
+    mm_jpeg_exif_params_t mExifParams;
     int8_t is_chromatix_reload;
 } mm_camera_test_obj_t;
 
@@ -320,6 +322,7 @@ typedef enum {
     MM_CAMERA_LIB_SET_TINTLESS,
     MM_CAMERA_LIB_EZTUNE_ENABLE,
     MM_CAMERA_LIB_IRMODE,
+    MM_CAMERA_LIB_SHDR_MODE,
 } mm_camera_lib_commands;
 
 typedef struct {
@@ -386,6 +389,8 @@ extern int32_t mm_app_stream_deinitbuf(mm_camera_map_unmap_ops_tbl_t *ops_tbl,
 extern int mm_app_cache_ops(mm_camera_app_meminfo_t *mem_info, int cmd);
 extern int32_t mm_app_stream_clean_invalidate_buf(uint32_t index, void *user_data);
 extern int32_t mm_app_stream_invalidate_buf(uint32_t index, void *user_data);
+extern int32_t mm_app_stream_clean_buf(uint32_t index, void *user_data);
+
 extern int mm_app_open(mm_camera_app_t *cam_app,
                        int cam_id,
                        mm_camera_test_obj_t *test_obj);

@@ -412,8 +412,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mIsDeviceLinked(false),
       mIsMainCamera(true),
       mLinkedCameraId(0),
-      m_pRelCamSyncHeap(NULL),
-      m_pRelCamSyncBuf(NULL)
+      m_pDualCamCmdHeap(NULL),
+      m_pDualCamCmdPtr(NULL)
 {
     getLogLevel();
     m_perfLock.lock_init();
@@ -809,8 +809,8 @@ int QCamera3HardwareInterface::openCamera()
         //Allocate related cam sync buffer
         //this is needed for the payload that goes along with bundling cmd for related
         //camera use cases
-        m_pRelCamSyncHeap = new QCamera3HeapMemory(1);
-        rc = m_pRelCamSyncHeap->allocate(sizeof(cam_sync_related_sensors_event_info_t));
+        m_pDualCamCmdHeap = new QCamera3HeapMemory(1);
+        rc = m_pDualCamCmdHeap->allocate(sizeof(cam_dual_camera_cmd_info_t));
         if(rc != OK) {
             rc = NO_MEMORY;
             LOGE("Dualcam: Failed to allocate Related cam sync Heap memory");
@@ -819,17 +819,17 @@ int QCamera3HardwareInterface::openCamera()
 
         //Map memory for related cam sync buffer
         rc = mCameraHandle->ops->map_buf(mCameraHandle->camera_handle,
-                CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF,
-                m_pRelCamSyncHeap->getFd(0),
-                sizeof(cam_sync_related_sensors_event_info_t),
-                m_pRelCamSyncHeap->getPtr(0));
+                CAM_MAPPING_BUF_TYPE_DUAL_CAM_CMD_BUF,
+                m_pDualCamCmdHeap->getFd(0),
+                sizeof(cam_dual_camera_cmd_info_t),
+                m_pDualCamCmdHeap->getPtr(0));
         if(rc < 0) {
             LOGE("Dualcam: failed to map Related cam sync buffer");
             rc = FAILED_TRANSACTION;
             return NO_MEMORY;
         }
-        m_pRelCamSyncBuf =
-                (cam_sync_related_sensors_event_info_t*) DATA_PTR(m_pRelCamSyncHeap,0);
+        m_pDualCamCmdPtr =
+                (cam_dual_camera_cmd_info_t*) DATA_PTR(m_pDualCamCmdHeap,0);
     }
 
     LOGH("mCameraId=%d",mCameraId);
@@ -860,11 +860,11 @@ int QCamera3HardwareInterface::closeCamera()
     // unmap memory for related cam sync buffer
     mCameraHandle->ops->unmap_buf(mCameraHandle->camera_handle,
             CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
-    if (NULL != m_pRelCamSyncHeap) {
-        m_pRelCamSyncHeap->deallocate();
-        delete m_pRelCamSyncHeap;
-        m_pRelCamSyncHeap = NULL;
-        m_pRelCamSyncBuf = NULL;
+    if (NULL != m_pDualCamCmdHeap) {
+        m_pDualCamCmdHeap->deallocate();
+        delete m_pDualCamCmdHeap;
+        m_pDualCamCmdHeap = NULL;
+        m_pDualCamCmdPtr = NULL;
     }
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
@@ -3912,6 +3912,9 @@ int QCamera3HardwareInterface::processCaptureRequest(
         // add bundle related cameras
         LOGH("%s: Dualcam: id =%d, mIsDeviceLinked=%d", __func__,mCameraId, mIsDeviceLinked);
         if (meta.exists(QCAMERA3_DUALCAM_LINK_ENABLE)) {
+            cam_dual_camera_bundle_info_t *m_pRelCamSyncBuf =
+                    &m_pDualCamCmdPtr->bundle_info;
+            m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
             if (mIsDeviceLinked)
                 m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_ON;
             else
@@ -3930,18 +3933,20 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 m_pRelCamSyncBuf->mode = CAM_MODE_PRIMARY;
                 m_pRelCamSyncBuf->type = CAM_TYPE_MAIN;
                 m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+                m_pRelCamSyncBuf->cam_role = CAM_ROLE_BAYER;
                 // related session id should be session id of linked session
                 m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
             } else {
                 m_pRelCamSyncBuf->mode = CAM_MODE_SECONDARY;
                 m_pRelCamSyncBuf->type = CAM_TYPE_AUX;
                 m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+                m_pRelCamSyncBuf->cam_role = CAM_ROLE_MONO;
                 m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
             }
             pthread_mutex_unlock(&gCamLock);
 
-            rc = mCameraHandle->ops->sync_related_sensors(
-                    mCameraHandle->camera_handle, m_pRelCamSyncBuf);
+            rc = mCameraHandle->ops->set_dual_cam_cmd(
+                    mCameraHandle->camera_handle);
             if (rc < 0) {
                 LOGE("Dualcam: link failed");
                 pthread_mutex_unlock(&mMutex);
@@ -4511,6 +4516,9 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     rc = stopAllChannels();
     // unlink of dualcam
     if (mIsDeviceLinked) {
+        cam_dual_camera_bundle_info_t *m_pRelCamSyncBuf =
+                &m_pDualCamCmdPtr->bundle_info;
+        m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
         m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
         pthread_mutex_lock(&gCamLock);
 
@@ -4528,8 +4536,8 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
         }
         pthread_mutex_unlock(&gCamLock);
 
-        rc = mCameraHandle->ops->sync_related_sensors(
-                mCameraHandle->camera_handle, m_pRelCamSyncBuf);
+        rc = mCameraHandle->ops->set_dual_cam_cmd(
+                mCameraHandle->camera_handle);
         if (rc < 0) {
             LOGE("Dualcam: Unlink failed, but still proceed to close");
         }
@@ -6658,6 +6666,7 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
         goto failed_op;
     }
 
+    gCamCapability[cameraId]->camera_index = cameraId;
     if (is_dual_camera_by_idx(cameraId)) {
         handle = get_aux_camera_handle(cameraHandle->camera_handle);
         gCamCapability[cameraId]->aux_cam_cap =
