@@ -90,6 +90,14 @@ typedef enum {
     CAM_ROLE_TELE
 } cam_dual_camera_role_t;
 
+/* Enum to define different low performance modes in dual camera*/
+typedef enum {
+    CAM_PERF_SENSOR_SUSPEND,
+    CAM_PERF_ISPIF_FRAME_DROP,
+    CAM_PERF_ISPIF_FRAME_SKIP,
+    CAM_PERF_STATS_FPS_CONTROL
+} cam_dual_camera_perf_mode_t;
+
 /* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;
@@ -102,6 +110,8 @@ typedef struct {
        backend */
     uint32_t related_sensor_session_id;
     uint8_t is_frame_sync_enabled;
+    /*Low power mode type. Static info per device*/
+    cam_dual_camera_perf_mode_t perf_mode;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 
@@ -112,8 +122,9 @@ typedef struct {
 
 /* Structrue to control performance info in dual camera case*/
 typedef struct {
-    uint8_t low_fps; /*Control perf using FPS if set*/
+    cam_dual_camera_perf_mode_t perf_mode; /*Control perf using FPS if set*/
     uint8_t enable;  /*Enable or diable Low power mode*/
+    uint8_t priority; /*Can be used to make LPM forcefully*/
 } cam_dual_camera_perf_control_t;
 
 /* dual camera event payload */
