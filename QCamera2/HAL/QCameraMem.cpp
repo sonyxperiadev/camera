@@ -2287,7 +2287,9 @@ void QCameraGrallocMemory::deallocate()
     LOGD("E ", __FUNCTION__);
 
     for (int cnt = 0; cnt < mMappableBuffers; cnt++) {
-        mCameraMemory[cnt]->release(mCameraMemory[cnt]);
+        if (mCameraMemory[cnt] != NULL) {
+            mCameraMemory[cnt]->release(mCameraMemory[cnt]);
+        }
         struct ion_handle_data ion_handle;
         memset(&ion_handle, 0, sizeof(ion_handle));
         ion_handle.handle = mMemInfo[cnt].handle;
@@ -2296,12 +2298,14 @@ void QCameraGrallocMemory::deallocate()
         }
         close(mMemInfo[cnt].main_ion_fd);
         if(mLocalFlag[cnt] != BUFFER_NOT_OWNED) {
-            if (mWindow) {
+            if (mWindow && (mBufferHandle[cnt] != NULL)
+                && (*mBufferHandle[cnt] != NULL)) {
+                LOGH("cancel_buffer: buffer_handle =%p",  *mBufferHandle[cnt]);
                 mWindow->cancel_buffer(mWindow, mBufferHandle[cnt]);
-                LOGH("cancel_buffer: hdl =%p", (*mBufferHandle[cnt]));
+                mBufferHandle[cnt]= NULL;
             } else {
-                LOGE("Preview window is NULL, cannot cancel_buffer: hdl =%p",
-                      (*mBufferHandle[cnt]));
+                LOGE("Cannot cancel buffer: hdl =%p window = %p local ptr = %p",
+                      (*mBufferHandle[cnt]), mWindow, mBufferHandle[cnt]);
             }
         }
         mLocalFlag[cnt] = BUFFER_NOT_OWNED;
