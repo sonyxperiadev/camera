@@ -1951,6 +1951,17 @@ int32_t QCameraGrallocMemory::enqueueBuffer(uint32_t index, nsecs_t timeStamp)
 {
     int32_t err = NO_ERROR;
 
+    if ((mWindow == NULL) || (index >= MM_CAMERA_MAX_NUM_FRAMES))
+    {
+        LOGE("buffer index is invalid");
+        return INVALID_OPERATION;
+    }
+    else if(mBufferHandle[index] == NULL)
+    {
+        LOGE("buffer is NULL");
+        return INVALID_OPERATION;
+    }
+
     if (BUFFER_NOT_OWNED == mLocalFlag[index]) {
         LOGE("buffer to be enqueued is not owned");
         return INVALID_OPERATION;
