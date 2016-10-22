@@ -89,15 +89,45 @@
 #define TUNING_VFE_DATA_MAX        0x10000 /*(need value from vfe team)*/
 #define TUNING_CPP_DATA_MAX        0x10000 /*(need value from pproc team)*/
 #define TUNING_CAC_DATA_MAX        0x10000 /*(need value from imglib team)*/
+#define TUNING_MOD1_AEC_DATA_MAX   ((16*(sizeof(int))) + (16*(sizeof(float))))
+#define TUNING_MOD1_AWB_DATA_MAX   ((16*(sizeof(int))) + (16*(sizeof(float))))
+#define TUNING_MOD1_AF_DATA_MAX    ((16*(sizeof(int))) + (16*(sizeof(float))))
+#define TUNING_MOD1_STATS_DATA_MAX (TUNING_MOD1_AEC_DATA_MAX + \
+                                   TUNING_MOD1_AEC_DATA_MAX + \
+                                   TUNING_MOD1_AEC_DATA_MAX)
+
 #define TUNING_DATA_MAX            (TUNING_SENSOR_DATA_MAX + \
-                                   TUNING_VFE_DATA_MAX + TUNING_CPP_DATA_MAX + \
+                                   TUNING_VFE_DATA_MAX + \
+                                   TUNING_MOD1_STATS_DATA_MAX + \
+                                   TUNING_CPP_DATA_MAX + \
                                    TUNING_CAC_DATA_MAX)
 
 #define TUNING_SENSOR_DATA_OFFSET  0
 #define TUNING_VFE_DATA_OFFSET     TUNING_SENSOR_DATA_MAX
-#define TUNING_CPP_DATA_OFFSET     (TUNING_SENSOR_DATA_MAX + TUNING_VFE_DATA_MAX)
+#define TUNING_MOD1_AEC_DATA_OFFSET  (TUNING_SENSOR_DATA_MAX + \
+                                     TUNING_VFE_DATA_MAX)
+
+#define TUNING_MOD1_AWB_DATA_OFFSET  (TUNING_SENSOR_DATA_MAX + \
+                                      TUNING_VFE_DATA_MAX + \
+                                      TUNING_MOD1_AEC_DATA_MAX)
+
+#define TUNING_MOD1_AF_DATA_OFFSET  (TUNING_SENSOR_DATA_MAX + \
+                                     TUNING_VFE_DATA_MAX + \
+                                     TUNING_MOD1_AEC_DATA_MAX + \
+                                     TUNING_MOD1_AWB_DATA_MAX)
+
+#define TUNING_CPP_DATA_OFFSET     (TUNING_SENSOR_DATA_MAX + \
+                                    TUNING_VFE_DATA_MAX + \
+                                    TUNING_MOD1_AEC_DATA_MAX + \
+                                    TUNING_MOD1_AWB_DATA_MAX + \
+                                    TUNING_MOD1_AF_DATA_MAX)
 #define TUNING_CAC_DATA_OFFSET     (TUNING_SENSOR_DATA_MAX + \
-                                   TUNING_VFE_DATA_MAX + TUNING_CPP_DATA_MAX)
+                                    TUNING_VFE_DATA_MAX + \
+                                    TUNING_MOD1_AEC_DATA_MAX + \
+                                    TUNING_MOD1_AWB_DATA_MAX + \
+                                    TUNING_MOD1_AF_DATA_MAX + \
+                                    TUNING_CPP_DATA_OFFSET)
+
 #define MAX_STATS_DATA_SIZE 4000
 
 #define MAX_AF_BRACKETING_VALUES 5
@@ -1625,6 +1655,7 @@ typedef struct {
     uint32_t tuning_data_version;
     size_t tuning_sensor_data_size;
     size_t tuning_vfe_data_size;
+    size_t tuning_mod1_stats_data_size; //Stats data
     size_t tuning_cpp_data_size;
     size_t tuning_cac_data_size;
     size_t tuning_cac_data_size2;
@@ -2886,5 +2917,20 @@ typedef enum {
     CAM_STREAM_CACHE_OPS_HONOUR_FLAGS,
     CAM_STREAM_CACHE_OPS_DISABLED
 } cam_stream_cache_ops_t;
+
+typedef struct {
+  int reserved_i[16];
+  float reserved_f[16];
+}tuning_mod1_data_AWB;
+
+typedef struct {
+  int reserved_i[16];
+  float reserved_f[16];
+}tuning_mod1_data_AEC;
+
+typedef struct {
+  int reserved_i[16];
+  float reserved_f[16];
+}tuning_mod1_data_AF;
 
 #endif /* __QCAMERA_TYPES_H__ */
