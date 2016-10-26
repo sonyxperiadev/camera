@@ -2728,9 +2728,7 @@ uint8_t get_num_of_cameras()
     g_cam_ctrl.num_cam = num_cameras;
 
     get_sensor_info();
-    if (g_cam_ctrl.num_cam > 1) {
-        sort_camera_info(g_cam_ctrl.num_cam);
-    }
+    sort_camera_info(g_cam_ctrl.num_cam);
     /* unlock the mutex */
     pthread_mutex_unlock(&g_intf_lock);
     LOGI("num_cameras=%d\n", (int)g_cam_ctrl.num_cam);
