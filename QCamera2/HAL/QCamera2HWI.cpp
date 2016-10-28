@@ -9118,9 +9118,9 @@ bool QCamera2HardwareInterface::needReprocess()
         return false;
     }
 
-    //Disable reprocess for 4K liveshot case but enable if lowpower mode
-    if (mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
-            && !isLowPowerMode()) {
+    //Disable reprocess for small jpeg size or 4K liveshot case but enable if lowpower mode
+    if ((mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
+            && !isLowPowerMode()) || mParameters.isSmallJpegSizeEnabled()) {
         return false;
     }
 
@@ -9160,10 +9160,10 @@ bool QCamera2HardwareInterface::needRotationReprocess()
     }
 
     //Disable reprocess for 4K liveshot case
-    if (mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
-            && !isLowPowerMode()) {
-        //Disable reprocess for 4K liveshot case
-        return false;
+    if ((mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
+            && !isLowPowerMode()) || mParameters.isSmallJpegSizeEnabled()) {
+        //Disable reprocess for 4K liveshot case or small jpeg size
+         return false;
     }
 
     if ((gCamCapability[mCameraId]->qcom_supported_feature_mask &

@@ -145,6 +145,7 @@ public:
     bool isFpsDebugEnabled();
     bool isHistogramEnabled();
     bool isSceneSelectionEnabled();
+    bool isSmallJpegSizeEnabled();
     int32_t setSelectedScene(cam_scene_mode_type scene);
     cam_scene_mode_type getSelectedScene();
     bool isFaceDetectionEnabled();
