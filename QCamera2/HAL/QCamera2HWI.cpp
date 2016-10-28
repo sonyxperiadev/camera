@@ -7282,7 +7282,6 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
         rc = mParameters.getAnalysisInfo(
                 ((mParameters.getRecordingHintValue() == true) &&
                  mParameters.fdModeInVideo()),
-                FALSE,
                 featureMask,
                 &analysisInfo);
         if (rc != NO_ERROR) {
