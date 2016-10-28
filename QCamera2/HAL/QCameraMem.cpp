@@ -1339,11 +1339,7 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size)
     }
 
     if (!(mBufType & QCAMERA_MEM_TYPE_BATCH)) {
-        /*
-        *    FDs = 1
-        *    numInts  = 5 //offset, size, usage, timestamp, format + 1 for buffer index
-        */
-        rc = allocateMeta(count, 1, VIDEO_METADATA_NUM_INTS);
+        rc = allocateMeta(count, 1);
         if (rc != NO_ERROR) {
             ATRACE_END();
             return rc;
@@ -1355,12 +1351,8 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size)
                 ATRACE_END();
                 return NO_MEMORY;
             }
-            nh->data[0] = mMemInfo[i].fd;
-            nh->data[1] = 0;
-            nh->data[2] = (int)mMemInfo[i].size;
-            nh->data[3] = mUsage;
-            nh->data[4] = 0; //dummy value for timestamp in non-batch mode
-            nh->data[5] = mFormat;
+            //Fill video metadata.
+            updateNativeHandle(nh, 0, mMemInfo[i].fd, (int)mMemInfo[i].size);
         }
     }
     mBufferCount = count;
@@ -1407,10 +1399,7 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
             }
             media_metadata_buffer * packet =
                     (media_metadata_buffer *)mMetadata[i]->data;
-            //FDs = 1
-            //numInts  = 5 (offset, size, usage, timestamp, format)
-            mNativeHandle[i] = native_handle_create(1,
-                    (VIDEO_METADATA_NUM_INTS + VIDEO_METADATA_NUM_COMMON_INTS));
+            mNativeHandle[i] = native_handle_create(1, VIDEO_METADATA_NUM_INTS);
 #ifdef USE_MEDIA_EXTENSIONS
             packet->eType = kMetadataBufferTypeNativeHandleSource;
             packet->pHandle = NULL;
@@ -1424,13 +1413,19 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
                 ATRACE_END();
                 return NO_MEMORY;
             }
-            nh->data[0] = mMemInfo[i].fd;
-            nh->data[1] = 0;
-            nh->data[2] = (int)mMemInfo[i].size;
-            nh->data[3] = mUsage;
-            nh->data[4] = 0; //dummy value for timestamp in non-batch mode
-            nh->data[5] = mFormat;
-            nh->data[6] = i;
+
+            MetaBufferUtil::setFdAt(nh, 0, -1);
+            MetaBufferUtil::setIntAt(nh, 0, VIDEO_META_OFFSET, 0);
+            MetaBufferUtil::setIntAt(nh, 0, VIDEO_META_SIZE, 0);
+            MetaBufferUtil::setIntAt(nh, 0, VIDEO_META_USAGE, mUsage);
+            MetaBufferUtil::setIntAt(nh, 0, VIDEO_META_TIMESTAMP, 0);
+            MetaBufferUtil::setIntAt(nh, 0, VIDEO_META_FORMAT, mFormat);
+            MetaBufferUtil::setIntAt(nh, 0, VIDEO_META_BUFIDX, i);
+            MetaBufferUtil::setIntAt(nh, 0, VIDEO_META_EVENT, 0);
+
+            //Fill video metadata.
+            updateNativeHandle(nh, 0, mMemInfo[i].fd, (int)mMemInfo[i].size);
+
         }
     }
     mBufferCount = (uint8_t)(mBufferCount + count);
@@ -1445,13 +1440,14 @@ int QCameraVideoMemory::allocateMore(uint8_t count, size_t size)
  * DESCRIPTION: allocate video encoder metadata structure
  *
  * PARAMETERS :
- *   @fd_cnt : Total FD count
+ *   @buf_cnt : Total buffer count
+ *   @numFDs: Number of FDs
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int QCameraVideoMemory::allocateMeta(uint8_t buf_cnt, int numFDs, int numInts)
+int QCameraVideoMemory::allocateMeta(uint8_t buf_cnt, int numFDs)
 {
     int rc = NO_ERROR;
     int mTotalInts = 0;
@@ -1471,9 +1467,8 @@ int QCameraVideoMemory::allocateMeta(uint8_t buf_cnt, int numFDs, int numInts)
         }
         media_metadata_buffer *packet =
                 (media_metadata_buffer *)mMetadata[i]->data;
-        mTotalInts = (numInts * numFDs);
-        mNativeHandle[i] = native_handle_create(numFDs,
-                (mTotalInts + VIDEO_METADATA_NUM_COMMON_INTS));
+        mTotalInts = MetaBufferUtil::getNumIntsForBatch(numFDs);
+        mNativeHandle[i] = native_handle_create(numFDs, mTotalInts);
         if (mNativeHandle[i] == NULL) {
             LOGE("Error in getting video native handle");
             for (int j = (i - 1); j >= 0; j--) {
@@ -1487,7 +1482,16 @@ int QCameraVideoMemory::allocateMeta(uint8_t buf_cnt, int numFDs, int numInts)
         } else {
             //assign buffer index to native handle.
             native_handle_t *nh =  mNativeHandle[i];
-            nh->data[numFDs + mTotalInts] = i;
+            for (int j = 0; j < numFDs; j++) {
+                MetaBufferUtil::setFdAt(nh, j, -1);
+                MetaBufferUtil::setIntAt(nh, j, VIDEO_META_OFFSET, 0);
+                MetaBufferUtil::setIntAt(nh, j, VIDEO_META_SIZE, 0);
+                MetaBufferUtil::setIntAt(nh, j, VIDEO_META_USAGE, mUsage);
+                MetaBufferUtil::setIntAt(nh, j, VIDEO_META_TIMESTAMP, 0);
+                MetaBufferUtil::setIntAt(nh, j, VIDEO_META_FORMAT, mFormat);
+                MetaBufferUtil::setIntAt(nh, j, VIDEO_META_BUFIDX, i);
+                MetaBufferUtil::setIntAt(nh, j, VIDEO_META_EVENT, 0);
+            }
         }
 #ifdef USE_MEDIA_EXTENSIONS
         packet->eType = kMetadataBufferTypeNativeHandleSource;
@@ -1609,6 +1613,32 @@ native_handle_t *QCameraVideoMemory::getNativeHandle(uint32_t index, bool metada
 }
 
 /*===========================================================================
+ * FUNCTION   : update native handle
+ *
+ * DESCRIPTION: update native handle with input parameter
+ *
+ * PARAMETERS :
+ *   @nh             : native handle to be updated
+ *   @batch_idx   : Batch index inside this native handle
+ *   @fd             : buffer fd to be updated
+ *   @size           : buffer size
+ *   @ts             : timestamp
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraVideoMemory::updateNativeHandle(native_handle_t *nh,
+        int batch_idx, int fd, int size, int ts)
+{
+    int32_t rc = NO_ERROR;
+    MetaBufferUtil::setFdAt(nh, batch_idx, fd);
+    MetaBufferUtil::setIntAt(nh, batch_idx, VIDEO_META_SIZE, size);
+    MetaBufferUtil::setIntAt(nh, batch_idx, VIDEO_META_TIMESTAMP, ts);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : closeNativeHandle
  *
  * DESCRIPTION: static function to close video native handle.
@@ -1711,10 +1741,10 @@ int QCameraVideoMemory::getMatchBufIndex(const void *opaque,
                 kMetadataBufferTypeNativeHandleSource)
                 && (packet->pHandle)) {
             nh = (native_handle_t *)packet->pHandle;
-            int mCommonIdx = (nh->numInts + nh->numFds -
-                    VIDEO_METADATA_NUM_COMMON_INTS);
+            int mBufIndex = MetaBufferUtil::getIntAt(nh, 0, VIDEO_META_BUFIDX);
             for (int i = 0; i < mMetaBufCount; i++) {
-                if(nh->data[mCommonIdx] == mNativeHandle[i]->data[mCommonIdx]) {
+                if(mBufIndex == MetaBufferUtil::getIntAt(
+                        mNativeHandle[i], 0, VIDEO_META_BUFIDX)) {
                     index = i;
                     break;
                 }
@@ -1788,6 +1818,47 @@ int QCameraVideoMemory::convCamtoOMXFormat(cam_format_t format)
     }
     return omxFormat;
 }
+
+/*===========================================================================
+ * FUNCTION   : needPerfEvent
+ *
+ * DESCRIPTION: checks if buffer turbo flush needed
+ *
+ * PARAMETERS :
+ *   @opaque  : opaque ptr
+ *   @metadata: flag if it's metadata
+ *
+ * RETURN     : buffer index if match found,
+ *              -1 if failed
+ *==========================================================================*/
+bool QCameraVideoMemory::needPerfEvent(const void *opaque, bool metadata)
+{
+    bool isPerf = FALSE;
+    if (metadata) {
+#ifdef USE_MEDIA_EXTENSIONS
+        const media_metadata_buffer *packet =
+                (const media_metadata_buffer *)opaque;
+        native_handle_t *nh = NULL;
+        if ((packet != NULL) && (packet->eType ==
+                kMetadataBufferTypeNativeHandleSource)
+                && (packet->pHandle)) {
+            nh = (native_handle_t *)packet->pHandle;
+            isPerf = (MetaBufferUtil::getIntAt(nh, 0, VIDEO_META_EVENT) ==
+                    CAM_META_BUFFER_EVENT_PERF) ? TRUE : FALSE;
+        }
+#else
+        for (int i = 0; i < mMetaBufCount; i++) {
+            if(mMetadata[i]->data == opaque) {
+                isPerf = (MetaBufferUtil::getIntAt(nh, 0, VIDEO_META_EVENT) ==
+                        CAM_META_BUFFER_EVENT_PERF) ? TRUE : FALSE;
+                break;
+            }
+        }
+#endif
+    }
+    return isPerf;
+}
+
 
 /*===========================================================================
  * FUNCTION   : QCameraGrallocMemory
