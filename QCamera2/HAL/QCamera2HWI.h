@@ -617,7 +617,7 @@ private:
     QCameraPostProcessor m_postprocessor; // post processor
     QCameraThermalAdapter &m_thermalAdapter;
     QCameraCbNotifier m_cbNotifier;
-    QCameraPerfLock m_perfLock;
+    QCameraPerfLockMgr m_perfLockMgr;
     pthread_mutex_t m_lock;
     pthread_cond_t m_cond;
     api_result_list *m_apiResultList;
