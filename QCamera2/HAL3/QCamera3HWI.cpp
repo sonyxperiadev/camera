@@ -464,6 +464,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     memset(prop, 0, sizeof(prop));
     property_get("persist.camera.avtimer.debug", prop, "0");
     m_debug_avtimer = (uint8_t)atoi(prop);
+    LOGI("AV timer enabled: %d", m_debug_avtimer);
 
     //Load and read GPU library.
     lib_surface_utils = NULL;
@@ -3718,11 +3719,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
             uint8_t* use_av_timer = NULL;
 
             if (m_debug_avtimer){
+                LOGI(" Enabling AV timer through setprop");
                 use_av_timer = &m_debug_avtimer;
             }
             else{
                 use_av_timer =
                     meta.find(QCAMERA3_USE_AV_TIMER).data.u8;
+                if (use_av_timer) {
+                    LOGI("Enabling AV timer through Metadata: use_av_timer: %d", *use_av_timer);
+                }
             }
 
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_USE_AV_TIMER, *use_av_timer)) {
