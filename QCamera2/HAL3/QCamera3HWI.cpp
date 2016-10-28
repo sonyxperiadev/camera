@@ -493,9 +493,40 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 {
     LOGD("E");
 
+    int32_t rc = 0;
+
     // Disable power hint and enable the perf lock for close camera
     mPerfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_ENCODE);
     mPerfLockMgr.acquirePerfLock(PERF_LOCK_CLOSE_CAMERA);
+
+    // unlink of dualcam during close camera
+    if (mIsDeviceLinked) {
+        cam_dual_camera_bundle_info_t *m_pRelCamSyncBuf =
+                &m_pDualCamCmdPtr->bundle_info;
+        m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
+        m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+        pthread_mutex_lock(&gCamLock);
+
+        if (mIsMainCamera == 1) {
+            m_pRelCamSyncBuf->mode = CAM_MODE_PRIMARY;
+            m_pRelCamSyncBuf->type = CAM_TYPE_MAIN;
+            m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+            // related session id should be session id of linked session
+            m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
+        } else {
+            m_pRelCamSyncBuf->mode = CAM_MODE_SECONDARY;
+            m_pRelCamSyncBuf->type = CAM_TYPE_AUX;
+            m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+            m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
+        }
+        pthread_mutex_unlock(&gCamLock);
+
+        rc = mCameraHandle->ops->set_dual_cam_cmd(
+                mCameraHandle->camera_handle);
+        if (rc < 0) {
+            LOGE("Dualcam: Unlink failed, but still proceed to close");
+        }
+    }
 
     /* We need to stop all streams before deleting any stream */
     if (mRawDumpChannel) {
