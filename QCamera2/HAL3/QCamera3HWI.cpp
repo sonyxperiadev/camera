@@ -2983,6 +2983,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                             "stream type = %d, stream format = %d",
                             req.frame_number, missed.buffer,
                             ch->mStreams[0]->getMyType(), missed.stream->format);
+                        ch->timeoutFrame(req.frame_number);
                     }
                 }
             }

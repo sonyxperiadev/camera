@@ -97,6 +97,7 @@ public:
     cam_stream_info_t* getStreamInfo() const {return mStreamInfo; };
 
     static void releaseFrameData(void *data, void *user_data);
+    int32_t timeoutFrame(int32_t bufIdx);
 
 private:
     uint32_t mCamHandle;
@@ -111,6 +112,7 @@ private:
     void *mUserData;
 
     QCameraQueue     mDataQ;
+    QCameraQueue     mTimeoutFrameQ;
     QCameraCmdThread mProcTh; // thread for dataCB
 
     QCamera3HeapMemory *mStreamInfoBuf;
