@@ -486,6 +486,13 @@ bool QCameraParametersIntf::isSceneSelectionEnabled()
     return mImpl->isSceneSelectionEnabled();
 }
 
+bool QCameraParametersIntf::isSmallJpegSizeEnabled()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isSmallJpegSizeEnabled();
+}
+
 int32_t QCameraParametersIntf::setSelectedScene(cam_scene_mode_type scene)
 {
     Mutex::Autolock lock(mLock);
@@ -604,7 +611,6 @@ int32_t QCameraParametersIntf::setISType()
     CHECK_PARAM_INTF(mImpl);
     return mImpl->setISType();
 }
-
 
 cam_is_type_t QCameraParametersIntf::getVideoISType()
 {
