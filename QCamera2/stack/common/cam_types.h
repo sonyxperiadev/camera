@@ -149,6 +149,9 @@
 #define CPU_HAS_WRITTEN  (1 << 1)
 #define CPU_HAS_READ_WRITTEN (CPU_HAS_READ |CPU_HAS_WRITTEN)
 
+/* Index to switch H/W to consume to free-run Q*/
+#define CAM_FREERUN_IDX 0xFFFFFFFF
+
 typedef uint64_t cam_feature_mask_t;
 
 typedef enum {
