@@ -953,7 +953,7 @@ int32_t mm_channel_fsm_fn_stopped(mm_channel_t *my_obj,
         }
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d)",
+        LOGW("invalid state (%d) for evt (%d)",
                     my_obj->state, evt);
         break;
     }
