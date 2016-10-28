@@ -2059,6 +2059,38 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
 
     mm_camera_buf_def_t *frame = super_frame->bufs[0];
     metadata_buffer_t *pMetaData = (metadata_buffer_t *)frame->buffer;
+
+    if (pme->isDualCamera()) {
+        mm_camera_buf_def_t *frameAux;
+        metadata_buffer_t   *pMetaDataMain  = NULL;
+        metadata_buffer_t   *pMetaDataAux   = NULL;
+        metadata_buffer_t   *resultMetadata = NULL;
+        if (super_frame->num_bufs == MM_CAMERA_MAX_CAM_CNT) {
+            frameAux = super_frame->bufs[1];
+            pMetaDataMain = pMetaData;
+            pMetaDataAux  = (metadata_buffer_t *)frameAux->buffer;
+        } else {
+            if (super_frame->camera_handle ==
+                    get_main_camera_handle(pme->mCameraHandle->camera_handle)) {
+                pMetaDataMain = pMetaData;
+                pMetaDataAux  = NULL;
+            } else if (super_frame->camera_handle ==
+                    get_aux_camera_handle(pme->mCameraHandle->camera_handle)) {
+                pMetaDataMain = NULL;
+                pMetaDataAux  = pMetaData;
+            }
+        }
+
+        resultMetadata = pme->m_pFovControl->processResultMetadata(pMetaDataMain, pMetaDataAux);
+        if (resultMetadata != NULL) {
+            pMetaData = resultMetadata;
+        } else {
+            LOGE("FOV-control: processResultMetadata failed.");
+            free(super_frame);
+            return;
+        }
+    }
+
     if(pme->m_stateMachine.isNonZSLCaptureRunning()&&
        !pme->mLongshotEnabled) {
        //Make shutter call back in non ZSL mode once raw frame is received from VFE.

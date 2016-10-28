@@ -1064,6 +1064,7 @@ typedef struct {
 typedef struct {
     cam_aec_roi_ctrl_t aec_roi_enable;
     cam_aec_roi_type_t aec_roi_type;
+    uint8_t num_roi;
     union {
         cam_coordinate_type_t coordinate[MAX_ROI];
         uint32_t aec_roi_idx[MAX_ROI];

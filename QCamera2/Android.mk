@@ -56,7 +56,8 @@ LOCAL_SRC_FILES += \
         HAL/QCamera2HWICallbacks.cpp \
         HAL/QCameraParameters.cpp \
         HAL/QCameraParametersIntf.cpp \
-        HAL/QCameraThermalAdapter.cpp
+        HAL/QCameraThermalAdapter.cpp \
+        util/QCameraFOVControl.cpp
 endif
 
 # System header file path prefix

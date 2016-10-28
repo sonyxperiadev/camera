@@ -1606,8 +1606,10 @@ int QCamera2HardwareInterface::prepare_snapshot(struct camera_device *device)
 QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
     : mCameraId(cameraId),
       mCameraHandle(NULL),
+      mMasterCamera(CAM_TYPE_MAIN),
       mCameraOpened(false),
       mDualCamera(false),
+      m_pFovControl(NULL),
       m_bRelCamCalibValid(false),
       mPreviewWindow(NULL),
       mMsgEnabled(0),
@@ -1733,7 +1735,6 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
          }
          dlclose(lib_surface_utils);
     }
-    prev_zoomLevel = 0;
 }
 
 /*===========================================================================
@@ -1755,6 +1756,11 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     if (mMetadataMem != NULL) {
         delete mMetadataMem;
         mMetadataMem = NULL;
+    }
+
+    if (m_pFovControl) {
+        delete m_pFovControl;
+        m_pFovControl = NULL;
     }
 
     m_perfLock.lock_acq();
@@ -1935,6 +1941,19 @@ int QCamera2HardwareInterface::openCamera()
     mActiveCamera = MM_CAMERA_TYPE_MAIN;
     if (isDualCamera()) {
         mActiveCamera |= MM_CAMERA_TYPE_AUX;
+
+        // Create and initialize FOV-control object
+        m_pFovControl = QCameraFOVControl::create(gCamCapability[mCameraId]->main_cam_cap,
+                gCamCapability[mCameraId]->aux_cam_cap);
+        if (m_pFovControl) {
+            *gCamCapability[mCameraId] = m_pFovControl->consolidateCapabilities(
+                    gCamCapability[mCameraId]->main_cam_cap,
+                    gCamCapability[mCameraId]->aux_cam_cap);
+        } else {
+            LOGE("FOV-control: Failed to create an object");
+            rc = NO_MEMORY;
+            goto error_exit3;
+        }
     }
 
     // Init params in the background
@@ -2344,7 +2363,7 @@ cam_capability_t *QCamera2HardwareInterface::getCapabilities(mm_camera_ops_t *op
     /* Allocate memory for capability buffer */
     rc = capabilityHeap->allocate(1, sizeof(cam_capability_t), NON_SECURE);
     if(rc != OK) {
-        LOGE("No memory for cappability");
+        LOGE("No memory for capability");
         goto allocate_failed;
     }
 
@@ -2452,6 +2471,17 @@ int QCamera2HardwareInterface::initCapabilities(uint32_t cameraId,
             free(gCamCapability[cameraId]);
             goto failed_op;
         }
+
+        // Copy the main camera capability to main_cam_cap struct
+        gCamCapability[cameraId]->main_cam_cap =
+                (cam_capability_t *)malloc(sizeof(cam_capability_t));
+        if (gCamCapability[cameraId]->main_cam_cap == NULL) {
+            LOGE("out of memory");
+            rc = NO_MEMORY;
+            goto failed_op;
+        }
+        memcpy(gCamCapability[cameraId]->main_cam_cap, gCamCapability[cameraId],
+                sizeof(cam_capability_t));
     }
 failed_op:
     cameraHandle->ops->close_camera(cameraHandle->camera_handle);
@@ -6908,78 +6938,37 @@ int32_t QCamera2HardwareInterface::processJpegNotify(qcamera_jpeg_evt_payload_t 
 
 
 /*===========================================================================
- * FUNCTION   : processDCFOVControl
+ * FUNCTION   : processDualCamFovControl
  *
- * DESCRIPTION: Fill Dual camera FOV control
+ * DESCRIPTION: Based on the result collected from FOV control-
+ *              1. Switch the master camera if needed
+ *              2. Toggle the Low Power Mode for slave camera
  *
  * PARAMETERS : none
  *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
+ * RETURN     : none
  *==========================================================================*/
-int32_t QCamera2HardwareInterface::processDCFOVControl()
+void QCamera2HardwareInterface::processDualCamFovControl()
 {
-    int32_t zoomLevel;
-    uint32_t camState = mActiveCamera;
+   uint32_t camState;
+   fov_control_result_t fovControlResult;
 
     if (!isDualCamera()) {
-        return NO_ERROR;
+        return;
     }
 
-    /*FOV control block needs to integrated here to decide dual camera
-    switch operation.
-    We can access application parameter, metadata buffer,
-    parameter buffer used for back-end here*/
-    zoomLevel = mParameters.getParmZoomLevel();
-    if (zoomLevel < 20) {
-        //WIDE Zone
-        LOGH("WIDE ZONE : %d and  %d", zoomLevel, prev_zoomLevel);
-        if (camState & MM_CAMERA_TYPE_AUX) {
-            //Suspend Aux
-            camState &= (~MM_CAMERA_TYPE_AUX);
-        }
-        if (!(camState & MM_CAMERA_TYPE_MAIN)) {
-            //Activate Main
-            camState |= MM_CAMERA_TYPE_MAIN;
-        }
-    } else if (zoomLevel > 60) {
-        //TELE Zone
-        LOGH("TELE ZONE : %d and  %d", zoomLevel, prev_zoomLevel);
-        if (!(camState & MM_CAMERA_TYPE_AUX)) {
-            //Activate Aux
-            camState |= MM_CAMERA_TYPE_AUX;
-        }
-        if (camState & MM_CAMERA_TYPE_MAIN) {
-            //Suspend Main
-            camState &= (~MM_CAMERA_TYPE_MAIN);
-        }
-    } else {
-        //Dual Zone
-        LOGH("DUAL ZONE : %d and  %d", zoomLevel, prev_zoomLevel);
-        if (!(camState & MM_CAMERA_TYPE_AUX)) {
-            //Activate Aux
-            camState |= MM_CAMERA_TYPE_AUX;
-        }
-        if (!(camState & MM_CAMERA_TYPE_MAIN)) {
-            //Activate Main
-            camState |= MM_CAMERA_TYPE_MAIN;
-        }
-    }
+    fovControlResult = m_pFovControl->getFovControlResult();
 
-    if (camState != 0 && camState != mActiveCamera) {
+    camState = fovControlResult.camState;
+
+    if (camState != mActiveCamera) {
         processCameraControl(camState);
     }
 
-    if (zoomLevel >= 40 && prev_zoomLevel < 40) {
-        //Switch camera
+    if (mMasterCamera != fovControlResult.camMasterPreview) {
+        mMasterCamera = fovControlResult.camMasterPreview;
         switchCameraCb();
-        prev_zoomLevel = zoomLevel;
-    } else if (prev_zoomLevel >= 40 && zoomLevel  < 40){
-       switchCameraCb();
-       prev_zoomLevel = zoomLevel;
     }
-    return 0;
 }
 
 /*===========================================================================
@@ -10355,7 +10344,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         // before postproc init
                         rc = pme->mParameters.init(cap,
                                 pme->mCameraHandle,
-                                pme);
+                                pme, pme->m_pFovControl);
                         if (rc != 0) {
                             job_status = UNKNOWN_ERROR;
                             LOGE("Parameter Initialization failed");
