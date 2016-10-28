@@ -753,6 +753,46 @@ int32_t QCamera3Stream::bufDone(uint32_t index)
 }
 
 /*===========================================================================
+ * FUNCTION   : cancelBuffer
+ *
+ * DESCRIPTION: Issue cancel buffer request to kernel
+ *
+ * PARAMETERS :
+ *   @index   : index of buffer to be cancelled
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3Stream::cancelBuffer(uint32_t index)
+{
+    int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mLock);
+
+    if ((index >= mNumBufs) || (mBufDefs == NULL)) {
+        LOGE("index; %d, mNumBufs: %d", index, mNumBufs);
+        return BAD_INDEX;
+    }
+    if (mStreamBufs == NULL)
+    {
+        LOGE("putBufs already called");
+        return INVALID_OPERATION;
+    }
+
+    /* if (UNLIKELY(mBatchSize)) {
+        FIXME
+    } else */{
+        LOGH("Calling cancel buf on idx:%d for stream type:%d",index, getMyType());
+        rc = mCamOps->cancel_buffer(mCamHandle, mChannelHandle, mHandle, index);
+        if (rc < 0) {
+            return FAILED_TRANSACTION;
+        }
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : bufRelease
  *
  * DESCRIPTION: release all resources associated with this buffer

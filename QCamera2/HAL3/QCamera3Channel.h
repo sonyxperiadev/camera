@@ -257,6 +257,7 @@ protected:
     QCamera3StreamMem mOfflineMetaMemory; //reprocessing metadata buffer
     List<uint32_t> mFreeOfflineMetaBuffersList;
     Mutex mFreeOfflineMetaBuffersLock;
+    android::List<mm_camera_super_buf_t *> mOutOfSequenceBuffers;
 
 private:
 

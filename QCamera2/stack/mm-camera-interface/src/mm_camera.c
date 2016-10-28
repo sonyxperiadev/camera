@@ -568,6 +568,38 @@ int32_t mm_camera_qbuf(mm_camera_obj_t *my_obj,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_cancel_buf
+ *
+ * DESCRIPTION: Cancel an already queued buffer
+ *
+ * PARAMETERS :
+ *   @my_obj       : camera object
+ *   @ch_id        : channel handle
+ *
+ *   @buf          : buf ptr to be enqueued
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_camera_cancel_buf(mm_camera_obj_t *my_obj,
+                       uint32_t ch_id,
+                       uint32_t stream_id,
+                       uint32_t buf_idx)
+{
+    int rc = -1;
+    mm_channel_t * ch_obj = NULL;
+    ch_obj = mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+
+    if (NULL != ch_obj) {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        rc = mm_channel_cancel_buf(ch_obj,stream_id,buf_idx);
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_get_queued_buf_count
  *
  * DESCRIPTION: return queued buffer count

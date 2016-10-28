@@ -72,6 +72,7 @@ public:
     virtual int32_t markFrameNumber(uint32_t index, uint32_t frameNumber) = 0;
     virtual int32_t getFrameNumber(uint32_t index) = 0;
     virtual int32_t getBufferIndex(uint32_t frameNumber) = 0;
+    virtual int32_t getOldestFrameNumber(uint32_t &index) = 0;
 
     QCamera3Memory();
     virtual ~QCamera3Memory();
@@ -116,6 +117,7 @@ public:
     virtual int32_t markFrameNumber(uint32_t index, uint32_t frameNumber);
     virtual int32_t getFrameNumber(uint32_t index);
     virtual int32_t getBufferIndex(uint32_t frameNumber);
+    virtual int32_t getOldestFrameNumber(uint32_t &index);
 
 protected:
     virtual void *getPtrLocked(uint32_t index);
@@ -142,6 +144,7 @@ public:
     virtual int32_t markFrameNumber(uint32_t index, uint32_t frameNumber);
     virtual int32_t getFrameNumber(uint32_t index);
     virtual int32_t getBufferIndex(uint32_t frameNumber);
+    virtual int32_t getOldestFrameNumber(uint32_t &index);
 
     void *getBufferHandle(uint32_t index);
 protected:

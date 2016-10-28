@@ -217,6 +217,7 @@ typedef enum {
     MM_STREAM_EVT_REG_FRAME_SYNC,
     MM_STREAM_EVT_TRIGGER_FRAME_SYNC,
     MM_STREAM_EVT_SWITCH_STREAM_CB,
+    MM_STREAM_EVT_CANCEL_BUF,
     MM_STREAM_EVT_MAX
 } mm_stream_evt_type_t;
 
@@ -700,6 +701,10 @@ extern int32_t mm_camera_register_event_notify(mm_camera_obj_t *my_obj,
 extern int32_t mm_camera_qbuf(mm_camera_obj_t *my_obj,
                               uint32_t ch_id,
                               mm_camera_buf_def_t *buf);
+extern int32_t mm_camera_cancel_buf(mm_camera_obj_t *my_obj,
+                       uint32_t ch_id,
+                       uint32_t stream_id,
+                       uint32_t buf_idx);
 extern int32_t mm_camera_get_queued_buf_count(mm_camera_obj_t *my_obj,
         uint32_t ch_id, uint32_t stream_id);
 extern int32_t mm_camera_query_capability(mm_camera_obj_t *my_obj);
@@ -828,6 +833,8 @@ extern int32_t mm_channel_init(mm_channel_t *my_obj,
  * from the context of dataCB, but async stop is holding ch_lock */
 extern int32_t mm_channel_qbuf(mm_channel_t *my_obj,
                                mm_camera_buf_def_t *buf);
+extern int32_t mm_channel_cancel_buf(mm_channel_t *my_obj,
+                        uint32_t stream_id, uint32_t buf_idx);
 /* mm_stream */
 extern int32_t mm_stream_fsm_fn(mm_stream_t *my_obj,
                                 mm_stream_evt_type_t evt,
