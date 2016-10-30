@@ -82,6 +82,7 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/util \
         $(LOCAL_PATH)/HAL3 \
         hardware/libhardware/include/hardware \
+        hardware/qcom/display/msm8996/libgralloc \
         hardware/qcom/display/msm8996/libqservice \
         hardware/qcom/media/msm8996/libstagefrighthw \
         hardware/qcom/media/msm8996/mm-core/inc \
