@@ -98,6 +98,14 @@ typedef enum {
     CAM_PERF_STATS_FPS_CONTROL
 } cam_dual_camera_perf_mode_t;
 
+/*Enum to inform about camera type in dual camera use-cases*/
+typedef enum {
+    CAM_DEFER_DEFAULT,
+    CAM_DEFER_START,
+    CAM_DEFER_PROCESS,
+    CAM_DEFER_FLUSH
+} cam_dual_camera_defer_cmd_t;
+
 /* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;
@@ -136,6 +144,7 @@ typedef struct {
         cam_dual_camera_bundle_info_t  bundle_info;
         cam_dual_camera_master_info_t  mode;
         cam_dual_camera_perf_control_t value;
+        cam_dual_camera_defer_cmd_t defer_cmd;
     };
 } cam_dual_camera_cmd_info_t;
 

@@ -1470,4 +1470,11 @@ int32_t QCameraParametersIntf::setSwitchCamera()
     return mImpl->setSwitchCamera();
 }
 
+int32_t QCameraParametersIntf::setDeferCamera(cam_dual_camera_defer_cmd_t type)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setDeferCamera(type);
+}
+
 }; // namespace qcamera

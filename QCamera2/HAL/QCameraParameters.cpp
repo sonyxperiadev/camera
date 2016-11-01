@@ -12319,6 +12319,21 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
             }
         }
         break;
+
+        case CAM_DUAL_CAMERA_DEFER_INFO: {
+            cam_dual_camera_defer_cmd_t *info =
+                    (cam_dual_camera_defer_cmd_t *)cmd_value;
+            for (int i = 0; i < num_cam; i++) {
+                m_pDualCamCmdPtr[i]->cmd_type = type;
+                memcpy(&m_pDualCamCmdPtr[i]->defer_cmd,
+                        &info[i],
+                        sizeof(cam_dual_camera_master_info_t));
+                LOGH("DEFER INFO CMD %d: cmd %d value %d", i,
+                        m_pDualCamCmdPtr[i]->cmd_type,
+                        m_pDualCamCmdPtr[i]->defer_cmd);
+            }
+        }
+        break;
         default :
         break;
     }
@@ -14514,6 +14529,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     }
 
     if (rc == NO_ERROR && isDualCamera()) {
+        //Trigger dual camera Link command before Meta info
         cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
@@ -16199,6 +16215,37 @@ int32_t QCameraParameters::setSwitchCamera()
 }
 
 /*===========================================================================
+ * FUNCTION   : setDeferCamera
+ *
+ * DESCRIPTION: configure camera in background for KPI in dual camera
+ *
+ * PARAMETERS :
+ *         @type : Type of defer command
+ *
+ * RETURN     : NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setDeferCamera(cam_dual_camera_defer_cmd_t type)
+{
+    int32_t rc = NO_ERROR;
+    char prop[PROPERTY_VALUE_MAX];
+    int value = 0;
+
+    property_get("persist.dualcam.defer.cam", prop, "1");
+    value = atoi(prop);
+
+    cam_dual_camera_defer_cmd_t defer_val[MM_CAMERA_MAX_CAM_CNT];
+    memset(&defer_val[0], 0, sizeof(defer_val));
+
+    if (value < MM_CAMERA_MAX_CAM_CNT) {
+        defer_val[value] = type;
+    }
+    sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO,MM_CAMERA_MAX_CAM_CNT,
+            &defer_val[0]);
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setCameraControls
  *
  * DESCRIPTION: activate or deactive camera's
@@ -16255,5 +16302,4 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
 
     return rc;
 }
-
 }; // namespace qcamera
