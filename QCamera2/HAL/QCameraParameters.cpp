@@ -14168,6 +14168,16 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
         return rc;
     }
 
+    if(isDualCamera()) {
+        // Update FOV-control config settings due to the change in the configuration
+        rc = m_pFovControl->updateConfigSettings(m_pParamBuf, m_pParamBufAux);
+
+        if (rc != NO_ERROR) {
+            LOGE("Failed to update FOV-control config settings");
+            return rc;
+        }
+    }
+
     return rc;
 }
 
@@ -14503,7 +14513,6 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 stream_config_info.is_type[k]);
     }
 
-    rc = sendStreamConfigInfo(stream_config_info);
     if (rc == NO_ERROR && isDualCamera()) {
         cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
         char prop[PROPERTY_VALUE_MAX];
@@ -14538,6 +14547,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
                 num_cam, &bundle_info[0]);
     }
+
+    rc = sendStreamConfigInfo(stream_config_info);
+
     return rc;
 }
 

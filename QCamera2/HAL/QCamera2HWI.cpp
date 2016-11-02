@@ -6966,7 +6966,7 @@ void QCamera2HardwareInterface::processDualCamFovControl()
 
     fovControlResult = m_pFovControl->getFovControlResult();
 
-    camState = fovControlResult.camState;
+    camState = fovControlResult.activeCamState;
 
     if (camState != mActiveCamera) {
         processCameraControl(camState);

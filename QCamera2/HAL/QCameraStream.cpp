@@ -775,6 +775,10 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
             mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                     mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
         }
+        if (!needCbSwitch()) {
+            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                    mHandle, MM_CAMERA_CB_REQ_TYPE_ALL_CB);
+        }
     }
 
     rc = mapBufs(mStreamInfoBuf, CAM_MAPPING_BUF_TYPE_STREAM_INFO, NULL);
@@ -2829,7 +2833,8 @@ int32_t QCameraStream::switchStreamCb()
     int32_t ret = NO_ERROR;
     if ((getMyType() != CAM_STREAM_TYPE_SNAPSHOT)
             && (mActiveCamera == MM_CAMERA_DUAL_CAM)
-            && !(needFrameSync())) {
+            && !(needFrameSync())
+            && (needCbSwitch())) {
         ret = mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                 mHandle, MM_CAMERA_CB_REQ_TYPE_SWITCH);
     }
@@ -2844,6 +2849,31 @@ int32_t QCameraStream::switchStreamCb()
         mActiveHandle = mHandle;
     }
     return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : needCbSwitch
+ *
+ * DESCRIPTION: Function to enable callback switch based on availability of
+ *              spatial alignment
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+bool QCameraStream::needCbSwitch()
+{
+    if (!isDualStream()) {
+        return false;
+    }
+
+    if (mStreamInfo->pp_config.feature_mask == CAM_QTI_FEATURE_SAT) {
+        return false;
+    } else {
+        return true;
+    }
 }
 
 /*===========================================================================

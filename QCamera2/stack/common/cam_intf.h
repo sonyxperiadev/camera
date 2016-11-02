@@ -598,6 +598,16 @@ typedef struct cam_capability{
     /* Dual cam calibration data */
     cam_related_system_calibration_data_t related_cam_calibration;
 
+    /* Maximum degree of rotation along X axis for tele sensor with respect to the wide sensor*/
+    float      max_roll_degrees;
+    /* Maximum degree of rotation along Y axis for tele sensor with respect to the wide sensor*/
+    float      max_pitch_degrees;
+    /* Maximum degree of rotation along Z axis for tele sensor with respect to the wide sensor*/
+    float      max_yaw_degrees;
+
+    /* Pixel pitch in micrometer*/
+    float      pixel_pitch_um;
+
     /* Meta_RAW capability */
     uint8_t meta_raw_channel_count;
     uint8_t vc[MAX_SIZES_CNT];
