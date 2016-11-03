@@ -2582,7 +2582,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
     if (main_frame != NULL) {
         main_stream->handleCacheOps(main_frame);
     }
-    if (thumb_frame != NULL) {
+    if ((thumb_stream != NULL) && (thumb_frame != NULL)) {
         thumb_stream->handleCacheOps(thumb_frame);
     }
 
