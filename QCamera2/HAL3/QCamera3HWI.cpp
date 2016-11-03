@@ -6498,7 +6498,8 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_PREVIEW;
         focusMode = ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE;
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
-        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
+        if (gCamCapability[mCameraId]->aberration_modes_count > 0)
+            cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
         break;
       case CAMERA3_TEMPLATE_STILL_CAPTURE:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_STILL_CAPTURE;
@@ -6531,7 +6532,8 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
         optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_OFF;
         if (forceVideoOis)
             optStabMode = ANDROID_LENS_OPTICAL_STABILIZATION_MODE_ON;
-        cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
+        if (gCamCapability[mCameraId]->aberration_modes_count > 0)
+            cacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_FAST;
         break;
       case CAMERA3_TEMPLATE_VIDEO_SNAPSHOT:
         controlIntent = ANDROID_CONTROL_CAPTURE_INTENT_VIDEO_SNAPSHOT;
