@@ -33,6 +33,7 @@
 #include "QCameraParametersIntf.h"
 #include "QCameraThermalAdapter.h"
 #include "QCameraCommon.h"
+#include "QCameraFOVControl.h"
 
 extern "C" {
 #include "mm_jpeg_interface.h"
@@ -624,7 +625,8 @@ public:
     int32_t allocate(uint8_t bufCount);
     int32_t init(cam_capability_t *,
                  mm_camera_vtbl_t *,
-                 QCameraAdjustFPS *);
+                 QCameraAdjustFPS *,
+                 QCameraFOVControl *);
     void deinit();
     int32_t initDefaultParameters();
     int32_t updateParameters(const String8& params, bool &needRestart);
@@ -1084,7 +1086,7 @@ private:
     int32_t commitGetBatch();
     int32_t commitSetBatchAux();
     int32_t commitGetBatchAux();
-    int32_t setAuxParameter(uint32_t meta_id, void *value);
+    void    setAuxParameters();
 
     void * getPointerofParam(cam_intf_parm_type_t meta_id,
             metadata_buffer_t* metadata);
@@ -1143,6 +1145,7 @@ private:
     QCameraHeapMemory *m_pParamHeap;
     parm_buffer_t     *m_pParamBuf;  // ptr to param buf in m_pParamHeap
     parm_buffer_t     *m_pParamBufAux;  // ptr to Aux param buf in m_pParamHeap
+    QCameraFOVControl *m_pFovControl;
     /* heap for mapping dual cam event info */
     QCameraHeapMemory *m_pDualCamCmdHeap;
     cam_dual_camera_cmd_info_t *m_pDualCamCmdPtr[MM_CAMERA_MAX_CAM_CNT];

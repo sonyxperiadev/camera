@@ -51,6 +51,8 @@ int32_t mm_stream_qbuf(mm_stream_t *my_obj,
                        mm_camera_buf_def_t *buf);
 int32_t mm_stream_set_ext_mode(mm_stream_t * my_obj);
 int32_t mm_stream_set_fmt(mm_stream_t * my_obj);
+int32_t mm_stream_cancel_buf(mm_stream_t * my_obj,
+                           uint32_t buf_idx);
 int32_t mm_stream_sync_info(mm_stream_t *my_obj);
 int32_t mm_stream_init_bufs(mm_stream_t * my_obj);
 int32_t mm_stream_deinit_bufs(mm_stream_t * my_obj);
@@ -929,6 +931,9 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
     switch(evt) {
     case MM_STREAM_EVT_QBUF:
         rc = mm_stream_buf_done(my_obj, (mm_camera_buf_def_t *)in_val);
+        break;
+    case MM_STREAM_EVT_CANCEL_BUF:
+        rc = mm_stream_cancel_buf(my_obj, *((uint32_t*)in_val));
         break;
     case MM_STREAM_EVT_GET_QUEUED_BUF_COUNT:
         rc = mm_stream_get_queued_buf_count(my_obj);
@@ -2490,27 +2495,35 @@ uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt)
         val = V4L2_PIX_FMT_NV21;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_10BPP_GBRG:
+    case CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG:
         val= V4L2_PIX_FMT_SGBRG10;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_10BPP_GRBG:
+    case CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GRBG:
         val= V4L2_PIX_FMT_SGRBG10;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_10BPP_RGGB:
+    case CAM_FORMAT_BAYER_MIPI_RAW_10BPP_RGGB:
         val= V4L2_PIX_FMT_SRGGB10;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_10BPP_BGGR:
+    case CAM_FORMAT_BAYER_MIPI_RAW_10BPP_BGGR:
         val= V4L2_PIX_FMT_SBGGR10;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_12BPP_GBRG:
+    case CAM_FORMAT_BAYER_MIPI_RAW_12BPP_GBRG:
         val= V4L2_PIX_FMT_SGBRG12;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_12BPP_GRBG:
+    case CAM_FORMAT_BAYER_MIPI_RAW_12BPP_GRBG:
         val= V4L2_PIX_FMT_SGRBG12;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_12BPP_RGGB:
+    case CAM_FORMAT_BAYER_MIPI_RAW_12BPP_RGGB:
         val= V4L2_PIX_FMT_SRGGB12;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_12BPP_BGGR:
+    case CAM_FORMAT_BAYER_MIPI_RAW_12BPP_BGGR:
         val = V4L2_PIX_FMT_SBGGR12;
         break;
     case CAM_FORMAT_BAYER_QCOM_RAW_14BPP_GBRG:
@@ -4809,6 +4822,71 @@ int32_t mm_stream_set_fmt(mm_stream_t *my_obj)
     }
     return rc;
 }
+
+/*===========================================================================
+ * FUNCTION   : mm_stream_cancel_buf
+ *
+ * DESCRIPTION: Get buffer back from kernel
+ *
+ * PARAMETERS :
+ *   @my_obj       : stream object
+ *   @buf_idx        : frame index to be de-queued back from kernel
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_stream_cancel_buf(mm_stream_t * my_obj,
+                           uint32_t buf_idx)
+{
+    int32_t rc = 0;
+    LOGD("E, my_handle = 0x%x, fd = %d, state = %d",
+          my_obj->my_hdl, my_obj->fd, my_obj->state);
+
+    pthread_mutex_lock(&my_obj->buf_lock);
+    if(my_obj->buf_status[buf_idx].buf_refcnt != 0) {
+        LOGE("Error Trying to extract a frame already sent to HAL(idx=%d) count=%d\n",
+                    buf_idx,
+                   my_obj->buf_status[buf_idx].buf_refcnt);
+        pthread_mutex_unlock(&my_obj->buf_lock);
+        rc = -1;
+        return rc;
+    }
+    pthread_mutex_unlock(&my_obj->buf_lock);
+    if (my_obj->stream_info->streaming_mode == CAM_STREAMING_MODE_BATCH) {
+        /*rc = mm_stream_write_user_buf(my_obj, frame);*/
+        // TODO handling batch buffers
+    } else {
+        pthread_mutex_lock(&my_obj->buf_lock);
+        //my_obj->buf_status[buf_idx].buf_refcnt++;
+        {
+            pthread_mutex_unlock(&my_obj->buf_lock);
+            LOGD("<DEBUG> : Cancel Buffer done for buffer:%d, stream type:%d", buf_idx, my_obj->stream_info->stream_type);
+
+            struct msm_camera_return_buf bufid;
+            memset(&bufid, 0, sizeof(struct msm_camera_return_buf));
+            bufid.index = buf_idx;
+
+            struct msm_camera_private_ioctl_arg arg;
+            memset(&arg, 0, sizeof(struct msm_camera_private_ioctl_arg));
+            arg.id = MSM_CAMERA_PRIV_IOCTL_ID_RETURN_BUF;
+            arg.size = sizeof(struct msm_camera_return_buf);
+            arg.ioctl_ptr = (uint32_t) &bufid;
+
+
+            rc = ioctl(my_obj->fd, VIDIOC_MSM_CAMERA_PRIVATE_IOCTL_CMD, &arg);
+
+            if(rc < 0) {
+                LOGE("mm_stream_cancel_buf(idx=%d) err=%d\n",
+                            buf_idx, rc);
+            } else {
+                //my_obj->buf_status[frame->buf_idx].in_kernel = 0;
+            }
+        }
+    }
+    return rc;
+}
+
 
 /*===========================================================================
  * FUNCTION   : mm_stream_buf_done

@@ -56,7 +56,8 @@ LOCAL_SRC_FILES += \
         HAL/QCamera2HWICallbacks.cpp \
         HAL/QCameraParameters.cpp \
         HAL/QCameraParametersIntf.cpp \
-        HAL/QCameraThermalAdapter.cpp
+        HAL/QCameraThermalAdapter.cpp \
+        util/QCameraFOVControl.cpp
 endif
 
 # System header file path prefix
@@ -117,6 +118,10 @@ endif
 
 ifneq (,$(filter msm8996 msmcobalt msmfalcon,$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DUBWC_PRESENT
+endif
+
+ifneq (,$(filter msm8996,$(TARGET_BOARD_PLATFORM)))
+    LOCAL_CFLAGS += -DTARGET_MSM8996
 endif
 
 #LOCAL_STATIC_LIBRARIES := libqcamera2_util

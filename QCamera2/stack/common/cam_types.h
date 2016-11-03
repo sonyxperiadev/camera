@@ -149,6 +149,9 @@
 #define CPU_HAS_WRITTEN  (1 << 1)
 #define CPU_HAS_READ_WRITTEN (CPU_HAS_READ |CPU_HAS_WRITTEN)
 
+/* Index to switch H/W to consume to free-run Q*/
+#define CAM_FREERUN_IDX 0xFFFFFFFF
+
 typedef uint64_t cam_feature_mask_t;
 
 typedef enum {
@@ -1061,6 +1064,7 @@ typedef struct {
 typedef struct {
     cam_aec_roi_ctrl_t aec_roi_enable;
     cam_aec_roi_type_t aec_roi_type;
+    uint8_t num_roi;
     union {
         cam_coordinate_type_t coordinate[MAX_ROI];
         uint32_t aec_roi_idx[MAX_ROI];
@@ -1744,8 +1748,13 @@ typedef struct {
 } cam_hw_data_overwrite_t;
 
 typedef struct {
+    uint32_t streamID;
+    uint32_t buf_index;
+} cam_stream_request_t;
+
+typedef struct {
     uint32_t num_streams;
-    uint32_t streamID[MAX_NUM_STREAMS];
+    cam_stream_request_t stream_request[MAX_NUM_STREAMS];
 } cam_stream_ID_t;
 
 /*CAC Message posted during pipeline*/

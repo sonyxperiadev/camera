@@ -50,6 +50,8 @@ static pthread_mutex_t fs_lock = PTHREAD_MUTEX_INITIALIZER;
 /* internal function declare goes here */
 int32_t mm_channel_qbuf(mm_channel_t *my_obj,
                         mm_camera_buf_def_t *buf);
+int32_t mm_channel_cancel_buf(mm_channel_t *my_obj,
+                        uint32_t stream_id, uint32_t buf_idx);
 int32_t mm_channel_init(mm_channel_t *my_obj,
                         mm_camera_channel_attr_t *attr,
                         mm_camera_buf_notify_t channel_cb,
@@ -951,7 +953,7 @@ int32_t mm_channel_fsm_fn_stopped(mm_channel_t *my_obj,
         }
         break;
     default:
-        LOGE("invalid state (%d) for evt (%d)",
+        LOGW("invalid state (%d) for evt (%d)",
                     my_obj->state, evt);
         break;
     }
@@ -2268,6 +2270,44 @@ int32_t mm_channel_qbuf(mm_channel_t *my_obj,
 
     return rc;
 }
+
+/*===========================================================================
+ * FUNCTION   : mm_channel_cancel_buf
+ *
+ * DESCRIPTION: Get back buffer already sent to kernel
+ *
+ * PARAMETERS :
+ *   @my_obj       : channel object
+ *   @buf          : buf ptr to be enqueued
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_channel_cancel_buf(mm_channel_t *my_obj,
+                        uint32_t stream_id, uint32_t buf_idx)
+{
+    int32_t rc = -1;
+    mm_stream_t* s_obj = mm_channel_util_get_stream_by_handler(my_obj, stream_id);
+
+    if (NULL != s_obj) {
+        if (s_obj->ch_obj != my_obj) {
+            /* Redirect to linked stream */
+            rc = mm_stream_fsm_fn(s_obj->linked_stream,
+                    MM_STREAM_EVT_CANCEL_BUF,
+                    (void *)&buf_idx,
+                    NULL);
+        } else {
+            rc = mm_stream_fsm_fn(s_obj,
+                    MM_STREAM_EVT_CANCEL_BUF,
+                    (void *)&buf_idx,
+                    NULL);
+        }
+    }
+
+    return rc;
+}
+
 
 /*===========================================================================
  * FUNCTION   : mm_channel_get_queued_buf_count

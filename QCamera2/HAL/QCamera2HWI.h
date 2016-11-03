@@ -49,6 +49,7 @@
 #include "QCameraStream.h"
 #include "QCameraStateMachine.h"
 #include "QCameraThermalAdapter.h"
+#include "QCameraFOVControl.h"
 
 #ifdef TARGET_TS_MAKEUP
 #include "ts_makeup_engine.h"
@@ -287,7 +288,7 @@ public:
 
     virtual int recalcFPSRange(int &minFPS, int &maxFPS,
             const float &minVideoFPS, const float &maxVideoFPS,
-            cam_fps_range_t &adjustedRange);
+            cam_fps_range_t &adjustedRange, bool bRecordingHint);
 
     friend class QCameraStateMachine;
     friend class QCameraPostProcessor;
@@ -361,7 +362,8 @@ private:
             const int minFPSi, const int maxFPSi,
             const float &minVideoFPS, const float &maxVideoFPS,
             cam_fps_range_t &adjustedRange,
-            enum msm_vfe_frame_skip_pattern &skipPattern);
+            enum msm_vfe_frame_skip_pattern &skipPattern,
+            bool bRecordingHint);
     int updateThermalLevel(void *level);
 
     // update entris to set parameters and check if restart is needed
@@ -406,7 +408,7 @@ private:
     int32_t transAwbMetaToParams(cam_awb_params_t &awb_params);
     int32_t processFocusPositionInfo(cam_focus_pos_info_t &cur_pos_info);
     int32_t processAEInfo(cam_3a_params_t &ae_params);
-    int32_t processDCFOVControl();
+    void    processDualCamFovControl();
 
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
     int32_t sendDataNotify(int32_t msg_type,
@@ -581,14 +583,17 @@ private:
     uint32_t getCamHandleForChannel(qcamera_ch_type_enum_t ch_type);
     int32_t switchCameraCb();
     int32_t processCameraControl(uint32_t camState);
+    bool needSyncCB(cam_stream_type_t stream_type);
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
     mm_camera_vtbl_t *mCameraHandle;
     uint32_t m_ActiveHandle;
     uint32_t mActiveCamera;
+    uint32_t mMasterCamera;
     bool mCameraOpened;
     bool mDualCamera;
+    QCameraFOVControl *m_pFovControl;
 
     cam_jpeg_metadata_t mJpegMetadata;
     bool m_bRelCamCalibValid;
@@ -612,7 +617,7 @@ private:
     QCameraPostProcessor m_postprocessor; // post processor
     QCameraThermalAdapter &m_thermalAdapter;
     QCameraCbNotifier m_cbNotifier;
-    QCameraPerfLock m_perfLock;
+    QCameraPerfLockMgr m_perfLockMgr;
     pthread_mutex_t m_lock;
     pthread_cond_t m_cond;
     api_result_list *m_apiResultList;
@@ -807,7 +812,6 @@ private:
     //The offset between BOOTTIME and MONOTONIC timestamps
     nsecs_t mBootToMonoTimestampOffset;
     bool bDepthAFCallbacks;
-    int32_t prev_zoomLevel;
     bool m_bOptimizeCacheOps;
 };
 

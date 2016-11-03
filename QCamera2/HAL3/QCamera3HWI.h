@@ -98,6 +98,8 @@ typedef struct {
     camera3_stream_t *stream;
     // Buffer handle
     buffer_handle_t *buffer;
+    // Buffer status
+    camera3_buffer_status_t bufStatus = CAMERA3_BUFFER_STATUS_OK;
 } PendingBufferInfo;
 
 typedef struct {
@@ -116,6 +118,7 @@ public:
     List<PendingBuffersInRequest> mPendingBuffersInRequest;
     uint32_t get_num_overall_buffers();
     void removeBuf(buffer_handle_t *buffer);
+    int32_t getBufErrStatus(buffer_handle_t *buffer);
 };
 
 
@@ -223,6 +226,10 @@ public:
     const char *getEepromVersionInfo();
     const uint32_t *getLdafCalib();
     void get3AVersion(cam_q3a_version_t &swVersion);
+    static void setBufferErrorStatus(QCamera3Channel*, uint32_t frameNumber,
+            camera3_buffer_status_t err, void *userdata);
+    void setBufferErrorStatus(QCamera3Channel*, uint32_t frameNumber,
+            camera3_buffer_status_t err);
 
     // Get dual camera related info
     bool isDeviceLinked() {return mIsDeviceLinked;}
@@ -365,7 +372,7 @@ private:
     QCamera3SupportChannel *mAnalysisChannel;
     QCamera3RawDumpChannel *mRawDumpChannel;
     QCamera3RegularChannel *mDummyBatchChannel;
-    QCameraPerfLock m_perfLock;
+    QCameraPerfLockMgr mPerfLockMgr;
     QCameraCommon   mCommon;
 
     uint32_t mChannelHandle;
@@ -449,6 +456,7 @@ private:
     /* Use last frame number of the batch as key and first frame number of the
      * batch as value for that key */
     KeyedVector<uint32_t, uint32_t> mPendingBatchMap;
+    cam_stream_ID_t mBatchedStreamsArray;
 
     PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
@@ -482,10 +490,13 @@ private:
     uint8_t mToBeQueuedVidBufs;
     // Fixed video fps
     float mHFRVideoFps;
+public:
     uint8_t mOpMode;
+private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
     bool mNeedSensorRestart;
+    bool mPreviewStarted;
     uint32_t mMinInFlightRequests;
     uint32_t mMaxInFlightRequests;
     // Param to trigger instant AEC.
@@ -504,7 +515,6 @@ private:
     /* Ldaf calibration data */
     bool mLdafCalibExist;
     uint32_t mLdafCalib[2];
-    bool mPowerHintEnabled;
     int32_t mLastCustIntentFrmNum;
     CameraMetadata  mCachedMetadata;
 

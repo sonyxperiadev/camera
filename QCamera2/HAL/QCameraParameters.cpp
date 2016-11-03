@@ -4486,8 +4486,8 @@ int32_t QCameraParameters::setZslMode(bool value)
             LOGI("ZSL Mode forced to be enabled");
         }
     } else {
-        LOGI("ZSL Mode  -> %s", m_bZslMode_new ? "Enabled" : "Disabled");
         m_bZslMode_new = (value > 0)? true : false;
+        LOGI("ZSL Mode  -> %s", m_bZslMode_new ? "Enabled" : "Disabled");
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZSL_MODE, value)) {
             rc = BAD_VALUE;
         }
@@ -6261,15 +6261,16 @@ int32_t QCameraParameters::allocate(uint8_t bufCount)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::init(cam_capability_t *capabilities,
-        mm_camera_vtbl_t *mmOps, QCameraAdjustFPS *adjustFPS)
+int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t *mmOps,
+        QCameraAdjustFPS *adjustFPS, QCameraFOVControl *fovControl)
 {
     int32_t rc = NO_ERROR;
     uint8_t buf_cnt = 1;
 
     m_pCapability = capabilities;
-    m_pCamOpsTbl = mmOps;
-    m_AdjustFPS = adjustFPS;
+    m_pCamOpsTbl  = mmOps;
+    m_AdjustFPS   = adjustFPS;
+    m_pFovControl = fovControl;
 
     if (m_pParamHeap == NULL) {
         LOGE("Parameter buffers have not been allocated");
@@ -6618,13 +6619,14 @@ int32_t QCameraParameters::setPreviewFpsRange(int min_fps,
 
     if ( NULL != m_AdjustFPS ) {
         if (m_ThermalMode == QCAMERA_THERMAL_ADJUST_FPS &&
-                !m_bRecordingHint) {
+                !m_bRecordingHint_new) {
             float minVideoFps = min_fps, maxVideoFps = max_fps;
             if (isHfrMode()) {
                 minVideoFps = m_hfrFpsRange.video_min_fps;
                 maxVideoFps = m_hfrFpsRange.video_max_fps;
             }
-            m_AdjustFPS->recalcFPSRange(min_fps, max_fps, minVideoFps, maxVideoFps, fps_range);
+            m_AdjustFPS->recalcFPSRange(min_fps, max_fps, minVideoFps,
+                                         maxVideoFps, fps_range, m_bRecordingHint_new);
             LOGH("Thermal adjusted Preview fps range %3.2f,%3.2f, %3.2f, %3.2f",
                    fps_range.min_fps, fps_range.max_fps,
                   fps_range.video_min_fps, fps_range.video_max_fps);
@@ -7122,7 +7124,7 @@ int32_t QCameraParameters::setVtEnable(const char *vtEnable)
         int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
                 PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), vtEnable);
         if (value != NAME_NOT_FOUND) {
-            LOGH("Setting Vt Enable %s", vtEnable);
+            LOGI("Setting Vt Enable %s", vtEnable);
             m_bAVTimerEnabled = true;
             updateParamEntry(KEY_QC_VT_ENABLE, vtEnable);
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_VT, value)) {
@@ -8936,6 +8938,7 @@ int32_t QCameraParameters::setMeteringAreas(const char *meteringAreasStr)
     getPreviewSize(&previewWidth, &previewHeight);
 
     memset(&aec_roi_value, 0, sizeof(cam_set_aec_roi_t));
+    aec_roi_value.num_roi = num_areas_found;
     if (num_areas_found > 0) {
         aec_roi_value.aec_roi_enable = CAM_AEC_ROI_ON;
         aec_roi_value.aec_roi_type = CAM_AEC_ROI_BY_COORDINATE;
@@ -13234,6 +13237,27 @@ uint32_t QCameraParameters::getSizeofParam(cam_intf_parm_type_t param_id)
         return 0;
 }
 
+/*===========================================================================
+* FUNCTION   : setAuxParameters
+*
+* DESCRIPTION: Parameter only required for auxillary camera is set.
+*
+* PARAMETERS : none
+*
+* RETURN     : none
+*NOTE: We can use this function configure auxillary camera related parameters.
+*==========================================================================*/
+void QCameraParameters::setAuxParameters()
+{
+    void *aux_param = NULL;
+    if (m_pParamBufAux->is_valid[CAM_INTF_META_STREAM_INFO]) {
+        aux_param = getPointerofParam(CAM_INTF_META_STREAM_INFO, m_pParamBufAux);
+        if (aux_param) {
+            cam_stream_size_info_t *info = (cam_stream_size_info_t *)aux_param;
+            info->sync_type = CAM_TYPE_AUX;
+        }
+    }
+}
 
 /*===========================================================================
  * FUNCTION   : commitSetBatch
@@ -13272,11 +13296,15 @@ int32_t QCameraParameters::commitSetBatch()
             m_pParamBuf);
     }
 
-    if (i < CAM_INTF_PARM_MAX &&
-        isDualCamera()) {
+    if (i < CAM_INTF_PARM_MAX && isDualCamera()) {
+        rc = m_pFovControl->translateInputParams(m_pParamBuf, m_pParamBufAux);
+        if (rc != NO_ERROR) {
+            LOGE("FOV-control: Failed to translate params for aux camera");
+            return rc;
+        }
         rc = commitSetBatchAux();
         if (rc != NO_ERROR) {
-            LOGE("Failed to set parma for Aux camera");
+            LOGE("Failed to set params for Aux camera");
             return rc;
         }
     }
@@ -13284,34 +13312,6 @@ int32_t QCameraParameters::commitSetBatch()
     if (rc == NO_ERROR) {
         // commit change from temp storage into param map
         rc = commitParamChanges();
-    }
-    return rc;
-}
-
-/*===========================================================================
- * FUNCTION   : setAuxParameter
- *
- * DESCRIPTION: Parameter only required for auxillary camera is set.
- *
- * PARAMETERS : none
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *NOTE: We can use this function configure auxillary camera related parameters.
- *==========================================================================*/
-int32_t QCameraParameters::setAuxParameter(uint32_t meta_id, void *value)
-{
-    int32_t rc = NO_ERROR;
-
-    switch (meta_id) {
-        case CAM_INTF_META_STREAM_INFO: {
-            cam_stream_size_info_t *info = (cam_stream_size_info_t *)value;
-            info->sync_type = CAM_TYPE_AUX;
-        }
-        break;
-        default :
-        break;
     }
     return rc;
 }
@@ -13330,32 +13330,10 @@ int32_t QCameraParameters::setAuxParameter(uint32_t meta_id, void *value)
 int32_t QCameraParameters::commitSetBatchAux()
 {
     int32_t rc = NO_ERROR;
-    uint32_t i = 0;
-    void *main_param;
-    void *aux_param;
-    uint32_t param_length;
 
     if (NULL == m_pParamBufAux || NULL == m_pParamBuf) {
         LOGE("Params not initialized");
         return NO_INIT;
-    }
-
-    /* Loop to check if atleast one entry is valid */
-    for (i = 0; i < CAM_INTF_PARM_MAX; i++) {
-        if(m_pParamBuf->is_valid[i] && !m_pParamBufAux->is_valid[i]) {
-            main_param = getPointerofParam((cam_intf_parm_type_t)i,
-                         m_pParamBuf);
-            aux_param = getPointerofParam((cam_intf_parm_type_t)i,
-                         m_pParamBufAux);
-            if(main_param != NULL && aux_param != NULL) {
-                param_length = getSizeofParam((cam_intf_parm_type_t)i);
-                if (param_length) {
-                    memcpy(aux_param, main_param, getSizeofParam((cam_intf_parm_type_t)i));
-                    setAuxParameter(i, aux_param);
-                    m_pParamBufAux->is_valid[i] = 1;
-                }
-            }
-        }
     }
 
     if (NULL == m_pCamOpsTbl->ops) {
@@ -13363,11 +13341,11 @@ int32_t QCameraParameters::commitSetBatchAux()
         return NO_INIT;
     }
 
-    if (i <= CAM_INTF_PARM_MAX) {
-        rc = m_pCamOpsTbl->ops->set_parms(
-                get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
-                m_pParamBufAux);
-    }
+    setAuxParameters();
+
+    rc = m_pCamOpsTbl->ops->set_parms(
+            get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
+            m_pParamBufAux);
     return rc;
 }
 
@@ -14052,6 +14030,22 @@ int32_t QCameraParameters::setISType()
         // Make default value for preview IS_TYPE as IS_TYPE_EIS_2_0
         property_get("persist.camera.is_type_preview", value, "4");
         mIsTypePreview = static_cast<cam_is_type_t>(atoi(value));
+    } else if (m_bDISEnabled) {
+        char value[PROPERTY_VALUE_MAX];
+        // Make default value for Video IS_TYPE as IS_TYPE_DIS
+        property_get("persist.camera.is_type", value, "2");
+        mIsTypeVideo = static_cast<cam_is_type_t>(atoi(value));
+        if (mIsTypeVideo >= IS_TYPE_DIS) {
+            LOGW("EIS is not supported and so setting DIS");
+            mIsTypeVideo = IS_TYPE_DIS;
+        }
+        // Make default value for preview IS_TYPE as IS_TYPE_DIS
+        property_get("persist.camera.is_type_preview", value, "2");
+        mIsTypePreview = static_cast<cam_is_type_t>(atoi(value));
+        if (mIsTypePreview >= IS_TYPE_DIS) {
+            LOGW("EIS is not supported and so setting DIS");
+            mIsTypePreview = IS_TYPE_DIS;
+        }
     } else {
         mIsTypeVideo = IS_TYPE_NONE;
         mIsTypePreview = IS_TYPE_NONE;

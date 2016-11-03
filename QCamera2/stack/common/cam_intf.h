@@ -601,7 +601,8 @@ typedef struct cam_capability{
     /*camera index*/
     uint32_t camera_index;
 
-    /*Slave capability*/
+    /*main and aux cam capability*/
+    struct cam_capability *main_cam_cap;
     struct cam_capability *aux_cam_cap;
     cam_sync_type_t cam_sensor_mode;
 } cam_capability_t;
@@ -648,7 +649,7 @@ typedef struct {
 } cam_stream_img_prop_t;
 
 typedef struct {
-    uint8_t enableStream; /*0 – stop and 1-start */
+    uint8_t enableStream; /*0 - stop and 1-start */
 } cam_request_frames;
 
 typedef struct {

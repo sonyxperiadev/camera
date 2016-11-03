@@ -958,6 +958,41 @@ static int32_t mm_camera_intf_qbuf(uint32_t camera_handle,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_intf_qbuf
+ *
+ * DESCRIPTION: enqueue buffer back to kernel
+ *
+ * PARAMETERS :
+ *   @camera_handle: camera handle
+ *   @ch_id        : channel handle
+ *   @buf          : buf ptr to be enqueued
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+static int32_t mm_camera_intf_cancel_buf(uint32_t camera_handle, uint32_t ch_id, uint32_t stream_id,
+                     uint32_t buf_idx)
+{
+    int32_t rc = -1;
+    mm_camera_obj_t * my_obj = NULL;
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(camera_handle);
+
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_cancel_buf(my_obj, ch_id, stream_id, buf_idx);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+    LOGD("X evt_type = %d",rc);
+    return rc;
+}
+
+
+/*===========================================================================
  * FUNCTION   : mm_camera_intf_get_queued_buf_count
  *
  * DESCRIPTION: returns the queued buffer count
@@ -3081,6 +3116,7 @@ static mm_camera_ops_t mm_camera_ops = {
     .delete_stream = mm_camera_intf_del_stream,
     .config_stream = mm_camera_intf_config_stream,
     .qbuf = mm_camera_intf_qbuf,
+    .cancel_buffer = mm_camera_intf_cancel_buf,
     .get_queued_buf_count = mm_camera_intf_get_queued_buf_count,
     .map_stream_buf = mm_camera_intf_map_stream_buf,
     .map_stream_bufs = mm_camera_intf_map_stream_bufs,

@@ -437,6 +437,7 @@ int32_t QCamera3HeapMemory::markFrameNumber(uint32_t index, uint32_t frameNumber
     return NO_ERROR;
 }
 
+
 /*===========================================================================
  * FUNCTION   : getFrameNumber
  *
@@ -468,6 +469,44 @@ int32_t QCamera3HeapMemory::getFrameNumber(uint32_t index)
 
     return mCurrentFrameNumbers[index];
 }
+
+
+/*===========================================================================
+ * FUNCTION   : getOldestFrameNumber
+ *
+ * DESCRIPTION: We use this to fetch the oldest frame number expected per FIFO
+ *
+ *
+ * PARAMETERS :
+ *
+ *
+ * RETURN     : int32_t frameNumber
+ *              negative failure
+ *==========================================================================*/
+int32_t QCamera3HeapMemory::getOldestFrameNumber(uint32_t &bufIndex)
+{
+    Mutex::Autolock lock(mLock);
+
+    int32_t oldest = INT_MAX;
+    bool empty = true;
+
+    for (uint32_t index = 0;
+            index < mBufferCount; index++) {
+        if (mMemInfo[index].handle) {
+            if ((empty) || (!empty && oldest > mCurrentFrameNumbers[index]
+                && mCurrentFrameNumbers[index] != -1)) {
+                oldest = mCurrentFrameNumbers[index];
+                bufIndex = index;
+            }
+            empty = false;
+        }
+    }
+    if (empty)
+        return -1;
+    else
+        return oldest;
+}
+
 
 /*===========================================================================
  * FUNCTION   : getBufferIndex
@@ -1000,6 +1039,41 @@ int32_t QCamera3GrallocMemory::getFrameNumber(uint32_t index)
 
     return mCurrentFrameNumbers[index];
 }
+
+/*===========================================================================
+ * FUNCTION   : getOldestFrameNumber
+ *
+ * DESCRIPTION: We use this to fetch the oldest frame number expected per FIFO
+ *
+ *
+ * PARAMETERS :
+ *
+ *
+ * RETURN     : int32_t frameNumber
+ *              negative failure
+ *==========================================================================*/
+int32_t QCamera3GrallocMemory::getOldestFrameNumber(uint32_t &bufIndex)
+{
+    int32_t oldest = INT_MAX;
+    bool empty = true;
+    for (uint32_t index = mStartIdx;
+            index < MM_CAMERA_MAX_NUM_FRAMES; index++) {
+        if (mMemInfo[index].handle) {
+            if ((empty) ||
+                (!empty && oldest > mCurrentFrameNumbers[index]
+                && mCurrentFrameNumbers[index] != -1)) {
+                oldest = mCurrentFrameNumbers[index];
+                bufIndex = index;
+            }
+            empty = false;
+        }
+    }
+    if (empty)
+        return -1;
+    else
+        return oldest;
+}
+
 
 /*===========================================================================
  * FUNCTION   : getBufferIndex
