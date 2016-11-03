@@ -1040,7 +1040,7 @@ int increase_saturation (mm_camera_lib_handle *lib_handle) {
     saturation = CAMERA_MAX_SATURATION;
     printf("Reached max saturation. \n");
   }
-  printf("Increase saturation to %d\n", contrast);
+  printf("Increase saturation to %d\n", saturation);
   return mm_camera_lib_send_command(lib_handle,
                                        MM_CAMERA_LIB_SATURATION,
                                        &saturation,
@@ -1067,7 +1067,7 @@ int decrease_saturation (mm_camera_lib_handle *lib_handle) {
     saturation = CAMERA_MIN_SATURATION;
     printf("Reached min saturation. \n");
   }
-  printf("decrease saturation to %d\n", contrast);
+  printf("decrease saturation to %d\n", saturation);
   return mm_camera_lib_send_command(lib_handle,
                                        MM_CAMERA_LIB_SATURATION,
                                        &saturation,
