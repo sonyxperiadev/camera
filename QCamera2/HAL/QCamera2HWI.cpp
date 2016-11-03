@@ -7069,6 +7069,7 @@ int32_t QCamera2HardwareInterface::processLEDCalibration(int32_t value)
 
     if (mParameters.getDualLedCalibration()) {
         LOGH("Dual LED calibration value = %d", value);
+#ifndef VANILLA_HAL
         int32_t data_len = sizeof(value);
         int32_t buffer_len = sizeof(int)       //meta type
                 + sizeof(int)                  //data len
@@ -7104,6 +7105,7 @@ int32_t QCamera2HardwareInterface::processLEDCalibration(int32_t value)
             LOGE("fail sending notification");
             buffer->release(buffer);
         }
+#endif
     }
     return rc;
 }
@@ -7127,6 +7129,7 @@ int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
     //Check if we are in real time bokeh mode
     if (isDualCamera() && (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
         LOGH("DC RTB metadata: msgType: %d",rtbData);
+#ifndef VANILLA_HAL
         int32_t data_len = sizeof(rtbData);
         int32_t buffer_len = sizeof(rtbData)       //meta type
                 + sizeof(int)                  //data len
@@ -7162,6 +7165,7 @@ int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
             LOGE("fail sending notification");
             buffer->release(buffer);
         }
+#endif
     }
     return rc;
 }
@@ -7231,6 +7235,7 @@ int32_t QCamera2HardwareInterface::processPrepSnapshotDoneEvent(
 int32_t QCamera2HardwareInterface::processASDUpdate(
         __unused cam_asd_decision_t asd_decision)
 {
+#ifndef VANILLA_HAL
     if ( msgTypeEnabled(CAMERA_MSG_META_DATA) ) {
         size_t data_len = sizeof(cam_auto_scene_t);
         size_t buffer_len = 1 *sizeof(int)       //meta type
@@ -7249,7 +7254,6 @@ int32_t QCamera2HardwareInterface::processASDUpdate(
             return UNKNOWN_ERROR;
         }
 
-#ifndef VANILLA_HAL
         pASDData[0] = CAMERA_META_DATA_ASD;
         pASDData[1] = (int)data_len;
         pASDData[2] = asd_decision.detected_scene;
@@ -7267,8 +7271,8 @@ int32_t QCamera2HardwareInterface::processASDUpdate(
             LOGE("fail sending notification");
             asdBuffer->release(asdBuffer);
         }
-#endif
     }
+#endif
     return NO_ERROR;
 }
 
