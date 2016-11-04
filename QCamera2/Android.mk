@@ -89,6 +89,14 @@ LOCAL_C_INCLUDES := \
         system/core/include/system \
         system/media/camera/include/system
 
+ifneq ($(TARGET_USES_GRALLOC1), true)
+LOCAL_C_INCLUDES += \
+	hardware/qcom/display/msm8996/libgralloc
+else
+LOCAL_C_INCLUDES += \
+	hardware/qcom/display/msm8996/libgralloc1
+endif
+
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \
         hardware/qcom/camera/QCamera2/HAL
