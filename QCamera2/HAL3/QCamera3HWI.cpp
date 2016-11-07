@@ -3048,7 +3048,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 /* this will be handled in handleInputBufferWithLock */
                 i++;
                 continue;
-            } else if (mBatchSize) {
+            } else {
 
                 mPendingLiveRequest--;
 
@@ -3057,14 +3057,6 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 result.result = dummyMetadata.release();
 
                 notifyError(i->frame_number, CAMERA3_MSG_ERROR_RESULT);
-            } else {
-                LOGE("Fatal: Missing metadata buffer for frame number %d", i->frame_number);
-                if (free_and_bufdone_meta_buf) {
-                    mMetadataChannel->bufDone(metadata_buf);
-                    free(metadata_buf);
-                }
-                mState = ERROR;
-                goto done_metadata;
             }
         } else {
             mPendingLiveRequest--;

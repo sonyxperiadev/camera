@@ -12869,6 +12869,22 @@ int32_t QCameraParameters::setISType()
         // Make default value for preview IS_TYPE as IS_TYPE_EIS_2_0
         property_get("persist.camera.is_type_preview", value, "4");
         mIsTypePreview = static_cast<cam_is_type_t>(atoi(value));
+    } else if (m_bDISEnabled) {
+        char value[PROPERTY_VALUE_MAX];
+        // Make default value for Video IS_TYPE as IS_TYPE_DIS
+        property_get("persist.camera.is_type", value, "2");
+        mIsTypeVideo = static_cast<cam_is_type_t>(atoi(value));
+        if (mIsTypeVideo >= IS_TYPE_DIS) {
+            LOGW("EIS is not supported and so setting DIS");
+            mIsTypeVideo = IS_TYPE_DIS;
+        }
+        // Make default value for preview IS_TYPE as IS_TYPE_DIS
+        property_get("persist.camera.is_type_preview", value, "2");
+        mIsTypePreview = static_cast<cam_is_type_t>(atoi(value));
+        if (mIsTypePreview >= IS_TYPE_DIS) {
+            LOGW("EIS is not supported and so setting DIS");
+            mIsTypePreview = IS_TYPE_DIS;
+        }
     } else {
         mIsTypeVideo = IS_TYPE_NONE;
         mIsTypePreview = IS_TYPE_NONE;
