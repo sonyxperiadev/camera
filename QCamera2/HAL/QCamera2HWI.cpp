@@ -7362,6 +7362,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
     rc = pChannel->init(NULL, NULL, NULL);
     if (rc != NO_ERROR) {
         LOGE("init preview channel failed, ret = %d", rc);
+        delete pChannel;
         return rc;
     }
 
@@ -7370,6 +7371,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
             metadata_stream_cb_routine, this);
     if (rc != NO_ERROR) {
         LOGE("add metadata stream failed, ret = %d", rc);
+        delete pChannel;
         return rc;
     }
 
@@ -7382,12 +7384,18 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
                     nodisplay_preview_stream_cb_routine, this);
         } else {
             rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
-                                    preview_stream_cb_routine, this);
+                    preview_stream_cb_routine, this);
             if (needSyncCB(CAM_STREAM_TYPE_PREVIEW) == TRUE) {
                 pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                         synchronous_stream_cb_routine);
             }
         }
+    }
+
+    if (rc != NO_ERROR) {
+        LOGE("add raw/preview stream failed, ret = %d", rc);
+        delete pChannel;
+        return rc;
     }
 
     if (((mParameters.fdModeInVideo())
@@ -7398,6 +7406,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
                 NULL, this);
         if (rc != NO_ERROR) {
             LOGE("add Analysis stream failed, ret = %d", rc);
+            delete pChannel;
             return rc;
         }
     }
@@ -7703,7 +7712,7 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
                 nodisplay_preview_stream_cb_routine, this);
     } else {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
-                                preview_stream_cb_routine, this);
+                preview_stream_cb_routine, this);
         if (needSyncCB(CAM_STREAM_TYPE_PREVIEW) == TRUE) {
             pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
                     synchronous_stream_cb_routine);
@@ -7801,6 +7810,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
                         this);
     if (rc != NO_ERROR) {
         LOGE("init capture channel failed, ret = %d", rc);
+        delete pChannel;
         return rc;
     }
 
@@ -7809,6 +7819,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
             metadata_stream_cb_routine, this);
     if (rc != NO_ERROR) {
         LOGE("add metadata stream failed, ret = %d", rc);
+        delete pChannel;
         return rc;
     }
 
@@ -7817,6 +7828,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
                 preview_stream_cb_routine, this);
         if (rc != NO_ERROR) {
             LOGE("add preview stream failed, ret = %d", rc);
+            delete pChannel;
             return rc;
         }
         if (needSyncCB(CAM_STREAM_TYPE_PREVIEW) == TRUE) {
@@ -7829,6 +7841,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
                                 NULL, this);
         if (rc != NO_ERROR) {
             LOGE("add postview stream failed, ret = %d", rc);
+            delete pChannel;
             return rc;
         }
     }
@@ -7838,6 +7851,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
                 NULL, this);
         if (rc != NO_ERROR) {
             LOGE("add snapshot stream failed, ret = %d", rc);
+            delete pChannel;
             return rc;
         }
     }
@@ -7855,6 +7869,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
                 CAM_STREAM_TYPE_RAW, stream_cb, this);
         if (rc != NO_ERROR) {
             LOGE("add raw stream failed, ret = %d", rc);
+            delete pChannel;
             return rc;
         }
     }
