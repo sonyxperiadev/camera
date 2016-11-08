@@ -58,6 +58,7 @@ static uint8_t g_handler_history_count = 0; /* history count for handler */
 #define CAM_SENSOR_FACING_MASK       (1U<<16)
 #define CAM_SENSOR_TYPE_MASK         (1U<<24)
 #define CAM_SENSOR_FORMAT_MASK       (1U<<25)
+#define CAM_SENSOR_SECURE_MASK       (1U<<26)
 
 /*===========================================================================
  * FUNCTION   : mm_camera_util_generate_handler
@@ -2387,6 +2388,7 @@ void get_sensor_info()
             uint32_t facing;
             int32_t type = 0;
             uint8_t is_yuv;
+            uint8_t is_secure;
 
             memset(&entity, 0, sizeof(entity));
             entity.id = num_entities++;
@@ -2411,6 +2413,8 @@ void get_sensor_info()
 
                 is_yuv = ((entity.flags & CAM_SENSOR_FORMAT_MASK) ?
                         CAM_SENSOR_YUV:CAM_SENSOR_RAW);
+                is_secure = ((entity.flags & CAM_SENSOR_SECURE_MASK) ?
+                        CAM_TYPE_SECURE:0);
                 LOGL("index = %u flag = %x mount_angle = %u "
                         "facing = %u type: %u is_yuv = %u\n",
                         (unsigned int)num_cameras, (unsigned int)temp,
@@ -2418,10 +2422,13 @@ void get_sensor_info()
                         (unsigned int)type, (uint8_t)is_yuv);
                 g_cam_ctrl.info[num_cameras].facing = (int)facing;
                 g_cam_ctrl.info[num_cameras].orientation = (int)mount_angle;
-                g_cam_ctrl.cam_type[num_cameras] = type;
+                g_cam_ctrl.cam_type[num_cameras] = type | is_secure;
                 g_cam_ctrl.is_yuv[num_cameras] = is_yuv;
-                LOGD("dev_info[id=%zu,name='%s']\n",
-                         num_cameras, g_cam_ctrl.video_dev_name[num_cameras]);
+                LOGD("dev_info[id=%zu,name='%s', facing = %d, angle = %d type = %d]\n",
+                         num_cameras, g_cam_ctrl.video_dev_name[num_cameras],
+                         g_cam_ctrl.info[num_cameras].facing,
+                         g_cam_ctrl.info[num_cameras].orientation,
+                         g_cam_ctrl.cam_type[num_cameras]);
                 num_cameras++;
                 continue;
             }
@@ -2446,6 +2453,7 @@ void get_sensor_info()
 void sort_camera_info(int num_cam)
 {
     int idx = 0, i;
+    int8_t is_secure = 0;
     struct camera_info temp_info[MM_CAMERA_MAX_NUM_SENSORS];
     cam_sync_type_t temp_type[MM_CAMERA_MAX_NUM_SENSORS];
     cam_sync_mode_t temp_mode[MM_CAMERA_MAX_NUM_SENSORS];
@@ -2573,6 +2581,20 @@ void sort_camera_info(int num_cam)
         }
     }
 
+   /*secure camera*/
+   for (i = 0; i < num_cam; i++) {
+       if (g_cam_ctrl.cam_type[i] & CAM_TYPE_SECURE) {
+           temp_info[idx] = g_cam_ctrl.info[i];
+           temp_type[idx] = g_cam_ctrl.cam_type[i];
+           temp_mode[idx] = g_cam_ctrl.cam_mode[i];
+           temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
+           LOGD("Found Secure Camera: i: %d idx: %d", i, idx);
+           memcpy(temp_dev_name[idx++],g_cam_ctrl.video_dev_name[i],
+               MM_CAMERA_DEV_NAME_LEN);
+           is_secure++;
+       }
+   }
+
     /*NOTE: Add logic here to modify cameraID again here*/
 
     if (idx != 0) {
@@ -2588,6 +2610,9 @@ void sort_camera_info(int num_cam)
             LOGI("Camera id: %d facing: %d, type: %d is_yuv: %d",
                 i, g_cam_ctrl.info[i].facing, g_cam_ctrl.cam_type[i], g_cam_ctrl.is_yuv[i]);
         }
+
+        //control camera exposing here.
+        g_cam_ctrl.num_cam_to_expose = g_cam_ctrl.num_cam - is_secure;
     }
     LOGI("Number of cameras %d sorted %d", num_cam, idx);
     return;
@@ -2756,6 +2781,23 @@ uint8_t get_num_of_cameras()
     pthread_mutex_unlock(&g_intf_lock);
     LOGI("num_cameras=%d\n", (int)g_cam_ctrl.num_cam);
     return(uint8_t)g_cam_ctrl.num_cam;
+}
+
+/*===========================================================================
+ * FUNCTION   : get_num_of_cameras_to_expose
+ *
+ * DESCRIPTION: get number of cameras to expose
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : number of cameras to expose to application
+ *==========================================================================*/
+uint8_t get_num_of_cameras_to_expose()
+{
+    if (g_cam_ctrl.num_cam == 0) {
+        get_num_of_cameras();
+    }
+    return g_cam_ctrl.num_cam_to_expose;
 }
 
 /*===========================================================================
@@ -2986,6 +3028,11 @@ uint32_t get_aux_camera_handle(uint32_t handle)
 uint32_t get_main_camera_handle(uint32_t handle)
 {
     return mm_camera_util_get_handle_by_num(0, handle);
+}
+
+cam_sync_type_t get_cam_type(uint32_t camera_id)
+{
+    return  g_cam_ctrl.cam_type[camera_id];
 }
 
 uint8_t is_yuv_sensor(uint32_t camera_id)

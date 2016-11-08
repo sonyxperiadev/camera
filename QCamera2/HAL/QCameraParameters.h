@@ -662,6 +662,7 @@ public:
     bool isZSLMode() {return m_bZslMode;};
     bool isRdiMode() {return m_bRdiMode;};
     bool isSecureMode() {return m_bSecureMode;};
+    cam_stream_type_t getSecureStreamType() {return mSecureStraemType;};
     bool isNoDisplayMode() {return m_bNoDisplayMode;};
     bool isWNREnabled() {return m_bWNROn;};
     bool isTNRSnapshotEnabled() {return m_bTNRSnapshotOn;};
@@ -1271,6 +1272,7 @@ private:
     uint32_t mActiveState;
     uint32_t mActiveCamera;
     bool m_bSmallJpegSize;
+    cam_stream_type_t mSecureStraemType;
 };
 
 }; // namespace qcamera

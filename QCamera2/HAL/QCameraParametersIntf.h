@@ -105,6 +105,7 @@ public:
     bool isZSLMode();
     bool isRdiMode();
     bool isSecureMode();
+    cam_stream_type_t getSecureStreamType();
     bool isNoDisplayMode();
     bool isWNREnabled();
     bool isTNRSnapshotEnabled();

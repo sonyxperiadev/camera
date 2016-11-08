@@ -226,6 +226,13 @@ bool QCameraParametersIntf::isSecureMode()
     return mImpl->isSecureMode();
 }
 
+cam_stream_type_t QCameraParametersIntf::getSecureStreamType()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getSecureStreamType();
+}
+
 bool QCameraParametersIntf::isNoDisplayMode()
 {
     Mutex::Autolock lock(mLock);
