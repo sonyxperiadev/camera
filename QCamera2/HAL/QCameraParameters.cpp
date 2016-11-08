@@ -10056,6 +10056,44 @@ int32_t QCameraParameters::setSecureMode(const char *str)
  *
  * PARAMETERS :
  *   @streamType        : stream type
+ *
+ * RETURN     : rotation value for stream
+ *==========================================================================*/
+cam_rotation_t QCameraParameters::getStreamRotation(cam_stream_type_t streamType)
+{
+    cam_rotation_t rotation = ROTATE_0;
+    const char *str = get(KEY_QC_VIDEO_ROTATION);
+    int rotationParam = lookupAttr(VIDEO_ROTATION_MODES_MAP,
+            PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP), str);
+    switch (streamType) {
+        case CAM_STREAM_TYPE_VIDEO:
+            switch(rotationParam) {
+                case 90:
+                    rotation = ROTATE_90;
+                    break;
+                case 180:
+                    rotation = ROTATE_180;
+                    break;
+                case 270:
+                    rotation = ROTATE_270;
+                    break;
+                default:
+                    rotation = ROTATE_0;
+            }
+            break;
+        default:
+            break;
+    }
+    return rotation;
+}
+
+/*===========================================================================
+ * FUNCTION   : getStreamRotation
+ *
+ * DESCRIPTION: get stream rotation by its type
+ *
+ * PARAMETERS :
+ *   @streamType        : stream type
  *   @featureConfig     : stream feature config structure
  *   @dim               : stream dimension
  *
@@ -10068,24 +10106,23 @@ int32_t QCameraParameters::getStreamRotation(cam_stream_type_t streamType,
                                             cam_dimension_t &dim)
 {
     int32_t ret = NO_ERROR;
-    const char *str = get(KEY_QC_VIDEO_ROTATION);
-    int rotationParam = lookupAttr(VIDEO_ROTATION_MODES_MAP,
-            PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP), str);
+
+    cam_rotation_t rotation = getStreamRotation(streamType);
     featureConfig.rotation = ROTATE_0;
     int swapDim = 0;
     switch (streamType) {
         case CAM_STREAM_TYPE_VIDEO:
-            switch(rotationParam) {
-                case 90:
+            switch(rotation) {
+                case ROTATE_90:
                     featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
                     featureConfig.rotation = ROTATE_90;
                     swapDim = 1;
                     break;
-                case 180:
+                case ROTATE_180:
                     featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
                     featureConfig.rotation = ROTATE_180;
                     break;
-                case 270:
+                case ROTATE_270:
                     featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
                     featureConfig.rotation = ROTATE_270;
                     swapDim = 1;
@@ -14193,6 +14230,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
         getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
                 stream_config_info.format[stream_config_info.num_streams]);
+        stream_config_info.rotation[stream_config_info.num_streams] =
+                getStreamRotation(CAM_STREAM_TYPE_PREVIEW);
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
@@ -14204,6 +14243,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
         getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
                 stream_config_info.format[stream_config_info.num_streams]);
+        stream_config_info.rotation[stream_config_info.num_streams] =
+                getStreamRotation(CAM_STREAM_TYPE_ANALYSIS);
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
@@ -14215,6 +14256,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
         getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
                 stream_config_info.format[stream_config_info.num_streams]);
+        stream_config_info.rotation[stream_config_info.num_streams] =
+                getStreamRotation(CAM_STREAM_TYPE_SNAPSHOT);
         stream_config_info.num_streams++;
 
         if (isUBWCEnabled() && getRecordingHintValue() != true) {
@@ -14230,6 +14273,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                         mStreamPpMask[CAM_STREAM_TYPE_CALLBACK];
                 getStreamFormat(CAM_STREAM_TYPE_CALLBACK,
                         stream_config_info.format[stream_config_info.num_streams]);
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_CALLBACK);
                 stream_config_info.num_streams++;
             }
         }
@@ -14249,7 +14294,10 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                     mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
             getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
                         stream_config_info.format[stream_config_info.num_streams]);
+            stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_SNAPSHOT);
             stream_config_info.num_streams++;
+
             stream_config_info.is_type[stream_config_info.num_streams] = mIsTypeVideo;
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_VIDEO;
@@ -14260,6 +14308,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                     mStreamPpMask[CAM_STREAM_TYPE_VIDEO];
             getStreamFormat(CAM_STREAM_TYPE_VIDEO,
                     stream_config_info.format[stream_config_info.num_streams]);
+            stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_VIDEO);
             stream_config_info.num_streams++;
         }
 
@@ -14276,6 +14326,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                     mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
             getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
                     stream_config_info.format[stream_config_info.num_streams]);
+            stream_config_info.rotation[stream_config_info.num_streams] =
+                    getStreamRotation(CAM_STREAM_TYPE_ANALYSIS);
             stream_config_info.num_streams++;
         }
 
@@ -14289,6 +14341,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
                     stream_config_info.format[stream_config_info.num_streams]);
         stream_config_info.is_type[stream_config_info.num_streams] = mIsTypePreview;
+        stream_config_info.rotation[stream_config_info.num_streams] =
+                getStreamRotation(CAM_STREAM_TYPE_PREVIEW);
         stream_config_info.num_streams++;
 
         if (isUBWCEnabled() && getRecordingHintValue() != true) {
@@ -14305,6 +14359,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 getStreamFormat(CAM_STREAM_TYPE_CALLBACK,
                         stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_CALLBACK);
                 stream_config_info.num_streams++;
             }
         }
@@ -14322,6 +14378,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
                         stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_SNAPSHOT);
                 stream_config_info.num_streams++;
             }
 
@@ -14336,6 +14394,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
                         stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_PREVIEW);
                 stream_config_info.num_streams++;
             } else if(!getQuadraCfa()) {
                 stream_config_info.type[stream_config_info.num_streams] =
@@ -14348,6 +14408,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 getStreamFormat(CAM_STREAM_TYPE_POSTVIEW,
                         stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_POSTVIEW);
                 stream_config_info.num_streams++;
             }
         } else {
@@ -14362,6 +14424,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             getStreamFormat(CAM_STREAM_TYPE_RAW,
                     stream_config_info.format[stream_config_info.num_streams]);
             stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+            stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_RAW);
             stream_config_info.num_streams++;
         }
     }
@@ -14438,7 +14502,6 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     }
 
     rc = sendStreamConfigInfo(stream_config_info);
-
     if (rc == NO_ERROR && isDualCamera()) {
         cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
         char prop[PROPERTY_VALUE_MAX];
@@ -14473,7 +14536,6 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
                 num_cam, &bundle_info[0]);
     }
-
     return rc;
 }
 
