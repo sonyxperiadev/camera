@@ -107,7 +107,7 @@
 #define EXIF_IMAGE_DESCRIPTION_SIZE 100
 
 #define MAX_INFLIGHT_REQUESTS  6
-#define MAX_INFLIGHT_BLOB      3
+#define MAX_INFLIGHT_BLOB      10
 #define MIN_INFLIGHT_REQUESTS  3
 #define MIN_INFLIGHT_60FPS_REQUESTS (6)
 #define MAX_INFLIGHT_REPROCESS_REQUESTS 1
@@ -2284,6 +2284,8 @@ typedef enum {
     CAM_INTF_META_FOCUS_VALUE,
     /*Spot light detection result output from af core*/
     CAM_INTF_META_SPOT_LIGHT_DETECT,
+    /* HAL based HDR*/
+    CAM_INTF_PARM_HAL_BRACKETING_HDR,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

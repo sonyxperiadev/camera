@@ -984,6 +984,10 @@ int32_t QCamera3ProcessingChannel::timeoutFrame(uint32_t frameNumber)
  * @frameNumber     : frame number of the request
  * @pInputBuffer    : pointer to input buffer if an input request
  * @metadata        : parameters associated with the request
+ * @internalreq      : boolean to indicate if this is purely internal request
+ *                    needing internal buffer allocation
+ * @meteringonly    : boolean indicating metering only frame subset of internal
+ *                    not consumed by postprocessor
  *
  * RETURN     : 0 on a success start of capture
  *              -EINVAL on invalid input
@@ -993,7 +997,9 @@ int32_t QCamera3ProcessingChannel::request(buffer_handle_t *buffer,
         uint32_t frameNumber,
         camera3_stream_buffer_t* pInputBuffer,
         metadata_buffer_t* metadata,
-        int &indexUsed)
+        int &indexUsed,
+        __unused bool internalRequest = false,
+        __unused bool meteringOnly = false)
 {
     int32_t rc = NO_ERROR;
     int index;
@@ -1577,6 +1583,11 @@ int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cf
         LOGE("Stream %d plane info calculation failed!", mStreamType);
         return rc;
     }
+
+    IF_META_AVAILABLE(cam_hdr_param_t, hdr_info, CAM_INTF_PARM_HAL_BRACKETING_HDR, metadata) {
+        reproc_cfg.hdr_param = *hdr_info;
+    }
+
     return rc;
 }
 
@@ -2734,6 +2745,10 @@ int32_t QCamera3YUVChannel::initialize(cam_is_type_t isType)
  * @frameNumber     : frame number of the request
  * @pInputBuffer    : pointer to input buffer if an input request
  * @metadata        : parameters associated with the request
+ * @internalreq      : boolean to indicate if this is purely internal request
+ *                    needing internal buffer allocation
+ * @meteringonly    : boolean indicating metering only frame subset of internal
+ *                    not consumed by postprocessor
  *
  * RETURN     : 0 on a success start of capture
  *              -EINVAL on invalid input
@@ -2743,7 +2758,9 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
         uint32_t frameNumber,
         camera3_stream_buffer_t* pInputBuffer,
         metadata_buffer_t* metadata, bool &needMetadata,
-        int &indexUsed)
+        int &indexUsed,
+        __unused bool internalRequest = false,
+        __unused bool meteringOnly = false)
 {
     int32_t rc = NO_ERROR;
     Mutex::Autolock lock(mOfflinePpLock);
@@ -3375,6 +3392,7 @@ int32_t QCamera3PicChannel::flush()
     }
     Mutex::Autolock lock(mFreeBuffersLock);
     mFreeBufferList.clear();
+
     for (uint32_t i = 0; i < mCamera3Stream->max_buffers; i++) {
         mFreeBufferList.push_back(i);
     }
@@ -3440,6 +3458,10 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
  * @frameNumber  : frame number of the request
  * @pInputBuffer : pointer to input buffer if an input request
  * @metadata     : parameters associated with the request
+ * @internalreq      : boolean to indicate if this is purely internal request
+ *                    needing internal buffer allocation
+ * @meteringonly    : boolean indicating metering only frame subset of internal
+ *                    not consumed by postprocessor
  *
  * RETURN     : 0 on a success start of capture
  *              -EINVAL on invalid input
@@ -3448,10 +3470,11 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
 int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         uint32_t frameNumber,
         camera3_stream_buffer_t *pInputBuffer,
-        metadata_buffer_t *metadata, int &indexUsed)
+        metadata_buffer_t *metadata, int &indexUsed,
+        bool internalRequest, bool meteringOnly)
 {
     ATRACE_CALL();
-    //FIX ME: Return buffer back in case of failures below.
+    //FIXME: Return buffer back in case of failures below.
 
     int32_t rc = NO_ERROR;
 
@@ -3462,6 +3485,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     //and recalculate the plane info
     dim.width = (int32_t)mYuvWidth;
     dim.height = (int32_t)mYuvHeight;
+
     setReprocConfig(reproc_cfg, pInputBuffer, metadata, mStreamFormat, dim);
 
     // Picture stream has already been started before any request comes in
@@ -3470,31 +3494,37 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         return NO_INIT;
     }
 
-    int index = mMemory.getMatchBufIndex((void*)buffer);
-
-    if(index < 0) {
-        rc = registerBuffer(buffer, mIsType);
-        if (NO_ERROR != rc) {
-            LOGE("On-the-fly buffer registration failed %d",
-                     rc);
-            return rc;
-        }
-
-        index = mMemory.getMatchBufIndex((void*)buffer);
-        if (index < 0) {
-            LOGE("Could not find object among registered buffers");
-            return DEAD_OBJECT;
-        }
-    }
-    LOGD("buffer index %d, frameNumber: %u", index, frameNumber);
-
-    rc = mMemory.markFrameNumber((uint32_t)index, frameNumber);
-
     // Start postprocessor
     startPostProc(reproc_cfg);
 
-    // Queue jpeg settings
-    rc = queueJpegSetting((uint32_t)index, metadata);
+    if (!internalRequest) {
+        int index = mMemory.getMatchBufIndex((void*)buffer);
+
+        if(index < 0) {
+            rc = registerBuffer(buffer, mIsType);
+            if (NO_ERROR != rc) {
+                LOGE("On-the-fly buffer registration failed %d",
+                         rc);
+                return rc;
+            }
+
+            index = mMemory.getMatchBufIndex((void*)buffer);
+            if (index < 0) {
+                LOGE("Could not find object among registered buffers");
+                return DEAD_OBJECT;
+            }
+        }
+        LOGD("buffer index %d, frameNumber: %u", index, frameNumber);
+
+        rc = mMemory.markFrameNumber((uint32_t)index, frameNumber);
+
+        // Queue jpeg settings
+        rc = queueJpegSetting((uint32_t)index, metadata);
+
+    } else {
+        LOGD("Internal request @ Picchannel");
+    }
+
 
     if (pInputBuffer == NULL) {
         Mutex::Autolock lock(mFreeBuffersLock);
@@ -3512,7 +3542,11 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
             bufIdx = *it;
             mFreeBufferList.erase(it);
         }
-        mYuvMemory->markFrameNumber(bufIdx, frameNumber);
+        if (meteringOnly) {
+            mYuvMemory->markFrameNumber(bufIdx, 0xFFFFFFFF);
+        } else {
+            mYuvMemory->markFrameNumber(bufIdx, frameNumber);
+        }
         mStreams[0]->bufDone(bufIdx);
         indexUsed = bufIdx;
     } else {
@@ -3626,6 +3660,13 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
          return;
     }
 
+    if ((uint32_t)mYuvMemory->getFrameNumber(frameIndex) == EMPTY_FRAMEWORK_FRAME_NUMBER) {
+        LOGD("Internal Request recycle frame");
+        Mutex::Autolock lock(mFreeBuffersLock);
+        mFreeBufferList.push_back(frameIndex);
+        return;
+    }
+
     frame = (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
     if (frame == NULL) {
        LOGE("Error allocating memory to save received_frame structure.");
@@ -3724,6 +3765,14 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
         strlcpy(settings->gps_processing_method, (const char *)proc_methods,
                 sizeof(settings->gps_processing_method));
     }
+
+    settings->hdr_snapshot = 0;
+    IF_META_AVAILABLE(cam_hdr_param_t, hdr_info, CAM_INTF_PARM_HAL_BRACKETING_HDR, metadata) {
+        if (hdr_info->hdr_enable) {
+            settings->hdr_snapshot = 1;
+        }
+    }
+
 
     // Image description
     const char *eepromVersion = hal_obj->getEepromVersionInfo();
@@ -4381,6 +4430,9 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
                    rotation_info.rotation = ROTATE_180;
                 } else if (jpeg_settings->jpeg_orientation == 270) {
                    rotation_info.rotation = ROTATE_270;
+                }
+                if (jpeg_settings->hdr_snapshot) {
+                    rotation_info.rotation = ROTATE_0;
                 }
                 rotation_info.streamId = mStreams[0]->getMyServerID();
                 ADD_SET_PARAM_ENTRY_TO_BATCH(meta, CAM_INTF_PARM_ROTATION, rotation_info);

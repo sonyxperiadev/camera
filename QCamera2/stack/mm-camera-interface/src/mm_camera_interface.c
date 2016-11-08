@@ -3086,6 +3086,9 @@ uint8_t is_yuv_sensor(uint32_t camera_id)
 
 uint8_t validate_handle(uint32_t src_handle, uint32_t handle)
 {
+    if ((src_handle == 0) || (handle == 0)) {
+        return 0;
+    }
     return ((src_handle == handle)
             || (get_main_camera_handle(src_handle) == handle)
             || (get_aux_camera_handle(src_handle) == handle)
