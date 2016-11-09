@@ -461,6 +461,10 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_bTnrPreview = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.swtnr.preview", prop, "1");
+    m_bSwTnrPreview = (uint8_t)atoi(prop);
+
+    memset(prop, 0, sizeof(prop));
     property_get("persist.camera.tnr.video", prop, "0");
     m_bTnrVideo = (uint8_t)atoi(prop);
 
@@ -1956,6 +1960,10 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         //TNR and CDS are mutually exclusive. So reset CDS from feature mask
                         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] &=
                                 ~CAM_QCOM_FEATURE_CDS;
+                    }
+                    if(!m_bSwTnrPreview) {
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] &=
+                                ~CAM_QTI_FEATURE_SW_TNR;
                     }
                     padding_info.width_padding = mSurfaceStridePadding;
                     padding_info.height_padding = CAM_PAD_TO_2;
