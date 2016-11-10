@@ -1854,6 +1854,8 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
                 {
                     // Send internal events to stop indefinite wait on prepare
                     // snapshot done event.
+                    m_state = QCAMERA_SM_STATE_PREVIEWING;
+
                     result.status = rc;
                     result.request_api = QCAMERA_SM_EVT_PREPARE_SNAPSHOT;
                     result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
