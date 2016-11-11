@@ -387,6 +387,7 @@ private:
     bool is4k2kResolution(cam_dimension_t* resolution);
     bool isPreviewRestartEnabled();
     bool needReprocess();
+    bool needHALPP() {return m_bNeedHalPP;}
     bool needRotationReprocess();
     void debugShowVideoFPS();
     void debugShowPreviewFPS();
@@ -490,6 +491,7 @@ private:
     int32_t configureAdvancedCapture();
     int32_t configureAFBracketing(bool enable = true);
     int32_t configureHDRBracketing();
+    int32_t configureHalPostProcess();
     int32_t stopAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t startAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t configureOptiZoom();
@@ -825,6 +827,7 @@ private:
     nsecs_t mBootToMonoTimestampOffset;
     bool bDepthAFCallbacks;
     bool m_bOptimizeCacheOps;
+    bool m_bNeedHalPP;
 };
 
 }; // namespace qcamera

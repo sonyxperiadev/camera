@@ -1000,6 +1000,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_SNAP_CROP_INFO_CPP,           cam_stream_crop_info_t,   1);
     INCLUDE(CAM_INTF_META_DCRF,                         cam_dcrf_result_t,        1);
     INCLUDE(CAM_INTF_PARM_SYNC_DC_PARAMETERS,           uint32_t,                  1);
+    INCLUDE(CAM_INTF_META_AF_FOCUS_POS,                 cam_af_focus_pos_t, 1);
 
     /* HAL1 specific */
     /* read only */
