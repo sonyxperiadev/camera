@@ -212,7 +212,7 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
  *==========================================================================*/
 int32_t QCamera3Channel::start()
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CH_START);
     int32_t rc = NO_ERROR;
 
     if (m_numStreams > 1) {
@@ -250,7 +250,7 @@ int32_t QCamera3Channel::start()
  *==========================================================================*/
 int32_t QCamera3Channel::stop()
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CH_STOP);
     int32_t rc = NO_ERROR;
     if(!m_bIsActive) {
         LOGE("Attempt to stop inactive channel");
@@ -334,7 +334,7 @@ int32_t QCamera3Channel::setPerFrameMapUnmap(bool enable)
  *==========================================================================*/
 int32_t QCamera3Channel::flush()
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CH_FLUSH);
     return NO_ERROR;
 }
 
@@ -807,7 +807,7 @@ QCamera3ProcessingChannel::~QCamera3ProcessingChannel()
 void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
         QCamera3Stream *stream)
 {
-     ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PROC_CH_STRM_CB);
     //FIXME Q Buf back in case of error?
     uint8_t frameIndex;
     buffer_handle_t *resultBuffer;
@@ -1128,7 +1128,7 @@ int32_t QCamera3ProcessingChannel::initialize(__unused cam_is_type_t isType)
 int32_t QCamera3ProcessingChannel::registerBuffer(buffer_handle_t *buffer,
         cam_is_type_t isType)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PROC_CH_REG_BUF);
     int rc = 0;
     mIsType = isType;
     cam_stream_type_t streamType;
@@ -1317,7 +1317,7 @@ int32_t QCamera3ProcessingChannel::getStreamSize(cam_dimension_t &dim)
  *==========================================================================*/
 QCamera3StreamMem* QCamera3ProcessingChannel::getStreamBufs(uint32_t /*len*/)
 {
-    KPI_ATRACE_CALL();
+    KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_GETSTREAMBUFS);
     return &mMemory;
 }
 
@@ -1607,7 +1607,7 @@ int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cf
 void QCamera3ProcessingChannel::reprocessCbRoutine(buffer_handle_t *resultBuffer,
         uint32_t resultFrameNumber)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PROC_CH_REPROC_CB);
     int rc = NO_ERROR;
 
     rc = releaseOfflineMemory(resultFrameNumber);
@@ -1806,7 +1806,7 @@ QCamera3RegularChannel::~QCamera3RegularChannel()
 
 int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_REG_CH_INIT);
     int32_t rc = NO_ERROR;
 
     cam_dimension_t streamDim;
@@ -1970,7 +1970,7 @@ int32_t QCamera3RegularChannel::queueBatchBuf()
  *==========================================================================*/
 int32_t QCamera3RegularChannel::request(buffer_handle_t *buffer, uint32_t frameNumber, int &indexUsed)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_REG_CH_REQ);
     //FIX ME: Return buffer back in case of failures below.
 
     int32_t rc = NO_ERROR;
@@ -2072,7 +2072,7 @@ QCamera3MetadataChannel::~QCamera3MetadataChannel()
 
 int32_t QCamera3MetadataChannel::initialize(cam_is_type_t isType)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_METADATA_CH_INIT);
     int32_t rc;
     cam_dimension_t streamDim;
 
@@ -2200,7 +2200,7 @@ void QCamera3RawChannel::streamCbRoutine(
                         mm_camera_super_buf_t *super_frame,
                         QCamera3Stream * stream)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_RAW_CH_STRM_CB);
     /* Move this back down once verified */
     if (mRawDump)
         dumpRawSnapshot(super_frame->bufs[0]);
@@ -2669,7 +2669,7 @@ QCamera3YUVChannel::~QCamera3YUVChannel()
  *==========================================================================*/
 int32_t QCamera3YUVChannel::initialize(cam_is_type_t isType)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_YUV_CH_INIT);
     int32_t rc = NO_ERROR;
     cam_dimension_t streamDim;
 
@@ -2847,7 +2847,7 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
 void QCamera3YUVChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
         QCamera3Stream *stream)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_YUV_CH_STRM_CB);
     uint8_t frameIndex;
     int32_t resultFrameNumber;
 
@@ -3154,14 +3154,14 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                                               mm_jpeg_output_t *p_output,
                                               void *userdata)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PIC_CH_JPEG_EVT_HANDLE);
     buffer_handle_t *resultBuffer = NULL;
     buffer_handle_t *jpegBufferHandle = NULL;
     int resultStatus = CAMERA3_BUFFER_STATUS_OK;
     camera3_stream_buffer_t result;
     camera3_jpeg_blob_t jpegHeader;
 
-    KPI_ATRACE_INT("SNAPSHOT", 0);
+    KPI_ATRACE_CAMSCOPE_INT("SNAPSHOT", CAMSCOPE_HAL3_SNAPSHOT, 0);
     QCamera3PicChannel *obj = (QCamera3PicChannel *)userdata;
     if (obj) {
         //Construct payload for process_capture_result. Call mChannelCb
@@ -3473,8 +3473,8 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         metadata_buffer_t *metadata, int &indexUsed,
         bool internalRequest, bool meteringOnly)
 {
-    ATRACE_CALL();
-    //FIXME: Return buffer back in case of failures below.
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PIC_CH_REQ);
+    //FIX ME: Return buffer back in case of failures below.
 
     int32_t rc = NO_ERROR;
 
@@ -3588,7 +3588,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 void QCamera3PicChannel::dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
                                  void *userdata)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PIC_CH_DATA_NOTIFY_CB);
     LOGD("E\n");
     QCamera3PicChannel *channel = (QCamera3PicChannel *)userdata;
 
@@ -3628,7 +3628,7 @@ void QCamera3PicChannel::dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
 void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PIC_CH_STRM_CB);
     //TODO
     //Used only for getting YUV. Jpeg callback will be sent back from channel
     //directly to HWI. Refer to func jpegEvtHandle
@@ -3947,7 +3947,7 @@ int32_t QCamera3ReprocessChannel::initialize(cam_is_type_t isType)
 int32_t QCamera3ReprocessChannel::registerBuffer(buffer_handle_t *buffer,
         cam_is_type_t isType)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_REPROC_CH_REG_BUF);
     int rc = 0;
     mIsType = isType;
     cam_stream_type_t streamType;
@@ -4196,7 +4196,7 @@ QCamera3ReprocessChannel::~QCamera3ReprocessChannel()
  *==========================================================================*/
 int32_t QCamera3ReprocessChannel::start()
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_REPROC_CH_START);
     int32_t rc = NO_ERROR;
 
     rc = QCamera3Channel::start();
@@ -4226,7 +4226,7 @@ int32_t QCamera3ReprocessChannel::start()
  *==========================================================================*/
 int32_t QCamera3ReprocessChannel::stop()
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_REPROC_CH_STOP);
     int32_t rc = NO_ERROR;
 
     rc = QCamera3Channel::stop();

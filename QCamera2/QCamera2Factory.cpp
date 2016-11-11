@@ -45,6 +45,7 @@
 #include "HAL3/QCamera3HWI.h"
 #include "util/QCameraFlash.h"
 #include "QCamera2Factory.h"
+#include "QCameraTrace.h"
 extern "C" {
 #include "mm_camera_dbg.h"
 }
@@ -405,6 +406,7 @@ int QCamera2Factory::cameraDeviceOpen(int camera_id,
             camera_id, mHalDescriptors[camera_id].device_version);
 
     if ( mHalDescriptors[camera_id].device_version == CAMERA_DEVICE_API_VERSION_3_0 ) {
+        CAMSCOPE_INIT(CAMSCOPE_SECTION_HAL);
         QCamera3HardwareInterface *hw = new QCamera3HardwareInterface(mHalDescriptors[camera_id].cameraId,
                 mCallbacks);
         if (!hw) {
@@ -507,6 +509,7 @@ int QCamera2Factory::openLegacy(
 #ifdef QCAMERA_HAL1_SUPPORT
         case CAMERA_DEVICE_API_VERSION_1_0:
         {
+            CAMSCOPE_INIT(CAMSCOPE_SECTION_HAL);
             QCamera2HardwareInterface *hw =
                 new QCamera2HardwareInterface((uint32_t)cameraId);
             if (!hw) {
