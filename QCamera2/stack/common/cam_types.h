@@ -38,7 +38,7 @@
 #define MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES 8096
 #define AWB_DEBUG_DATA_SIZE               (45000)
 #define AEC_DEBUG_DATA_SIZE               (5000)
-#define AF_DEBUG_DATA_SIZE                (50000)
+#define AF_DEBUG_DATA_SIZE                (60000)
 #define ASD_DEBUG_DATA_SIZE               (100)
 #define STATS_BUFFER_DEBUG_DATA_SIZE      (75000)
 #define BESTATS_BUFFER_DEBUG_DATA_SIZE    (150000)

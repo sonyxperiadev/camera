@@ -1635,7 +1635,7 @@ static int submain()
     uint8_t previewing = 0;
     int isZSL = 0;
     int isezTune = 0;
-    int isirmode = 0;
+    int curr_irmode = 0;
     int isshdrmode = 0;
     uint8_t wnr_enabled = 0;
     mm_camera_lib_handle lib_handle;
@@ -1824,16 +1824,13 @@ static int submain()
             case ACTION_TOGGLE_IR_MODE:
                 LOGE("Select for IR Mode");
                 printf("IR Mode Toggle\n");
-                isirmode = !isirmode;
-                if (isirmode) {
-                    printf("IR Mode On !!!");
-                } else {
-                    printf("IR Mode Off !!!");
-                }
+                curr_irmode ++;
+                curr_irmode %= CAM_IR_MODE_MAX;
+                printf("IR Mode %s !!!",curr_irmode==0?"Off":(curr_irmode==1?"On":"Auto"));
 
                 rc = mm_camera_lib_send_command(&lib_handle,
                                       MM_CAMERA_LIB_IRMODE,
-                                      &isirmode,
+                                      &curr_irmode,
                                       NULL);
                 if (rc != MM_CAMERA_OK) {
                     LOGE("mm_camera_lib_send_command() err=%d\n",  rc);

@@ -87,6 +87,7 @@ namespace qcamera {
 #define MIN_FPS_FOR_BATCH_MODE (120)
 #define PREVIEW_FPS_FOR_HFR    (30)
 #define DEFAULT_VIDEO_FPS      (30.0)
+#define TEMPLATE_MAX_PREVIEW_FPS (30.0)
 #define MAX_HFR_BATCH_SIZE     (8)
 #define REGIONS_TUPLE_COUNT    5
 #define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
@@ -461,6 +462,10 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_bTnrPreview = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.swtnr.preview", prop, "1");
+    m_bSwTnrPreview = (uint8_t)atoi(prop);
+
+    memset(prop, 0, sizeof(prop));
     property_get("persist.camera.tnr.video", prop, "0");
     m_bTnrVideo = (uint8_t)atoi(prop);
 
@@ -769,7 +774,7 @@ int QCamera3HardwareInterface::openCamera()
     int rc = 0;
     char value[PROPERTY_VALUE_MAX];
 
-    KPI_ATRACE_CALL();
+    KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_OPENCAMERA);
     if (mCameraHandle) {
         LOGE("Failure: Camera already opened");
         return ALREADY_EXISTS;
@@ -882,7 +887,7 @@ int QCamera3HardwareInterface::openCamera()
  *==========================================================================*/
 int QCamera3HardwareInterface::closeCamera()
 {
-    KPI_ATRACE_CALL();
+    KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CLOSECAMERA);
     int rc = NO_ERROR;
     char value[PROPERTY_VALUE_MAX];
 
@@ -947,7 +952,7 @@ int QCamera3HardwareInterface::closeCamera()
 int QCamera3HardwareInterface::initialize(
         const struct camera3_callback_ops *callback_ops)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_INIT);
     int rc;
 
     LOGI("E :mCameraId = %d mState = %d", mCameraId, mState);
@@ -1270,6 +1275,10 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
                     |= CAM_QCOM_FEATURE_LLVD;
             LOGH("Added LLVD SeeMore to pp feature mask");
         }
+        if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) {
+            mStreamConfigInfo.postprocess_mask[stream_idx] |= CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
+        }
         break;
     }
     default:
@@ -1364,7 +1373,7 @@ void QCamera3HardwareInterface::updateTimeStampInPendingBuffers(
 int QCamera3HardwareInterface::configureStreams(
         camera3_stream_configuration_t *streamList)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CFG_STRMS);
     int rc = 0;
 
     // Acquire perfLock before configure streams
@@ -1390,7 +1399,7 @@ int QCamera3HardwareInterface::configureStreams(
 int QCamera3HardwareInterface::configureStreamsPerfLocked(
         camera3_stream_configuration_t *streamList)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CFG_STRMS_PERF_LKD);
     int rc = 0;
 
     // Sanity check stream_list
@@ -1956,6 +1965,10 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         //TNR and CDS are mutually exclusive. So reset CDS from feature mask
                         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] &=
                                 ~CAM_QCOM_FEATURE_CDS;
+                    }
+                    if(!m_bSwTnrPreview) {
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] &=
+                                ~CAM_QTI_FEATURE_SW_TNR;
                     }
                     padding_info.width_padding = mSurfaceStridePadding;
                     padding_info.height_padding = CAM_PAD_TO_2;
@@ -2725,7 +2738,7 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
 void QCamera3HardwareInterface::handleBatchMetadata(
         mm_camera_super_buf_t *metadata_buf, bool free_and_bufdone_meta_buf)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_HANDLE_BATCH_METADATA);
 
     if (NULL == metadata_buf) {
         LOGE("metadata_buf is NULL");
@@ -2918,7 +2931,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     mm_camera_super_buf_t *metadata_buf, bool free_and_bufdone_meta_buf,
     bool firstMetadataInBatch)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_HANDLE_METADATA_LKD);
     if ((mFlushPerf) || (ERROR == mState) || (DEINIT == mState)) {
         //during flush do not send metadata from this thread
         LOGD("not sending metadata during flush or when mState is error");
@@ -3345,7 +3358,7 @@ void QCamera3HardwareInterface::hdrPlusPerfLock(
  *==========================================================================*/
 void QCamera3HardwareInterface::handleInputBufferWithLock(uint32_t frame_number)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_HANDLE_IN_BUF_LKD);
     pendingRequestIterator i = mPendingRequestsList.begin();
     while (i != mPendingRequestsList.end() && i->frame_number != frame_number){
         i++;
@@ -3415,7 +3428,7 @@ void QCamera3HardwareInterface::handleInputBufferWithLock(uint32_t frame_number)
 void QCamera3HardwareInterface::handleBufferWithLock(
     camera3_stream_buffer_t *buffer, uint32_t frame_number)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_HANDLE_BUF_LKD);
 
     if (buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) {
         mPerfLockMgr.releasePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
@@ -3962,7 +3975,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     camera3_capture_request_t *request,
                     List<InternalRequest> &internallyRequestedStreams)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PROC_CAP_REQ);
     int rc = NO_ERROR;
     int32_t request_id;
     CameraMetadata meta;
@@ -4536,7 +4549,7 @@ no_error:
     }
 
     if (blob_request) {
-        KPI_ATRACE_INT("SNAPSHOT", 1);
+        KPI_ATRACE_CAMSCOPE_INT("SNAPSHOT", CAMSCOPE_HAL3_SNAPSHOT, 1);
         mPerfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
     }
     if (blob_request && mRawDumpChannel) {
@@ -5099,7 +5112,7 @@ void QCamera3HardwareInterface::dump(int fd)
  *==========================================================================*/
 int QCamera3HardwareInterface::flush(bool restartChannels)
 {
-    KPI_ATRACE_CALL();
+    KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_FLUSH);
     int32_t rc = NO_ERROR;
 
     LOGD("Unblocking Process Capture Request");
@@ -5209,7 +5222,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
  *==========================================================================*/
 int QCamera3HardwareInterface::flushPerf()
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_FLUSH_PREF);
     int32_t rc = 0;
     struct timespec timeout;
     bool timed_wait = false;
@@ -8930,7 +8943,7 @@ int32_t QCamera3HardwareInterface::getSensorSensitivity(int32_t iso_mode)
 int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
         struct camera_info *info)
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_GET_CAM_INFO);
     int rc = 0;
 
     pthread_mutex_lock(&gCamLock);
@@ -9279,11 +9292,16 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     settings.update(ANDROID_LENS_FOCUS_DISTANCE, &focus_distance, 1);
 
     /*target fps range: use maximum range for picture, and maximum fixed range for video*/
+    /* Restrict template max_fps to 30 */
     float max_range = 0.0;
     float max_fixed_fps = 0.0;
     int32_t fps_range[2] = {0, 0};
     for (uint32_t i = 0; i < gCamCapability[mCameraId]->fps_ranges_tbl_cnt;
             i++) {
+        if (gCamCapability[mCameraId]->fps_ranges_tbl[i].max_fps >
+                TEMPLATE_MAX_PREVIEW_FPS) {
+            continue;
+        }
         float range = gCamCapability[mCameraId]->fps_ranges_tbl[i].max_fps -
             gCamCapability[mCameraId]->fps_ranges_tbl[i].min_fps;
         if (type == CAMERA3_TEMPLATE_PREVIEW ||
@@ -10973,6 +10991,7 @@ int QCamera3HardwareInterface::process_capture_request(
                     camera3_capture_request_t *request)
 {
     LOGD("E");
+    CAMSCOPE_UPDATE_FLAGS(CAMSCOPE_SECTION_HAL, kpi_camscope_flags);
     QCamera3HardwareInterface *hw =
         reinterpret_cast<QCamera3HardwareInterface *>(device->priv);
     if (!hw) {
@@ -11088,6 +11107,7 @@ int QCamera3HardwareInterface::close_camera_device(struct hw_device_t* device)
     LOGI("[KPI Perf]: E camera id %d", hw->mCameraId);
     delete hw;
     LOGI("[KPI Perf]: X");
+    CAMSCOPE_DESTROY(CAMSCOPE_SECTION_HAL);
     return ret;
 }
 
@@ -11640,7 +11660,7 @@ const uint32_t *QCamera3HardwareInterface::getLdafCalib()
  *==========================================================================*/
 int32_t QCamera3HardwareInterface::dynamicUpdateMetaStreamInfo()
 {
-    ATRACE_CALL();
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_DYN_UPDATE_META_STRM_INFO);
     int rc = NO_ERROR;
 
     LOGD("E");
