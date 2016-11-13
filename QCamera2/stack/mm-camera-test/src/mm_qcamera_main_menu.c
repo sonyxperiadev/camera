@@ -26,7 +26,6 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
 // System dependencies
 #include <ctype.h>
 #include <errno.h>
@@ -108,6 +107,11 @@ const CAMERA_MAIN_MENU_TBL_T camera_main_menu_tbl[] = {
   {TAKE_RAW_SNAPSHOT,          "Take RAW snapshot"},
   {SWITCH_SNAP_RESOLUTION,     "Select Jpeg resolution"},
   {TOGGLE_WNR,                 "Toggle Wavelet Denoise"},
+  {SPECIAL_EFFECTS,            "Set spceial snapshot effects"},
+  {SET_MN_WHITE_BALANCE,       "Set white balance manually"},
+  {ANTI_BANDING,               "Anit-banding/Auto Flicker Correction"},
+  {BURST_MODE_SNAPSHOT,        "Enables continuous image capture during snapshot operation"},
+  {CONCURRENT_NDR_NONHDR,      "Capture non-HDR images concurrent with HDR"},
   {EXIT,                       "Exit"}
 };
 
@@ -143,7 +147,13 @@ const CAMERA_SHARPNESS_TBL_T camera_sharpness_tbl[] = {
   {DEC_SHARPNESS, "Decrease Sharpness."},
 };
 
+const MN_WHITE_BALANCE_TBL_T mn_white_balance_tbl[] = {
+  {   MANUAL_WB_CCT,        "Manual White Balance - CCT"},
+  {   MANUAL_WB_GAIN,       "Manual White Balance - RGB Gain"},
+};
+
 const WHITE_BALANCE_TBL_T white_balance_tbl[] = {
+  {   WB_OFF,                "White Balance - OFF"},
   {   WB_AUTO,               "White Balance - Auto"},
   {   WB_INCANDESCENT,       "White Balance - Incandescent"},
   {   WB_FLUORESCENT,        "White Balance - Fluorescent"},
@@ -152,6 +162,7 @@ const WHITE_BALANCE_TBL_T white_balance_tbl[] = {
   {   WB_CLOUDY_DAYLIGHT,    "White Balance - Cloudy Daylight"},
   {   WB_TWILIGHT,           "White Balance - Twilight"},
   {   WB_SHADE,              "White Balance - Shade"},
+  {   WB_MANUAL,             "White Balance - Manual"},
 };
 
 const GET_CTRL_TBL_T get_ctrl_tbl[] = {
@@ -210,6 +221,29 @@ const BESTSHOT_MODE_TBT_T bestshot_mode_tbl[] = {
   {BESTSHOT_FLOWERS,        "Bestshot Mode: Flowers"},
   {BESTSHOT_AR,             "Bestshot Mode: Augmented Reality"},
   {BESTSHOT_HDR,            "Bestshot Mode: HDR"},
+};
+
+const SPECIAL_EFFECT_MODE_TBT_T camEffect_mode_tbl[] = {
+  {SPL_EFFECT_OFF,          "Special Effect Mode: Off"},
+  {SPL_EFFECT_MONO,         "Special Effect Mode: Mono"},
+  {SPL_EFFECT_NEGATIVE,     "Special Effect Mode: Negative"},
+  {SPL_EFFECT_SOLARIZE,     "Special Effect Mode: Solarize"},
+  {SPL_EFFECT_SEPIA,        "Special Effect Mode: Sepia"},
+  {SPL_EFFECT_POSTERIZE,    "Special Effect Mode: Posterize"},
+  {SPL_EFFECT_WHITEBOARD,   "Special Effect Mode: Whiteboard"},
+  {SPL_EFFECT_BLACKBOARD,   "Special Effect Mode: Blackboard"},
+  {SPL_EFFECT_AQUA,         "Special Effect Mode: Aqua"},
+  {SPL_EFFECT_EMBOSS,       "Special Effect Mode: Emboss"},
+  {SPL_EFFECT_SKETCH,       "Special Effect Mode: Sketch"},
+  {SPL_EFFECT_NEON,         "Special Effect Mode: Neon"},
+  {SPL_EFFECT_BEAUTY,       "Special Effect Mode: Beuty"},
+};
+
+const ANTI_BANDING_TBT_T antiBanding_tbl[] = {
+  {ANTIBANDING_OFF,        "Anti Banding: Off"},
+  {ANTIBANDING_60HZ,       "Anti Banding: 60HZ"},
+  {ANTIBANDING_50HZ,       "Anti Banding: 50HZ"},
+  {ANTIBANDING_AUTO,       "Anti Banding: Auto"},
 };
 
 const FLASH_MODE_TBL_T flashmodes_tbl[] = {
@@ -277,7 +311,7 @@ int keypress_to_event(char keypress)
     out_buf = tolower(keypress);
     out_buf = out_buf - 'a';
   } else if (keypress >= '0' && keypress <= '9') {
-    out_buf = keypress - '0';
+    out_buf = (keypress - '0')+ ('z' - 'a');
   }
   return out_buf;
 }
@@ -289,8 +323,9 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
   * action_id_ptr = ACTION_NO_ACTION;
 
   output_to_event = keypress_to_event(keypress);
+  LOGD("output_to_event=%d\n",output_to_event);
   LOGD("current_menu_id=%d\n",current_menu_id);
-  printf("output_to_event=%d\n",output_to_event);
+
   switch(current_menu_id) {
     case MENU_ID_MAIN:
       switch(output_to_event) {
@@ -305,6 +340,10 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
 
         case SET_WHITE_BALANCE:
           next_menu_id = MENU_ID_WHITEBALANCECHANGE;
+          LOGD("next_menu_id = MENU_ID_WHITEBALANCECHANGE = %d\n", next_menu_id);
+          break;
+        case SET_MN_WHITE_BALANCE:
+          next_menu_id = MENU_ID_WHITEBALANCE_MANUAL;
           LOGD("next_menu_id = MENU_ID_WHITEBALANCECHANGE = %d\n", next_menu_id);
           break;
 
@@ -402,15 +441,31 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
           LOGD("Toggle ZSL\n");
           break;
         case TAKE_RAW_SNAPSHOT:
-            * action_id_ptr = ACTION_TAKE_RAW_SNAPSHOT;
-            next_menu_id = MENU_ID_MAIN;
-            LOGD("Capture RAW\n");
-            break;
+          * action_id_ptr = ACTION_TAKE_RAW_SNAPSHOT;
+          next_menu_id = MENU_ID_MAIN;
+          LOGD("Capture RAW\n");
+          break;
         case TOGGLE_WNR:
-            * action_id_ptr = ACTION_TOGGLE_WNR;
-            next_menu_id = MENU_ID_MAIN;
-            LOGD("Toggle WNR");
-            break;
+          * action_id_ptr = ACTION_TOGGLE_WNR;
+          next_menu_id = MENU_ID_MAIN;
+          LOGD("Toggle WNR");
+          break;
+        case SPECIAL_EFFECTS:
+          next_menu_id = MENU_ID_SPECIAL_EFFECTS;
+          LOGD("next menu ID is set to MENU_ID_SPECIAL_EFFECTS\n");
+          break;
+        case ANTI_BANDING:
+          next_menu_id = MENU_ID_ANTI_BANDING;
+          LOGD("next menu ID is set to MENU_ID_ANTI_BANDING\n");
+          break;
+        case BURST_MODE_SNAPSHOT:
+          * action_id_ptr = ACTION_BURST_MODE_SNAPSHOT;
+          next_menu_id = MENU_ID_MAIN;
+          break;
+        case CONCURRENT_NDR_NONHDR:
+          * action_id_ptr = ACTION_CONCURRENT_NDR_NONHDR;
+          next_menu_id = MENU_ID_MAIN;
+          break;
         case EXIT:
           * action_id_ptr = ACTION_EXIT;
           LOGD("Exit \n");
@@ -443,12 +498,23 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
         *action_param = output_to_event;
         break;
 
+    case MENU_ID_WHITEBALANCE_MANUAL:
+      printf("MENU_ID_WHITEBALANCE_MANUAL\n");
+      if (output_to_event >= MANUAL_WB_MAX) {
+        next_menu_id = current_menu_id;
+        * action_id_ptr = ACTION_NO_ACTION;
+      }else {
+        next_menu_id = MENU_ID_MAIN;
+        * action_id_ptr = ACTION_SET_MN_WHITE_BALANCE;
+        * action_param = output_to_event;
+      }
+      break;
     case MENU_ID_WHITEBALANCECHANGE:
       printf("MENU_ID_WHITEBALANCECHANGE\n");
       if (output_to_event >= WB_MAX) {
         next_menu_id = current_menu_id;
         * action_id_ptr = ACTION_NO_ACTION;
-      } else {
+      }else {
         next_menu_id = MENU_ID_MAIN;
         * action_id_ptr = ACTION_SET_WHITE_BALANCE;
         * action_param = output_to_event;
@@ -552,13 +618,16 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
       break;
 
     case MENU_ID_ZOOMCHANGE:
-      * action_id_ptr = ACTION_SET_ZOOM;
-      if (output_to_event > 0 &&
-        output_to_event <= (int)(sizeof(zoom_tbl)/sizeof(zoom_tbl[0]))) {
-          next_menu_id = MENU_ID_MAIN;
-          * action_param = output_to_event;
-      } else {
-        next_menu_id = current_menu_id;
+      switch(output_to_event){
+        case ZOOM_IN:
+        case ZOOM_OUT:
+            next_menu_id = MENU_ID_MAIN;
+            * action_id_ptr = ACTION_SET_ZOOM;
+            * action_param = output_to_event;
+            break;
+       default:
+            next_menu_id = current_menu_id;
+            * action_id_ptr = ACTION_NO_ACTION;
       }
       break;
 
@@ -600,7 +669,28 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
       }
       break;
 
-    default:
+    case MENU_ID_SPECIAL_EFFECTS:
+      if (output_to_event >= SPL_EFFECT_MAX) {
+        * action_id_ptr = ACTION_NO_ACTION;
+        next_menu_id = current_menu_id;
+      } else {
+        * action_id_ptr = ACTION_SPECIAL_EFFECTS;
+        next_menu_id = MENU_ID_MAIN;
+        * action_param = output_to_event;
+      }
+      break;
+
+    case MENU_ID_ANTI_BANDING:
+      if (output_to_event >= ANTIBANDING_MAX) {
+        * action_id_ptr = ACTION_NO_ACTION;
+        next_menu_id = current_menu_id;
+      } else {
+        * action_id_ptr = ACTION_ANTI_BANDING;
+        next_menu_id = MENU_ID_MAIN;
+        * action_param = output_to_event;
+      }
+      break;
+   default:
       LOGD("menu id is wrong: %d\n", current_menu_id);
       break;
   }
@@ -643,6 +733,22 @@ static void print_menu_preview_video(void) {
   return;
 }
 
+static void camera_preview_video_mn_wb_tbl(void) {
+  unsigned int i;
+  printf("\n");
+  printf("==========================================================\n");
+  printf("      Camera is in manual white balance change mode       \n");
+  printf("==========================================================\n\n");
+
+  char submenuNum = 'A';
+  for (i = 0 ; i < sizeof(mn_white_balance_tbl) /
+                   sizeof(mn_white_balance_tbl[0]); i++) {
+        printf("%c.  %s\n", submenuNum, mn_white_balance_tbl[i].wb_name);
+        submenuNum++;
+  }
+  printf("\nPlease enter your choice for White Balance modes: ");
+  return;
+}
 static void camera_preview_video_wb_change_tbl(void) {
   unsigned int i;
   printf("\n");
@@ -740,11 +846,13 @@ static void camera_resolution_change_tbl(void) {
     printf("      Camera is in snapshot resolution mode               \n");
     printf("==========================================================\n\n");
 
+    char submenuNum = 'A';
     for (i = 0; i < sizeof(dimension_tbl) /
       sizeof(dimension_tbl[0]); i++) {
         if ( dimension_tbl[i].supported ) {
-            printf("%d.  %s\n", i,
+            printf("%c.  %s\n", submenuNum,
                     dimension_tbl[i].str_name);
+            submenuNum++;
         }
     }
 
@@ -755,7 +863,7 @@ static void camera_resolution_change_tbl(void) {
 static void camera_preview_video_zoom_change_tbl(void) {
     unsigned int i;
     zoom_max_value = MAX_ZOOMS_CNT;
-    printf("\nCurrent Zoom Value = %d ,Max Zoom Value = %d\n",zoom_level,zoom_max_value);
+
     char submenuNum = 'A';
     for (i = 0 ; i < sizeof(zoom_tbl) /
                    sizeof(zoom_tbl[0]); i++) {
@@ -904,6 +1012,49 @@ static void camera_sensors_tbl(void)
   return;
 }
 
+static void camera_special_effects_tbl(void)
+{
+  unsigned int i;
+  size_t available_effects = sizeof(camEffect_mode_tbl)/sizeof(camEffect_mode_tbl[0]);
+
+  printf("\n");
+  printf("===========================================\n");
+  printf("      Camera Available Special Effects:            \n");
+  printf("===========================================\n\n");
+
+
+  char bsmenuNum = 'A';
+  for (i = 0; ( i < available_effects ) ; i++) {
+    printf("%c.  %s\n", bsmenuNum,
+            camEffect_mode_tbl[i].name);
+    bsmenuNum++;
+  }
+
+  printf("\nPlease enter your choice for sensor: ");
+  return;
+}
+
+static void camera_anti_banding_tbl(void)
+{
+  unsigned int i;
+  size_t available_effects = sizeof(antiBanding_tbl)/sizeof(antiBanding_tbl[0]);
+
+  printf("\n");
+  printf("===========================================\n");
+  printf("      Camera Available Anti Banding Options:            \n");
+  printf("===========================================\n\n");
+
+
+  char bsmenuNum = 'A';
+  for (i = 0; ( i < available_effects ) ; i++) {
+    printf("%c.  %s\n", bsmenuNum,
+            antiBanding_tbl[i].name);
+    bsmenuNum++;
+  }
+
+  printf("\nPlease enter your choice for sensor: ");
+  return;
+}
 /*===========================================================================
  * FUNCTION     - increase_contrast -
  *
@@ -1124,7 +1275,74 @@ int main()
 
     return rc;
 }
+/*===========================================================================
+ * FUNCTION     - set_manual_whitebalance -
+ *
+ * DESCRIPTION:
+ * ===========================================================================*/
+int set_manual_whitebalance (mm_camera_lib_handle *lib_handle, int wb_action_param) {
 
+    cam_manual_wb_parm_t manual_info ;
+    float fgain[3];
+    char data[20], *pSTR, *ePTR;
+    int iV, i;
+
+    switch (wb_action_param) {
+      case CAM_MANUAL_WB_MODE_CCT:
+           printf("\nCAM_MANUAL_WB_MODE_CCT\n");
+           manual_info.type = CAM_MANUAL_WB_MODE_CCT;
+           #if 1
+           printf("\nEnter CCT value:");
+           fgets(data, sizeof(data), stdin);
+
+           for (pSTR = data; ; pSTR = ePTR) {
+               iV = strtod(pSTR, &ePTR);
+               if (pSTR == ePTR)
+                  break;
+               manual_info.cct = iV;
+               if (*ePTR == '\n')
+                  break;
+           }
+          #endif
+          LOGD("you entered: %d\n", manual_info.cct);
+          break;
+      case CAM_MANUAL_WB_MODE_GAIN:
+           printf("\nCAM_MANUAL_WB_MODE_GAIN\n");
+           manual_info.type = CAM_MANUAL_WB_MODE_GAIN;
+           #if 1
+           i = 0;
+           printf("\nEnter R, G, B gain value:");
+           fgets(data, sizeof(data), stdin);
+
+           for (pSTR = data; ; pSTR = ePTR) {
+               fgain[i] = strtof(pSTR, &ePTR);
+               if (pSTR == ePTR)
+                  break;
+               if (*ePTR == '\n')
+                  break;
+               i++;
+           }
+           #endif
+           manual_info.gains.r_gain = fgain[0];
+           manual_info.gains.b_gain = fgain[1];
+           manual_info.gains.g_gain = fgain[2];
+
+           LOGD("you entered: %f\n",
+               manual_info.gains.r_gain);
+           LOGD("you entered: %f\n",
+               manual_info.gains.b_gain);
+           LOGD("you entered: %f\n",
+               manual_info.gains.g_gain);
+           break;
+      default:
+           break;
+    }
+
+    return mm_camera_lib_send_command(lib_handle,
+                                     MM_CAMERA_LIB_MN_WB,
+                                     &manual_info,
+                                     NULL);
+}
 /*===========================================================================
  * FUNCTION     - set_whitebalance -
  *
@@ -1133,6 +1351,10 @@ int main()
 int set_whitebalance (mm_camera_lib_handle *lib_handle, int wb_action_param) {
         cam_wb_mode_type type = 0;
         switch (wb_action_param) {
+                case WB_OFF:
+                        printf("\n WB_OFF\n");
+                        type = CAM_WB_MODE_OFF;
+                        break;
                 case WB_AUTO:
                         printf("\n WB_AUTO\n");
                         type = CAM_WB_MODE_AUTO;
@@ -1164,6 +1386,10 @@ int set_whitebalance (mm_camera_lib_handle *lib_handle, int wb_action_param) {
                case WB_SHADE:
                         printf("\n WB_SHADE\n");
                         type = CAM_WB_MODE_SHADE;
+                        break;
+               case WB_MANUAL:
+                        printf("\n WB_WB_MANUAL\n");
+                        type = CAM_WB_MODE_MANUAL;
                         break;
                 default:
                         break;
@@ -1406,6 +1632,104 @@ int set_flash_mode (mm_camera_lib_handle *lib_handle, int action_param) {
                                       NULL);
 }
 
+int set_specialEffects(mm_camera_lib_handle *lib_handle, int action_param) {
+    cam_effect_mode_type effect = 0;
+
+    switch (action_param) {
+        case SPL_EFFECT_OFF:
+            printf("\n SPECIAL EFFECT OFF\n");
+            effect  = CAM_EFFECT_MODE_OFF ;
+            break;
+        case SPL_EFFECT_MONO:
+            printf("\n SPECIAL EFFECT MONO\n");
+            effect  = CAM_EFFECT_MODE_MONO;
+            break;
+        case SPL_EFFECT_NEGATIVE:
+            printf("\n SPECIAL EFFECT NEGATIVE\n");
+            effect  = CAM_EFFECT_MODE_NEGATIVE;
+            break;
+        case SPL_EFFECT_SOLARIZE:
+            printf("\n SPECIAL EFFECT SOLARIZE\n");
+            effect  = CAM_EFFECT_MODE_SOLARIZE ;
+            break;
+        case SPL_EFFECT_SEPIA:
+            printf("\n SPECIAL EFFECT SEPIA\n");
+            effect  = CAM_EFFECT_MODE_SEPIA ;
+            break;
+        case SPL_EFFECT_POSTERIZE:
+            printf("\n SPECIAL EFFECT POSTERIZE\n");
+            effect  = CAM_EFFECT_MODE_POSTERIZE ;
+            break;
+        case SPL_EFFECT_WHITEBOARD:
+            printf("\n SPECIAL EFFECT WHITEBOARD\n");
+            effect  = CAM_EFFECT_MODE_WHITEBOARD ;
+            break;
+        case SPL_EFFECT_BLACKBOARD:
+            printf("\n SPECIAL EFFECT BLACKBOARD\n");
+            effect  = CAM_EFFECT_MODE_BLACKBOARD ;
+            break;
+        case SPL_EFFECT_AQUA:
+            printf("\n SPECIAL EFFECT AQUA\n");
+            effect  = CAM_EFFECT_MODE_AQUA ;
+            break;
+        case SPL_EFFECT_EMBOSS:
+            printf("\n SPECIAL EFFECT EMBOSS\n");
+            effect  = CAM_EFFECT_MODE_EMBOSS ;
+            break;
+        case SPL_EFFECT_SKETCH:
+            printf("\n SPECIAL EFFECT SKETCH\n");
+            effect  = CAM_EFFECT_MODE_SKETCH ;
+            break;
+        case SPL_EFFECT_NEON:
+            printf("\n SPECIAL EFFECT NEON\n");
+            effect  = CAM_EFFECT_MODE_NEON ;
+            break;
+        case SPL_EFFECT_BEAUTY:
+            printf("\n SPECIAL EFFECT BEAUTY\n");
+            effect  = CAM_EFFECT_MODE_BEAUTY ;
+            break;
+        default:
+            printf("\n SPECIAL EFFECT OFF\n");
+            effect  = CAM_EFFECT_MODE_OFF ;
+            break;
+        }
+        return mm_camera_lib_send_command(lib_handle,
+                                          MM_CAMERA_LIB_SPL_EFFECT,
+                                          &effect,
+                                          NULL);
+}
+
+int set_antiBanding(mm_camera_lib_handle *lib_handle, int action_param) {
+    cam_antibanding_mode_type effect = 0;
+
+    switch (action_param) {
+        case ANTIBANDING_OFF:
+            printf("\n ANTI BANDING OFF\n");
+            effect  = CAM_ANTIBANDING_MODE_OFF;
+            break;
+        case ANTIBANDING_60HZ:
+            printf("\n ANTI BANDING 60 HZ\n");
+            effect  = CAM_ANTIBANDING_MODE_60HZ;
+            break;
+        case ANTIBANDING_50HZ:
+            printf("\n ANTI BANDING 50 HZ\n");
+            effect  = CAM_ANTIBANDING_MODE_50HZ;
+            break;
+        case ANTIBANDING_AUTO:
+            printf("\n ANTI BANDING AUTO\n");
+            effect  = CAM_ANTIBANDING_MODE_AUTO;
+            break;
+        default:
+            printf("\n ANTI BANDING OFF\n");
+            effect  = CAM_ANTIBANDING_MODE_OFF;
+            break;
+        }
+        return mm_camera_lib_send_command(lib_handle,
+                                          MM_CAMERA_LIB_ANTIBANDING,
+                                          &effect,
+                                          NULL);
+}
+
 int set_bestshot_mode(mm_camera_lib_handle *lib_handle, int action_param) {
     cam_scene_mode_type type = 0;
     switch (action_param) {
@@ -1507,6 +1831,8 @@ int print_current_menu (menu_id_change_t current_menu_id) {
     print_menu_preview_video ();
   } else if (current_menu_id == MENU_ID_WHITEBALANCECHANGE) {
     camera_preview_video_wb_change_tbl();
+  } else if (current_menu_id == MENU_ID_WHITEBALANCE_MANUAL){
+    camera_preview_video_mn_wb_tbl();
   } else if (current_menu_id == MENU_ID_EXPMETERINGCHANGE) {
     camera_preview_video_exp_metering_change_tbl();
   } else if (current_menu_id == MENU_ID_GET_CTRL_VALUE) {
@@ -1533,7 +1859,13 @@ int print_current_menu (menu_id_change_t current_menu_id) {
     camera_sensors_tbl();
   } else if (current_menu_id == MENU_ID_SWITCH_RES ) {
     camera_resolution_change_tbl();
-  }
+  } else if (current_menu_id == MENU_ID_SPECIAL_EFFECTS ) {
+    camera_special_effects_tbl();
+  } else if (current_menu_id == MENU_ID_ANTI_BANDING ) {
+    camera_anti_banding_tbl();
+  }else
+    print_menu_preview_video ();
+
 
   return 0;
 }
@@ -1708,6 +2040,7 @@ static int submain()
         if (next_menu_id != MENU_ID_INVALID) {
           current_menu_id = next_menu_id;
         }
+
         if (action_id == ACTION_NO_ACTION) {
           continue;
         }
@@ -1731,6 +2064,11 @@ static int submain()
                     goto ERROR;
                 }
                 previewing = 0;
+                break;
+
+            case ACTION_SET_MN_WHITE_BALANCE:
+                LOGE("Selection for the Manual White Balance changes\n");
+                set_manual_whitebalance(&lib_handle, action_param);
                 break;
 
             case ACTION_SET_WHITE_BALANCE:
@@ -1867,6 +2205,7 @@ static int submain()
             case ACTION_SET_ZOOM:
                 LOGD("Selection for the zoom direction changes\n");
                 set_zoom(&lib_handle, action_param);
+                printf("\nCurrent Zoom Value = %d ,Max Zoom Value = %d\n",zoom_level,zoom_max_value);
                 break;
 
             case ACTION_SHARPNESS_INCREASE:
@@ -2023,6 +2362,34 @@ static int submain()
               LOGE("mm_camera_lib_send_command() err=%d\n",  rc);
               goto ERROR;
           }
+          break;
+
+         case ACTION_SPECIAL_EFFECTS:
+          printf("Selection for special effects\n");
+          rc = set_specialEffects(&lib_handle, action_param);
+
+          if (rc != MM_CAMERA_OK) {
+              LOGE("set_specialEffects() err=%d\n",  rc);
+              goto ERROR;
+          }
+          break;
+
+         case ACTION_ANTI_BANDING:
+          printf("Selection for anti banding\n");
+          rc = set_antiBanding(&lib_handle, action_param);
+
+          if (rc != MM_CAMERA_OK) {
+              LOGE("set_antiBanding() err=%d\n",  rc);
+              goto ERROR;
+          }
+          break;
+
+         case ACTION_BURST_MODE_SNAPSHOT:
+          printf("Selection for BURST_MODE_SNAPSHOT\n");
+          break;
+
+        case ACTION_CONCURRENT_NDR_NONHDR:
+          printf("Selection for CONCURRENT_NDR_NONHDR\n");
           break;
 
         case ACTION_EXIT:
