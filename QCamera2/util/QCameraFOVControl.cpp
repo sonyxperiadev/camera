@@ -1112,30 +1112,76 @@ bool QCameraFOVControl::validateAndExtractParameters(
     bool rc = false;
     if (capsMainCam && capsAuxCam) {
 
-        // TODO : Replace the hardcoded values for mFovControlConfig and mDualCamParams below
-        // with the ones extracted from capabilities when available in eeprom.
         mFovControlConfig.percentMarginHysterisis  = 5;
         mFovControlConfig.percentMarginMain        = 10;
         mFovControlConfig.percentMarginAux         = 15;
         mFovControlConfig.waitTimeForHandoffMs     = 1000;
 
-        mDualCamParams.paramsMain.sensorStreamWidth  = 4208;
-        mDualCamParams.paramsMain.sensorStreamHeight = 3120;
-        mDualCamParams.paramsMain.pixelPitchUm       = 1.12;
-        mDualCamParams.paramsMain.focalLengthMm      = 3.5;
-        mDualCamParams.paramsAux.sensorStreamWidth   = 4208;
-        mDualCamParams.paramsAux.sensorStreamHeight  = 3120;
-        mDualCamParams.paramsAux.pixelPitchUm        = 1.12;
-        mDualCamParams.paramsAux.focalLengthMm       = 7;
-        mDualCamParams.baselineMm                    = 9.5;
-        mDualCamParams.minFocusDistanceCm            = 30;
-        mDualCamParams.rollDegrees                   = 1.0;
-        mDualCamParams.pitchDegrees                  = 1.0;
-        mDualCamParams.yawDegrees                    = 1.0;
-        mDualCamParams.positionAux                   = CAM_POSITION_LEFT;
+        // Temporary workaround to avoid wrong calculations with B+B/B+M modules with similar FOV
+        // Once W+T modules are available, hardcoded path will be removed
+        if ((uint32_t)(capsMainCam->focal_length * 100) !=
+                (uint32_t)(capsAuxCam->focal_length * 100)) {
+            mDualCamParams.paramsMain.sensorStreamWidth =
+                    capsMainCam->related_cam_calibration.main_cam_specific_calibration.\
+                    native_sensor_resolution_width;
+            mDualCamParams.paramsMain.sensorStreamHeight =
+                    capsMainCam->related_cam_calibration.main_cam_specific_calibration.\
+                    native_sensor_resolution_height;
+
+            mDualCamParams.paramsAux.sensorStreamWidth   =
+                    capsMainCam->related_cam_calibration.aux_cam_specific_calibration.\
+                    native_sensor_resolution_width;
+            mDualCamParams.paramsAux.sensorStreamHeight  =
+                    capsMainCam->related_cam_calibration.aux_cam_specific_calibration.\
+                    native_sensor_resolution_height;
+
+            mDualCamParams.paramsMain.focalLengthMm = capsMainCam->focal_length;
+            mDualCamParams.paramsAux.focalLengthMm  = capsAuxCam->focal_length;
+
+            mDualCamParams.paramsMain.pixelPitchUm = capsMainCam->pixel_pitch_um;
+            mDualCamParams.paramsAux.pixelPitchUm  = capsAuxCam->pixel_pitch_um;
+
+            mDualCamParams.baselineMm   =
+                    capsMainCam->related_cam_calibration.relative_baseline_distance;
+            mDualCamParams.rollDegrees  = capsMainCam->max_roll_degrees;
+            mDualCamParams.pitchDegrees = capsMainCam->max_pitch_degrees;
+            mDualCamParams.yawDegrees   = capsMainCam->max_yaw_degrees;
+
+            if ((capsMainCam->min_focus_distance > 0) &&
+                    (capsAuxCam->min_focus_distance > 0)) {
+                // Convert the min focus distance from diopters to cm
+                // and choose the max of both sensors.
+                uint32_t minFocusDistCmMain = (100.0f / capsMainCam->min_focus_distance);
+                uint32_t minFocusDistCmAux  = (100.0f / capsAuxCam->min_focus_distance);
+                mDualCamParams.minFocusDistanceCm = (minFocusDistCmMain > minFocusDistCmAux) ?
+                        minFocusDistCmMain : minFocusDistCmAux;
+            }
+
+            if (capsMainCam->related_cam_calibration.relative_position_flag == 0) {
+                mDualCamParams.positionAux = CAM_POSITION_RIGHT;
+            } else {
+                mDualCamParams.positionAux = CAM_POSITION_LEFT;
+            }
+        } else {
+            // Hardcoded values till W + T module is available
+            mDualCamParams.paramsMain.sensorStreamWidth  = 4208;
+            mDualCamParams.paramsMain.sensorStreamHeight = 3120;
+            mDualCamParams.paramsMain.pixelPitchUm       = 1.12;
+            mDualCamParams.paramsMain.focalLengthMm      = 3.5;
+            mDualCamParams.paramsAux.sensorStreamWidth   = 4208;
+            mDualCamParams.paramsAux.sensorStreamHeight  = 3120;
+            mDualCamParams.paramsAux.pixelPitchUm        = 1.12;
+            mDualCamParams.paramsAux.focalLengthMm       = 7;
+            mDualCamParams.baselineMm                    = 9.5;
+            mDualCamParams.minFocusDistanceCm            = 30;
+            mDualCamParams.rollDegrees                   = 1.0;
+            mDualCamParams.pitchDegrees                  = 1.0;
+            mDualCamParams.yawDegrees                    = 1.0;
+            mDualCamParams.positionAux                   = CAM_POSITION_LEFT;
+        }
 
         if ((capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_QTI) ||
-            (capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_OEM)) {
+                (capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_OEM)) {
             mFovControlData.availableSpatialAlignSolns =
                     capsMainCam->avail_spatial_align_solns;
         } else {
@@ -1169,8 +1215,8 @@ bool QCameraFOVControl::validateAndExtractParameters(
  *==========================================================================*/
 bool QCameraFOVControl::calculateBasicFovRatio()
 {
-    float fovWide;
-    float fovTele;
+    float fovWide = 0.0f;
+    float fovTele = 0.0f;
     bool rc = false;
 
     if ((mDualCamParams.paramsMain.focalLengthMm > 0.0f) &&
@@ -1198,6 +1244,19 @@ bool QCameraFOVControl::calculateBasicFovRatio()
             rc = true;
         }
     }
+
+    LOGD("Main cam focalLengthMm : %f", mDualCamParams.paramsMain.focalLengthMm);
+    LOGD("Aux  cam focalLengthMm : %f", mDualCamParams.paramsAux.focalLengthMm);
+    LOGD("Main cam sensorStreamWidth : %u", mDualCamParams.paramsMain.sensorStreamWidth);
+    LOGD("Main cam pixelPitchUm      : %f", mDualCamParams.paramsMain.pixelPitchUm);
+    LOGD("Main cam focalLengthMm     : %f", mDualCamParams.paramsMain.focalLengthMm);
+    LOGD("Aux cam sensorStreamWidth  : %u", mDualCamParams.paramsAux.sensorStreamWidth);
+    LOGD("Aux cam pixelPitchUm       : %f", mDualCamParams.paramsAux.pixelPitchUm);
+    LOGD("Aux cam focalLengthMm      : %f", mDualCamParams.paramsAux.focalLengthMm);
+    LOGD("fov wide : %f", fovWide);
+    LOGD("fov tele : %f", fovTele);
+    LOGD("BasicFovRatio : %f", mFovControlData.basicFovRatio);
+
     return rc;
 }
 
@@ -1234,6 +1293,14 @@ bool QCameraFOVControl::combineFovAdjustment()
                 (mFovControlData.basicFovRatio / adjustedRatio);
         rc = true;
     }
+
+    LOGD("Main cam margin for width  : %f", mFovControlData.camMainWidthMargin);
+    LOGD("Main cam margin for height : %f", mFovControlData.camMainHeightMargin);
+    LOGD("Aux  cam margin for width  : %f", mFovControlData.camAuxWidthMargin);
+    LOGD("Aux  cam margin for height : %f", mFovControlData.camAuxHeightMargin);
+    LOGD("Width  margin ratio : %f", ratioMarginWidth);
+    LOGD("Height margin ratio : %f", ratioMarginHeight);
+
     return rc;
 }
 
@@ -1301,6 +1368,11 @@ void QCameraFOVControl::calculateDualCamTransitionParams()
             mFovControlConfig.auxSwitchBrightnessMin = mFovControlConfig.snapshotPPConfig.luxMin;
         }
     }
+
+    LOGD("transition param: TransitionLow  %f", mFovControlData.transitionParams.transitionLow);
+    LOGD("transition param: TeleToWide     %f", mFovControlData.transitionParams.cutOverTeleToWide);
+    LOGD("transition param: WideToTele     %f", mFovControlData.transitionParams.cutOverWideToTele);
+    LOGD("transition param: TransitionHigh %f", mFovControlData.transitionParams.transitionHigh);
 }
 
 
