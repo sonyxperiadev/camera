@@ -1788,6 +1788,32 @@ typedef struct {
     uint32_t stream_id[MAX_NUM_STREAMS];
 } cam_buf_divert_info_t;
 
+typedef enum {
+    CAM_SPATIAL_ALIGN_QCOM = 1 << 0,
+    CAM_SPATIAL_ALIGN_OEM  = 1 << 1
+} cam_spatial_align_type_t;
+
+typedef struct {
+    uint32_t shift_horz;
+    uint32_t shift_vert;
+} cam_sac_output_shift_t;
+
+typedef struct {
+    uint8_t                is_master_preview_valid;
+    uint8_t                master_preview;
+    uint8_t                is_master_3A_valid;
+    uint8_t                master_3A;
+    uint8_t                is_ready_status_valid;
+    uint8_t                ready_status;
+    uint8_t                is_output_shift_valid;
+    cam_sac_output_shift_t output_shift;
+    uint8_t                is_wide_focus_roi_shift_valid;
+    cam_sac_output_shift_t wide_focus_roi_shift;
+    uint8_t                is_tele_focus_roi_shift_valid;
+    cam_sac_output_shift_t tele_focus_roi_shift;
+} cam_sac_output_info_t;
+
+
 typedef  struct {
     uint8_t is_stats_valid;               /* if histgram data is valid */
     cam_hist_stats_t stats_data;          /* histogram data */
@@ -2293,6 +2319,10 @@ typedef enum {
     CAM_INTF_META_SPOT_LIGHT_DETECT,
     /* HAL based HDR*/
     CAM_INTF_PARM_HAL_BRACKETING_HDR,
+    /* Dual camera - Spatial Alignment Compute/Correction output info*/
+    CAM_INTF_META_DC_SAC_OUTPUT_INFO,
+    /* Dual camera - enable low power mode for the slave camera */
+    CAM_INTF_META_DC_LOW_POWER_ENABLE,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
