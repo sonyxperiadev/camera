@@ -641,6 +641,7 @@ public:
 #endif
 
     int getPreviewHalPixelFormat();
+    cam_rotation_t getStreamRotation(cam_stream_type_t streamType);
     int32_t getStreamRotation(cam_stream_type_t streamType,
                                cam_pp_feature_config_t &featureConfig,
                                cam_dimension_t &dim);
