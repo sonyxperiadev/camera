@@ -896,7 +896,7 @@ int QCamera3HardwareInterface::closeCamera()
 
     // unmap memory for related cam sync buffer
     mCameraHandle->ops->unmap_buf(mCameraHandle->camera_handle,
-            CAM_MAPPING_BUF_TYPE_SYNC_RELATED_SENSORS_BUF);
+            CAM_MAPPING_BUF_TYPE_DUAL_CAM_CMD_BUF);
     if (NULL != m_pDualCamCmdHeap) {
         m_pDualCamCmdHeap->deallocate();
         delete m_pDualCamCmdHeap;

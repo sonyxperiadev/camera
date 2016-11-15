@@ -4318,8 +4318,11 @@ int32_t QCameraParameters::setNumOfSnapshot()
     }
 
     LOGH("nBurstNum = %d, nExpnum = %d", nBurstNum, nExpnum);
-    if (!isDualCamera()) {
-        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, nBurstNum * nExpnum);
+    if (mActiveState == MM_CAMERA_DUAL_CAM) {
+        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER,
+                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
+    } else {
+        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum));
     }
     return NO_ERROR;
 }
@@ -12385,16 +12388,16 @@ int32_t QCameraParameters::initBatchUpdate()
 /*===========================================================================
  * FUNCTION   : getPointerofParam
  *
- * DESCRIPTION:
+ * DESCRIPTION: get a pointer to parameter structure
  *
  * PARAMETERS :
  *    @meta_id : parameter / meta id enum
- *    @metadata: metadata buffer pointer
+ *    @metadata : pointer to parameter buffer.
  *
  * RETURN     :Pointer of member_variable_<meta_ID>
  *
  *==========================================================================*/
-void * QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
+void *QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
         metadata_buffer_t* metadata)
 {
     switch(meta_id) {
@@ -12811,7 +12814,7 @@ void * QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
 /*===========================================================================
  * FUNCTION   : getSizeofParam
  *
- * DESCRIPTION:
+ * DESCRIPTION: get size of parameter structure
  *
  * PARAMETERS :
  *    @meta_id : parameter / meta id enum
@@ -12821,8 +12824,8 @@ void * QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
  *==========================================================================*/
 uint32_t QCameraParameters::getSizeofParam(cam_intf_parm_type_t param_id)
 {
-      metadata_buffer_t* metadata = NULL;
-      switch(param_id) {
+    metadata_buffer_t* metadata = NULL;
+    switch(param_id) {
         case CAM_INTF_META_HISTOGRAM:
           return SIZE_OF_PARAM(CAM_INTF_META_HISTOGRAM, metadata);
         case CAM_INTF_META_FACE_DETECTION:
@@ -13233,8 +13236,8 @@ uint32_t QCameraParameters::getSizeofParam(cam_intf_parm_type_t param_id)
         default:
           LOGE("parameter is not found");
           return 0;
-        }
-        return 0;
+    }
+    return 0;
 }
 
 /*===========================================================================
@@ -13342,7 +13345,6 @@ int32_t QCameraParameters::commitSetBatchAux()
     }
 
     setAuxParameters();
-
     rc = m_pCamOpsTbl->ops->set_parms(
             get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
             m_pParamBufAux);
@@ -16172,13 +16174,8 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
         mActiveCamera = state;
     }
 
-#ifdef DUAL_CAM_TEST //Temporary macro. Added to simulate B+B snapshot. Will be removed
-    if (controls == MM_CAMERA_DUAL_CAM) {
-        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, 2);
-    } else {
-        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, 1);
-    }
-#endif
+    /*Need to remove once we have dual camera fusion*/
+    setNumOfSnapshot();
 
     return rc;
 }

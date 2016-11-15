@@ -155,13 +155,6 @@ int32_t mm_camera_muxer_register_stream_buf_cb(uint32_t camera_handle,
 int32_t mm_camera_muxer_reg_frame_sync(mm_camera_obj_t *cam_obj,
         uint32_t ch_id, uint32_t stream_id,
         mm_camera_intf_frame_sync_t *sync_attr);
-int32_t mm_camera_muxer_start_frame_sync(mm_camera_obj_t *cam_obj,
-        uint32_t ch_id, uint32_t stream_id);
-int32_t mm_camera_muxer_stop_frame_sync(mm_camera_obj_t *cam_obj,
-        uint32_t ch_id, uint32_t stream_id);
-int32_t mm_camera_muxer_switch_stream(uint32_t camera_handle,
-        uint32_t ch_id, uint32_t stream_id,
-        mm_camera_obj_t *cam_obj);
 int32_t mm_camera_muxer_set_dual_cam_cmd(uint32_t camera_handle,
         mm_camera_obj_t *cam_obj);
 
@@ -180,6 +173,10 @@ int32_t mm_camera_muxer_get_stream_bufs(mm_stream_t *my_obj);
 int32_t mm_camera_muxer_put_stream_bufs(mm_stream_t *my_obj);
 int32_t mm_camera_muxer_stream_frame_sync_flush(mm_stream_t *str_obj);
 int32_t mm_camera_muxer_channel_frame_sync_flush(mm_channel_t *my_obj);
+mm_frame_sync_queue_node_t *mm_camera_muxer_frame_sync_dequeue(
+        mm_frame_sync_queue_t *queue, uint8_t matched_only);
+int32_t mm_camera_muxer_channel_req_data_cb(mm_camera_req_buf_t *req_buf,
+        mm_channel_t *ch_obj);
 int32_t mm_camera_map_stream_buf_ops(uint32_t buf_idx,
         int32_t plane_idx, int fd, size_t size,
         void *buffer, cam_mapping_buf_type type,
