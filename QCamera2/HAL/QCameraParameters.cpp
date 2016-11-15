@@ -12260,10 +12260,10 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
                 memcpy(&m_pDualCamCmdPtr[i]->value,
                         &info[i],
                         sizeof(cam_dual_camera_perf_control_t));
-                LOGH("LPM CMD %d: cmd %d LPM Enable - %d fps = %d", i,
+                LOGH("LPM CMD %d: cmd %d LPM Enable - %d mode = %d", i,
                         m_pDualCamCmdPtr[i]->cmd_type,
                         m_pDualCamCmdPtr[i]->value.enable,
-                        m_pDualCamCmdPtr[i]->value.low_fps);
+                        m_pDualCamCmdPtr[i]->value.perf_mode);
             }
         }
         break;
@@ -16156,14 +16156,16 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     cam_dual_camera_perf_control_t perf_value[MM_CAMERA_MAX_CAM_CNT];
     uint8_t num_cam = 0;
 
-    property_get("persist.dualcam.lpm.fps", prop, "0");
+    property_get("persist.dualcam.lpm.mode", prop, "0");
     value = atoi(prop);
 
-    perf_value[num_cam].low_fps = value;
+    perf_value[num_cam].perf_mode = (cam_dual_camera_perf_mode_t)value;
     perf_value[num_cam].enable = cameraControl[0] ? 0 : 1;
+    perf_value[num_cam].priority = 0;
     num_cam++;
-    perf_value[num_cam].low_fps = value;
+    perf_value[num_cam].perf_mode = (cam_dual_camera_perf_mode_t)value;
     perf_value[num_cam].enable = cameraControl[1] ? 0 : 1;
+    perf_value[num_cam].priority = 0;
     num_cam++;
 
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_LOW_POWER_MODE,
