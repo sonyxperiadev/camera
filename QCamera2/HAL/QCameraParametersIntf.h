@@ -52,7 +52,7 @@ class QCameraAdjustFPS
 public:
     virtual int recalcFPSRange(int &minFPS, int &maxFPS,
             const float &minVideoFPS, const float &maxVideoFPs,
-            cam_fps_range_t &adjustedRange) = 0;
+            cam_fps_range_t &adjustedRange, bool bRecordingHint) = 0;
     virtual ~QCameraAdjustFPS() {}
 };
 
