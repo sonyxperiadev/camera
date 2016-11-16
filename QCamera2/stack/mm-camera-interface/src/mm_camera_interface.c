@@ -56,19 +56,8 @@ static uint8_t g_handler_history_count = 0; /* history count for handler */
 
 // 16th (starting from 0) bit tells its a BACK or FRONT camera
 #define CAM_SENSOR_FACING_MASK       (1U<<16)
-
-#ifdef DUAL_CAM_TEST //Temporary macro. Will be removed once we finalize sensor change.
-// 24th (starting from 0) bit tells its a MAIN or AUX camera
-#define CAM_SENSOR_MODE_MASK_MAIN    (1U<<24)
-#define CAM_SENSOR_MODE_MASK_AUX     (1U<<25)
-#define CAM_SENSOR_MODE_MASK_SECURE  (1U<<26)
-
-// 28th (starting from 0) bit tells its YUV sensor or not
-#define CAM_SENSOR_FORMAT_MASK       (1U<<28)
-#else
 #define CAM_SENSOR_TYPE_MASK         (1U<<24)
 #define CAM_SENSOR_FORMAT_MASK       (1U<<25)
-#endif
 
 /*===========================================================================
  * FUNCTION   : mm_camera_util_generate_handler
@@ -280,7 +269,7 @@ static int32_t mm_camera_intf_query_capability(uint32_t camera_handle)
         }
     }
 
-    LOGH("camera_handle = %d rc = %d X", camera_handle, rc);
+    LOGH("camera_handle = %u rc = %u X", camera_handle, rc);
     return rc;
 }
 
@@ -437,7 +426,7 @@ static int32_t mm_camera_intf_do_auto_focus(uint32_t camera_handle)
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("rc = %d camera_handle = %d X", rc, camera_handle);
+    LOGH("rc = %d camera_handle = %u X", rc, camera_handle);
     return rc;
 }
 
@@ -483,7 +472,7 @@ static int32_t mm_camera_intf_cancel_auto_focus(uint32_t camera_handle)
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("rc = %d camera_handle = %d X", rc, camera_handle);
+    LOGH("rc = %d camera_handle = %u X", rc, camera_handle);
     return rc;
 }
 
@@ -535,7 +524,7 @@ static int32_t mm_camera_intf_prepare_snapshot(uint32_t camera_handle,
         }
         return rc;
     }
-    LOGH("rc = %d camera_handle = %d X", rc, camera_handle);
+    LOGH("rc = %d camera_handle = %u X", rc, camera_handle);
     return rc;
 }
 
@@ -659,7 +648,7 @@ static int32_t mm_camera_intf_close(uint32_t camera_handle)
         pthread_mutex_unlock(&g_intf_lock);
     }
 
-    LOGH("camera_handler = %d rc = %d", camera_handle, rc);
+    LOGH("camera_handler = %u rc = %d", camera_handle, rc);
 #ifdef QCAMERA_REDEFINE_LOG
     mm_camera_debug_close();
 #endif
@@ -722,12 +711,12 @@ static uint32_t mm_camera_intf_add_channel(uint32_t camera_handle,
                 mm_camera_del_channel(my_obj, ch_id);
             } else {
                 ch_id |= aux_ch_id;
-            }
+           }
         } else {
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("camera_handle = %d ch_id = %d X", ch_id);
+    LOGH("camera_handle = %u ch_id = %u X", ch_id);
     return ch_id;
 }
 
@@ -782,7 +771,7 @@ static int32_t mm_camera_intf_del_channel(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("rc = %d ch_id = %d X", rc, ch_id);
+    LOGH("rc = %d ch_id = %u X", rc, ch_id);
     return rc;
 }
 
@@ -1103,7 +1092,7 @@ static int32_t mm_camera_intf_link_stream(uint32_t camera_handle,
         }
     }
 
-    LOGH("X ch_id = %d stream_id = %d linked_ch_id = %d id = %d",
+    LOGH("X ch_id = %u stream_id = %u linked_ch_id = %u id = %u",
             ch_id, stream_id, linked_ch_id, id);
     return (int32_t)id;
 }
@@ -1164,7 +1153,7 @@ static uint32_t mm_camera_intf_add_stream(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("X ch_id = %d stream_id = %d", ch_id, stream_id);
+    LOGH("X ch_id = %u stream_id = %u", ch_id, stream_id);
     return stream_id;
 }
 
@@ -1224,7 +1213,7 @@ static int32_t mm_camera_intf_del_stream(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("X stream_id = %d rc = %d", stream_id, rc);
+    LOGH("X stream_id = %u rc = %d", stream_id, rc);
     return rc;
 }
 
@@ -1286,7 +1275,7 @@ static int32_t mm_camera_intf_config_stream(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("X stream_id = %d rc = %d", stream_id, rc);
+    LOGH("X stream_id = %u rc = %d", stream_id, rc);
     return rc;
 }
 
@@ -1338,7 +1327,7 @@ static int32_t mm_camera_intf_start_channel(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("X ch_id = %d rc = %d", ch_id, rc);
+    LOGH("X ch_id = %u rc = %d", ch_id, rc);
     return rc;
 }
 
@@ -1376,7 +1365,6 @@ static int32_t mm_camera_intf_stop_channel(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-
     if (chid) {
         uint32_t handle = get_main_camera_handle(camera_handle);
         pthread_mutex_lock(&g_intf_lock);
@@ -1390,7 +1378,7 @@ static int32_t mm_camera_intf_stop_channel(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("X ch_id = %d rc = %d", ch_id, rc);
+    LOGH("X ch_id = %u rc = %d", ch_id, rc);
     return rc;
 
 }
@@ -1456,7 +1444,7 @@ static int32_t mm_camera_intf_request_super_buf(uint32_t camera_handle,
         }
     }
 
-    LOGH("X ch_id = %d rc = %d", ch_id, rc);
+    LOGH("X ch_id = %u rc = %d", ch_id, rc);
     return rc;
 }
 
@@ -1519,7 +1507,7 @@ static int32_t mm_camera_intf_cancel_super_buf_request(uint32_t camera_handle,
         }
     }
 
-    LOGH("X ch_id = %d rc = %d", ch_id, rc);
+    LOGH("X ch_id = %u rc = %d", ch_id, rc);
     return rc;
 }
 
@@ -1574,7 +1562,7 @@ static int32_t mm_camera_intf_flush_super_buf_queue(uint32_t camera_handle,
         }
     }
 
-    LOGH("X ch_id = %d rc = %d", ch_id, rc);
+    LOGH("X ch_id = %u rc = %d", ch_id, rc);
     return rc;
 }
 
@@ -1717,7 +1705,7 @@ static int32_t mm_camera_intf_configure_notify_mode(uint32_t camera_handle,
         uint32_t aux_handle = get_aux_camera_handle(camera_handle);
         my_obj = mm_camera_util_get_camera_head(aux_handle);
         if(my_obj) {
-            pthread_mutex_lock(&my_obj->cam_lock);
+            pthread_mutex_lock(&my_obj->muxer_lock);
             pthread_mutex_unlock(&g_intf_lock);
             rc = mm_camera_muxer_configure_notify_mode(aux_handle, aux_ch_id,
                     notify_mode, my_obj);
@@ -1731,7 +1719,7 @@ static int32_t mm_camera_intf_configure_notify_mode(uint32_t camera_handle,
         uint32_t handle = get_main_camera_handle(camera_handle);
         my_obj = mm_camera_util_get_camera_by_handler(handle);
         if(my_obj) {
-            pthread_mutex_lock(&my_obj->muxer_lock);
+            pthread_mutex_lock(&my_obj->cam_lock);
             pthread_mutex_unlock(&g_intf_lock);
             rc = mm_camera_config_channel_notify(my_obj, chid,
                     notify_mode);
@@ -2826,7 +2814,7 @@ static int32_t mm_camera_intf_process_advanced_capture(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("X rc = %d ch_id = %d", rc, ch_id);
+    LOGH("X rc = %d ch_id = %u", rc, ch_id);
     return rc;
 }
 
@@ -2933,101 +2921,22 @@ static int32_t mm_camera_intf_reg_frame_sync(uint32_t camera_handle,
 }
 
 /*===========================================================================
- * FUNCTION   : mm_camera_intf_start_stream_frame_sync
+ * FUNCTION   : mm_camera_intf_handle_frame_sync_cb
  *
- * DESCRIPTION: start frame buffer sync for the stream
- *
- * PARAMETERS :
- *   @camera_handle: camera handle
- *   @ch_id        : channel handle
- *   @stream_id    : stream handle
- *
- * RETURN     : int32_t type of status
- *              0  -- success
- *              1 -- failure
- *==========================================================================*/
-static int32_t mm_camera_intf_start_stream_frame_sync(uint32_t camera_handle,
-        uint32_t ch_id, uint32_t stream_id)
-{
-    int32_t rc = 0;
-    mm_camera_obj_t * my_obj = NULL;
-
-    LOGD("E handle = %u ch_id = %u stream_id = %u",
-            camera_handle, ch_id, stream_id);
-
-    pthread_mutex_lock(&g_intf_lock);
-    uint32_t handle = get_main_camera_handle(camera_handle);
-    uint32_t m_chid = get_main_camera_handle(ch_id);
-    uint32_t m_stream = get_main_camera_handle(stream_id);
-    my_obj = mm_camera_util_get_camera_by_handler(handle);
-    if(my_obj) {
-        pthread_mutex_lock(&my_obj->muxer_lock);
-        pthread_mutex_unlock(&g_intf_lock);
-        rc = mm_camera_muxer_start_frame_sync(my_obj,
-                 m_chid, m_stream);
-    } else {
-        pthread_mutex_unlock(&g_intf_lock);
-    }
-    LOGH("stream_id = %d rc = %d", stream_id, rc);
-    return (int32_t)rc;
-}
-
-/*===========================================================================
- * FUNCTION   : mm_camera_intf_stop_stream_frame_sync
- *
- * DESCRIPTION: stop frame buffer sync for the stream
+ * DESCRIPTION: Handle callback request type incase of frame sync mode
  *
  * PARAMETERS :
  *   @camera_handle: camera handle
  *   @ch_id        : channel handle
  *   @stream_id    : stream handle
+ *   @req_type    : callback request type
  *
  * RETURN     : int32_t type of status
  *              0  -- success
  *              1 -- failure
  *==========================================================================*/
-static int32_t mm_camera_intf_stop_stream_frame_sync(uint32_t camera_handle,
-        uint32_t ch_id, uint32_t stream_id)
-{
-    int32_t rc = 0;
-    mm_camera_obj_t * my_obj = NULL;
-
-    LOGD("E handle = %u ch_id = %u stream_id = %u",
-            camera_handle, ch_id, stream_id);
-
-    pthread_mutex_lock(&g_intf_lock);
-    uint32_t handle = get_main_camera_handle(camera_handle);
-    uint32_t m_chid = get_main_camera_handle(ch_id);
-    uint32_t m_stream = get_main_camera_handle(stream_id);
-    my_obj = mm_camera_util_get_camera_by_handler(handle);
-    if(my_obj) {
-        pthread_mutex_lock(&my_obj->muxer_lock);
-        pthread_mutex_unlock(&g_intf_lock);
-        rc = mm_camera_muxer_stop_frame_sync(my_obj,
-                 m_chid, m_stream);
-    } else {
-        pthread_mutex_unlock(&g_intf_lock);
-    }
-    LOGH("stream_id = %d rc = %d", stream_id, rc);
-    return (int32_t)rc;
-}
-
-/*===========================================================================
- * FUNCTION   : mm_camera_intf_switch_stream
- *
- * DESCRIPTION: switch between stream in case of multi streams
- *
- * PARAMETERS :
- *   @camera_handle: camera handle
- *   @ch_id        : channel handle
- *   @stream_id    : stream handle
- *
- * RETURN     : int32_t type of status
- *              0  -- success
- *              1 -- failure
- *==========================================================================*/
-static int32_t mm_camera_intf_switch_stream_cb(uint32_t camera_handle,
-        uint32_t ch_id, uint32_t stream_id)
+static int32_t mm_camera_intf_handle_frame_sync_cb(uint32_t camera_handle,
+        uint32_t ch_id, uint32_t stream_id, mm_camera_cb_req_type req_type)
 {
     int32_t rc = 0;
     mm_camera_obj_t * my_obj = NULL;
@@ -3043,11 +2952,11 @@ static int32_t mm_camera_intf_switch_stream_cb(uint32_t camera_handle,
     if(my_obj) {
         pthread_mutex_lock(&my_obj->cam_lock);
         pthread_mutex_unlock(&g_intf_lock);
-        rc = mm_camera_switch_stream_cb(my_obj, m_chid, m_strid);
+        rc = mm_camera_handle_frame_sync_cb(my_obj, m_chid, m_strid, req_type);
     } else {
         pthread_mutex_unlock(&g_intf_lock);
     }
-    LOGH("stream_id = %d rc = %d", stream_id, rc);
+    LOGH("stream_id = %u rc = %d", stream_id, rc);
     return (int32_t)rc;
 }
 
@@ -3138,9 +3047,7 @@ static mm_camera_ops_t mm_camera_ops = {
     .flush = mm_camera_intf_flush,
     .register_stream_buf_cb = mm_camera_intf_register_stream_buf_cb,
     .register_frame_sync = mm_camera_intf_reg_frame_sync,
-    .start_stream_frame_sync = mm_camera_intf_start_stream_frame_sync,
-    .stop_stream_frame_sync = mm_camera_intf_stop_stream_frame_sync,
-    .switch_stream_callback = mm_camera_intf_switch_stream_cb
+    .handle_frame_sync_cb = mm_camera_intf_handle_frame_sync_cb
 };
 
 /*===========================================================================

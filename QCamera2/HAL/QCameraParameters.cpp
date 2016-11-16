@@ -4318,8 +4318,11 @@ int32_t QCameraParameters::setNumOfSnapshot()
     }
 
     LOGH("nBurstNum = %d, nExpnum = %d", nBurstNum, nExpnum);
-    if (!isDualCamera()) {
-        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, nBurstNum * nExpnum);
+    if (mActiveState == MM_CAMERA_DUAL_CAM) {
+        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER,
+                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
+    } else {
+        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum));
     }
     return NO_ERROR;
 }
@@ -10056,6 +10059,44 @@ int32_t QCameraParameters::setSecureMode(const char *str)
  *
  * PARAMETERS :
  *   @streamType        : stream type
+ *
+ * RETURN     : rotation value for stream
+ *==========================================================================*/
+cam_rotation_t QCameraParameters::getStreamRotation(cam_stream_type_t streamType)
+{
+    cam_rotation_t rotation = ROTATE_0;
+    const char *str = get(KEY_QC_VIDEO_ROTATION);
+    int rotationParam = lookupAttr(VIDEO_ROTATION_MODES_MAP,
+            PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP), str);
+    switch (streamType) {
+        case CAM_STREAM_TYPE_VIDEO:
+            switch(rotationParam) {
+                case 90:
+                    rotation = ROTATE_90;
+                    break;
+                case 180:
+                    rotation = ROTATE_180;
+                    break;
+                case 270:
+                    rotation = ROTATE_270;
+                    break;
+                default:
+                    rotation = ROTATE_0;
+            }
+            break;
+        default:
+            break;
+    }
+    return rotation;
+}
+
+/*===========================================================================
+ * FUNCTION   : getStreamRotation
+ *
+ * DESCRIPTION: get stream rotation by its type
+ *
+ * PARAMETERS :
+ *   @streamType        : stream type
  *   @featureConfig     : stream feature config structure
  *   @dim               : stream dimension
  *
@@ -10068,24 +10109,23 @@ int32_t QCameraParameters::getStreamRotation(cam_stream_type_t streamType,
                                             cam_dimension_t &dim)
 {
     int32_t ret = NO_ERROR;
-    const char *str = get(KEY_QC_VIDEO_ROTATION);
-    int rotationParam = lookupAttr(VIDEO_ROTATION_MODES_MAP,
-            PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP), str);
+
+    cam_rotation_t rotation = getStreamRotation(streamType);
     featureConfig.rotation = ROTATE_0;
     int swapDim = 0;
     switch (streamType) {
         case CAM_STREAM_TYPE_VIDEO:
-            switch(rotationParam) {
-                case 90:
+            switch(rotation) {
+                case ROTATE_90:
                     featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
                     featureConfig.rotation = ROTATE_90;
                     swapDim = 1;
                     break;
-                case 180:
+                case ROTATE_180:
                     featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
                     featureConfig.rotation = ROTATE_180;
                     break;
-                case 270:
+                case ROTATE_270:
                     featureConfig.feature_mask |= CAM_QCOM_FEATURE_ROTATION;
                     featureConfig.rotation = ROTATE_270;
                     swapDim = 1;
@@ -12257,10 +12297,10 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
                 memcpy(&m_pDualCamCmdPtr[i]->value,
                         &info[i],
                         sizeof(cam_dual_camera_perf_control_t));
-                LOGH("LPM CMD %d: cmd %d LPM Enable - %d fps = %d", i,
+                LOGH("LPM CMD %d: cmd %d LPM Enable - %d mode = %d", i,
                         m_pDualCamCmdPtr[i]->cmd_type,
                         m_pDualCamCmdPtr[i]->value.enable,
-                        m_pDualCamCmdPtr[i]->value.low_fps);
+                        m_pDualCamCmdPtr[i]->value.perf_mode);
             }
         }
         break;
@@ -12385,16 +12425,16 @@ int32_t QCameraParameters::initBatchUpdate()
 /*===========================================================================
  * FUNCTION   : getPointerofParam
  *
- * DESCRIPTION:
+ * DESCRIPTION: get a pointer to parameter structure
  *
  * PARAMETERS :
  *    @meta_id : parameter / meta id enum
- *    @metadata: metadata buffer pointer
+ *    @metadata : pointer to parameter buffer.
  *
  * RETURN     :Pointer of member_variable_<meta_ID>
  *
  *==========================================================================*/
-void * QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
+void *QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
         metadata_buffer_t* metadata)
 {
     switch(meta_id) {
@@ -12811,7 +12851,7 @@ void * QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
 /*===========================================================================
  * FUNCTION   : getSizeofParam
  *
- * DESCRIPTION:
+ * DESCRIPTION: get size of parameter structure
  *
  * PARAMETERS :
  *    @meta_id : parameter / meta id enum
@@ -12821,8 +12861,8 @@ void * QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
  *==========================================================================*/
 uint32_t QCameraParameters::getSizeofParam(cam_intf_parm_type_t param_id)
 {
-      metadata_buffer_t* metadata = NULL;
-      switch(param_id) {
+    metadata_buffer_t* metadata = NULL;
+    switch(param_id) {
         case CAM_INTF_META_HISTOGRAM:
           return SIZE_OF_PARAM(CAM_INTF_META_HISTOGRAM, metadata);
         case CAM_INTF_META_FACE_DETECTION:
@@ -13233,8 +13273,8 @@ uint32_t QCameraParameters::getSizeofParam(cam_intf_parm_type_t param_id)
         default:
           LOGE("parameter is not found");
           return 0;
-        }
-        return 0;
+    }
+    return 0;
 }
 
 /*===========================================================================
@@ -13342,7 +13382,6 @@ int32_t QCameraParameters::commitSetBatchAux()
     }
 
     setAuxParameters();
-
     rc = m_pCamOpsTbl->ops->set_parms(
             get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
             m_pParamBufAux);
@@ -14129,6 +14168,16 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
         return rc;
     }
 
+    if(isDualCamera()) {
+        // Update FOV-control config settings due to the change in the configuration
+        rc = m_pFovControl->updateConfigSettings(m_pParamBuf, m_pParamBufAux);
+
+        if (rc != NO_ERROR) {
+            LOGE("Failed to update FOV-control config settings");
+            return rc;
+        }
+    }
+
     return rc;
 }
 
@@ -14193,6 +14242,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
         getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
                 stream_config_info.format[stream_config_info.num_streams]);
+        stream_config_info.rotation[stream_config_info.num_streams] =
+                getStreamRotation(CAM_STREAM_TYPE_PREVIEW);
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
@@ -14204,6 +14255,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
         getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
                 stream_config_info.format[stream_config_info.num_streams]);
+        stream_config_info.rotation[stream_config_info.num_streams] =
+                getStreamRotation(CAM_STREAM_TYPE_ANALYSIS);
         stream_config_info.num_streams++;
 
         stream_config_info.type[stream_config_info.num_streams] =
@@ -14215,6 +14268,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
         getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
                 stream_config_info.format[stream_config_info.num_streams]);
+        stream_config_info.rotation[stream_config_info.num_streams] =
+                getStreamRotation(CAM_STREAM_TYPE_SNAPSHOT);
         stream_config_info.num_streams++;
 
         if (isUBWCEnabled() && getRecordingHintValue() != true) {
@@ -14230,6 +14285,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                         mStreamPpMask[CAM_STREAM_TYPE_CALLBACK];
                 getStreamFormat(CAM_STREAM_TYPE_CALLBACK,
                         stream_config_info.format[stream_config_info.num_streams]);
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_CALLBACK);
                 stream_config_info.num_streams++;
             }
         }
@@ -14249,7 +14306,10 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                     mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
             getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
                         stream_config_info.format[stream_config_info.num_streams]);
+            stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_SNAPSHOT);
             stream_config_info.num_streams++;
+
             stream_config_info.is_type[stream_config_info.num_streams] = mIsTypeVideo;
             stream_config_info.type[stream_config_info.num_streams] =
                     CAM_STREAM_TYPE_VIDEO;
@@ -14260,6 +14320,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                     mStreamPpMask[CAM_STREAM_TYPE_VIDEO];
             getStreamFormat(CAM_STREAM_TYPE_VIDEO,
                     stream_config_info.format[stream_config_info.num_streams]);
+            stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_VIDEO);
             stream_config_info.num_streams++;
         }
 
@@ -14276,6 +14338,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                     mStreamPpMask[CAM_STREAM_TYPE_ANALYSIS];
             getStreamFormat(CAM_STREAM_TYPE_ANALYSIS,
                     stream_config_info.format[stream_config_info.num_streams]);
+            stream_config_info.rotation[stream_config_info.num_streams] =
+                    getStreamRotation(CAM_STREAM_TYPE_ANALYSIS);
             stream_config_info.num_streams++;
         }
 
@@ -14289,6 +14353,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
                     stream_config_info.format[stream_config_info.num_streams]);
         stream_config_info.is_type[stream_config_info.num_streams] = mIsTypePreview;
+        stream_config_info.rotation[stream_config_info.num_streams] =
+                getStreamRotation(CAM_STREAM_TYPE_PREVIEW);
         stream_config_info.num_streams++;
 
         if (isUBWCEnabled() && getRecordingHintValue() != true) {
@@ -14305,6 +14371,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 getStreamFormat(CAM_STREAM_TYPE_CALLBACK,
                         stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_CALLBACK);
                 stream_config_info.num_streams++;
             }
         }
@@ -14322,6 +14390,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 getStreamFormat(CAM_STREAM_TYPE_SNAPSHOT,
                         stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_SNAPSHOT);
                 stream_config_info.num_streams++;
             }
 
@@ -14336,6 +14406,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
                         stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_PREVIEW);
                 stream_config_info.num_streams++;
             } else if(!getQuadraCfa()) {
                 stream_config_info.type[stream_config_info.num_streams] =
@@ -14348,6 +14420,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 getStreamFormat(CAM_STREAM_TYPE_POSTVIEW,
                         stream_config_info.format[stream_config_info.num_streams]);
                 stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+                stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_POSTVIEW);
                 stream_config_info.num_streams++;
             }
         } else {
@@ -14362,6 +14436,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             getStreamFormat(CAM_STREAM_TYPE_RAW,
                     stream_config_info.format[stream_config_info.num_streams]);
             stream_config_info.is_type[stream_config_info.num_streams] = IS_TYPE_NONE;
+            stream_config_info.rotation[stream_config_info.num_streams] =
+                        getStreamRotation(CAM_STREAM_TYPE_RAW);
             stream_config_info.num_streams++;
         }
     }
@@ -14437,8 +14513,6 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 stream_config_info.is_type[k]);
     }
 
-    rc = sendStreamConfigInfo(stream_config_info);
-
     if (rc == NO_ERROR && isDualCamera()) {
         cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
         char prop[PROPERTY_VALUE_MAX];
@@ -14473,6 +14547,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
                 num_cam, &bundle_info[0]);
     }
+
+    rc = sendStreamConfigInfo(stream_config_info);
 
     return rc;
 }
@@ -15004,6 +15080,27 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
     if ((stream_type == CAM_STREAM_TYPE_VIDEO) &&
             (getVideoISType() == IS_TYPE_EIS_3_0)) {
         feature_mask |= CAM_QTI_FEATURE_PPEISCORE;
+    }
+
+    if(isDualCamera()) {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        bool satEnabledFlag = FALSE;
+        property_get("persist.camera.sat.enable", prop, "0");
+        satEnabledFlag = atoi(prop);
+
+        if (satEnabledFlag) {
+        LOGH("SAT flag enabled");
+            if (stream_type == CAM_STREAM_TYPE_VIDEO &&
+                !is4k2kVideoResolution()) {
+                feature_mask |= CAM_QTI_FEATURE_SAT;
+                LOGH("SAT feature mask set");
+            } else if ((stream_type == CAM_STREAM_TYPE_PREVIEW)||
+                (stream_type == CAM_STREAM_TYPE_CALLBACK)) {
+                feature_mask |= CAM_QTI_FEATURE_SAT;
+                LOGH("SAT feature mask set");
+            }
+        }
     }
 
     // Store stream feature mask
@@ -16133,14 +16230,16 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     cam_dual_camera_perf_control_t perf_value[MM_CAMERA_MAX_CAM_CNT];
     uint8_t num_cam = 0;
 
-    property_get("persist.dualcam.lpm.fps", prop, "0");
+    property_get("persist.dualcam.lpm.mode", prop, "0");
     value = atoi(prop);
 
-    perf_value[num_cam].low_fps = value;
+    perf_value[num_cam].perf_mode = (cam_dual_camera_perf_mode_t)value;
     perf_value[num_cam].enable = cameraControl[0] ? 0 : 1;
+    perf_value[num_cam].priority = 0;
     num_cam++;
-    perf_value[num_cam].low_fps = value;
+    perf_value[num_cam].perf_mode = (cam_dual_camera_perf_mode_t)value;
     perf_value[num_cam].enable = cameraControl[1] ? 0 : 1;
+    perf_value[num_cam].priority = 0;
     num_cam++;
 
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_LOW_POWER_MODE,
@@ -16151,13 +16250,8 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
         mActiveCamera = state;
     }
 
-#ifdef DUAL_CAM_TEST //Temporary macro. Added to simulate B+B snapshot. Will be removed
-    if (controls == MM_CAMERA_DUAL_CAM) {
-        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, 2);
-    } else {
-        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, 1);
-    }
-#endif
+    /*Need to remove once we have dual camera fusion*/
+    setNumOfSnapshot();
 
     return rc;
 }

@@ -75,16 +75,16 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
 
     if (pme == NULL ||
         pme->mCameraHandle == 0 ||
-        !validate_handle(pme->mCameraHandle->camera_handle,
-        recvd_frame->camera_handle)) {
+        (!validate_handle(pme->mCameraHandle->camera_handle,
+        recvd_frame->camera_handle))) {
        LOGE("camera obj not valid");
        return;
     }
 
     QCameraChannel *pChannel = pme->m_channels[QCAMERA_CH_TYPE_ZSL];
     if (pChannel == NULL ||
-            !validate_handle(pChannel->getMyHandle(),
-            recvd_frame->ch_id)) {
+            (!validate_handle(pChannel->getMyHandle(),
+            recvd_frame->ch_id))) {
         LOGE("ZSL channel doesn't exist, return here");
         return;
     }
@@ -387,7 +387,8 @@ void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != recvd_frame->camera_handle){
+       !validate_handle(pme->mCameraHandle->camera_handle,
+        recvd_frame->camera_handle)){
         LOGE("camera obj not valid");
         return;
     }
@@ -1153,7 +1154,8 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        super_frame->camera_handle)){
         LOGE("camera obj not valid");
         // simply free super frame
         free(super_frame);
@@ -1237,7 +1239,8 @@ void QCamera2HardwareInterface::rdi_mode_stream_cb_routine(
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        super_frame->camera_handle)){
         LOGE("camera obj not valid");
         free(super_frame);
         return;
@@ -1637,7 +1640,8 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        super_frame->camera_handle)){
         LOGE("camera obj not valid");
         // simply free super frame
         free(super_frame);
@@ -1731,7 +1735,8 @@ void QCamera2HardwareInterface::raw_stream_cb_routine(mm_camera_super_buf_t * su
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        super_frame->camera_handle)){
         LOGE("camera obj not valid");
         // simply free super frame
         free(super_frame);
@@ -1769,7 +1774,8 @@ void QCamera2HardwareInterface::raw_channel_cb_routine(mm_camera_super_buf_t *su
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        super_frame->camera_handle)){
         LOGE("camera obj not valid");
         // simply free super frame
         free(super_frame);
@@ -1864,7 +1870,8 @@ void QCamera2HardwareInterface::preview_raw_stream_cb_routine(mm_camera_super_bu
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        super_frame->camera_handle)){
         LOGE("camera obj not valid");
         // simply free super frame
         free(super_frame);
@@ -1916,7 +1923,8 @@ void QCamera2HardwareInterface::snapshot_raw_stream_cb_routine(mm_camera_super_b
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        super_frame->camera_handle)){
         LOGE("camera obj not valid");
         // simply free super frame
         free(super_frame);
@@ -2550,7 +2558,8 @@ void QCamera2HardwareInterface::reprocess_stream_cb_routine(mm_camera_super_buf_
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
         pme->mCameraHandle == NULL ||
-        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        !validate_handle(pme->mCameraHandle->camera_handle,
+        super_frame->camera_handle)){
         LOGE("camera obj not valid");
         // simply free super frame
         free(super_frame);

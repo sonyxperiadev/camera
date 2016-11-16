@@ -772,7 +772,12 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     if (isDualStream()) {
         mActiveCamera |= MM_CAMERA_TYPE_AUX;
         if (needFrameSync()) {
-            mCamOps->start_stream_frame_sync(mCamHandle, mChannelHandle, mHandle);
+            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                    mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
+        }
+        if (!needCbSwitch()) {
+            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                    mHandle, MM_CAMERA_CB_REQ_TYPE_ALL_CB);
         }
     }
 
@@ -1490,7 +1495,6 @@ int32_t QCameraStream::getBufs(cam_frame_len_offset_t *offset,
                        this);
         pthread_setname_np(mBufAllocPid, "CAM_strmBuf");
     }
-
     return NO_ERROR;
 }
 
@@ -2827,10 +2831,12 @@ int32_t QCameraStream::processCameraControl(uint32_t camState)
 int32_t QCameraStream::switchStreamCb()
 {
     int32_t ret = NO_ERROR;
-
     if ((getMyType() != CAM_STREAM_TYPE_SNAPSHOT)
-            && (mActiveCamera == MM_CAMERA_DUAL_CAM)) {
-        ret = mCamOps->switch_stream_callback(mCamHandle, mChannelHandle, mHandle);
+            && (mActiveCamera == MM_CAMERA_DUAL_CAM)
+            && !(needFrameSync())
+            && (needCbSwitch())) {
+        ret = mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                mHandle, MM_CAMERA_CB_REQ_TYPE_SWITCH);
     }
 
     if (get_aux_camera_handle(mHandle)
@@ -2843,6 +2849,31 @@ int32_t QCameraStream::switchStreamCb()
         mActiveHandle = mHandle;
     }
     return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : needCbSwitch
+ *
+ * DESCRIPTION: Function to enable callback switch based on availability of
+ *              spatial alignment
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+bool QCameraStream::needCbSwitch()
+{
+    if (!isDualStream()) {
+        return false;
+    }
+
+    if (mStreamInfo->pp_config.feature_mask == CAM_QTI_FEATURE_SAT) {
+        return false;
+    } else {
+        return true;
+    }
 }
 
 /*===========================================================================
@@ -2906,12 +2937,12 @@ int32_t QCameraStream::setBundleInfo()
         param.bundleInfo = bundleInfo;
     }
 
+    memset(&aux_param, 0, sizeof(cam_stream_parm_buffer_t));
     if (isDualStream()) {
         active_handle = get_aux_camera_handle(mChannelHandle);
         memset(&bundleInfo, 0, sizeof(bundleInfo));
         ret = mCamOps->get_bundle_info(mCamHandle, active_handle,
                 &bundleInfo);
-        memset(&aux_param, 0, sizeof(cam_stream_parm_buffer_t));
         aux_param.type = CAM_STREAM_PARAM_TYPE_SET_BUNDLE_INFO;
         aux_param.bundleInfo = bundleInfo;
     }

@@ -90,6 +90,14 @@ typedef enum {
     CAM_ROLE_TELE
 } cam_dual_camera_role_t;
 
+/* Enum to define different low performance modes in dual camera*/
+typedef enum {
+    CAM_PERF_SENSOR_SUSPEND,
+    CAM_PERF_ISPIF_FRAME_DROP,
+    CAM_PERF_ISPIF_FRAME_SKIP,
+    CAM_PERF_STATS_FPS_CONTROL
+} cam_dual_camera_perf_mode_t;
+
 /* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;
@@ -102,6 +110,8 @@ typedef struct {
        backend */
     uint32_t related_sensor_session_id;
     uint8_t is_frame_sync_enabled;
+    /*Low power mode type. Static info per device*/
+    cam_dual_camera_perf_mode_t perf_mode;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 
@@ -112,8 +122,9 @@ typedef struct {
 
 /* Structrue to control performance info in dual camera case*/
 typedef struct {
-    uint8_t low_fps; /*Control perf using FPS if set*/
+    cam_dual_camera_perf_mode_t perf_mode; /*Control perf using FPS if set*/
     uint8_t enable;  /*Enable or diable Low power mode*/
+    uint8_t priority; /*Can be used to make LPM forcefully*/
 } cam_dual_camera_perf_control_t;
 
 /* dual camera event payload */
@@ -587,6 +598,16 @@ typedef struct cam_capability{
     /* Dual cam calibration data */
     cam_related_system_calibration_data_t related_cam_calibration;
 
+    /* Maximum degree of rotation along X axis for tele sensor with respect to the wide sensor*/
+    float      max_roll_degrees;
+    /* Maximum degree of rotation along Y axis for tele sensor with respect to the wide sensor*/
+    float      max_pitch_degrees;
+    /* Maximum degree of rotation along Z axis for tele sensor with respect to the wide sensor*/
+    float      max_yaw_degrees;
+
+    /* Pixel pitch in micrometer*/
+    float      pixel_pitch_um;
+
     /* Meta_RAW capability */
     uint8_t meta_raw_channel_count;
     uint8_t vc[MAX_SIZES_CNT];
@@ -605,6 +626,9 @@ typedef struct cam_capability{
     struct cam_capability *main_cam_cap;
     struct cam_capability *aux_cam_cap;
     cam_sync_type_t cam_sensor_mode;
+
+    /*Available Spatial Alignment solutions*/
+    uint32_t avail_spatial_align_solns;
 } cam_capability_t;
 
 typedef enum {
@@ -1080,6 +1104,8 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_JPEG_SCALE_DIMENSION,         cam_dimension_t,             1);
     INCLUDE(CAM_INTF_META_FOCUS_DEPTH_INFO,             uint8_t,                     1);
     INCLUDE(CAM_INTF_PARM_HAL_BRACKETING_HDR,           cam_hdr_param_t,             1);
+    INCLUDE(CAM_INTF_META_DC_LOW_POWER_ENABLE,          uint8_t,                     1);
+    INCLUDE(CAM_INTF_META_DC_SAC_OUTPUT_INFO,           cam_sac_output_info_t,       1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

@@ -3892,7 +3892,6 @@ int QCamera2HardwareInterface::stopPreview()
     unpreparePreview();
 
     m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_PREVIEW);
-
     LOGI("X");
     return NO_ERROR;
 }
@@ -4814,11 +4813,10 @@ int QCamera2HardwareInterface::takePicture()
         return rc;
     }
 
-#ifdef DUAL_CAM_TEST //Temporary macro. Added to simulate B+B snapshot. Will be removed
-    if(mActiveCamera == (MM_CAMERA_TYPE_MAIN | MM_CAMERA_TYPE_AUX)) {
-        numSnapshots = 1;
+    if(mActiveCamera == MM_CAMERA_DUAL_CAM) {
+        /*Need to remove once we have dual camera fusion*/
+        numSnapshots = numSnapshots/MM_CAMERA_MAX_CAM_CNT;
     }
-#endif
 
     if (mAdvancedCaptureConfigured) {
         numSnapshots = mParameters.getBurstCountForAdvancedCapture();
@@ -6968,7 +6966,7 @@ void QCamera2HardwareInterface::processDualCamFovControl()
 
     fovControlResult = m_pFovControl->getFovControlResult();
 
-    camState = fovControlResult.camState;
+    camState = fovControlResult.activeCamState;
 
     if (camState != mActiveCamera) {
         processCameraControl(camState);
@@ -8357,11 +8355,10 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         pChannel->setReprocCount(1);
     }
 
-#ifdef DUAL_CAM_TEST //Temporary macro. Added to simulate B+B snapshot. Will be removed
     if (isDualCamera()) {
         minStreamBufNum += 1;
     }
-#endif
+
     // Add non inplace image lib buffers only when ppproc is present,
     // becuase pproc is non inplace and input buffers for img lib
     // are output for pproc and this number of extra buffers is required
@@ -10833,9 +10830,6 @@ bool QCamera2HardwareInterface::needSyncCB(cam_stream_type_t stream_type)
     }
 #endif
 
-    if (isDualCamera() == TRUE) {
-        return FALSE;
-    }
     char value[PROPERTY_VALUE_MAX];
     property_get("persist.camera.preview.sync_cb", value, "1");
     if ((atoi(value) == 1) && (stream_type == CAM_STREAM_TYPE_PREVIEW)) {

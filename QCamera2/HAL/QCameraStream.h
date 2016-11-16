@@ -135,6 +135,7 @@ public:
     int32_t switchStreamCb();
     int32_t processCameraControl(uint32_t camState);
     bool isDualStream(){return mDualStream;};
+    bool needCbSwitch();
     bool needFrameSync();
     //Stream time stamp. We need this for preview stream to update display
     nsecs_t mStreamTimestamp;

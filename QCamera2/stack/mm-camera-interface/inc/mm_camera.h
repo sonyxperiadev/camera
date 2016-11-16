@@ -216,7 +216,6 @@ typedef enum {
     MM_STREAM_EVT_GET_QUEUED_BUF_COUNT,
     MM_STREAM_EVT_REG_FRAME_SYNC,
     MM_STREAM_EVT_TRIGGER_FRAME_SYNC,
-    MM_STREAM_EVT_SWITCH_STREAM_CB,
     MM_STREAM_EVT_CANCEL_BUF,
     MM_STREAM_EVT_MAX
 } mm_stream_evt_type_t;
@@ -256,14 +255,13 @@ typedef struct {
     cam_queue_t que;
 
     /*queue attributed*/
-    /*Number of frames to wait before process unmatched cb*/
-    uint8_t max_unmatched_frames;
+    mm_camera_channel_attr_t attr;
 
     /*Expected frame for this queue*/
     uint32_t expected_frame_id;
 
-    /*Parameter to consider during frame sync*/
-    mm_camera_super_buf_priority_t priority;
+    /*Total match count*/
+    uint32_t match_cnt;
 } mm_frame_sync_queue_t;
 
 /*Structure definition to carry frame sync details*/
@@ -275,7 +273,7 @@ typedef struct {
     pthread_mutex_t sync_lock;
 
     /*Limited number of synced frame request*/
-    uint32_t num_buf_requested;
+    mm_camera_req_buf_t req_buf;
 
     /*Queue to hold super buffers*/
     mm_frame_sync_queue_t superbuf_queue;
@@ -395,7 +393,6 @@ typedef enum {
     MM_CHANNEL_EVT_REG_STREAM_BUF_CB,
     MM_CHANNEL_EVT_REG_FRAME_SYNC,
     MM_CHANNEL_EVT_TRIGGER_FRAME_SYNC,
-    MM_CHANNEL_EVT_SWITCH_STREAM_CB,
 } mm_channel_evt_type_t;
 
 typedef struct {
@@ -577,7 +574,7 @@ typedef struct {
     uint32_t cam_hdl;
     uint32_t ch_hdl;
     uint32_t stream_hdl;
-    mm_channel_queue_node_t* super_buf;
+    mm_channel_queue_node_t *super_buf;
 } mm_channel_pp_info_t;
 
 /* mm_camera */
@@ -643,10 +640,10 @@ typedef struct {
     mm_camera_obj_t *a_cam_obj;
     uint32_t a_ch_id;
     uint32_t a_stream_id;
-    uint8_t max_unmatched_frames;
+    uint8_t is_active;
+    mm_camera_channel_attr_t attr;
     mm_camera_buf_notify_t buf_cb;
     uint8_t is_res_shared;
-    mm_camera_super_buf_priority_t priority;
     void *userdata;
 } mm_camera_frame_sync_t;
 
@@ -658,11 +655,12 @@ typedef struct {
     mm_camera_frame_sync_t *sync_attr;
 } mm_evt_paylod_reg_frame_sync;
 
-/*Payload for strart/stop frame sync event in MCI*/
+/*Payload to handle frame sync */
 typedef struct {
     uint32_t stream_id;
-    uint8_t enable_frame_sync;
+    mm_camera_cb_req_type type;
 } mm_evt_paylod_trigger_frame_sync;
+
 
 /**********************************************************************************
 * external function declare
@@ -811,13 +809,8 @@ extern int32_t mm_camera_set_dual_cam_cmd(mm_camera_obj_t *my_obj);
 extern int32_t mm_camera_reg_frame_sync(mm_camera_obj_t *my_obj,
         uint32_t ch_id, uint32_t stream_id,
         mm_camera_frame_sync_t *sync_attr);
-extern int32_t mm_camera_start_frame_sync(mm_camera_obj_t *my_obj,
-        uint32_t ch_id, uint32_t stream_id);
-extern int32_t mm_camera_stop_frame_sync(mm_camera_obj_t *my_obj,
-        uint32_t ch_id, uint32_t stream_id);
-extern int32_t mm_camera_switch_stream_cb(mm_camera_obj_t *my_obj,
-        uint32_t ch_id, uint32_t stream_id);
-
+extern int32_t mm_camera_handle_frame_sync_cb(mm_camera_obj_t *my_obj,
+        uint32_t ch_id, uint32_t stream_id, mm_camera_cb_req_type req_type);
 
 /* mm_channel */
 extern int32_t mm_channel_fsm_fn(mm_channel_t *my_obj,
