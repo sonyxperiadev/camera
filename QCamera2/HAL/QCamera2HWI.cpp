@@ -1867,7 +1867,7 @@ int QCamera2HardwareInterface::openCamera()
 			// If we got capabilities or if the timeout of 10 seconds occurs, break
 			if((gCamCapability[mCameraId]->preview_sizes_tbl[0].width > 0 && gCamCapability[mCameraId]->preview_sizes_tbl[0].height > 0) || nTimeout >= 10000)
 			{
-				ALOGE("CameraShit: Getting capabilities succeeded.");
+				ALOGI("camera_open: Getting capabilities succeeded.");
 				break;
 			}
 			
