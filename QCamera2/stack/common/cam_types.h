@@ -1831,7 +1831,7 @@ typedef struct {
 } cam_buf_divert_info_t;
 
 typedef enum {
-    CAM_SPATIAL_ALIGN_QCOM = 1 << 0,
+    CAM_SPATIAL_ALIGN_QTI  = 1 << 0,
     CAM_SPATIAL_ALIGN_OEM  = 1 << 1
 } cam_spatial_align_type_t;
 
