@@ -10787,7 +10787,7 @@ bool QCamera2HardwareInterface::needDeferred(cam_stream_type_t stream_type)
     }
 
     if ((stream_type == CAM_STREAM_TYPE_RAW)
-            && (mParameters.getofflineRAW())) {
+            && (mParameters.getofflineRAW() && !mParameters.getQuadraCfa())) {
         return FALSE;
     }
 
