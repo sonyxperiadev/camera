@@ -204,7 +204,7 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   }
 
   if (pme->user_metadata_cb) {
-      LOGD("[DBG] %s, user defined own metadata cb. calling it...");
+      LOGD("[DBG] user defined own metadata cb. calling it...");
       pme->user_metadata_cb(frame);
   }
 
@@ -393,7 +393,7 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
     }
 #endif
     if (pme->user_preview_cb) {
-        LOGE("[DBG] %s, user defined own preview cb. calling it...");
+        LOGD("[DBG]user defined own preview cb. calling it...");
         pme->user_preview_cb(frame);
     }
     if (MM_CAMERA_OK != pme->cam->ops->qbuf(bufs->camera_handle,
