@@ -933,6 +933,7 @@ QCameraParameters::QCameraParameters()
       m_bPreviewFlipChanged(false),
       m_bVideoFlipChanged(false),
       m_bSnapshotFlipChanged(false),
+      m_bZoomChanged(false),
       m_bFixedFrameRateSet(false),
       m_bHDREnabled(false),
       m_bLocalHDREnabled(false),
@@ -3088,8 +3089,10 @@ int32_t QCameraParameters::setZoom(const QCameraParameters& params)
     int prevZoomLevel = getInt(KEY_ZOOM);
     if (prevZoomLevel == zoomLevel) {
         LOGD("No value change in zoom %d %d", prevZoomLevel, zoomLevel);
+        m_bZoomChanged = false;
         return NO_ERROR;
     }
+    m_bZoomChanged = true;
 
     return setZoom(zoomLevel);
 }
@@ -13348,9 +13351,10 @@ int32_t QCameraParameters::commitSetBatch()
         return NO_INIT;
     }
 
-    if (i < CAM_INTF_PARM_MAX && isDualCamera()) {
-
+    if ((i < CAM_INTF_PARM_MAX) && isDualCamera()) {
+        // Translate input parameters from main camera to create parameter set for aux camera
         rc = m_pFovControl->translateInputParams(m_pParamBuf, m_pParamBufAux);
+
         if (rc != NO_ERROR) {
             LOGE("FOV-control: Failed to translate params for aux camera");
             return rc;
