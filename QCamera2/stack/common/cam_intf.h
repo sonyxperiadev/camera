@@ -205,18 +205,18 @@ typedef struct {
     /* AEC sync OTP data */
     /* AEC sync brightness ration. Fixed Point Q10*/
     int16_t    brightness_ratio;
-    /* Reference mono gain value obtained from setup stage and used during calibration stage */
+    /* Reference aux gain value obtained from setup stage and used during calibration stage */
     /* Fixed Point Q10 */
-    int16_t    ref_mono_gain;
-    /* Reference mono line count obtained from setup stage and used during calibration stage */
-    uint16_t   ref_mono_linecount;
-    /* Reference bayer gain value obtained from setup stage and used during calibration stage */
+    int16_t    ref_aux_gain;
+    /* Reference aux line count obtained from setup stage and used during calibration stage */
+    uint16_t   ref_aux_linecount;
+    /* Reference master gain value obtained from setup stage and used during calibration stage */
     /* Fixed Point Q10 */
-    int16_t    ref_bayer_gain;
-    /* Reference bayer line count obtained from setup stage and used during calibration stage */
-    uint16_t   ref_bayer_linecount;
-    /* Reference bayer color temperature */
-    uint16_t   ref_bayer_color_temperature;
+    int16_t    ref_master_gain;
+    /* Reference master line count obtained from setup stage and used during calibration stage */
+    uint16_t   ref_master_linecount;
+    /* Reference master color temperature */
+    uint16_t   ref_master_color_temperature;
     /* Reserved for future use */
     float      reserved[RELCAM_CALIB_RESERVED_MAX];
 } cam_related_system_calibration_data_t;
