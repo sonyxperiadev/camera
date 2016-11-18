@@ -945,6 +945,11 @@ typedef enum {
     CAM_VIDEO_HDR_MODE_MAX,
 } cam_video_hdr_mode_t;
 
+typedef enum {
+    CAM_BINNING_CORRECTION_MODE_OFF,
+    CAM_BINNING_CORRECTION_MODE_ON,
+    CAM_BINNING_CORRECTION_MODE_MAX,
+} cam_binning_correction_mode_t;
 
 typedef struct  {
     int32_t left;
@@ -2390,6 +2395,8 @@ typedef enum {
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     /* AF focus position info */
     CAM_INTF_META_AF_FOCUS_POS,
+    /* Binning Correction Algorithm */
+    CAM_INTF_META_BINNING_CORRECTION_MODE,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -2622,7 +2629,7 @@ typedef struct {
 #define CAM_QCOM_FEATURE_IR             (((cam_feature_mask_t)1UL)<<41)
 #define CAM_QTI_FEATURE_SAC             (((cam_feature_mask_t)1UL)<<42)
 #define CAM_QTI_FEATURE_RTBDM           (((cam_feature_mask_t)1UL)<<43)
-
+#define CAM_QTI_FEATURE_BINNING_CORRECTION (((cam_feature_mask_t)1UL)<<44)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
