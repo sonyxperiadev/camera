@@ -57,8 +57,9 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_DUALCAM_LINK_META_DATA_END,
         QCAMERA3_DUALCAM_CALIB_META_DATA_END,
         QCAMERA3_HAL_PRIVATEDATA_END,
-        QCAMERA3_JPEG_ENCODE_CROP_END
-} ;
+        QCAMERA3_JPEG_ENCODE_CROP_END,
+        QCAMERA3_SHARPNESS_END
+};
 
 typedef struct vendor_tag_info {
     const char *tag_name;
@@ -81,7 +82,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.dualcam_link_meta_data",
     "org.codeaurora.qcamera3.dualcam_calib_meta_data",
     "org.codeaurora.qcamera3.hal_private_data",
-    "org.codeaurora.qcamera3.jpeg_encode_crop"
+    "org.codeaurora.qcamera3.jpeg_encode_crop",
+    "org.codeaurora.qcamera3.sharpness"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -172,6 +174,12 @@ vendor_tag_info_t
     { "roi",    TYPE_INT32}
 };
 
+vendor_tag_info_t qcamera3_sharpness[QCAMERA3_SHARPNESS_END -
+        QCAMERA3_SHARPNESS_START] = {
+    {"strength", TYPE_INT32 },
+    {"range", TYPE_INT32 }
+};
+
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
     qcamera3_privatedata,
@@ -188,7 +196,8 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_dualcam_link_meta_data,
     qcamera3_dualcam_calib_meta_data,
     qcamera3_hal_privatedata,
-    qcamera3_jpep_encode_crop
+    qcamera3_jpep_encode_crop,
+    qcamera3_sharpness
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -247,8 +256,11 @@ uint32_t qcamera3_all_tags[] = {
     // QCAMERA3_JPEG_ENCODE_CROP
     (uint32_t)QCAMERA3_JPEG_ENCODE_CROP_ENABLE,
     (uint32_t)QCAMERA3_JPEG_ENCODE_CROP_RECT,
-    (uint32_t)QCAMERA3_JPEG_ENCODE_CROP_ROI
+    (uint32_t)QCAMERA3_JPEG_ENCODE_CROP_ROI,
 
+    //QCAMERA3_SHARPNESS
+    (uint32_t)QCAMERA3_SHARPNESS_STRENGTH,
+    (uint32_t)QCAMERA3_SHARPNESS_RANGE
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
