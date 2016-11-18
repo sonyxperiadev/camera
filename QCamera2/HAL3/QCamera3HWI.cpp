@@ -5909,54 +5909,60 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     IF_META_AVAILABLE(uint32_t, histogramMode, CAM_INTF_META_STATS_HISTOGRAM_MODE, metadata) {
         uint8_t fwk_histogramMode = (uint8_t) *histogramMode;
-        camMetadata.update(ANDROID_STATISTICS_HISTOGRAM_MODE, &fwk_histogramMode, 1);
+        camMetadata.update(QCAMERA3_HISTOGRAM_MODE, &fwk_histogramMode, 1);
 
-        if (fwk_histogramMode == ANDROID_STATISTICS_HISTOGRAM_MODE_ON) {
+        if (fwk_histogramMode == QCAMERA3_HISTOGRAM_MODE_ON) {
             IF_META_AVAILABLE(cam_hist_stats_t, stats_data, CAM_INTF_META_HISTOGRAM, metadata) {
                 // process histogram statistics info
-                uint32_t hist_buf[3][CAM_HISTOGRAM_STATS_SIZE];
+                uint32_t hist_buf[4][CAM_HISTOGRAM_STATS_SIZE];
                 uint32_t hist_size = sizeof(cam_histogram_data_t::hist_buf);
-                cam_histogram_data_t rHistData, gHistData, bHistData;
+                cam_histogram_data_t rHistData, grHistData, gbHistData, bHistData;
                 memset(&rHistData, 0, sizeof(rHistData));
-                memset(&gHistData, 0, sizeof(gHistData));
+                memset(&grHistData, 0, sizeof(grHistData));
+                memset(&gbHistData, 0, sizeof(gbHistData));
                 memset(&bHistData, 0, sizeof(bHistData));
 
                 switch (stats_data->type) {
                 case CAM_HISTOGRAM_TYPE_BAYER:
                     switch (stats_data->bayer_stats.data_type) {
                         case CAM_STATS_CHANNEL_GR:
-                            rHistData = gHistData = bHistData = stats_data->bayer_stats.gr_stats;
+                            rHistData = grHistData = gbHistData = bHistData =
+                                    stats_data->bayer_stats.gr_stats;
                             break;
                         case CAM_STATS_CHANNEL_GB:
-                            rHistData = gHistData = bHistData = stats_data->bayer_stats.gb_stats;
+                            rHistData = grHistData = gbHistData = bHistData =
+                                    stats_data->bayer_stats.gb_stats;
                             break;
                         case CAM_STATS_CHANNEL_B:
-                            rHistData = gHistData = bHistData = stats_data->bayer_stats.b_stats;
+                            rHistData = grHistData = gbHistData = bHistData =
+                                    stats_data->bayer_stats.b_stats;
                             break;
                         case CAM_STATS_CHANNEL_ALL:
                             rHistData = stats_data->bayer_stats.r_stats;
-                            //Framework expects only 3 channels. So, for now,
-                            //use gb stats for G channel.
-                            gHistData = stats_data->bayer_stats.gb_stats;
+                            gbHistData = stats_data->bayer_stats.gb_stats;
+                            grHistData = stats_data->bayer_stats.gr_stats;
                             bHistData = stats_data->bayer_stats.b_stats;
                             break;
                         case CAM_STATS_CHANNEL_Y:
                         case CAM_STATS_CHANNEL_R:
                         default:
-                            rHistData = gHistData = bHistData = stats_data->bayer_stats.r_stats;
+                            rHistData = grHistData = gbHistData = bHistData =
+                                    stats_data->bayer_stats.r_stats;
                             break;
                     }
                     break;
                 case CAM_HISTOGRAM_TYPE_YUV:
-                    rHistData = gHistData = bHistData = stats_data->yuv_stats;
+                    rHistData = grHistData = gbHistData = bHistData =
+                            stats_data->yuv_stats;
                     break;
                 }
 
                 memcpy(hist_buf, rHistData.hist_buf, hist_size);
-                memcpy(hist_buf[1], gHistData.hist_buf, hist_size);
-                memcpy(hist_buf[2], bHistData.hist_buf, hist_size);
+                memcpy(hist_buf[1], gbHistData.hist_buf, hist_size);
+                memcpy(hist_buf[2], grHistData.hist_buf, hist_size);
+                memcpy(hist_buf[3], bHistData.hist_buf, hist_size);
 
-                camMetadata.update(ANDROID_STATISTICS_HISTOGRAM, (int32_t*)hist_buf, hist_size*3);
+                camMetadata.update(QCAMERA3_HISTOGRAM_STATS, (int32_t*)hist_buf, hist_size*4);
             }
         }
     }
@@ -7699,10 +7705,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     staticInfo.update(ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE,
             &timestampSource, 1);
 
-    staticInfo.update(ANDROID_STATISTICS_INFO_HISTOGRAM_BUCKET_COUNT,
+    //update histogram vendor data
+    staticInfo.update(QCAMERA3_HISTOGRAM_BUCKETS,
             &gCamCapability[cameraId]->histogram_size, 1);
 
-    staticInfo.update(ANDROID_STATISTICS_INFO_MAX_HISTOGRAM_COUNT,
+    staticInfo.update(QCAMERA3_HISTOGRAM_MAX_COUNT,
             &gCamCapability[cameraId]->max_histogram_count, 1);
 
     int32_t sharpness_map_size[] = {
@@ -8421,7 +8428,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST,
 #endif
        ANDROID_STATISTICS_FACE_DETECT_MODE,
-       ANDROID_STATISTICS_HISTOGRAM_MODE, ANDROID_STATISTICS_SHARPNESS_MAP_MODE,
+       ANDROID_STATISTICS_SHARPNESS_MAP_MODE,
        ANDROID_STATISTICS_LENS_SHADING_MAP_MODE, ANDROID_TONEMAP_CURVE_BLUE,
        ANDROID_TONEMAP_CURVE_GREEN, ANDROID_TONEMAP_CURVE_RED, ANDROID_TONEMAP_MODE,
        ANDROID_BLACK_LEVEL_LOCK };
@@ -8454,7 +8461,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_SENSOR_TIMESTAMP, ANDROID_SENSOR_NEUTRAL_COLOR_POINT,
        ANDROID_SENSOR_PROFILE_TONE_CURVE, ANDROID_BLACK_LEVEL_LOCK, ANDROID_TONEMAP_CURVE_BLUE,
        ANDROID_TONEMAP_CURVE_GREEN, ANDROID_TONEMAP_CURVE_RED, ANDROID_TONEMAP_MODE,
-       ANDROID_STATISTICS_FACE_DETECT_MODE, ANDROID_STATISTICS_HISTOGRAM_MODE,
+       ANDROID_STATISTICS_FACE_DETECT_MODE,
        ANDROID_STATISTICS_SHARPNESS_MAP, ANDROID_STATISTICS_SHARPNESS_MAP_MODE,
        ANDROID_STATISTICS_PREDICTED_COLOR_GAINS, ANDROID_STATISTICS_PREDICTED_COLOR_TRANSFORM,
        ANDROID_STATISTICS_SCENE_FLICKER, ANDROID_STATISTICS_FACE_RECTANGLES,
@@ -8533,8 +8540,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_SENSOR_BLACK_LEVEL_PATTERN, ANDROID_SENSOR_MAX_ANALOG_SENSITIVITY,
        ANDROID_SENSOR_ORIENTATION, ANDROID_SENSOR_AVAILABLE_TEST_PATTERN_MODES,
        ANDROID_STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES,
-       ANDROID_STATISTICS_INFO_HISTOGRAM_BUCKET_COUNT,
-       ANDROID_STATISTICS_INFO_MAX_FACE_COUNT, ANDROID_STATISTICS_INFO_MAX_HISTOGRAM_COUNT,
+       ANDROID_STATISTICS_INFO_MAX_FACE_COUNT,
        ANDROID_STATISTICS_INFO_MAX_SHARPNESS_MAP_VALUE,
        ANDROID_STATISTICS_INFO_SHARPNESS_MAP_SIZE, ANDROID_HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES,
        ANDROID_EDGE_AVAILABLE_EDGE_MODES,
@@ -9244,8 +9250,8 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     static const uint8_t faceDetectMode = ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
     settings.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode, 1);
 
-    static const uint8_t histogramMode = ANDROID_STATISTICS_HISTOGRAM_MODE_OFF;
-    settings.update(ANDROID_STATISTICS_HISTOGRAM_MODE, &histogramMode, 1);
+    static const uint8_t histogramMode = QCAMERA3_HISTOGRAM_MODE_OFF;
+    settings.update(QCAMERA3_HISTOGRAM_MODE, &histogramMode, 1);
 
     static const uint8_t sharpnessMapMode = ANDROID_STATISTICS_SHARPNESS_MAP_MODE_OFF;
     settings.update(ANDROID_STATISTICS_SHARPNESS_MAP_MODE, &sharpnessMapMode, 1);
@@ -10425,9 +10431,9 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    if (frame_settings.exists(ANDROID_STATISTICS_HISTOGRAM_MODE)) {
+    if (frame_settings.exists(QCAMERA3_HISTOGRAM_MODE)) {
         uint8_t histogramMode =
-                frame_settings.find(ANDROID_STATISTICS_HISTOGRAM_MODE).data.u8[0];
+                frame_settings.find(QCAMERA3_HISTOGRAM_MODE).data.u8[0];
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_STATS_HISTOGRAM_MODE,
                 histogramMode)) {
             rc = BAD_VALUE;
