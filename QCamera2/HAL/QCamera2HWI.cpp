@@ -7813,6 +7813,7 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
             }
             pp_config.feature_mask &= ~CAM_QCOM_FEATURE_RAW_PROCESSING;
             pp_config.feature_mask &= ~CAM_QCOM_FEATURE_METADATA_PROCESSING;
+            pp_config.feature_mask &= ~CAM_QCOM_FEATURE_METADATA_BYPASS;
             break;
 
         case 2:
