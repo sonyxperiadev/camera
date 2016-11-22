@@ -2332,6 +2332,7 @@ typedef enum {
     CAM_INTF_META_DC_SAC_OUTPUT_INFO,
     /* Dual camera - enable low power mode for the slave camera */
     CAM_INTF_META_DC_LOW_POWER_ENABLE,
+    CAM_INTF_PARM_FOV_COMP_ENABLE,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
