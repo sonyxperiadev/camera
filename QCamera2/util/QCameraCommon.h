@@ -47,9 +47,12 @@ public:
     int32_t init(cam_capability_t *cap);
 
     int32_t getAnalysisInfo(
-        bool fdVideoEnabled, bool hal3, cam_feature_mask_t featureMask,
+        bool fdVideoEnabled, cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo);
     static uint32_t calculateLCM(int32_t num1, int32_t num2);
+    cam_dimension_t getMatchingDimension(
+            cam_dimension_t exp_dim,
+            cam_dimension_t cur_dim);
 
 private:
     cam_capability_t *m_pCapability;
