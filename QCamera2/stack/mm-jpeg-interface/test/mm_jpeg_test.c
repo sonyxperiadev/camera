@@ -390,7 +390,13 @@ static int encode_init(jpeg_test_input_t *p_input, mm_jpeg_intf_test_t *p_obj,
 
   for (i = 0; i < (uint32_t)p_params->num_dst_bufs; i++) {
     p_obj->output[i].size = size * 3/2;
+
+#ifdef MM_JPEG_USE_PIPELINE
+    rc = mm_jpeg_test_alloc(&p_obj->output[i], 1);
+#else
     rc = mm_jpeg_test_alloc(&p_obj->output[i], 0);
+#endif
+
     if (rc) {
       LOGE("Error");
       return -1;
