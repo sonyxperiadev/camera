@@ -210,6 +210,8 @@ typedef struct {
     uint16_t   ref_bayer_color_temperature;
     /* Reserved for future use */
     float      reserved[RELCAM_CALIB_RESERVED_MAX];
+    void       *dc_otp_params;
+    int        dc_otp_size; /* in bytes */
 } cam_related_system_calibration_data_t;
 #pragma pack()
 
