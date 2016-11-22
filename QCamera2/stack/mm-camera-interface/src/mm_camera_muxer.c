@@ -1972,8 +1972,10 @@ int32_t mm_camera_muxer_do_frame_sync(
         }
     }
 
-    LOGD("found_super_buf = %d id = %d unmatched = %d max = %d", found_super_buf,
+    LOGD("found_super_buf = %d id = %d unmatched cnt = %d match cnt = %d expected = %d max = %d",
+            found_super_buf,
             buffer->bufs[0]->frame_idx, unmatched_bundles,
+            queue->match_cnt, queue->expected_frame_id,
             queue->attr.max_unmatched_frames);
     if (found_super_buf) {
         super_obj->super_buf[buf_s_idx] = *buffer;
