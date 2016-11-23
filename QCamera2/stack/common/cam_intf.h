@@ -482,6 +482,7 @@ typedef struct cam_capability{
     cam_format_t supported_scalar_fmts[CAM_FORMAT_MAX];
 
     uint32_t max_face_detection_count;
+    uint8_t face_bsgc;
 
     uint8_t histogram_supported;
     /* Number of histogram buckets supported */
