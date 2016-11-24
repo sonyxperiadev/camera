@@ -1841,6 +1841,8 @@ typedef struct {
 } cam_sac_output_shift_t;
 
 typedef struct {
+    uint8_t                is_master_hint_valid;
+    uint8_t                master_hint;
     uint8_t                is_master_preview_valid;
     uint8_t                master_preview;
     uint8_t                is_master_3A_valid;
