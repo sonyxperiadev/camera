@@ -12558,9 +12558,6 @@ int32_t QCamera3HardwareInterface::setBundleInfo()
             LOGE("get_bundle_info failed");
             return rc;
         }
-        if (mAnalysisChannel) {
-            mAnalysisChannel->setBundleInfo(bundleInfo);
-        }
         if (mSupportChannel) {
             mSupportChannel->setBundleInfo(bundleInfo);
         }
