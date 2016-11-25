@@ -2773,7 +2773,33 @@ void QCamera3YUVChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
     }
 
     QCamera3ProcessingChannel::streamCbRoutine(super_frame, stream);
+
+    /* return any pending buffers that were received out of order earlier */
+    while((super_frame = getNextPendingCbBuffer())) {
+        QCamera3ProcessingChannel::streamCbRoutine(super_frame, stream);
+    }
+
     return;
+}
+
+/*===========================================================================
+ * FUNCTION   : getNextPendingCbBuffer
+ *
+ * DESCRIPTION: Returns the callback_buffer from the first entry of
+ *              mOfflinePpInfoList
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : callback_buffer
+ *==========================================================================*/
+mm_camera_super_buf_t* QCamera3YUVChannel::getNextPendingCbBuffer() {
+    mm_camera_super_buf_t* super_frame = NULL;
+    if (mOfflinePpInfoList.size()) {
+        if ((super_frame = mOfflinePpInfoList.begin()->callback_buffer)) {
+            mOfflinePpInfoList.erase(mOfflinePpInfoList.begin());
+        }
+    }
+    return super_frame;
 }
 
 /*===========================================================================
@@ -2929,16 +2955,12 @@ int32_t QCamera3YUVChannel::handleOfflinePpCallback(uint32_t resultFrameNumber,
         //Move heap buffer into free pool and invalidate the frame number
         ppInfo = mOfflinePpInfoList.erase(ppInfo);
 
-        // Return pending buffer callbacks
-        while (ppInfo != mOfflinePpInfoList.end() &&
-                !ppInfo->offlinePpFlag && ppInfo->callback_buffer) {
-
-            // Call stream callbacks for cached buffers
-            pendingCbs.push_back(ppInfo->callback_buffer);
-
-            ppInfo = mOfflinePpInfoList.erase(ppInfo);
+        /* return any pending buffers that were received out of order
+            earlier */
+        mm_camera_super_buf_t* super_frame;
+        while((super_frame = getNextPendingCbBuffer())) {
+            pendingCbs.push_back(super_frame);
         }
-
     } else {
         LOGE("Fatal: request of frame number %d doesn't need"
                 " offline postprocessing. However there is"

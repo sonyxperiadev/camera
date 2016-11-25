@@ -450,6 +450,7 @@ private:
     bool needsFramePostprocessing(metadata_buffer_t* meta);
     int32_t handleOfflinePpCallback(uint32_t resultFrameNumber,
             Vector<mm_camera_super_buf_t *>& pendingCbs);
+    mm_camera_super_buf_t* getNextPendingCbBuffer();
 };
 
 /* QCamera3PicChannel is for JPEG stream, which contains a YUV stream generated
