@@ -714,7 +714,13 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
 
     if(pme->m_bPreviewStarted) {
         LOGI("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
+
+        pme->m_perfLockMgr.releasePerfLock(PERF_LOCK_START_PREVIEW);
+        pme->m_perfLockMgr.releasePerfLock(PERF_LOCK_OPEN_CAMERA);
         pme->m_bPreviewStarted = false;
+
+        // Set power Hint for preview
+        pme->m_perfLockMgr.acquirePerfLock(PERF_LOCK_POWERHINT_PREVIEW, 0);
     }
 
     QCameraGrallocMemory *memory = (QCameraGrallocMemory *) frame->mem_info;
@@ -805,7 +811,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
 
     mm_camera_buf_def_t *frame = super_frame->bufs[0];
     if (NULL == frame) {
-        LOGE("preview frame is NLUL");
+        LOGE("preview frame is NULL");
         free(super_frame);
         return;
     }
@@ -843,8 +849,14 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
 
     if(pme->m_bPreviewStarted) {
-       LOGI("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
-       pme->m_bPreviewStarted = false ;
+        LOGI("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
+
+        pme->m_perfLockMgr.releasePerfLock(PERF_LOCK_START_PREVIEW);
+        pme->m_perfLockMgr.releasePerfLock(PERF_LOCK_OPEN_CAMERA);
+        pme->m_bPreviewStarted = false;
+
+        // Set power Hint for preview
+        pme->m_perfLockMgr.acquirePerfLock(PERF_LOCK_POWERHINT_PREVIEW, 0);
     }
 
     if (!stream->isSyncCBEnabled() && !discardFrame) {
