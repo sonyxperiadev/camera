@@ -9467,10 +9467,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     int32_t mode = cds_mode;
     settings.update(QCAMERA3_CDS_MODE, &mode, 1);
 
-    /* IR Mode Default Off */
-    int32_t ir_mode = (int32_t)QCAMERA3_IR_MODE_OFF;
-    settings.update(QCAMERA3_IR_MODE, &ir_mode, 1);
-
     /* Manual Convergence AEC Speed is disabled by default*/
     float default_aec_speed = 0;
     settings.update(QCAMERA3_AEC_CONVERGENCE_SPEED, &default_aec_speed, 1);
