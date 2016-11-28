@@ -3361,6 +3361,17 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
         if (mParameters.isSecureMode()) {
             streamInfo->is_secure = SECURE;
         }
+        // If SAT enabled, don't add preview stream to Bundled queue
+        if (isDualCamera()) {
+            char prop[PROPERTY_VALUE_MAX];
+            memset(prop, 0, sizeof(prop));
+            bool satEnabledFlag = FALSE;
+            property_get("persist.camera.sat.enable", prop, "0");
+            satEnabledFlag = atoi(prop);
+            if (satEnabledFlag) {
+                streamInfo->noFrameExpected = 1;
+            }
+        }
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
         streamInfo->noFrameExpected = 1;
