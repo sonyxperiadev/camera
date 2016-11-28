@@ -41,7 +41,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #define FALSE 0
 #define OMX_COMP_MAX_INSTANCES 3
 #define OMX_CORE_MAX_ROLES 1
-#define OMX_COMP_MAX_NUM 3
+#define OMX_COMP_MAX_NUM 5
 #define OMX_SPEC_VERSION 0x00000101
 
 typedef void *(*get_instance_t)(void);
