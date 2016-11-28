@@ -35,7 +35,7 @@
 #include <media/msmb_camera.h>
 
 #define CAM_MAX_NUM_BUFS_PER_STREAM 64
-#define MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES 8096
+#define MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES 12256
 #define AWB_DEBUG_DATA_SIZE               (45000)
 #define AEC_DEBUG_DATA_SIZE               (5000)
 #define AF_DEBUG_DATA_SIZE                (60000)
@@ -2332,6 +2332,7 @@ typedef enum {
     CAM_INTF_META_DC_SAC_OUTPUT_INFO,
     /* Dual camera - enable low power mode for the slave camera */
     CAM_INTF_META_DC_LOW_POWER_ENABLE,
+    CAM_INTF_PARM_FOV_COMP_ENABLE,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 

@@ -34,9 +34,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <utils/Log.h>
+#include <math.h>
+
 
 // Camera dependencies
 #include "QCameraCommon.h"
+
+extern "C" {
+#include "mm_camera_dbg.h"
+}
 
 using namespace android;
 
@@ -49,6 +55,8 @@ namespace qcamera {
 #ifndef FALSE
 #define FALSE 0
 #endif
+
+#define ASPECT_RATIO_TOLERANCE 0.01
 
 /*===========================================================================
  * FUNCTION   : QCameraCommon
@@ -155,7 +163,6 @@ uint32_t QCameraCommon::calculateLCM(int32_t num1, int32_t num2)
  *==========================================================================*/
 int32_t QCameraCommon::getAnalysisInfo(
         bool fdVideoEnabled,
-        bool hal3,
         cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo)
 {
@@ -165,7 +172,7 @@ int32_t QCameraCommon::getAnalysisInfo(
 
     pAnalysisInfo->valid = 0;
 
-    if ((fdVideoEnabled == TRUE) && (hal3 == FALSE) &&
+    if ((fdVideoEnabled == TRUE) &&
             (m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_VIDEO].hw_analysis_supported) &&
             (m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_VIDEO].valid)) {
         *pAnalysisInfo =
@@ -173,9 +180,6 @@ int32_t QCameraCommon::getAnalysisInfo(
     } else if (m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_STILL].valid) {
         *pAnalysisInfo =
                 m_pCapability->analysis_info[CAM_ANALYSIS_INFO_FD_STILL];
-        if (hal3 == TRUE) {
-            pAnalysisInfo->analysis_max_res = pAnalysisInfo->analysis_recommended_res;
-        }
     }
 
     if ((featureMask & CAM_QCOM_FEATURE_PAAF) &&
@@ -192,6 +196,12 @@ int32_t QCameraCommon::getAnalysisInfo(
             pAnalysisInfo->analysis_max_res.height =
                 MAX(pAnalysisInfo->analysis_max_res.height,
                 pPaafInfo->analysis_max_res.height);
+            pAnalysisInfo->analysis_recommended_res.width =
+                MAX(pAnalysisInfo->analysis_recommended_res.width,
+                pPaafInfo->analysis_recommended_res.width);
+            pAnalysisInfo->analysis_recommended_res.height =
+                MAX(pAnalysisInfo->analysis_recommended_res.height,
+                pPaafInfo->analysis_recommended_res.height);
             pAnalysisInfo->analysis_padding_info.height_padding =
                 calculateLCM(pAnalysisInfo->analysis_padding_info.height_padding,
                 pPaafInfo->analysis_padding_info.height_padding);
@@ -219,8 +229,43 @@ int32_t QCameraCommon::getAnalysisInfo(
                 pPaafInfo->hw_analysis_supported;
         }
     }
-
     return pAnalysisInfo->valid ? NO_ERROR : BAD_VALUE;
+}
+
+/*===========================================================================
+ * FUNCTION   : getMatchingDimension
+ *
+ * DESCRIPTION: Get dimension closest to the current, but with matching aspect ratio
+ *
+ * PARAMETERS :
+ *   @exp_dim : The dimension corresponding to desired aspect ratio
+ *   @cur_dim : The dimension which has to be modified
+ *
+ * RETURN     : cam_dimension_t new dimensions as per desired aspect ratio
+ *==========================================================================*/
+cam_dimension_t QCameraCommon::getMatchingDimension(
+        cam_dimension_t exp_dim,
+        cam_dimension_t cur_dim)
+{
+    cam_dimension_t expected_dim = cur_dim;
+    if ((exp_dim.width != 0) && (exp_dim.height != 0)) {
+        double cur_ratio, expected_ratio;
+
+        cur_ratio = (double)cur_dim.width / (double)cur_dim.height;
+        expected_ratio = (double)exp_dim.width / (double)exp_dim.height;
+        if (fabs(cur_ratio - expected_ratio) > ASPECT_RATIO_TOLERANCE) {
+            if (cur_ratio < expected_ratio) {
+                expected_dim.height = (int32_t)((double)cur_dim.width / expected_ratio);
+            } else {
+                expected_dim.width = (int32_t)((double)cur_dim.height * expected_ratio);
+            }
+            expected_dim.width &= ~0x1;
+            expected_dim.height &= ~0x1;
+        }
+        LOGD("exp ratio: %f, cur ratio: %f, new dim: %d x %d",
+                expected_ratio, cur_ratio, exp_dim.width, exp_dim.height);
+    }
+    return expected_dim;
 }
 
 }; // namespace qcamera

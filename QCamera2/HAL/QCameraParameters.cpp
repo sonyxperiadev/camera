@@ -10227,7 +10227,6 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
         ret = getAnalysisInfo(
                 ((getRecordingHintValue() == true) && fdModeInVideo()),
-                FALSE,
                 featureMask,
                 &analysisInfo);
         if (ret != NO_ERROR) {
@@ -10448,7 +10447,7 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
-        cam_dimension_t prv_dim, max_dim;
+        cam_dimension_t prv_dim;
 
         /* Analysis stream need aspect ratio as preview stream */
         getPreviewSize(&prv_dim.width, &prv_dim.height);
@@ -10460,7 +10459,6 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
         ret = getAnalysisInfo(
                 ((getRecordingHintValue() == true) && fdModeInVideo()),
-                FALSE,
                 featureMask,
                 &analysisInfo);
         if (ret != NO_ERROR) {
@@ -10468,29 +10466,9 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
             return ret;
         }
 
-        max_dim.width = analysisInfo.analysis_max_res.width;
-        max_dim.height = analysisInfo.analysis_max_res.height;
-
-        if (prv_dim.width > max_dim.width || prv_dim.height > max_dim.height) {
-            double max_ratio, requested_ratio;
-
-            max_ratio = (double)max_dim.width / (double)max_dim.height;
-            requested_ratio = (double)prv_dim.width / (double)prv_dim.height;
-
-            if (max_ratio < requested_ratio) {
-                dim.width = max_dim.width;
-                dim.height = (int32_t)((double)dim.width / requested_ratio);
-            } else {
-                dim.height = max_dim.height;
-                dim.width = (int32_t)((double)max_dim.height * requested_ratio);
-            }
-            dim.width &= ~0x1;
-            dim.height &= ~0x1;
-        } else {
-            dim.width = prv_dim.width;
-            dim.height = prv_dim.height;
-        }
-      break;
+        dim = mCommon.getMatchingDimension(
+                prv_dim, analysisInfo.analysis_recommended_res);
+        break;
     case CAM_STREAM_TYPE_DEFAULT:
     default:
         LOGE("no dimension for unsupported stream type %d",
@@ -15978,11 +15956,10 @@ int32_t QCameraParameters::setAdvancedCaptureMode()
  *==========================================================================*/
 int32_t QCameraParameters::getAnalysisInfo(
         bool fdVideoEnabled,
-        bool hal3,
         cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo)
 {
-    return mCommon.getAnalysisInfo(fdVideoEnabled, hal3, featureMask, pAnalysisInfo);
+    return mCommon.getAnalysisInfo(fdVideoEnabled, featureMask, pAnalysisInfo);
 }
 
 /*===========================================================================

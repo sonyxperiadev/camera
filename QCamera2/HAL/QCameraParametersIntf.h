@@ -306,7 +306,6 @@ public:
 
     int32_t getAnalysisInfo(
         bool fdVideoEnabled,
-        bool hal3,
         cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo);
     int32_t updateDtVc(int32_t *dt, int32_t *vc);

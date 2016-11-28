@@ -1503,6 +1503,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     camera3_stream_t *inputStream = NULL;
     bool isJpeg = false;
     cam_dimension_t jpegSize = {0, 0};
+    cam_dimension_t previewSize = {0, 0};
 
     cam_padding_info_t padding_info = gCamCapability[mCameraId]->padding_info;
 
@@ -1873,42 +1874,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         return rc;
     }
 
-    // Create analysis stream all the time, even when h/w support is not available
-    {
-        cam_feature_mask_t analysisFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-        setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
-                gCamCapability[mCameraId]->color_arrangement);
-        cam_analysis_info_t analysisInfo;
-        int32_t ret = NO_ERROR;
-        ret = mCommon.getAnalysisInfo(
-                FALSE,
-                TRUE,
-                analysisFeatureMask,
-                &analysisInfo);
-        if (ret == NO_ERROR) {
-            mAnalysisChannel = new QCamera3SupportChannel(
-                    mCameraHandle->camera_handle,
-                    mChannelHandle,
-                    mCameraHandle->ops,
-                    &analysisInfo.analysis_padding_info,
-                    analysisFeatureMask,
-                    CAM_STREAM_TYPE_ANALYSIS,
-                    &analysisInfo.analysis_max_res,
-                    (analysisInfo.analysis_format
-                    == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
-                    : CAM_FORMAT_YUV_420_NV21),
-                    analysisInfo.hw_analysis_supported,
-                    gCamCapability[mCameraId]->color_arrangement,
-                    this,
-                    0); // force buffer count to 0
-        } else {
-            LOGW("getAnalysisInfo failed, ret = %d", ret);
-        }
-        if (!mAnalysisChannel) {
-            LOGW("Analysis channel cannot be created");
-        }
-    }
-
     bool isRawStreamRequested = false;
     memset(&mStreamConfigInfo, 0, sizeof(cam_stream_size_info_t));
     /* Allocate channel objects for the requested streams */
@@ -1972,6 +1937,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     }
                     padding_info.width_padding = mSurfaceStridePadding;
                     padding_info.height_padding = CAM_PAD_TO_2;
+                    previewSize.width = (int32_t)newStream->width;
+                    previewSize.height = (int32_t)newStream->height;
                 }
                 if ((newStream->rotation == CAMERA3_STREAM_ROTATION_90) ||
                         (newStream->rotation == CAMERA3_STREAM_ROTATION_270)) {
@@ -2246,6 +2213,45 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             mStreamConfigInfo.num_streams++;
     }
 
+    // Create analysis stream all the time, even when h/w support is not available
+    {
+        cam_feature_mask_t analysisFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+        setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
+                gCamCapability[mCameraId]->color_arrangement);
+        cam_analysis_info_t analysisInfo;
+        int32_t ret = NO_ERROR;
+        ret = mCommon.getAnalysisInfo(
+                FALSE,
+                analysisFeatureMask,
+                &analysisInfo);
+        if (ret == NO_ERROR) {
+            cam_dimension_t analysisDim;
+            analysisDim = mCommon.getMatchingDimension(previewSize,
+                    analysisInfo.analysis_recommended_res);
+
+            mAnalysisChannel = new QCamera3SupportChannel(
+                    mCameraHandle->camera_handle,
+                    mChannelHandle,
+                    mCameraHandle->ops,
+                    &analysisInfo.analysis_padding_info,
+                    analysisFeatureMask,
+                    CAM_STREAM_TYPE_ANALYSIS,
+                    &analysisDim,
+                    (analysisInfo.analysis_format
+                    == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
+                    : CAM_FORMAT_YUV_420_NV21),
+                    analysisInfo.hw_analysis_supported,
+                    gCamCapability[mCameraId]->color_arrangement,
+                    this,
+                    0); // force buffer count to 0
+        } else {
+            LOGW("getAnalysisInfo failed, ret = %d", ret);
+        }
+        if (!mAnalysisChannel) {
+            LOGW("Analysis channel cannot be created");
+        }
+    }
+
     //RAW DUMP channel
     if (mEnableRawDump && isRawStreamRequested == false){
         cam_dimension_t rawDumpSize;
@@ -2278,7 +2284,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         setPAAFSupport(mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
                 gCamCapability[mCameraId]->color_arrangement);
-        rc = mCommon.getAnalysisInfo(FALSE, TRUE,
+        rc = mCommon.getAnalysisInfo(FALSE,
                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                 &analysisInfo);
         if (rc != NO_ERROR) {
@@ -2287,7 +2293,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             return rc;
         }
         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams] =
-                analysisInfo.analysis_max_res;
+                mCommon.getMatchingDimension(previewSize,
+                analysisInfo.analysis_recommended_res);
         mStreamConfigInfo.num_streams++;
     }
 
@@ -2299,7 +2306,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 CAM_STREAM_TYPE_CALLBACK,
                 gCamCapability[mCameraId]->color_arrangement);
         int32_t ret = NO_ERROR;
-        ret = mCommon.getAnalysisInfo(FALSE, TRUE, callbackFeatureMask, &supportInfo);
+        ret = mCommon.getAnalysisInfo(FALSE, callbackFeatureMask, &supportInfo);
         if (ret != NO_ERROR) {
             /* Ignore the error for Mono camera
              * because the PAAF bit mask is only set
