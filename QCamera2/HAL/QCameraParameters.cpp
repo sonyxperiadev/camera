@@ -16192,6 +16192,7 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     int32_t cameraControl[MM_CAMERA_MAX_CAM_CNT] = {0};
     char prop[PROPERTY_VALUE_MAX];
     int value = 0;
+    int lpmDisable = 0;
 
     if (state & MM_CAMERA_TYPE_MAIN) {
         cameraControl[0] = 1;
@@ -16219,8 +16220,18 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     perf_value[num_cam].priority = 0;
     num_cam++;
 
+    property_get("persist.dualcam.lpm.disable", prop, "0");
+    lpmDisable = atoi(prop);
+
+    if (lpmDisable) {
+        for (int i = 0; i < num_cam; ++i) {
+            perf_value[i].enable = 0;
+        }
+    }
+
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_LOW_POWER_MODE,
           num_cam, &perf_value[0]);
+
     mActiveState = state;
 
     if (state != MM_CAMERA_DUAL_CAM) {
