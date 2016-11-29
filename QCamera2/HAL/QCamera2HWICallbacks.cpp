@@ -2780,6 +2780,17 @@ void QCamera2HardwareInterface::dumpMetadataToFile(QCameraStream *stream,
                 total_size = metadata->tuning_params.tuning_cac_data_size;
                 data = (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_CAC_DATA_OFFSET]);
                 written_len += write(file_fd, data, total_size);
+
+                total_size = metadata->tuning_params.tuning_mod1_stats_data_size;
+                data =
+                (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_MOD1_AEC_DATA_OFFSET]);
+                written_len += write(file_fd, data, total_size);
+                data =
+                (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_MOD1_AWB_DATA_OFFSET]);
+                written_len += write(file_fd, data, total_size);
+                data =
+                (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_MOD1_AF_DATA_OFFSET]);
+                written_len += write(file_fd, data, total_size);
                 close(file_fd);
             }else {
                 LOGE("fail t open file for image dumping");
