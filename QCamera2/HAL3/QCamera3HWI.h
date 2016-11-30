@@ -538,6 +538,7 @@ private:
     float mHFRVideoFps;
 public:
     uint8_t mOpMode;
+    bool mStreamConfig;
 private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
@@ -558,6 +559,7 @@ private:
     /* sensor output size with current stream configuration */
     QCamera3CropRegionMapper mCropRegionMapper;
 
+    cam_feature_mask_t mCurrFeatureState;
     /* Ldaf calibration data */
     bool mLdafCalibExist;
     uint32_t mLdafCalib[2];
