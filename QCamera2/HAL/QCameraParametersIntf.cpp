@@ -1382,7 +1382,7 @@ bool QCameraParametersIntf::isOEMFeatEnabled()
     return mImpl->isOEMFeatEnabled();
 }
 
-bool QCameraParametersIntf::isOEMFeatFrameSkipEnabled()
+uint8_t QCameraParametersIntf::isOEMFeatFrameSkipEnabled()
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
