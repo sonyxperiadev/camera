@@ -1106,6 +1106,8 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_HAL_BRACKETING_HDR,           cam_hdr_param_t,             1);
     INCLUDE(CAM_INTF_META_DC_LOW_POWER_ENABLE,          uint8_t,                     1);
     INCLUDE(CAM_INTF_META_DC_SAC_OUTPUT_INFO,           cam_sac_output_info_t,       1);
+    INCLUDE(CAM_INTF_META_DC_IN_SNAPSHOT_PP_ZOOM_RANGE, uint8_t,                     1);
+    INCLUDE(CAM_INTF_META_DC_BOKEH_MODE,                uint8_t,                     1);
     INCLUDE(CAM_INTF_PARM_FOV_COMP_ENABLE,              int32_t,                     1);
 } metadata_data_t;
 
@@ -1176,6 +1178,13 @@ static inline void clear_metadata_buffer(metadata_buffer_t *meta)
       meta->is_statsdebug_bestats_params_valid = 0;
       meta->is_statsdebug_bhist_params_valid = 0;
       meta->is_statsdebug_3a_tuning_params_valid = 0;
+      /* tuning parameter sizes are never gets zero.
+       * It gets overwritten when it populated
+       * But we can't reply and make decision based on that
+       */
+      meta->tuning_params.tuning_sensor_data_size = 0;
+      meta->tuning_params.tuning_vfe_data_size = 0;
+      meta->tuning_params.tuning_mod1_stats_data_size = 0;
     }
 }
 

@@ -590,8 +590,14 @@ int mm_app_open(mm_camera_app_t *cam_app,
     memset(&test_obj->jpeg_ops, 0, sizeof(mm_jpeg_ops_t));
     test_obj->mExifParams.debug_params = \
         (mm_jpeg_debug_exif_params_t *) malloc (sizeof(mm_jpeg_debug_exif_params_t));
-    memset(test_obj->mExifParams.debug_params, 0,
-        sizeof(mm_jpeg_debug_exif_params_t));
+    if (test_obj->mExifParams.debug_params != NULL) {
+        memset(test_obj->mExifParams.debug_params, 0,
+           sizeof(mm_jpeg_debug_exif_params_t));
+    } else {
+        LOGE("debug params alloc fail");
+        rc = -MM_CAMERA_E_GENERAL;
+        goto error_after_getparm_buf_map;
+    }
     mm_dimension pic_size;
     memset(&pic_size, 0, sizeof(mm_dimension));
     pic_size.w = 4000;
