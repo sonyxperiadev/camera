@@ -893,6 +893,7 @@ public:
     bool isDualCamera() {return m_bDualCamera;};
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera();
+    int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
