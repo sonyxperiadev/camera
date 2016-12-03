@@ -147,6 +147,7 @@ public:
     bool isFpsDebugEnabled();
     bool isHistogramEnabled();
     bool isSceneSelectionEnabled();
+    bool isSmallJpegSizeEnabled();
     int32_t setSelectedScene(cam_scene_mode_type scene);
     cam_scene_mode_type getSelectedScene();
     bool isFaceDetectionEnabled();
@@ -312,7 +313,7 @@ public:
     int32_t SetDualCamera(bool value);
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera();
-
+    int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;

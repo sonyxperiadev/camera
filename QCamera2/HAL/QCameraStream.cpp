@@ -774,8 +774,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         if (needFrameSync()) {
             mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                     mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
-        }
-        if (!needCbSwitch()) {
+        } else if (!needCbSwitch()) {
             mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                     mHandle, MM_CAMERA_CB_REQ_TYPE_ALL_CB);
         }
@@ -2831,9 +2830,7 @@ int32_t QCameraStream::processCameraControl(uint32_t camState)
 int32_t QCameraStream::switchStreamCb()
 {
     int32_t ret = NO_ERROR;
-    if ((getMyType() != CAM_STREAM_TYPE_SNAPSHOT)
-            && (mActiveCamera == MM_CAMERA_DUAL_CAM)
-            && !(needFrameSync())
+    if ((mActiveCamera == MM_CAMERA_DUAL_CAM)
             && (needCbSwitch())) {
         ret = mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                 mHandle, MM_CAMERA_CB_REQ_TYPE_SWITCH);
@@ -2869,7 +2866,9 @@ bool QCameraStream::needCbSwitch()
         return false;
     }
 
-    if (mStreamInfo->pp_config.feature_mask == CAM_QTI_FEATURE_SAT) {
+    if ((mStreamInfo->pp_config.feature_mask == CAM_QTI_FEATURE_SAT)
+            || (needFrameSync())
+            || (getMyType() == CAM_STREAM_TYPE_SNAPSHOT)) {
         return false;
     } else {
         return true;

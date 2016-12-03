@@ -2662,6 +2662,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                         mParameters.getNumOfExtraBuffersForImageProc() +
                         mParameters.getNumOfExtraBuffersForPreview() +
                         mParameters.getNumOfExtraHDRInBufsIfNeeded();
+                if (isDualCamera()) {
+                    bufferCnt += zslQBuffers;
+                }
             } else {
                 bufferCnt = CAMERA_MIN_STREAMING_BUFFERS +
                         mParameters.getMaxUnmatchedFramesInQueue() +
@@ -2716,8 +2719,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                     // Single ZSL snapshot case
                     bufferCnt = zslQBuffers + CAMERA_MIN_STREAMING_BUFFERS +
                             mParameters.getNumOfExtraBuffersForImageProc();
-                }
-                else {
+                } else {
                     // ZSL Burst or Longshot case
                     bufferCnt = zslQBuffers + minCircularBufNum +
                             mParameters.getNumOfExtraBuffersForImageProc();
@@ -2725,6 +2727,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                 if (getSensorType() == CAM_SENSOR_YUV && bufferCnt > CAMERA_ISP_PING_PONG_BUFFERS) {
                     //ISP allocates native buffers in YUV case
                     bufferCnt -= CAMERA_ISP_PING_PONG_BUFFERS;
+                }
+                if (isDualCamera()) {
+                    bufferCnt += zslQBuffers;
                 }
             } else {
                 bufferCnt = minCaptureBuffers +
@@ -2813,6 +2818,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                             mParameters.getNumOfExtraHDROutBufsIfNeeded() +
                             mParameters.getNumOfExtraBuffersForImageProc() +
                             EXTRA_ZSL_PREVIEW_STREAM_BUF;
+                if (isDualCamera()) {
+                    bufferCnt += zslQBuffers;
+                }
             } else {
                 bufferCnt = minCaptureBuffers +
                             mParameters.getNumOfExtraHDRInBufsIfNeeded() -
@@ -3807,6 +3815,14 @@ int QCamera2HardwareInterface::startPreview()
         rc = startChannel(QCAMERA_CH_TYPE_ZSL);
     } else {
         rc = startChannel(QCAMERA_CH_TYPE_PREVIEW);
+    }
+
+    if (isDualCamera()) {
+        if (rc == NO_ERROR) {
+            mParameters.setDeferCamera(CAM_DEFER_PROCESS);
+        } else {
+            mParameters.setDeferCamera(CAM_DEFER_FLUSH);
+        }
     }
 
     if (rc != NO_ERROR) {
@@ -8617,6 +8633,11 @@ int32_t QCamera2HardwareInterface::preparePreview()
         return rc;
     }
 
+    //Trigger deferred job second camera
+    if (isDualCamera()) {
+        mParameters.setDeferCamera(CAM_DEFER_START);
+    }
+
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
         rc = addChannel(QCAMERA_CH_TYPE_ZSL);
         if (rc != NO_ERROR) {
@@ -8705,6 +8726,10 @@ int32_t QCamera2HardwareInterface::preparePreview()
         }
     }
 
+    if ((rc != NO_ERROR) && (isDualCamera())) {
+        mParameters.setDeferCamera(CAM_DEFER_FLUSH);
+    }
+
     LOGI("X rc = %d", rc);
     return rc;
 }
@@ -8720,6 +8745,9 @@ int32_t QCamera2HardwareInterface::preparePreview()
  *==========================================================================*/
 void QCamera2HardwareInterface::unpreparePreview()
 {
+    if (isDualCamera()) {
+        mParameters.setDeferCamera(CAM_DEFER_FLUSH);
+    }
     delChannel(QCAMERA_CH_TYPE_ZSL);
     delChannel(QCAMERA_CH_TYPE_PREVIEW);
     delChannel(QCAMERA_CH_TYPE_VIDEO);
@@ -9573,9 +9601,9 @@ bool QCamera2HardwareInterface::needReprocess()
         return false;
     }
 
-    //Disable reprocess for 4K liveshot case but enable if lowpower mode
-    if (mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
-            && !isLowPowerMode()) {
+    //Disable reprocess for small jpeg size or 4K liveshot case but enable if lowpower mode
+    if ((mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
+            && !isLowPowerMode()) || mParameters.isSmallJpegSizeEnabled()) {
         return false;
     }
 
@@ -9615,10 +9643,10 @@ bool QCamera2HardwareInterface::needRotationReprocess()
     }
 
     //Disable reprocess for 4K liveshot case
-    if (mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
-            && !isLowPowerMode()) {
-        //Disable reprocess for 4K liveshot case
-        return false;
+    if ((mParameters.is4k2kVideoResolution() && mParameters.getRecordingHintValue()
+            && !isLowPowerMode()) || mParameters.isSmallJpegSizeEnabled()) {
+        //Disable reprocess for 4K liveshot case or small jpeg size
+         return false;
     }
 
     if ((gCamCapability[mCameraId]->qcom_supported_feature_mask &
@@ -10787,7 +10815,7 @@ bool QCamera2HardwareInterface::needDeferred(cam_stream_type_t stream_type)
     }
 
     if ((stream_type == CAM_STREAM_TYPE_RAW)
-            && (mParameters.getofflineRAW())) {
+            && (mParameters.getofflineRAW() && !mParameters.getQuadraCfa())) {
         return FALSE;
     }
 

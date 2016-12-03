@@ -1715,7 +1715,9 @@ typedef enum {
     /*cmd to suspend or resume cameras*/
     CAM_DUAL_CAMERA_LOW_POWER_MODE,
     /*cmd to send information about role switch*/
-    CAM_DUAL_CAMERA_MASTER_INFO
+    CAM_DUAL_CAMERA_MASTER_INFO,
+    /*Command to Defer dual camera session*/
+    CAM_DUAL_CAMERA_DEFER_INFO,
 } cam_dual_camera_cmd_type;
 
 typedef enum {
