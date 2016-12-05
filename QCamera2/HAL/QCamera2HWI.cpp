@@ -10924,7 +10924,7 @@ void QCamera2HardwareInterface::getLogLevel()
 {
     char prop[PROPERTY_VALUE_MAX];
 
-    property_get("persist.camera.kpi.debug", prop, "1");
+    property_get("persist.camera.kpi.debug", prop, "0");
     gKpiDebugLevel = atoi(prop);
     return;
 }

@@ -807,7 +807,11 @@ QCamera3ProcessingChannel::~QCamera3ProcessingChannel()
 void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
         QCamera3Stream *stream)
 {
-    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PROC_CH_STRM_CB);
+    if (mStreamType == CAM_STREAM_TYPE_PREVIEW) {
+        KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PREVIEW_STRM_CB);
+    } else {
+        ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PROC_CH_STRM_CB);
+    }
     //FIXME Q Buf back in case of error?
     uint8_t frameIndex;
     buffer_handle_t *resultBuffer;
@@ -1359,6 +1363,9 @@ void QCamera3ProcessingChannel::putStreamBufs()
  *==========================================================================*/
 int32_t QCamera3ProcessingChannel::stop()
 {
+    if (mStreamType == CAM_STREAM_TYPE_PREVIEW) {
+        KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_STOP_PREVIEW);
+    }
     int32_t rc = NO_ERROR;
     if(!m_bIsActive) {
         LOGE("Attempt to stop inactive channel");
@@ -3628,7 +3635,7 @@ void QCamera3PicChannel::dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
 void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream)
 {
-    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PIC_CH_STRM_CB);
+    KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CAPTURE_CH_CB);
     //TODO
     //Used only for getting YUV. Jpeg callback will be sent back from channel
     //directly to HWI. Refer to func jpegEvtHandle
