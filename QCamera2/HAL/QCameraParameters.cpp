@@ -990,7 +990,8 @@ QCameraParameters::QCameraParameters()
       m_bInstantCapture(false),
       mAecFrameBound(0),
       mAecSkipDisplayFrameBound(0),
-      m_bQuadraCfa(false)
+      m_bQuadraCfa(false),
+      m_bSmallJpegSize(false)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1122,7 +1123,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bInstantCapture(false),
     mAecFrameBound(0),
     mAecSkipDisplayFrameBound(0),
-    m_bQuadraCfa(false)
+    m_bQuadraCfa(false),
+    m_bSmallJpegSize(false)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -11641,21 +11643,22 @@ int32_t QCameraParameters::setFrameSkip(enum msm_vfe_frame_skip_pattern pattern)
 }
 
 /*===========================================================================
- * FUNCTION   : updateRAW
+ * FUNCTION   : getSensorOutputSize
  *
  * DESCRIPTION: Query sensor output size based on maximum stream dimension
  *
  * PARAMETERS :
  *   @max_dim : maximum stream dimension
+ *   @sensor_dim : sensor dimension
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
+int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim, cam_dimension_t &sensor_dim)
 {
     int32_t rc = NO_ERROR;
-    cam_dimension_t raw_dim, pic_dim;
+    cam_dimension_t pic_dim;
 
     //No need to update RAW dimensions if meta raw is enabled.
     if (m_bMetaRawEnabled) {
@@ -11711,17 +11714,38 @@ int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
         return rc;
     }
 
-    READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, raw_dim);
+    READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
 
-    LOGH("RAW Dimension = %d X %d",raw_dim.width,raw_dim.height);
-    if (raw_dim.width == 0 || raw_dim.height == 0) {
+    LOGH("RAW Dimension = %d X %d",sensor_dim.width,sensor_dim.height);
+    if (sensor_dim.width == 0 || sensor_dim.height == 0) {
         LOGW("Error getting RAW size. Setting to Capability value");
         if (getQuadraCfa()) {
-            raw_dim = m_pCapability->quadra_cfa_dim[0];
+            sensor_dim = m_pCapability->quadra_cfa_dim[0];
         } else {
-            raw_dim = m_pCapability->raw_dim[0];
+            sensor_dim = m_pCapability->raw_dim[0];
         }
     }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : updateRAW
+ *
+ * DESCRIPTION: get sensor output size and update
+ *
+ * PARAMETERS :
+ *   @max_dim : maximum stream dimension
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
+{
+    int32_t rc = NO_ERROR;
+    cam_dimension_t raw_dim;
+
+    getSensorOutputSize(max_dim,raw_dim);
     setRawSize(raw_dim);
     return rc;
 }
@@ -12896,6 +12920,95 @@ int32_t QCameraParameters::setISType()
     }
     return NO_ERROR;
 }
+/*===========================================================================
+* FUNCTION   : setSmallJpegSize
+*
+* DESCRIPTION: Picture ratio greater than VFE down scale factor
+*              set SmallJpegSize flag
+*
+* PARAMETERS :
+*  @cam_dimension_t: sensor dimension
+*                    Snapshot sream dimension
+*
+* RETURN     : None
+*==========================================================================*/
+void QCameraParameters::setSmallJpegSize(cam_dimension_t sensor_dim, cam_dimension_t snap_dim)
+{
+    uint32_t width_ratio;
+    uint32_t height_ratio;
+
+    //Picture ratio is greater than max downscale factor set small jpeg flag
+    width_ratio = CEIL_DIVISION(sensor_dim.width,snap_dim.width);
+    height_ratio = CEIL_DIVISION(sensor_dim.height,snap_dim.height);
+    FATAL_IF(m_pCapability->max_downscale_factor == 0,
+            "FATAL: max_downscale_factor cannot be zero and so assert");
+    if ( (width_ratio > m_pCapability->max_downscale_factor) ||
+          (height_ratio > m_pCapability->max_downscale_factor)) {
+          LOGH("Setting small jpeg size flag to true");
+          m_bSmallJpegSize = true;
+    } else {
+          m_bSmallJpegSize = false;
+    }
+}
+
+/*===========================================================================
+* FUNCTION   : updateSnapshotPpMask
+*
+* DESCRIPTION: Update PP mask for sanpshot stream
+*
+* PARAMETERS :
+*  @stream_config_info: Stream config information
+*
+* RETURN     : int32_t type of status
+*              NO_ERROR  -- success
+*              none-zero failure code
+*==========================================================================*/
+int32_t QCameraParameters::updateSnapshotPpMask(cam_stream_size_info_t &stream_config_info)
+
+{
+    int32_t rc = NO_ERROR;
+    cam_dimension_t sensor_dim, snap_dim;
+    cam_dimension_t max_dim = {0,0};
+
+    // Find the Maximum dimension among all the streams
+    for (uint32_t j = 0; j < stream_config_info.num_streams; j++) {
+         if (stream_config_info.stream_sizes[j].width > max_dim.width) {
+               max_dim.width = stream_config_info.stream_sizes[j].width;
+         }
+         if (stream_config_info.stream_sizes[j].height > max_dim.height) {
+               max_dim.height = stream_config_info.stream_sizes[j].height;
+         }
+    }
+    LOGH("Max Dimension = %d X %d", max_dim.width, max_dim.height);
+    getSensorOutputSize(max_dim,sensor_dim);
+    getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, snap_dim);
+    setSmallJpegSize(sensor_dim,snap_dim);
+
+    //Picture ratio is greater than VFE downscale factor.So, link CPP
+    if ( isSmallJpegSizeEnabled() ) {
+         for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
+              if( stream_config_info.type[k] == CAM_STREAM_TYPE_SNAPSHOT) {
+                  updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
+                  stream_config_info.postprocess_mask[k] =
+                      mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
+                  LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
+                        Format = %d, dt =%d cid =%d subformat =%d, is_type %d",
+                        stream_config_info.type[k],
+                        stream_config_info.stream_sizes[k].width,
+                        stream_config_info.stream_sizes[k].height,
+                        stream_config_info.postprocess_mask[k],
+                        stream_config_info.format[k],
+                        stream_config_info.dt[k],
+                        stream_config_info.vc[k],
+                        stream_config_info.sub_format_type[k],
+                        stream_config_info.is_type[k]);
+                  rc = sendStreamConfigInfo(stream_config_info);
+              }
+         }
+    }
+
+    return rc;
+}
 
 /*===========================================================================
 * FUNCTION   : getISType
@@ -13017,6 +13130,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     stream_config_info.min_stride     = m_pCapability->min_stride;
     stream_config_info.min_scanline   = m_pCapability->min_scanline;
     stream_config_info.batch_size = getBufBatchCount();
+    m_bSmallJpegSize = false;
 
     LOGH("buf_alignment=%d stride X scan=%dx%d batch size = %d\n",
             m_pCapability->buf_alignment,
@@ -13279,6 +13393,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     }
 
     rc = sendStreamConfigInfo(stream_config_info);
+    updateSnapshotPpMask(stream_config_info);
     return rc;
 }
 
@@ -13693,10 +13808,12 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         feature_mask |= CAM_QTI_FEATURE_SW_TNR;
     }
 
-    // Do not enable feature mask for ZSL/non-ZSL/liveshot snapshot except for 4K2k case
+    // Do not enable feature mask for ZSL/non-ZSL/liveshot except for 4K2k case
+    // Enable feature mask for small Jpeg resolutions
     if ((getRecordingHintValue() &&
             (stream_type == CAM_STREAM_TYPE_SNAPSHOT) && is4k2kVideoResolution()) ||
-            (stream_type != CAM_STREAM_TYPE_SNAPSHOT)) {
+            (stream_type != CAM_STREAM_TYPE_SNAPSHOT) ||
+            ((stream_type == CAM_STREAM_TYPE_SNAPSHOT) && isSmallJpegSizeEnabled())) {
         if ((m_nMinRequiredPpMask & CAM_QCOM_FEATURE_SHARPNESS) &&
                 !isOptiZoomEnabled()) {
             feature_mask |= CAM_QCOM_FEATURE_SHARPNESS;
