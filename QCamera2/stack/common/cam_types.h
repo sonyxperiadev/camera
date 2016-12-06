@@ -1849,10 +1849,7 @@ typedef struct {
     uint8_t                ready_status;
     uint8_t                is_output_shift_valid;
     cam_sac_output_shift_t output_shift;
-    uint8_t                is_wide_focus_roi_shift_valid;
-    cam_sac_output_shift_t wide_focus_roi_shift;
-    uint8_t                is_tele_focus_roi_shift_valid;
-    cam_sac_output_shift_t tele_focus_roi_shift;
+    cam_dimension_t        reference_res_for_output_shift;
 } cam_sac_output_info_t;
 
 
