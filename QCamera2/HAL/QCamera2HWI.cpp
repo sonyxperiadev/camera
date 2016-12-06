@@ -42,6 +42,7 @@
 #include <utils/RefBase.h>
 #include <QServiceUtils.h>
 #include <dlfcn.h>
+#include <time.h>
 
 #include "QCamera2HWI.h"
 #include "QCameraBufferMaps.h"
@@ -1840,18 +1841,49 @@ int QCamera2HardwareInterface::openCamera()
     } else {
         CDBG_HIGH("%s: Capabilities are not initialized. Initializing them now.", __func__);
 
-        rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
-        if (rc) {
-            ALOGE("camera_open failed. rc = %d, mCameraHandle = %p", rc, mCameraHandle);
-            return rc;
-        }
+		// Sleep 100 ms
+		unsigned long milisec = 100;
+		struct timespec req = { 0, 0 };
+		time_t sec = (int)(milisec / 1000);
+		milisec = milisec - (sec * 1000);
+		req.tv_sec = sec;
+		req.tv_nsec = milisec * 1000000L;
+		
+		unsigned int nTimeout = 0;
+		while(true)
+		{
+			rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
+			if (rc) {
+				ALOGE("camera_open failed. rc = %d, mCameraHandle = %p", rc, mCameraHandle);
+				return rc;
+			}
 
-        if(NO_ERROR != initCapabilities(mCameraId,mCameraHandle)) {
-            ALOGE("initCapabilities failed.");
-            rc = UNKNOWN_ERROR;
-            goto error_exit;
-        }
-
+			if(NO_ERROR != initCapabilities(mCameraId,mCameraHandle)) {
+				ALOGE("initCapabilities failed.");
+				rc = UNKNOWN_ERROR;
+				goto error_exit;
+			}
+			
+			// If we got capabilities or if the timeout of 10 seconds occurs, break
+			if((gCamCapability[mCameraId]->preview_sizes_tbl[0].width > 0 && gCamCapability[mCameraId]->preview_sizes_tbl[0].height > 0) || nTimeout >= 10000)
+			{
+				ALOGI("camera_open: Getting capabilities succeeded.");
+				break;
+			}
+			
+			if(mJpegClientHandle) 
+			{
+				deinitJpegHandle();
+			}
+			
+			mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
+			mCameraHandle = NULL;
+			
+			// Sleep
+			nTimeout += milisec;
+			nanosleep(&req, NULL);
+		}
+		
         mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
                 camEvtHandle,
                 (void *) this);
