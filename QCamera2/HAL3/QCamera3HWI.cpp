@@ -2766,6 +2766,7 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     bool invalid_metadata = false;
     size_t urgentFrameNumDiff = 0, frameNumDiff = 0;
     size_t loopCount = 1;
+    bool is_metabuf_queued = false;
 
     int32_t *p_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
@@ -2896,14 +2897,16 @@ void QCamera3HardwareInterface::handleBatchMetadata(
         pthread_mutex_lock(&mMutex);
         handleMetadataWithLock(metadata_buf,
                 false /* free_and_bufdone_meta_buf */,
-                (i == 0) /* first metadata in the batch metadata */);
+                (i == 0) /* first metadata in the batch metadata */,
+                &is_metabuf_queued /* if metabuf isqueued or not */);
         pthread_mutex_unlock(&mMutex);
     }
 
     /* BufDone metadata buffer */
-    if (free_and_bufdone_meta_buf) {
+    if (free_and_bufdone_meta_buf && !is_metabuf_queued) {
         mMetadataChannel->bufDone(metadata_buf);
         free(metadata_buf);
+        metadata_buf = NULL;
     }
 }
 
@@ -2930,13 +2933,15 @@ void QCamera3HardwareInterface::notifyError(uint32_t frameNumber,
  *                 the meta buf in this method
  *              @firstMetadataInBatch: Boolean to indicate whether this is the
  *                  first metadata in a batch. Valid only for batch mode
+ *              @p_is_metabuf_queued: Pointer to Boolean to check if metadata
+ *                  buffer is enqueued or not.
  *
  * RETURN     :
  *
  *==========================================================================*/
 void QCamera3HardwareInterface::handleMetadataWithLock(
     mm_camera_super_buf_t *metadata_buf, bool free_and_bufdone_meta_buf,
-    bool firstMetadataInBatch)
+    bool firstMetadataInBatch, bool *p_is_metabuf_queued)
 {
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_HANDLE_METADATA_LKD);
     if ((mFlushPerf) || (ERROR == mState) || (DEINIT == mState)) {
@@ -3190,6 +3195,9 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     QCamera3ProcessingChannel *channel =
                             (QCamera3ProcessingChannel *)iter->stream->priv;
                     channel->queueReprocMetadata(metadata_buf);
+                    if(p_is_metabuf_queued != NULL) {
+                        *p_is_metabuf_queued = true;
+                    }
                     break;
                 }
             }
@@ -5402,7 +5410,8 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
             pthread_mutex_lock(&mMutex);
             handleMetadataWithLock(metadata_buf,
                     true /* free_and_bufdone_meta_buf */,
-                    false /* first frame of batch metadata */ );
+                    false /* first frame of batch metadata */ ,
+                    NULL);
             pthread_mutex_unlock(&mMutex);
         }
     } else if (isInputBuffer) {
