@@ -1461,6 +1461,7 @@ typedef struct {
 
 typedef struct {
     uint8_t num_of_streams;
+    uint8_t ignore_crop; // CPP ignores the CROP in this special mode
     cam_stream_crop_info_t crop_info[MAX_NUM_STREAMS];
 } cam_crop_data_t;
 
