@@ -14799,7 +14799,7 @@ uint8_t QCameraParameters::getNumOfExtraBuffersForImageProc()
             numOfBufs += m_pCapability->stillmore_settings_need.burst_count - 1;
         }
     } else if (isOEMFeatEnabled()) {
-        numOfBufs += 1;
+        numOfBufs += 4;
     }
 
     if (getQuadraCfa()) {
@@ -15876,6 +15876,27 @@ uint8_t QCameraParameters::fdModeInVideo()
 
     LOGD("FD mode in Video : %d", fdvideo);
     return fdvideo;
+}
+
+/*===========================================================================
+ * FUNCTION   : isOEMFeatFrameSkipEnabled
+ *
+ * DESCRIPTION: If OEMFeat processcess alternate frame
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : boolean
+ *==========================================================================*/
+bool QCameraParameters::isOEMFeatFrameSkipEnabled()
+{
+    char value[PROPERTY_VALUE_MAX];
+    uint8_t oemfeatframeskipenabled = 0;
+
+    property_get("persist.camera.imglib.oemfeat1.frskip", value, "0");
+    oemfeatframeskipenabled = (atoi(value) > 0) ? atoi(value) : 0;
+
+    LOGD("isOEMFeatFrameSkipEnabled %d", oemfeatframeskipenabled);
+    return oemfeatframeskipenabled;
 }
 
 /*===========================================================================

@@ -1389,6 +1389,13 @@ bool QCameraParametersIntf::isOEMFeatEnabled()
     return mImpl->isOEMFeatEnabled();
 }
 
+bool QCameraParametersIntf::isOEMFeatFrameSkipEnabled()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isOEMFeatFrameSkipEnabled();
+}
+
 int32_t QCameraParametersIntf::setZslMode(bool value)
 {
     Mutex::Autolock lock(mLock);

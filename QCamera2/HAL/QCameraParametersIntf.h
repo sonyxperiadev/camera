@@ -294,6 +294,7 @@ public:
     int32_t bundleRelatedCameras(bool sync);
     uint8_t fdModeInVideo();
     bool isOEMFeatEnabled();
+    bool isOEMFeatFrameSkipEnabled();
 
     int32_t setZslMode(bool value);
     int32_t updateZSLModeValue(bool value);
