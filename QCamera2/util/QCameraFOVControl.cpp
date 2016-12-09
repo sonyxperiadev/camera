@@ -509,6 +509,16 @@ int32_t QCameraFOVControl::translateInputParams(
                         mFovControlData.zoomTele);
             }
 
+            // Write the user zoom in main and aux param buffers
+            // The user zoom will always correspond to the wider camera
+            paramsMainCam->is_valid[CAM_INTF_PARM_DC_USERZOOM] = 1;
+            paramsAuxCam->is_valid[CAM_INTF_PARM_DC_USERZOOM]  = 1;
+
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_DC_USERZOOM,
+                    mFovControlData.zoomWide);
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_DC_USERZOOM,
+                    mFovControlData.zoomWide);
+
             // Generate FOV-control result
             generateFovControlResult();
         }
