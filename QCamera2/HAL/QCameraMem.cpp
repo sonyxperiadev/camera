@@ -1562,12 +1562,12 @@ void QCameraVideoMemory::deallocate()
 camera_memory_t *QCameraVideoMemory::getMemory(uint32_t index,
         bool metadata) const
 {
-    int i;
     if (index >= mMetaBufCount || (!metadata && index >= mBufferCount))
         return NULL;
 
     if (metadata) {
 #ifdef USE_MEDIA_EXTENSIONS
+        int i;
         media_metadata_buffer *packet = NULL;
 
         for (i = 0; i < mMetaBufCount; i++) {
@@ -1612,6 +1612,40 @@ native_handle_t *QCameraVideoMemory::getNativeHandle(uint32_t index, bool metada
  * FUNCTION   : closeNativeHandle
  *
  * DESCRIPTION: static function to close video native handle.
+ *
+ * PARAMETERS :
+ *   @data  : ptr to video frame to be returned
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCameraVideoMemory::closeNativeHandle(const void *data)
+{
+    int32_t rc = NO_ERROR;
+
+#ifdef USE_MEDIA_EXTENSIONS
+    const media_metadata_buffer *packet =
+            (const media_metadata_buffer *)data;
+    if ((packet != NULL) && (packet->eType ==
+            kMetadataBufferTypeNativeHandleSource)
+            && (packet->pHandle)) {
+        native_handle_close(packet->pHandle);
+        native_handle_delete(packet->pHandle);
+    } else {
+        LOGE("Invalid Data. Could not release");
+        return BAD_VALUE;
+    }
+#else
+   (void)data;  // unused
+#endif
+   return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : closeNativeHandle
+ *
+ * DESCRIPTION: close video native handle and update cached ptrs
  *
  * PARAMETERS :
  *   @data  : ptr to video frame to be returned
@@ -1681,6 +1715,9 @@ int QCameraVideoMemory::closeNativeHandle(const void *data, bool metadata)
     } else {
         LOGW("Warning: Not of type video meta buffer");
     }
+#else
+   (void)data;  // unused
+   (void)metadata;  // unused
 #endif
     return rc;
 }
