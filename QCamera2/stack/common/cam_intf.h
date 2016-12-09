@@ -1119,6 +1119,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_DC_BOKEH_MODE,                uint8_t,                     1);
     INCLUDE(CAM_INTF_PARM_FOV_COMP_ENABLE,              int32_t,                     1);
     INCLUDE(CAM_INTF_META_LED_CALIB_RESULT,             int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_DC_ZOOM,                      int32_t,                     1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
