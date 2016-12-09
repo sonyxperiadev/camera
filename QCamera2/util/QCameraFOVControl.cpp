@@ -685,16 +685,20 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         }
 
         // Get AF status
+        uint32_t afStatusMain = CAM_AF_STATE_INACTIVE;
+        uint32_t afStatusAux  = CAM_AF_STATE_INACTIVE;
         if (metaMain) {
             IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metaMain) {
-                if (((*afState) == CAM_AF_STATE_FOCUSED_LOCKED)     ||
-                    ((*afState) == CAM_AF_STATE_NOT_FOCUSED_LOCKED) ||
-                    ((*afState) == CAM_AF_STATE_PASSIVE_FOCUSED)    ||
-                    ((*afState) == CAM_AF_STATE_PASSIVE_UNFOCUSED)) {
+                if (((*afState) == CAM_AF_STATE_FOCUSED_LOCKED)         ||
+                        ((*afState) == CAM_AF_STATE_NOT_FOCUSED_LOCKED) ||
+                        ((*afState) == CAM_AF_STATE_PASSIVE_FOCUSED)    ||
+                        ((*afState) == CAM_AF_STATE_PASSIVE_UNFOCUSED)) {
                     mFovControlData.status3A.main.af.status = AF_VALID;
                 } else {
                     mFovControlData.status3A.main.af.status = AF_INVALID;
                 }
+                afStatusMain = *afState;
+                LOGD("AF state: Main cam: %d", afStatusMain);
             }
             // WA:Hardcoding dummy lux and focusDistance metadata till that functionality gets added
             mFovControlData.status3A.main.ae.lux         = 1000;
@@ -702,14 +706,16 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         }
         if (metaAux) {
             IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metaAux) {
-                if (((*afState) == CAM_AF_STATE_FOCUSED_LOCKED)     ||
-                    ((*afState) == CAM_AF_STATE_NOT_FOCUSED_LOCKED) ||
-                    ((*afState) == CAM_AF_STATE_PASSIVE_FOCUSED)    ||
-                    ((*afState) == CAM_AF_STATE_PASSIVE_UNFOCUSED)) {
+                if (((*afState) == CAM_AF_STATE_FOCUSED_LOCKED)         ||
+                        ((*afState) == CAM_AF_STATE_NOT_FOCUSED_LOCKED) ||
+                        ((*afState) == CAM_AF_STATE_PASSIVE_FOCUSED)    ||
+                        ((*afState) == CAM_AF_STATE_PASSIVE_UNFOCUSED)) {
                     mFovControlData.status3A.aux.af.status = AF_VALID;
                 } else {
                     mFovControlData.status3A.aux.af.status = AF_INVALID;
                 }
+                afStatusAux = *afState;
+                LOGD("AF state: Aux cam: %d", afStatusAux);
             }
         }
 
@@ -755,6 +761,37 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         } else {
             // Metadata for the master camera was dropped
             metaResult = NULL;
+        }
+
+        // Consolidate the AF status to be sent to the app
+        // Only return focused if both are focused.
+        if (metaMain && metaAux) {
+            if (((afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) ||
+                    (afStatusMain == CAM_AF_STATE_NOT_FOCUSED_LOCKED)) &&
+                    ((afStatusAux == CAM_AF_STATE_FOCUSED_LOCKED) ||
+                    (afStatusAux == CAM_AF_STATE_NOT_FOCUSED_LOCKED))) {
+                // If both indicate focused, return focused.
+                // If either one indicates 'not focused', return 'not focused'.
+                if ((afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) &&
+                        (afStatusAux  == CAM_AF_STATE_FOCUSED_LOCKED)) {
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE,
+                            CAM_AF_STATE_FOCUSED_LOCKED);
+                } else {
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE,
+                            CAM_AF_STATE_NOT_FOCUSED_LOCKED);
+                }
+            } else {
+                // If either one indicates passive state or active scan, return that state
+                if ((afStatusMain != CAM_AF_STATE_FOCUSED_LOCKED) &&
+                        (afStatusMain != CAM_AF_STATE_NOT_FOCUSED_LOCKED)) {
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE, afStatusMain);
+                } else {
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE, afStatusAux);
+                }
+            }
+            IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metaResult) {
+                LOGD("Result AF state: %d", *afState);
+            }
         }
 
         // Generate FOV-control result
