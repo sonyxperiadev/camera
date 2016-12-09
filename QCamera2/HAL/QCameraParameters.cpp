@@ -15887,12 +15887,12 @@ uint8_t QCameraParameters::fdModeInVideo()
  *
  * RETURN     : boolean
  *==========================================================================*/
-bool QCameraParameters::isOEMFeatFrameSkipEnabled()
+uint8_t QCameraParameters::isOEMFeatFrameSkipEnabled()
 {
     char value[PROPERTY_VALUE_MAX];
     uint8_t oemfeatframeskipenabled = 0;
 
-    property_get("persist.camera.imglib.oemfeat1.frskip", value, "0");
+    property_get("persist.camera.imglib.of1.skip", value, "0");
     oemfeatframeskipenabled = (atoi(value) > 0) ? atoi(value) : 0;
 
     LOGD("isOEMFeatFrameSkipEnabled %d", oemfeatframeskipenabled);

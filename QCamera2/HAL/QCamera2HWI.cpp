@@ -7691,9 +7691,9 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
     }
     attr.look_back = mParameters.getZSLBackLookCount();
     attr.post_frame_skip = mParameters.getZSLBurstInterval();
-    if (mParameters.isOEMFeatEnabled() && mParameters.isOEMFeatFrameSkipEnabled()) {
+    if (mParameters.isOEMFeatEnabled()) {
         LOGD("EDGE SMOOTH frameskip enabled");
-        attr.post_frame_skip++;
+        attr.post_frame_skip += mParameters.isOEMFeatFrameSkipEnabled();
     }
     attr.water_mark = mParameters.getZSLQueueDepth();
     attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
