@@ -554,7 +554,8 @@ private:
     static void reprocess_stream_cb_routine(mm_camera_super_buf_t *frame,
                                             QCameraStream *stream,
                                             void *userdata);
-
+    static void secure_stream_cb_routine(mm_camera_super_buf_t *frame,
+            QCameraStream *stream, void *userdata);
     static void releaseCameraMemory(void *data,
                                     void *cookie,
                                     int32_t cbStatus);

@@ -1766,6 +1766,7 @@ typedef struct {
     cam_sub_format_type_t sub_format_type[MAX_NUM_STREAMS];
     cam_frame_margins_t margins[MAX_NUM_STREAMS];
     cam_dimension_t stream_sz_plus_margin[MAX_NUM_STREAMS]; /*stream sizes + margin*/
+    uint8_t is_secure;
 } cam_stream_size_info_t;
 
 typedef enum {

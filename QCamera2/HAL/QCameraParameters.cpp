@@ -981,7 +981,8 @@ QCameraParameters::QCameraParameters()
       mAecFrameBound(0),
       mAecSkipDisplayFrameBound(0),
       m_bQuadraCfa(false),
-      m_bSmallJpegSize(false)
+      m_bSmallJpegSize(false),
+      mSecureStraemType(CAM_STREAM_TYPE_PREVIEW)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1116,7 +1117,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAecFrameBound(0),
     mAecSkipDisplayFrameBound(0),
     m_bQuadraCfa(false),
-    m_bSmallJpegSize(false)
+    m_bSmallJpegSize(false),
+    mSecureStraemType(CAM_STREAM_TYPE_PREVIEW)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -4869,10 +4871,26 @@ int32_t QCameraParameters::setSecureMode(const QCameraParameters& params)
     if ((str != NULL) && (prev_str == NULL || strcmp(str, prev_str) != 0)) {
         LOGD("Secure mode set to KEY: %s", str);
         setSecureMode(str);
+        updateParamEntry(KEY_QC_SECURE_MODE, str);
     } else if (prev_str == NULL || strcmp(prev_str, prop) != 0 ) {
         LOGD("Secure mode set to prop: %s", prop);
         setSecureMode(prop);
     }
+
+    if (isSecureMode() && (m_bZslMode || m_bZslMode_new)) {
+        //Enable NZSl if secure mode
+        setZslMode(FALSE);
+        m_bNeedRestart = true;
+    }
+
+    if (get_cam_type(m_pCapability->camera_index) & CAM_TYPE_SECURE) {
+        LOGD("Secure steam type is CAM_STREAM_TYPE_RAW");
+        mSecureStraemType = CAM_STREAM_TYPE_RAW;
+    } else {
+        LOGD("Secure steam type is CAM_STREAM_TYPE_PREVIEW");
+        mSecureStraemType = CAM_STREAM_TYPE_PREVIEW;
+    }
+
     return NO_ERROR;
 }
 
@@ -6241,7 +6259,7 @@ int32_t QCameraParameters::allocate(uint8_t bufCount)
         return NO_MEMORY;
     }
 
-    rc = m_pParamHeap->allocate(bufCount, sizeof(parm_buffer_t), NON_SECURE);
+    rc = m_pParamHeap->allocate(bufCount, sizeof(parm_buffer_t));
     if(rc != OK) {
         rc = NO_MEMORY;
         LOGE("Error!! Param buffers have not been allocated");
@@ -6328,7 +6346,7 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t
 
     m_pDualCamCmdHeap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
     rc = m_pDualCamCmdHeap->allocate(buf_cnt,
-            sizeof(cam_dual_camera_cmd_info_t), NON_SECURE);
+            sizeof(cam_dual_camera_cmd_info_t));
     if(rc != OK) {
         rc = NO_MEMORY;
         LOGE("Failed to allocate dual cam Heap memory");
@@ -10044,7 +10062,6 @@ int32_t QCameraParameters::setSecureMode(const char *str)
     int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
             PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), str);
     if (value != NAME_NOT_FOUND) {
-        updateParamEntry(KEY_QC_SECURE_MODE, str);
         m_bSecureMode = (value == 0)? false : true;
         return NO_ERROR;
     }
@@ -10284,7 +10301,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_RAW:
-        if ((isRdiMode()) || (getofflineRAW())|| (getQuadraCfa())) {
+        if ((isRdiMode()) || (getofflineRAW())|| (getQuadraCfa()) || (isSecureMode())) {
             format = m_pCapability->rdi_mode_stream_fmt;
         } else if (mPictureFormat >= CAM_FORMAT_YUV_RAW_8BIT_YUYV) {
             format = (cam_format_t)mPictureFormat;
@@ -14330,6 +14347,8 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     stream_config_info.batch_size = getBufBatchCount();
     m_bSmallJpegSize = false;
 
+    stream_config_info.is_secure = isSecureMode() ? 1 : 0;
+
     LOGH("buf_alignment=%d stride X scan=%dx%d batch size = %d\n",
             m_pCapability->buf_alignment,
             m_pCapability->min_stride,
@@ -14397,7 +14416,33 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 stream_config_info.num_streams++;
             }
         }
-
+    }  else if(isSecureMode()) {
+        if (mSecureStraemType == CAM_STREAM_TYPE_RAW) {
+            raw_capture = true;
+            cam_dimension_t max_dim = {0,0};
+            updateRAW(max_dim);
+            stream_config_info.type[stream_config_info.num_streams] =
+                    CAM_STREAM_TYPE_RAW;
+            getStreamDimension(CAM_STREAM_TYPE_RAW,
+                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            updatePpFeatureMask(CAM_STREAM_TYPE_RAW);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                    mStreamPpMask[CAM_STREAM_TYPE_RAW];
+            getStreamFormat(CAM_STREAM_TYPE_RAW,
+                    stream_config_info.format[stream_config_info.num_streams]);
+        }else {
+            stream_config_info.type[stream_config_info.num_streams] =
+                    CAM_STREAM_TYPE_PREVIEW;
+            getStreamDimension(CAM_STREAM_TYPE_PREVIEW,
+                    stream_config_info.stream_sizes[stream_config_info.num_streams]);
+            setStreamPpMask(CAM_STREAM_TYPE_PREVIEW, CAM_QCOM_FEATURE_NONE);
+            stream_config_info.postprocess_mask[stream_config_info.num_streams] =
+                    mStreamPpMask[CAM_STREAM_TYPE_PREVIEW];
+            getStreamFormat(CAM_STREAM_TYPE_PREVIEW,
+                    stream_config_info.format[stream_config_info.num_streams]);
+            stream_config_info.is_type[stream_config_info.num_streams] = mIsTypePreview;
+        }
+        stream_config_info.num_streams++;
     } else if (!isCapture) {
         if (m_bRecordingHint) {
             setISType();

@@ -2374,7 +2374,7 @@ cam_capability_t *QCamera2HardwareInterface::getCapabilities(mm_camera_ops_t *op
     }
 
     /* Allocate memory for capability buffer */
-    rc = capabilityHeap->allocate(1, sizeof(cam_capability_t), NON_SECURE);
+    rc = capabilityHeap->allocate(1, sizeof(cam_capability_t));
     if(rc != OK) {
         LOGE("No memory for capability");
         goto allocate_failed;
@@ -2747,7 +2747,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
         property_get("persist.camera.raw_yuv", value, "0");
         raw_yuv = atoi(value) > 0 ? true : false;
 
-        if (isRdiMode() || raw_yuv) {
+        if (isRdiMode() || raw_yuv || isSecureMode()) {
             bufferCnt = zslQBuffers + minCircularBufNum;
         } else if (mParameters.isZSLMode()) {
             bufferCnt = zslQBuffers + minCircularBufNum;
@@ -2993,8 +2993,13 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
             } else {
                 cam_dimension_t dim;
                 int minFPS, maxFPS;
-                QCameraGrallocMemory *grallocMemory =
-                    new QCameraGrallocMemory(mGetMemory);
+                QCameraGrallocMemory *grallocMemory = NULL;
+
+                if (isSecureMode()) {
+                    grallocMemory = new QCameraGrallocMemory(mGetMemory, QCAMERA_MEM_TYPE_SECURE);
+                }else {
+                    grallocMemory = new QCameraGrallocMemory(mGetMemory);
+                }
 
                 mParameters.getStreamDimension(stream_type, dim);
                 /* we are interested only in maxfps here */
@@ -3051,12 +3056,26 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
     case CAM_STREAM_TYPE_SNAPSHOT:
-    case CAM_STREAM_TYPE_RAW:
     case CAM_STREAM_TYPE_OFFLINE_PROC:
         mem = new QCameraStreamMemory(mGetMemory,
                 bCachedMem,
                 (bPoolMem) ? &m_memoryPool : NULL,
                 stream_type);
+        break;
+    case CAM_STREAM_TYPE_RAW:
+        if(isSecureMode()) {
+            mem = new QCameraStreamMemory(mGetMemory,
+                    bCachedMem,
+                    (bPoolMem) ? &m_memoryPool : NULL,
+                    stream_type,
+                    QCAMERA_MEM_TYPE_SECURE);
+            LOGH("Allocating %d secure buffers of size %d ", bufferCnt, size);
+        } else {
+            mem = new QCameraStreamMemory(mGetMemory,
+                    bCachedMem,
+                    (bPoolMem) ? &m_memoryPool : NULL,
+                    stream_type);
+        }
         break;
     case CAM_STREAM_TYPE_METADATA:
         {
@@ -3147,14 +3166,7 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
     }
 
     if (bufferCnt > 0) {
-        if (mParameters.isSecureMode() &&
-            (stream_type == CAM_STREAM_TYPE_RAW) &&
-            (mParameters.isRdiMode())) {
-            LOGD("Allocating %d secure buffers of size %d ", bufferCnt, size);
-            rc = mem->allocate(bufferCnt, size, SECURE);
-        } else {
-            rc = mem->allocate(bufferCnt, size, NON_SECURE);
-        }
+        rc = mem->allocate(bufferCnt, size);
         if (rc < 0) {
             delete mem;
             return NULL;
@@ -3236,7 +3248,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateMiscBuf(
             return NULL;
         }
 
-        rc = miscBuf->allocate(bufNum, bufSize, NON_SECURE);
+        rc = miscBuf->allocate(bufNum, bufSize);
         if (rc < 0) {
             LOGE("Failed to allocate misc buffer memory");
             delete miscBuf;
@@ -3300,13 +3312,13 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
             bool raw_yuv = false;
             property_get("persist.camera.raw_yuv", value, "0");
             raw_yuv = atoi(value) > 0 ? true : false;
-            if ((mParameters.isZSLMode()) || (isRdiMode()) || (raw_yuv)) {
+            if ((mParameters.isZSLMode()) || (isRdiMode()) || (raw_yuv) || isSecureMode()) {
                 streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
             } else {
                 streamInfo->streaming_mode = CAM_STREAMING_MODE_BURST;
                 streamInfo->num_of_burst = mParameters.getNumOfSnapshots();
             }
-            if (mParameters.isSecureMode() && mParameters.isRdiMode()) {
+            if (isSecureMode()) {
                 streamInfo->is_secure = SECURE;
             } else {
                 streamInfo->is_secure = NON_SECURE;
@@ -3366,8 +3378,10 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
                 streamInfo->is_type = IS_TYPE_NONE;
             }
         }
-        if (mParameters.isSecureMode()) {
+        if (isSecureMode()) {
             streamInfo->is_secure = SECURE;
+        } else {
+            streamInfo->is_secure = NON_SECURE;
         }
         // If SAT enabled, don't add preview stream to Bundled queue
         if (isDualCamera()) {
@@ -3464,7 +3478,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
         LOGE("buffer count should be lesser than max camera : %d", bufCount);
         return NULL;
     }
-    rc = streamInfoBuf->allocate(bufCount, sizeof(cam_stream_info_t), NON_SECURE);
+    rc = streamInfoBuf->allocate(bufCount, sizeof(cam_stream_info_t));
     if (rc < 0) {
         LOGE("allocateStreamInfoBuf: Failed to allocate stream info memory");
         delete streamInfoBuf;
@@ -3581,7 +3595,7 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamUserBuf(
 
     if (size > 0) {
         // Allocating one buffer for all batch buffers
-        rc = mem->allocate(1, size, NON_SECURE);
+        rc = mem->allocate(1, size);
         if (rc < 0) {
             delete mem;
             return NULL;
@@ -3824,6 +3838,12 @@ int QCamera2HardwareInterface::startPreview()
     // start preview stream
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
         rc = startChannel(QCAMERA_CH_TYPE_ZSL);
+    } else if (isSecureMode()) {
+        if (mParameters.getSecureStreamType() == CAM_STREAM_TYPE_RAW) {
+            rc = startChannel(QCAMERA_CH_TYPE_RAW);
+        }else {
+            rc = startChannel(QCAMERA_CH_TYPE_PREVIEW);
+        }
     } else {
         rc = startChannel(QCAMERA_CH_TYPE_PREVIEW);
     }
@@ -6145,7 +6165,7 @@ int QCamera2HardwareInterface::registerFaceImage(void *img_ptr,
         return NO_MEMORY;
     }
 
-    rc = imgBuf->allocate(1, config->input_buf_planes.plane_info.frame_len, NON_SECURE);
+    rc = imgBuf->allocate(1, config->input_buf_planes.plane_info.frame_len);
     if (rc < 0) {
         LOGE("Unable to allocate heap memory for image buf");
         delete imgBuf;
@@ -7428,7 +7448,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
     if (((mParameters.fdModeInVideo())
             || (mParameters.getDcrf() == true)
             || (mParameters.getRecordingHintValue() != true))
-            && (!mParameters.isSecureMode())) {
+            && (!isSecureMode())) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_ANALYSIS,
                 NULL, this);
         if (rc != NO_ERROR) {
@@ -7646,6 +7666,9 @@ int32_t QCamera2HardwareInterface::addRawChannel()
     if (mParameters.getofflineRAW()) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
                 NULL, this);
+    } else if(isSecureMode()) {
+        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
+                secure_stream_cb_routine, this);
     } else {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
                 raw_stream_cb_routine, this);
@@ -7760,7 +7783,7 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
         return rc;
     }
 
-    if (!mParameters.isSecureMode()) {
+    if (!isSecureMode()) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_ANALYSIS,
                 NULL, this);
         if (rc != NO_ERROR) {
@@ -8672,6 +8695,12 @@ int32_t QCamera2HardwareInterface::preparePreview()
 
         if (mParameters.getofflineRAW() && !mParameters.getQuadraCfa()) {
             addChannel(QCAMERA_CH_TYPE_RAW);
+        }
+    } else if(isSecureMode()) {
+        if (mParameters.getSecureStreamType() == CAM_STREAM_TYPE_RAW) {
+            rc = addChannel(QCAMERA_CH_TYPE_RAW);
+        } else {
+            rc = addChannel(QCAMERA_CH_TYPE_PREVIEW);
         }
     } else {
         bool recordingHint = mParameters.getRecordingHintValue();
@@ -10244,8 +10273,7 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
                         } else {
                             int32_t rc = pme->mMetadataMem->allocate(
                                     dw->args.metadataAllocArgs.bufferCnt,
-                                    dw->args.metadataAllocArgs.size,
-                                    NON_SECURE);
+                                    dw->args.metadataAllocArgs.size);
                             if (rc < 0) {
                                 delete pme->mMetadataMem;
                                 pme->mMetadataMem = NULL;

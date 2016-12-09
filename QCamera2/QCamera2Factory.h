@@ -69,6 +69,7 @@ public:
 
 private:
     int mNumOfCameras;
+    int mNumOfCameras_expose;
     hal_desc *mHalDescriptors;
     const camera_module_callbacks_t *mCallbacks;
 };
