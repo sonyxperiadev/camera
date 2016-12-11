@@ -531,7 +531,14 @@ static void mm_app_zsl_notify_cb(mm_camera_super_buf_t *bufs,
         mm_app_dump_frame(m_frame, "zsl_main", "yuv", m_frame->frame_idx);
     }*/
 
+    if ( pme->flip_mode ) {
+        int32_t prmFlip = pme->flip_mode;
+        metadata_buffer_t* md_data = (metadata_buffer_t*)(md_frame->buffer);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(md_data, CAM_INTF_PARM_FLIP, prmFlip);
+    }
+
     if ( pme->enable_reproc && ( NULL != pme->reproc_stream ) ) {
+
 
         if (NULL != md_frame) {
             rc = mm_app_do_reprocess(pme,
