@@ -105,6 +105,7 @@ public:
     bool isZSLMode();
     bool isRdiMode();
     bool isSecureMode();
+    cam_stream_type_t getSecureStreamType();
     bool isNoDisplayMode();
     bool isWNREnabled();
     bool isTNRSnapshotEnabled();
@@ -294,6 +295,7 @@ public:
     int32_t bundleRelatedCameras(bool sync);
     uint8_t fdModeInVideo();
     bool isOEMFeatEnabled();
+    uint8_t isOEMFeatFrameSkipEnabled();
 
     int32_t setZslMode(bool value);
     int32_t updateZSLModeValue(bool value);

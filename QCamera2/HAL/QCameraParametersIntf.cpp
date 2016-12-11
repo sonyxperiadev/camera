@@ -226,6 +226,13 @@ bool QCameraParametersIntf::isSecureMode()
     return mImpl->isSecureMode();
 }
 
+cam_stream_type_t QCameraParametersIntf::getSecureStreamType()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getSecureStreamType();
+}
+
 bool QCameraParametersIntf::isNoDisplayMode()
 {
     Mutex::Autolock lock(mLock);
@@ -1387,6 +1394,13 @@ bool QCameraParametersIntf::isOEMFeatEnabled()
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->isOEMFeatEnabled();
+}
+
+uint8_t QCameraParametersIntf::isOEMFeatFrameSkipEnabled()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isOEMFeatFrameSkipEnabled();
 }
 
 int32_t QCameraParametersIntf::setZslMode(bool value)

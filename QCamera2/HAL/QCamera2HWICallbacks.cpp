@@ -851,7 +851,9 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
 
     uint32_t idx = frame->buf_idx;
 
-    pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
+    if (!pme->mParameters.isSecureMode()){
+        pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
+    }
 
     if(pme->m_bPreviewStarted) {
         LOGI("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
@@ -934,7 +936,8 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     // Handle preview data callback
     if (pme->m_channels[QCAMERA_CH_TYPE_CALLBACK] == NULL) {
         if (pme->needSendPreviewCallback() && !discardFrame &&
-                (!pme->mParameters.isSceneSelectionEnabled())) {
+                (!pme->mParameters.isSceneSelectionEnabled()) &&
+                    (!pme->mParameters.isSecureMode())) {
             frame->cache_flags |= CPU_HAS_READ;
             int32_t rc = pme->sendPreviewCallback(stream, memory, idx);
             if (NO_ERROR != rc) {
@@ -1214,6 +1217,82 @@ void QCamera2HardwareInterface::nodisplay_preview_stream_cb_routine(
 }
 
 /*===========================================================================
+ * FUNCTION   : secure_stream_cb_routine
+ *
+ * DESCRIPTION: helper function to handle secure frame
+ *
+ * PARAMETERS :
+ *   @super_frame : received super buffer
+ *   @stream      : stream object
+ *   @userdata    : user data ptr
+ *
+ * RETURN    : None
+ *
+ * NOTE      : caller passes the ownership of super_frame, it's our
+ *             responsibility to free super_frame once it's done.
+ *==========================================================================*/
+void QCamera2HardwareInterface::secure_stream_cb_routine(
+        mm_camera_super_buf_t *super_frame,
+        QCameraStream *stream, void *userdata)
+{
+    ATRACE_CALL();
+    LOGH("Enter");
+    QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
+    if (pme == NULL ||
+        pme->mCameraHandle == NULL ||
+        pme->mCameraHandle->camera_handle != super_frame->camera_handle){
+        LOGE("camera obj not valid");
+        free(super_frame);
+        return;
+    }
+    mm_camera_buf_def_t *frame = super_frame->bufs[0];
+    if (NULL == frame) {
+        LOGE("preview frame is NLUL");
+        goto end;
+    }
+
+    if (pme->isSecureMode()) {
+        // Secure Mode
+        // We will do QCAMERA_NOTIFY_CALLBACK and share FD in case of secure mode
+        QCameraMemory *memObj = (QCameraMemory *)frame->mem_info;
+        if (NULL == memObj) {
+            LOGE("memObj is NULL");
+            stream->bufDone(frame->buf_idx);
+            goto end;
+        }
+
+        int fd = memObj->getFd(frame->buf_idx);
+        if (pme->mDataCb != NULL &&
+                pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) {
+            LOGD("Secure frame fd =%d for index = %d ", fd, frame->buf_idx);
+            // Prepare Callback structure
+            qcamera_callback_argm_t cbArg;
+            memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
+            cbArg.cb_type    = QCAMERA_NOTIFY_CALLBACK;
+            cbArg.msg_type   = CAMERA_MSG_PREVIEW_FRAME;
+#ifndef VANILLA_HAL
+            cbArg.ext1       = CAMERA_FRAME_DATA_FD;
+            cbArg.ext2       = fd;
+#endif
+            cbArg.user_data  = (void *) &frame->buf_idx;
+            cbArg.cookie     = stream;
+            cbArg.release_cb = returnStreamBuffer;
+            pme->m_cbNotifier.notifyCallback(cbArg);
+        } else {
+            LOGH("No need to process secure frame, msg not enabled");
+            stream->bufDone(frame->buf_idx);
+        }
+    } else {
+        LOGH("No need to process secure frame, not in secure mode");
+        stream->bufDone(frame->buf_idx);
+    }
+end:
+    free(super_frame);
+    LOGH("Exit");
+    return;
+}
+
+/*===========================================================================
  * FUNCTION   : rdi_mode_stream_cb_routine
  *
  * DESCRIPTION: helper function to handle RDI frame from preview stream in
@@ -1235,6 +1314,9 @@ void QCamera2HardwareInterface::rdi_mode_stream_cb_routine(
   void * userdata)
 {
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL1_RDI_MODE_STRM_CB);
+    QCameraMemory *previewMemObj = NULL;
+    camera_memory_t *preview_mem = NULL;
+
     LOGH("RDI_DEBUG Enter");
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     if (pme == NULL ||
@@ -1259,77 +1341,40 @@ void QCamera2HardwareInterface::rdi_mode_stream_cb_routine(
         pme->debugShowPreviewFPS();
     }
     // Non-secure Mode
-    if (!pme->isSecureMode()) {
-        QCameraMemory *previewMemObj = (QCameraMemory *)frame->mem_info;
-        if (NULL == previewMemObj) {
-            LOGE("previewMemObj is NULL");
-            stream->bufDone(frame->buf_idx);
-            goto end;
-        }
+    previewMemObj = (QCameraMemory *)frame->mem_info;
+    if (NULL == previewMemObj) {
+        LOGE("previewMemObj is NULL");
+        stream->bufDone(frame->buf_idx);
+        goto end;
+    }
 
-        camera_memory_t *preview_mem = previewMemObj->getMemory(frame->buf_idx, false);
-        if (NULL != preview_mem) {
-            previewMemObj->cleanCache(frame->buf_idx);
-            // Dump RAW frame
-            pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_RAW);
-            // Notify Preview callback frame
-            if (pme->needProcessPreviewFrame(frame->frame_idx) &&
-                    pme->mDataCb != NULL &&
-                    pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) {
-                qcamera_callback_argm_t cbArg;
-                memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
-                cbArg.cb_type    = QCAMERA_DATA_CALLBACK;
-                cbArg.msg_type   = CAMERA_MSG_PREVIEW_FRAME;
-                cbArg.data       = preview_mem;
-                cbArg.user_data = (void *) &frame->buf_idx;
-                cbArg.cookie     = stream;
-                cbArg.release_cb = returnStreamBuffer;
-                // Preset cache flags to be handled when the buffer comes back
-                frame->cache_flags |= CPU_HAS_READ;
-                pme->m_cbNotifier.notifyCallback(cbArg);
-            } else {
-                LOGE("preview_mem is NULL");
-                stream->bufDone(frame->buf_idx);
-            }
-        }
-        else {
-            LOGE("preview_mem is NULL");
-            stream->bufDone(frame->buf_idx);
-        }
-    } else {
-        // Secure Mode
-        // We will do QCAMERA_NOTIFY_CALLBACK and share FD in case of secure mode
-        QCameraMemory *previewMemObj = (QCameraMemory *)frame->mem_info;
-        if (NULL == previewMemObj) {
-            LOGE("previewMemObj is NULL");
-            stream->bufDone(frame->buf_idx);
-            goto end;
-        }
-
-        int fd = previewMemObj->getFd(frame->buf_idx);
-        LOGD("Preview frame fd =%d for index = %d ", fd, frame->buf_idx);
+    preview_mem = previewMemObj->getMemory(frame->buf_idx, false);
+    if (NULL != preview_mem) {
+        previewMemObj->cleanCache(frame->buf_idx);
+        // Dump RAW frame
+        pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_RAW);
+        // Notify Preview callback frame
         if (pme->needProcessPreviewFrame(frame->frame_idx) &&
                 pme->mDataCb != NULL &&
                 pme->msgTypeEnabledWithLock(CAMERA_MSG_PREVIEW_FRAME) > 0) {
-            // Prepare Callback structure
             qcamera_callback_argm_t cbArg;
             memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
-            cbArg.cb_type    = QCAMERA_NOTIFY_CALLBACK;
+            cbArg.cb_type    = QCAMERA_DATA_CALLBACK;
             cbArg.msg_type   = CAMERA_MSG_PREVIEW_FRAME;
-#ifndef VANILLA_HAL
-            cbArg.ext1       = CAMERA_FRAME_DATA_FD;
-            cbArg.ext2       = fd;
-#endif
-            cbArg.user_data  = (void *) &frame->buf_idx;
+            cbArg.data       = preview_mem;
+            cbArg.user_data = (void *) &frame->buf_idx;
             cbArg.cookie     = stream;
             cbArg.release_cb = returnStreamBuffer;
             // Preset cache flags to be handled when the buffer comes back
             frame->cache_flags |= CPU_HAS_READ;
             pme->m_cbNotifier.notifyCallback(cbArg);
         } else {
-            LOGH("No need to process preview frame, return buffer");
+            LOGE("preview_mem is NULL");
             stream->bufDone(frame->buf_idx);
         }
+    } else {
+        LOGE("preview_mem is NULL");
+        stream->bufDone(frame->buf_idx);
     }
 end:
     free(super_frame);

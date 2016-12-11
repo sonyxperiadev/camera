@@ -662,6 +662,7 @@ public:
     bool isZSLMode() {return m_bZslMode;};
     bool isRdiMode() {return m_bRdiMode;};
     bool isSecureMode() {return m_bSecureMode;};
+    cam_stream_type_t getSecureStreamType() {return mSecureStraemType;};
     bool isNoDisplayMode() {return m_bNoDisplayMode;};
     bool isWNREnabled() {return m_bWNROn;};
     bool isTNRSnapshotEnabled() {return m_bTNRSnapshotOn;};
@@ -869,6 +870,7 @@ public:
     int32_t bundleRelatedCameras(bool sync);
     uint8_t fdModeInVideo();
     bool isOEMFeatEnabled() { return m_bOEMFeatEnabled; }
+    uint8_t isOEMFeatFrameSkipEnabled();
 
     int32_t setZslMode(bool value);
     int32_t updateZSLModeValue(bool value);
@@ -1271,6 +1273,7 @@ private:
     uint32_t mActiveState;
     uint32_t mActiveCamera;
     bool m_bSmallJpegSize;
+    cam_stream_type_t mSecureStraemType;
 };
 
 }; // namespace qcamera

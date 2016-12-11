@@ -80,6 +80,7 @@ QCamera2Factory::QCamera2Factory()
     mHalDescriptors = NULL;
     mCallbacks = NULL;
     mNumOfCameras = get_num_of_cameras();
+    mNumOfCameras_expose = get_num_of_cameras_to_expose();
     int bDualCamera = 0;
     char propDefault[PROPERTY_VALUE_MAX];
     char prop[PROPERTY_VALUE_MAX];
@@ -304,7 +305,7 @@ int QCamera2Factory::set_torch_mode(const char* camera_id, bool on)
  *==========================================================================*/
 int QCamera2Factory::getNumberOfCameras()
 {
-    return mNumOfCameras;
+    return mNumOfCameras_expose;
 }
 
 /*===========================================================================

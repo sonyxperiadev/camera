@@ -1214,6 +1214,45 @@ ERROR:
     return rc;
 }
 
+int setManualWhiteBalance(mm_camera_test_obj_t *test_obj, cam_manual_wb_parm_t *manual_info){
+
+    int rc = MM_CAMERA_OK;
+    cam_manual_wb_parm_t param;
+
+    rc = initBatchUpdate(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch camera parameter update failed\n");
+        goto ERROR;
+    }
+
+    memset(&param, 0, sizeof(cam_manual_wb_parm_t));
+    if (manual_info->type == CAM_MANUAL_WB_MODE_GAIN){
+        param.type = CAM_MANUAL_WB_MODE_GAIN;
+        param.gains.r_gain = manual_info->gains.r_gain;
+        param.gains.g_gain = manual_info->gains.g_gain;
+        param.gains.b_gain = manual_info->gains.b_gain;
+    }else {
+        param.type = CAM_MANUAL_WB_MODE_CCT;
+        param.cct = manual_info->cct;
+    }
+
+
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
+            CAM_INTF_PARM_WB_MANUAL, param)) {
+        LOGE("Manual White balance parameter not added to batch\n");
+        rc = -1;
+        goto ERROR;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch parameters commit failed\n");
+        goto ERROR;
+    }
+
+ERROR:
+      return rc;
+}
 int setWhiteBalance(mm_camera_test_obj_t *test_obj, cam_wb_mode_type mode)
 {
     int rc = MM_CAMERA_OK;
@@ -1511,6 +1550,34 @@ ERROR:
     return rc;
 }
 
+int setEffect(mm_camera_test_obj_t *test_obj, cam_effect_mode_type effect)
+{
+    int rc = MM_CAMERA_OK;
+
+    rc = initBatchUpdate(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch camera parameter update failed\n");
+        goto ERROR;
+    }
+
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
+            CAM_INTF_PARM_EFFECT, effect)) {
+        LOGE("Scene parameter not added to batch\n");
+        rc = -1;
+        goto ERROR;
+    }
+
+    rc = commitSetBatch(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        LOGE("Batch parameters commit failed\n");
+        goto ERROR;
+    }
+
+    LOGE("Scene set to: %d",  (int)effect);
+
+ERROR:
+    return rc;
+}
 int setScene(mm_camera_test_obj_t *test_obj, cam_scene_mode_type scene)
 {
     int rc = MM_CAMERA_OK;
@@ -2067,6 +2134,18 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                 }
             }
             break;
+       case MM_CAMERA_LIB_SPL_EFFECT:
+           if (NULL != in_data) {
+               cam_effect_mode_type effect =  *(( int * )in_data);
+               rc = setEffect(&handle->test_obj, effect);
+
+               if (rc != MM_CAMERA_OK) {
+                        LOGE("setEffect() err=%d\n",
+                                    rc);
+                        goto EXIT;
+                }
+           }
+           break;
         case MM_CAMERA_LIB_BESTSHOT:
             if ( NULL != in_data ) {
                 cam_scene_mode_type scene = *(( int * )in_data);
@@ -2166,14 +2245,27 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                 }
             }
             break;
+        case MM_CAMERA_LIB_MN_WB:
+            if ( NULL != in_data ) {
+                cam_manual_wb_parm_t *manual_info = (( cam_manual_wb_parm_t* )in_data);
+
+                rc = setManualWhiteBalance(&handle->test_obj, manual_info);
+                if (rc != MM_CAMERA_OK) {
+                      LOGE("etManualWhiteBalance() err=%d\n",
+                                    rc);
+                     goto EXIT;
+                }
+            }
+            break;
         case MM_CAMERA_LIB_WB:
             if ( NULL != in_data ) {
                 cam_wb_mode_type wb = *(( int * )in_data);
+
                 rc = setWhiteBalance(&handle->test_obj, wb);
                 if (rc != MM_CAMERA_OK) {
-                        LOGE("setWhiteBalance() err=%d\n",
+                      LOGE("setWhiteBalance() err=%d\n",
                                     rc);
-                        goto EXIT;
+                     goto EXIT;
                 }
             }
             break;

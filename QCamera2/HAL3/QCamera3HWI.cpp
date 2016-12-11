@@ -1685,8 +1685,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         return -EINVAL;
     }
     /* Check whether we have zsl stream or 4k video case */
-    if (isZsl && m_bIsVideo) {
-        LOGE("Currently invalid configuration ZSL&Video!");
+    if (isZsl && m_bIs4KVideo) {
+        LOGE("Currently invalid configuration ZSL & 4K Video!");
         pthread_mutex_unlock(&mMutex);
         return -EINVAL;
     }
@@ -5119,7 +5119,7 @@ void QCamera3HardwareInterface::dump(int fd)
  *==========================================================================*/
 int QCamera3HardwareInterface::flush(bool restartChannels)
 {
-    KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_FLUSH);
+    KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_STOP_PREVIEW);
     int32_t rc = NO_ERROR;
 
     LOGD("Unblocking Process Capture Request");
@@ -5229,7 +5229,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
  *==========================================================================*/
 int QCamera3HardwareInterface::flushPerf()
 {
-    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_FLUSH_PREF);
+    KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_STOP_PREVIEW);
     int32_t rc = 0;
     struct timespec timeout;
     bool timed_wait = false;
@@ -11525,7 +11525,7 @@ void QCamera3HardwareInterface::getLogLevel()
         gCamHal3LogLevel = (uint32_t)val;
     }
 
-    property_get("persist.camera.kpi.debug", prop, "1");
+    property_get("persist.camera.kpi.debug", prop, "0");
     gKpiDebugLevel = atoi(prop);
 
     property_get("persist.camera.global.debug", prop, "0");

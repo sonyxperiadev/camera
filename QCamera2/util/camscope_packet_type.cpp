@@ -191,7 +191,10 @@ const char * camscope_atrace_names[CAMSCOPE_EVENT_NAME_SIZE] = {
     "initJpeg",
     "releaseJpegJobData",
     "releasePPJobData",
-    "encodeData"
+    "encodeData",
+    "preview_stream_cb_routine",
+    "stop_preview",
+    "capture_channel_cb_routine"
 };
 
 /*===========================================================================

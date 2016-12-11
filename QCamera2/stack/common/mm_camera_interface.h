@@ -947,8 +947,11 @@ typedef struct {
     mm_camera_ops_t *ops;
 } mm_camera_vtbl_t;
 
-/* return number of cameras */
+/* return total number of cameras */
 uint8_t get_num_of_cameras();
+
+/* return number of cameras to expose*/
+uint8_t get_num_of_cameras_to_expose();
 
 /* return reference pointer of camera vtbl */
 int32_t camera_open(uint8_t camera_idx, mm_camera_vtbl_t **camera_obj);
@@ -995,6 +998,8 @@ uint32_t mm_stream_calc_lcm (int32_t num1, int32_t num2);
 struct camera_info *get_cam_info(uint32_t camera_id, cam_sync_type_t *pCamType);
 
 uint8_t is_yuv_sensor(uint32_t camera_id);
+
+cam_sync_type_t get_cam_type(uint32_t camera_id);
 
 /*Dual camera related utility functions*/
 
