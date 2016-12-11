@@ -606,6 +606,16 @@ private:
 #endif
     //param key for HFR batch size
     static const char KEY_QC_VIDEO_BATCH_SIZE[];
+
+    static const char KEY_QC_SUPPORTED_METADATA_TYPES[];
+    static const char QC_METADATA_ASD[];
+    static const char QC_METADATA_FD[];
+    static const char QC_METADATA_HDR[];
+    static const char QC_METADATA_LED_CALIB[];
+
+    //Key to enable dual LED calibration
+    static const char KEY_QC_LED_CALIBRATION[];
+
     enum {
         CAMERA_ORIENTATION_UNKNOWN = 0,
         CAMERA_ORIENTATION_PORTRAIT = 1,
@@ -896,6 +906,7 @@ public:
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera();
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
+    int32_t getDualLedCalibration() {return m_dualLedCalibration;};
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1085,6 +1096,7 @@ private:
     String8 createFpsString(cam_fps_range_t &fps);
     String8 createZoomRatioValuesString(uint32_t *zoomRatios, size_t length);
     int32_t setDualLedCalibration(const QCameraParameters& params);
+    int32_t setDualLedCalibration(const char *str);
     int32_t setAdvancedCaptureMode();
 
     // ops for batch set/get params with server
@@ -1140,6 +1152,7 @@ private:
     static const QCameraMap<int> SEE_MORE_MODES_MAP[];
     static const QCameraMap<int> STILL_MORE_MODES_MAP[];
     static const QCameraMap<int> NOISE_REDUCTION_MODES_MAP[];
+    static const QCameraMap<int> METADATA_TYPES_MAP[];
 
     /*Common for all objects*/
     static uint32_t sessionId[MM_CAMERA_MAX_NUM_SENSORS];

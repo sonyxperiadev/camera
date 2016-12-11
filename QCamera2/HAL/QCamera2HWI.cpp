@@ -6869,6 +6869,64 @@ int32_t QCamera2HardwareInterface::processHDRData(
 }
 
 /*===========================================================================
+ * FUNCTION   : processLEDCalibration
+ *
+ * DESCRIPTION: process LED calibration result
+ *
+ * PARAMETERS :
+ *   @value : Calibaration result
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::processLEDCalibration(int32_t value)
+{
+    int32_t rc = NO_ERROR;
+
+    if (mParameters.getDualLedCalibration()) {
+        LOGH("Dual LED calibration value = %d", value);
+        int32_t data_len = sizeof(value);
+        int32_t buffer_len = sizeof(int)       //meta type
+                + sizeof(int)                  //data len
+                + data_len;                    //data
+        camera_memory_t *buffer = mGetMemory(-1,
+                buffer_len, 1, mCallbackCookie);
+        if ( NULL == buffer ) {
+            LOGE("Not enough memory for data");
+            return NO_MEMORY;
+        }
+
+        int *pData = (int *)buffer->data;
+        if (pData == NULL) {
+            LOGE("memory data ptr is NULL");
+            buffer->release(buffer);
+            return UNKNOWN_ERROR;
+        }
+
+        pData[0] = QCAMERA_METADATA_LED_CALIB;
+        pData[1] = (int)data_len;
+        pData[2] = value;
+
+        qcamera_callback_argm_t cbArg;
+        memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
+        cbArg.cb_type = QCAMERA_DATA_CALLBACK;
+        cbArg.msg_type = CAMERA_MSG_META_DATA;
+        cbArg.data = buffer;
+        cbArg.user_data = buffer;
+        cbArg.cookie = this;
+        cbArg.release_cb = releaseCameraMemory;
+        int32_t rc = m_cbNotifier.notifyCallback(cbArg);
+        if (rc != NO_ERROR) {
+            LOGE("fail sending notification");
+            buffer->release(buffer);
+        }
+    }
+    return rc;
+}
+
+
+/*===========================================================================
  * FUNCTION   : transAwbMetaToParams
  *
  * DESCRIPTION: translate awb params from metadata callback to QCameraParametersIntf

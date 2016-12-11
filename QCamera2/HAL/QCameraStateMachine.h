@@ -156,7 +156,7 @@ typedef enum {
     QCAMERA_INTERNAL_EVT_CROP_INFO,          // crop info
     QCAMERA_INTERNAL_EVT_ASD_UPDATE,         // asd update result
     QCAMERA_INTERNAL_EVT_READY_FOR_SNAPSHOT, // Ready for Prepare Snapshot
-    QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE, // Led mode override
+    QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE,  // Led mode override
     QCAMERA_INTERNAL_EVT_AWB_UPDATE,         // awb update result
     QCAMERA_INTERNAL_EVT_AE_UPDATE,          // ae update result
     QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE,   // focus position update result
@@ -164,6 +164,7 @@ typedef enum {
     QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK,   // retro burst AEC unlock event
     QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE,   // ZSL capture done event
     QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL,   // FOV Control event
+    QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE,   //LED calibration result update
     QCAMERA_INTERNAL_EVT_MAX
 } qcamera_internal_evt_type_t;
 
@@ -181,6 +182,7 @@ typedef struct {
         cam_3a_params_t ae_data;
         cam_focus_pos_info_t focus_pos;
         cam_asd_hdr_scene_data_t hdr_data;
+        int32_t led_calib_result;
     };
 } qcamera_sm_internal_evt_payload_t;
 
