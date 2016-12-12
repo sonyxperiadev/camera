@@ -10801,8 +10801,10 @@ bool QCamera3HardwareInterface::isOnEncoder(
         const cam_dimension_t max_viewfinder_size,
         uint32_t width, uint32_t height)
 {
-    return (width > (uint32_t)max_viewfinder_size.width ||
-            height > (uint32_t)max_viewfinder_size.height);
+    return ((width > (uint32_t)max_viewfinder_size.width) ||
+            (height > (uint32_t)max_viewfinder_size.height) ||
+            (width > (uint32_t)VIDEO_4K_WIDTH) ||
+            (height > (uint32_t)VIDEO_4K_HEIGHT));
 }
 
 /*===========================================================================
