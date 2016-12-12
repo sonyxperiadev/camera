@@ -2569,6 +2569,25 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         pme->fillDualCameraFOVControl();
     }
 
+    IF_META_AVAILABLE(int32_t, led_result, CAM_INTF_META_LED_CALIB_RESULT, pMetaData) {
+        qcamera_sm_internal_evt_payload_t *payload =
+                (qcamera_sm_internal_evt_payload_t *)malloc(
+                sizeof(qcamera_sm_internal_evt_payload_t));
+        if (NULL != payload) {
+            memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+            payload->evt_type = QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE;
+            payload->led_calib_result = (int32_t)*led_result;
+            int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+            if (rc != NO_ERROR) {
+                LOGW("LED_calibration result update failed");
+                free(payload);
+                payload = NULL;
+            }
+        } else {
+            LOGE("No memory for asd_update qcamera_sm_internal_evt_payload_t");
+        }
+    }
+
     stream->bufDone(super_frame);
     free(super_frame);
 
