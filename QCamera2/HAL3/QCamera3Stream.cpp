@@ -288,7 +288,6 @@ QCamera3Stream::QCamera3Stream(uint32_t camHandle,
         mDataCB(NULL),
         mUserData(NULL),
         mDataQ(releaseFrameData, this),
-        mTimeoutFrameQ(NULL, this),
         mStreamInfoBuf(NULL),
         mStreamBufs(NULL),
         mBufDefs(NULL),
@@ -522,7 +521,7 @@ int32_t QCamera3Stream::start()
     int32_t rc = 0;
 
     mDataQ.init();
-    mTimeoutFrameQ.init();
+    mTimeoutFrameQ.clear();
     if (mBatchSize)
         mFreeBatchBufQ.init();
     rc = mProcTh.launch(dataProcRoutine, this);
@@ -563,18 +562,14 @@ int32_t QCamera3Stream::timeoutFrame(int32_t bufIdx)
 {
     LOGD("E\n");
     int32_t rc;
-    if (mTimeoutFrameQ.enqueue((void *)bufIdx)) {
-        rc = mProcTh.sendCmd(CAMERA_CMD_TYPE_TIMEOUT, FALSE, FALSE);
-    } else {
-        LOGD("Stream thread is not active, no ops here");
-        rc = NO_ERROR;
+    {
+        Mutex::Autolock lock(mTimeoutFrameQLock);
+        mTimeoutFrameQ.push_back(bufIdx);
     }
+    rc = mProcTh.sendCmd(CAMERA_CMD_TYPE_TIMEOUT, FALSE, FALSE);
     LOGD("X\n");
     return rc;
 }
-
-
-
 
 /*===========================================================================
  * FUNCTION   : processDataNotify
@@ -676,7 +671,18 @@ void *QCamera3Stream::dataProcRoutine(void *data)
         switch (cmd) {
         case CAMERA_CMD_TYPE_TIMEOUT:
             {
-                int32_t bufIdx = (int32_t)(pme->mTimeoutFrameQ.dequeue());
+                int32_t bufIdx;
+                {
+                    Mutex::Autolock lock(pme->mTimeoutFrameQLock);
+                    if (pme->mTimeoutFrameQ.size()) {
+                        auto itr = pme->mTimeoutFrameQ.begin();
+                        bufIdx = *itr;
+                        itr = pme->mTimeoutFrameQ.erase(itr);
+                    } else {
+                        LOGE("Timeout command received but Q is empty");
+                        break;
+                    }
+                }
                 pme->cancelBuffer(bufIdx);
                 break;
             }
@@ -702,7 +708,7 @@ void *QCamera3Stream::dataProcRoutine(void *data)
             LOGH("Exit");
             /* flush data buf queue */
             pme->mDataQ.flush();
-            pme->mTimeoutFrameQ.flush();
+            pme->mTimeoutFrameQ.clear();
             pme->flushFreeBatchBufQ();
             running = 0;
             break;
