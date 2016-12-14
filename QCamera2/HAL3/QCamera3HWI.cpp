@@ -341,6 +341,32 @@ const QCamera3HardwareInterface::QCameraMap<
     { QCAMERA3_INSTANT_AEC_AGGRESSIVE_CONVERGENCE, CAM_AEC_AGGRESSIVE_CONVERGENCE},
     { QCAMERA3_INSTANT_AEC_FAST_CONVERGENCE, CAM_AEC_FAST_CONVERGENCE},
 };
+
+const QCamera3HardwareInterface::QCameraMap<
+        qcamera3_ext_exposure_meter_mode_t,
+        cam_auto_exposure_mode_type> QCamera3HardwareInterface::AEC_MODES_MAP[] = {
+    { QCAMERA3_EXP_METER_MODE_FRAME_AVERAGE, CAM_AEC_MODE_FRAME_AVERAGE },
+    { QCAMERA3_EXP_METER_MODE_CENTER_WEIGHTED, CAM_AEC_MODE_CENTER_WEIGHTED },
+    { QCAMERA3_EXP_METER_MODE_SPOT_METERING, CAM_AEC_MODE_SPOT_METERING },
+    { QCAMERA3_EXP_METER_MODE_SMART_METERING, CAM_AEC_MODE_SMART_METERING },
+    { QCAMERA3_EXP_METER_MODE_USER_METERING, CAM_AEC_MODE_USER_METERING },
+    { QCAMERA3_EXP_METER_MODE_SPOT_METERING_ADV, CAM_AEC_MODE_SPOT_METERING_ADV },
+    { QCAMERA3_EXP_METER_MODE_CENTER_WEIGHTED_ADV, CAM_AEC_MODE_CENTER_WEIGHTED_ADV },
+};
+
+const QCamera3HardwareInterface::QCameraMap<
+        qcamera3_ext_iso_mode_t,
+        cam_iso_mode_type> QCamera3HardwareInterface::ISO_MODES_MAP[] = {
+    { QCAMERA3_ISO_MODE_AUTO, CAM_ISO_MODE_AUTO },
+    { QCAMERA3_ISO_MODE_DEBLUR, CAM_ISO_MODE_DEBLUR },
+    { QCAMERA3_ISO_MODE_100, CAM_ISO_MODE_100 },
+    { QCAMERA3_ISO_MODE_200, CAM_ISO_MODE_200 },
+    { QCAMERA3_ISO_MODE_400, CAM_ISO_MODE_400 },
+    { QCAMERA3_ISO_MODE_800, CAM_ISO_MODE_800 },
+    { QCAMERA3_ISO_MODE_1600, CAM_ISO_MODE_1600 },
+    { QCAMERA3_ISO_MODE_3200, CAM_ISO_MODE_3200 },
+};
+
 camera3_device_ops_t QCamera3HardwareInterface::mCameraOps = {
     .initialize                         = QCamera3HardwareInterface::initialize,
     .configure_streams                  = QCamera3HardwareInterface::configure_streams,
@@ -8856,6 +8882,60 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         staticInfo.update(QCAMERA3_AVAILABLE_BINNING_CORRECTION_MODES,
                 avail_binning_modes, size);
     }
+
+    if (gCamCapability[cameraId]->supported_aec_modes_cnt > 0) {
+        int32_t available_aec_modes[CAM_AEC_MODE_MAX];
+        size = 0;
+        count = MIN(gCamCapability[cameraId]->supported_aec_modes_cnt, CAM_AEC_MODE_MAX);
+        for (size_t i = 0; i < count; i++) {
+            int32_t val = lookupFwkName(AEC_MODES_MAP, METADATA_MAP_SIZE(AEC_MODES_MAP),
+                    gCamCapability[cameraId]->supported_aec_modes[i]);
+            if (NAME_NOT_FOUND != val)
+                available_aec_modes[size++] = val;
+        }
+        staticInfo.update(QCAMERA3_EXPOSURE_METER_AVAILABLE_MODES,
+                available_aec_modes, size);
+    }
+
+    if (gCamCapability[cameraId]->supported_iso_modes_cnt > 0) {
+        int32_t available_iso_modes[CAM_ISO_MODE_MAX];
+        size = 0;
+        count = MIN(gCamCapability[cameraId]->supported_iso_modes_cnt, CAM_ISO_MODE_MAX);
+        for (size_t i = 0; i < count; i++) {
+            int32_t val = lookupFwkName(ISO_MODES_MAP, METADATA_MAP_SIZE(ISO_MODES_MAP),
+                    gCamCapability[cameraId]->supported_iso_modes[i]);
+            if (NAME_NOT_FOUND != val)
+                available_iso_modes[size++] = val;
+        }
+        staticInfo.update(QCAMERA3_ISO_AVAILABLE_MODES,
+                available_iso_modes, size);
+    }
+
+    int64_t available_exp_time_range[EXPOSURE_TIME_RANGE_CNT];
+    for (size_t i = 0; i < count; i++)
+        available_exp_time_range[i] = gCamCapability[cameraId]->exposure_time_range[i];
+    staticInfo.update(QCAMERA3_EXP_TIME_RANGE,
+            available_exp_time_range, EXPOSURE_TIME_RANGE_CNT);
+
+    int32_t available_saturation_range[4];
+    available_saturation_range[0] = gCamCapability[cameraId]->saturation_ctrl.min_value;
+    available_saturation_range[1] = gCamCapability[cameraId]->saturation_ctrl.max_value;
+    available_saturation_range[2] = gCamCapability[cameraId]->saturation_ctrl.def_value;
+    available_saturation_range[3] = gCamCapability[cameraId]->saturation_ctrl.step;
+    staticInfo.update(QCAMERA3_SATURATION_RANGE,
+            available_saturation_range, 4);
+
+    uint8_t is_hdr_values[2];
+    is_hdr_values[0] = 0;
+    is_hdr_values[1] = 1;
+    staticInfo.update(QCAMERA3_STATS_IS_HDR_SCENE_VALUES,
+            is_hdr_values, 2);
+
+    float is_hdr_confidence_range[2];
+    is_hdr_confidence_range[0] = 0.0;
+    is_hdr_confidence_range[1] = 1.0;
+    staticInfo.update(QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE_RANGE,
+            is_hdr_confidence_range, 2);
 
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
