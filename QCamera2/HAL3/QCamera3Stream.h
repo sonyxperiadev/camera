@@ -112,7 +112,10 @@ private:
     void *mUserData;
 
     QCameraQueue     mDataQ;
-    QCameraQueue     mTimeoutFrameQ;
+
+    List<int32_t> mTimeoutFrameQ;
+    Mutex mTimeoutFrameQLock;
+
     QCameraCmdThread mProcTh; // thread for dataCB
 
     QCamera3HeapMemory *mStreamInfoBuf;

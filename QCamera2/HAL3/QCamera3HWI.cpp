@@ -3803,7 +3803,7 @@ void QCamera3HardwareInterface::orchestrateResult(
         assert(0);
     } else {
         if (frameworkFrameNumber == EMPTY_FRAMEWORK_FRAME_NUMBER) {
-            LOGD("CAM_DEBUG Internal Request drop the result");
+            LOGD("Internal Request drop the result");
         } else {
             result->frame_number = frameworkFrameNumber;
             mCallbackOps->process_capture_result(mCallbackOps, result);
@@ -3833,7 +3833,7 @@ void QCamera3HardwareInterface::orchestrateNotify(camera3_notify_msg_t *notify_m
         assert(0);
     } else {
         if (frameworkFrameNumber == EMPTY_FRAMEWORK_FRAME_NUMBER) {
-            LOGE("CAM_DEBUG Internal Request drop the notifyCb");
+            LOGD("Internal Request drop the notifyCb");
         } else {
             notify_msg->message.shutter.frame_number = frameworkFrameNumber;
             mCallbackOps->notify(mCallbackOps, notify_msg);
@@ -3958,7 +3958,7 @@ int32_t FrameNumberRegistry::getFrameworkFrameNumber(uint32_t internalFrameNumbe
     Mutex::Autolock lock(mRegistryLock);
     auto itr = _register.find(internalFrameNumber);
     if (itr == _register.end()) {
-        LOGE("CAM_DEBUG: Cannot find internal#: %d", internalFrameNumber);
+        LOGE("Cannot find internal#: %d", internalFrameNumber);
         return -ENOENT;
     }
 
@@ -10069,7 +10069,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
             expCompensation = gCamCapability[mCameraId]->exposure_compensation_min;
         if (expCompensation > gCamCapability[mCameraId]->exposure_compensation_max)
             expCompensation = gCamCapability[mCameraId]->exposure_compensation_max;
-        ALOGE("CAM_DEBUG: Setting compensation:%d", expCompensation);
+        LOGD("Setting compensation:%d", expCompensation);
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_EXPOSURE_COMPENSATION,
                 expCompensation)) {
             rc = BAD_VALUE;
