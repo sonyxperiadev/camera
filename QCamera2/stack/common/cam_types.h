@@ -1467,9 +1467,15 @@ typedef struct {
 } cam_stream_crop_info_t;
 
 typedef struct {
+    float widthMargins;  /*Width margin in %*/
+    float heightMargins; /*Height margin in %*/
+} cam_frame_margins_t;
+
+typedef struct {
     uint8_t num_of_streams;
     uint8_t ignore_crop; // CPP ignores the CROP in this special mode
     cam_stream_crop_info_t crop_info[MAX_NUM_STREAMS];
+    cam_frame_margins_t margins; // Margins used by dual camera with spatial alignment block
 } cam_crop_data_t;
 
 typedef struct {
@@ -1749,11 +1755,6 @@ typedef enum {
     CAM_3A_SYNC_FOLLOW,   /* Master->Slave: Master updates slave */
     CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
 } cam_3a_sync_mode_t;
-
-typedef struct {
-    float widthMargins;  /*Width margin in %*/
-    float heightMargins; /*Height margin in %*/
-} cam_frame_margins_t;
 
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];

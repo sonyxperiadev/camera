@@ -207,6 +207,7 @@ public:
     metadata_buffer_t* processResultMetadata(metadata_buffer_t* metaMainCam,
             metadata_buffer_t* metaAuxCam);
     fov_control_result_t getFovControlResult();
+    cam_frame_margins_t getFrameMargins(int8_t masterCamera);
 
 private:
     QCameraFOVControl();
