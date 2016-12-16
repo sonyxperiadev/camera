@@ -31,18 +31,44 @@
 #define __QCAMERAFOVCONTROLSETTINGS_H__
 
 // Main camera fallback mechanism for low light and macro scene
+// If set to 1, low light and macro scene will force the transition from narrow FOV to
+// wide FOV camera
+// If set to 0, these conditions are ignored and the forced transition from narrow FOV to
+// wide FOV camera will not take place
 #define FOVC_MAIN_CAM_FALLBACK_MECHANISM        (1)
 
 // camera mode settings
+
+// This setting will enable the snapshot postprocessing.
+// If set to 1, it will enable capturing snapshots from both the cameras and feeding those
+// to snapshot postprocessing algorithm.
+// If set to 0, a snapshot is captured only from the master camera session at any time.
 #define FOVC_CAM_SNAPSHOT_PP_ENABLE             (1)
+
+// This setting indicates the minimum zoom value for the snapshot postprocessing.
+// Snapshot postprocessing is only enabled for zoom equal to and higher than this value.
 #define FOVC_CAM_SNAPSHOT_PP_ZOOM_MIN           (1.5)
+
+// This setting indicates the maximum zoom value for the snapshot postprocessing.
+// Snapshot postprocessing is only enabled for zoom equal to and lower than this value.
 #define FOVC_CAM_SNAPSHOT_PP_ZOOM_MAX           (2.75)
+
+// This setting indicates the minimum lux value for snapshot postprocessing.
+// If the current lux is lower than this value, snapshot postprocessing will be disabled
 #define FOVC_CAM_SNAPSHOT_PP_LUX_MIN            (100)
 
 // camcorder mode settings
+
+// This setting will enable the snapshot postprocessing.
+// If set to 1, it will enable capturing snapshots from both the cameras and feeding those
+// to snapshot postprocessing algorithm.
+// If set to 0, a snapshot is captured only from the master camera session at any time.
 #define FOVC_CAMCORDER_SNAPSHOT_PP_ENABLE       (0)
 
 // Main and Aux camera switch settings
+// These values indicates the lux amd min focus distance thresholds to switch the preview
+// from main to aux camera. If the current lux or focus distance values are lower than
+// these thresholds, camera preview will not switch from main to aux.
 #define FOVC_AUXCAM_SWITCH_LUX_MIN              (100)
 #define FOVC_AUXCAM_SWITCH_FOCUS_DIST_CM_MIN    (15)
 
