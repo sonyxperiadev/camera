@@ -2698,10 +2698,10 @@ void mm_camera_debug_log(const cam_modules_t module,
                   now->tm_hour, now->tm_min, now->tm_sec, tv.tv_usec, getpid(),gettid(),
                   cam_dbg_level_to_str[level], cam_loginfo[module].name,
                   line, func, str_buffer);
+        fprintf(cam_log_fd, "%s", new_str_buffer);
     } else {
         LOGE("Invalid gmtime");
     }
-    fprintf(cam_log_fd, "%s", new_str_buffer);
     pthread_mutex_unlock(&dbg_log_mutex);
   }
 
