@@ -6158,7 +6158,7 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
 
     IF_META_AVAILABLE(int32_t, meteringMode, CAM_INTF_PARM_AEC_ALGO_TYPE, metadata) {
-        camMetadata.update(QCAMERA3_EXPOSURE_METERING_MODE,
+        camMetadata.update(QCAMERA3_EXPOSURE_METER,
                 meteringMode, 1);
     }
 
@@ -10662,9 +10662,9 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    if (frame_settings.exists(QCAMERA3_EXPOSURE_METERING_MODE)) {
+    if (frame_settings.exists(QCAMERA3_EXPOSURE_METER)) {
         int32_t* exposure_metering_mode =
-                frame_settings.find(QCAMERA3_EXPOSURE_METERING_MODE).data.i32;
+                frame_settings.find(QCAMERA3_EXPOSURE_METER).data.i32;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_AEC_ALGO_TYPE,
                 *exposure_metering_mode)) {
             rc = BAD_VALUE;
