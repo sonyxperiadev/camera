@@ -13388,22 +13388,24 @@ int32_t QCameraParameters::commitSetBatch()
         return NO_INIT;
     }
 
-    if (i < CAM_INTF_PARM_MAX) {
-        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
-            m_pParamBuf);
-    }
-
     if (i < CAM_INTF_PARM_MAX && isDualCamera()) {
+
         rc = m_pFovControl->translateInputParams(m_pParamBuf, m_pParamBufAux);
         if (rc != NO_ERROR) {
             LOGE("FOV-control: Failed to translate params for aux camera");
             return rc;
         }
+
         rc = commitSetBatchAux();
         if (rc != NO_ERROR) {
-            LOGE("Failed to set params for Aux camera");
+            LOGE("FOV-control: Failed to set params for Aux camera");
             return rc;
         }
+    }
+
+    if (i < CAM_INTF_PARM_MAX) {
+        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+            m_pParamBuf);
     }
 
     if (rc == NO_ERROR) {
