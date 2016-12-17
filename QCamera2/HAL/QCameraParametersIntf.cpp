@@ -767,6 +767,13 @@ bool QCameraParametersIntf::isSnapshotFlipChanged()
     return mImpl->isSnapshotFlipChanged();
 }
 
+bool QCameraParametersIntf::isZoomChanged()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isZoomChanged();
+}
+
 void QCameraParametersIntf::setHDRSceneEnable(bool bflag)
 {
     Mutex::Autolock lock(mLock);

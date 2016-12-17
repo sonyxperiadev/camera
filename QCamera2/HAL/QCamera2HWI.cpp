@@ -9603,6 +9603,13 @@ int QCamera2HardwareInterface::commitParameterChanges()
         // update number of snapshot based on committed parameters setting
         rc = mParameters.setNumOfSnapshot();
     }
+
+    if (isDualCamera() &&
+        mParameters.isZoomChanged()) {
+        // If zoom changes, get the updated FOV-control result and if needed send the dual
+        // camera parameters to backend
+        processDualCamFovControl();
+    }
     return rc;
 }
 
