@@ -1119,6 +1119,11 @@ private:
     int32_t commitParamChanges();
     void updateViewAngles();
 
+    //Update Frame Number for super parameter
+    int32_t updateFrameNumber();
+    int32_t SyncDCParams();
+    void setSyncDCParams();
+
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
     static const QCameraMap<cam_auto_exposure_mode_type> AUTO_EXPOSURE_MAP[];
@@ -1289,6 +1294,9 @@ private:
     uint32_t mActiveCamera;
     bool m_bSmallJpegSize;
     cam_stream_type_t mSecureStraemType;
+    //Frame number for super parameter
+    uint32_t mFrameNumber;
+    uint32_t mSyncDCParam;
 };
 
 }; // namespace qcamera

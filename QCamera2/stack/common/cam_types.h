@@ -2375,6 +2375,8 @@ typedef enum {
     CAM_INTF_META_LED_CALIB_RESULT,
     /* Dual camera - zoom value for the other camera */
     CAM_INTF_PARM_DC_ZOOM,
+    /* Dual camera sync parameter */
+    CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
