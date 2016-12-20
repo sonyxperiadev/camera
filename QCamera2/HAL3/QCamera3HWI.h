@@ -449,6 +449,7 @@ private:
     uint8_t m_bSwTnrPreview;
     uint8_t m_bTnrVideo;
     uint8_t m_debug_avtimer;
+    uint8_t m_cacModeDisabled;
 
     /* Data structure to store pending request */
     typedef struct {

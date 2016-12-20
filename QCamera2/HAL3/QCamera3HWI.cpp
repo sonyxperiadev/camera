@@ -474,6 +474,10 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_debug_avtimer = (uint8_t)atoi(prop);
     LOGI("AV timer enabled: %d", m_debug_avtimer);
 
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.cacmode.disable", prop, "0");
+    m_cacModeDisabled = (uint8_t)atoi(prop);
+
     //Load and read GPU library.
     lib_surface_utils = NULL;
     LINK_get_surface_pixel_alignment = NULL;
@@ -1668,11 +1672,19 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         m_bEisEnable = false;
     }
 
+    char prop[PROPERTY_VALUE_MAX];
+    uint8_t forceEnableTnr = 0;
+    memset(prop, 0, sizeof(prop));
+    property_get("debug.camera.tnr.forceenable", prop, "0");
+    forceEnableTnr = (uint8_t)atoi(prop);
+
     /* Logic to enable/disable TNR based on specific config size/etc.*/
     if ((m_bTnrPreview || m_bTnrVideo) && m_bIsVideo &&
             ((videoWidth == 1920 && videoHeight == 1080) ||
             (videoWidth == 1280 && videoHeight == 720)) &&
             (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE))
+        m_bTnrEnabled = true;
+    else if (forceEnableTnr)
         m_bTnrEnabled = true;
 
     /* Check if num_streams is sane */
@@ -3996,6 +4008,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
     CameraMetadata meta;
     bool isVidBufRequested = false;
     camera3_stream_buffer_t *pInputBuffer = NULL;
+    char prop[PROPERTY_VALUE_MAX];
 
     pthread_mutex_lock(&mMutex);
 
@@ -4129,9 +4142,14 @@ int QCamera3HardwareInterface::processCaptureRequest(
         ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_META_STREAM_INFO, mStreamConfigInfo);
 
-        int32_t tintless_value = 1;
+        //Disable tintless only if the property is set to 0
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.tintless.enable", prop, "1");
+        int32_t tintless_value = atoi(prop);
+
         ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_PARM_TINTLESS, tintless_value);
+
         //Disable CDS for HFR mode or if DIS/EIS is on.
         //CDS is a session parameter in the backend/ISP, so need to be set/reset
         //after every configure_stream
@@ -6451,6 +6469,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                 if (fwk_cacMode != resultCacMode) {
                     resultCacMode = fwk_cacMode;
                 }
+                //Check if CAC is disabled by property
+                if (m_cacModeDisabled) {
+                    resultCacMode = ANDROID_COLOR_CORRECTION_ABERRATION_MODE_OFF;
+                }
+
                 LOGD("fwk_cacMode=%d resultCacMode=%d", fwk_cacMode, resultCacMode);
                 camMetadata.update(ANDROID_COLOR_CORRECTION_ABERRATION_MODE, &resultCacMode, 1);
             } else {
