@@ -760,6 +760,7 @@ public:
     bool isPreviewFlipChanged() { return m_bPreviewFlipChanged; };
     bool isVideoFlipChanged() { return m_bVideoFlipChanged; };
     bool isSnapshotFlipChanged() { return m_bSnapshotFlipChanged; };
+    bool isZoomChanged() { return m_bZoomChanged; };
     void setHDRSceneEnable(bool bflag);
     int32_t updateAWBParams(cam_awb_params_t &awb_params);
 
@@ -1118,6 +1119,11 @@ private:
     int32_t commitParamChanges();
     void updateViewAngles();
 
+    //Update Frame Number for super parameter
+    int32_t updateFrameNumber();
+    int32_t SyncDCParams();
+    void setSyncDCParams();
+
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
     static const QCameraMap<cam_auto_exposure_mode_type> AUTO_EXPOSURE_MAP[];
@@ -1203,6 +1209,7 @@ private:
     bool m_bPreviewFlipChanged;        // if flip setting for preview changed
     bool m_bVideoFlipChanged;          // if flip setting for video changed
     bool m_bSnapshotFlipChanged;       // if flip setting for snapshot changed
+    bool m_bZoomChanged;               // if zoom value changed
     bool m_bFixedFrameRateSet;      // Indicates that a fixed frame rate is set
     qcamera_thermal_mode m_ThermalMode; // adjust fps vs adjust frameskip
     cam_dimension_t m_LiveSnapshotSize; // live snapshot size
@@ -1287,6 +1294,9 @@ private:
     uint32_t mActiveCamera;
     bool m_bSmallJpegSize;
     cam_stream_type_t mSecureStraemType;
+    //Frame number for super parameter
+    uint32_t mFrameNumber;
+    uint32_t mSyncDCParam;
 };
 
 }; // namespace qcamera

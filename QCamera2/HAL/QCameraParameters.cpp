@@ -951,6 +951,7 @@ QCameraParameters::QCameraParameters()
       m_bPreviewFlipChanged(false),
       m_bVideoFlipChanged(false),
       m_bSnapshotFlipChanged(false),
+      m_bZoomChanged(false),
       m_bFixedFrameRateSet(false),
       m_bHDREnabled(false),
       m_bLocalHDREnabled(false),
@@ -1000,7 +1001,9 @@ QCameraParameters::QCameraParameters()
       mAecSkipDisplayFrameBound(0),
       m_bQuadraCfa(false),
       m_bSmallJpegSize(false),
-      mSecureStraemType(CAM_STREAM_TYPE_PREVIEW)
+      mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
+      mFrameNumber(0),
+      mSyncDCParam(0)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1136,7 +1139,9 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAecSkipDisplayFrameBound(0),
     m_bQuadraCfa(false),
     m_bSmallJpegSize(false),
-    mSecureStraemType(CAM_STREAM_TYPE_PREVIEW)
+    mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
+    mFrameNumber(0),
+    mSyncDCParam(0)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -3108,8 +3113,10 @@ int32_t QCameraParameters::setZoom(const QCameraParameters& params)
     int prevZoomLevel = getInt(KEY_ZOOM);
     if (prevZoomLevel == zoomLevel) {
         LOGD("No value change in zoom %d %d", prevZoomLevel, zoomLevel);
+        m_bZoomChanged = false;
         return NO_ERROR;
     }
+    m_bZoomChanged = true;
 
     return setZoom(zoomLevel);
 }
@@ -6221,6 +6228,7 @@ int32_t QCameraParameters::initDefaultParameters()
 
     //Setup dual-camera
     setDcrf();
+    setSyncDCParams();
 
     // For Aux Camera of dual camera Mode,
     // by default set no display mode
@@ -12460,6 +12468,80 @@ int32_t QCameraParameters::getRelatedCamCalibration(
 }
 
 /*===========================================================================
+ * FUNCTION   : setSyncDCParams
+ *
+ * DESCRIPTION: Enable/Disable sync Dual-camera Parameters
+ *              Set this parameter when Dual camera needs to sync
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::setSyncDCParams()
+{
+    uint32_t temp_mSyncDCParam = 0;
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+
+    //Keep it enable by default.
+    //It will be used for Dual camera sync parameters
+    property_get("persist.camera.syncDCParams.en", prop, "1");
+    temp_mSyncDCParam = atoi(prop);
+
+    if (MM_CAMERA_DUAL_CAM == mActiveState) {
+        mSyncDCParam = temp_mSyncDCParam;
+    }
+}
+
+
+/*===========================================================================
+ * FUNCTION   : SyncDCParams
+ *
+ * DESCRIPTION: Add sync dual camera parameter if this super parameter applies
+ *              to all related camera.
+                This is the indication to MCT that this parameter needs to
+ *              synchronized. There will be another parameter entry in
+                other camera with different values
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::SyncDCParams()
+{
+    //Add dual-parameter in parameters
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+        CAM_INTF_PARM_SYNC_DC_PARAMETERS, mSyncDCParam)) {
+        LOGE("Failed to update table");
+        return BAD_VALUE;
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : updateFrameNumber
+ *
+ * DESCRIPTION: update frame number and add frame number in parameters
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateFrameNumber()
+{
+    mFrameNumber++;
+    //Add frame number in parameters
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_FRAME_NUMBER,
+            mFrameNumber)) {
+        LOGE("Failed to update table");
+        return BAD_VALUE;
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : initBatchUpdate
  *
  * DESCRIPTION: init camera parameters buf entries
@@ -12899,6 +12981,8 @@ void *QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_ADV_CAPTURE_MODE, metadata);
         case CAM_INTF_META_VIDEO_STAB_MODE:
             return POINTER_OF_META(CAM_INTF_META_VIDEO_STAB_MODE, metadata);
+        case CAM_INTF_PARM_SYNC_DC_PARAMETERS:
+            return POINTER_OF_META(CAM_INTF_PARM_SYNC_DC_PARAMETERS, metadata);
         default:
             LOGE("meta ID %d is not found", meta_id);
             return NULL;
@@ -13327,6 +13411,8 @@ uint32_t QCameraParameters::getSizeofParam(cam_intf_parm_type_t param_id)
           return SIZE_OF_PARAM(CAM_INTF_PARM_ADV_CAPTURE_MODE, metadata);
         case CAM_INTF_META_VIDEO_STAB_MODE:
           return SIZE_OF_PARAM(CAM_INTF_META_VIDEO_STAB_MODE, metadata);
+        case CAM_INTF_PARM_SYNC_DC_PARAMETERS:
+          return SIZE_OF_PARAM(CAM_INTF_PARM_SYNC_DC_PARAMETERS, metadata);
         default:
           LOGE("parameter is not found");
           return 0;
@@ -13387,23 +13473,37 @@ int32_t QCameraParameters::commitSetBatch()
         LOGE("Ops not initialized");
         return NO_INIT;
     }
-
+    if (isDualCamera()) {
+        /* Add frame number logic for HAL1 in dual camera
+         * to synchronize parameters in MCT
+         */
+        updateFrameNumber();
+        SyncDCParams();
+    }
     if (i < CAM_INTF_PARM_MAX) {
         rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
             m_pParamBuf);
     }
 
-    if (i < CAM_INTF_PARM_MAX && isDualCamera()) {
+    if ((i < CAM_INTF_PARM_MAX) && isDualCamera()) {
+        // Translate input parameters from main camera to create parameter set for aux camera
         rc = m_pFovControl->translateInputParams(m_pParamBuf, m_pParamBufAux);
+
         if (rc != NO_ERROR) {
             LOGE("FOV-control: Failed to translate params for aux camera");
             return rc;
         }
+
         rc = commitSetBatchAux();
         if (rc != NO_ERROR) {
-            LOGE("Failed to set params for Aux camera");
+            LOGE("FOV-control: Failed to set params for Aux camera");
             return rc;
         }
+    }
+
+    if (i < CAM_INTF_PARM_MAX) {
+        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+            m_pParamBuf);
     }
 
     if (rc == NO_ERROR) {
@@ -15279,6 +15379,19 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
                 feature_mask |= CAM_QTI_FEATURE_SAT;
                 LOGH("SAT feature mask set");
             }
+        }
+    }
+
+    if (stream_type == CAM_STREAM_TYPE_VIDEO ||
+        stream_type == CAM_STREAM_TYPE_PREVIEW) {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        int32_t fixedFOVCenabled = FALSE;
+        property_get("persist.camera.fovc.enable", prop, "0");
+        fixedFOVCenabled = atoi(prop);
+        if (fixedFOVCenabled == 1) {
+            LOGH("Fixed FOVC feature mask set for stream type %d", stream_type);
+            feature_mask |= CAM_QTI_FEATURE_FIXED_FOVC;
         }
     }
 

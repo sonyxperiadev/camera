@@ -999,6 +999,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_SNAP_CROP_INFO_ISP,           cam_stream_crop_info_t,   1);
     INCLUDE(CAM_INTF_META_SNAP_CROP_INFO_CPP,           cam_stream_crop_info_t,   1);
     INCLUDE(CAM_INTF_META_DCRF,                         cam_dcrf_result_t,        1);
+    INCLUDE(CAM_INTF_PARM_SYNC_DC_PARAMETERS,           uint32_t,                  1);
 
     /* HAL1 specific */
     /* read only */
@@ -1121,6 +1122,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_DC_BOKEH_MODE,                uint8_t,                     1);
     INCLUDE(CAM_INTF_PARM_FOV_COMP_ENABLE,              int32_t,                     1);
     INCLUDE(CAM_INTF_META_LED_CALIB_RESULT,             int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_DC_ZOOM,                      int32_t,                     1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

@@ -190,6 +190,7 @@ public:
     bool isPreviewFlipChanged();
     bool isVideoFlipChanged();
     bool isSnapshotFlipChanged();
+    bool isZoomChanged();
     void setHDRSceneEnable(bool bflag);
     int32_t updateAWBParams(cam_awb_params_t &awb_params);
 

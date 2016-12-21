@@ -1833,7 +1833,7 @@ typedef struct {
 } cam_buf_divert_info_t;
 
 typedef enum {
-    CAM_SPATIAL_ALIGN_QCOM = 1 << 0,
+    CAM_SPATIAL_ALIGN_QTI  = 1 << 0,
     CAM_SPATIAL_ALIGN_OEM  = 1 << 1
 } cam_spatial_align_type_t;
 
@@ -1843,6 +1843,8 @@ typedef struct {
 } cam_sac_output_shift_t;
 
 typedef struct {
+    uint8_t                is_master_hint_valid;
+    uint8_t                master_hint;
     uint8_t                is_master_preview_valid;
     uint8_t                master_preview;
     uint8_t                is_master_3A_valid;
@@ -1851,10 +1853,7 @@ typedef struct {
     uint8_t                ready_status;
     uint8_t                is_output_shift_valid;
     cam_sac_output_shift_t output_shift;
-    uint8_t                is_wide_focus_roi_shift_valid;
-    cam_sac_output_shift_t wide_focus_roi_shift;
-    uint8_t                is_tele_focus_roi_shift_valid;
-    cam_sac_output_shift_t tele_focus_roi_shift;
+    cam_dimension_t        reference_res_for_output_shift;
 } cam_sac_output_info_t;
 
 
@@ -2374,6 +2373,10 @@ typedef enum {
     CAM_INTF_PARM_FOV_COMP_ENABLE,
     /*Meta to update dual LED calibration results to app*/
     CAM_INTF_META_LED_CALIB_RESULT,
+    /* Dual camera - zoom value for the other camera */
+    CAM_INTF_PARM_DC_ZOOM,
+    /* Dual camera sync parameter */
+    CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -2602,6 +2605,7 @@ typedef struct {
 #define CAM_QCOM_FEATURE_METADATA_BYPASS (((cam_feature_mask_t)1UL)<<37)
 #define CAM_QTI_FEATURE_SAT             (((cam_feature_mask_t)1UL)<<38)
 #define CAM_QTI_FEATURE_CPP_DOWNSCALE   (((cam_feature_mask_t)1UL)<<39)
+#define CAM_QTI_FEATURE_FIXED_FOVC      (((cam_feature_mask_t)1UL) << 40)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\

@@ -7071,15 +7071,17 @@ void QCamera2HardwareInterface::processDualCamFovControl()
 
     fovControlResult = m_pFovControl->getFovControlResult();
 
-    camState = fovControlResult.activeCamState;
+    if (fovControlResult.isValid) {
+        camState = fovControlResult.activeCamState;
 
-    if (camState != mActiveCamera) {
-        processCameraControl(camState);
-    }
+        if (camState != mActiveCamera) {
+            processCameraControl(camState);
+        }
 
-    if (mMasterCamera != fovControlResult.camMasterPreview) {
-        mMasterCamera = fovControlResult.camMasterPreview;
-        switchCameraCb();
+        if (mMasterCamera != fovControlResult.camMasterPreview) {
+            mMasterCamera = fovControlResult.camMasterPreview;
+            switchCameraCb();
+        }
     }
 }
 
@@ -9600,6 +9602,13 @@ int QCamera2HardwareInterface::commitParameterChanges()
     if (rc == NO_ERROR) {
         // update number of snapshot based on committed parameters setting
         rc = mParameters.setNumOfSnapshot();
+    }
+
+    if (isDualCamera() &&
+        mParameters.isZoomChanged()) {
+        // If zoom changes, get the updated FOV-control result and if needed send the dual
+        // camera parameters to backend
+        processDualCamFovControl();
     }
     return rc;
 }
