@@ -10510,8 +10510,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
 
                         // Get related cam calibration only in
                         // dual camera mode
-                        if (pme->getRelatedCamSyncInfo()->sync_control ==
-                                CAM_SYNC_RELATED_SENSORS_ON) {
+                        if ((pme->getRelatedCamSyncInfo()->sync_control ==
+                                CAM_SYNC_RELATED_SENSORS_ON) || pme->isDualCamera()){
                             rc = pme->mParameters.getRelatedCamCalibration(
                                 &(pme->mJpegMetadata.otp_calibration_data));
                             LOGD("Dumping Calibration Data Version Id %f rc %d",

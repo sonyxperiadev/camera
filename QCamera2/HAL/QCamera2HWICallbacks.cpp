@@ -2152,6 +2152,7 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             pMetaData = resultMetadata;
         } else {
             LOGE("FOV-control: processResultMetadata failed.");
+            stream->bufDone(super_frame);
             free(super_frame);
             return;
         }

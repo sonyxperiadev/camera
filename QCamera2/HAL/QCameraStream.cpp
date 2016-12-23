@@ -2866,7 +2866,7 @@ bool QCameraStream::needCbSwitch()
         return false;
     }
 
-    if ((mStreamInfo->pp_config.feature_mask == CAM_QTI_FEATURE_SAT)
+    if ((mStreamInfo->pp_config.feature_mask & CAM_QTI_FEATURE_SAT)
             || (needFrameSync())
             || (getMyType() == CAM_STREAM_TYPE_SNAPSHOT)) {
         return false;
