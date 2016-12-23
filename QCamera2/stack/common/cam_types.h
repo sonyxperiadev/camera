@@ -2115,6 +2115,8 @@ typedef enum {
     CAM_INTF_META_AEC_STATE,
     /* List of areas to use for focus estimation */
     CAM_INTF_META_AF_ROI,
+    /* Default ROI of the camera to be sent to FOV control*/
+    CAM_INTF_META_AF_DEFAULT_ROI,
     /* Whether the HAL must trigger autofocus. */
     CAM_INTF_META_AF_TRIGGER,
     /* Current state of AF algorithm */
