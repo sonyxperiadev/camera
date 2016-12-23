@@ -397,6 +397,8 @@ private:
     static void setPAAFSupport(cam_feature_mask_t& feature_mask,
             cam_stream_type_t stream_type,
             cam_color_filter_arrangement_t filter_arrangement);
+    int32_t setSensorHDR(metadata_buffer_t *hal_metadata, bool enable,
+            bool isVideoHdrEnable = false);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -615,6 +617,7 @@ private:
     cam_dual_camera_cmd_info_t *m_pDualCamCmdPtr;
     cam_sync_related_sensors_event_info_t m_relCamSyncInfo;
     Mutex mFlushLock;
+    bool m_bSensorHDREnabled;
 };
 
 }; // namespace qcamera
