@@ -4346,12 +4346,16 @@ int32_t QCameraParameters::setNumOfSnapshot()
         nBurstNum = m_pCapability->refocus_af_bracketing_need.output_count + 1;
     }
 
-    LOGH("nBurstNum = %d, nExpnum = %d", nBurstNum, nExpnum);
-    if (mActiveState == MM_CAMERA_DUAL_CAM) {
+    // Fix me: Add logic for setting number of snapshots based on bundled snapshot and mpo
+    if (mActiveState == MM_CAMERA_DUAL_CAM && mbundledSnapshot) {
         set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER,
+                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
+        LOGH("nBurstNum = %d, nExpnum = %d snapshots = %d", nBurstNum, nExpnum,
                 (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
     } else {
         set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum));
+        LOGH("nBurstNum = %d, nExpnum = %d snapshots = %d", nBurstNum, nExpnum,
+                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
     }
     return NO_ERROR;
 }
@@ -16633,9 +16637,6 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     if (state != MM_CAMERA_DUAL_CAM) {
         mActiveCamera = state;
     }
-
-    /*Need to remove once we have dual camera fusion*/
-    setNumOfSnapshot();
 
     return rc;
 }

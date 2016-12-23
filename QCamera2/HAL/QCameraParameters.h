@@ -907,6 +907,7 @@ public:
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera();
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
+    void setBundledSnapshot(bool value) { mbundledSnapshot = value; }
     int32_t getDualLedCalibration() {return m_dualLedCalibration;};
 private:
     int32_t setPreviewSize(const QCameraParameters& );
@@ -1297,6 +1298,7 @@ private:
     //Frame number for super parameter
     uint32_t mFrameNumber;
     uint32_t mSyncDCParam;
+    bool mbundledSnapshot;
 };
 
 }; // namespace qcamera

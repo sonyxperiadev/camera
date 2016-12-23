@@ -76,7 +76,8 @@ public:
     bool isActive() { return m_bIsActive; }
     uint32_t getChHandleForStream(cam_stream_type_t stream_type);
     int32_t switchChannelCb();
-    int32_t processCameraControl(uint32_t camState);
+    int32_t processCameraControl(uint32_t camState,
+            bool bundledSnapshot, cam_sync_type_t camMasterSnapshot);
     bool isDualChannel(){return mDualChannel;};
 protected:
     uint32_t m_camHandle;
@@ -87,6 +88,7 @@ protected:
     uint32_t m_handle;
     uint32_t mActiveHandle;
     uint32_t mActiveCamera;
+    uint32_t mSnapshotHandle;
     Vector<QCameraStream *> mStreams;
     mm_camera_buf_notify_t mDataCB;
     void *mUserData;

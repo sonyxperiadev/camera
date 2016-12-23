@@ -2115,6 +2115,8 @@ typedef enum {
     CAM_INTF_META_AEC_STATE,
     /* List of areas to use for focus estimation */
     CAM_INTF_META_AF_ROI,
+    /* Default ROI of the camera to be sent to FOV control*/
+    CAM_INTF_META_AF_DEFAULT_ROI,
     /* Whether the HAL must trigger autofocus. */
     CAM_INTF_META_AF_TRIGGER,
     /* Current state of AF algorithm */
@@ -2600,7 +2602,7 @@ typedef struct {
 #define CAM_QCOM_FEATURE_PAAF           (((cam_feature_mask_t)1UL)<<32)
 #define CAM_QCOM_FEATURE_QUADRA_CFA     (((cam_feature_mask_t)1UL)<<33)
 #define CAM_QTI_FEATURE_PPEISCORE       (((cam_feature_mask_t)1UL)<<34)
-#define CAM_QCOM_FEATURE_ZIGZAG_VIDEO_HDR (((cam_feature_mask_t)1UL)<<35)
+#define CAM_QCOM_FEATURE_ZIGZAG_HDR     (((cam_feature_mask_t)1UL)<<35)
 #define CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR (((cam_feature_mask_t)1UL)<<36)
 #define CAM_QCOM_FEATURE_METADATA_BYPASS (((cam_feature_mask_t)1UL)<<37)
 #define CAM_QTI_FEATURE_SAT             (((cam_feature_mask_t)1UL)<<38)
