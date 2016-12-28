@@ -7222,7 +7222,7 @@ int32_t QCamera2HardwareInterface::switchCameraCb()
         }
     }
 
-    if (ret == NO_ERROR && mActiveCamera == MM_CAMERA_DUAL_CAM) {
+    if (ret == NO_ERROR && (mActiveCamera & mMasterCamera)) {
         //Trigger Event to modules to update Master info
         mParameters.setSwitchCamera();
     }
