@@ -668,6 +668,7 @@ typedef struct {
     /* opaque metadata required for reprocessing */
     int32_t private_data[MAX_METADATA_PRIVATE_PAYLOAD_SIZE_IN_BYTES];
     cam_rect_t crop_rect;
+    uint8_t is_uv_subsampled;
 } cam_reprocess_param;
 
 typedef struct {
@@ -920,6 +921,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_FOCUS_MODE,                   uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_MANUAL_FOCUS_POS,             cam_manual_focus_parm_t,     1);
     INCLUDE(CAM_INTF_META_AF_ROI,                       cam_area_t,                  1);
+    INCLUDE(CAM_INTF_META_AF_DEFAULT_ROI,               cam_rect_t,                  1);
     INCLUDE(CAM_INTF_META_AF_STATE,                     uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_WHITE_BALANCE,                int32_t,                     1);
     INCLUDE(CAM_INTF_META_AWB_REGIONS,                  cam_area_t,                  1);

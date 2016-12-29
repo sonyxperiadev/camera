@@ -1503,6 +1503,13 @@ int32_t QCameraParametersIntf::setDeferCamera(cam_dual_camera_defer_cmd_t type)
     return mImpl->setDeferCamera(type);
 }
 
+void QCameraParametersIntf::setBundledSnapshot(bool value)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setBundledSnapshot(value);
+}
+
 int32_t QCameraParametersIntf::getDualLedCalibration()
 {
     Mutex::Autolock lock(mLock);
