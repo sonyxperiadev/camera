@@ -380,7 +380,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mRawDumpChannel(NULL),
       mDummyBatchChannel(NULL),
       mPerfLockMgr(),
-      mCommon(),
       mChannelHandle(0),
       mFirstConfiguration(true),
       mFlush(false),
@@ -406,6 +405,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mHFRVideoFps(DEFAULT_VIDEO_FPS),
       mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
       mStreamConfig(false),
+      mCommon(),
       mFirstFrameNumberInBatch(0),
       mNeedSensorRestart(false),
       mPreviewStarted(false),
@@ -2133,6 +2133,15 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             LOGE("allocation of channel failed");
                             pthread_mutex_unlock(&mMutex);
                             return -ENOMEM;
+                        }
+                        /* disable UBWC for preview, though supported,
+                         * to take advantage of CPP duplication */
+                        if (m_bIsVideo && (!mCommon.isVideoUBWCEnabled()) &&
+                                (previewSize.width == (int32_t)videoWidth)&&
+                                (previewSize.height == (int32_t)videoHeight)){
+                            channel->setUBWCEnabled(false);
+                        }else {
+                            channel->setUBWCEnabled(true);
                         }
                         newStream->max_buffers = channel->getNumBuffers();
                         newStream->priv = channel;

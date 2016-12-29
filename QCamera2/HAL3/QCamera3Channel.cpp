@@ -78,6 +78,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
     m_handle = channel_handle;
     m_camOps = cam_ops;
     m_bIsActive = false;
+    m_bUBWCenable = true;
 
     m_numStreams = 0;
     memset(mStreams, 0, sizeof(mStreams));
@@ -628,6 +629,21 @@ bool QCamera3Channel::isUBWCEnabled()
 }
 
 /*===========================================================================
+ * FUNCTION   : setUBWCEnabled
+ *
+ * DESCRIPTION: set UBWC enable
+ *
+ * PARAMETERS : UBWC enable value
+ *
+ * RETURN     : none
+ *
+ *==========================================================================*/
+void QCamera3Channel::setUBWCEnabled(bool val)
+{
+    m_bUBWCenable = val;
+}
+
+/*===========================================================================
  * FUNCTION   : getStreamDefaultFormat
  *
  * DESCRIPTION: return default buffer format for the stream
@@ -650,7 +666,7 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
             memset(prop, 0, sizeof(prop));
             property_get("persist.camera.preview.ubwc", prop, "1");
             pFormat = atoi(prop);
-            if (pFormat == 1) {
+            if (pFormat == 1 && (m_bUBWCenable)) {
                 streamFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
                 /* Changed to macro to ensure format sent to gralloc for preview
@@ -668,12 +684,8 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
         /* Disable UBWC for smaller video resolutions due to CPP downscale
             limits. Refer cpp_hw_params.h::CPP_DOWNSCALE_LIMIT_UBWC */
         if (isUBWCEnabled() && (width >= 640) && (height >= 480)) {
-            char prop[PROPERTY_VALUE_MAX];
-            int pFormat;
-            memset(prop, 0, sizeof(prop));
-            property_get("persist.camera.video.ubwc", prop, "1");
-            pFormat = atoi(prop);
-            if (pFormat == 1) {
+            QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+            if ((hal_obj->mCommon.isVideoUBWCEnabled())) {
                 streamFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
                 streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
