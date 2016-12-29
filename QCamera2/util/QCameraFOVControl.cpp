@@ -309,6 +309,66 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
 
 
 /*===========================================================================
+ * FUNCTION    : resetVars
+ *
+ * DESCRIPTION : Reset the variables used in FOV-control.
+ *
+ * PARAMETERS  : None
+ *
+ * RETURN      : None
+ *
+ *==========================================================================*/
+void QCameraFOVControl::resetVars()
+{
+    // Copy the FOV-control settings for camera/camcorder from QCameraFOVControlSettings.h
+    if (mFovControlData.camcorderMode) {
+        mFovControlConfig.snapshotPPConfig.enablePostProcess =
+                FOVC_CAMCORDER_SNAPSHOT_PP_ENABLE;
+    } else {
+        mFovControlConfig.snapshotPPConfig.enablePostProcess = FOVC_CAM_SNAPSHOT_PP_ENABLE;
+        mFovControlConfig.snapshotPPConfig.zoomMin           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MIN;
+        mFovControlConfig.snapshotPPConfig.zoomMax           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MAX;
+        mFovControlConfig.snapshotPPConfig.luxMin            = FOVC_CAM_SNAPSHOT_PP_LUX_MIN;
+    }
+    mFovControlConfig.auxSwitchBrightnessMin  = FOVC_AUXCAM_SWITCH_LUX_MIN;
+    mFovControlConfig.auxSwitchFocusDistCmMin = FOVC_AUXCAM_SWITCH_FOCUS_DIST_CM_MIN;
+
+    mFovControlData.fallbackEnabled = FOVC_MAIN_CAM_FALLBACK_MECHANISM;
+
+    // Reset variables
+    mFovControlData.zoomStableCount       = 0;
+    mFovControlData.brightnessStableCount = 0;
+    mFovControlData.focusDistStableCount  = 0;
+    mFovControlData.zoomDirection         = ZOOM_STABLE;
+    mFovControlData.fallbackToWide        = false;
+
+    // TODO : These threshold values should be changed from counters to time based
+    // Systems team will provide the correct values as part of tuning
+    mFovControlData.zoomStableCountThreshold       = 30;
+    mFovControlData.focusDistStableCountThreshold  = 30;
+    mFovControlData.brightnessStableCountThreshold = 30;
+
+    mFovControlData.status3A.main.af.status   = AF_INVALID;
+    mFovControlData.status3A.aux.af.status    = AF_INVALID;
+
+    mFovControlData.afStatusMain = CAM_AF_STATE_INACTIVE;
+    mFovControlData.afStatusAux  = CAM_AF_STATE_INACTIVE;
+
+    mFovControlData.wideCamStreaming = false;
+    mFovControlData.teleCamStreaming = false;
+
+    mFovControlData.spatialAlignResult.readyStatus = 0;
+    mFovControlData.spatialAlignResult.activeCameras = (uint32_t)CAM_TYPE_MAIN;
+    mFovControlData.spatialAlignResult.shiftWide.shiftHorz = 0;
+    mFovControlData.spatialAlignResult.shiftWide.shiftVert = 0;
+    mFovControlData.spatialAlignResult.shiftTele.shiftHorz = 0;
+    mFovControlData.spatialAlignResult.shiftTele.shiftVert = 0;
+
+    // WA for now until the QTI solution is in place writing the spatial alignment ready status
+    mFovControlData.spatialAlignResult.readyStatus = 1;
+}
+
+/*===========================================================================
  * FUNCTION    : updateConfigSettings
  *
  * DESCRIPTION : Update the config settings such as margins and preview size
@@ -385,46 +445,8 @@ int32_t QCameraFOVControl::updateConfigSettings(
             }
         }
 
-        // Copy the FOV-control settings for camera/camcorder from QCameraFOVControlSettings.h
-        if (mFovControlData.camcorderMode) {
-            mFovControlConfig.snapshotPPConfig.enablePostProcess =
-                    FOVC_CAMCORDER_SNAPSHOT_PP_ENABLE;
-        } else {
-            mFovControlConfig.snapshotPPConfig.enablePostProcess = FOVC_CAM_SNAPSHOT_PP_ENABLE;
-            mFovControlConfig.snapshotPPConfig.zoomMin           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MIN;
-            mFovControlConfig.snapshotPPConfig.zoomMax           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MAX;
-            mFovControlConfig.snapshotPPConfig.luxMin            = FOVC_CAM_SNAPSHOT_PP_LUX_MIN;
-        }
-        mFovControlConfig.auxSwitchBrightnessMin  = FOVC_AUXCAM_SWITCH_LUX_MIN;
-        mFovControlConfig.auxSwitchFocusDistCmMin = FOVC_AUXCAM_SWITCH_FOCUS_DIST_CM_MIN;
-
-        mFovControlData.fallbackEnabled = FOVC_MAIN_CAM_FALLBACK_MECHANISM;
-
-        // Reset variables
-        mFovControlData.zoomStableCount       = 0;
-        mFovControlData.brightnessStableCount = 0;
-        mFovControlData.focusDistStableCount  = 0;
-        mFovControlData.zoomDirection         = ZOOM_STABLE;
-        mFovControlData.fallbackToWide        = false;
-
-        // TODO : These threshold values should be changed from counters to time based
-        // Systems team will provide the correct values as part of tuning
-        mFovControlData.zoomStableCountThreshold       = 30;
-        mFovControlData.focusDistStableCountThreshold  = 30;
-        mFovControlData.brightnessStableCountThreshold = 30;
-
-        mFovControlData.status3A.main.af.status   = AF_INVALID;
-        mFovControlData.status3A.aux.af.status    = AF_INVALID;
-
-        mFovControlData.spatialAlignResult.readyStatus = 0;
-        mFovControlData.spatialAlignResult.activeCameras = (uint32_t)CAM_TYPE_MAIN;
-        mFovControlData.spatialAlignResult.shiftWide.shiftHorz = 0;
-        mFovControlData.spatialAlignResult.shiftWide.shiftVert = 0;
-        mFovControlData.spatialAlignResult.shiftTele.shiftHorz = 0;
-        mFovControlData.spatialAlignResult.shiftTele.shiftVert = 0;
-
-        // WA for now until the QTI solution is in place writing the spatial alignment ready status
-        mFovControlData.spatialAlignResult.readyStatus = 1;
+        // Reset the internal variables
+        resetVars();
 
         // Recalculate the transition parameters
         if (calculateBasicFovRatio() && combineFovAdjustment()) {
@@ -694,9 +716,34 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             }
         }
 
+        // Update the camera streaming status
+
+        metadata_buffer_t *metaWide = isMainCamFovWider() ? metaMain : metaAux;
+        metadata_buffer_t *metaTele = isMainCamFovWider() ? metaAux : metaMain;
+
+        if (metaWide) {
+            mFovControlData.wideCamStreaming = true;
+            IF_META_AVAILABLE(uint8_t, enableLPM, CAM_INTF_META_DC_LOW_POWER_ENABLE, metaWide) {
+                if (*enableLPM) {
+                    // If LPM enabled is 1, this is probably the last metadata returned
+                    // before going into LPM state
+                    mFovControlData.wideCamStreaming = false;
+                }
+            }
+        }
+
+        if (metaTele) {
+            IF_META_AVAILABLE(uint8_t, enableLPM, CAM_INTF_META_DC_LOW_POWER_ENABLE, metaTele) {
+                mFovControlData.teleCamStreaming = true;
+                if (*enableLPM) {
+                    // If LPM enabled is 1, this is probably the last metadata returned
+                    // before going into LPM state
+                    mFovControlData.teleCamStreaming = false;
+                }
+            }
+        }
+
         // Get AF status
-        uint32_t afStatusMain = CAM_AF_STATE_INACTIVE;
-        uint32_t afStatusAux  = CAM_AF_STATE_INACTIVE;
         if (metaMain) {
             IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metaMain) {
                 if (((*afState) == CAM_AF_STATE_FOCUSED_LOCKED)         ||
@@ -707,8 +754,8 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
                 } else {
                     mFovControlData.status3A.main.af.status = AF_INVALID;
                 }
-                afStatusMain = *afState;
-                LOGD("AF state: Main cam: %d", afStatusMain);
+                mFovControlData.afStatusMain = *afState;
+                LOGD("AF state: Main cam: %d", mFovControlData.afStatusMain);
             }
             // WA:Hardcoding dummy lux and focusDistance metadata till that functionality gets added
             mFovControlData.status3A.main.ae.lux         = 1000;
@@ -724,35 +771,10 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
                 } else {
                     mFovControlData.status3A.aux.af.status = AF_INVALID;
                 }
-                afStatusAux = *afState;
-                LOGD("AF state: Aux cam: %d", afStatusAux);
+                mFovControlData.afStatusAux = *afState;
+                LOGD("AF state: Aux cam: %d", mFovControlData.afStatusAux);
             }
         }
-
-        metadata_buffer_t *metaWide;
-        metadata_buffer_t *metaTele;
-
-        // Check if the wide, tele cameras are streaming
-        if (isMainCamFovWider()) {
-            metaWide = metaMain;
-            metaTele = metaAux;
-        } else {
-            metaWide = metaAux;
-            metaTele = metaMain;
-        }
-
-        if (metaWide) {
-            mFovControlData.wideCamStreaming = true;
-        } else {
-            mFovControlData.wideCamStreaming = false;
-        }
-        if (metaTele) {
-            mFovControlData.teleCamStreaming = true;
-        } else {
-            mFovControlData.teleCamStreaming = false;
-        }
-
-        mMutex.unlock();
 
         if ((masterCam == CAM_TYPE_AUX) && metaAux) {
             // Translate face detection ROI
@@ -772,17 +794,20 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             metaResult = NULL;
         }
 
-        // Consolidate the AF status to be sent to the app
+        // If snapshot postprocess is enabled, consolidate the AF status to be sent to the app
+        // when in the transition state.
         // Only return focused if both are focused.
-        if (metaMain && metaAux) {
-            if (((afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) ||
-                    (afStatusMain == CAM_AF_STATE_NOT_FOCUSED_LOCKED)) &&
-                    ((afStatusAux == CAM_AF_STATE_FOCUSED_LOCKED) ||
-                    (afStatusAux == CAM_AF_STATE_NOT_FOCUSED_LOCKED))) {
+        if ((mFovControlResult.snapshotPostProcess == true) &&
+                    (mFovControlData.camState == STATE_TRANSITION) &&
+                    metaResult) {
+            if (((mFovControlData.afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) ||
+                    (mFovControlData.afStatusMain == CAM_AF_STATE_NOT_FOCUSED_LOCKED)) &&
+                    ((mFovControlData.afStatusAux == CAM_AF_STATE_FOCUSED_LOCKED) ||
+                    (mFovControlData.afStatusAux == CAM_AF_STATE_NOT_FOCUSED_LOCKED))) {
                 // If both indicate focused, return focused.
                 // If either one indicates 'not focused', return 'not focused'.
-                if ((afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) &&
-                        (afStatusAux  == CAM_AF_STATE_FOCUSED_LOCKED)) {
+                if ((mFovControlData.afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) &&
+                        (mFovControlData.afStatusAux  == CAM_AF_STATE_FOCUSED_LOCKED)) {
                     ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE,
                             CAM_AF_STATE_FOCUSED_LOCKED);
                 } else {
@@ -791,11 +816,13 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
                 }
             } else {
                 // If either one indicates passive state or active scan, return that state
-                if ((afStatusMain != CAM_AF_STATE_FOCUSED_LOCKED) &&
-                        (afStatusMain != CAM_AF_STATE_NOT_FOCUSED_LOCKED)) {
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE, afStatusMain);
+                if ((mFovControlData.afStatusMain != CAM_AF_STATE_FOCUSED_LOCKED) &&
+                        (mFovControlData.afStatusMain != CAM_AF_STATE_NOT_FOCUSED_LOCKED)) {
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE,
+                            mFovControlData.afStatusMain);
                 } else {
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE, afStatusAux);
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE,
+                            mFovControlData.afStatusAux);
                 }
             }
             IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metaResult) {
@@ -803,8 +830,12 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             }
         }
 
-        // Generate FOV-control result
-        generateFovControlResult();
+        mMutex.unlock();
+
+        // Generate FOV-control result only if the result meta is valid
+        if (metaResult) {
+            generateFovControlResult();
+        }
     }
     return metaResult;
 }
