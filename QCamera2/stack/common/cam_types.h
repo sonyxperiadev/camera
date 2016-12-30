@@ -126,7 +126,7 @@
                                     TUNING_MOD1_AEC_DATA_MAX + \
                                     TUNING_MOD1_AWB_DATA_MAX + \
                                     TUNING_MOD1_AF_DATA_MAX + \
-                                    TUNING_CPP_DATA_OFFSET)
+                                    TUNING_CPP_DATA_MAX)
 
 #define MAX_STATS_DATA_SIZE 4000
 

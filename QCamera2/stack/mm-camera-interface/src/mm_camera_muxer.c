@@ -2023,15 +2023,17 @@ int32_t mm_camera_muxer_do_frame_sync(
             //dispatch old buffer. Cannot sync for configured unmatch value
             node = member_of(last_buf, cam_node_t, list);
             super_obj = (mm_frame_sync_queue_node_t*)node->data;
-            queue->expected_frame_id = super_obj->frame_idx;
-            if (dispatch_buf != NULL && super_obj != NULL) {
-                //Dispatch unmatched buffer
-                *dispatch_buf = *super_obj;
-            } else if (super_obj != NULL){
-                //release unmatched buffers
-                for (i = 0; i < MAX_OBJS_FOR_FRAME_SYNC; i++) {
-                    if (super_obj->super_buf[i].num_bufs != 0) {
-                        mm_camera_muxer_buf_done(&super_obj->super_buf[i]);
+            if (super_obj != NULL) {
+                queue->expected_frame_id = super_obj->frame_idx;
+                if (dispatch_buf != NULL) {
+                    //Dispatch unmatched buffer
+                    *dispatch_buf = *super_obj;
+                } else {
+                    //release unmatched buffers
+                    for (i = 0; i < MAX_OBJS_FOR_FRAME_SYNC; i++) {
+                        if (super_obj->super_buf[i].num_bufs != 0) {
+                            mm_camera_muxer_buf_done(&super_obj->super_buf[i]);
+                        }
                     }
                 }
             }
@@ -2039,6 +2041,7 @@ int32_t mm_camera_muxer_do_frame_sync(
             cam_list_del_node(&node->list);
             free(node);
             free(super_obj);
+            super_obj = NULL;
         }
 
         //insert the new frame at the appropriate position.
@@ -2052,7 +2055,7 @@ int32_t mm_camera_muxer_do_frame_sync(
             new_buf->num_objs++;
             new_buf->frame_idx = buffer->bufs[0]->frame_idx;
             new_buf->matched = 0;
-            if (new_buf->num_objs == queue->num_objs) {
+            if (new_buf->num_objs == queue->num_objs && super_obj) {
                 new_buf->matched = 1;
                 queue->expected_frame_id = super_obj->frame_idx;
                 if (dispatch_buf != NULL) {
