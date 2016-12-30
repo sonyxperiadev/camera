@@ -1393,6 +1393,13 @@ typedef struct {
 } cam_focus_pos_info_t ;
 
 typedef struct {
+    float lens_shift_um;
+    uint32_t object_distance_cm;
+    uint32_t near_field_cm;
+    uint32_t far_field_cm;
+} cam_af_focus_pos_t ;
+
+typedef struct {
     float focalLengthRatio;
 } cam_focal_length_ratio_t;
 
@@ -2379,6 +2386,8 @@ typedef enum {
     CAM_INTF_PARM_DC_USERZOOM,
     /* Dual camera sync parameter */
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
+    /* AF focus position info */
+    CAM_INTF_META_AF_FOCUS_POS,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
