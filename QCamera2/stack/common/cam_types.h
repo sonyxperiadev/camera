@@ -1838,8 +1838,8 @@ typedef enum {
 } cam_spatial_align_type_t;
 
 typedef struct {
-    uint32_t shift_horz;
-    uint32_t shift_vert;
+    int32_t shift_horz;
+    int32_t shift_vert;
 } cam_sac_output_shift_t;
 
 typedef struct {
