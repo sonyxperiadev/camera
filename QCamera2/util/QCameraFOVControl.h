@@ -96,7 +96,7 @@ typedef struct {
     uint8_t               camMasterHint;
     uint8_t               camMasterPreview;
     uint8_t               camMaster3A;
-    uint32_t              activeCamState;
+    uint32_t              activeCameras;
     spatial_align_shift_t shiftWide;
     spatial_align_shift_t shiftTele;
 } spatial_align_result_t;
@@ -190,7 +190,7 @@ typedef struct {
     bool            isValid;
     cam_sync_type_t camMasterPreview;
     cam_sync_type_t camMaster3A;
-    uint32_t        activeCamState;
+    uint32_t        activeCameras;
     bool            snapshotPostProcess;
     bool            snapshotPostProcessZoomRange;
 } fov_control_result_t;

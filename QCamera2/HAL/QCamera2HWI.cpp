@@ -7062,7 +7062,7 @@ int32_t QCamera2HardwareInterface::processJpegNotify(qcamera_jpeg_evt_payload_t 
  *==========================================================================*/
 void QCamera2HardwareInterface::processDualCamFovControl()
 {
-   uint32_t camState;
+   uint32_t activeCameras;
    bool bundledSnapshot;
    fov_control_result_t fovControlResult;
    cam_sync_type_t camMasterSnapshot;
@@ -7074,13 +7074,13 @@ void QCamera2HardwareInterface::processDualCamFovControl()
     fovControlResult = m_pFovControl->getFovControlResult();
 
     if (fovControlResult.isValid) {
-        camState = fovControlResult.activeCamState;
+        activeCameras = fovControlResult.activeCameras;
         bundledSnapshot = fovControlResult.snapshotPostProcess;
         camMasterSnapshot = fovControlResult.camMasterPreview;
 
-        if ((camState != mActiveCamera) ||
-                ((camState == MM_CAMERA_DUAL_CAM) && (bundledSnapshot != mBundledSnapshot))) {
-            processCameraControl(camState, bundledSnapshot, camMasterSnapshot);
+        if ((activeCameras != mActiveCamera) ||
+                ((activeCameras == MM_CAMERA_DUAL_CAM) && (bundledSnapshot != mBundledSnapshot))) {
+            processCameraControl(activeCameras, bundledSnapshot, camMasterSnapshot);
         }
 
         if (mMasterCamera != fovControlResult.camMasterPreview) {
