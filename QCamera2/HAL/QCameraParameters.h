@@ -1109,12 +1109,6 @@ private:
     int32_t commitGetBatchAux();
     void    setAuxParameters();
 
-    void * getPointerofParam(cam_intf_parm_type_t meta_id,
-            metadata_buffer_t* metadata);
-    uint32_t getSizeofParam(cam_intf_parm_type_t param_id);
-    int32_t setAUXParameter(cam_intf_parm_type_t paramType,
-            void *paramValue, uint32_t paramLength);
-
     // ops to tempororily update parameter entries and commit
     int32_t updateParamEntry(const char *key, const char *value);
     int32_t commitParamChanges();
