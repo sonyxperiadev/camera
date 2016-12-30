@@ -2375,8 +2375,8 @@ typedef enum {
     CAM_INTF_PARM_FOV_COMP_ENABLE,
     /*Meta to update dual LED calibration results to app*/
     CAM_INTF_META_LED_CALIB_RESULT,
-    /* Dual camera - zoom value for the other camera */
-    CAM_INTF_PARM_DC_ZOOM,
+    /* Dual camera - user zoom value. This will always be the wider camera zoom value */
+    CAM_INTF_PARM_DC_USERZOOM,
     /* Dual camera sync parameter */
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     CAM_INTF_PARM_MAX
