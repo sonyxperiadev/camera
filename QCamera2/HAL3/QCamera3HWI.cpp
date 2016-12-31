@@ -399,6 +399,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mToBeQueuedVidBufs(0),
       mHFRVideoFps(DEFAULT_VIDEO_FPS),
       mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
+      mStreamConfig(false),
       mFirstFrameNumberInBatch(0),
       mNeedSensorRestart(false),
       mPreviewStarted(false),
@@ -409,6 +410,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mInstantAECSettledFrameNumber(0),
       mAecSkipDisplayFrameBound(0),
       mInstantAecFrameIdxCount(0),
+      mCurrFeatureState(0),
       mLdafCalibExist(false),
       mLastCustIntentFrmNum(-1),
       mState(CLOSED),
@@ -1525,6 +1527,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     mInstantAECSettledFrameNumber = 0;
     mAecSkipDisplayFrameBound = 0;
     mInstantAecFrameIdxCount = 0;
+    mCurrFeatureState = 0;
+    mStreamConfig = true;
 
     memset(&mInputStreamInfo, 0, sizeof(mInputStreamInfo));
 
@@ -2507,6 +2511,9 @@ int QCamera3HardwareInterface::validateCaptureRequest(
 
     // Validate all buffers
     b = request->output_buffers;
+    if (b == NULL) {
+       return BAD_VALUE;
+    }
     while (idx < (ssize_t)request->num_output_buffers) {
         QCamera3ProcessingChannel *channel =
                 static_cast<QCamera3ProcessingChannel*>(b->stream->priv);
@@ -6354,16 +6361,36 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     IF_META_AVAILABLE(cam_sensor_hdr_type_t, vhdr, CAM_INTF_PARM_SENSOR_HDR, metadata) {
         int32_t fwk_hdr;
+        int8_t curr_hdr_state = ((mCurrFeatureState & CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) != 0);
         if(*vhdr == CAM_SENSOR_HDR_OFF) {
             fwk_hdr = QCAMERA3_VIDEO_HDR_MODE_OFF;
         } else {
             fwk_hdr = QCAMERA3_VIDEO_HDR_MODE_ON;
+        }
+
+        if(fwk_hdr != curr_hdr_state) {
+           LOGH("PROFILE_META_HDR_TOGGLED value=%d", fwk_hdr);
+           if(fwk_hdr)
+              mCurrFeatureState |= CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
+           else
+              mCurrFeatureState &= ~CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
         }
         camMetadata.update(QCAMERA3_VIDEO_HDR_MODE, &fwk_hdr, 1);
     }
 
     IF_META_AVAILABLE(cam_ir_mode_type_t, ir, CAM_INTF_META_IR_MODE, metadata) {
         int32_t fwk_ir = (int32_t) *ir;
+        int8_t curr_ir_state = ((mCurrFeatureState & CAM_QCOM_FEATURE_IR ) != 0);
+        int8_t is_ir_on = 0;
+
+        (fwk_ir > 0) ? (is_ir_on = 1) : (is_ir_on = 0) ;
+        if(is_ir_on != curr_ir_state) {
+           LOGH("PROFILE_META_IR_TOGGLED value=%d", fwk_ir);
+           if(is_ir_on)
+              mCurrFeatureState |= CAM_QCOM_FEATURE_IR;
+           else
+              mCurrFeatureState &= ~CAM_QCOM_FEATURE_IR;
+        }
         camMetadata.update(QCAMERA3_IR_MODE, &fwk_ir, 1);
     }
 
@@ -6381,6 +6408,17 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     IF_META_AVAILABLE(cam_denoise_param_t, tnr, CAM_INTF_PARM_TEMPORAL_DENOISE, metadata) {
         uint8_t tnr_enable       = tnr->denoise_enable;
         int32_t tnr_process_type = (int32_t)tnr->process_plates;
+        int8_t curr_tnr_state = ((mCurrFeatureState & CAM_QTI_FEATURE_SW_TNR) != 0) ;
+        int8_t is_tnr_on = 0;
+
+        (tnr_enable > 0) ? (is_tnr_on = 1) : (is_tnr_on = 0);
+        if(is_tnr_on != curr_tnr_state) {
+           LOGH("PROFILE_META_TNR_TOGGLED value=%d", tnr_enable);
+           if(is_tnr_on)
+              mCurrFeatureState |= CAM_QTI_FEATURE_SW_TNR;
+           else
+              mCurrFeatureState &= ~CAM_QTI_FEATURE_SW_TNR;
+        }
 
         camMetadata.update(QCAMERA3_TEMPORAL_DENOISE_ENABLE, &tnr_enable, 1);
         camMetadata.update(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE, &tnr_process_type, 1);
@@ -9490,10 +9528,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     int32_t mode = cds_mode;
     settings.update(QCAMERA3_CDS_MODE, &mode, 1);
 
-    /* IR Mode Default Off */
-    int32_t ir_mode = (int32_t)QCAMERA3_IR_MODE_OFF;
-    settings.update(QCAMERA3_IR_MODE, &ir_mode, 1);
-
     /* Manual Convergence AEC Speed is disabled by default*/
     float default_aec_speed = 0;
     settings.update(QCAMERA3_AEC_CONVERGENCE_SPEED, &default_aec_speed, 1);
@@ -10622,6 +10656,11 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(QCAMERA3_VIDEO_HDR_MODE)) {
         cam_video_hdr_mode_t vhdr = (cam_video_hdr_mode_t)
                 frame_settings.find(QCAMERA3_VIDEO_HDR_MODE).data.i32[0];
+        int8_t curr_hdr_state = ((mCurrFeatureState & CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) != 0);
+
+        if(vhdr != curr_hdr_state)
+           LOGH("PROFILE_SET_HDR_MODE %d" ,vhdr);
+
         rc = setVideoHdrMode(mParameters, vhdr);
         if (rc != NO_ERROR) {
             LOGE("setVideoHDR is failed");
@@ -10632,9 +10671,16 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if(frame_settings.exists(QCAMERA3_IR_MODE)) {
         cam_ir_mode_type_t fwk_ir = (cam_ir_mode_type_t)
                 frame_settings.find(QCAMERA3_IR_MODE).data.i32[0];
+        uint8_t curr_ir_state = ((mCurrFeatureState & CAM_QCOM_FEATURE_IR) != 0);
+        uint8_t isIRon = 0;
+
+        (fwk_ir >0) ? (isIRon = 1) : (isIRon = 0) ;
         if ((CAM_IR_MODE_MAX <= fwk_ir) || (0 > fwk_ir)) {
             LOGE("Invalid IR mode %d!", fwk_ir);
         } else {
+            if(isIRon != curr_ir_state )
+               LOGH("PROFILE_SET_IR_MODE %d" ,isIRon);
+
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
                     CAM_INTF_META_IR_MODE, fwk_ir)) {
                 rc = BAD_VALUE;
@@ -10674,12 +10720,17 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(QCAMERA3_TEMPORAL_DENOISE_ENABLE) &&
         frame_settings.exists(QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE)) {
         uint8_t b_TnrRequested = 0;
+        uint8_t curr_tnr_state = ((mCurrFeatureState & CAM_QTI_FEATURE_SW_TNR) != 0);
         cam_denoise_param_t tnr;
         tnr.denoise_enable = frame_settings.find(QCAMERA3_TEMPORAL_DENOISE_ENABLE).data.u8[0];
         tnr.process_plates =
             (cam_denoise_process_type_t)frame_settings.find(
             QCAMERA3_TEMPORAL_DENOISE_PROCESS_TYPE).data.i32[0];
         b_TnrRequested = tnr.denoise_enable;
+
+        if(b_TnrRequested != curr_tnr_state)
+           LOGH("PROFILE_SET_TNR_MODE %d" ,b_TnrRequested);
+
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_TEMPORAL_DENOISE, tnr)) {
             rc = BAD_VALUE;
         }

@@ -866,6 +866,20 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
            return;
        }
 
+       if(hal_obj->mStreamConfig == true) {
+          switch (stream->getMyType()) {
+              case CAM_STREAM_TYPE_PREVIEW:
+                  LOGH("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
+                  break;
+              case CAM_STREAM_TYPE_VIDEO:
+                  LOGH("[KPI Perf] : PROFILE_FIRST_VIDEO_FRAME");
+                  break;
+              default:
+                  break;
+          }
+          hal_obj->mStreamConfig = false;
+       }
+
        result.stream = mCamera3Stream;
        result.buffer = resultBuffer;
        if (IS_BUFFER_ERROR(super_frame->bufs[0]->flags)) {

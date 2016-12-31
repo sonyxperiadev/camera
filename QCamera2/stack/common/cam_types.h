@@ -126,7 +126,7 @@
                                     TUNING_MOD1_AEC_DATA_MAX + \
                                     TUNING_MOD1_AWB_DATA_MAX + \
                                     TUNING_MOD1_AF_DATA_MAX + \
-                                    TUNING_CPP_DATA_OFFSET)
+                                    TUNING_CPP_DATA_MAX)
 
 #define MAX_STATS_DATA_SIZE 4000
 
@@ -1393,6 +1393,13 @@ typedef struct {
 } cam_focus_pos_info_t ;
 
 typedef struct {
+    float lens_shift_um;
+    uint32_t object_distance_cm;
+    uint32_t near_field_cm;
+    uint32_t far_field_cm;
+} cam_af_focus_pos_t ;
+
+typedef struct {
     float focalLengthRatio;
 } cam_focal_length_ratio_t;
 
@@ -1461,6 +1468,7 @@ typedef struct {
 
 typedef struct {
     uint8_t num_of_streams;
+    uint8_t ignore_crop; // CPP ignores the CROP in this special mode
     cam_stream_crop_info_t crop_info[MAX_NUM_STREAMS];
 } cam_crop_data_t;
 
@@ -1838,8 +1846,8 @@ typedef enum {
 } cam_spatial_align_type_t;
 
 typedef struct {
-    uint32_t shift_horz;
-    uint32_t shift_vert;
+    int32_t shift_horz;
+    int32_t shift_vert;
 } cam_sac_output_shift_t;
 
 typedef struct {
@@ -2375,10 +2383,12 @@ typedef enum {
     CAM_INTF_PARM_FOV_COMP_ENABLE,
     /*Meta to update dual LED calibration results to app*/
     CAM_INTF_META_LED_CALIB_RESULT,
-    /* Dual camera - zoom value for the other camera */
-    CAM_INTF_PARM_DC_ZOOM,
+    /* Dual camera - user zoom value. This will always be the wider camera zoom value */
+    CAM_INTF_PARM_DC_USERZOOM,
     /* Dual camera sync parameter */
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
+    /* AF focus position info */
+    CAM_INTF_META_AF_FOCUS_POS,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -2608,6 +2618,7 @@ typedef struct {
 #define CAM_QTI_FEATURE_SAT             (((cam_feature_mask_t)1UL)<<38)
 #define CAM_QTI_FEATURE_CPP_DOWNSCALE   (((cam_feature_mask_t)1UL)<<39)
 #define CAM_QTI_FEATURE_FIXED_FOVC      (((cam_feature_mask_t)1UL) << 40)
+#define CAM_QCOM_FEATURE_IR             (((cam_feature_mask_t)1UL)<<41)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\

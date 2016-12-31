@@ -3132,7 +3132,8 @@ int32_t camera_open(uint8_t camera_idx, mm_camera_vtbl_t **camera_vtbl)
         LOGH("Dual Camera: Main ID = %d Aux ID = %d", cam_idx, aux_idx);
     }
 
-    if (cam_idx >= (uint32_t)g_cam_ctrl.num_cam) {
+    if (cam_idx >= (uint32_t)g_cam_ctrl.num_cam || cam_idx >=
+        MM_CAMERA_MAX_NUM_SENSORS || aux_idx >= MM_CAMERA_MAX_NUM_SENSORS) {
         LOGE("Invalid camera_idx (%d)", cam_idx);
         return -EINVAL;
     }
