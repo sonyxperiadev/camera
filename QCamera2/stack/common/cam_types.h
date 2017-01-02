@@ -2619,6 +2619,9 @@ typedef struct {
 #define CAM_QTI_FEATURE_CPP_DOWNSCALE   (((cam_feature_mask_t)1UL)<<39)
 #define CAM_QTI_FEATURE_FIXED_FOVC      (((cam_feature_mask_t)1UL) << 40)
 #define CAM_QCOM_FEATURE_IR             (((cam_feature_mask_t)1UL)<<41)
+#define CAM_QTI_FEATURE_SAC             (((cam_feature_mask_t)1UL)<<42)
+#define CAM_QTI_FEATURE_RTBDM           (((cam_feature_mask_t)1UL)<<43)
+
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
