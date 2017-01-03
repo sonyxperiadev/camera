@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -282,6 +282,7 @@ public:
     void setLowLightLevel(cam_low_light_mode_t value);
     cam_low_light_mode_t getLowLightLevel();
     bool getLowLightCapture();
+    bool isLinkPreviewForLiveShot();
 
     /* Dual camera specific */
     bool getDcrf();
