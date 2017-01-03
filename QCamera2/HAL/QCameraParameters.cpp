@@ -15709,7 +15709,7 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     int32_t cameraControl[MM_CAMERA_MAX_CAM_CNT] = {0};
     char prop[PROPERTY_VALUE_MAX];
     int value = 0;
-    int lpmDisable = 0;
+    int lpmEnable = 1;
 
     if (state & MM_CAMERA_TYPE_MAIN) {
         cameraControl[0] = 1;
@@ -15737,10 +15737,18 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     perf_value[num_cam].priority = 0;
     num_cam++;
 
-    property_get("persist.dualcam.lpm.disable", prop, "0");
-    lpmDisable = atoi(prop);
+    // LPM is enabled by default.
+    // It can disabled at the compile time using DUALCAM_LPM_ENABLE from QCameraDualCamSettings.h
+    // It can be disabled dynamically using the setprop persist.dualcam.lpm.enable.
+    property_get("persist.dualcam.lpm.enable", prop, "1");
+    lpmEnable = atoi(prop);
 
-    if (lpmDisable) {
+    if (DUALCAM_LPM_ENABLE == 0) {
+        lpmEnable = 0;
+    }
+
+    if (lpmEnable == 0) {
+        LOGD("Dual camera: Low Power Mode disabled");
         for (int i = 0; i < num_cam; ++i) {
             perf_value[i].enable = 0;
         }

@@ -50,6 +50,7 @@
 #include "QCameraStateMachine.h"
 #include "QCameraThermalAdapter.h"
 #include "QCameraFOVControl.h"
+#include "QCameraDualCamSettings.h"
 
 #ifdef TARGET_TS_MAKEUP
 #include "ts_makeup_engine.h"

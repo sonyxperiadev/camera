@@ -31,7 +31,7 @@
 
 #include <utils/Errors.h>
 #include "QCameraFOVControl.h"
-#include "QCameraFOVControlSettings.h"
+#include "QCameraDualCamSettings.h"
 
 extern "C" {
 #include "mm_camera_dbg.h"
