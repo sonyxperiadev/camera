@@ -151,6 +151,7 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
         cam_capability_t *capsAuxCam)
 {
     cam_capability_t capsConsolidated;
+    memset(&capsConsolidated, 0, sizeof(cam_capability_t));
 
     if ((capsMainCam != NULL) &&
         (capsAuxCam  != NULL)) {
