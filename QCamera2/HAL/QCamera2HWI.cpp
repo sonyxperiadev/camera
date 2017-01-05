@@ -1951,9 +1951,9 @@ int QCamera2HardwareInterface::openCamera()
                 (void *) this);
     }
     mBundledSnapshot = 0;
-    mActiveCamera = MM_CAMERA_TYPE_MAIN;
+    mActiveCameras = MM_CAMERA_TYPE_MAIN;
     if (isDualCamera()) {
-        mActiveCamera |= MM_CAMERA_TYPE_AUX;
+        mActiveCameras |= MM_CAMERA_TYPE_AUX;
 
         // Create and initialize FOV-control object
         m_pFovControl = QCameraFOVControl::create(gCamCapability[mCameraId]->main_cam_cap,
@@ -4726,7 +4726,7 @@ int32_t QCamera2HardwareInterface::configureHalPostProcess()
 
     /* check if halpp is needed in dual camera mode */
     if (isDualCamera()) {
-        if (mActiveCamera == MM_CAMERA_DUAL_CAM && mBundledSnapshot == TRUE) {
+        if (mActiveCameras == MM_CAMERA_DUAL_CAM && mBundledSnapshot == TRUE) {
             LOGH("Use HALPP for dual camera bundle snapshot.");
             m_bNeedHalPP = TRUE;
         }
@@ -4907,7 +4907,7 @@ int QCamera2HardwareInterface::takePicture()
         numSnapshots = mParameters.getBurstCountForAdvancedCapture();
     }
 
-    if (mActiveCamera == MM_CAMERA_DUAL_CAM && mBundledSnapshot) {
+    if (mActiveCameras == MM_CAMERA_DUAL_CAM && mBundledSnapshot) {
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.dualfov.jpegnum", prop, "1");
@@ -4926,7 +4926,7 @@ int QCamera2HardwareInterface::takePicture()
     }
 
     LOGI("snap count = %d zsl = %d advanced = %d, active camera:%d",
-            numSnapshots, mParameters.isZSLMode(), mAdvancedCaptureConfigured, mActiveCamera);
+            numSnapshots, mParameters.isZSLMode(), mAdvancedCaptureConfigured, mActiveCameras);
 
     if (mParameters.isZSLMode()) {
         QCameraChannel *pChannel = m_channels[QCAMERA_CH_TYPE_ZSL];
@@ -7141,15 +7141,8 @@ void QCamera2HardwareInterface::processDualCamFovControl()
         bundledSnapshot = fovControlResult.snapshotPostProcess;
         camMasterSnapshot = fovControlResult.camMasterPreview;
 
-        if ((activeCameras != mActiveCamera) ||
-                ((activeCameras == MM_CAMERA_DUAL_CAM) && (bundledSnapshot != mBundledSnapshot))) {
-            processCameraControl(activeCameras, bundledSnapshot, camMasterSnapshot);
-        }
-
-        if (mMasterCamera != fovControlResult.camMasterPreview) {
-            mMasterCamera = fovControlResult.camMasterPreview;
-            switchCameraCb();
-        }
+        processCameraControl(activeCameras, bundledSnapshot);
+        switchCameraCb(fovControlResult.camMasterPreview);
     }
 }
 
@@ -7164,42 +7157,40 @@ void QCamera2HardwareInterface::processDualCamFovControl()
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera2HardwareInterface::processCameraControl(uint32_t camState,
-        bool bundledSnapshot, cam_sync_type_t camMasterSnapshot)
+int32_t QCamera2HardwareInterface::processCameraControl(
+        uint32_t activeCameras,
+        bool     bundledSnapshot)
 {
     int32_t ret = NO_ERROR;
-
-    if (camState != mActiveCamera) {
-        //Set camera controls to parameter and back-end
-        ret = mParameters.setCameraControls(camState);
-    }
-
-    mParameters.setBundledSnapshot(bundledSnapshot);
-    mParameters.setNumOfSnapshot();
 
     //Update camera status to internal channel
     for (int i = 0; i < QCAMERA_CH_TYPE_MAX; i++) {
         if (m_channels[i] != NULL && m_channels[i]->isDualChannel()) {
-            ret = m_channels[i]->processCameraControl(camState, bundledSnapshot, camMasterSnapshot);
+            ret = m_channels[i]->processCameraControl(activeCameras, bundledSnapshot);
             if (ret != NO_ERROR) {
                 LOGE("Channel Switch Failed");
                 break;
             }
         }
     }
-    if ((ret == NO_ERROR) && (camState != mActiveCamera)) {
-        if (camState == MM_CAMERA_TYPE_MAIN) {
-            m_ActiveHandle = get_main_camera_handle(mCameraHandle->camera_handle);
-        } else if (camState == MM_CAMERA_TYPE_AUX) {
-            m_ActiveHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
-        } else {
-            m_ActiveHandle = mCameraHandle->camera_handle;
+
+    if ((activeCameras != mActiveCameras) ||
+            ((activeCameras == MM_CAMERA_DUAL_CAM) && (bundledSnapshot != mBundledSnapshot))) {
+
+        if (activeCameras != mActiveCameras) {
+            //Set camera controls to parameter and back-end
+            ret = mParameters.setCameraControls(activeCameras);
         }
+
+        mParameters.setBundledSnapshot(bundledSnapshot);
+        mParameters.setNumOfSnapshot();
+
+        LOGH("mActiveCameras = %d to %d, bundledSnapshot = %d to %d",
+                mActiveCameras, activeCameras, mBundledSnapshot, bundledSnapshot);
+        mActiveCameras   = activeCameras;
+        mBundledSnapshot = bundledSnapshot;
     }
-    LOGH("mActiveCamera = %d to %d", mActiveCamera, camState);
-    mActiveCamera = camState;
-    LOGH("bundledSnapshot = %d to %d", mBundledSnapshot, bundledSnapshot);
-    mBundledSnapshot = bundledSnapshot;
+
     return ret;
 }
 
@@ -7209,39 +7200,35 @@ int32_t QCamera2HardwareInterface::processCameraControl(uint32_t camState,
  * DESCRIPTION: switch camera's in case of dual camera
  *
  * PARAMETERS :
+ * @camMaster : Master camera
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera2HardwareInterface::switchCameraCb()
+int32_t QCamera2HardwareInterface::switchCameraCb(uint32_t camMaster)
 {
     int32_t ret = NO_ERROR;
 
-    for (int i = 0; i < QCAMERA_CH_TYPE_MAX; i++) {
-        if (m_channels[i] != NULL && m_channels[i]->isDualChannel()) {
-            ret = m_channels[i]->switchChannelCb();
-            if (ret != NO_ERROR) {
-                LOGE("Channel Switch Failed");
-                break;
+    if (mActiveCameras & camMaster) {
+        for (int i = 0; i < QCAMERA_CH_TYPE_MAX; i++) {
+            if (m_channels[i] != NULL && m_channels[i]->isDualChannel()) {
+                ret = m_channels[i]->switchChannelCb(camMaster);
+                if (ret != NO_ERROR) {
+                    LOGE("Channel Switch Failed");
+                    break;
+                }
             }
         }
-    }
 
-    if (ret == NO_ERROR && (mActiveCamera & mMasterCamera)) {
-        //Trigger Event to modules to update Master info
-        mParameters.setSwitchCamera();
-    }
-
-    //Change active handle
-    if (get_aux_camera_handle(mCameraHandle->camera_handle)
-            == m_ActiveHandle) {
-        m_ActiveHandle = get_main_camera_handle(mCameraHandle->camera_handle);
-    } else if (get_main_camera_handle(mCameraHandle->camera_handle)
-            == m_ActiveHandle) {
-        m_ActiveHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
-    } else {
-        m_ActiveHandle = mCameraHandle->camera_handle;
+        if (mMasterCamera != camMaster) {
+            if (ret == NO_ERROR) {
+                //Trigger Event to modules to update Master info
+                mParameters.setSwitchCamera(camMaster);
+            }
+        }
+        // Update master camera
+        mMasterCamera = camMaster;
     }
 
     return ret;
@@ -10239,6 +10226,32 @@ bool QCamera2HardwareInterface::isDisplayFrameToSkip(uint32_t frameId)
 }
 
 /*===========================================================================
+ * FUNCTION   : getSnapshotHandle
+ *
+ * DESCRIPTION: Get the camera handle for snapshot based on the bundlesnapshot
+ *              flag and active camera state
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : camera handle for snapshot
+ *
+ *==========================================================================*/
+uint32_t QCamera2HardwareInterface::getSnapshotHandle()
+{
+    uint32_t snapshotHandle = 0;
+
+    if ((mActiveCameras == MM_CAMERA_DUAL_CAM) && mBundledSnapshot) {
+        snapshotHandle = mCameraHandle->camera_handle;
+    } else {
+        snapshotHandle = (mMasterCamera == MM_CAMERA_TYPE_MAIN) ?
+                get_main_camera_handle(mCameraHandle->camera_handle) :
+                get_aux_camera_handle(mCameraHandle->camera_handle);
+    }
+
+    return snapshotHandle;
+}
+
+/*===========================================================================
  * FUNCTION   : prepareHardwareForSnapshot
  *
  * DESCRIPTION: prepare hardware for snapshot, such as LED
@@ -10254,7 +10267,7 @@ int32_t QCamera2HardwareInterface::prepareHardwareForSnapshot(int32_t afNeeded)
 {
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL1_PREPARE_HW_FOR_SNAPSHOT);
     LOGI("[KPI Perf]: Send PREPARE SANSPHOT event");
-    return mCameraHandle->ops->prepare_snapshot(mCameraHandle->camera_handle,
+    return mCameraHandle->ops->prepare_snapshot(getSnapshotHandle(),
                                                 afNeeded);
 }
 

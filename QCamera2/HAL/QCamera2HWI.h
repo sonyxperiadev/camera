@@ -594,16 +594,15 @@ private:
     void fillDualCameraFOVControl();
     uint8_t getStreamRefCount(cam_stream_type_t stream_type);
     uint32_t getCamHandleForChannel(qcamera_ch_type_enum_t ch_type);
-    int32_t switchCameraCb();
-    int32_t processCameraControl(uint32_t camState,
-            bool bundledSnapshot, cam_sync_type_t camMasterSnapshot);
+    int32_t switchCameraCb(uint32_t camMaster);
+    int32_t processCameraControl(uint32_t camState, bool bundledSnapshot);
     bool needSyncCB(cam_stream_type_t stream_type);
+    uint32_t getSnapshotHandle();
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
     mm_camera_vtbl_t *mCameraHandle;
-    uint32_t m_ActiveHandle;
-    uint32_t mActiveCamera;
+    uint32_t mActiveCameras;
     uint32_t mMasterCamera;
     bool mBundledSnapshot;
     bool mCameraOpened;

@@ -132,7 +132,7 @@ public:
 
     int32_t setSyncDataCB(stream_cb_routine data_cb);
     int32_t setBundleInfo();
-    int32_t switchStreamCb();
+    int32_t switchStreamCb(uint32_t camMaster);
     int32_t processCameraControl(uint32_t camState);
     bool isDualStream(){return mDualStream;};
     bool needCbSwitch();
@@ -160,8 +160,8 @@ private:
     uint32_t mCamHandle;
     uint32_t mChannelHandle;
     uint32_t mHandle; // stream handle from mm-camera-interface
-    uint32_t mActiveHandle;
-    uint32_t mActiveCamera;
+    uint32_t mActiveCameras;
+    uint32_t mMasterCamera;
     mm_camera_ops_t *mCamOps;
     cam_stream_info_t *mStreamInfo; // ptr to stream info buf
     mm_camera_stream_mem_vtbl_t mMemVtbl;

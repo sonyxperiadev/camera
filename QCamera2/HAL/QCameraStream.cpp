@@ -352,7 +352,6 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mCamHandle(camHandle),
         mChannelHandle(chId),
         mHandle(0),
-        mActiveHandle(0),
         mCamOps(camOps),
         mStreamInfo(NULL),
         mNumBufs(0),
@@ -455,7 +454,6 @@ QCameraStream::~QCameraStream()
     if (mHandle > 0) {
         mCamOps->delete_stream(mCamHandle, mChannelHandle, mHandle);
         mHandle = 0;
-        mActiveHandle = 0;
     }
     pthread_mutex_destroy(&m_lock);
     pthread_cond_destroy(&m_cond);
@@ -767,10 +765,10 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         rc = UNKNOWN_ERROR;
         goto done;
     }
-    mActiveHandle = mHandle;
-    mActiveCamera = MM_CAMERA_TYPE_MAIN;
+    mActiveCameras = MM_CAMERA_TYPE_MAIN;
+    mMasterCamera  = MM_CAMERA_TYPE_MAIN;
     if (isDualStream()) {
-        mActiveCamera |= MM_CAMERA_TYPE_AUX;
+        mActiveCameras |= MM_CAMERA_TYPE_AUX;
         if (needFrameSync()) {
             mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                     mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
@@ -820,7 +818,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
 err1:
     mCamOps->delete_stream(mCamHandle, mChannelHandle, mHandle);
     mHandle = 0;
-    mActiveHandle = 0;
 done:
     return rc;
 }
@@ -2803,19 +2800,8 @@ int32_t QCameraStream::setSyncDataCB(stream_cb_routine data_cb)
  *==========================================================================*/
 int32_t QCameraStream::processCameraControl(uint32_t camState)
 {
-    int32_t ret = NO_ERROR;
-
-    if (ret == NO_ERROR) {
-        if (camState == MM_CAMERA_TYPE_MAIN) {
-            mActiveHandle = get_main_camera_handle(mHandle);
-        } else if (camState == MM_CAMERA_TYPE_AUX) {
-            mActiveHandle = get_aux_camera_handle(mHandle);
-        } else {
-            mActiveHandle = mHandle;
-        }
-        mActiveCamera = camState;
-    }
-    return ret;
+    mActiveCameras = camState;
+    return NO_ERROR;
 }
 
 /*===========================================================================
@@ -2824,29 +2810,21 @@ int32_t QCameraStream::processCameraControl(uint32_t camState)
  * DESCRIPTION: switch stream's in case of dual camera
  *
  * PARAMETERS :
+ * @camMaster : Master camera
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraStream::switchStreamCb()
+int32_t QCameraStream::switchStreamCb(uint32_t camMaster)
 {
     int32_t ret = NO_ERROR;
-    if ((mActiveCamera == MM_CAMERA_DUAL_CAM)
-            && (needCbSwitch())) {
+    if (needCbSwitch() && (camMaster != mMasterCamera)) {
         ret = mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                 mHandle, MM_CAMERA_CB_REQ_TYPE_SWITCH);
     }
-
-    if (get_aux_camera_handle(mHandle)
-            == mActiveHandle) {
-        mActiveHandle = get_main_camera_handle(mHandle);
-    } else if (get_main_camera_handle(mHandle)
-            == mActiveHandle) {
-        mActiveHandle = get_aux_camera_handle(mHandle);
-    } else {
-        mActiveHandle = mHandle;
-    }
+    // Update master camera
+    mMasterCamera = camMaster;
     return ret;
 }
 
