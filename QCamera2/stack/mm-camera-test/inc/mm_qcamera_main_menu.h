@@ -77,6 +77,7 @@ typedef enum
   SPECIAL_EFFECTS,
   SET_MN_WHITE_BALANCE,
   ANTI_BANDING,
+  SET_FLIP_MODE,
   BURST_MODE_SNAPSHOT,
   CONCURRENT_NDR_NONHDR,
   EXIT
@@ -121,6 +122,7 @@ typedef enum
   ACTION_SPECIAL_EFFECTS,
   ACTION_ANTI_BANDING,
   ACTION_BURST_MODE_SNAPSHOT,
+  ACTION_FLIP_MODE,
   ACTION_CONCURRENT_NDR_NONHDR,
   ACTION_EXIT
 } camera_action_t;
@@ -301,6 +303,14 @@ typedef enum {
 }antibanding_types;
 
 typedef enum {
+  MODE_NO_FLIP,
+  MODE_FLIP_H,
+  MODE_FLIP_V,
+  MODE_FLIP_V_H,
+  MODE_FLIP_MAX,
+}flipmodes_types;
+
+typedef enum {
     FLASH_MODE_OFF,
     FLASH_MODE_AUTO,
     FLASH_MODE_ON,
@@ -349,6 +359,7 @@ typedef enum
   MENU_ID_SPECIAL_EFFECTS,
   MENU_ID_WHITEBALANCE_MANUAL,
   MENU_ID_ANTI_BANDING,
+  MENU_ID_FLIP_MODE,
   MENU_ID_INVALID,
 } menu_id_change_t;
 
@@ -452,6 +463,11 @@ typedef struct {
   antibanding_types sp_id;
   char *name;
 } ANTI_BANDING_TBT_T;
+
+typedef struct {
+  flipmodes_types sp_id;
+  char *name;
+}FLIP_MODES_TBT_T;
 
 typedef struct {
   Flash_modes bs_id;

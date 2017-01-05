@@ -208,6 +208,8 @@ mm_camera_channel_t * mm_app_add_reprocess_channel(mm_camera_test_obj_t *test_ob
         pp_config.feature_mask |= CAM_QCOM_FEATURE_CAC;
     }
 
+    pp_config.feature_mask |= CAM_QCOM_FEATURE_FLIP;
+
     uint8_t minStreamBufNum = source_stream->num_of_bufs;
     stream = mm_app_add_reprocess_stream_from_source(test_obj,
                                      channel,
