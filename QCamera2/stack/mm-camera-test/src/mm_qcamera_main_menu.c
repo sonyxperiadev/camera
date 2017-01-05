@@ -2023,9 +2023,13 @@ int enableAFR(mm_camera_lib_handle *lib_handle)
                                     &cap.fps_ranges_tbl[j],
                                     NULL);
 
-    LOGE("FPS range [%5.2f:%5.2f] rc = %d",
+    LOGE("FPS range [%5.2f:%5.2f] rc = %d\n",
               cap.fps_ranges_tbl[j].min_fps,
               cap.fps_ranges_tbl[j].max_fps,
+              rc);
+    LOGE("FPS range (video) [%5.2f:%5.2f] rc = %d\n",
+              cap.fps_ranges_tbl[j].video_min_fps,
+              cap.fps_ranges_tbl[j].video_max_fps,
               rc);
 
     return rc;

@@ -2139,6 +2139,17 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
     camera_cap = (cam_capability_t *) handle->test_obj.cap_buf.mem_info.data;
 
     switch(cmd) {
+        case MM_CAMERA_LIB_FPS_RANGE:
+              if ( NULL != in_data ) {
+                 cam_fps_range_t range = *(( cam_fps_range_t * )in_data);
+                 rc = setFPSRange(&handle->test_obj, range);
+                 if (rc != MM_CAMERA_OK) {
+                    LOGE("setFPSRange() err=%d\n",
+                                  rc);
+                   goto EXIT;
+                }
+            }
+            break;
         case MM_CAMERA_LIB_EZTUNE_ENABLE:
             if ( NULL != in_data) {
                 int enable_eztune = *(( int * )in_data);
