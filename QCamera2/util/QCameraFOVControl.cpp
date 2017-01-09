@@ -439,23 +439,22 @@ int32_t QCameraFOVControl::updateConfigSettings(
                 mFovControlResult.camMasterPreview  = mFovControlData.camTele;
                 mFovControlResult.camMaster3A       = mFovControlData.camTele;
                 mFovControlResult.activeCameras     = (uint32_t)mFovControlData.camTele;
-                mFovControlResult.snapshotPostProcess = false;
 
                 // Initialize spatial alignment results to match with this initial camera state
-                mFovControlData.spatialAlignResult.camMasterHint  = CAM_ROLE_TELE;
-                mFovControlData.spatialAlignResult.activeCameras  = CAM_ROLE_TELE;
+                mFovControlData.spatialAlignResult.camMasterHint  = mFovControlData.camTele;
+                mFovControlData.spatialAlignResult.activeCameras  = mFovControlData.camTele;
                 LOGD("start camera state: TELE");
             } else {
                 mFovControlResult.camMasterPreview  = mFovControlData.camWide;
                 mFovControlResult.camMaster3A       = mFovControlData.camWide;
                 mFovControlResult.activeCameras     = (uint32_t)mFovControlData.camWide;
-                mFovControlResult.snapshotPostProcess = false;
 
                 // Initialize spatial alignment results to match with this initial camera state
-                mFovControlData.spatialAlignResult.camMasterHint  = CAM_ROLE_WIDE;
-                mFovControlData.spatialAlignResult.activeCameras  = CAM_ROLE_WIDE;
+                mFovControlData.spatialAlignResult.camMasterHint  = mFovControlData.camWide;
+                mFovControlData.spatialAlignResult.activeCameras  = mFovControlData.camWide;
                 LOGD("start camera state: WIDE");
             }
+            mFovControlResult.snapshotPostProcess = false;
 
             // FOV-control config is complete for the current use case
             mFovControlData.configCompleted = true;
@@ -592,33 +591,32 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             // Get master camera hint
             if (spatialAlignOutput->is_master_hint_valid) {
                 uint8_t master = spatialAlignOutput->master_hint;
-                if ((master == CAM_ROLE_WIDE) ||
-                    (master == CAM_ROLE_TELE)) {
-                    mFovControlData.spatialAlignResult.camMasterHint = master;
+                if (master == CAM_ROLE_WIDE) {
+                    mFovControlData.spatialAlignResult.camMasterHint = mFovControlData.camWide;
+                } else if (master == CAM_ROLE_TELE) {
+                    mFovControlData.spatialAlignResult.camMasterHint = mFovControlData.camTele;
                 }
             }
 
             // Get master camera used for the preview in the frame corresponding to this metadata
             if (spatialAlignOutput->is_master_preview_valid) {
                 uint8_t master = spatialAlignOutput->master_preview;
-                if ((master == CAM_ROLE_WIDE) ||
-                    (master == CAM_ROLE_TELE)) {
-                    mFovControlData.spatialAlignResult.camMasterPreview = master;
-
-                    if (master == CAM_ROLE_WIDE) {
-                        masterCam = mFovControlData.camWide;
-                    } else {
-                        masterCam = mFovControlData.camTele;
-                    }
+                if (master == CAM_ROLE_WIDE) {
+                    masterCam = mFovControlData.camWide;
+                    mFovControlData.spatialAlignResult.camMasterPreview = masterCam;
+                } else if (master == CAM_ROLE_TELE) {
+                    masterCam = mFovControlData.camTele;
+                    mFovControlData.spatialAlignResult.camMasterPreview = masterCam;
                 }
             }
 
             // Get master camera used for 3A in the frame corresponding to this metadata
             if (spatialAlignOutput->is_master_3A_valid) {
                 uint8_t master = spatialAlignOutput->master_3A;
-                if ((master == CAM_ROLE_WIDE) ||
-                    (master == CAM_ROLE_TELE)) {
-                    mFovControlData.spatialAlignResult.camMaster3A = master;
+                if (master == CAM_ROLE_WIDE) {
+                    mFovControlData.spatialAlignResult.camMaster3A = mFovControlData.camWide;
+                } else if (master == CAM_ROLE_TELE) {
+                    mFovControlData.spatialAlignResult.camMaster3A = mFovControlData.camTele;
                 }
             }
 
@@ -1113,14 +1111,10 @@ bool QCameraFOVControl::isSpatialAlignmentReady()
     bool ret = true;
 
     if (mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) {
-        cam_sync_type_t camWide = mFovControlData.camWide;
-        cam_sync_type_t camTele = mFovControlData.camTele;
-        cam_sync_type_t currentMaster  = mFovControlResult.camMasterPreview;
-
+        uint8_t currentMaster = (uint8_t)mFovControlResult.camMasterPreview;
         uint8_t camMasterHint = mFovControlData.spatialAlignResult.camMasterHint;
 
-        if (((currentMaster == camWide) && (camMasterHint == CAM_ROLE_TELE)) ||
-            ((currentMaster == camTele) && (camMasterHint == CAM_ROLE_WIDE))) {
+        if (currentMaster != camMasterHint) {
             ret = true;
         } else {
             ret = false;
