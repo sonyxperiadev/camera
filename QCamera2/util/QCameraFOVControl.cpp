@@ -1750,4 +1750,33 @@ cam_face_detection_data_t QCameraFOVControl::translateRoiFD(
     }
     return metaFDTranslated;
 }
+
+
+/*===========================================================================
+ * FUNCTION      : getFrameMargins
+ *
+ * DESCRIPTION   : Return frame margin data for the requested camera
+ *
+ * PARAMETERS    :
+ * @masterCamera : Master camera id
+ *
+ * RETURN        : Frame margins
+ *
+ *==========================================================================*/
+cam_frame_margins_t QCameraFOVControl::getFrameMargins(
+        int8_t masterCamera)
+{
+    cam_frame_margins_t frameMargins;
+    memset(&frameMargins, 0, sizeof(cam_frame_margins_t));
+
+    if (masterCamera == CAM_TYPE_MAIN) {
+        frameMargins.widthMargins  = mFovControlData.camMainWidthMargin;
+        frameMargins.heightMargins = mFovControlData.camMainHeightMargin;
+    } else if (masterCamera == CAM_TYPE_AUX) {
+        frameMargins.widthMargins  = mFovControlData.camAuxWidthMargin;
+        frameMargins.heightMargins = mFovControlData.camAuxHeightMargin;
+    }
+
+    return frameMargins;
+}
 }; // namespace qcamera
