@@ -4,9 +4,6 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
-# Too many clang warnings/errors, see b/23163853.
-LOCAL_CLANG := false
-
 LOCAL_SRC_FILES := \
         util/QCameraCmdThread.cpp \
         util/QCameraQueue.cpp \
@@ -103,6 +100,8 @@ LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_SHARED_LIBRARIES += libts_face_beautify_hal libts_detected_face_hal
 endif
+
+LOCAL_CLANG := false
 
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_MODULE := camera.$(TARGET_BOARD_PLATFORM)

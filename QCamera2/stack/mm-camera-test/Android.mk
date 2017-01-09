@@ -5,9 +5,6 @@ LOCAL_PATH:=$(call my-dir)
 include $(LOCAL_PATH)/../../../common.mk
 include $(CLEAR_VARS)
 
-# b/24171136 many files not compiling with clang/llvm yet
-LOCAL_CLANG := false
-
 LOCAL_CFLAGS:= \
         -DAMSS_VERSION=$(AMSS_VERSION) \
         $(mmcamera_debug_defines) \
@@ -90,6 +87,7 @@ LOCAL_SHARED_LIBRARIES:= \
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
+LOCAL_CLANG := false
 
 LOCAL_MODULE:= mm-qcamera-app
 
@@ -98,9 +96,6 @@ include $(BUILD_EXECUTABLE)
 # Build tuning library
 include $(CLEAR_VARS)
 
-# b/24171136 many files not compiling with clang/llvm yet
-LOCAL_CLANG := false
-
 LOCAL_CFLAGS:= \
         -DAMSS_VERSION=$(AMSS_VERSION) \
         $(mmcamera_debug_defines) \
@@ -184,5 +179,6 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 
+LOCAL_CLANG := false
 LOCAL_MODULE:= libmm-qcamera
 include $(BUILD_SHARED_LIBRARY)

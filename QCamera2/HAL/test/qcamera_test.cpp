@@ -1730,7 +1730,7 @@ status_t  CameraContext::openCamera()
 
     mCamera = Camera::connect(mCameraIndex,
                               packageName,
-                              Camera::USE_CALLING_UID);
+                              Camera::USE_CALLING_UID,getpid());
 
 #else
 

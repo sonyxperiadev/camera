@@ -4,9 +4,6 @@ LOCAL_PATH := $(call my-dir)
 include $(LOCAL_PATH)/../../../common.mk
 include $(CLEAR_VARS)
 
-# Too many clang warnings/errors, see b/23163853.
-LOCAL_CLANG := false
-
 MM_CAM_FILES := \
         src/mm_camera_interface.c \
         src/mm_camera.c \
@@ -53,6 +50,7 @@ ifneq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) >= 17 ))" )))
 endif
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
+LOCAL_CLANG := false
 
 LOCAL_SRC_FILES := $(MM_CAM_FILES)
 
