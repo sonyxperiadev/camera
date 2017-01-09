@@ -65,7 +65,8 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_INSTANT_AEC_END,
         QCAMERA3_SHARPNESS_END,
         QCAMERA3_HISTOGRAM_END,
-        QCAMERA3_BINNING_CORRECTION_END
+        QCAMERA3_BINNING_CORRECTION_END,
+        QCAMERA3_STATS_END
 };
 
 typedef struct vendor_tag_info {
@@ -97,7 +98,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.instant_aec",
     "org.codeaurora.qcamera3.sharpness",
     "org.codeaurora.qcamera3.histogram",
-    "org.codeaurora.qcamera3.binning_correction"
+    "org.codeaurora.qcamera3.binning_correction",
+    "org.codeaurora.qcamera3.stats"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -231,11 +233,16 @@ vendor_tag_info_t qcamera3_histogram[QCAMERA3_HISTOGRAM_END -
     { "stats", TYPE_INT32 }
 };
 
-vendor_tag_info_t
-        qcamera3_binning_correction[QCAMERA3_BINNING_CORRECTION_END -
+vendor_tag_info_t qcamera3_binning_correction[QCAMERA3_BINNING_CORRECTION_END -
         QCAMERA3_BINNING_CORRECTION_START] = {
     { "binning_correction_mode", TYPE_INT32 },
     { "binning_correction_available_modes",   TYPE_INT32 }
+};
+
+vendor_tag_info_t qcamera3_stats[QCAMERA3_STATS_END -
+        QCAMERA3_STATS_START] = {
+    { "is_hdr_scene", TYPE_BYTE },
+    { "is_hdr_scene_confidence", TYPE_FLOAT }
 };
 
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
@@ -262,7 +269,8 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_instant_aec,
     qcamera3_sharpness,
     qcamera3_histogram,
-    qcamera3_binning_correction
+    qcamera3_binning_correction,
+    qcamera3_stats
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -350,10 +358,14 @@ uint32_t qcamera3_all_tags[] = {
     (uint32_t)QCAMERA3_HISTOGRAM_BUCKETS,
     (uint32_t)QCAMERA3_HISTOGRAM_MAX_COUNT,
     (uint32_t)QCAMERA3_HISTOGRAM_STATS,
+
     // QCAMERA3_BINNING_CORRECTION_END
     (uint32_t)QCAMERA3_BINNING_CORRECTION_MODE,
-    (uint32_t)QCAMERA3_AVAILABLE_BINNING_CORRECTION_MODES
+    (uint32_t)QCAMERA3_AVAILABLE_BINNING_CORRECTION_MODES,
 
+    // QCAMERA3_STATS
+    (uint32_t)QCAMERA3_STATS_IS_HDR_SCENE,
+    (uint32_t)QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
