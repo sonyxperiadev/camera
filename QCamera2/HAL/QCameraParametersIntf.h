@@ -190,6 +190,7 @@ public:
     bool isPreviewFlipChanged();
     bool isVideoFlipChanged();
     bool isSnapshotFlipChanged();
+    bool isZoomChanged();
     void setHDRSceneEnable(bool bflag);
     int32_t updateAWBParams(cam_awb_params_t &awb_params);
 
@@ -316,6 +317,7 @@ public:
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera();
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
+    void setBundledSnapshot(bool value);
     int32_t getDualLedCalibration();
 private:
     QCameraParameters *mImpl;

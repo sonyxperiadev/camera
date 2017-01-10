@@ -387,6 +387,7 @@ private:
     bool is4k2kResolution(cam_dimension_t* resolution);
     bool isPreviewRestartEnabled();
     bool needReprocess();
+    bool needHALPP() {return m_bNeedHalPP;}
     bool needRotationReprocess();
     void debugShowVideoFPS();
     void debugShowPreviewFPS();
@@ -490,6 +491,7 @@ private:
     int32_t configureAdvancedCapture();
     int32_t configureAFBracketing(bool enable = true);
     int32_t configureHDRBracketing();
+    int32_t configureHalPostProcess();
     int32_t stopAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t startAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t configureOptiZoom();
@@ -592,7 +594,8 @@ private:
     uint8_t getStreamRefCount(cam_stream_type_t stream_type);
     uint32_t getCamHandleForChannel(qcamera_ch_type_enum_t ch_type);
     int32_t switchCameraCb();
-    int32_t processCameraControl(uint32_t camState);
+    int32_t processCameraControl(uint32_t camState,
+            bool bundledSnapshot, cam_sync_type_t camMasterSnapshot);
     bool needSyncCB(cam_stream_type_t stream_type);
 private:
     camera_device_t   mCameraDevice;
@@ -601,6 +604,7 @@ private:
     uint32_t m_ActiveHandle;
     uint32_t mActiveCamera;
     uint32_t mMasterCamera;
+    bool mBundledSnapshot;
     bool mCameraOpened;
     bool mDualCamera;
     QCameraFOVControl *m_pFovControl;
@@ -823,6 +827,7 @@ private:
     nsecs_t mBootToMonoTimestampOffset;
     bool bDepthAFCallbacks;
     bool m_bOptimizeCacheOps;
+    bool m_bNeedHalPP;
 };
 
 }; // namespace qcamera

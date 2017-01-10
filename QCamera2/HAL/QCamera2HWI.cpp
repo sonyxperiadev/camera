@@ -1684,7 +1684,8 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mCACDoneReceived(false),
       m_bNeedRestart(false),
       mBootToMonoTimestampOffset(0),
-      bDepthAFCallbacks(true)
+      bDepthAFCallbacks(true),
+      m_bNeedHalPP(FALSE)
 {
 #ifdef TARGET_TS_MAKEUP
     memset(&mFaceRect, -1, sizeof(mFaceRect));
@@ -1949,7 +1950,7 @@ int QCamera2HardwareInterface::openCamera()
                 camEvtHandle,
                 (void *) this);
     }
-
+    mBundledSnapshot = 0;
     mActiveCamera = MM_CAMERA_TYPE_MAIN;
     if (isDualCamera()) {
         mActiveCamera |= MM_CAMERA_TYPE_AUX;
@@ -4451,6 +4452,11 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         bSkipDisplay = false;
     }
 
+    if (m_postprocessor.isHalPPEnabled()) {
+        LOGH("HALPP is enabled, check if halpp is needed for current snapshot.");
+        configureHalPostProcess();
+    }
+
     LOGH("Stop preview temporarily for advanced captures");
     setDisplaySkip(bSkipDisplay);
 
@@ -4698,6 +4704,41 @@ int32_t QCamera2HardwareInterface::configureStillMore()
 }
 
 /*===========================================================================
+ * FUNCTION   : configureHalPostProcess
+ *
+ * DESCRIPTION: config hal postproc (HALPP) for current snapshot.
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::configureHalPostProcess()
+{
+    LOGD("E");
+    int32_t rc = NO_ERROR;
+
+    if (!m_postprocessor.isHalPPEnabled()) {
+        m_bNeedHalPP = FALSE;
+        return rc;
+    }
+
+    /* check if halpp is needed in dual camera mode */
+    if (isDualCamera()) {
+        if (mActiveCamera == MM_CAMERA_DUAL_CAM && mBundledSnapshot == TRUE) {
+            LOGH("Use HALPP for dual camera bundle snapshot.");
+            m_bNeedHalPP = TRUE;
+        }
+        return rc;
+    }
+
+    return rc;
+    LOGD("X");
+}
+
+
+/*===========================================================================
  * FUNCTION   : stopAdvancedCapture
  *
  * DESCRIPTION: stops advanced capture based on capture type
@@ -4735,6 +4776,8 @@ int32_t QCamera2HardwareInterface::stopAdvancedCapture(
         LOGH("No Advanced Capture feature enabled!");
         rc = BAD_VALUE;
     }
+
+    m_bNeedHalPP = FALSE;
     return rc;
 }
 
@@ -4860,16 +4903,30 @@ int QCamera2HardwareInterface::takePicture()
         return rc;
     }
 
-    if(mActiveCamera == MM_CAMERA_DUAL_CAM) {
-        /*Need to remove once we have dual camera fusion*/
-        numSnapshots = numSnapshots/MM_CAMERA_MAX_CAM_CNT;
-    }
-
     if (mAdvancedCaptureConfigured) {
         numSnapshots = mParameters.getBurstCountForAdvancedCapture();
     }
-    LOGI("snap count = %d zsl = %d advanced = %d",
-            numSnapshots, mParameters.isZSLMode(), mAdvancedCaptureConfigured);
+
+    if (mActiveCamera == MM_CAMERA_DUAL_CAM && mBundledSnapshot) {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.dualfov.jpegnum", prop, "1");
+        int dualfov_snap_num = atoi(prop);
+
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.halpp", prop, "0");
+        int halpp_enabled = atoi(prop);
+        if(halpp_enabled == 0) {
+            dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
+        }
+
+        dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
+        LOGD("dualfov_snap_num:%d", dualfov_snap_num);
+        numSnapshots /= dualfov_snap_num;
+    }
+
+    LOGI("snap count = %d zsl = %d advanced = %d, active camera:%d",
+            numSnapshots, mParameters.isZSLMode(), mAdvancedCaptureConfigured, mActiveCamera);
 
     if (mParameters.isZSLMode()) {
         QCameraChannel *pChannel = m_channels[QCAMERA_CH_TYPE_ZSL];
@@ -7062,8 +7119,10 @@ int32_t QCamera2HardwareInterface::processJpegNotify(qcamera_jpeg_evt_payload_t 
  *==========================================================================*/
 void QCamera2HardwareInterface::processDualCamFovControl()
 {
-   uint32_t camState;
+   uint32_t activeCameras;
+   bool bundledSnapshot;
    fov_control_result_t fovControlResult;
+   cam_sync_type_t camMasterSnapshot;
 
     if (!isDualCamera()) {
         return;
@@ -7071,15 +7130,20 @@ void QCamera2HardwareInterface::processDualCamFovControl()
 
     fovControlResult = m_pFovControl->getFovControlResult();
 
-    camState = fovControlResult.activeCamState;
+    if (fovControlResult.isValid) {
+        activeCameras = fovControlResult.activeCameras;
+        bundledSnapshot = fovControlResult.snapshotPostProcess;
+        camMasterSnapshot = fovControlResult.camMasterPreview;
 
-    if (camState != mActiveCamera) {
-        processCameraControl(camState);
-    }
+        if ((activeCameras != mActiveCamera) ||
+                ((activeCameras == MM_CAMERA_DUAL_CAM) && (bundledSnapshot != mBundledSnapshot))) {
+            processCameraControl(activeCameras, bundledSnapshot, camMasterSnapshot);
+        }
 
-    if (mMasterCamera != fovControlResult.camMasterPreview) {
-        mMasterCamera = fovControlResult.camMasterPreview;
-        switchCameraCb();
+        if (mMasterCamera != fovControlResult.camMasterPreview) {
+            mMasterCamera = fovControlResult.camMasterPreview;
+            switchCameraCb();
+        }
     }
 }
 
@@ -7094,32 +7158,42 @@ void QCamera2HardwareInterface::processDualCamFovControl()
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera2HardwareInterface::processCameraControl(uint32_t camState)
+int32_t QCamera2HardwareInterface::processCameraControl(uint32_t camState,
+        bool bundledSnapshot, cam_sync_type_t camMasterSnapshot)
 {
     int32_t ret = NO_ERROR;
 
-    //Set camera controls to parameter and back-end
-    ret = mParameters.setCameraControls(camState);
+    if (camState != mActiveCamera) {
+        //Set camera controls to parameter and back-end
+        ret = mParameters.setCameraControls(camState);
+    }
+
+    mParameters.setBundledSnapshot(bundledSnapshot);
+    mParameters.setNumOfSnapshot();
 
     //Update camera status to internal channel
     for (int i = 0; i < QCAMERA_CH_TYPE_MAX; i++) {
         if (m_channels[i] != NULL && m_channels[i]->isDualChannel()) {
-            ret = m_channels[i]->processCameraControl(camState);
+            ret = m_channels[i]->processCameraControl(camState, bundledSnapshot, camMasterSnapshot);
             if (ret != NO_ERROR) {
                 LOGE("Channel Switch Failed");
                 break;
             }
         }
     }
-    if (ret == NO_ERROR) {
+    if ((ret == NO_ERROR) && (camState != mActiveCamera)) {
         if (camState == MM_CAMERA_TYPE_MAIN) {
             m_ActiveHandle = get_main_camera_handle(mCameraHandle->camera_handle);
         } else if (camState == MM_CAMERA_TYPE_AUX) {
             m_ActiveHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
+        } else {
+            m_ActiveHandle = mCameraHandle->camera_handle;
         }
     }
     LOGH("mActiveCamera = %d to %d", mActiveCamera, camState);
     mActiveCamera = camState;
+    LOGH("bundledSnapshot = %d to %d", mBundledSnapshot, bundledSnapshot);
+    mBundledSnapshot = bundledSnapshot;
     return ret;
 }
 
@@ -7151,18 +7225,19 @@ int32_t QCamera2HardwareInterface::switchCameraCb()
     if (ret == NO_ERROR && mActiveCamera == MM_CAMERA_DUAL_CAM) {
         //Trigger Event to modules to update Master info
         mParameters.setSwitchCamera();
-
-        //Change active handle
-        if (get_aux_camera_handle(mCameraHandle->camera_handle)
-                == m_ActiveHandle) {
-            m_ActiveHandle = get_main_camera_handle(mCameraHandle->camera_handle);
-        } else if (get_main_camera_handle(mCameraHandle->camera_handle)
-                == m_ActiveHandle) {
-            m_ActiveHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
-        } else {
-            m_ActiveHandle = mCameraHandle->camera_handle;
-        }
     }
+
+    //Change active handle
+    if (get_aux_camera_handle(mCameraHandle->camera_handle)
+            == m_ActiveHandle) {
+        m_ActiveHandle = get_main_camera_handle(mCameraHandle->camera_handle);
+    } else if (get_main_camera_handle(mCameraHandle->camera_handle)
+            == m_ActiveHandle) {
+        m_ActiveHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
+    } else {
+        m_ActiveHandle = mCameraHandle->camera_handle;
+    }
+
     return ret;
 }
 
@@ -8463,7 +8538,7 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         pChannel->setReprocCount(1);
     }
 
-    if (isDualCamera()) {
+    if (isDualCamera() && mBundledSnapshot) {
         minStreamBufNum += 1;
     }
 
@@ -9601,6 +9676,13 @@ int QCamera2HardwareInterface::commitParameterChanges()
         // update number of snapshot based on committed parameters setting
         rc = mParameters.setNumOfSnapshot();
     }
+
+    if (isDualCamera() &&
+        mParameters.isZoomChanged()) {
+        // If zoom changes, get the updated FOV-control result and if needed send the dual
+        // camera parameters to backend
+        processDualCamFovControl();
+    }
     return rc;
 }
 
@@ -10501,8 +10583,8 @@ void *QCamera2HardwareInterface::deferredWorkRoutine(void *obj)
 
                         // Get related cam calibration only in
                         // dual camera mode
-                        if (pme->getRelatedCamSyncInfo()->sync_control ==
-                                CAM_SYNC_RELATED_SENSORS_ON) {
+                        if ((pme->getRelatedCamSyncInfo()->sync_control ==
+                                CAM_SYNC_RELATED_SENSORS_ON) || pme->isDualCamera()){
                             rc = pme->mParameters.getRelatedCamCalibration(
                                 &(pme->mJpegMetadata.otp_calibration_data));
                             LOGD("Dumping Calibration Data Version Id %f rc %d",

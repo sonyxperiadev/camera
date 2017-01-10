@@ -64,6 +64,7 @@ QCameraChannel::QCameraChannel(uint32_t cam_handle,
     mDualChannel = is_dual_camera_by_handle(cam_handle);
     m_handle = 0;
     mActiveHandle = 0;
+    mSnapshotHandle = 0;
 }
 
 /*===========================================================================
@@ -83,6 +84,7 @@ QCameraChannel::QCameraChannel()
     mDualChannel = 0;
     m_handle = 0;
     mActiveHandle = 0;
+    mSnapshotHandle = 0;
 }
 
 /*===========================================================================
@@ -110,6 +112,7 @@ QCameraChannel::~QCameraChannel()
     m_camOps->delete_channel(m_camHandle, m_handle);
     m_handle = 0;
     mActiveHandle = 0;
+    mSnapshotHandle = 0;
 }
 
 /*===========================================================================
@@ -188,6 +191,7 @@ int32_t QCameraChannel::init(mm_camera_channel_attr_t *attr,
         return UNKNOWN_ERROR;
     }
     mActiveHandle = m_handle;
+    mSnapshotHandle = mActiveHandle;
     mActiveCamera = MM_CAMERA_TYPE_MAIN;
     if (isDualChannel()) {
         mActiveCamera |= MM_CAMERA_TYPE_AUX;
@@ -688,7 +692,8 @@ int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraChannel::processCameraControl(uint32_t camState)
+int32_t QCameraChannel::processCameraControl(uint32_t camState,
+        bool bundledSnapshot, cam_sync_type_t camMasterSnapshot)
 {
     int32_t ret = NO_ERROR;
 
@@ -696,7 +701,7 @@ int32_t QCameraChannel::processCameraControl(uint32_t camState)
         if (mStreams[i] != NULL && mStreams[i]->isDualStream()) {
             ret = mStreams[i]->processCameraControl(camState);
             if (ret != NO_ERROR) {
-                LOGE("Stream Switch Failed");
+                LOGE("Stream handle failed");
                 break;
             }
         }
@@ -709,6 +714,20 @@ int32_t QCameraChannel::processCameraControl(uint32_t camState)
             mActiveHandle = get_aux_camera_handle(m_handle);
         } else {
             mActiveHandle = m_handle;
+        }
+    }
+
+    mSnapshotHandle = mActiveHandle;
+    // Overwrite Snapshot handle in dual zone depending on bundled value
+    if (camState == MM_CAMERA_DUAL_CAM) {
+        if (bundledSnapshot) {
+            mSnapshotHandle = m_handle;
+        } else {
+            if (camMasterSnapshot == MM_CAMERA_TYPE_MAIN) {
+                mSnapshotHandle = get_main_camera_handle(m_handle);
+            } else if (camMasterSnapshot == MM_CAMERA_TYPE_AUX) {
+                mSnapshotHandle = get_aux_camera_handle(m_handle);
+            }
         }
     }
     mActiveCamera = camState;
@@ -740,17 +759,26 @@ int32_t QCameraChannel::switchChannelCb()
         }
     }
 
-    if (ret == NO_ERROR && mActiveCamera == MM_CAMERA_DUAL_CAM) {
+    if (get_aux_camera_handle(m_handle)
+            == mActiveHandle) {
+        mActiveHandle = get_main_camera_handle(m_handle);
+    } else if (get_main_camera_handle(m_handle)
+            == mActiveHandle) {
+        mActiveHandle = get_aux_camera_handle(m_handle);
+    } else {
+        mActiveHandle = m_handle;
+    }
+    // Swap the active handle
+    if (mActiveCamera == MM_CAMERA_DUAL_CAM) {
         if (get_aux_camera_handle(m_handle)
-                == mActiveHandle) {
-            mActiveHandle = get_main_camera_handle(m_handle);
+                == mSnapshotHandle) {
+            mSnapshotHandle = get_main_camera_handle(m_handle);
         } else if (get_main_camera_handle(m_handle)
-                == mActiveHandle) {
-            mActiveHandle = get_aux_camera_handle(m_handle);
-        } else {
-            mActiveHandle = m_handle;
+                == mSnapshotHandle) {
+            mSnapshotHandle = get_aux_camera_handle(m_handle);
         }
     }
+
     return ret;
 }
 
@@ -813,7 +841,8 @@ QCameraPicChannel::~QCameraPicChannel()
  *==========================================================================*/
 int32_t QCameraPicChannel::takePicture (mm_camera_req_buf_t *buf)
 {
-    int32_t rc = m_camOps->request_super_buf(m_camHandle, mActiveHandle, buf);
+    LOGD(" mActiveHandle = 0x%x mSnapshotHandle = 0x%x", mActiveHandle, mSnapshotHandle);
+    int32_t rc = m_camOps->request_super_buf(m_camHandle, mSnapshotHandle, buf);
     return rc;
 }
 
@@ -871,7 +900,7 @@ int32_t QCameraPicChannel::startAdvancedCapture(mm_camera_advanced_capture_t typ
 {
     int32_t rc = NO_ERROR;
 
-    rc = m_camOps->process_advanced_capture(m_camHandle, mActiveHandle, type,
+    rc = m_camOps->process_advanced_capture(m_camHandle, mSnapshotHandle, type,
             1, config);
     return rc;
 }
@@ -951,7 +980,8 @@ QCameraVideoChannel::~QCameraVideoChannel()
  *==========================================================================*/
 int32_t QCameraVideoChannel::takePicture(mm_camera_req_buf_t *buf)
 {
-    int32_t rc = m_camOps->request_super_buf(m_camHandle, mActiveHandle, buf);
+    LOGD(" mActiveHandle = 0x%x mSnapshotHandle = 0x%x", mActiveHandle, mSnapshotHandle);
+    int32_t rc = m_camOps->request_super_buf(m_camHandle, mSnapshotHandle, buf);
     return rc;
 }
 
@@ -1513,6 +1543,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
     param.type = CAM_STREAM_PARAM_TYPE_DO_REPROCESS;
     param.reprocess.buf_index = buf_index;
     param.reprocess.frame_idx = frame->frame_idx;
+    param.reprocess.is_uv_subsampled = frame->is_uv_subsampled;
     cam_stream_info_t *streamInfo =
             reinterpret_cast<cam_stream_info_t *>(pStream->getStreamInfoBuf()->getPtr(0));
 
@@ -1712,6 +1743,7 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
             param.type = CAM_STREAM_PARAM_TYPE_DO_REPROCESS;
             param.reprocess.buf_index = frame->bufs[i]->buf_idx;
             param.reprocess.frame_idx = frame->bufs[i]->frame_idx;
+            param.reprocess.is_uv_subsampled = frame->bufs[i]->is_uv_subsampled;
             if (pMetaStream != NULL) {
                 // we have meta data frame bundled, sent together with reprocess frame
                 param.reprocess.meta_present = 1;

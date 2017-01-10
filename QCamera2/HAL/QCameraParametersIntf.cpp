@@ -767,6 +767,13 @@ bool QCameraParametersIntf::isSnapshotFlipChanged()
     return mImpl->isSnapshotFlipChanged();
 }
 
+bool QCameraParametersIntf::isZoomChanged()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isZoomChanged();
+}
+
 void QCameraParametersIntf::setHDRSceneEnable(bool bflag)
 {
     Mutex::Autolock lock(mLock);
@@ -1494,6 +1501,13 @@ int32_t QCameraParametersIntf::setDeferCamera(cam_dual_camera_defer_cmd_t type)
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->setDeferCamera(type);
+}
+
+void QCameraParametersIntf::setBundledSnapshot(bool value)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setBundledSnapshot(value);
 }
 
 int32_t QCameraParametersIntf::getDualLedCalibration()

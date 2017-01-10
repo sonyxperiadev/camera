@@ -951,6 +951,7 @@ QCameraParameters::QCameraParameters()
       m_bPreviewFlipChanged(false),
       m_bVideoFlipChanged(false),
       m_bSnapshotFlipChanged(false),
+      m_bZoomChanged(false),
       m_bFixedFrameRateSet(false),
       m_bHDREnabled(false),
       m_bLocalHDREnabled(false),
@@ -1000,7 +1001,9 @@ QCameraParameters::QCameraParameters()
       mAecSkipDisplayFrameBound(0),
       m_bQuadraCfa(false),
       m_bSmallJpegSize(false),
-      mSecureStraemType(CAM_STREAM_TYPE_PREVIEW)
+      mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
+      mFrameNumber(0),
+      mSyncDCParam(0)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1136,7 +1139,9 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAecSkipDisplayFrameBound(0),
     m_bQuadraCfa(false),
     m_bSmallJpegSize(false),
-    mSecureStraemType(CAM_STREAM_TYPE_PREVIEW)
+    mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
+    mFrameNumber(0),
+    mSyncDCParam(0)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -3108,8 +3113,10 @@ int32_t QCameraParameters::setZoom(const QCameraParameters& params)
     int prevZoomLevel = getInt(KEY_ZOOM);
     if (prevZoomLevel == zoomLevel) {
         LOGD("No value change in zoom %d %d", prevZoomLevel, zoomLevel);
+        m_bZoomChanged = false;
         return NO_ERROR;
     }
+    m_bZoomChanged = true;
 
     return setZoom(zoomLevel);
 }
@@ -4339,13 +4346,30 @@ int32_t QCameraParameters::setNumOfSnapshot()
         nBurstNum = m_pCapability->refocus_af_bracketing_need.output_count + 1;
     }
 
-    LOGH("nBurstNum = %d, nExpnum = %d", nBurstNum, nExpnum);
-    if (mActiveState == MM_CAMERA_DUAL_CAM) {
-        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER,
-                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
+    if (mActiveState == MM_CAMERA_DUAL_CAM && mbundledSnapshot) {
+        int dualfov_snap_num = 1;
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.dualfov.jpegnum", prop, "1");
+        dualfov_snap_num = atoi(prop);
+
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.halpp", prop, "0");
+        int halpp_enabled = atoi(prop);
+        if(halpp_enabled == 0) {
+            dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
+        }
+        dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
+
+        set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum * dualfov_snap_num));
+        LOGH("nBurstNum = %d, nExpnum = %d snapshots = %d", nBurstNum, nExpnum,
+                getInt(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER));
     } else {
         set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum));
+        LOGH("nBurstNum = %d, nExpnum = %d snapshots = %d", nBurstNum, nExpnum,
+                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
     }
+
     return NO_ERROR;
 }
 
@@ -6221,6 +6245,7 @@ int32_t QCameraParameters::initDefaultParameters()
 
     //Setup dual-camera
     setDcrf();
+    setSyncDCParams();
 
     // For Aux Camera of dual camera Mode,
     // by default set no display mode
@@ -12460,6 +12485,80 @@ int32_t QCameraParameters::getRelatedCamCalibration(
 }
 
 /*===========================================================================
+ * FUNCTION   : setSyncDCParams
+ *
+ * DESCRIPTION: Enable/Disable sync Dual-camera Parameters
+ *              Set this parameter when Dual camera needs to sync
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::setSyncDCParams()
+{
+    uint32_t temp_mSyncDCParam = 0;
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+
+    //Keep it enable by default.
+    //It will be used for Dual camera sync parameters
+    property_get("persist.camera.syncDCParams.en", prop, "1");
+    temp_mSyncDCParam = atoi(prop);
+
+    if (MM_CAMERA_DUAL_CAM == mActiveState) {
+        mSyncDCParam = temp_mSyncDCParam;
+    }
+}
+
+
+/*===========================================================================
+ * FUNCTION   : SyncDCParams
+ *
+ * DESCRIPTION: Add sync dual camera parameter if this super parameter applies
+ *              to all related camera.
+                This is the indication to MCT that this parameter needs to
+ *              synchronized. There will be another parameter entry in
+                other camera with different values
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::SyncDCParams()
+{
+    //Add dual-parameter in parameters
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+        CAM_INTF_PARM_SYNC_DC_PARAMETERS, mSyncDCParam)) {
+        LOGE("Failed to update table");
+        return BAD_VALUE;
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : updateFrameNumber
+ *
+ * DESCRIPTION: update frame number and add frame number in parameters
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateFrameNumber()
+{
+    mFrameNumber++;
+    //Add frame number in parameters
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_FRAME_NUMBER,
+            mFrameNumber)) {
+        LOGE("Failed to update table");
+        return BAD_VALUE;
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : initBatchUpdate
  *
  * DESCRIPTION: init camera parameters buf entries
@@ -12480,861 +12579,6 @@ int32_t QCameraParameters::initBatchUpdate()
 }
 
 /*===========================================================================
- * FUNCTION   : getPointerofParam
- *
- * DESCRIPTION: get a pointer to parameter structure
- *
- * PARAMETERS :
- *    @meta_id : parameter / meta id enum
- *    @metadata : pointer to parameter buffer.
- *
- * RETURN     :Pointer of member_variable_<meta_ID>
- *
- *==========================================================================*/
-void *QCameraParameters::getPointerofParam(cam_intf_parm_type_t meta_id,
-        metadata_buffer_t* metadata)
-{
-    switch(meta_id) {
-        case CAM_INTF_META_HISTOGRAM:
-            return POINTER_OF_META(CAM_INTF_META_HISTOGRAM, metadata);
-        case CAM_INTF_META_FACE_DETECTION:
-            return POINTER_OF_META(CAM_INTF_META_FACE_DETECTION, metadata);
-        case CAM_INTF_META_FACE_RECOG:
-            return POINTER_OF_META(CAM_INTF_META_FACE_RECOG, metadata);
-        case CAM_INTF_META_FACE_BLINK:
-            return POINTER_OF_META(CAM_INTF_META_FACE_BLINK, metadata);
-        case CAM_INTF_META_FACE_GAZE:
-            return POINTER_OF_META(CAM_INTF_META_FACE_GAZE, metadata);
-        case CAM_INTF_META_FACE_SMILE:
-            return POINTER_OF_META(CAM_INTF_META_FACE_SMILE, metadata);
-        case CAM_INTF_META_FACE_LANDMARK:
-            return POINTER_OF_META(CAM_INTF_META_FACE_LANDMARK, metadata);
-        case CAM_INTF_META_FACE_CONTOUR:
-            return POINTER_OF_META(CAM_INTF_META_FACE_CONTOUR, metadata);
-        case CAM_INTF_META_AUTOFOCUS_DATA:
-            return POINTER_OF_META(CAM_INTF_META_AUTOFOCUS_DATA, metadata);
-        case CAM_INTF_META_CROP_DATA:
-            return POINTER_OF_META(CAM_INTF_META_CROP_DATA, metadata);
-        case CAM_INTF_META_PREP_SNAPSHOT_DONE:
-            return POINTER_OF_META(CAM_INTF_META_PREP_SNAPSHOT_DONE, metadata);
-        case CAM_INTF_META_GOOD_FRAME_IDX_RANGE:
-            return POINTER_OF_META(CAM_INTF_META_GOOD_FRAME_IDX_RANGE, metadata);
-        case CAM_INTF_META_ASD_HDR_SCENE_DATA:
-            return POINTER_OF_META(CAM_INTF_META_ASD_HDR_SCENE_DATA, metadata);
-        case CAM_INTF_META_ASD_SCENE_INFO:
-            return POINTER_OF_META(CAM_INTF_META_ASD_SCENE_INFO, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_ISP:
-            return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_ISP, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_PP:
-            return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_PP, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_AE:
-            return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_AE, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_AWB:
-            return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_AWB, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_AF:
-            return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_AF, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_ASD:
-            return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_ASD, metadata);
-        case CAM_INTF_META_FRAME_NUMBER_VALID:
-            return POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
-        case CAM_INTF_META_URGENT_FRAME_NUMBER_VALID:
-            return POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER_VALID,
-                   metadata);
-        case CAM_INTF_META_FRAME_DROPPED:
-            return POINTER_OF_META(CAM_INTF_META_FRAME_DROPPED, metadata);
-        case CAM_INTF_META_FRAME_NUMBER:
-            return POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
-        case CAM_INTF_META_URGENT_FRAME_NUMBER:
-            return POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER, metadata);
-        case CAM_INTF_META_COLOR_CORRECT_MODE:
-            return POINTER_OF_META(CAM_INTF_META_COLOR_CORRECT_MODE, metadata);
-        case CAM_INTF_META_COLOR_CORRECT_TRANSFORM:
-            return POINTER_OF_META(CAM_INTF_META_COLOR_CORRECT_TRANSFORM, metadata);
-        case CAM_INTF_META_COLOR_CORRECT_GAINS:
-            return POINTER_OF_META(CAM_INTF_META_COLOR_CORRECT_GAINS, metadata);
-        case CAM_INTF_META_PRED_COLOR_CORRECT_TRANSFORM:
-            return POINTER_OF_META(CAM_INTF_META_PRED_COLOR_CORRECT_TRANSFORM,
-                   metadata);
-        case CAM_INTF_META_PRED_COLOR_CORRECT_GAINS:
-            return POINTER_OF_META(CAM_INTF_META_PRED_COLOR_CORRECT_GAINS, metadata);
-        case CAM_INTF_META_AEC_ROI:
-            return POINTER_OF_META(CAM_INTF_META_AEC_ROI, metadata);
-        case CAM_INTF_META_CURRENT_SCENE:
-            return POINTER_OF_META(CAM_INTF_META_CURRENT_SCENE, metadata);
-        case CAM_INTF_META_AEC_STATE:
-            return POINTER_OF_META(CAM_INTF_META_AEC_STATE, metadata);
-        case CAM_INTF_PARM_FOCUS_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_FOCUS_MODE, metadata);
-        case CAM_INTF_PARM_MANUAL_FOCUS_POS:
-            return POINTER_OF_META(CAM_INTF_PARM_MANUAL_FOCUS_POS, metadata);
-        case CAM_INTF_META_AF_ROI:
-            return POINTER_OF_META(CAM_INTF_META_AF_ROI, metadata);
-        case CAM_INTF_META_AF_STATE:
-            return POINTER_OF_META(CAM_INTF_META_AF_STATE, metadata);
-        case CAM_INTF_PARM_WHITE_BALANCE:
-            return POINTER_OF_META(CAM_INTF_PARM_WHITE_BALANCE, metadata);
-        case CAM_INTF_META_AWB_REGIONS:
-            return POINTER_OF_META(CAM_INTF_META_AWB_REGIONS, metadata);
-        case CAM_INTF_META_AWB_STATE:
-            return POINTER_OF_META(CAM_INTF_META_AWB_STATE, metadata);
-        case CAM_INTF_META_BLACK_LEVEL_LOCK:
-            return POINTER_OF_META(CAM_INTF_META_BLACK_LEVEL_LOCK, metadata);
-        case CAM_INTF_META_MODE:
-            return POINTER_OF_META(CAM_INTF_META_MODE, metadata);
-        case CAM_INTF_META_EDGE_MODE:
-            return POINTER_OF_META(CAM_INTF_META_EDGE_MODE, metadata);
-        case CAM_INTF_META_FLASH_POWER:
-            return POINTER_OF_META(CAM_INTF_META_FLASH_POWER, metadata);
-        case CAM_INTF_META_FLASH_FIRING_TIME:
-            return POINTER_OF_META(CAM_INTF_META_FLASH_FIRING_TIME, metadata);
-        case CAM_INTF_META_FLASH_MODE:
-            return POINTER_OF_META(CAM_INTF_META_FLASH_MODE, metadata);
-        case CAM_INTF_META_FLASH_STATE:
-            return POINTER_OF_META(CAM_INTF_META_FLASH_STATE, metadata);
-        case CAM_INTF_META_HOTPIXEL_MODE:
-            return POINTER_OF_META(CAM_INTF_META_HOTPIXEL_MODE, metadata);
-        case CAM_INTF_META_LENS_APERTURE:
-            return POINTER_OF_META(CAM_INTF_META_LENS_APERTURE, metadata);
-        case CAM_INTF_META_LENS_FILTERDENSITY:
-            return POINTER_OF_META(CAM_INTF_META_LENS_FILTERDENSITY, metadata);
-        case CAM_INTF_META_LENS_FOCAL_LENGTH:
-            return POINTER_OF_META(CAM_INTF_META_LENS_FOCAL_LENGTH, metadata);
-        case CAM_INTF_META_LENS_FOCUS_DISTANCE:
-            return POINTER_OF_META(CAM_INTF_META_LENS_FOCUS_DISTANCE, metadata);
-        case CAM_INTF_META_LENS_FOCUS_RANGE:
-            return POINTER_OF_META(CAM_INTF_META_LENS_FOCUS_RANGE, metadata);
-        case CAM_INTF_META_LENS_STATE:
-            return POINTER_OF_META(CAM_INTF_META_LENS_STATE, metadata);
-        case CAM_INTF_META_LENS_OPT_STAB_MODE:
-            return POINTER_OF_META(CAM_INTF_META_LENS_OPT_STAB_MODE, metadata);
-        case CAM_INTF_META_NOISE_REDUCTION_MODE:
-            return POINTER_OF_META(CAM_INTF_META_NOISE_REDUCTION_MODE, metadata);
-        case CAM_INTF_META_NOISE_REDUCTION_STRENGTH:
-            return POINTER_OF_META(CAM_INTF_META_NOISE_REDUCTION_STRENGTH, metadata);
-        case CAM_INTF_META_SCALER_CROP_REGION:
-            return POINTER_OF_META(CAM_INTF_META_SCALER_CROP_REGION, metadata);
-        case CAM_INTF_META_SCENE_FLICKER:
-            return POINTER_OF_META(CAM_INTF_META_SCENE_FLICKER, metadata);
-        case CAM_INTF_META_SENSOR_EXPOSURE_TIME:
-            return POINTER_OF_META(CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata);
-        case CAM_INTF_META_SENSOR_FRAME_DURATION:
-            return POINTER_OF_META(CAM_INTF_META_SENSOR_FRAME_DURATION, metadata);
-        case CAM_INTF_META_SENSOR_SENSITIVITY:
-            return POINTER_OF_META(CAM_INTF_META_SENSOR_SENSITIVITY, metadata);
-        case CAM_INTF_META_SENSOR_TIMESTAMP:
-            return POINTER_OF_META(CAM_INTF_META_SENSOR_TIMESTAMP, metadata);
-        case CAM_INTF_META_SHADING_MODE:
-            return POINTER_OF_META(CAM_INTF_META_SHADING_MODE, metadata);
-        case CAM_INTF_META_STATS_FACEDETECT_MODE:
-            return POINTER_OF_META(CAM_INTF_META_STATS_FACEDETECT_MODE, metadata);
-        case CAM_INTF_META_STATS_HISTOGRAM_MODE:
-            return POINTER_OF_META(CAM_INTF_META_STATS_HISTOGRAM_MODE, metadata);
-        case CAM_INTF_META_STATS_SHARPNESS_MAP_MODE:
-            return POINTER_OF_META(CAM_INTF_META_STATS_SHARPNESS_MAP_MODE, metadata);
-        case CAM_INTF_META_STATS_SHARPNESS_MAP:
-            return POINTER_OF_META(CAM_INTF_META_STATS_SHARPNESS_MAP, metadata);
-        case CAM_INTF_META_TONEMAP_CURVES:
-            return POINTER_OF_META(CAM_INTF_META_TONEMAP_CURVES, metadata);
-        case CAM_INTF_META_LENS_SHADING_MAP:
-            return POINTER_OF_META(CAM_INTF_META_LENS_SHADING_MAP, metadata);
-        case CAM_INTF_META_AEC_INFO:
-            return POINTER_OF_META(CAM_INTF_META_AEC_INFO, metadata);
-        case CAM_INTF_META_SENSOR_INFO:
-            return POINTER_OF_META(CAM_INTF_META_SENSOR_INFO, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_AE:
-            return POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_AE, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_AWB:
-            return POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_AWB, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_AF:
-            return POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_AF, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_ASD:
-            return POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_ASD, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_STATS:
-            return POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_STATS, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_BESTATS:
-            return POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_BESTATS, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_BHIST:
-            return POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_BHIST, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_3A_TUNING:
-            return POINTER_OF_META(CAM_INTF_META_EXIF_DEBUG_3A_TUNING, metadata);
-        case CAM_INTF_PARM_EFFECT:
-            return POINTER_OF_META(CAM_INTF_PARM_EFFECT, metadata);
-        case CAM_INTF_META_PRIVATE_DATA:
-            return POINTER_OF_META(CAM_INTF_META_PRIVATE_DATA, metadata);
-        case CAM_INTF_PARM_HAL_VERSION:
-            return POINTER_OF_META(CAM_INTF_PARM_HAL_VERSION, metadata);
-        case CAM_INTF_PARM_ANTIBANDING:
-            return POINTER_OF_META(CAM_INTF_PARM_ANTIBANDING, metadata);
-        case CAM_INTF_PARM_EXPOSURE_COMPENSATION:
-            return POINTER_OF_META(CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata);
-        case CAM_INTF_PARM_EV_STEP:
-            return POINTER_OF_META(CAM_INTF_PARM_EV_STEP, metadata);
-        case CAM_INTF_PARM_AEC_LOCK:
-            return POINTER_OF_META(CAM_INTF_PARM_AEC_LOCK, metadata);
-        case CAM_INTF_PARM_FPS_RANGE:
-            return POINTER_OF_META(CAM_INTF_PARM_FPS_RANGE, metadata);
-        case CAM_INTF_PARM_AWB_LOCK:
-            return POINTER_OF_META(CAM_INTF_PARM_AWB_LOCK, metadata);
-        case CAM_INTF_PARM_BESTSHOT_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_BESTSHOT_MODE, metadata);
-        case CAM_INTF_PARM_DIS_ENABLE:
-            return POINTER_OF_META(CAM_INTF_PARM_DIS_ENABLE, metadata);
-        case CAM_INTF_PARM_LED_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_LED_MODE, metadata);
-        case CAM_INTF_META_LED_MODE_OVERRIDE:
-            return POINTER_OF_META(CAM_INTF_META_LED_MODE_OVERRIDE, metadata);
-        case CAM_INTF_PARM_QUERY_FLASH4SNAP:
-            return POINTER_OF_META(CAM_INTF_PARM_QUERY_FLASH4SNAP, metadata);
-        case CAM_INTF_PARM_EXPOSURE:
-            return POINTER_OF_META(CAM_INTF_PARM_EXPOSURE, metadata);
-        case CAM_INTF_PARM_SHARPNESS:
-            return POINTER_OF_META(CAM_INTF_PARM_SHARPNESS, metadata);
-        case CAM_INTF_PARM_CONTRAST:
-            return POINTER_OF_META(CAM_INTF_PARM_CONTRAST, metadata);
-        case CAM_INTF_PARM_SATURATION:
-            return POINTER_OF_META(CAM_INTF_PARM_SATURATION, metadata);
-        case CAM_INTF_PARM_BRIGHTNESS:
-            return POINTER_OF_META(CAM_INTF_PARM_BRIGHTNESS, metadata);
-        case CAM_INTF_PARM_ISO:
-            return POINTER_OF_META(CAM_INTF_PARM_ISO, metadata);
-        case CAM_INTF_PARM_EXPOSURE_TIME:
-            return POINTER_OF_META(CAM_INTF_PARM_EXPOSURE_TIME, metadata);
-        case CAM_INTF_PARM_ZOOM:
-            return POINTER_OF_META(CAM_INTF_PARM_ZOOM, metadata);
-        case CAM_INTF_PARM_ROLLOFF:
-            return POINTER_OF_META(CAM_INTF_PARM_ROLLOFF, metadata);
-        case CAM_INTF_PARM_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_MODE, metadata);
-        case CAM_INTF_PARM_AEC_ALGO_TYPE:
-            return POINTER_OF_META(CAM_INTF_PARM_AEC_ALGO_TYPE, metadata);
-        case CAM_INTF_PARM_FOCUS_ALGO_TYPE:
-            return POINTER_OF_META(CAM_INTF_PARM_FOCUS_ALGO_TYPE, metadata);
-        case CAM_INTF_PARM_AEC_ROI:
-            return POINTER_OF_META(CAM_INTF_PARM_AEC_ROI, metadata);
-        case CAM_INTF_PARM_AF_ROI:
-            return POINTER_OF_META(CAM_INTF_PARM_AF_ROI, metadata);
-        case CAM_INTF_PARM_SCE_FACTOR:
-            return POINTER_OF_META(CAM_INTF_PARM_SCE_FACTOR, metadata);
-        case CAM_INTF_PARM_FD:
-            return POINTER_OF_META(CAM_INTF_PARM_FD, metadata);
-        case CAM_INTF_PARM_MCE:
-            return POINTER_OF_META(CAM_INTF_PARM_MCE, metadata);
-        case CAM_INTF_PARM_HFR:
-            return POINTER_OF_META(CAM_INTF_PARM_HFR, metadata);
-        case CAM_INTF_PARM_REDEYE_REDUCTION:
-            return POINTER_OF_META(CAM_INTF_PARM_REDEYE_REDUCTION, metadata);
-        case CAM_INTF_PARM_WAVELET_DENOISE:
-            return POINTER_OF_META(CAM_INTF_PARM_WAVELET_DENOISE, metadata);
-        case CAM_INTF_PARM_TEMPORAL_DENOISE:
-            return POINTER_OF_META(CAM_INTF_PARM_TEMPORAL_DENOISE, metadata);
-        case CAM_INTF_PARM_HISTOGRAM:
-            return POINTER_OF_META(CAM_INTF_PARM_HISTOGRAM, metadata);
-        case CAM_INTF_PARM_ASD_ENABLE:
-            return POINTER_OF_META(CAM_INTF_PARM_ASD_ENABLE, metadata);
-        case CAM_INTF_PARM_RECORDING_HINT:
-            return POINTER_OF_META(CAM_INTF_PARM_RECORDING_HINT, metadata);
-        case CAM_INTF_PARM_HDR:
-            return POINTER_OF_META(CAM_INTF_PARM_HDR, metadata);
-        case CAM_INTF_PARM_FRAMESKIP:
-            return POINTER_OF_META(CAM_INTF_PARM_FRAMESKIP, metadata);
-        case CAM_INTF_PARM_ZSL_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_ZSL_MODE, metadata);
-        case CAM_INTF_PARM_HDR_NEED_1X:
-            return POINTER_OF_META(CAM_INTF_PARM_HDR_NEED_1X, metadata);
-        case CAM_INTF_PARM_LOCK_CAF:
-            return POINTER_OF_META(CAM_INTF_PARM_LOCK_CAF, metadata);
-        case CAM_INTF_PARM_VIDEO_HDR:
-            return POINTER_OF_META(CAM_INTF_PARM_VIDEO_HDR, metadata);
-        case CAM_INTF_PARM_VT:
-            return POINTER_OF_META(CAM_INTF_PARM_VT, metadata);
-        case CAM_INTF_PARM_SET_AUTOFOCUSTUNING:
-            return POINTER_OF_META(CAM_INTF_PARM_SET_AUTOFOCUSTUNING, metadata);
-        case CAM_INTF_PARM_SET_VFE_COMMAND:
-            return POINTER_OF_META(CAM_INTF_PARM_SET_VFE_COMMAND, metadata);
-        case CAM_INTF_PARM_SET_PP_COMMAND:
-            return POINTER_OF_META(CAM_INTF_PARM_SET_PP_COMMAND, metadata);
-        case CAM_INTF_PARM_MAX_DIMENSION:
-            return POINTER_OF_META(CAM_INTF_PARM_MAX_DIMENSION, metadata);
-        case CAM_INTF_PARM_RAW_DIMENSION:
-            return POINTER_OF_META(CAM_INTF_PARM_RAW_DIMENSION, metadata);
-        case CAM_INTF_PARM_TINTLESS:
-            return POINTER_OF_META(CAM_INTF_PARM_TINTLESS, metadata);
-        case CAM_INTF_PARM_WB_MANUAL:
-            return POINTER_OF_META(CAM_INTF_PARM_WB_MANUAL, metadata);
-        case CAM_INTF_PARM_EZTUNE_CMD:
-            return POINTER_OF_META(CAM_INTF_PARM_EZTUNE_CMD, metadata);
-        case CAM_INTF_PARM_INT_EVT:
-            return POINTER_OF_META(CAM_INTF_PARM_INT_EVT, metadata);
-        case CAM_INTF_PARM_RDI_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_RDI_MODE, metadata);
-        case CAM_INTF_PARM_CDS_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_CDS_MODE, metadata);
-        case CAM_INTF_PARM_BURST_NUM:
-            return POINTER_OF_META(CAM_INTF_PARM_BURST_NUM, metadata);
-        case CAM_INTF_PARM_RETRO_BURST_NUM:
-            return POINTER_OF_META(CAM_INTF_PARM_RETRO_BURST_NUM, metadata);
-        case CAM_INTF_PARM_BURST_LED_ON_PERIOD:
-            return POINTER_OF_META(CAM_INTF_PARM_BURST_LED_ON_PERIOD, metadata);
-        case CAM_INTF_PARM_LONGSHOT_ENABLE:
-            return POINTER_OF_META(CAM_INTF_PARM_LONGSHOT_ENABLE, metadata);
-        case CAM_INTF_META_STREAM_INFO:
-            return POINTER_OF_META(CAM_INTF_META_STREAM_INFO, metadata);
-        case CAM_INTF_META_AEC_MODE:
-            return POINTER_OF_META(CAM_INTF_META_AEC_MODE, metadata);
-        case CAM_INTF_META_TOUCH_AE_RESULT:
-            return POINTER_OF_META(CAM_INTF_META_TOUCH_AE_RESULT, metadata);
-        case CAM_INTF_META_AEC_PRECAPTURE_TRIGGER:
-            return POINTER_OF_META(CAM_INTF_META_AEC_PRECAPTURE_TRIGGER, metadata);
-        case CAM_INTF_META_AF_TRIGGER:
-            return POINTER_OF_META(CAM_INTF_META_AF_TRIGGER, metadata);
-        case CAM_INTF_META_CAPTURE_INTENT:
-            return POINTER_OF_META(CAM_INTF_META_CAPTURE_INTENT, metadata);
-        case CAM_INTF_META_DEMOSAIC:
-            return POINTER_OF_META(CAM_INTF_META_DEMOSAIC, metadata);
-        case CAM_INTF_META_SHARPNESS_STRENGTH:
-            return POINTER_OF_META(CAM_INTF_META_SHARPNESS_STRENGTH, metadata);
-        case CAM_INTF_META_GEOMETRIC_MODE:
-            return POINTER_OF_META(CAM_INTF_META_GEOMETRIC_MODE, metadata);
-        case CAM_INTF_META_GEOMETRIC_STRENGTH:
-            return POINTER_OF_META(CAM_INTF_META_GEOMETRIC_STRENGTH, metadata);
-        case CAM_INTF_META_LENS_SHADING_MAP_MODE:
-            return POINTER_OF_META(CAM_INTF_META_LENS_SHADING_MAP_MODE, metadata);
-        case CAM_INTF_META_ISP_SENSITIVITY:
-            return POINTER_OF_META(CAM_INTF_META_ISP_SENSITIVITY, metadata);
-        case CAM_INTF_META_SHADING_STRENGTH:
-            return POINTER_OF_META(CAM_INTF_META_SHADING_STRENGTH, metadata);
-        case CAM_INTF_META_TONEMAP_MODE:
-            return POINTER_OF_META(CAM_INTF_META_TONEMAP_MODE, metadata);
-        case CAM_INTF_META_AWB_INFO:
-            return POINTER_OF_META(CAM_INTF_META_AWB_INFO, metadata);
-        case CAM_INTF_META_FOCUS_POSITION:
-            return POINTER_OF_META(CAM_INTF_META_FOCUS_POSITION, metadata);
-        case CAM_INTF_META_STREAM_ID:
-            return POINTER_OF_META(CAM_INTF_META_STREAM_ID, metadata);
-        case CAM_INTF_PARM_STATS_DEBUG_MASK:
-            return POINTER_OF_META(CAM_INTF_PARM_STATS_DEBUG_MASK, metadata);
-        case CAM_INTF_PARM_STATS_AF_PAAF:
-            return POINTER_OF_META(CAM_INTF_PARM_STATS_AF_PAAF, metadata);
-        case CAM_INTF_PARM_FOCUS_BRACKETING:
-            return POINTER_OF_META(CAM_INTF_PARM_FOCUS_BRACKETING, metadata);
-        case CAM_INTF_PARM_FLASH_BRACKETING:
-            return POINTER_OF_META(CAM_INTF_PARM_FLASH_BRACKETING, metadata);
-        case CAM_INTF_META_JPEG_GPS_COORDINATES:
-            return POINTER_OF_META(CAM_INTF_META_JPEG_GPS_COORDINATES, metadata);
-        case CAM_INTF_META_JPEG_GPS_PROC_METHODS:
-            return POINTER_OF_META(CAM_INTF_META_JPEG_GPS_PROC_METHODS, metadata);
-        case CAM_INTF_META_JPEG_GPS_TIMESTAMP:
-            return POINTER_OF_META(CAM_INTF_META_JPEG_GPS_TIMESTAMP, metadata);
-        case CAM_INTF_META_JPEG_QUALITY:
-            return POINTER_OF_META(CAM_INTF_META_JPEG_QUALITY, metadata);
-        case CAM_INTF_META_OTP_WB_GRGB:
-            return POINTER_OF_META(CAM_INTF_META_OTP_WB_GRGB, metadata);
-        case CAM_INTF_META_JPEG_THUMB_QUALITY:
-            return POINTER_OF_META(CAM_INTF_META_JPEG_THUMB_QUALITY, metadata);
-        case CAM_INTF_META_JPEG_THUMB_SIZE:
-            return POINTER_OF_META(CAM_INTF_META_JPEG_THUMB_SIZE, metadata);
-        case CAM_INTF_META_JPEG_ORIENTATION:
-            return POINTER_OF_META(CAM_INTF_META_JPEG_ORIENTATION, metadata);
-        case CAM_INTF_META_PROFILE_TONE_CURVE:
-            return POINTER_OF_META(CAM_INTF_META_PROFILE_TONE_CURVE, metadata);
-        case CAM_INTF_META_NEUTRAL_COL_POINT:
-            return POINTER_OF_META(CAM_INTF_META_NEUTRAL_COL_POINT, metadata);
-        case CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW:
-            return POINTER_OF_META(CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW,
-                   metadata);
-        case CAM_INTF_PARM_CAC:
-            return POINTER_OF_META(CAM_INTF_PARM_CAC, metadata);
-        case CAM_INTF_META_IMG_HYST_INFO:
-            return POINTER_OF_META(CAM_INTF_META_IMG_HYST_INFO, metadata);
-        case CAM_INTF_META_CAC_INFO:
-            return POINTER_OF_META(CAM_INTF_META_CAC_INFO, metadata);
-        case CAM_INTF_META_TEST_PATTERN_DATA:
-            return POINTER_OF_META(CAM_INTF_META_TEST_PATTERN_DATA, metadata);
-        case CAM_INTF_PARM_UPDATE_DEBUG_LEVEL:
-            return POINTER_OF_META(CAM_INTF_PARM_UPDATE_DEBUG_LEVEL, metadata);
-        case CAM_INTF_PARM_ROTATION:
-            return POINTER_OF_META(CAM_INTF_PARM_ROTATION, metadata);
-        case CAM_INTF_PARM_FLIP:
-            return POINTER_OF_META(CAM_INTF_PARM_FLIP, metadata);
-        case CAM_INTF_PARM_TONE_MAP_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_TONE_MAP_MODE, metadata);
-        case CAM_INTF_META_IMGLIB:
-            return POINTER_OF_META(CAM_INTF_META_IMGLIB, metadata);
-        case CAM_INTF_PARM_CAPTURE_FRAME_CONFIG:
-            return POINTER_OF_META(CAM_INTF_PARM_CAPTURE_FRAME_CONFIG, metadata);
-        case CAM_INTF_META_SNAP_CROP_INFO_SENSOR:
-            return POINTER_OF_META(CAM_INTF_META_SNAP_CROP_INFO_SENSOR, metadata);
-        case CAM_INTF_META_SNAP_CROP_INFO_CAMIF:
-            return POINTER_OF_META(CAM_INTF_META_SNAP_CROP_INFO_CAMIF, metadata);
-        case CAM_INTF_META_SNAP_CROP_INFO_ISP:
-            return POINTER_OF_META(CAM_INTF_META_SNAP_CROP_INFO_ISP, metadata);
-        case CAM_INTF_META_SNAP_CROP_INFO_CPP:
-            return POINTER_OF_META(CAM_INTF_META_SNAP_CROP_INFO_CPP, metadata);
-        case CAM_INTF_PARM_CUSTOM:
-            return POINTER_OF_META(CAM_INTF_PARM_CUSTOM, metadata);
-        case CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION:
-            return POINTER_OF_META(CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION,
-              metadata);
-        case CAM_INTF_META_AF_FOCAL_LENGTH_RATIO:
-            return POINTER_OF_META(CAM_INTF_META_AF_FOCAL_LENGTH_RATIO, metadata);
-        case CAM_INTF_META_DCRF:
-            return POINTER_OF_META(CAM_INTF_META_DCRF, metadata);
-        case CAM_INTF_BUF_DIVERT_INFO:
-            return POINTER_OF_META(CAM_INTF_BUF_DIVERT_INFO, metadata);
-        case CAM_INTF_META_LOW_LIGHT:
-            return POINTER_OF_META(CAM_INTF_META_LOW_LIGHT, metadata);
-        case CAM_INTF_META_IMG_DYN_FEAT:
-            return POINTER_OF_META(CAM_INTF_META_IMG_DYN_FEAT, metadata);
-        case CAM_INTF_AF_STATE_TRANSITION:
-            return POINTER_OF_META(CAM_INTF_AF_STATE_TRANSITION, metadata);
-        case CAM_INTF_PARM_DUAL_LED_CALIBRATION:
-            return POINTER_OF_META(CAM_INTF_PARM_DUAL_LED_CALIBRATION, metadata);
-        case CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX:
-            return POINTER_OF_META(CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX, metadata);
-        case CAM_INTF_PARM_SENSOR_HDR:
-            return POINTER_OF_META(CAM_INTF_PARM_SENSOR_HDR, metadata);
-        case CAM_INTF_PARM_INSTANT_AEC:
-            return POINTER_OF_META(CAM_INTF_PARM_INSTANT_AEC, metadata);
-        case CAM_INTF_PARM_ADV_CAPTURE_MODE:
-            return POINTER_OF_META(CAM_INTF_PARM_ADV_CAPTURE_MODE, metadata);
-        case CAM_INTF_META_VIDEO_STAB_MODE:
-            return POINTER_OF_META(CAM_INTF_META_VIDEO_STAB_MODE, metadata);
-        default:
-            LOGE("meta ID %d is not found", meta_id);
-            return NULL;
-    }
-}
-
-/*===========================================================================
- * FUNCTION   : getSizeofParam
- *
- * DESCRIPTION: get size of parameter structure
- *
- * PARAMETERS :
- *    @meta_id : parameter / meta id enum
- *
- * RETURN     :uint32_t size of param/metadata
- *
- *==========================================================================*/
-uint32_t QCameraParameters::getSizeofParam(cam_intf_parm_type_t param_id)
-{
-    metadata_buffer_t* metadata = NULL;
-    switch(param_id) {
-        case CAM_INTF_META_HISTOGRAM:
-          return SIZE_OF_PARAM(CAM_INTF_META_HISTOGRAM, metadata);
-        case CAM_INTF_META_FACE_DETECTION:
-          return SIZE_OF_PARAM(CAM_INTF_META_FACE_DETECTION, metadata);
-        case CAM_INTF_META_FACE_RECOG:
-          return SIZE_OF_PARAM(CAM_INTF_META_FACE_RECOG, metadata);
-        case CAM_INTF_META_FACE_BLINK:
-          return SIZE_OF_PARAM(CAM_INTF_META_FACE_BLINK, metadata);
-        case CAM_INTF_META_FACE_GAZE:
-          return SIZE_OF_PARAM(CAM_INTF_META_FACE_GAZE, metadata);
-        case CAM_INTF_META_FACE_SMILE:
-          return SIZE_OF_PARAM(CAM_INTF_META_FACE_SMILE, metadata);
-        case CAM_INTF_META_FACE_LANDMARK:
-          return SIZE_OF_PARAM(CAM_INTF_META_FACE_LANDMARK, metadata);
-        case CAM_INTF_META_FACE_CONTOUR:
-          return SIZE_OF_PARAM(CAM_INTF_META_FACE_CONTOUR, metadata);
-        case CAM_INTF_META_AUTOFOCUS_DATA:
-          return SIZE_OF_PARAM(CAM_INTF_META_AUTOFOCUS_DATA, metadata);
-        case CAM_INTF_META_CROP_DATA:
-          return SIZE_OF_PARAM(CAM_INTF_META_CROP_DATA, metadata);
-        case CAM_INTF_META_PREP_SNAPSHOT_DONE:
-          return SIZE_OF_PARAM(CAM_INTF_META_PREP_SNAPSHOT_DONE, metadata);
-        case CAM_INTF_META_GOOD_FRAME_IDX_RANGE:
-          return SIZE_OF_PARAM(CAM_INTF_META_GOOD_FRAME_IDX_RANGE, metadata);
-        case CAM_INTF_META_ASD_HDR_SCENE_DATA:
-          return SIZE_OF_PARAM(CAM_INTF_META_ASD_HDR_SCENE_DATA, metadata);
-        case CAM_INTF_META_ASD_SCENE_INFO:
-          return SIZE_OF_PARAM(CAM_INTF_META_ASD_SCENE_INFO, metadata);
-        case CAM_INTF_META_CURRENT_SCENE:
-          return SIZE_OF_PARAM(CAM_INTF_META_CURRENT_SCENE, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_ISP:
-          return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_ISP, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_PP:
-          return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_PP, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_AE:
-          return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_AE, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_AWB:
-          return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_AWB, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_AF:
-          return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_AF, metadata);
-        case CAM_INTF_META_CHROMATIX_LITE_ASD:
-          return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_ASD, metadata);
-        case CAM_INTF_META_FRAME_NUMBER_VALID:
-          return SIZE_OF_PARAM(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
-        case CAM_INTF_META_URGENT_FRAME_NUMBER_VALID:
-          return SIZE_OF_PARAM(CAM_INTF_META_URGENT_FRAME_NUMBER_VALID, metadata);
-        case CAM_INTF_META_FRAME_DROPPED:
-          return SIZE_OF_PARAM(CAM_INTF_META_FRAME_DROPPED, metadata);
-        case CAM_INTF_META_FRAME_NUMBER:
-          return SIZE_OF_PARAM(CAM_INTF_META_FRAME_NUMBER, metadata);
-        case CAM_INTF_META_URGENT_FRAME_NUMBER:
-          return SIZE_OF_PARAM(CAM_INTF_META_URGENT_FRAME_NUMBER, metadata);
-        case CAM_INTF_META_COLOR_CORRECT_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_COLOR_CORRECT_MODE, metadata);
-        case CAM_INTF_META_COLOR_CORRECT_TRANSFORM:
-          return SIZE_OF_PARAM(CAM_INTF_META_COLOR_CORRECT_TRANSFORM, metadata);
-        case CAM_INTF_META_COLOR_CORRECT_GAINS:
-          return SIZE_OF_PARAM(CAM_INTF_META_COLOR_CORRECT_GAINS, metadata);
-        case CAM_INTF_META_PRED_COLOR_CORRECT_TRANSFORM:
-          return SIZE_OF_PARAM(CAM_INTF_META_PRED_COLOR_CORRECT_TRANSFORM,
-            metadata);
-        case CAM_INTF_META_PRED_COLOR_CORRECT_GAINS:
-          return SIZE_OF_PARAM(CAM_INTF_META_PRED_COLOR_CORRECT_GAINS, metadata);
-        case CAM_INTF_META_AEC_ROI:
-          return SIZE_OF_PARAM(CAM_INTF_META_AEC_ROI, metadata);
-        case CAM_INTF_META_AEC_STATE:
-          return SIZE_OF_PARAM(CAM_INTF_META_AEC_STATE, metadata);
-        case CAM_INTF_PARM_FOCUS_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_FOCUS_MODE, metadata);
-        case CAM_INTF_PARM_MANUAL_FOCUS_POS:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_MANUAL_FOCUS_POS, metadata);
-        case CAM_INTF_META_AF_ROI:
-          return SIZE_OF_PARAM(CAM_INTF_META_AF_ROI, metadata);
-        case CAM_INTF_META_AF_STATE:
-          return SIZE_OF_PARAM(CAM_INTF_META_AF_STATE, metadata);
-        case CAM_INTF_PARM_WHITE_BALANCE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_WHITE_BALANCE, metadata);
-        case CAM_INTF_META_AWB_REGIONS:
-          return SIZE_OF_PARAM(CAM_INTF_META_AWB_REGIONS, metadata);
-        case CAM_INTF_META_AWB_STATE:
-          return SIZE_OF_PARAM(CAM_INTF_META_AWB_STATE, metadata);
-        case CAM_INTF_META_BLACK_LEVEL_LOCK:
-          return SIZE_OF_PARAM(CAM_INTF_META_BLACK_LEVEL_LOCK, metadata);
-        case CAM_INTF_META_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_MODE, metadata);
-        case CAM_INTF_META_EDGE_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_EDGE_MODE, metadata);
-        case CAM_INTF_META_FLASH_POWER:
-          return SIZE_OF_PARAM(CAM_INTF_META_FLASH_POWER, metadata);
-        case CAM_INTF_META_FLASH_FIRING_TIME:
-          return SIZE_OF_PARAM(CAM_INTF_META_FLASH_FIRING_TIME, metadata);
-        case CAM_INTF_META_FLASH_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_FLASH_MODE, metadata);
-        case CAM_INTF_META_FLASH_STATE:
-          return SIZE_OF_PARAM(CAM_INTF_META_FLASH_STATE, metadata);
-        case CAM_INTF_META_HOTPIXEL_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_HOTPIXEL_MODE, metadata);
-        case CAM_INTF_META_LENS_APERTURE:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_APERTURE, metadata);
-        case CAM_INTF_META_LENS_FILTERDENSITY:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_FILTERDENSITY, metadata);
-        case CAM_INTF_META_LENS_FOCAL_LENGTH:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_FOCAL_LENGTH, metadata);
-        case CAM_INTF_META_LENS_FOCUS_DISTANCE:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_FOCUS_DISTANCE, metadata);
-        case CAM_INTF_META_LENS_FOCUS_RANGE:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_FOCUS_RANGE, metadata);
-        case CAM_INTF_META_LENS_STATE:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_STATE, metadata);
-        case CAM_INTF_META_LENS_OPT_STAB_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_OPT_STAB_MODE, metadata);
-        case CAM_INTF_META_NOISE_REDUCTION_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_NOISE_REDUCTION_MODE, metadata);
-        case CAM_INTF_META_NOISE_REDUCTION_STRENGTH:
-          return SIZE_OF_PARAM(CAM_INTF_META_NOISE_REDUCTION_STRENGTH, metadata);
-        case CAM_INTF_META_SCALER_CROP_REGION:
-          return SIZE_OF_PARAM(CAM_INTF_META_SCALER_CROP_REGION, metadata);
-        case CAM_INTF_META_SCENE_FLICKER:
-          return SIZE_OF_PARAM(CAM_INTF_META_SCENE_FLICKER, metadata);
-        case CAM_INTF_META_SENSOR_EXPOSURE_TIME:
-          return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata);
-        case CAM_INTF_META_SENSOR_FRAME_DURATION:
-          return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_FRAME_DURATION, metadata);
-        case CAM_INTF_META_SENSOR_SENSITIVITY:
-          return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_SENSITIVITY, metadata);
-        case CAM_INTF_META_SENSOR_TIMESTAMP:
-          return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_TIMESTAMP, metadata);
-        case CAM_INTF_META_SHADING_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_SHADING_MODE, metadata);
-        case CAM_INTF_META_STATS_FACEDETECT_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_STATS_FACEDETECT_MODE, metadata);
-        case CAM_INTF_META_STATS_HISTOGRAM_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_STATS_HISTOGRAM_MODE, metadata);
-        case CAM_INTF_META_STATS_SHARPNESS_MAP_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_STATS_SHARPNESS_MAP_MODE, metadata);
-        case CAM_INTF_META_STATS_SHARPNESS_MAP:
-          return SIZE_OF_PARAM(CAM_INTF_META_STATS_SHARPNESS_MAP, metadata);
-        case CAM_INTF_META_TONEMAP_CURVES:
-          return SIZE_OF_PARAM(CAM_INTF_META_TONEMAP_CURVES, metadata);
-        case CAM_INTF_META_LENS_SHADING_MAP:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_SHADING_MAP, metadata);
-        case CAM_INTF_META_AEC_INFO:
-          return SIZE_OF_PARAM(CAM_INTF_META_AEC_INFO, metadata);
-        case CAM_INTF_META_SENSOR_INFO:
-          return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_INFO, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_AE:
-          return SIZE_OF_PARAM(CAM_INTF_META_EXIF_DEBUG_AE, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_AWB:
-          return SIZE_OF_PARAM(CAM_INTF_META_EXIF_DEBUG_AWB, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_AF:
-          return SIZE_OF_PARAM(CAM_INTF_META_EXIF_DEBUG_AF, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_ASD:
-          return SIZE_OF_PARAM(CAM_INTF_META_EXIF_DEBUG_ASD, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_STATS:
-          return SIZE_OF_PARAM(CAM_INTF_META_EXIF_DEBUG_STATS, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_BESTATS:
-          return SIZE_OF_PARAM(CAM_INTF_META_EXIF_DEBUG_BESTATS, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_BHIST:
-          return SIZE_OF_PARAM(CAM_INTF_META_EXIF_DEBUG_BHIST, metadata);
-        case CAM_INTF_META_EXIF_DEBUG_3A_TUNING:
-          return SIZE_OF_PARAM(CAM_INTF_META_EXIF_DEBUG_3A_TUNING, metadata);
-        case CAM_INTF_PARM_EFFECT:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_EFFECT, metadata);
-        case CAM_INTF_META_PRIVATE_DATA:
-          return SIZE_OF_PARAM(CAM_INTF_META_PRIVATE_DATA, metadata);
-        case CAM_INTF_PARM_HAL_VERSION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_HAL_VERSION, metadata);
-        case CAM_INTF_PARM_ANTIBANDING:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_ANTIBANDING, metadata);
-        case CAM_INTF_PARM_EXPOSURE_COMPENSATION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata);
-        case CAM_INTF_PARM_EV_STEP:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_EV_STEP, metadata);
-        case CAM_INTF_PARM_AEC_LOCK:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_AEC_LOCK, metadata);
-        case CAM_INTF_PARM_FPS_RANGE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_FPS_RANGE, metadata);
-        case CAM_INTF_PARM_AWB_LOCK:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_AWB_LOCK, metadata);
-        case CAM_INTF_PARM_BESTSHOT_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_BESTSHOT_MODE, metadata);
-        case CAM_INTF_PARM_DIS_ENABLE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_DIS_ENABLE, metadata);
-        case CAM_INTF_PARM_LED_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_LED_MODE, metadata);
-        case CAM_INTF_META_LED_MODE_OVERRIDE:
-          return SIZE_OF_PARAM(CAM_INTF_META_LED_MODE_OVERRIDE, metadata);
-        case CAM_INTF_PARM_QUERY_FLASH4SNAP:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_QUERY_FLASH4SNAP, metadata);
-        case CAM_INTF_PARM_EXPOSURE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_EXPOSURE, metadata);
-        case CAM_INTF_PARM_SHARPNESS:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_SHARPNESS, metadata);
-        case CAM_INTF_PARM_CONTRAST:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_CONTRAST, metadata);
-        case CAM_INTF_PARM_SATURATION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_SATURATION, metadata);
-        case CAM_INTF_PARM_BRIGHTNESS:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_BRIGHTNESS, metadata);
-        case CAM_INTF_PARM_ISO:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_ISO, metadata);
-        case CAM_INTF_PARM_EXPOSURE_TIME:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_EXPOSURE_TIME, metadata);
-        case CAM_INTF_PARM_ZOOM:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_ZOOM, metadata);
-        case CAM_INTF_PARM_ROLLOFF:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_ROLLOFF, metadata);
-        case CAM_INTF_PARM_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_MODE, metadata);
-        case CAM_INTF_PARM_AEC_ALGO_TYPE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_AEC_ALGO_TYPE, metadata);
-        case CAM_INTF_PARM_FOCUS_ALGO_TYPE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_FOCUS_ALGO_TYPE, metadata);
-        case CAM_INTF_PARM_AEC_ROI:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_AEC_ROI, metadata);
-        case CAM_INTF_PARM_AF_ROI:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_AF_ROI, metadata);
-        case CAM_INTF_PARM_SCE_FACTOR:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_SCE_FACTOR, metadata);
-        case CAM_INTF_PARM_FD:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_FD, metadata);
-        case CAM_INTF_PARM_MCE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_MCE, metadata);
-        case CAM_INTF_PARM_HFR:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_HFR, metadata);
-        case CAM_INTF_PARM_REDEYE_REDUCTION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_REDEYE_REDUCTION, metadata);
-        case CAM_INTF_PARM_WAVELET_DENOISE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_WAVELET_DENOISE, metadata);
-        case CAM_INTF_PARM_TEMPORAL_DENOISE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_TEMPORAL_DENOISE, metadata);
-        case CAM_INTF_PARM_HISTOGRAM:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_HISTOGRAM, metadata);
-        case CAM_INTF_PARM_ASD_ENABLE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_ASD_ENABLE, metadata);
-        case CAM_INTF_PARM_RECORDING_HINT:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_RECORDING_HINT, metadata);
-        case CAM_INTF_PARM_HDR:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_HDR, metadata);
-        case CAM_INTF_PARM_FRAMESKIP:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_FRAMESKIP, metadata);
-        case CAM_INTF_PARM_ZSL_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_ZSL_MODE, metadata);
-        case CAM_INTF_PARM_HDR_NEED_1X:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_HDR_NEED_1X, metadata);
-        case CAM_INTF_PARM_LOCK_CAF:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_LOCK_CAF, metadata);
-        case CAM_INTF_PARM_VIDEO_HDR:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_VIDEO_HDR, metadata);
-        case CAM_INTF_PARM_VT:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_VT, metadata);
-        case CAM_INTF_PARM_SET_AUTOFOCUSTUNING:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_SET_AUTOFOCUSTUNING, metadata);
-        case CAM_INTF_PARM_SET_VFE_COMMAND:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_SET_VFE_COMMAND, metadata);
-        case CAM_INTF_PARM_SET_PP_COMMAND:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_SET_PP_COMMAND, metadata);
-        case CAM_INTF_PARM_MAX_DIMENSION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_MAX_DIMENSION, metadata);
-        case CAM_INTF_PARM_RAW_DIMENSION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_RAW_DIMENSION, metadata);
-        case CAM_INTF_PARM_TINTLESS:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_TINTLESS, metadata);
-        case CAM_INTF_PARM_WB_MANUAL:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_WB_MANUAL, metadata);
-        case CAM_INTF_PARM_EZTUNE_CMD:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_EZTUNE_CMD, metadata);
-        case CAM_INTF_PARM_INT_EVT:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_INT_EVT, metadata);
-        case CAM_INTF_PARM_RDI_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_RDI_MODE, metadata);
-        case CAM_INTF_PARM_CDS_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_CDS_MODE, metadata);
-        case CAM_INTF_PARM_BURST_NUM:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_BURST_NUM, metadata);
-        case CAM_INTF_PARM_RETRO_BURST_NUM:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_RETRO_BURST_NUM, metadata);
-        case CAM_INTF_PARM_BURST_LED_ON_PERIOD:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_BURST_LED_ON_PERIOD, metadata);
-        case CAM_INTF_PARM_LONGSHOT_ENABLE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_LONGSHOT_ENABLE, metadata);
-        case CAM_INTF_META_STREAM_INFO:
-          return SIZE_OF_PARAM(CAM_INTF_META_STREAM_INFO, metadata);
-        case CAM_INTF_META_AEC_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_AEC_MODE, metadata);
-        case CAM_INTF_META_TOUCH_AE_RESULT:
-          return SIZE_OF_PARAM(CAM_INTF_META_TOUCH_AE_RESULT, metadata);
-        case CAM_INTF_META_AEC_PRECAPTURE_TRIGGER:
-          return SIZE_OF_PARAM(CAM_INTF_META_AEC_PRECAPTURE_TRIGGER, metadata);
-        case CAM_INTF_META_AF_TRIGGER:
-          return SIZE_OF_PARAM(CAM_INTF_META_AF_TRIGGER, metadata);
-        case CAM_INTF_META_CAPTURE_INTENT:
-          return SIZE_OF_PARAM(CAM_INTF_META_CAPTURE_INTENT, metadata);
-        case CAM_INTF_META_DEMOSAIC:
-          return SIZE_OF_PARAM(CAM_INTF_META_DEMOSAIC, metadata);
-        case CAM_INTF_META_SHARPNESS_STRENGTH:
-          return SIZE_OF_PARAM(CAM_INTF_META_SHARPNESS_STRENGTH, metadata);
-        case CAM_INTF_META_GEOMETRIC_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_GEOMETRIC_MODE, metadata);
-        case CAM_INTF_META_GEOMETRIC_STRENGTH:
-          return SIZE_OF_PARAM(CAM_INTF_META_GEOMETRIC_STRENGTH, metadata);
-        case CAM_INTF_META_LENS_SHADING_MAP_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_LENS_SHADING_MAP_MODE, metadata);
-        case CAM_INTF_META_ISP_SENSITIVITY:
-          return SIZE_OF_PARAM(CAM_INTF_META_ISP_SENSITIVITY, metadata);
-        case CAM_INTF_META_SHADING_STRENGTH:
-          return SIZE_OF_PARAM(CAM_INTF_META_SHADING_STRENGTH, metadata);
-        case CAM_INTF_META_TONEMAP_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_TONEMAP_MODE, metadata);
-        case CAM_INTF_META_AWB_INFO:
-          return SIZE_OF_PARAM(CAM_INTF_META_AWB_INFO, metadata);
-        case CAM_INTF_META_FOCUS_POSITION:
-          return SIZE_OF_PARAM(CAM_INTF_META_FOCUS_POSITION, metadata);
-        case CAM_INTF_META_STREAM_ID:
-          return SIZE_OF_PARAM(CAM_INTF_META_STREAM_ID, metadata);
-        case CAM_INTF_PARM_STATS_DEBUG_MASK:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_STATS_DEBUG_MASK, metadata);
-        case CAM_INTF_PARM_STATS_AF_PAAF:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_STATS_AF_PAAF, metadata);
-        case CAM_INTF_PARM_FOCUS_BRACKETING:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_FOCUS_BRACKETING, metadata);
-        case CAM_INTF_PARM_FLASH_BRACKETING:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_FLASH_BRACKETING, metadata);
-        case CAM_INTF_META_JPEG_GPS_COORDINATES:
-          return SIZE_OF_PARAM(CAM_INTF_META_JPEG_GPS_COORDINATES, metadata);
-        case CAM_INTF_META_JPEG_GPS_PROC_METHODS:
-          return SIZE_OF_PARAM(CAM_INTF_META_JPEG_GPS_PROC_METHODS, metadata);
-        case CAM_INTF_META_JPEG_GPS_TIMESTAMP:
-          return SIZE_OF_PARAM(CAM_INTF_META_JPEG_GPS_TIMESTAMP, metadata);
-        case CAM_INTF_META_OTP_WB_GRGB:
-          return SIZE_OF_PARAM(CAM_INTF_META_OTP_WB_GRGB, metadata);
-        case CAM_INTF_META_JPEG_QUALITY:
-          return SIZE_OF_PARAM(CAM_INTF_META_JPEG_QUALITY, metadata);
-        case CAM_INTF_META_JPEG_THUMB_QUALITY:
-          return SIZE_OF_PARAM(CAM_INTF_META_JPEG_THUMB_QUALITY, metadata);
-        case CAM_INTF_META_JPEG_THUMB_SIZE:
-          return SIZE_OF_PARAM(CAM_INTF_META_JPEG_THUMB_SIZE, metadata);
-        case CAM_INTF_META_JPEG_ORIENTATION:
-          return SIZE_OF_PARAM(CAM_INTF_META_JPEG_ORIENTATION, metadata);
-        case CAM_INTF_META_PROFILE_TONE_CURVE:
-          return SIZE_OF_PARAM(CAM_INTF_META_PROFILE_TONE_CURVE, metadata);
-        case CAM_INTF_META_NEUTRAL_COL_POINT:
-          return SIZE_OF_PARAM(CAM_INTF_META_NEUTRAL_COL_POINT, metadata);
-        case CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW:
-          return SIZE_OF_PARAM(CAM_INTF_META_SENSOR_ROLLING_SHUTTER_SKEW,
-                               metadata);
-        case CAM_INTF_PARM_CAC:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_CAC, metadata);
-        case CAM_INTF_META_IMG_HYST_INFO:
-          return SIZE_OF_PARAM(CAM_INTF_META_IMG_HYST_INFO, metadata);
-        case CAM_INTF_META_CAC_INFO:
-          return SIZE_OF_PARAM(CAM_INTF_META_CAC_INFO, metadata);
-        case CAM_INTF_META_TEST_PATTERN_DATA:
-          return SIZE_OF_PARAM(CAM_INTF_META_TEST_PATTERN_DATA, metadata);
-        case CAM_INTF_PARM_UPDATE_DEBUG_LEVEL:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_UPDATE_DEBUG_LEVEL, metadata);
-        case CAM_INTF_PARM_ROTATION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_ROTATION, metadata);
-        case CAM_INTF_PARM_FLIP:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_FLIP, metadata);
-        case CAM_INTF_PARM_TONE_MAP_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_TONE_MAP_MODE, metadata);
-        case CAM_INTF_META_IMGLIB:
-          return SIZE_OF_PARAM(CAM_INTF_META_IMGLIB, metadata);
-        case CAM_INTF_PARM_CAPTURE_FRAME_CONFIG:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_CAPTURE_FRAME_CONFIG, metadata);
-    #ifdef ASF_OSD
-        case CAM_INTF_META_ASF_TRIGGER_REGION:
-          return SIZE_OF_PARAM(CAM_INTF_META_ASF_TRIGGER_REGION, metadata);
-    #endif
-        case CAM_INTF_META_SNAP_CROP_INFO_SENSOR:
-          return SIZE_OF_PARAM(CAM_INTF_META_SNAP_CROP_INFO_SENSOR, metadata);
-        case CAM_INTF_META_SNAP_CROP_INFO_CAMIF:
-          return SIZE_OF_PARAM(CAM_INTF_META_SNAP_CROP_INFO_CAMIF, metadata);
-        case CAM_INTF_META_SNAP_CROP_INFO_ISP:
-          return SIZE_OF_PARAM(CAM_INTF_META_SNAP_CROP_INFO_ISP, metadata);
-        case CAM_INTF_META_SNAP_CROP_INFO_CPP:
-          return SIZE_OF_PARAM(CAM_INTF_META_SNAP_CROP_INFO_CPP, metadata);
-        case CAM_INTF_PARM_CUSTOM:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_CUSTOM, metadata);
-        case CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_RELATED_SENSORS_CALIBRATION,
-                               metadata);
-        case CAM_INTF_META_AF_FOCAL_LENGTH_RATIO:
-          return SIZE_OF_PARAM(CAM_INTF_META_AF_FOCAL_LENGTH_RATIO, metadata);
-        case CAM_INTF_META_DCRF:
-          return SIZE_OF_PARAM(CAM_INTF_META_DCRF, metadata);
-        case CAM_INTF_BUF_DIVERT_INFO:
-          return SIZE_OF_PARAM(CAM_INTF_BUF_DIVERT_INFO, metadata);
-        case CAM_INTF_META_LOW_LIGHT:
-          return SIZE_OF_PARAM(CAM_INTF_META_LOW_LIGHT, metadata);
-        case CAM_INTF_META_IMG_DYN_FEAT:
-          return SIZE_OF_PARAM(CAM_INTF_META_IMG_DYN_FEAT, metadata);
-        case CAM_INTF_AF_STATE_TRANSITION:
-          return SIZE_OF_PARAM(CAM_INTF_AF_STATE_TRANSITION, metadata);
-        case CAM_INTF_PARM_DUAL_LED_CALIBRATION:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_DUAL_LED_CALIBRATION, metadata);
-        case CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_INITIAL_EXPOSURE_INDEX, metadata);
-        case CAM_INTF_PARM_SENSOR_HDR:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_SENSOR_HDR, metadata);
-        case CAM_INTF_PARM_INSTANT_AEC:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_INSTANT_AEC, metadata);
-        case CAM_INTF_PARM_ADV_CAPTURE_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_PARM_ADV_CAPTURE_MODE, metadata);
-        case CAM_INTF_META_VIDEO_STAB_MODE:
-          return SIZE_OF_PARAM(CAM_INTF_META_VIDEO_STAB_MODE, metadata);
-        default:
-          LOGE("parameter is not found");
-          return 0;
-    }
-    return 0;
-}
-
-/*===========================================================================
 * FUNCTION   : setAuxParameters
 *
 * DESCRIPTION: Parameter only required for auxillary camera is set.
@@ -13348,7 +12592,7 @@ void QCameraParameters::setAuxParameters()
 {
     void *aux_param = NULL;
     if (m_pParamBufAux->is_valid[CAM_INTF_META_STREAM_INFO]) {
-        aux_param = getPointerofParam(CAM_INTF_META_STREAM_INFO, m_pParamBufAux);
+        aux_param = POINTER_OF_META(CAM_INTF_META_STREAM_INFO, m_pParamBufAux);
         if (aux_param) {
             cam_stream_size_info_t *info = (cam_stream_size_info_t *)aux_param;
             info->sync_type = CAM_TYPE_AUX;
@@ -13387,23 +12631,37 @@ int32_t QCameraParameters::commitSetBatch()
         LOGE("Ops not initialized");
         return NO_INIT;
     }
-
+    if (isDualCamera()) {
+        /* Add frame number logic for HAL1 in dual camera
+         * to synchronize parameters in MCT
+         */
+        updateFrameNumber();
+        SyncDCParams();
+    }
     if (i < CAM_INTF_PARM_MAX) {
         rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
             m_pParamBuf);
     }
 
-    if (i < CAM_INTF_PARM_MAX && isDualCamera()) {
+    if ((i < CAM_INTF_PARM_MAX) && isDualCamera()) {
+        // Translate input parameters from main camera to create parameter set for aux camera
         rc = m_pFovControl->translateInputParams(m_pParamBuf, m_pParamBufAux);
+
         if (rc != NO_ERROR) {
             LOGE("FOV-control: Failed to translate params for aux camera");
             return rc;
         }
+
         rc = commitSetBatchAux();
         if (rc != NO_ERROR) {
-            LOGE("Failed to set params for Aux camera");
+            LOGE("FOV-control: Failed to set params for Aux camera");
             return rc;
         }
+    }
+
+    if (i < CAM_INTF_PARM_MAX) {
+        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+            m_pParamBuf);
     }
 
     if (rc == NO_ERROR) {
@@ -15282,6 +14540,19 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         }
     }
 
+    if (stream_type == CAM_STREAM_TYPE_VIDEO ||
+        stream_type == CAM_STREAM_TYPE_PREVIEW) {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        int32_t fixedFOVCenabled = FALSE;
+        property_get("persist.camera.fovc.enable", prop, "0");
+        fixedFOVCenabled = atoi(prop);
+        if (fixedFOVCenabled == 1) {
+            LOGH("Fixed FOVC feature mask set for stream type %d", stream_type);
+            feature_mask |= CAM_QTI_FEATURE_FIXED_FOVC;
+        }
+    }
+
     // Store stream feature mask
     setStreamPpMask(stream_type, feature_mask);
     LOGH("stream type: %d, pp_mask: 0x%llx", stream_type, feature_mask);
@@ -16332,43 +15603,6 @@ int32_t QCameraParameters::updateDtVc(int32_t *dt, int32_t *vc)
 }
 
 /*===========================================================================
- * FUNCTION   : SetAuxParameter
- *
- * DESCRIPTION: set AUX parameter
- *
- * PARAMETERS : cam_intf_parm_type_t paramType
- *              void *paramValue
- *              uint32_t paramLength
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCameraParameters::setAUXParameter(cam_intf_parm_type_t paramType,
-        void *paramValue, uint32_t paramLength)
-{
-    void *auxparam = NULL;
-
-    if (paramValue == NULL) {
-        LOGE("paramValue is NULL.");
-        return BAD_VALUE;
-    }
-    LOGD("Param type %d", paramType);
-
-    if (paramLength > getSizeofParam(paramType)) {
-      LOGE("size is greater for param ", paramType);
-      return BAD_VALUE;
-    }
-
-    auxparam = getPointerofParam(paramType, m_pParamBufAux);
-    if(auxparam != NULL){
-      memcpy(auxparam, paramValue, paramLength);
-      m_pParamBufAux->is_valid[paramType] = 1;
-    }
-    return NO_ERROR;
-}
-
-/*===========================================================================
  * FUNCTION   : SetDualCamera
  *
  * DESCRIPTION: set Dual Camera
@@ -16520,9 +15754,6 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     if (state != MM_CAMERA_DUAL_CAM) {
         mActiveCamera = state;
     }
-
-    /*Need to remove once we have dual camera fusion*/
-    setNumOfSnapshot();
 
     return rc;
 }

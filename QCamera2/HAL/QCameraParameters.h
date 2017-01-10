@@ -760,6 +760,7 @@ public:
     bool isPreviewFlipChanged() { return m_bPreviewFlipChanged; };
     bool isVideoFlipChanged() { return m_bVideoFlipChanged; };
     bool isSnapshotFlipChanged() { return m_bSnapshotFlipChanged; };
+    bool isZoomChanged() { return m_bZoomChanged; };
     void setHDRSceneEnable(bool bflag);
     int32_t updateAWBParams(cam_awb_params_t &awb_params);
 
@@ -906,6 +907,7 @@ public:
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera();
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
+    void setBundledSnapshot(bool value) { mbundledSnapshot = value; }
     int32_t getDualLedCalibration() {return m_dualLedCalibration;};
 private:
     int32_t setPreviewSize(const QCameraParameters& );
@@ -1107,16 +1109,15 @@ private:
     int32_t commitGetBatchAux();
     void    setAuxParameters();
 
-    void * getPointerofParam(cam_intf_parm_type_t meta_id,
-            metadata_buffer_t* metadata);
-    uint32_t getSizeofParam(cam_intf_parm_type_t param_id);
-    int32_t setAUXParameter(cam_intf_parm_type_t paramType,
-            void *paramValue, uint32_t paramLength);
-
     // ops to tempororily update parameter entries and commit
     int32_t updateParamEntry(const char *key, const char *value);
     int32_t commitParamChanges();
     void updateViewAngles();
+
+    //Update Frame Number for super parameter
+    int32_t updateFrameNumber();
+    int32_t SyncDCParams();
+    void setSyncDCParams();
 
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
@@ -1203,6 +1204,7 @@ private:
     bool m_bPreviewFlipChanged;        // if flip setting for preview changed
     bool m_bVideoFlipChanged;          // if flip setting for video changed
     bool m_bSnapshotFlipChanged;       // if flip setting for snapshot changed
+    bool m_bZoomChanged;               // if zoom value changed
     bool m_bFixedFrameRateSet;      // Indicates that a fixed frame rate is set
     qcamera_thermal_mode m_ThermalMode; // adjust fps vs adjust frameskip
     cam_dimension_t m_LiveSnapshotSize; // live snapshot size
@@ -1287,6 +1289,10 @@ private:
     uint32_t mActiveCamera;
     bool m_bSmallJpegSize;
     cam_stream_type_t mSecureStraemType;
+    //Frame number for super parameter
+    uint32_t mFrameNumber;
+    uint32_t mSyncDCParam;
+    bool mbundledSnapshot;
 };
 
 }; // namespace qcamera

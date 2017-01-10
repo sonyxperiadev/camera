@@ -59,7 +59,9 @@ LOCAL_SRC_FILES += \
         HAL/QCameraParameters.cpp \
         HAL/QCameraParametersIntf.cpp \
         HAL/QCameraThermalAdapter.cpp \
-        util/QCameraFOVControl.cpp
+        util/QCameraFOVControl.cpp \
+        util/QCameraHALPP.cpp \
+        util/QCameraDualFOVPP.cpp
 endif
 
 # System header file path prefix
@@ -111,11 +113,11 @@ ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_CFLAGS += -DTARGET_TS_MAKEUP
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/HAL/tsMakeuplib/include
 endif
-ifneq (,$(filter msm8974 msm8916 msm8226 msm8610 msm8916 apq8084 msm8084 msm8994 msm8992 msm8952 msm8937 msm8953 msm8996 msmcobalt msmfalcon msm8998, $(TARGET_BOARD_PLATFORM)))
+ifneq (,$(filter msm8974 msm8916 msm8226 msm8610 msm8916 apq8084 msm8084 msm8994 msm8992 msm8952 msm8937 msm8953 msm8996 msmcobalt sdm660 msm8998, $(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DVENUS_PRESENT
 endif
 
-ifneq (,$(filter msm8996 msmcobalt msmfalcon msm8998,$(TARGET_BOARD_PLATFORM)))
+ifneq (,$(filter msm8996 msmcobalt sdm660 msm8998,$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DUBWC_PRESENT
 endif
 

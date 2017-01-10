@@ -2086,6 +2086,14 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
     ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData,
             CAM_INTF_PARM_CDS_MODE, prmCDSMode);
 
+    IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, pMetaData) {
+        if (isDualCamera() && (mActiveCamera == MM_CAMERA_DUAL_CAM) && mBundledSnapshot) {
+            crop_data->ignore_crop = 1; // CPP ignores the crop in this special zone
+        } else {
+            crop_data->ignore_crop = 0;
+        }
+    }
+
     return rc;
 }
 
@@ -2152,6 +2160,7 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
             pMetaData = resultMetadata;
         } else {
             LOGE("FOV-control: processResultMetadata failed.");
+            stream->bufDone(super_frame);
             free(super_frame);
             return;
         }

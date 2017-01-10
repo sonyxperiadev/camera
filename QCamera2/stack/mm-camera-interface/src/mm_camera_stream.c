@@ -2309,7 +2309,9 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
         if (my_obj->buf[i].buf_type == CAM_STREAM_BUF_TYPE_USERPTR) {
             my_obj->buf[i].user_buf.bufs_used =
                     (int8_t)my_obj->stream_info->user_buf_info.frame_buf_cnt;
-            my_obj->buf[i].user_buf.buf_in_use = reg_flags[i];
+            if (reg_flags) {
+                my_obj->buf[i].user_buf.buf_in_use = reg_flags[i];
+            }
         }
     }
 

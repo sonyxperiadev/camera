@@ -126,7 +126,7 @@
                                     TUNING_MOD1_AEC_DATA_MAX + \
                                     TUNING_MOD1_AWB_DATA_MAX + \
                                     TUNING_MOD1_AF_DATA_MAX + \
-                                    TUNING_CPP_DATA_OFFSET)
+                                    TUNING_CPP_DATA_MAX)
 
 #define MAX_STATS_DATA_SIZE 4000
 
@@ -1393,6 +1393,13 @@ typedef struct {
 } cam_focus_pos_info_t ;
 
 typedef struct {
+    float lens_shift_um;
+    uint32_t object_distance_cm;
+    uint32_t near_field_cm;
+    uint32_t far_field_cm;
+} cam_af_focus_pos_t ;
+
+typedef struct {
     float focalLengthRatio;
 } cam_focal_length_ratio_t;
 
@@ -1461,6 +1468,7 @@ typedef struct {
 
 typedef struct {
     uint8_t num_of_streams;
+    uint8_t ignore_crop; // CPP ignores the CROP in this special mode
     cam_stream_crop_info_t crop_info[MAX_NUM_STREAMS];
 } cam_crop_data_t;
 
@@ -1833,16 +1841,18 @@ typedef struct {
 } cam_buf_divert_info_t;
 
 typedef enum {
-    CAM_SPATIAL_ALIGN_QCOM = 1 << 0,
+    CAM_SPATIAL_ALIGN_QTI  = 1 << 0,
     CAM_SPATIAL_ALIGN_OEM  = 1 << 1
 } cam_spatial_align_type_t;
 
 typedef struct {
-    uint32_t shift_horz;
-    uint32_t shift_vert;
+    int32_t shift_horz;
+    int32_t shift_vert;
 } cam_sac_output_shift_t;
 
 typedef struct {
+    uint8_t                is_master_hint_valid;
+    uint8_t                master_hint;
     uint8_t                is_master_preview_valid;
     uint8_t                master_preview;
     uint8_t                is_master_3A_valid;
@@ -1851,10 +1861,7 @@ typedef struct {
     uint8_t                ready_status;
     uint8_t                is_output_shift_valid;
     cam_sac_output_shift_t output_shift;
-    uint8_t                is_wide_focus_roi_shift_valid;
-    cam_sac_output_shift_t wide_focus_roi_shift;
-    uint8_t                is_tele_focus_roi_shift_valid;
-    cam_sac_output_shift_t tele_focus_roi_shift;
+    cam_dimension_t        reference_res_for_output_shift;
 } cam_sac_output_info_t;
 
 
@@ -2116,6 +2123,8 @@ typedef enum {
     CAM_INTF_META_AEC_STATE,
     /* List of areas to use for focus estimation */
     CAM_INTF_META_AF_ROI,
+    /* Default ROI of the camera to be sent to FOV control*/
+    CAM_INTF_META_AF_DEFAULT_ROI,
     /* Whether the HAL must trigger autofocus. */
     CAM_INTF_META_AF_TRIGGER,
     /* Current state of AF algorithm */
@@ -2374,6 +2383,12 @@ typedef enum {
     CAM_INTF_PARM_FOV_COMP_ENABLE,
     /*Meta to update dual LED calibration results to app*/
     CAM_INTF_META_LED_CALIB_RESULT,
+    /* Dual camera - user zoom value. This will always be the wider camera zoom value */
+    CAM_INTF_PARM_DC_USERZOOM,
+    /* Dual camera sync parameter */
+    CAM_INTF_PARM_SYNC_DC_PARAMETERS,
+    /* AF focus position info */
+    CAM_INTF_META_AF_FOCUS_POS,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -2597,11 +2612,13 @@ typedef struct {
 #define CAM_QCOM_FEATURE_PAAF           (((cam_feature_mask_t)1UL)<<32)
 #define CAM_QCOM_FEATURE_QUADRA_CFA     (((cam_feature_mask_t)1UL)<<33)
 #define CAM_QTI_FEATURE_PPEISCORE       (((cam_feature_mask_t)1UL)<<34)
-#define CAM_QCOM_FEATURE_ZIGZAG_VIDEO_HDR (((cam_feature_mask_t)1UL)<<35)
+#define CAM_QCOM_FEATURE_ZIGZAG_HDR     (((cam_feature_mask_t)1UL)<<35)
 #define CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR (((cam_feature_mask_t)1UL)<<36)
 #define CAM_QCOM_FEATURE_METADATA_BYPASS (((cam_feature_mask_t)1UL)<<37)
 #define CAM_QTI_FEATURE_SAT             (((cam_feature_mask_t)1UL)<<38)
 #define CAM_QTI_FEATURE_CPP_DOWNSCALE   (((cam_feature_mask_t)1UL)<<39)
+#define CAM_QTI_FEATURE_FIXED_FOVC      (((cam_feature_mask_t)1UL) << 40)
+#define CAM_QCOM_FEATURE_IR             (((cam_feature_mask_t)1UL)<<41)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
