@@ -1213,6 +1213,73 @@ int setAntibanding(mm_camera_test_obj_t *test_obj, cam_antibanding_mode_type ant
 ERROR:
     return rc;
 }
+int setFlipMode(mm_camera_test_obj_t *test_obj, cam_flip_t mode)
+{
+    int rc = MM_CAMERA_OK;
+    uint32_t i = 0;
+    mm_camera_channel_t *channel = NULL;
+    mm_camera_stream_t *snapshot_stream = NULL;
+    mm_camera_stream_t *preview_stream = NULL;
+    cam_stream_parm_buffer_t param;
+    cam_stream_parm_buffer_t param2;
+
+    test_obj->flip_mode = mode;
+
+    memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+    memset(&param2, 0, sizeof(cam_stream_parm_buffer_t));
+
+    if (test_obj->zsl_enabled)
+      channel =  &test_obj->channels[MM_CHANNEL_TYPE_ZSL];
+    else
+      channel =  &test_obj->channels[MM_CHANNEL_TYPE_PREVIEW];
+
+      /* find snapshot stream */
+      for (i = 0; i < channel->num_streams; i++) {
+          if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+              snapshot_stream = &channel->streams[i];
+              break;
+           }
+      }
+
+      /* find preview stream */
+      for (i = 0; i < channel->num_streams; i++) {
+          if (channel->streams[i].s_config.stream_info->stream_type == CAM_STREAM_TYPE_PREVIEW) {
+              preview_stream = &channel->streams[i];
+              break;
+           }
+      }
+
+       param.type = CAM_STREAM_PARAM_TYPE_SET_FLIP;
+       param.flipInfo.flip_mask = mode;
+       param2.type = CAM_STREAM_PARAM_TYPE_SET_FLIP;
+       param2.flipInfo.flip_mask = mode;
+
+       if (preview_stream != NULL) {
+          preview_stream->s_config.stream_info->parm_buf = param;
+          rc = test_obj->cam->ops->set_stream_parms(test_obj->cam->camera_handle,
+                                              channel->ch_id,
+                                              preview_stream->s_id,
+                                              &preview_stream->s_config.stream_info->parm_buf );
+      }
+
+       if (snapshot_stream != NULL){
+          snapshot_stream->s_config.stream_info->parm_buf = param2;
+          rc = test_obj->cam->ops->set_stream_parms(test_obj->cam->camera_handle,
+                                              channel->ch_id,
+                                              snapshot_stream->s_id,
+                                              &snapshot_stream->s_config.stream_info->parm_buf );
+      }
+
+     if (rc != MM_CAMERA_OK) {
+        LOGE("Batch parameters commit failed\n");
+        goto ERROR;
+     }
+
+    LOGE("Flip Mode set to: %d",  (int)mode);
+
+ERROR:
+    return rc;
+}
 
 int setManualWhiteBalance(mm_camera_test_obj_t *test_obj, cam_manual_wb_parm_t *manual_info){
 
@@ -2072,6 +2139,17 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
     camera_cap = (cam_capability_t *) handle->test_obj.cap_buf.mem_info.data;
 
     switch(cmd) {
+        case MM_CAMERA_LIB_FPS_RANGE:
+              if ( NULL != in_data ) {
+                 cam_fps_range_t range = *(( cam_fps_range_t * )in_data);
+                 rc = setFPSRange(&handle->test_obj, range);
+                 if (rc != MM_CAMERA_OK) {
+                    LOGE("setFPSRange() err=%d\n",
+                                  rc);
+                   goto EXIT;
+                }
+            }
+            break;
         case MM_CAMERA_LIB_EZTUNE_ENABLE:
             if ( NULL != in_data) {
                 int enable_eztune = *(( int * )in_data);
@@ -2275,6 +2353,17 @@ int mm_camera_lib_send_command(mm_camera_lib_handle *handle,
                 rc = setAntibanding(&handle->test_obj, antibanding);
                 if (rc != MM_CAMERA_OK) {
                         LOGE("setAntibanding() err=%d\n",
+                                    rc);
+                        goto EXIT;
+                }
+            }
+            break;
+         case MM_CAMERA_LIB_FLIP:
+            if ( NULL != in_data ) {
+                int mode = *(( int * )in_data);
+                rc = setFlipMode(&handle->test_obj, mode);
+                if (rc != MM_CAMERA_OK) {
+                        LOGE("setFlipMode() err=%d\n",
                                     rc);
                         goto EXIT;
                 }

@@ -35,6 +35,7 @@
 #include "QCamera3HALHeader.h"
 #include "QCameraCmdThread.h"
 #include "QCameraQueue.h"
+#include "QCameraPerf.h"
 
 extern "C" {
 #include "mm_camera_interface.h"
@@ -184,6 +185,7 @@ private:
     QCameraQueue m_jpegSettingsQ;       // input jpeg setting queue
     QCameraCmdThread m_dataProcTh;      // thread for data processing
 
+    QCameraPerfLockMgr mPerfLockMgr;
     pthread_mutex_t mReprocJobLock;
 };
 

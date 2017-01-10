@@ -1467,9 +1467,15 @@ typedef struct {
 } cam_stream_crop_info_t;
 
 typedef struct {
+    float widthMargins;  /*Width margin in %*/
+    float heightMargins; /*Height margin in %*/
+} cam_frame_margins_t;
+
+typedef struct {
     uint8_t num_of_streams;
     uint8_t ignore_crop; // CPP ignores the CROP in this special mode
     cam_stream_crop_info_t crop_info[MAX_NUM_STREAMS];
+    cam_frame_margins_t margins; // Margins used by dual camera with spatial alignment block
 } cam_crop_data_t;
 
 typedef struct {
@@ -1749,11 +1755,6 @@ typedef enum {
     CAM_3A_SYNC_FOLLOW,   /* Master->Slave: Master updates slave */
     CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
 } cam_3a_sync_mode_t;
-
-typedef struct {
-    float widthMargins;  /*Width margin in %*/
-    float heightMargins; /*Height margin in %*/
-} cam_frame_margins_t;
 
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
@@ -2619,6 +2620,9 @@ typedef struct {
 #define CAM_QTI_FEATURE_CPP_DOWNSCALE   (((cam_feature_mask_t)1UL)<<39)
 #define CAM_QTI_FEATURE_FIXED_FOVC      (((cam_feature_mask_t)1UL) << 40)
 #define CAM_QCOM_FEATURE_IR             (((cam_feature_mask_t)1UL)<<41)
+#define CAM_QTI_FEATURE_SAC             (((cam_feature_mask_t)1UL)<<42)
+#define CAM_QTI_FEATURE_RTBDM           (((cam_feature_mask_t)1UL)<<43)
+
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\

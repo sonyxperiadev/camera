@@ -2166,8 +2166,10 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                         fwk_frame);
                                 if (NO_ERROR == ret) {
                                     // add into ongoing PP job Q
+                                    pme->mPerfLockMgr.acquirePerfLock(PERF_LOCK_OFFLINE_REPROC);
                                     ret = pme->m_pReprocChannel->doReprocessOffline(
                                             &fwk_frame, true);
+                                    pme->mPerfLockMgr.releasePerfLock(PERF_LOCK_OFFLINE_REPROC);
                                     if (NO_ERROR != ret) {
                                         // remove from ongoing PP job Q
                                         pme->m_ongoingPPQ.dequeue(false);

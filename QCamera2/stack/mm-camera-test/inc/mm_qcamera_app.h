@@ -243,6 +243,7 @@ typedef struct {
     int8_t enable_EZTune;
     int8_t enable_ir;
     int8_t enable_shdr;
+    int32_t flip_mode;
     mm_camera_queue_t pp_frames;
     mm_camera_stream_t *reproc_stream;
     metadata_buffer_t *metadata;
@@ -292,6 +293,7 @@ typedef enum {
     MM_CAMERA_LIB_ZSL_ENABLE,
     MM_CAMERA_LIB_EV,
     MM_CAMERA_LIB_ANTIBANDING,
+    MM_CAMERA_LIB_FLIP,
     MM_CAMERA_LIB_SET_VFE_COMMAND,
     MM_CAMERA_LIB_SET_POSTPROC_COMMAND,
     MM_CAMERA_LIB_SET_3A_COMMAND,
