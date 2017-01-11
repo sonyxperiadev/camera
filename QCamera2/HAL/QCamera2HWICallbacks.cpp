@@ -2142,13 +2142,20 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
     metadata_buffer_t *pMetaData = (metadata_buffer_t *)frame->buffer;
 
     if (pme->isDualCamera()) {
-        mm_camera_buf_def_t *frameAux;
+        mm_camera_buf_def_t *frameMain = NULL;
+        mm_camera_buf_def_t *frameAux  = NULL;
         metadata_buffer_t   *pMetaDataMain  = NULL;
         metadata_buffer_t   *pMetaDataAux   = NULL;
         metadata_buffer_t   *resultMetadata = NULL;
         if (super_frame->num_bufs == MM_CAMERA_MAX_CAM_CNT) {
-            frameAux = super_frame->bufs[1];
-            pMetaDataMain = pMetaData;
+            if (get_main_camera_handle(super_frame->bufs[0]->stream_id)) {
+                frameMain = super_frame->bufs[0];
+                frameAux  = super_frame->bufs[1];
+            } else {
+                frameMain = super_frame->bufs[1];
+                frameAux  = super_frame->bufs[0];
+            }
+            pMetaDataMain = (metadata_buffer_t *)frameMain->buffer;
             pMetaDataAux  = (metadata_buffer_t *)frameAux->buffer;
         } else {
             if (super_frame->camera_handle ==

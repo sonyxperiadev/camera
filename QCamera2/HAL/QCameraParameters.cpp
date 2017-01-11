@@ -15748,12 +15748,14 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     int value = 0;
     int lpmEnable = 1;
 
-    if (state & MM_CAMERA_TYPE_MAIN) {
+    if ((state & MM_CAMERA_TYPE_MAIN) ||
+                (DUALCAM_LPM_MODE_MAIN == NONE)) {
         cameraControl[0] = 1;
     } else {
         cameraControl[0] = 0;
     }
-    if (state & MM_CAMERA_TYPE_AUX) {
+    if ((state & MM_CAMERA_TYPE_AUX)  ||
+                (DUALCAM_LPM_MODE_AUX == NONE)) {
         cameraControl[1] = 1;
     } else {
         cameraControl[1] = 0;
