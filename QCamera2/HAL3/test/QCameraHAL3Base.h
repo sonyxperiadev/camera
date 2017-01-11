@@ -44,6 +44,7 @@
 #include <pthread.h>
 #include <poll.h>
 #include "QCamera3VendorTags.h"
+#include "../stack/common/cam_types.h"
 
 extern "C" {
 #include "mm_camera_dbg.h"
@@ -153,6 +154,7 @@ public:
     int mSnapShotRunning;
     bool ir_mode;
     bool svhdr_mode;
+    uint8_t binning_mode;
     camera_info camcap_info;
     camera_metadata_entry entry_hal3app;
     android::CameraMetadata hal3app_cam_settings;

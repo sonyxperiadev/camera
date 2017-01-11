@@ -37,10 +37,11 @@ namespace qcamera {
 const CAMERA_BASE_MENU_TBL_T camera_main_menu_tbl[] = {
     {MENU_START_PREVIEW,             "To Start Preview"},
     {MENU_START_VIDEO,               "To Start Video"},
-    {MENU_START_CAPTURE,             "To Capture"},
+    {MENU_START_CAPTURE,             "To Capture(Non-ZSL)"},
     {MENU_START_RAW_CAPTURE,         "To Raw Capture"},
     {MENU_TOGGLE_IR_MODE,            "Toggle IR Mode"},
     {MENU_TOGGLE_SVHDR_MODE,         "Toggle SVHDR Mode"},
+    {MENU_TOGGLE_BINNING_CORRECTION, "Toggle Binning Correction"},
     {MENU_EXIT,                      "EXIT"},
 };
 
@@ -130,7 +131,7 @@ int MainTestContext::hal3appGetUserEvent()
             break;
 
             case MENU_TOGGLE_IR_MODE:
-                 if(mCamHal3Base->mPreviewRunning == NULL)
+                 if(mCamHal3Base->mPreviewRunning == 0)
                     printf(" Cant set IR/SVHDR mode in preview mode only");
                  else {
                      irmode = !irmode;
@@ -144,7 +145,7 @@ int MainTestContext::hal3appGetUserEvent()
             break;
 
             case MENU_TOGGLE_SVHDR_MODE:
-                 if(mCamHal3Base->mPreviewRunning == NULL)
+                 if(mCamHal3Base->mPreviewRunning == 0)
                     printf(" Cant set IR/SVHDR mode in preview mode only");
                  else {
                      svhdrmode = !svhdrmode;
@@ -155,6 +156,20 @@ int MainTestContext::hal3appGetUserEvent()
                      mCamHal3Base->hal3appCameraPreviewInit(MENU_TOGGLE_SVHDR_MODE,
                              mCamHal3Base->mCameraIndex, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                  }
+            break;
+            case MENU_TOGGLE_BINNING_CORRECTION:
+                     if (mCamHal3Base->binning_mode == 0)
+                         mCamHal3Base->binning_mode =  1;
+                     else
+                         mCamHal3Base->binning_mode =  0;
+                     LOGE(" Toggling Binning mode to :%d",mCamHal3Base->binning_mode);
+                     printf(" Toggling to Binning mode :%d",mCamHal3Base->binning_mode );
+                     if(mCamHal3Base->mPreviewRunning == 1)
+                     mCamHal3Base->hal3appCameraPreviewInit(MENU_TOGGLE_BINNING_CORRECTION,
+                                mCamHal3Base->mCameraIndex, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                     if(mCamHal3Base->mVideoRunning == 1)
+                                mCamHal3Base->hal3appCameraVideoInit(MENU_TOGGLE_BINNING_CORRECTION,
+                        mCamHal3Base->mCameraIndex, VIDEO_WIDTH, VIDEO_HEIGHT);
             break;
 
             case MENU_EXIT:
