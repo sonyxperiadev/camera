@@ -252,6 +252,7 @@ uint32_t QCameraChannel::getChHandleForStream(cam_stream_type_t stream_type)
  *   @userdata       : user data ptr
  *   @bDynAllocBuf   : flag indicating if allow allocate buffers in 2 steps
  *   @online_rotation: rotation applied online
+ *   @cam_type       : Camera type in case of dual camera
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
@@ -261,9 +262,12 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
         QCameraHeapMemory *streamInfoBuf, QCameraHeapMemory *miscBuf,
         cam_padding_info_t *paddingInfo, stream_cb_routine stream_cb,
         void *userdata, bool bDynAllocBuf, bool bDeffAlloc,
-        cam_rotation_t online_rotation)
+        cam_rotation_t online_rotation,
+        uint32_t cam_type)
 {
     int32_t rc = NO_ERROR;
+    uint32_t ch_handle = m_handle;
+
     if (mStreams.size() >= MAX_STREAM_NUM_IN_BUNDLE) {
         LOGE("stream number (%zu) exceeds max limit (%d)",
                mStreams.size(), MAX_STREAM_NUM_IN_BUNDLE);
@@ -274,8 +278,15 @@ int32_t QCameraChannel::addStream(QCameraAllocator &allocator,
         }
         return BAD_VALUE;
     }
+
+    if (cam_type == MM_CAMERA_TYPE_MAIN) {
+        ch_handle = get_main_camera_handle(m_handle);
+    } else if (cam_type == MM_CAMERA_TYPE_AUX) {
+        ch_handle = get_aux_camera_handle(m_handle);
+    }
+
     QCameraStream *pStream = new QCameraStream(allocator,
-            m_camHandle, m_handle, m_camOps, paddingInfo, bDeffAlloc,
+            m_camHandle, ch_handle, m_camOps, paddingInfo, bDeffAlloc,
             online_rotation);
     if (pStream == NULL) {
         LOGE("No mem for Stream");
@@ -1223,7 +1234,7 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                     pStream->getFrameDimension(streamInfo->dim);
                 }
             } else {
-                if ((param.isPostProcScaling()) &&
+                if ((param.isPostProcScaling() || param.isDCmAsymmetricSnapMode()) &&
                         (pp_featuremask.feature_mask & CAM_QCOM_FEATURE_SCALE)) {
                     rc = param.getStreamDimension(CAM_STREAM_TYPE_OFFLINE_PROC,
                             streamInfo->dim);
@@ -1353,7 +1364,16 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             mSrcStreamHandles[mStreams.size()] = pStream->getMyHandle();
             pMiscBuf = allocator.allocateMiscBuf(streamInfo);
 
-            LOGH("Configure Reprocessing: stream = %d, res = %dX%d, fmt = %d,"
+            if (offline) {
+                LOGH("Configure Reprocessing Input stream = %d Input: res = %dX%d,"
+                        "fmt = %d, buf_cnt = %d",
+                        streamInfo->reprocess_config.offline.input_type,
+                        rp_cfg.offline.input_dim.width,
+                        rp_cfg.offline.input_dim.height,
+                        rp_cfg.offline.input_fmt, rp_cfg.offline.num_of_bufs);
+            }
+
+            LOGH("Configure Reprocessing Output: stream = %d, res = %dX%d, fmt = %d,"
                     "type = %d buf_cnt = %d",
                     pStream->getMyOriginalType(), streamInfo->dim.width,
                     streamInfo->dim.height, streamInfo->fmt, type, minStreamBufNum);
@@ -1363,10 +1383,12 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                     & CAM_QCOM_FEATURE_ROTATION) {
                 rc = addStream(allocator, pStreamInfoBuf, pMiscBuf,
                         &padding, NULL, NULL, false, false,
-                        streamInfo->reprocess_config.pp_feature_config.rotation);
+                        streamInfo->reprocess_config.pp_feature_config.rotation,
+                        pStream->getMyCamType());
             } else {
                 rc = addStream(allocator, pStreamInfoBuf, pMiscBuf,
-                        &padding, NULL, NULL, false, false);
+                        &padding, NULL, NULL, false, false, ROTATE_0,
+                        pStream->getMyCamType());
             }
             if (rc != NO_ERROR) {
                 LOGE("add reprocess stream failed, ret = %d", rc);

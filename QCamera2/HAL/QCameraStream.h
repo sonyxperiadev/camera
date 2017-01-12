@@ -137,6 +137,7 @@ public:
     bool isDualStream(){return mDualStream;};
     bool needCbSwitch();
     bool needFrameSync();
+    uint32_t getMyCamType() { return mCamType; }
     //Stream time stamp. We need this for preview stream to update display
     nsecs_t mStreamTimestamp;
 
@@ -276,6 +277,7 @@ private:
     uint32_t mMapTaskId;
     bool mSyncCBEnabled;
     bool mDualStream;
+    uint32_t mCamType;
 };
 
 }; // namespace qcamera

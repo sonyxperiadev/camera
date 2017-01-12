@@ -661,7 +661,7 @@ public:
              cam_sub_format_type_t &sub_format);
 
     int32_t getStreamDimension(cam_stream_type_t streamType,
-            cam_dimension_t &dim);
+            cam_dimension_t &dim, uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     void getThumbnailSize(int *width, int *height) const;
 
 
@@ -911,6 +911,7 @@ public:
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
     void setBundledSnapshot(bool value) { mbundledSnapshot = value; }
     int32_t getDualLedCalibration() {return m_dualLedCalibration;};
+    bool isDCmAsymmetricSnapMode (){return mAsymmetricSnapMode;};
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1120,6 +1121,7 @@ private:
     int32_t updateFrameNumber();
     int32_t SyncDCParams();
     void setSyncDCParams();
+    void setAsymmetricSnapMode();
 
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
@@ -1295,6 +1297,7 @@ private:
     uint32_t mFrameNumber;
     uint32_t mSyncDCParam;
     bool mbundledSnapshot;
+    bool mAsymmetricSnapMode;
 };
 
 }; // namespace qcamera

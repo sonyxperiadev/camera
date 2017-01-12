@@ -56,7 +56,8 @@ public:
             QCameraHeapMemory *streamInfoBuf, QCameraHeapMemory *miscBuf,
             cam_padding_info_t *paddingInfo,
             stream_cb_routine stream_cb, void *userdata, bool bDynAllocBuf,
-            bool bDeffAlloc = false, cam_rotation_t online_rotation = ROTATE_0);
+            bool bDeffAlloc = false, cam_rotation_t online_rotation = ROTATE_0,
+            uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     virtual int32_t linkStream(QCameraChannel *ch, QCameraStream *stream);
     virtual int32_t start();
     virtual int32_t stop();

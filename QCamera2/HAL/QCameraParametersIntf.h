@@ -95,7 +95,7 @@ public:
 
 
     int32_t getStreamDimension(cam_stream_type_t streamType,
-            cam_dimension_t &dim);
+            cam_dimension_t &dim, uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
 
     void getThumbnailSize(int *width, int *height) const;
     uint8_t getZSLBurstInterval();
@@ -320,6 +320,7 @@ public:
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
     void setBundledSnapshot(bool value);
     int32_t getDualLedCalibration();
+    bool isDCmAsymmetricSnapMode();
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;
