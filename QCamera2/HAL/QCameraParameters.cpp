@@ -15710,7 +15710,7 @@ int32_t QCameraParameters::setDeferCamera(cam_dual_camera_defer_cmd_t type)
     cam_dual_camera_defer_cmd_t defer_val[MM_CAMERA_MAX_CAM_CNT];
     memset(&defer_val[0], 0, sizeof(defer_val));
 
-    if (value < MM_CAMERA_MAX_CAM_CNT) {
+    if (value >= 0 && value < MM_CAMERA_MAX_CAM_CNT) {
         defer_val[value] = type;
     }
     sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO,MM_CAMERA_MAX_CAM_CNT,

@@ -49,6 +49,7 @@ private:
     camera3_stream_t *mSnapshotStream;
     camera3_capture_request mRequest;
     camera3_stream_buffer_t mVideoStreamBuffs;
+    android::CameraMetadata hal3app_video_settings;
     camera3_stream_buffer_t mSnapshotStreamBuffs;
     camera3_stream_configuration mVideoConfig;
 public:
@@ -57,6 +58,7 @@ public:
     int nobuffer;
     int mPipelineDepthVideo;
     int mCameraId;
+    int32_t binning_mode;
 
     QCameraHAL3VideoTest(int cameraIndex);
 
@@ -76,6 +78,7 @@ public:
     bool videoProcessThreadCreate(hal3_camera_lib_test *);
     void videoTestEnd(hal3_camera_lib_test *my_hal3test_obj, int camid);
     void snapshotAllocateBuffers(int, int );
+    int get_binning_mode(int32_t binning_mode);
     virtual ~QCameraHAL3VideoTest();
 };
 

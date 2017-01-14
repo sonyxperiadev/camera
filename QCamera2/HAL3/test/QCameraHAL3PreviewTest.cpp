@@ -48,6 +48,7 @@ QCameraHAL3PreviewTest::QCameraHAL3PreviewTest(int camid) :
     mCaptureHandle(NULL),
     mPreviewStream(NULL),
     nobuffer(0),
+    mCamId(camid),
     ir_mode(0),
     svhdr_mode(0)
 {
@@ -146,30 +147,24 @@ void QCameraHAL3PreviewTest::captureRequestRepeat(
                     if(ir_mode == 0) {
                         ALOGE("setting IR mode off");
                         set_ir_mode = (int32_t)QCAMERA3_IR_MODE_OFF;
-                        //set_svhdr_mode = (int32_t)QCAMERA3_VIDEO_HDR_MODE_OFF;
                     }
                     else {
                         ALOGE("setting IR mode On");
                         set_ir_mode = (int32_t)QCAMERA3_IR_MODE_ON;
-                        //set_svhdr_mode = (int32_t)QCAMERA3_VIDEO_HDR_MODE_ON;
                     }
                     hal3app_preview_settings.update(QCAMERA3_IR_MODE, &set_ir_mode, 1);
-                    //hal3app_preview_settings.update(QCAMERA3_VIDEO_HDR_MODE, &set_svhdr_mode, 1);
                     (mRequest).settings = hal3app_preview_settings.release();
                 }
                 else if(svhdr_mode_changed == 1) {
                     hal3app_preview_settings = mMetaDataPtr[0];
                     if(svhdr_mode == 0) {
                         ALOGE("setting HDR mode off");
-                        //set_ir_mode = (int32_t)ANDROID_IR_MODE_OFF;
                         set_svhdr_mode = (int32_t)QCAMERA3_VIDEO_HDR_MODE_OFF;
                     }
                     else {
                         ALOGE("setting HDR mode On");
-                        //set_ir_mode = (int32_t)ANDROID_IR_MODE_ON;
                         set_svhdr_mode = (int32_t)QCAMERA3_VIDEO_HDR_MODE_ON;
                     }
-                    //hal3app_preview_settings.update(QCAMERA3_IR_MODE, &set_ir_mode, 0);
                     hal3app_preview_settings.update(QCAMERA3_VIDEO_HDR_MODE, &set_svhdr_mode, 1);
                     (mRequest).settings = hal3app_preview_settings.release();
                 }
