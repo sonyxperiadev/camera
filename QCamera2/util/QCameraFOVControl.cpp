@@ -29,9 +29,12 @@
 
 #define LOG_TAG "QCameraFOVControl"
 
+#include <stdlib.h>
+#include <cutils/properties.h>
 #include <utils/Errors.h>
 #include "QCameraFOVControl.h"
 #include "QCameraDualCamSettings.h"
+
 
 extern "C" {
 #include "mm_camera_dbg.h"
@@ -872,6 +875,14 @@ void QCameraFOVControl::generateFovControlResult()
 
     af_status afStatusAux = mFovControlData.status3A.aux.af.status;
 
+    char prop[PROPERTY_VALUE_MAX];
+    int override = 0;
+    property_get("persist.camera.fovc.override", prop, "0");
+    override = atoi(prop);
+    if(override) {
+        afStatusAux = AF_VALID;
+    }
+
     float transitionLow     = mFovControlData.transitionParams.transitionLow;
     float transitionHigh    = mFovControlData.transitionParams.transitionHigh;
     float cutOverWideToTele = mFovControlData.transitionParams.cutOverWideToTele;
@@ -1158,6 +1169,14 @@ bool QCameraFOVControl::isSpatialAlignmentReady()
         }
     }
 
+    char prop[PROPERTY_VALUE_MAX];
+    int override = 0;
+    property_get("persist.camera.fovc.override", prop, "0");
+    override = atoi(prop);
+    if(override) {
+        ret = true;
+    }
+
     return ret;
 }
 
@@ -1431,7 +1450,7 @@ void QCameraFOVControl::calculateDualCamTransitionParams()
         if (mFovControlConfig.snapshotPPConfig.zoomMin <
                 mFovControlData.transitionParams.transitionLow) {
             mFovControlData.transitionParams.transitionLow =
-                mFovControlConfig.snapshotPPConfig.zoomMax;
+                mFovControlConfig.snapshotPPConfig.zoomMin;
         }
 
         // Set aux switch brightness threshold as the lower of aux switch and
