@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -33,6 +33,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fcntl.h>
 #define MMAN_H <SYSTEM_HEADER_PREFIX/mman.h>
 #include MMAN_H
+#include <cutils/properties.h>
+
 
 // Camera dependencies
 #include "mm_qcamera_app.h"
@@ -338,10 +340,13 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
                                      void *user_data)
 {
     uint32_t i = 0;
+    char value[PROPERTY_VALUE_MAX];
     mm_camera_channel_t *channel = NULL;
     mm_camera_stream_t *p_stream = NULL;
     mm_camera_buf_def_t *frame = NULL;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
+    property_get("persist.camera.dumpimg", value, "0");
+    uint32_t dump_preview = (uint32_t) atoi(value);
 
     if (NULL == bufs || NULL == user_data) {
         LOGE("bufs or user_data are not valid ");
@@ -385,13 +390,13 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
     if ( 0 < pme->fb_fd ) {
         mm_app_overlay_display(pme, frame->fd);
     }
-#ifdef DUMP_PRV_IN_FILE
-    {
+
+    if (dump_preview & QCAMERA_DUMP_FRM_PREVIEW) {
         char file_name[64];
         snprintf(file_name, sizeof(file_name), "P_C%d", pme->cam->camera_handle);
         mm_app_dump_frame(frame, file_name, "yuv", frame->frame_idx);
     }
-#endif
+
     if (pme->user_preview_cb) {
         LOGD("[DBG]user defined own preview cb. calling it...");
         pme->user_preview_cb(frame);

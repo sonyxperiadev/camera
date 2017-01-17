@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1967,13 +1967,6 @@ int mm_camera_lib_open(mm_camera_lib_handle *handle, int cam_id)
     if ( NULL == handle ) {
         LOGE(" Invalid handle");
         rc = MM_CAMERA_E_INVALID_INPUT;
-        goto EXIT;
-    }
-
-    memset(handle, 0, sizeof(mm_camera_lib_handle));
-    rc = mm_app_load_hal(&handle->app_ctx);
-    if( MM_CAMERA_OK != rc ) {
-        LOGE("mm_app_init err\n");
         goto EXIT;
     }
 
