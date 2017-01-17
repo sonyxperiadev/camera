@@ -11022,6 +11022,14 @@ int QCamera3HardwareInterface::translateToHalMetadata
                     rc = BAD_VALUE;
                 }
             }
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ZSL_MODE, 1)) {
+                    rc = BAD_VALUE;
+            }
+        }
+    } else {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ZSL_MODE, 0)) {
+            rc = BAD_VALUE;
         }
     }
 
