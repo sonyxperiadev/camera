@@ -242,14 +242,29 @@ int32_t QCameraDualFOVPP::feedOutput(qcamera_hal_pp_data_t *pOutputData)
 {
     int32_t rc = NO_ERROR;
     LOGD("E");
+
     if (NULL != pOutputData) {
         uint32_t frameIndex = pOutputData->frameIndex;
         std::vector<qcamera_hal_pp_data_t*> *pVector = getFrameVector(frameIndex);
-        // Get the main (Wide) input frame in order to get output buffer len,
+        // Get the Wide/Tele input frame in order to decide output buffer len,
         // and copy metadata buffer.
-        if (pVector != NULL && pVector->at(WIDE_INPUT) != NULL) {
-            qcamera_hal_pp_data_t *pInputData = pVector->at(WIDE_INPUT);
+        if (pVector != NULL && pVector->at(WIDE_INPUT) != NULL && pVector->at(TELE_INPUT) != NULL) {
+            qcamera_hal_pp_data_t *pInputDataWide = pVector->at(WIDE_INPUT);
+            qcamera_hal_pp_data_t *pInputDataTele = pVector->at(TELE_INPUT);
+
+            QCameraStream* pSnapshotStreamWide = NULL;
+            QCameraStream* pSnapshotStreamTele = NULL;
+            mm_camera_buf_def_t *pBufWide = getSnapshotBuf(pInputDataWide, pSnapshotStreamWide);
+            mm_camera_buf_def_t *pBufTele = getSnapshotBuf(pInputDataTele, pSnapshotStreamTele);
+
+            LOGH("snapshot frame len, wide:%d, tele:%d", pBufWide->frame_len, pBufTele->frame_len);
+            qcamera_hal_pp_data_t *pInputData = pInputDataWide;
+            if (pBufTele->frame_len > pBufWide->frame_len) {
+                pInputData = pInputDataTele;
+            }
+
             rc = getOutputBuffer(pInputData, pOutputData);
+
             // Enqueue output_data to m_outgoingQ
             if (false == m_outgoingQ.enqueue((void *)pOutputData)) {
                 LOGE("outgoing Q is not active!!!");
@@ -367,14 +382,21 @@ int32_t QCameraDualFOVPP::process()
         }
         cam_frame_len_offset_t frm_offset;
         pMainSnapshotStream->getFrameOffset(frm_offset);
-        LOGI("Stream type:%d, stride:%d, scanline:%d, frame len:%d",
+        LOGI("<Wide> Stream type:%d, stride:%d, scanline:%d, frame len:%d",
                 pMainSnapshotStream->getMyType(),
                 frm_offset.mp[0].stride, frm_offset.mp[0].scanline,
                 frm_offset.frame_len);
-
         if (dumpimg) {
             dumpYUVtoFile((uint8_t *)main_snapshot_buf->buffer, frm_offset,
                     main_snapshot_buf->frame_idx, "wide");
+        }
+
+        pAuxSnapshotStream->getFrameOffset(frm_offset);
+        LOGI("<Tele> Stream type:%d, stride:%d, scanline:%d, frame len:%d",
+                pAuxSnapshotStream->getMyType(),
+                frm_offset.mp[0].stride, frm_offset.mp[0].scanline,
+                frm_offset.frame_len);
+        if (dumpimg) {
             dumpYUVtoFile((uint8_t *)aux_snapshot_buf->buffer,  frm_offset,
                     aux_snapshot_buf->frame_idx,  "tele");
         }
@@ -395,6 +417,10 @@ int32_t QCameraDualFOVPP::process()
                         (uint8_t *)output_snapshot_buf->buffer);
 
         if (dumpimg) {
+            pMainSnapshotStream->getFrameOffset(frm_offset);
+            if (aux_snapshot_buf->frame_len > main_snapshot_buf->frame_len) {
+                pAuxSnapshotStream->getFrameOffset(frm_offset);
+            }
             dumpYUVtoFile((uint8_t *)output_snapshot_buf->buffer, frm_offset,
                     main_snapshot_buf->frame_idx, "out");
         }
@@ -410,13 +436,14 @@ int32_t QCameraDualFOVPP::process()
 
 
         // Calling cb function to return output_data after processed.
+        LOGH("CB for output");
         m_halPPBufNotifyCB(pOutputData, m_pHalPPMgr);
 
         // also send input buffer to postproc.
+        LOGH("CB for wide input");
         m_halPPBufNotifyCB(pInputMainData, m_pHalPPMgr);
+        LOGH("CB for tele input");
         m_halPPBufNotifyCB(pInputAuxData, m_pHalPPMgr);
-        //releaseData(pInputMainData);
-        //releaseData(pInputAuxData);
 
         // Release internal resource
         m_frameMap.erase(frameIndex);
@@ -531,22 +558,43 @@ int32_t QCameraDualFOVPP::doDualFovPPProcess(const uint8_t* pWide, const uint8_t
 
     // trace begin
 
-    // half image from main, and half image from tele
+    if (inParams.tele.frame_len == inParams.wide.frame_len) {
+        LOGD("copy to output, half from wide, half from tele..");
 
-    // Y
-    memcpy(pOut, pWide, inParams.wide.stride * inParams.wide.scanline / 2);
-    memcpy(pOut  + inParams.wide.stride * inParams.wide.scanline / 2,
-           pTele + inParams.wide.stride * inParams.wide.scanline / 2,
-           inParams.wide.stride * inParams.wide.scanline / 2);
+        // half image from main, and half image from tele
 
-    // UV
-    uint32_t uv_offset = inParams.wide.stride * inParams.wide.scanline;
-    memcpy(pOut  + uv_offset,
-           pWide + uv_offset,
-           inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
-    memcpy(pOut  + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
-           pTele + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
-           inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
+        // Y
+        memcpy(pOut, pWide, inParams.wide.stride * inParams.wide.scanline / 2);
+        memcpy(pOut  + inParams.wide.stride * inParams.wide.scanline / 2,
+               pTele + inParams.wide.stride * inParams.wide.scanline / 2,
+               inParams.wide.stride * inParams.wide.scanline / 2);
+
+        // UV
+        uint32_t uv_offset = inParams.wide.stride * inParams.wide.scanline;
+        memcpy(pOut  + uv_offset,
+               pWide + uv_offset,
+               inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
+        memcpy(pOut  + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
+               pTele + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
+               inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
+
+    } else {
+        // copy the larger input buffer to output
+        const uint8_t* pIn = pWide;
+        uint32_t len = inParams.wide.frame_len;
+
+        if (inParams.tele.frame_len > inParams.wide.frame_len) {
+            LOGD("copy tele to output");
+            pIn = pTele;
+            len = inParams.tele.frame_len;
+        } else {
+            LOGD("copy wide to output");
+            pIn = pWide;
+            len = inParams.wide.frame_len;
+        }
+
+        memcpy(pOut, pIn, len);
+    }
 
     // trace end
 

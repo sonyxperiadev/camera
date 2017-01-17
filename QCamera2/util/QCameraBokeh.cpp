@@ -295,8 +295,8 @@ int32_t QCameraBokeh::process()
 
         LOGH("doing Bokeh process!!!");
         doBokehProcess(
-                (const uint8_t *)pTeleSnap->buffer,
                 (const uint8_t *)pWideSnap->buffer,
+                (const uint8_t *)pTeleSnap->buffer,
                 inParams,
                 (uint8_t *)pOutputBuf->buffer);
 
@@ -430,7 +430,7 @@ int32_t QCameraBokeh::doBokehProcess(
 
     // Copy half of wide and half of Tele if both sizes are same
     if ((inParams.tele.stride == inParams.wide.stride) &&
-            (inParams.tele.stride == inParams.wide.stride)) {
+            (inParams.tele.scanline == inParams.wide.scanline)) {
         // Y
         memcpy(pOut, pWide, inParams.wide.stride * inParams.wide.scanline / 2);
         memcpy(pOut  + inParams.wide.stride * inParams.wide.scanline / 2,
