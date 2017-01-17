@@ -249,7 +249,15 @@ vendor_tag_info_t qcamera3_stats[QCAMERA3_STATS_END -
     { "is_hdr_scene", TYPE_BYTE },
     { "is_hdr_scene_values", TYPE_BYTE },
     { "is_hdr_scene_confidence",   TYPE_FLOAT },
-    { "is_hdr_scene_confidence_range", TYPE_FLOAT }
+    { "is_hdr_scene_confidence_range", TYPE_FLOAT },
+    { "bsgc_available", TYPE_BYTE },
+    { "blink_detected", TYPE_BYTE },
+    { "blink_degree", TYPE_BYTE },
+    { "smile_degree", TYPE_BYTE },
+    { "smile_confidence", TYPE_BYTE },
+    { "gaze_angle", TYPE_BYTE },
+    { "gaze_direction", TYPE_INT32 },
+    { "gaze_degree", TYPE_BYTE }
 };
 
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
@@ -377,7 +385,15 @@ uint32_t qcamera3_all_tags[] = {
 
     // QCAMERA3_STATS
     (uint32_t)QCAMERA3_STATS_IS_HDR_SCENE,
-    (uint32_t)QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE
+    (uint32_t)QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE,
+    (uint32_t)QCAMERA3_STATS_BSGC_AVAILABLE,
+    (uint32_t)QCAMERA3_STATS_BLINK_DETECTED,
+    (uint32_t)QCAMERA3_STATS_BLINK_DEGREE,
+    (uint32_t)QCAMERA3_STATS_SMILE_DEGREE,
+    (uint32_t)QCAMERA3_STATS_SMILE_CONFIDENCE,
+    (uint32_t)QCAMERA3_STATS_GAZE_ANGLE,
+    (uint32_t)QCAMERA3_STATS_GAZE_DIRECTION,
+    (uint32_t)QCAMERA3_STATS_GAZE_DEGREE,
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;

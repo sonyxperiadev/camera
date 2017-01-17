@@ -291,7 +291,7 @@ enum qcamera3_ext_tags {
     QCAMERA3_BINNING_CORRECTION_MODE = QCAMERA3_BINNING_CORRECTION_START,
     QCAMERA3_AVAILABLE_BINNING_CORRECTION_MODES,
     QCAMERA3_BINNING_CORRECTION_END,
- 
+
     QCAMERA3_STATS_IS_HDR_SCENE = QCAMERA3_STATS_START,
     /* Property Name:  org.codeaurora.qcamera3.stats.is_hdr_scene_values
        Type: byte[2]
@@ -308,6 +308,33 @@ enum qcamera3_ext_tags {
        roi[1] = 1.0 (max)
     */
     QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE_RANGE,
+    QCAMERA3_STATS_BSGC_AVAILABLE,
+    QCAMERA3_STATS_BLINK_DETECTED,
+    /* Property Name:  org.codeaurora.qcamera3.stats.blink_degree
+       Type: int8[2]
+       Description: Blink degree
+       blink_degree[0] = left
+       blink_degree[1] = right
+    */
+    QCAMERA3_STATS_BLINK_DEGREE,
+    QCAMERA3_STATS_SMILE_DEGREE,
+    QCAMERA3_STATS_SMILE_CONFIDENCE,
+    QCAMERA3_STATS_GAZE_ANGLE,
+    /* Property Name:  org.codeaurora.qcamera3.stats.gaze_direction
+       Type: int32[3]
+       Description: Gaze direction
+       gaze_direction[0] = up-down
+       gaze_direction[1] = left-right
+       gaze_direction[2] = roll
+    */
+    QCAMERA3_STATS_GAZE_DIRECTION,
+    /* Property Name:  org.codeaurora.qcamera3.stats.gaze_degree
+       Type: int8[2]
+       Description: Gaze degree
+       gaze_degree[0] = left-right
+       gaze_degree[1] = top-bottom
+    */
+    QCAMERA3_STATS_GAZE_DEGREE,
     QCAMERA3_STATS_END
 };
 

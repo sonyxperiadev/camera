@@ -5972,6 +5972,53 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         camMetadata.update(ANDROID_STATISTICS_FACE_LANDMARKS,
                                 faceLandmarks, numFaces * 6U);
                    }
+                    IF_META_AVAILABLE(cam_face_blink_data_t, blinks,
+                            CAM_INTF_META_FACE_BLINK, metadata) {
+                        uint8_t detected[MAX_ROI];
+                        uint8_t degree[MAX_ROI * 2];
+                        for (size_t i = 0; i < numFaces; i++) {
+                            detected[i] = blinks->blink[i].blink_detected;
+                            degree[2 * i] = blinks->blink[i].left_blink;
+                            degree[2 * i + 1] = blinks->blink[i].right_blink;
+                        }
+                        camMetadata.update(QCAMERA3_STATS_BLINK_DETECTED,
+                                detected, numFaces);
+                        camMetadata.update(QCAMERA3_STATS_BLINK_DEGREE,
+                                degree, numFaces * 2);
+                    }
+                    IF_META_AVAILABLE(cam_face_smile_data_t, smiles,
+                            CAM_INTF_META_FACE_SMILE, metadata) {
+                        uint8_t degree[MAX_ROI];
+                        uint8_t confidence[MAX_ROI];
+                        for (size_t i = 0; i < numFaces; i++) {
+                            degree[i] = smiles->smile[i].smile_degree;
+                            confidence[i] = smiles->smile[i].smile_confidence;
+                        }
+                        camMetadata.update(QCAMERA3_STATS_SMILE_DEGREE,
+                                degree, numFaces);
+                        camMetadata.update(QCAMERA3_STATS_SMILE_CONFIDENCE,
+                                confidence, numFaces);
+                    }
+                    IF_META_AVAILABLE(cam_face_gaze_data_t, gazes,
+                            CAM_INTF_META_FACE_GAZE, metadata) {
+                        int8_t angle[MAX_ROI];
+                        int32_t direction[MAX_ROI * 3];
+                        int8_t degree[MAX_ROI * 2];
+                        for (size_t i = 0; i < numFaces; i++) {
+                            angle[i] = gazes->gaze[i].gaze_angle;
+                            direction[3 * i] = gazes->gaze[i].updown_dir;
+                            direction[3 * i + 1] = gazes->gaze[i].leftright_dir;
+                            direction[3 * i + 2] = gazes->gaze[i].roll_dir;
+                            degree[2 * i] = gazes->gaze[i].left_right_gaze;
+                            degree[2 * i + 1] = gazes->gaze[i].top_bottom_gaze;
+                        }
+                        camMetadata.update(QCAMERA3_STATS_GAZE_ANGLE,
+                                (uint8_t *)angle, numFaces);
+                        camMetadata.update(QCAMERA3_STATS_GAZE_DIRECTION,
+                                direction, numFaces * 3);
+                        camMetadata.update(QCAMERA3_STATS_GAZE_DEGREE,
+                                (uint8_t *)degree, numFaces * 2);
+                    }
                 }
             }
         }
@@ -7971,6 +8018,9 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             availableFaceDetectModes.size());
     staticInfo.update(ANDROID_STATISTICS_INFO_MAX_FACE_COUNT,
             (int32_t *)&maxFaces, 1);
+    uint8_t face_bsgc = gCamCapability[cameraId]->face_bsgc;
+    staticInfo.update(QCAMERA3_STATS_BSGC_AVAILABLE,
+            &face_bsgc, 1);
 
     int32_t exposureCompensationRange[] = {
             gCamCapability[cameraId]->exposure_compensation_min,
