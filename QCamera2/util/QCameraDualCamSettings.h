@@ -96,4 +96,17 @@ typedef enum {
 #define FOVC_AUXCAM_SWITCH_LUX_MIN              (100)
 #define FOVC_AUXCAM_SWITCH_FOCUS_DIST_CM_MIN    (15)
 
+// This setting indicates the threshold for zoom stable count in terms of number of frames.
+// This is a power optimization setting. When in the transition zone, if the zoom doesn't
+// change for thse many frames, the non-master camera is put in LPM.
+#define FOVC_ZOOM_STABLE_COUNT_THRESHOLD        (15)
+
+// This setting indicates the threshold for focus distance stable count in terms of number of frames
+// This threshold is used for the macro scene focus and change the camera state accordingly.
+#define FOVC_FOCUS_DIST_STABLE_COUNT_THRESHOLD  (15)
+
+// This setting indicates the threshold for brightness stable count in terms of number of frames.
+// This threshold is used for the low light condition and change the camera state accordingly.
+#define FOVC_BRIGHTNESS_STABLE_COUNT_THRESHOLD  (15)
+
 #endif /* __QCAMERADUALCAM_H__ */
