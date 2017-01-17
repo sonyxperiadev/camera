@@ -3233,7 +3233,6 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     break;
                 }
             }
-
             for (auto itr = i->internalRequestList.begin();
                   itr != i->internalRequestList.end(); itr++) {
                 if (itr->need_metadata) {
@@ -3245,13 +3244,11 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 }
             }
 
-
+            saveExifParams(metadata);
             result.result = translateFromHalMetadata(metadata,
                     i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
                     i->capture_intent, internalPproc, i->fwkCacMode,
                     firstMetadataInBatch);
-
-            saveExifParams(metadata);
 
             if (i->blob_request) {
                 {
@@ -6581,6 +6578,21 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         }
     }
 
+    // EXIF debug data through vendor tag
+    /*
+     * Mobicat Mask can assume 3 values:
+     * 1 refers to Mobicat data,
+     * 2 refers to Stats Debug and Exif Debug Data
+     * 3 refers to Mobicat and Stats Debug Data
+     * We want to make sure that we are sending Exif debug data
+     * only when Mobicat Mask is 2.
+     */
+    if ((mExifParams.debug_params != NULL) && (getMobicatMask() == 2)) {
+        camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_EXIF_DEBUG_DATA_BLOB,
+                (uint8_t *)(void *)mExifParams.debug_params,
+                sizeof(mm_jpeg_debug_exif_params_t));
+    }
+
     // Reprocess and DDM debug data through vendor tag
     cam_reprocess_info_t repro_info;
     memset(&repro_info, 0, sizeof(cam_reprocess_info_t));
@@ -9771,6 +9783,53 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_REPROCESS_FLAGS,
                 *reprocessFlags)) {
                 rc = BAD_VALUE;
+        }
+    }
+
+    // Add exif debug data to internal metadata
+    if (frame_settings.exists(QCAMERA3_HAL_PRIVATEDATA_EXIF_DEBUG_DATA_BLOB)) {
+        mm_jpeg_debug_exif_params_t *debug_params =
+                (mm_jpeg_debug_exif_params_t *)frame_settings.find
+                (QCAMERA3_HAL_PRIVATEDATA_EXIF_DEBUG_DATA_BLOB).data.u8;
+        // AE
+        if (debug_params->ae_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_AE,
+                    debug_params->ae_debug_params);
+        }
+        // AWB
+        if (debug_params->awb_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_AWB,
+                debug_params->awb_debug_params);
+        }
+        // AF
+       if (debug_params->af_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_AF,
+                   debug_params->af_debug_params);
+        }
+        // ASD
+        if (debug_params->asd_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_ASD,
+                    debug_params->asd_debug_params);
+        }
+        // Stats
+        if (debug_params->stats_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_STATS,
+                    debug_params->stats_debug_params);
+       }
+        // BE Stats
+        if (debug_params->bestats_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_BESTATS,
+                    debug_params->bestats_debug_params);
+        }
+        // BHIST
+        if (debug_params->bhist_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_BHIST,
+                    debug_params->bhist_debug_params);
+       }
+        // 3A Tuning
+        if (debug_params->q3a_tuning_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_3A_TUNING,
+                    debug_params->q3a_tuning_debug_params);
         }
     }
 
