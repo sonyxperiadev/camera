@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -758,5 +758,36 @@ void QCameraDualFOVPP::dumpInputParams(const dualfov_input_params_t& p)
     LOGD("zoom ratio: %f", p.user_zoom / 4096.0);
     LOGD("X");
 }
+
+
+/*===========================================================================
+ * FUNCTION   : dumpOISData
+ *
+ * DESCRIPTION: Read Sensor OIS data from metadata and dump it
+ *
+ * PARAMETERS :
+ * @pMetadata : Frame metadata
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCameraDualFOVPP::dumpOISData(metadata_buffer_t*  pMetadata)
+{
+    if (!pMetadata) {
+        LOGD("OIS data not available");
+        return;
+    }
+
+    IF_META_AVAILABLE(cam_ois_data_t, pOisData, CAM_INTF_META_OIS_READ_DATA, pMetadata) {
+        LOGD("Ois Data: data size: %d", pOisData->size);
+        uint8_t *data = pOisData->data;
+        if (pOisData->size == 8) {
+            LOGD("Ois Data Buffer : %d %d %d %d %d %d %d %d ",
+                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+        }
+    }
+    return;
+}
+
 
 } // namespace qcamera

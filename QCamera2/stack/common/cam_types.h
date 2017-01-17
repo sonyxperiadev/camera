@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,6 +44,7 @@
 #define BESTATS_BUFFER_DEBUG_DATA_SIZE    (150000)
 #define BHIST_STATS_DEBUG_DATA_SIZE       (70000)
 #define TUNING_INFO_DEBUG_DATA_SIZE       (4)
+#define OIS_DATA_MAX_SIZE                 (32)
 
 #define CEILING64(X) (((X) + 0x0003F) & 0xFFFFFFC0)
 #define CEILING32(X) (((X) + 0x0001F) & 0xFFFFFFE0)
@@ -950,6 +951,11 @@ typedef enum {
     CAM_BINNING_CORRECTION_MODE_ON,
     CAM_BINNING_CORRECTION_MODE_MAX,
 } cam_binning_correction_mode_t;
+
+typedef struct {
+    uint32_t size;
+    uint8_t data[OIS_DATA_MAX_SIZE];
+} cam_ois_data_t;
 
 typedef struct  {
     int32_t left;
@@ -2397,6 +2403,8 @@ typedef enum {
     CAM_INTF_META_AF_FOCUS_POS,
     /* Binning Correction Algorithm */
     CAM_INTF_META_BINNING_CORRECTION_MODE,
+    /* Read Sensor OIS data */
+    CAM_INTF_META_OIS_READ_DATA,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
