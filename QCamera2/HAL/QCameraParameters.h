@@ -905,6 +905,7 @@ public:
     int32_t SetDualCamera(bool value);
     bool isDualCamera() {return m_bDualCamera;};
     int32_t setCameraControls(int32_t controls);
+    cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
     int32_t setSwitchCamera();
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
     void setBundledSnapshot(bool value) { mbundledSnapshot = value; }
