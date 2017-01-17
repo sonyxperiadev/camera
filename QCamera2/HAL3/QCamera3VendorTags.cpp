@@ -137,17 +137,21 @@ vendor_tag_info_t qcamera3_temporal_denoise[QCAMERA3_TEMPORAL_DENOISE_END -
 vendor_tag_info qcamera3_iso_exp_priority[QCAMERA3_ISO_EXP_PRIORITY_END -
                                   QCAMERA3_ISO_EXP_PRIORITY_START] = {
     { "use_iso_exp_priority", TYPE_INT64 },
-    { "select_priority", TYPE_INT32 }
+    { "select_priority", TYPE_INT32 },
+    { "iso_available_modes", TYPE_INT32 },
+    { "exposure_time_range", TYPE_INT64 }
 };
 
 vendor_tag_info qcamera3_saturation[QCAMERA3_SATURATION_END -
                                   QCAMERA3_SATURATION_START] = {
-    { "use_saturation", TYPE_INT32 }
+    { "use_saturation", TYPE_INT32 },
+    { "range", TYPE_INT32 }
 };
 
 vendor_tag_info qcamera3_exposure_metering[QCAMERA3_EXPOSURE_METER_END -
                                   QCAMERA3_EXPOSURE_METER_START] = {
-    { "exposure_metering_mode", TYPE_INT32}
+    { "exposure_metering_mode", TYPE_INT32},
+    { "available_modes", TYPE_INT32 }
 };
 
 vendor_tag_info qcamera3_av_timer[QCAMERA3_AV_TIMER_END -
@@ -243,7 +247,9 @@ vendor_tag_info_t qcamera3_binning_correction[QCAMERA3_BINNING_CORRECTION_END -
 vendor_tag_info_t qcamera3_stats[QCAMERA3_STATS_END -
         QCAMERA3_STATS_START] = {
     { "is_hdr_scene", TYPE_BYTE },
-    { "is_hdr_scene_confidence", TYPE_FLOAT }
+    { "is_hdr_scene_values", TYPE_BYTE },
+    { "is_hdr_scene_confidence",   TYPE_FLOAT },
+    { "is_hdr_scene_confidence_range", TYPE_FLOAT }
 };
 
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
@@ -301,12 +307,16 @@ uint32_t qcamera3_all_tags[] = {
     // QCAMERA3_ISO_EXP_PRIORITY
     (uint32_t)QCAMERA3_USE_ISO_EXP_PRIORITY,
     (uint32_t)QCAMERA3_SELECT_PRIORITY,
+    (uint32_t)QCAMERA3_ISO_AVAILABLE_MODES,
+    (uint32_t)QCAMERA3_EXP_TIME_RANGE,
 
     // QCAMERA3_SATURATION
     (uint32_t)QCAMERA3_USE_SATURATION,
+    (uint32_t)QCAMERA3_SATURATION_RANGE,
 
     // QCAMERA3_EXPOSURE_METERING
     (uint32_t)QCAMERA3_EXPOSURE_METER,
+    (uint32_t)QCAMERA3_EXPOSURE_METER_AVAILABLE_MODES,
 
     //QCAMERA3_AVTIMER
     (uint32_t)QCAMERA3_USE_AV_TIMER,
