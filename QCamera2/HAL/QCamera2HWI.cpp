@@ -6024,6 +6024,9 @@ int QCamera2HardwareInterface::cancelLiveSnapshot_internal() {
     LOGH("Enable display frames again");
     setDisplaySkip(FALSE);
 
+    //wait for deferred (reprocess and jpeg) threads to finish
+    waitDeferredWork(mReprocJob);
+    waitDeferredWork(mJpegJob);
     //stop post processor
     m_postprocessor.stop();
 
