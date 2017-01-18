@@ -604,6 +604,10 @@ private:
             cam_aec_convergence_type> INSTANT_AEC_MODES_MAP[];
     static const QCameraMap<camera_metadata_enum_android_binning_correction_mode_t,
             cam_binning_correction_mode_t> BINNING_CORRECTION_MODES_MAP[];
+    static const QCameraMap<qcamera3_ext_exposure_meter_mode_t,
+            cam_auto_exposure_mode_type> AEC_MODES_MAP[];
+    static const QCameraMap<qcamera3_ext_iso_mode_t,
+            cam_iso_mode_type> ISO_MODES_MAP[];
     static const QCameraPropMap CDS_MAP[];
 
     pendingRequestIterator erasePendingRequest(pendingRequestIterator i);

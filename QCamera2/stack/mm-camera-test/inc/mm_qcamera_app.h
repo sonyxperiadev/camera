@@ -76,6 +76,8 @@
 
 #define ENABLE_REPROCESSING       1
 
+#define QCAMERA_DUMP_FRM_PREVIEW  1
+
 #define INVALID_KEY_PRESS 0
 #define BASE_OFFSET  ('Z' - 'A' + 1)
 #define BASE_OFFSET_NUM  ('Z' - 'A' + 2)

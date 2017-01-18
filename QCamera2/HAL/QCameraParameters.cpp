@@ -3256,7 +3256,7 @@ int32_t QCameraParameters::setVideoRotation(const QCameraParameters& params)
                 PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP), str);
         if (value != NAME_NOT_FOUND) {
             updateParamEntry(KEY_QC_VIDEO_ROTATION, str);
-            LOGL("setVideoRotation:   %d: ", str, value);
+            LOGL("setVideoRotation:  %s %d: ", str, value);
         } else {
             LOGE("Invalid rotation value: %d", value);
             return BAD_VALUE;
@@ -6227,16 +6227,17 @@ int32_t QCameraParameters::initDefaultParameters()
     }
 
     //Set Video Rotation
-    String8 videoRotationValues = createValuesStringFromMap(VIDEO_ROTATION_MODES_MAP,
-            PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP));
-
-    set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, videoRotationValues.string());
+    String8 videoRotationValues;
+    if (m_pCapability->qcom_supported_feature_mask & CAM_QCOM_FEATURE_ROTATION) {
+        videoRotationValues = createValuesStringFromMap(VIDEO_ROTATION_MODES_MAP,
+                PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP));
+        set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, videoRotationValues.string());
+    }
     set(KEY_QC_VIDEO_ROTATION, VIDEO_ROTATION_0);
 
     String8 metadataTypeValues = createValuesStringFromMap(METADATA_TYPES_MAP,
         PARAM_MAP_SIZE(METADATA_TYPES_MAP));
     set(KEY_QC_SUPPORTED_METADATA_TYPES, metadataTypeValues);
-    LOGE("gp_qcom: Supported metadata type = %s", metadataTypeValues.string());
 
     //Check for EZTune
     setEztune();

@@ -59,6 +59,7 @@ enum qcamera3_ext_section {
     QCAMERA3_SHARPNESS_DATA,
     QCAMERA3_HISTOGRAM,
     QCAMERA3_BINNING_CORRECTION,
+    QCAMERA3_STATS,
     QCAMERA3_SECTIONS_END
 };
 
@@ -85,7 +86,8 @@ enum qcamera3_ext_section_ranges {
     QCAMERA3_INSTANT_AEC_START = QCAMERA3_INSTANT_AEC << 16,
     QCAMERA3_SHARPNESS_START = QCAMERA3_SHARPNESS_DATA << 16,
     QCAMERA3_HISTOGRAM_START = QCAMERA3_HISTOGRAM << 16,
-    QCAMERA3_BINNING_CORRECTION_START = QCAMERA3_BINNING_CORRECTION << 16
+    QCAMERA3_BINNING_CORRECTION_START = QCAMERA3_BINNING_CORRECTION << 16,
+    QCAMERA3_STATS_START = QCAMERA3_STATS << 16
 };
 
 enum qcamera3_ext_tags {
@@ -161,12 +163,53 @@ enum qcamera3_ext_tags {
 
     QCAMERA3_USE_ISO_EXP_PRIORITY = QCAMERA3_ISO_EXP_PRIORITY_START,
     QCAMERA3_SELECT_PRIORITY,
+    /* Property Name:  org.codeaurora.qcamera3.iso_exp_priority.iso_available_modes
+       Type: int32[8]
+       Description: Available iso mode values
+       iso_available_modes[0] = 0 (auto)
+       iso_available_modes[1] = 1 (deblur)
+       iso_available_modes[2] = 2 (100)
+       iso_available_modes[3] = 3 (200)
+       iso_available_modes[4] = 4 (400)
+       iso_available_modes[5] = 5 (800)
+       iso_available_modes[6] = 6 (1600)
+       iso_available_modes[7] = 7 (3200)
+    */
+    QCAMERA3_ISO_AVAILABLE_MODES,
+    /* Property Name:  org.codeaurora.qcamera3.iso_exp_priority.exposure_time_range
+       Type: int64[2]
+       Description: Min/max exposure time values (ns)
+       exposure_time_range[0] = min
+       exposure_time_range[1] = max
+    */
+    QCAMERA3_EXP_TIME_RANGE,
     QCAMERA3_ISO_EXP_PRIORITY_END,
 
     QCAMERA3_USE_SATURATION = QCAMERA3_SATURATION_START,
+    /* Property Name:  org.codeaurora.qcamera3.saturation.range
+       Type: int32[4]
+       Description: Range of possible saturation values
+       range[0] = min
+       range[1] = max
+       range[2] = default
+       range[3] = step
+    */
+    QCAMERA3_SATURATION_RANGE,
     QCAMERA3_SATURATION_END,
 
     QCAMERA3_EXPOSURE_METER = QCAMERA3_EXPOSURE_METER_START,
+    /* Property Name:  org.codeaurora.qcamera3.exposure_metering.available_modes
+       Type: int32[7]
+       Description: Available exposure metering mode values
+       available_modes[0] = 0 (FRAME_AVERAGE)
+       available_modes[1] = 1 (CENTER_WEIGHTED)
+       available_modes[2] = 2 (SPOT_METERING)
+       available_modes[3] = 3 (SMART_METERING)
+       available_modes[4] = 4 (USER_METERING)
+       available_modes[5] = 5 (SPOT_METERING_ADV)
+       available_modes[6] = 6 (CENTER_WEIGHTED_ADV)
+    */
+    QCAMERA3_EXPOSURE_METER_AVAILABLE_MODES,
     QCAMERA3_EXPOSURE_METER_END,
 
     QCAMERA3_USE_AV_TIMER = QCAMERA3_AV_TIMER_START,
@@ -186,6 +229,8 @@ enum qcamera3_ext_tags {
 
     QCAMERA3_HAL_PRIVATEDATA_REPROCESS_FLAGS = QCAMERA3_HAL_PRIVATEDATA_START,
     QCAMERA3_HAL_PRIVATEDATA_REPROCESS_DATA_BLOB,
+    QCAMERA3_HAL_PRIVATEDATA_EXIF_DEBUG_DATA_BLOB,
+
     QCAMERA3_HAL_PRIVATEDATA_END,
 
     /* Property Name:  org.codeaurora.qcamera3.jpeg_encode_crop.enable
@@ -245,7 +290,52 @@ enum qcamera3_ext_tags {
 
     QCAMERA3_BINNING_CORRECTION_MODE = QCAMERA3_BINNING_CORRECTION_START,
     QCAMERA3_AVAILABLE_BINNING_CORRECTION_MODES,
-    QCAMERA3_BINNING_CORRECTION_END
+    QCAMERA3_BINNING_CORRECTION_END,
+
+    QCAMERA3_STATS_IS_HDR_SCENE = QCAMERA3_STATS_START,
+    /* Property Name:  org.codeaurora.qcamera3.stats.is_hdr_scene_values
+       Type: byte[2]
+       Description: Possible values for is_hdr_scene
+       roi[0] = 0 (false)
+       roi[1] = 1 (true)
+    */
+    QCAMERA3_STATS_IS_HDR_SCENE_VALUES,
+    QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE,
+    /* Property Name:  org.codeaurora.qcamera3.stats.is_hdr_scene_confidence_range
+       Type: float[2]
+       Description: Range of values for is_hdr_scene_confidence
+       roi[0] = 0.0 (min)
+       roi[1] = 1.0 (max)
+    */
+    QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE_RANGE,
+    QCAMERA3_STATS_BSGC_AVAILABLE,
+    QCAMERA3_STATS_BLINK_DETECTED,
+    /* Property Name:  org.codeaurora.qcamera3.stats.blink_degree
+       Type: int8[2]
+       Description: Blink degree
+       blink_degree[0] = left
+       blink_degree[1] = right
+    */
+    QCAMERA3_STATS_BLINK_DEGREE,
+    QCAMERA3_STATS_SMILE_DEGREE,
+    QCAMERA3_STATS_SMILE_CONFIDENCE,
+    QCAMERA3_STATS_GAZE_ANGLE,
+    /* Property Name:  org.codeaurora.qcamera3.stats.gaze_direction
+       Type: int32[3]
+       Description: Gaze direction
+       gaze_direction[0] = up-down
+       gaze_direction[1] = left-right
+       gaze_direction[2] = roll
+    */
+    QCAMERA3_STATS_GAZE_DIRECTION,
+    /* Property Name:  org.codeaurora.qcamera3.stats.gaze_degree
+       Type: int8[2]
+       Description: Gaze degree
+       gaze_degree[0] = left-right
+       gaze_degree[1] = top-bottom
+    */
+    QCAMERA3_STATS_GAZE_DEGREE,
+    QCAMERA3_STATS_END
 };
 
 // QCAMERA3_OPAQUE_RAW_FORMAT
@@ -286,6 +376,29 @@ typedef enum camera_metadata_enum_android_binning_correction_mode {
     QCAMERA3_BINNING_CORRECTION_MODE_OFF,
     QCAMERA3_BINNING_CORRECTION_MODE_ON
 } camera_metadata_enum_android_binning_correction_mode_t;
+
+// QCAMERA3_EXPOSURE_METER
+typedef enum qcamera3_ext_exposure_meter_mode {
+    QCAMERA3_EXP_METER_MODE_FRAME_AVERAGE,
+    QCAMERA3_EXP_METER_MODE_CENTER_WEIGHTED,
+    QCAMERA3_EXP_METER_MODE_SPOT_METERING,
+    QCAMERA3_EXP_METER_MODE_SMART_METERING,
+    QCAMERA3_EXP_METER_MODE_USER_METERING,
+    QCAMERA3_EXP_METER_MODE_SPOT_METERING_ADV,
+    QCAMERA3_EXP_METER_MODE_CENTER_WEIGHTED_ADV
+} qcamera3_ext_exposure_meter_mode_t;
+
+// QCAMERA3_ISO_EXP_PRIORITY
+typedef enum qcamera3_ext_iso_mode {
+    QCAMERA3_ISO_MODE_AUTO,
+    QCAMERA3_ISO_MODE_DEBLUR,
+    QCAMERA3_ISO_MODE_100,
+    QCAMERA3_ISO_MODE_200,
+    QCAMERA3_ISO_MODE_400,
+    QCAMERA3_ISO_MODE_800,
+    QCAMERA3_ISO_MODE_1600,
+    QCAMERA3_ISO_MODE_3200,
+} qcamera3_ext_iso_mode_t;
 
 class QCamera3VendorTags {
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, 2016-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -2069,10 +2069,11 @@ static int submain()
     mm_camera_test_obj_t test_obj;
     memset(&test_obj, 0, sizeof(mm_camera_test_obj_t));
     memset(&snap_dim, 0, sizeof(mm_camera_lib_snapshot_params));
+    memset(&lib_handle, 0, sizeof(mm_camera_lib_handle));
+    rc = mm_app_load_hal(&(lib_handle.app_ctx));
 
-    rc = mm_camera_lib_open(&lib_handle, 0);
     if (rc != MM_CAMERA_OK) {
-        LOGE("mm_camera_lib_open() err=%d\n",  rc);
+        LOGE("Error loading HAL err=%d\n",  rc);
         return -1;
     }
 
@@ -2312,10 +2313,13 @@ static int submain()
                 break;
 
             case ACTION_SWITCH_CAMERA:
-                rc = mm_camera_lib_close(&lib_handle);
-                if (rc != MM_CAMERA_OK) {
-                    LOGE("mm_camera_lib_close() err=%d\n",  rc);
-                    goto ERROR;
+
+                if (lib_handle.test_obj.cam != NULL) {
+                    rc = mm_camera_lib_close(&lib_handle);
+                    if (rc != MM_CAMERA_OK) {
+                        LOGE("mm_camera_lib_close() err=%d\n",  rc);
+                        goto ERROR;
+                    }
                 }
 
                 rc = mm_camera_lib_open(&lib_handle, action_param);
