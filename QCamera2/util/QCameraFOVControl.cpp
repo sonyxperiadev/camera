@@ -339,18 +339,16 @@ void QCameraFOVControl::resetVars()
 
     mFovControlData.fallbackEnabled = FOVC_MAIN_CAM_FALLBACK_MECHANISM;
 
+    mFovControlConfig.zoomStableCountThreshold       = FOVC_ZOOM_STABLE_COUNT_THRESHOLD;
+    mFovControlConfig.focusDistStableCountThreshold  = FOVC_FOCUS_DIST_STABLE_COUNT_THRESHOLD;
+    mFovControlConfig.brightnessStableCountThreshold = FOVC_BRIGHTNESS_STABLE_COUNT_THRESHOLD;
+
     // Reset variables
     mFovControlData.zoomStableCount       = 0;
     mFovControlData.brightnessStableCount = 0;
     mFovControlData.focusDistStableCount  = 0;
     mFovControlData.zoomDirection         = ZOOM_STABLE;
     mFovControlData.fallbackToWide        = false;
-
-    // TODO : These threshold values should be changed from counters to time based
-    // Systems team will provide the correct values as part of tuning
-    mFovControlData.zoomStableCountThreshold       = 30;
-    mFovControlData.focusDistStableCountThreshold  = 30;
-    mFovControlData.brightnessStableCountThreshold = 30;
 
     mFovControlData.status3A.main.af.status   = AF_INVALID;
     mFovControlData.status3A.aux.af.status    = AF_INVALID;
@@ -958,9 +956,9 @@ void QCameraFOVControl::generateFovControlResult()
                 // Higher constraint if not zooming in
                 else if ((zoom > cutOverWideToTele) &&
                     (mFovControlData.brightnessStableCount >=
-                            mFovControlData.brightnessStableCountThreshold) &&
+                            mFovControlConfig.brightnessStableCountThreshold) &&
                     (mFovControlData.focusDistStableCount  >=
-                            mFovControlData.focusDistStableCountThreshold)) {
+                            mFovControlConfig.focusDistStableCountThreshold)) {
                     // Enter the transition state
                     mFovControlData.camState = STATE_TRANSITION;
                     mFovControlResult.activeCameras = (camWide | camTele);
@@ -1014,7 +1012,6 @@ void QCameraFOVControl::generateFovControlResult()
 
             // Change the transition state if necessary.
             // If snapshot post processing is required, do not change the state.
-            // TODO : If zoom is stable put the inactive camera to LPM
             if (mFovControlResult.snapshotPostProcess == false) {
                 if ((zoom < transitionLow) &&
                     (mFovControlData.spatialAlignResult.activeCameras != (camWide | camTele))) {
@@ -1024,6 +1021,16 @@ void QCameraFOVControl::generateFovControlResult()
                     (mFovControlData.spatialAlignResult.activeCameras != (camWide | camTele))) {
                     mFovControlData.camState        = STATE_TELE;
                     mFovControlResult.activeCameras = camTele;
+                } else if (mFovControlData.zoomStableCount >=
+                        mFovControlConfig.zoomStableCountThreshold) {
+                    // If the zoom is stable put the non-master camera to LPM for power optimization
+                    if (mFovControlResult.camMasterPreview == camWide) {
+                        mFovControlData.camState        = STATE_WIDE;
+                        mFovControlResult.activeCameras = camWide;
+                    } else {
+                        mFovControlData.camState        = STATE_TELE;
+                        mFovControlResult.activeCameras = camTele;
+                    }
                 }
             }
             break;
@@ -1056,9 +1063,9 @@ void QCameraFOVControl::generateFovControlResult()
                 (currentFocusDist < thresholdFocusDist)) {
                 // Enter transition state if brightness or focus distance is below threshold
                 if ((mFovControlData.brightnessStableCount >=
-                            mFovControlData.brightnessStableCountThreshold) ||
+                            mFovControlConfig.brightnessStableCountThreshold) ||
                     (mFovControlData.focusDistStableCount  >=
-                            mFovControlData.focusDistStableCountThreshold)) {
+                            mFovControlConfig.focusDistStableCountThreshold)) {
                     mFovControlData.camState = STATE_TRANSITION;
                     mFovControlResult.activeCameras = (camWide | camTele);
 

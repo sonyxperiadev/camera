@@ -29,6 +29,8 @@
 
 #define LOG_TAG "QCameraCommon"
 
+#include <cutils/properties.h>
+
 // System dependencies
 #include <utils/Errors.h>
 #include <stdlib.h>
@@ -266,6 +268,38 @@ cam_dimension_t QCameraCommon::getMatchingDimension(
                 expected_ratio, cur_ratio, exp_dim.width, exp_dim.height);
     }
     return expected_dim;
+}
+
+
+
+/*===========================================================================
+ * FUNCTION   : isVideoUBWCEnabled
+ *
+ * DESCRIPTION: Function to get UBWC hardware support for video.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : TRUE -- UBWC format supported
+ *              FALSE -- UBWC is not supported.
+ *==========================================================================*/
+
+bool QCameraCommon::isVideoUBWCEnabled()
+{
+#ifdef UBWC_PRESENT
+    char prop[PROPERTY_VALUE_MAX];
+    int pFormat;
+    memset(prop, 0, sizeof(prop));
+    /* Checking the property set by video
+     * to disable/enable UBWC */
+    property_get("video.disable.ubwc", prop, "0");
+    pFormat = atoi(prop);
+    if (pFormat == 0) {
+        return TRUE;
+    }
+    return FALSE;
+#else
+    return FALSE;
+#endif
 }
 
 }; // namespace qcamera

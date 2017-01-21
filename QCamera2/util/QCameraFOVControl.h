@@ -122,7 +122,6 @@ typedef struct {
     uint32_t                    *zoomRatioTable;
     uint32_t                     zoomRatioTableCount;
     uint32_t                     zoomStableCount;
-    uint32_t                     zoomStableCountThreshold;
     dual_cam_zoom_dir            zoomDirection;
     cam_sync_type_t              camWide;
     cam_sync_type_t              camTele;
@@ -144,9 +143,7 @@ typedef struct {
     bool                         fallbackToWide;
     float                        basicFovRatio;
     uint32_t                     brightnessStableCount;
-    uint32_t                     brightnessStableCountThreshold;
     uint32_t                     focusDistStableCount;
-    uint32_t                     focusDistStableCountThreshold;
     dual_cam_transition_params_t transitionParams;
     uint32_t                     afStatusMain;
     uint32_t                     afStatusAux;
@@ -167,6 +164,9 @@ typedef struct {
     uint32_t waitTimeForHandoffMs;
     uint16_t auxSwitchBrightnessMin;
     uint16_t auxSwitchFocusDistCmMin;
+    uint16_t zoomStableCountThreshold;
+    uint16_t focusDistStableCountThreshold;
+    uint16_t brightnessStableCountThreshold;
     snapshot_pp_config_t snapshotPPConfig;
 } fov_control_config_t;
 

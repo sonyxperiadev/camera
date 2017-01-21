@@ -53,6 +53,7 @@ public:
     cam_dimension_t getMatchingDimension(
             cam_dimension_t exp_dim,
             cam_dimension_t cur_dim);
+    bool isVideoUBWCEnabled();
 
 private:
     cam_capability_t *m_pCapability;
