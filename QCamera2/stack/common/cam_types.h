@@ -2401,6 +2401,10 @@ typedef enum {
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     /* AF focus position info */
     CAM_INTF_META_AF_FOCUS_POS,
+    /* AEC LUX index */
+    CAM_INTF_META_AEC_LUX_INDEX,
+    /* Object's focus distance in cm*/
+    CAM_INTF_META_AF_OBJ_DIST_CM,
     /* Binning Correction Algorithm */
     CAM_INTF_META_BINNING_CORRECTION_MODE,
     /* Read Sensor OIS data */
