@@ -2308,10 +2308,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     analysisFeatureMask,
                     CAM_STREAM_TYPE_ANALYSIS,
                     &analysisDim,
-                    (analysisInfo.analysis_format
-                    == CAM_FORMAT_Y_ONLY ? CAM_FORMAT_Y_ONLY
-                    : CAM_FORMAT_YUV_420_NV21),
-                    analysisInfo.hw_analysis_supported,
+                    analysisInfo.analysis_format,
                     gCamCapability[mCameraId]->color_arrangement,
                     this,
                     0); // force buffer count to 0
@@ -2396,7 +2393,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 CAM_STREAM_TYPE_CALLBACK,
                 &QCamera3SupportChannel::kDim,
                 CAM_FORMAT_YUV_420_NV21,
-                supportInfo.hw_analysis_supported,
                 gCamCapability[mCameraId]->color_arrangement,
                 this, 0);
         if (!mSupportChannel) {
