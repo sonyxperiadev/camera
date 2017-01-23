@@ -73,12 +73,12 @@ typedef enum {
 
 typedef struct {
     ae_status status;
-    uint16_t  lux;
+    float     luxIndex;
 } ae_info;
 
 typedef struct {
     af_status status;
-    uint16_t  focusDistCm;
+    uint32_t  focusDistCm;
 } af_info;
 
 typedef struct {
@@ -152,6 +152,7 @@ typedef struct {
     dual_cam_transition_params_t transitionParams;
     uint32_t                     afStatusMain;
     uint32_t                     afStatusAux;
+    bool                         lpmEnabled;
 } fov_control_data_t;
 
 typedef struct {
@@ -233,6 +234,7 @@ private:
     bool isSpatialAlignmentReady();
     void resetVars();
     bool canSwitchMasterTo(cam_type cam);
+    bool sacRequestedDualZone();
 
     Mutex                           mMutex;
     fov_control_config_t            mFovControlConfig;
