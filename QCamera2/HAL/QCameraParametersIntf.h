@@ -314,6 +314,7 @@ public:
         cam_feature_mask_t featureMask,
         cam_analysis_info_t *pAnalysisInfo);
     int32_t updateDtVc(int32_t *dt, int32_t *vc);
+    bool needSnapshotPP();
     int32_t SetDualCamera(bool value);
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera(uint32_t camMaster);

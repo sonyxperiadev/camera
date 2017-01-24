@@ -2075,7 +2075,7 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
 
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, pMetaData) {
         if (isDualCamera()) {
-            if ((mActiveCameras == MM_CAMERA_DUAL_CAM) && mBundledSnapshot) {
+            if ((mActiveCameras == MM_CAMERA_DUAL_CAM) && m_bNeedHalPP) {
                 crop_data->ignore_crop = 1; // CPP ignores the crop in this special zone
                 // Set the margins to 0.
                 crop_data->margins.widthMargins  = 0.0f;

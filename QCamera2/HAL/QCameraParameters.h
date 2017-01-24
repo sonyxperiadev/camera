@@ -903,7 +903,7 @@ public:
     bool sendStreamConfigForPickRes(cam_stream_size_info_t &stream_config_info);
     int32_t updateDtVc(int32_t *dt, int32_t *vc);
     bool isLinkPreviewForLiveShot();
-
+    bool needSnapshotPP();
     int32_t SetDualCamera(bool value);
     bool isDualCamera() {return m_bDualCamera;};
     int32_t setCameraControls(int32_t controls);
@@ -1292,6 +1292,7 @@ private:
     bool m_bDualCamera;
     uint32_t mActiveCameras;
     uint32_t mMasterCamera;
+    bool m_bRedEyeReduction;
     bool m_bSmallJpegSize;
     cam_stream_type_t mSecureStraemType;
     //Frame number for super parameter
