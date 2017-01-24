@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,6 +32,7 @@
 
 #include <utils/Mutex.h>
 #include "cam_intf.h"
+#include "QCameraExtZoomTranslator.h"
 
 using namespace android;
 
@@ -130,11 +131,13 @@ typedef struct {
     uint32_t                     zoomRatioTableCount;
     uint32_t                     zoomStableCount;
     dual_cam_zoom_dir            zoomDirection;
+    zoom_trans_init_data         zoomTransInitData;
     cam_sync_type_t              camWide;
     cam_sync_type_t              camTele;
     dual_cam_state               camState;
     dual_cam_3A_status_t         status3A;
     cam_dimension_t              previewSize;
+    cam_dimension_t              ispOutSize;
     spatial_align_result_t       spatialAlignResult;
     uint32_t                     availableSpatialAlignSolns;
     float                        camMainWidthMargin;
@@ -241,6 +244,7 @@ private:
     fov_control_data_t              mFovControlData;
     fov_control_result_t            mFovControlResult;
     dual_cam_params_t               mDualCamParams;
+    QCameraExtZoomTranslator       *mZoomTranslator;
 };
 
 }; // namespace qcamera
