@@ -1,5 +1,5 @@
 /*
-** Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+** Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 ** Not a Contribution. Apache license notifications and license are
 ** retained for attribution purposes only.
 **
@@ -901,6 +901,7 @@ public:
     int32_t getMetaRawInfo();
     bool sendStreamConfigForPickRes(cam_stream_size_info_t &stream_config_info);
     int32_t updateDtVc(int32_t *dt, int32_t *vc);
+    bool isLinkPreviewForLiveShot();
 
     int32_t SetDualCamera(bool value);
     bool isDualCamera() {return m_bDualCamera;};

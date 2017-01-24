@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -15637,6 +15637,30 @@ int32_t QCameraParameters::updateDtVc(int32_t *dt, int32_t *vc)
 
     LOGH("dt=%d vc=%d",*dt, *vc);
     return rc;
+}
+/*===========================================================================
+ * FUNCTION   : isLinkPreviewForLiveShot()
+ *
+ * DESCRIPTION: Function to check whether link preview for liveshot or not
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : true: Thumbnail is generated from Preview stream
+ *              false: Thumbnail is generated from main image
+ *==========================================================================*/
+bool QCameraParameters::isLinkPreviewForLiveShot()
+{
+
+   char prop[PROPERTY_VALUE_MAX];
+
+   memset(prop, 0, sizeof(prop));
+   // 0. Thumbnail is generated from main image  (or)
+   // 1. Thumbnail is generated from Preview stream
+   property_get("persist.camera.linkpreview", prop, "1");
+   bool enable = atoi(prop) > 0 ? TRUE : FALSE;
+
+   LOGD("Link preview for thumbnail %d", enable);
+   return enable;
 }
 
 /*===========================================================================
