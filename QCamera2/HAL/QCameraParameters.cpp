@@ -12308,6 +12308,7 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
     bundle_info.cam_role = (cam_dual_camera_role_t)role;
     bundle_info.related_sensor_session_id = sessionId[bundle_cam_idx];
     bundle_info.perf_mode = getLowPowerMode(bundle_info.type);
+    bundle_info.is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
     num_cam++;
 
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
@@ -12359,10 +12360,11 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
                 memcpy(&m_pDualCamCmdPtr[i]->bundle_info,
                         &info[i],
                         sizeof(cam_dual_camera_bundle_info_t));
-                LOGH("SYNC CMD %d: cmd %d mode %d type %d session - %d", i,
+                LOGH("SYNC CMD %d: cmd %d mode %d type %d hw-sync %d session - %d", i,
                         m_pDualCamCmdPtr[i]->cmd_type,
                         m_pDualCamCmdPtr[i]->bundle_info.mode,
                         m_pDualCamCmdPtr[i]->bundle_info.type,
+                        m_pDualCamCmdPtr[i]->bundle_info.is_hw_sync_enabled,
                         m_pDualCamCmdPtr[i]->bundle_info.related_sensor_session_id);
             }
         }
@@ -13980,6 +13982,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
         bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_MAIN);
+        bundle_info[num_cam].is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         num_cam++;
         bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
         bundle_info[num_cam].type = CAM_TYPE_AUX;
@@ -13991,6 +13994,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
         bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_AUX);
+        bundle_info[num_cam].is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         num_cam++;
         rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
                 num_cam, &bundle_info[0]);

@@ -45,6 +45,7 @@
 #include "QCameraPerf.h"
 #include "QCameraCommon.h"
 #include "QCamera3VendorTags.h"
+#include "QCameraDualCamSettings.h"
 
 extern "C" {
 #include "mm_camera_interface.h"
