@@ -39,7 +39,8 @@
 #include <stdlib.h>
 #include "gralloc_priv.h"
 #include "native_handle.h"
-
+#include "fdleak.h"
+#include "memleak.h"
 // Camera definitions
 #include "android/QCamera2External.h"
 #include "QCamera2HWI.h"
@@ -1508,7 +1509,9 @@ int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
 {
     KPI_ATRACE_CAMSCOPE_BEGIN(CAMSCOPE_HAL1_CLOSECAMERA);
     int ret = NO_ERROR;
-
+    char prop[PROPERTY_VALUE_MAX];
+    int enable_fdleak=0;
+    int enable_memleak=0;
     QCamera2HardwareInterface *hw =
         reinterpret_cast<QCamera2HardwareInterface *>(
             reinterpret_cast<camera_device_t *>(hw_dev)->priv);
@@ -1518,6 +1521,22 @@ int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
     }
     LOGI("[KPI Perf]: E camera id %d", hw->getCameraId());
     delete hw;
+#ifdef FDLEAK_FLAG
+    property_get("persist.camera.fdleak.enable", prop, "0");
+    enable_fdleak = atoi(prop);
+    if (enable_fdleak) {
+       LOGI("fdleak tool dump list");
+    hal_debug_dump_fdleak_trace();
+    }
+#endif
+#ifdef MEMLEAK_FLAG
+    property_get("persist.camera.memleak.enable", prop, "0");
+    enable_memleak = atoi(prop);
+    if (enable_memleak) {
+       LOGI("memleak tool dump list");
+    hal_debug_dump_memleak_trace();
+    }
+#endif
     LOGI("[KPI Perf]: X");
     KPI_ATRACE_CAMSCOPE_END(CAMSCOPE_HAL1_CLOSECAMERA);
     CAMSCOPE_DESTROY(CAMSCOPE_SECTION_HAL);
@@ -1855,6 +1874,9 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
 {
     KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL1_OPENCAMERA);
     int rc = NO_ERROR;
+    int enable_fdleak=0;
+    int enable_memleak=0;
+    char prop[PROPERTY_VALUE_MAX];
     if (mCameraOpened) {
         *hw_device = NULL;
         LOGE("Permission Denied");
@@ -1864,7 +1886,22 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
             mCameraId);
 
     m_perfLockMgr.acquirePerfLock(PERF_LOCK_OPEN_CAMERA);
-
+#ifdef FDLEAK_FLAG
+    property_get("persist.camera.fdleak.enable", prop, "0");
+    enable_fdleak = atoi(prop);
+    if (enable_fdleak) {
+       LOGI("fdleak tool is enable for camera hal");
+    hal_debug_enable_fdleak_trace();
+    }
+#endif
+#ifdef MEMLEAK_FLAG
+    property_get("persist.camera.memleak.enable", prop, "0");
+    enable_memleak = atoi(prop);
+    if (enable_memleak) {
+       LOGI("memleak tool is enable for camera hal");
+    hal_debug_enable_memleak_trace();
+    }
+#endif
     rc = openCamera();
     if (rc == NO_ERROR){
         *hw_device = &mCameraDevice.common;
