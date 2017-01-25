@@ -2870,7 +2870,8 @@ bool QCameraStream::needCbSwitch()
 
     if ((mStreamInfo->pp_config.feature_mask & CAM_QTI_FEATURE_SAT)
             || (needFrameSync())
-            || (getMyType() == CAM_STREAM_TYPE_SNAPSHOT)) {
+            || (getMyType() == CAM_STREAM_TYPE_SNAPSHOT)
+            || (getMyType() == CAM_STREAM_TYPE_METADATA)) {
         return false;
     } else {
         return true;
@@ -2895,9 +2896,6 @@ bool QCameraStream::needFrameSync()
     }
 
     switch (getMyType()) {
-    case CAM_STREAM_TYPE_METADATA:
-        return true;
-        break;
     default:
         return false;
         break;

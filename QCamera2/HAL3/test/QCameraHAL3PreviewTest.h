@@ -54,6 +54,7 @@ public:
     int height;
     int nobuffer;
     int mPipelineDepthPreview;
+    int mCamId;
     bool ir_mode;
     bool svhdr_mode;
     QCameraHAL3PreviewTest(int cameraIndex);

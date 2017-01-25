@@ -50,7 +50,8 @@ QCameraHAL3VideoTest::QCameraHAL3VideoTest(int camid) :
     mVideoHandle(NULL),
     mCaptureHandle(NULL),
     mVideoStream(NULL),
-    mCameraId(camid)
+    mCameraId(camid),
+    binning_mode(0)
 {
 
 }
@@ -123,6 +124,7 @@ void QCameraHAL3VideoTest::captureRequestRepeat(
         hal3_camera_lib_test *my_hal3test_obj, int camid, int testcase)
 {
     int num1, num2;
+    int binning_mode_changed;
     hal3_camera_test_obj_t *my_test_obj = &(my_hal3test_obj->test_obj);
     camera3_device_t *device_handle = my_test_obj->device;
     if (testcase == MENU_START_VIDEO) {
@@ -136,8 +138,15 @@ void QCameraHAL3VideoTest::captureRequestRepeat(
                 num2 = VideoQueue.front();
                 VideoQueue.pop_front();
                 num1 = mRequest.frame_number;
-                if (num1 < 2) {
+                binning_mode_changed = get_binning_mode(binning_mode);
+                if (num1 < 1) {
                     (mRequest).settings = mMetaDataPtr[0];
+                }
+                else if(binning_mode_changed == 1) {
+                    hal3app_video_settings = mMetaDataPtr[0];
+                    hal3app_video_settings.update(QCAMERA3_BINNING_CORRECTION_MODE,
+                            &binning_mode, 1);
+                    (mRequest).settings = hal3app_video_settings.release();
                 }
                 else {
                     (mRequest).settings = NULL;
@@ -194,6 +203,18 @@ void QCameraHAL3VideoTest::vidoeAllocateBuffers(int height, int width, int num)
 void QCameraHAL3VideoTest::snapshotAllocateBuffers(int width, int height)
 {
     mCaptureHandle = allocateBuffers(width, height, &mCaptureMemInfo);
+}
+
+int QCameraHAL3VideoTest::get_binning_mode(int32_t binning_mode)
+{
+    static int prev_binning;
+    if(binning_mode == prev_binning)
+        return 0;
+    else {
+        ALOGE("setting binning mode in video:%d", binning_mode);
+        prev_binning = binning_mode;
+        return 1;
+    }
 }
 
 bool QCameraHAL3VideoTest::videoProcessThreadCreate(

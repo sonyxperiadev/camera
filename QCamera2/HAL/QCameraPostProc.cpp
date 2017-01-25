@@ -2406,6 +2406,10 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
 
         // we use the stream info from reproc stream (type 9)
         main_stream = pChannel->getStreamByHandle(jpeg_job_data->src_frame->bufs[0]->stream_id);
+        if (main_stream == NULL) {
+            LOGE("main_stream is NULL, encode hal PP output failed");
+            return BAD_VALUE;
+        }
         LOGD("stream type:%d, stream original type:%d", main_stream->getMyType(),
                 main_stream->getMyOriginalType());
 
@@ -2417,7 +2421,10 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
 
         recvd_frame = jpeg_job_data->src_frame;
         main_frame  = jpeg_job_data->src_frame->bufs[0];
-
+        if(main_frame == NULL){
+           LOGE("Main frame is NULL");
+           return BAD_VALUE;
+        }
         // dump snapshot frame if enabled
         m_parent->dumpFrameToFile(main_stream, main_frame,
                 QCAMERA_DUMP_FRM_INPUT_JPEG, (char *)"HALPP");
@@ -4133,13 +4140,13 @@ void QCameraPostProcessor::getHalPPOutputBuffer(uint32_t frameIndex)
     output_data->frame = output_frame;
     output_data->bufs =
             (mm_camera_buf_def_t *)malloc(HAL_PP_NUM_BUFS * sizeof(mm_camera_buf_def_t));
-    memset(output_data->bufs, 0, HAL_PP_NUM_BUFS * sizeof(mm_camera_buf_def_t));
     if (output_data->bufs == NULL) {
         LOGE("No memory for output_data->bufs");
         free(output_frame);
         free(output_data);
         return;
     }
+    memset(output_data->bufs, 0, HAL_PP_NUM_BUFS * sizeof(mm_camera_buf_def_t));
     output_data->halPPAllocatedBuf = true;
     output_data->snapshot_heap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
     if (output_data->snapshot_heap == NULL) {

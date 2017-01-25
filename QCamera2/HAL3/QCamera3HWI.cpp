@@ -135,6 +135,12 @@ const QCamera3HardwareInterface::QCameraMap<
     { QCAMERA3_VIDEO_HDR_MODE_ON,   CAM_VIDEO_HDR_MODE_ON }
 };
 
+const QCamera3HardwareInterface::QCameraMap<
+        camera_metadata_enum_android_binning_correction_mode_t,
+        cam_binning_correction_mode_t> QCamera3HardwareInterface::BINNING_CORRECTION_MODES_MAP[] = {
+    { QCAMERA3_BINNING_CORRECTION_MODE_OFF,  CAM_BINNING_CORRECTION_MODE_OFF },
+    { QCAMERA3_BINNING_CORRECTION_MODE_ON,   CAM_BINNING_CORRECTION_MODE_ON }
+};
 
 const QCamera3HardwareInterface::QCameraMap<
         camera_metadata_enum_android_ir_mode_t,
@@ -335,6 +341,32 @@ const QCamera3HardwareInterface::QCameraMap<
     { QCAMERA3_INSTANT_AEC_AGGRESSIVE_CONVERGENCE, CAM_AEC_AGGRESSIVE_CONVERGENCE},
     { QCAMERA3_INSTANT_AEC_FAST_CONVERGENCE, CAM_AEC_FAST_CONVERGENCE},
 };
+
+const QCamera3HardwareInterface::QCameraMap<
+        qcamera3_ext_exposure_meter_mode_t,
+        cam_auto_exposure_mode_type> QCamera3HardwareInterface::AEC_MODES_MAP[] = {
+    { QCAMERA3_EXP_METER_MODE_FRAME_AVERAGE, CAM_AEC_MODE_FRAME_AVERAGE },
+    { QCAMERA3_EXP_METER_MODE_CENTER_WEIGHTED, CAM_AEC_MODE_CENTER_WEIGHTED },
+    { QCAMERA3_EXP_METER_MODE_SPOT_METERING, CAM_AEC_MODE_SPOT_METERING },
+    { QCAMERA3_EXP_METER_MODE_SMART_METERING, CAM_AEC_MODE_SMART_METERING },
+    { QCAMERA3_EXP_METER_MODE_USER_METERING, CAM_AEC_MODE_USER_METERING },
+    { QCAMERA3_EXP_METER_MODE_SPOT_METERING_ADV, CAM_AEC_MODE_SPOT_METERING_ADV },
+    { QCAMERA3_EXP_METER_MODE_CENTER_WEIGHTED_ADV, CAM_AEC_MODE_CENTER_WEIGHTED_ADV },
+};
+
+const QCamera3HardwareInterface::QCameraMap<
+        qcamera3_ext_iso_mode_t,
+        cam_iso_mode_type> QCamera3HardwareInterface::ISO_MODES_MAP[] = {
+    { QCAMERA3_ISO_MODE_AUTO, CAM_ISO_MODE_AUTO },
+    { QCAMERA3_ISO_MODE_DEBLUR, CAM_ISO_MODE_DEBLUR },
+    { QCAMERA3_ISO_MODE_100, CAM_ISO_MODE_100 },
+    { QCAMERA3_ISO_MODE_200, CAM_ISO_MODE_200 },
+    { QCAMERA3_ISO_MODE_400, CAM_ISO_MODE_400 },
+    { QCAMERA3_ISO_MODE_800, CAM_ISO_MODE_800 },
+    { QCAMERA3_ISO_MODE_1600, CAM_ISO_MODE_1600 },
+    { QCAMERA3_ISO_MODE_3200, CAM_ISO_MODE_3200 },
+};
+
 camera3_device_ops_t QCamera3HardwareInterface::mCameraOps = {
     .initialize                         = QCamera3HardwareInterface::initialize,
     .configure_streams                  = QCamera3HardwareInterface::configure_streams,
@@ -1286,6 +1318,11 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
         if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
                 CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) {
             mStreamConfigInfo.postprocess_mask[stream_idx] |= CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
+        }
+        if ((m_bIsVideo) && (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                CAM_QTI_FEATURE_BINNING_CORRECTION)) {
+            mStreamConfigInfo.postprocess_mask[stream_idx] |=
+                    CAM_QTI_FEATURE_BINNING_CORRECTION;
         }
         break;
     }
@@ -3222,7 +3259,6 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     break;
                 }
             }
-
             for (auto itr = i->internalRequestList.begin();
                   itr != i->internalRequestList.end(); itr++) {
                 if (itr->need_metadata) {
@@ -3234,13 +3270,11 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 }
             }
 
-
+            saveExifParams(metadata);
             result.result = translateFromHalMetadata(metadata,
                     i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
                     i->capture_intent, internalPproc, i->fwkCacMode,
                     firstMetadataInBatch);
-
-            saveExifParams(metadata);
 
             if (i->blob_request) {
                 {
@@ -5938,6 +5972,53 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         camMetadata.update(ANDROID_STATISTICS_FACE_LANDMARKS,
                                 faceLandmarks, numFaces * 6U);
                    }
+                    IF_META_AVAILABLE(cam_face_blink_data_t, blinks,
+                            CAM_INTF_META_FACE_BLINK, metadata) {
+                        uint8_t detected[MAX_ROI];
+                        uint8_t degree[MAX_ROI * 2];
+                        for (size_t i = 0; i < numFaces; i++) {
+                            detected[i] = blinks->blink[i].blink_detected;
+                            degree[2 * i] = blinks->blink[i].left_blink;
+                            degree[2 * i + 1] = blinks->blink[i].right_blink;
+                        }
+                        camMetadata.update(QCAMERA3_STATS_BLINK_DETECTED,
+                                detected, numFaces);
+                        camMetadata.update(QCAMERA3_STATS_BLINK_DEGREE,
+                                degree, numFaces * 2);
+                    }
+                    IF_META_AVAILABLE(cam_face_smile_data_t, smiles,
+                            CAM_INTF_META_FACE_SMILE, metadata) {
+                        uint8_t degree[MAX_ROI];
+                        uint8_t confidence[MAX_ROI];
+                        for (size_t i = 0; i < numFaces; i++) {
+                            degree[i] = smiles->smile[i].smile_degree;
+                            confidence[i] = smiles->smile[i].smile_confidence;
+                        }
+                        camMetadata.update(QCAMERA3_STATS_SMILE_DEGREE,
+                                degree, numFaces);
+                        camMetadata.update(QCAMERA3_STATS_SMILE_CONFIDENCE,
+                                confidence, numFaces);
+                    }
+                    IF_META_AVAILABLE(cam_face_gaze_data_t, gazes,
+                            CAM_INTF_META_FACE_GAZE, metadata) {
+                        int8_t angle[MAX_ROI];
+                        int32_t direction[MAX_ROI * 3];
+                        int8_t degree[MAX_ROI * 2];
+                        for (size_t i = 0; i < numFaces; i++) {
+                            angle[i] = gazes->gaze[i].gaze_angle;
+                            direction[3 * i] = gazes->gaze[i].updown_dir;
+                            direction[3 * i + 1] = gazes->gaze[i].leftright_dir;
+                            direction[3 * i + 2] = gazes->gaze[i].roll_dir;
+                            degree[2 * i] = gazes->gaze[i].left_right_gaze;
+                            degree[2 * i + 1] = gazes->gaze[i].top_bottom_gaze;
+                        }
+                        camMetadata.update(QCAMERA3_STATS_GAZE_ANGLE,
+                                (uint8_t *)angle, numFaces);
+                        camMetadata.update(QCAMERA3_STATS_GAZE_DIRECTION,
+                                direction, numFaces * 3);
+                        camMetadata.update(QCAMERA3_STATS_GAZE_DEGREE,
+                                (uint8_t *)degree, numFaces * 2);
+                    }
                 }
             }
         }
@@ -6189,6 +6270,20 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                 meteringMode, 1);
     }
 
+    IF_META_AVAILABLE(cam_asd_hdr_scene_data_t, hdr_scene_data,
+            CAM_INTF_META_ASD_HDR_SCENE_DATA, metadata) {
+        LOGD("hdr_scene_data: %d %f\n",
+                hdr_scene_data->is_hdr_scene, hdr_scene_data->hdr_confidence);
+        uint8_t isHdr = hdr_scene_data->is_hdr_scene;
+        float isHdrConfidence = hdr_scene_data->hdr_confidence;
+        camMetadata.update(QCAMERA3_STATS_IS_HDR_SCENE,
+                           &isHdr, 1);
+        camMetadata.update(QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE,
+                           &isHdrConfidence, 1);
+    }
+
+
+
     if (metadata->is_tuning_params_valid) {
         uint8_t tuning_meta_data_blob[sizeof(tuning_params_t)];
         uint8_t *data = (uint8_t *)&tuning_meta_data_blob[0];
@@ -6378,6 +6473,13 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(QCAMERA3_VIDEO_HDR_MODE, &fwk_hdr, 1);
     }
 
+    //binning correction
+    IF_META_AVAILABLE(cam_binning_correction_mode_t, bin_correction,
+            CAM_INTF_META_BINNING_CORRECTION_MODE, metadata) {
+        int32_t fwk_bin_mode = (int32_t) *bin_correction;
+        camMetadata.update(QCAMERA3_BINNING_CORRECTION_MODE, &fwk_bin_mode, 1);
+    }
+
     IF_META_AVAILABLE(cam_ir_mode_type_t, ir, CAM_INTF_META_IR_MODE, metadata) {
         int32_t fwk_ir = (int32_t) *ir;
         int8_t curr_ir_state = ((mCurrFeatureState & CAM_QCOM_FEATURE_IR ) != 0);
@@ -6561,6 +6663,21 @@ QCamera3HardwareInterface::translateFromHalMetadata(
             LOGD("ldafCalib[0] is %d, ldafCalib[1] is %d",
                     ldafCalib[0], ldafCalib[1]);
         }
+    }
+
+    // EXIF debug data through vendor tag
+    /*
+     * Mobicat Mask can assume 3 values:
+     * 1 refers to Mobicat data,
+     * 2 refers to Stats Debug and Exif Debug Data
+     * 3 refers to Mobicat and Stats Debug Data
+     * We want to make sure that we are sending Exif debug data
+     * only when Mobicat Mask is 2.
+     */
+    if ((mExifParams.debug_params != NULL) && (getMobicatMask() == 2)) {
+        camMetadata.update(QCAMERA3_HAL_PRIVATEDATA_EXIF_DEBUG_DATA_BLOB,
+                (uint8_t *)(void *)mExifParams.debug_params,
+                sizeof(mm_jpeg_debug_exif_params_t));
     }
 
     // Reprocess and DDM debug data through vendor tag
@@ -7901,6 +8018,9 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             availableFaceDetectModes.size());
     staticInfo.update(ANDROID_STATISTICS_INFO_MAX_FACE_COUNT,
             (int32_t *)&maxFaces, 1);
+    uint8_t face_bsgc = gCamCapability[cameraId]->face_bsgc;
+    staticInfo.update(QCAMERA3_STATS_BSGC_AVAILABLE,
+            &face_bsgc, 1);
 
     int32_t exposureCompensationRange[] = {
             gCamCapability[cameraId]->exposure_compensation_min,
@@ -8806,6 +8926,78 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             gCamCapability[cameraId]->sharpness_ctrl.min_value,
             gCamCapability[cameraId]->sharpness_ctrl.max_value};
     staticInfo.update(QCAMERA3_SHARPNESS_RANGE, sharpness_range, 2);
+
+    if (gCamCapability[cameraId]->supported_binning_correction_mode_cnt > 0) {
+        int32_t avail_binning_modes[CAM_BINNING_CORRECTION_MODE_MAX];
+        size = 0;
+        count = CAM_BINNING_CORRECTION_MODE_MAX;
+        count = MIN(gCamCapability[cameraId]->supported_binning_correction_mode_cnt, count);
+        for (size_t i = 0; i < count; i++) {
+            int val = lookupFwkName(BINNING_CORRECTION_MODES_MAP,
+                    METADATA_MAP_SIZE(BINNING_CORRECTION_MODES_MAP),
+                    gCamCapability[cameraId]->supported_binning_modes[i]);
+            if (NAME_NOT_FOUND != val) {
+                avail_binning_modes[size] = (int32_t)val;
+                size++;
+            }
+        }
+        staticInfo.update(QCAMERA3_AVAILABLE_BINNING_CORRECTION_MODES,
+                avail_binning_modes, size);
+    }
+
+    if (gCamCapability[cameraId]->supported_aec_modes_cnt > 0) {
+        int32_t available_aec_modes[CAM_AEC_MODE_MAX];
+        size = 0;
+        count = MIN(gCamCapability[cameraId]->supported_aec_modes_cnt, CAM_AEC_MODE_MAX);
+        for (size_t i = 0; i < count; i++) {
+            int32_t val = lookupFwkName(AEC_MODES_MAP, METADATA_MAP_SIZE(AEC_MODES_MAP),
+                    gCamCapability[cameraId]->supported_aec_modes[i]);
+            if (NAME_NOT_FOUND != val)
+                available_aec_modes[size++] = val;
+        }
+        staticInfo.update(QCAMERA3_EXPOSURE_METER_AVAILABLE_MODES,
+                available_aec_modes, size);
+    }
+
+    if (gCamCapability[cameraId]->supported_iso_modes_cnt > 0) {
+        int32_t available_iso_modes[CAM_ISO_MODE_MAX];
+        size = 0;
+        count = MIN(gCamCapability[cameraId]->supported_iso_modes_cnt, CAM_ISO_MODE_MAX);
+        for (size_t i = 0; i < count; i++) {
+            int32_t val = lookupFwkName(ISO_MODES_MAP, METADATA_MAP_SIZE(ISO_MODES_MAP),
+                    gCamCapability[cameraId]->supported_iso_modes[i]);
+            if (NAME_NOT_FOUND != val)
+                available_iso_modes[size++] = val;
+        }
+        staticInfo.update(QCAMERA3_ISO_AVAILABLE_MODES,
+                available_iso_modes, size);
+    }
+
+    int64_t available_exp_time_range[EXPOSURE_TIME_RANGE_CNT];
+    for (size_t i = 0; i < count; i++)
+        available_exp_time_range[i] = gCamCapability[cameraId]->exposure_time_range[i];
+    staticInfo.update(QCAMERA3_EXP_TIME_RANGE,
+            available_exp_time_range, EXPOSURE_TIME_RANGE_CNT);
+
+    int32_t available_saturation_range[4];
+    available_saturation_range[0] = gCamCapability[cameraId]->saturation_ctrl.min_value;
+    available_saturation_range[1] = gCamCapability[cameraId]->saturation_ctrl.max_value;
+    available_saturation_range[2] = gCamCapability[cameraId]->saturation_ctrl.def_value;
+    available_saturation_range[3] = gCamCapability[cameraId]->saturation_ctrl.step;
+    staticInfo.update(QCAMERA3_SATURATION_RANGE,
+            available_saturation_range, 4);
+
+    uint8_t is_hdr_values[2];
+    is_hdr_values[0] = 0;
+    is_hdr_values[1] = 1;
+    staticInfo.update(QCAMERA3_STATS_IS_HDR_SCENE_VALUES,
+            is_hdr_values, 2);
+
+    float is_hdr_confidence_range[2];
+    is_hdr_confidence_range[0] = 0.0;
+    is_hdr_confidence_range[1] = 1.0;
+    staticInfo.update(QCAMERA3_STATS_IS_HDR_SCENE_CONFIDENCE_RANGE,
+            is_hdr_confidence_range, 2);
 
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
@@ -9735,6 +9927,53 @@ int32_t QCamera3HardwareInterface::setReprocParameters(
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_REPROCESS_FLAGS,
                 *reprocessFlags)) {
                 rc = BAD_VALUE;
+        }
+    }
+
+    // Add exif debug data to internal metadata
+    if (frame_settings.exists(QCAMERA3_HAL_PRIVATEDATA_EXIF_DEBUG_DATA_BLOB)) {
+        mm_jpeg_debug_exif_params_t *debug_params =
+                (mm_jpeg_debug_exif_params_t *)frame_settings.find
+                (QCAMERA3_HAL_PRIVATEDATA_EXIF_DEBUG_DATA_BLOB).data.u8;
+        // AE
+        if (debug_params->ae_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_AE,
+                    debug_params->ae_debug_params);
+        }
+        // AWB
+        if (debug_params->awb_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_AWB,
+                debug_params->awb_debug_params);
+        }
+        // AF
+       if (debug_params->af_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_AF,
+                   debug_params->af_debug_params);
+        }
+        // ASD
+        if (debug_params->asd_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_ASD,
+                    debug_params->asd_debug_params);
+        }
+        // Stats
+        if (debug_params->stats_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_STATS,
+                    debug_params->stats_debug_params);
+       }
+        // BE Stats
+        if (debug_params->bestats_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_BESTATS,
+                    debug_params->bestats_debug_params);
+        }
+        // BHIST
+        if (debug_params->bhist_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_BHIST,
+                    debug_params->bhist_debug_params);
+       }
+        // 3A Tuning
+        if (debug_params->q3a_tuning_debug_params_valid == TRUE) {
+            ADD_SET_PARAM_ENTRY_TO_BATCH(reprocParam, CAM_INTF_META_EXIF_DEBUG_3A_TUNING,
+                    debug_params->q3a_tuning_debug_params);
         }
     }
 
@@ -10688,6 +10927,21 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
+    //Binning Correction Mode
+    if(frame_settings.exists(QCAMERA3_BINNING_CORRECTION_MODE)) {
+        cam_binning_correction_mode_t fwk_binning_correction = (cam_binning_correction_mode_t)
+                frame_settings.find(QCAMERA3_BINNING_CORRECTION_MODE).data.i32[0];
+        if ((CAM_BINNING_CORRECTION_MODE_MAX <= fwk_binning_correction)
+                || (0 > fwk_binning_correction)) {
+            LOGE("Invalid binning correction mode %d!", fwk_binning_correction);
+        } else {
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                    CAM_INTF_META_BINNING_CORRECTION_MODE, fwk_binning_correction)) {
+                rc = BAD_VALUE;
+            }
+        }
+    }
+
     if (frame_settings.exists(QCAMERA3_AEC_CONVERGENCE_SPEED)) {
         float aec_speed;
         aec_speed = frame_settings.find(QCAMERA3_AEC_CONVERGENCE_SPEED).data.f[0];
@@ -10898,6 +11152,14 @@ int QCamera3HardwareInterface::translateToHalMetadata
                     rc = BAD_VALUE;
                 }
             }
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ZSL_MODE, 1)) {
+                    rc = BAD_VALUE;
+            }
+        }
+    } else {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ZSL_MODE, 0)) {
+            rc = BAD_VALUE;
         }
     }
 

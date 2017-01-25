@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -366,16 +366,21 @@ int32_t QCameraDualFOVPP::process()
         // Get input and output frame buffer
         qcamera_hal_pp_data_t *pInputMainData =
                 (qcamera_hal_pp_data_t *)pVector->at(WIDE_INPUT);
+        if (pInputMainData == NULL) {
+            LOGE("Cannot find input main data");
+            return UNEXPECTED_NULL;
+        }
         if (pInputMainData->src_reproc_frame == NULL) {
             LOGI("process pInputMainData->src_reproc_frame = NULL");
         }
         //mm_camera_super_buf_t *input_main_frame = input_main_data->frame;
         qcamera_hal_pp_data_t *pInputAuxData =
                 (qcamera_hal_pp_data_t *)pVector->at(TELE_INPUT);
-        if (pInputMainData == NULL || pInputAuxData == NULL) {
-            LOGE("Cannot find input data");
+        if (pInputAuxData == NULL) {
+            LOGE("Cannot find input aux data");
             return UNEXPECTED_NULL;
         }
+
         //mm_camera_super_buf_t *input_aux_frame = input_aux_data->frame;
         qcamera_hal_pp_data_t *pOutputData =
                 (qcamera_hal_pp_data_t*)m_outgoingQ.dequeue();
@@ -391,14 +396,34 @@ int32_t QCameraDualFOVPP::process()
 
         mm_camera_buf_def_t *main_snapshot_buf =
                 getSnapshotBuf(pInputMainData, pMainSnapshotStream);
+        if (main_snapshot_buf == NULL) {
+            LOGE("main_snapshot_buf is NULL");
+            return UNEXPECTED_NULL;
+        }
         mm_camera_buf_def_t *main_meta_buf = getMetadataBuf(pInputMainData, pMainMetadataStream);
+        if (main_meta_buf == NULL) {
+            LOGE("main_meta_buf is NULL");
+            return UNEXPECTED_NULL;
+        }
         mm_camera_buf_def_t *aux_snapshot_buf = getSnapshotBuf(pInputAuxData, pAuxSnapshotStream);
+        if (aux_snapshot_buf == NULL) {
+            LOGE("aux_snapshot_buf is NULL");
+            return UNEXPECTED_NULL;
+        }
         mm_camera_buf_def_t *aux_meta_buf = getMetadataBuf(pInputAuxData, pAuxMetadataStream);
+        if (aux_meta_buf == NULL) {
+            LOGE("aux_meta_buf is NULL");
+            return UNEXPECTED_NULL;
+        }
 
         mm_camera_super_buf_t *output_frame = pOutputData->frame;
         mm_camera_buf_def_t *output_snapshot_buf = output_frame->bufs[0];
 
         // Use offset info from reproc stream
+        if (pMainSnapshotStream == NULL) {
+            LOGE("pMainSnapshotStream is NULL");
+            return UNEXPECTED_NULL;
+        }
         cam_frame_len_offset_t frm_offset;
         pMainSnapshotStream->getFrameOffset(frm_offset);
         LOGI("Stream type:%d, stride:%d, scanline:%d, frame len:%d",
@@ -415,6 +440,10 @@ int32_t QCameraDualFOVPP::process()
 
         //Get input and output parameter
         dualfov_input_params_t inParams;
+        if (pAuxSnapshotStream == NULL) {
+            LOGE("pAuxSnapshotStream is NULL");
+            return UNEXPECTED_NULL;
+        }
         getInputParams(main_meta_buf, aux_meta_buf, pMainSnapshotStream, pAuxSnapshotStream,
                 inParams);
         dumpInputParams(inParams);
@@ -470,6 +499,10 @@ mm_camera_buf_def_t* QCameraDualFOVPP::getSnapshotBuf(qcamera_hal_pp_data_t* pDa
         QCameraStream* &pSnapshotStream)
 {
     mm_camera_buf_def_t *pBufDef = NULL;
+    if (pData == NULL) {
+        LOGE("Cannot find input frame super buffer");
+        return pBufDef;
+    }
     mm_camera_super_buf_t *pFrame = pData->frame;
     QCameraChannel *pChannel = m_pQCameraPostProc->getChannelByHandle(pFrame->ch_id);
     if (pChannel == NULL) {
@@ -503,6 +536,10 @@ mm_camera_buf_def_t* QCameraDualFOVPP::getMetadataBuf(qcamera_hal_pp_data_t *pDa
         QCameraStream* &pMetadataStream)
 {
     mm_camera_buf_def_t *pBufDef = NULL;
+    if (pData == NULL) {
+        LOGE("Cannot find input frame super buffer");
+        return pBufDef;
+    }
     mm_camera_super_buf_t* pFrame = pData->frame;
     QCameraChannel *pChannel =
             m_pQCameraPostProc->getChannelByHandle(pData->src_reproc_frame->ch_id);
@@ -511,7 +548,7 @@ mm_camera_buf_def_t* QCameraDualFOVPP::getMetadataBuf(qcamera_hal_pp_data_t *pDa
             LOGE("Cannot find src_reproc_frame channel");
             return pBufDef;
     }
-    for (uint32_t i = 0; pData && pData->src_reproc_frame &&
+    for (uint32_t i = 0; pData->src_reproc_frame &&
             (i < pData->src_reproc_frame->num_bufs); i++) {
         pMetadataStream = pChannel->getStreamByHandle(pData->src_reproc_frame->bufs[i]->stream_id);
         if (pData->src_reproc_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
@@ -721,5 +758,36 @@ void QCameraDualFOVPP::dumpInputParams(const dualfov_input_params_t& p)
     LOGD("zoom ratio: %f", p.user_zoom / 4096.0);
     LOGD("X");
 }
+
+
+/*===========================================================================
+ * FUNCTION   : dumpOISData
+ *
+ * DESCRIPTION: Read Sensor OIS data from metadata and dump it
+ *
+ * PARAMETERS :
+ * @pMetadata : Frame metadata
+ *
+ * RETURN     : None
+ *
+ *==========================================================================*/
+void QCameraDualFOVPP::dumpOISData(metadata_buffer_t*  pMetadata)
+{
+    if (!pMetadata) {
+        LOGD("OIS data not available");
+        return;
+    }
+
+    IF_META_AVAILABLE(cam_ois_data_t, pOisData, CAM_INTF_META_OIS_READ_DATA, pMetadata) {
+        LOGD("Ois Data: data size: %d", pOisData->size);
+        uint8_t *data = pOisData->data;
+        if (pOisData->size == 8) {
+            LOGD("Ois Data Buffer : %d %d %d %d %d %d %d %d ",
+                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+        }
+    }
+    return;
+}
+
 
 } // namespace qcamera

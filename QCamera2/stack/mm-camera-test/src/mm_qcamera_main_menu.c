@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, 2016-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -110,6 +110,7 @@ const CAMERA_MAIN_MENU_TBL_T camera_main_menu_tbl[] = {
   {SPECIAL_EFFECTS,            "Set spceial snapshot effects"},
   {SET_MN_WHITE_BALANCE,       "Set white balance manually"},
   {ANTI_BANDING,               "Anit-banding/Auto Flicker Correction"},
+  {SET_FLIP_MODE,              "Set Flip Mode"},
   {BURST_MODE_SNAPSHOT,        "Enables continuous image capture during snapshot operation"},
   {CONCURRENT_NDR_NONHDR,      "Capture non-HDR images concurrent with HDR"},
   {EXIT,                       "Exit"}
@@ -244,6 +245,13 @@ const ANTI_BANDING_TBT_T antiBanding_tbl[] = {
   {ANTIBANDING_60HZ,       "Anti Banding: 60HZ"},
   {ANTIBANDING_50HZ,       "Anti Banding: 50HZ"},
   {ANTIBANDING_AUTO,       "Anti Banding: Auto"},
+};
+
+const FLIP_MODES_TBT_T flipModes_tbl[] = {
+  {MODE_NO_FLIP,        "Flip Mode: Off"},
+  {MODE_FLIP_H,         "Flip Mode: H"},
+  {MODE_FLIP_V,          "Flip Mode: V"},
+  {MODE_FLIP_V_H,       "Flip Mode: V H"},
 };
 
 const FLASH_MODE_TBL_T flashmodes_tbl[] = {
@@ -457,6 +465,10 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
         case ANTI_BANDING:
           next_menu_id = MENU_ID_ANTI_BANDING;
           LOGD("next menu ID is set to MENU_ID_ANTI_BANDING\n");
+          break;
+         case SET_FLIP_MODE:
+          next_menu_id = MENU_ID_FLIP_MODE;
+          LOGD("next menu ID is set to MENU_ID_FLIP_MODE\n");
           break;
         case BURST_MODE_SNAPSHOT:
           * action_id_ptr = ACTION_BURST_MODE_SNAPSHOT;
@@ -686,6 +698,16 @@ int next_menu(menu_id_change_t current_menu_id, char keypress, camera_action_t *
         next_menu_id = current_menu_id;
       } else {
         * action_id_ptr = ACTION_ANTI_BANDING;
+        next_menu_id = MENU_ID_MAIN;
+        * action_param = output_to_event;
+      }
+      break;
+    case MENU_ID_FLIP_MODE:
+      if (output_to_event >= MODE_FLIP_MAX) {
+        * action_id_ptr = ACTION_NO_ACTION;
+        next_menu_id = current_menu_id;
+      } else {
+        * action_id_ptr = ACTION_FLIP_MODE;
         next_menu_id = MENU_ID_MAIN;
         * action_param = output_to_event;
       }
@@ -1055,6 +1077,29 @@ static void camera_anti_banding_tbl(void)
   printf("\nPlease enter your choice for sensor: ");
   return;
 }
+
+static void camera_flip_tbl(void)
+{
+  unsigned int i;
+  size_t available_effects = sizeof(flipModes_tbl)/sizeof(flipModes_tbl[0]);
+
+  printf("\n");
+  printf("===========================================\n");
+  printf("      Camera Available FLIP MODES:            \n");
+  printf("===========================================\n\n");
+
+
+  char bsmenuNum = 'A';
+  for (i = 0; ( i < available_effects ) ; i++) {
+    printf("%c.  %s\n", bsmenuNum,
+            flipModes_tbl[i].name);
+    bsmenuNum++;
+  }
+
+  printf("\nPlease enter your choice for sensor: ");
+  return;
+}
+
 /*===========================================================================
  * FUNCTION     - increase_contrast -
  *
@@ -1729,6 +1774,38 @@ int set_antiBanding(mm_camera_lib_handle *lib_handle, int action_param) {
                                           &effect,
                                           NULL);
 }
+int set_flipMode(mm_camera_lib_handle *lib_handle, int action_param) {
+    cam_flip_t effect = 0;
+
+    printf("%s:action_param = %d", __func__, action_param);
+
+    switch (action_param) {
+        case MODE_NO_FLIP:
+            printf("\n FLIP MODE OFF\n");
+            effect  = FLIP_NONE;
+            break;
+        case MODE_FLIP_H:
+            printf("\n FLIP MODE HORIZONTAL\n");
+            effect  = FLIP_H;
+            break;
+        case MODE_FLIP_V:
+            printf("\n FLIP MODE VERTICAL\n");
+            effect  = FLIP_V;
+            break;
+        case MODE_FLIP_V_H:
+            printf("\n FLIP MODE VERTICAL HORIZONTAL\n");
+            effect  = FLIP_V_H;
+            break;
+        default:
+            printf("\n FLIP MODE OFF\n");
+            effect  = FLIP_NONE;
+            break;
+        }
+        return mm_camera_lib_send_command(lib_handle,
+                                          MM_CAMERA_LIB_FLIP,
+                                          &effect,
+                                          NULL);
+}
 
 int set_bestshot_mode(mm_camera_lib_handle *lib_handle, int action_param) {
     cam_scene_mode_type type = 0;
@@ -1863,6 +1940,8 @@ int print_current_menu (menu_id_change_t current_menu_id) {
     camera_special_effects_tbl();
   } else if (current_menu_id == MENU_ID_ANTI_BANDING ) {
     camera_anti_banding_tbl();
+  } else if (current_menu_id == MENU_ID_FLIP_MODE ) {
+    camera_flip_tbl();
   }else
     print_menu_preview_video ();
 
@@ -1944,9 +2023,13 @@ int enableAFR(mm_camera_lib_handle *lib_handle)
                                     &cap.fps_ranges_tbl[j],
                                     NULL);
 
-    LOGE("FPS range [%5.2f:%5.2f] rc = %d",
+    LOGE("FPS range [%5.2f:%5.2f] rc = %d\n",
               cap.fps_ranges_tbl[j].min_fps,
               cap.fps_ranges_tbl[j].max_fps,
+              rc);
+    LOGE("FPS range (video) [%5.2f:%5.2f] rc = %d\n",
+              cap.fps_ranges_tbl[j].video_min_fps,
+              cap.fps_ranges_tbl[j].video_max_fps,
               rc);
 
     return rc;
@@ -1986,10 +2069,11 @@ static int submain()
     mm_camera_test_obj_t test_obj;
     memset(&test_obj, 0, sizeof(mm_camera_test_obj_t));
     memset(&snap_dim, 0, sizeof(mm_camera_lib_snapshot_params));
+    memset(&lib_handle, 0, sizeof(mm_camera_lib_handle));
+    rc = mm_app_load_hal(&(lib_handle.app_ctx));
 
-    rc = mm_camera_lib_open(&lib_handle, 0);
     if (rc != MM_CAMERA_OK) {
-        LOGE("mm_camera_lib_open() err=%d\n",  rc);
+        LOGE("Error loading HAL err=%d\n",  rc);
         return -1;
     }
 
@@ -2229,10 +2313,13 @@ static int submain()
                 break;
 
             case ACTION_SWITCH_CAMERA:
-                rc = mm_camera_lib_close(&lib_handle);
-                if (rc != MM_CAMERA_OK) {
-                    LOGE("mm_camera_lib_close() err=%d\n",  rc);
-                    goto ERROR;
+
+                if (lib_handle.test_obj.cam != NULL) {
+                    rc = mm_camera_lib_close(&lib_handle);
+                    if (rc != MM_CAMERA_OK) {
+                        LOGE("mm_camera_lib_close() err=%d\n",  rc);
+                        goto ERROR;
+                    }
                 }
 
                 rc = mm_camera_lib_open(&lib_handle, action_param);
@@ -2380,6 +2467,16 @@ static int submain()
 
           if (rc != MM_CAMERA_OK) {
               LOGE("set_antiBanding() err=%d\n",  rc);
+              goto ERROR;
+          }
+          break;
+
+          case ACTION_FLIP_MODE:
+          printf("Selection for anti banding\n");
+          rc = set_flipMode(&lib_handle, action_param);
+
+          if (rc != MM_CAMERA_OK) {
+              LOGE("set_flipMode() err=%d\n",  rc);
               goto ERROR;
           }
           break;

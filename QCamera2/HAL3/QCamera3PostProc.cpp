@@ -1426,9 +1426,6 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         jpg_job.encode_job.thumb_index = 0;
     }
 
-    jpg_job.encode_job.cam_exif_params = hal_obj->get3AExifParams();
-    exif_debug_params = jpg_job.encode_job.cam_exif_params.debug_params;
-    // Fill in exif debug data
     // Allocate for a local copy of debug parameters
     jpg_job.encode_job.cam_exif_params.debug_params =
             (mm_jpeg_debug_exif_params_t *) malloc (sizeof(mm_jpeg_debug_exif_params_t));
@@ -1437,73 +1434,97 @@ int32_t QCamera3PostProcessor::encodeFWKData(qcamera_hal3_jpeg_data_t *jpeg_job_
         return NO_MEMORY;
     }
 
+    memset(jpg_job.encode_job.cam_exif_params.debug_params, 0,
+            sizeof(mm_jpeg_debug_exif_params_t));
+    exif_debug_params = jpg_job.encode_job.cam_exif_params.debug_params;
+
     jpg_job.encode_job.mobicat_mask = hal_obj->getMobicatMask();
 
     if (metadata != NULL) {
         // Fill in the metadata passed as parameter
         jpg_job.encode_job.p_metadata = metadata;
 
-       jpg_job.encode_job.p_metadata->is_mobicat_aec_params_valid =
-                jpg_job.encode_job.cam_exif_params.cam_3a_params_valid;
-
-       if (jpg_job.encode_job.cam_exif_params.cam_3a_params_valid) {
-            jpg_job.encode_job.p_metadata->mobicat_aec_params =
-                jpg_job.encode_job.cam_exif_params.cam_3a_params;
-       }
-
+        // Fill in exif debug data
         if (exif_debug_params) {
-            // Copy debug parameters locally.
-           memcpy(jpg_job.encode_job.cam_exif_params.debug_params,
-                   exif_debug_params, (sizeof(mm_jpeg_debug_exif_params_t)));
-           /* Save a copy of 3A debug params */
-            jpg_job.encode_job.p_metadata->is_statsdebug_ae_params_valid =
-                    jpg_job.encode_job.cam_exif_params.debug_params->ae_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_awb_params_valid =
-                    jpg_job.encode_job.cam_exif_params.debug_params->awb_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_af_params_valid =
-                    jpg_job.encode_job.cam_exif_params.debug_params->af_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_asd_params_valid =
-                    jpg_job.encode_job.cam_exif_params.debug_params->asd_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_stats_params_valid =
-                    jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_bestats_params_valid =
-                    jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_bhist_params_valid =
-                    jpg_job.encode_job.cam_exif_params.debug_params->bhist_debug_params_valid;
-            jpg_job.encode_job.p_metadata->is_statsdebug_3a_tuning_params_valid =
-                    jpg_job.encode_job.cam_exif_params.debug_params->q3a_tuning_debug_params_valid;
-
-            if (jpg_job.encode_job.cam_exif_params.debug_params->ae_debug_params_valid) {
-                jpg_job.encode_job.p_metadata->statsdebug_ae_data =
-                        jpg_job.encode_job.cam_exif_params.debug_params->ae_debug_params;
+            // AE
+            IF_META_AVAILABLE(cam_ae_exif_debug_t, ae_exif_debug_params,
+                    CAM_INTF_META_EXIF_DEBUG_AE, metadata) {
+                memcpy(&exif_debug_params->ae_debug_params, ae_exif_debug_params,
+                        sizeof(cam_ae_exif_debug_t));
+                memcpy(&jpg_job.encode_job.p_metadata->statsdebug_ae_data,
+                        ae_exif_debug_params, sizeof(cam_ae_exif_debug_t));
+                exif_debug_params->ae_debug_params_valid = TRUE;
+                jpg_job.encode_job.p_metadata->is_statsdebug_ae_params_valid = TRUE;
             }
-            if (jpg_job.encode_job.cam_exif_params.debug_params->awb_debug_params_valid) {
-                jpg_job.encode_job.p_metadata->statsdebug_awb_data =
-                        jpg_job.encode_job.cam_exif_params.debug_params->awb_debug_params;
+            // AWB
+            IF_META_AVAILABLE(cam_awb_exif_debug_t, awb_exif_debug_params,
+                    CAM_INTF_META_EXIF_DEBUG_AWB, metadata) {
+                memcpy(&exif_debug_params->awb_debug_params, awb_exif_debug_params,
+                        sizeof(cam_awb_exif_debug_t));
+                memcpy(&jpg_job.encode_job.p_metadata->statsdebug_awb_data,
+                        awb_exif_debug_params, sizeof(cam_awb_exif_debug_t));
+                exif_debug_params->awb_debug_params_valid = TRUE;
+                jpg_job.encode_job.p_metadata->is_statsdebug_awb_params_valid = TRUE;
             }
-            if (jpg_job.encode_job.cam_exif_params.debug_params->af_debug_params_valid) {
-                jpg_job.encode_job.p_metadata->statsdebug_af_data =
-                        jpg_job.encode_job.cam_exif_params.debug_params->af_debug_params;
+            // AF
+            IF_META_AVAILABLE(cam_af_exif_debug_t, af_exif_debug_params,
+                    CAM_INTF_META_EXIF_DEBUG_AF, metadata) {
+                memcpy(&exif_debug_params->af_debug_params, af_exif_debug_params,
+                        sizeof(cam_af_exif_debug_t));
+                memcpy(&jpg_job.encode_job.p_metadata->statsdebug_af_data,
+                        af_exif_debug_params, sizeof(cam_af_exif_debug_t));
+                exif_debug_params->af_debug_params_valid = TRUE;
+                jpg_job.encode_job.p_metadata->is_statsdebug_af_params_valid = TRUE;
             }
-            if (jpg_job.encode_job.cam_exif_params.debug_params->asd_debug_params_valid) {
-                jpg_job.encode_job.p_metadata->statsdebug_asd_data =
-                        jpg_job.encode_job.cam_exif_params.debug_params->asd_debug_params;
+            // ASD
+            IF_META_AVAILABLE(cam_asd_exif_debug_t, asd_exif_debug_params,
+                    CAM_INTF_META_EXIF_DEBUG_ASD, metadata) {
+                memcpy(&exif_debug_params->asd_debug_params, asd_exif_debug_params,
+                        sizeof(cam_asd_exif_debug_t));
+                memcpy(&jpg_job.encode_job.p_metadata->statsdebug_asd_data,
+                        asd_exif_debug_params, sizeof(cam_asd_exif_debug_t));
+                exif_debug_params->asd_debug_params_valid = TRUE;
+                jpg_job.encode_job.p_metadata->is_statsdebug_asd_params_valid = TRUE;
             }
-            if (jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params_valid) {
-                jpg_job.encode_job.p_metadata->statsdebug_stats_buffer_data =
-                        jpg_job.encode_job.cam_exif_params.debug_params->stats_debug_params;
+            // STATS
+            IF_META_AVAILABLE(cam_stats_buffer_exif_debug_t, stats_exif_debug_params,
+                    CAM_INTF_META_EXIF_DEBUG_STATS, metadata) {
+                memcpy(&exif_debug_params->stats_debug_params, stats_exif_debug_params,
+                        sizeof(cam_stats_buffer_exif_debug_t));
+                memcpy(&jpg_job.encode_job.p_metadata->statsdebug_stats_buffer_data,
+                        stats_exif_debug_params, sizeof(cam_stats_buffer_exif_debug_t));
+                exif_debug_params->stats_debug_params_valid = TRUE;
+                jpg_job.encode_job.p_metadata->is_statsdebug_stats_params_valid = TRUE;
             }
-            if (jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params_valid) {
-                jpg_job.encode_job.p_metadata->statsdebug_bestats_buffer_data =
-                        jpg_job.encode_job.cam_exif_params.debug_params->bestats_debug_params;
+            // BE STATS
+            IF_META_AVAILABLE(cam_bestats_buffer_exif_debug_t, bestats_exif_debug_params,
+                    CAM_INTF_META_EXIF_DEBUG_BESTATS, metadata) {
+                memcpy(&exif_debug_params->bestats_debug_params, bestats_exif_debug_params,
+                        sizeof(cam_bestats_buffer_exif_debug_t));
+                memcpy(&jpg_job.encode_job.p_metadata->statsdebug_bestats_buffer_data,
+                        bestats_exif_debug_params, sizeof(cam_bestats_buffer_exif_debug_t));
+                exif_debug_params->bestats_debug_params_valid = TRUE;
+                jpg_job.encode_job.p_metadata->is_statsdebug_bestats_params_valid = TRUE;
             }
-            if (jpg_job.encode_job.cam_exif_params.debug_params->bhist_debug_params_valid) {
-                jpg_job.encode_job.p_metadata->statsdebug_bhist_data =
-                        jpg_job.encode_job.cam_exif_params.debug_params->bhist_debug_params;
+            // BHIST
+            IF_META_AVAILABLE(cam_bhist_buffer_exif_debug_t, bhist_exif_debug_params,
+                    CAM_INTF_META_EXIF_DEBUG_BHIST, metadata) {
+                memcpy(&exif_debug_params->bhist_debug_params, bhist_exif_debug_params,
+                        sizeof(cam_bhist_buffer_exif_debug_t));
+                memcpy(&jpg_job.encode_job.p_metadata->statsdebug_bhist_data,
+                        bhist_exif_debug_params, sizeof(cam_bhist_buffer_exif_debug_t));
+                exif_debug_params->bhist_debug_params_valid = TRUE;
+                jpg_job.encode_job.p_metadata->is_statsdebug_bhist_params_valid = TRUE;
             }
-            if (jpg_job.encode_job.cam_exif_params.debug_params->q3a_tuning_debug_params_valid) {
-                jpg_job.encode_job.p_metadata->statsdebug_3a_tuning_data =
-                        jpg_job.encode_job.cam_exif_params.debug_params->q3a_tuning_debug_params;
+            // Q3A
+            IF_META_AVAILABLE(cam_q3a_tuning_info_t, q3a_tuning_exif_debug_params,
+                    CAM_INTF_META_EXIF_DEBUG_3A_TUNING, metadata) {
+                memcpy(&exif_debug_params->q3a_tuning_debug_params, q3a_tuning_exif_debug_params,
+                        sizeof(cam_q3a_tuning_info_t));
+                memcpy(&jpg_job.encode_job.p_metadata->statsdebug_3a_tuning_data,
+                        q3a_tuning_exif_debug_params, sizeof(cam_q3a_tuning_info_t));
+                exif_debug_params->q3a_tuning_debug_params_valid = TRUE;
+                jpg_job.encode_job.p_metadata->is_statsdebug_3a_tuning_params_valid = TRUE;
             }
         }
     } else {
@@ -2166,8 +2187,10 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                         fwk_frame);
                                 if (NO_ERROR == ret) {
                                     // add into ongoing PP job Q
+                                    pme->mPerfLockMgr.acquirePerfLock(PERF_LOCK_OFFLINE_REPROC);
                                     ret = pme->m_pReprocChannel->doReprocessOffline(
                                             &fwk_frame, true);
+                                    pme->mPerfLockMgr.releasePerfLock(PERF_LOCK_OFFLINE_REPROC);
                                     if (NO_ERROR != ret) {
                                         // remove from ongoing PP job Q
                                         pme->m_ongoingPPQ.dequeue(false);

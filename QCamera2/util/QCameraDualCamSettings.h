@@ -27,8 +27,32 @@
  *
  */
 
-#ifndef __QCAMERAFOVCONTROLSETTINGS_H__
-#define __QCAMERAFOVCONTROLSETTINGS_H__
+#ifndef __QCAMERADUALCAMSETTINGS_H__
+#define __QCAMERADUALCAMSETTINGS_H__
+
+typedef enum {
+    NONE,
+    SENSOR_SLEEP,
+    ISPIF_FRAME_DROP
+} dual_cam_lpm_mode;
+
+
+// Dual camera settings
+
+// This setting should be 1 if hw sync is in place, 0 otherwise.
+#define DUALCAM_HW_SYNC_ENABLED                 (1)
+
+// This setting enables/disables LPM. When disabled(0), none of the cameras will go
+// into low power mode.
+#define DUALCAM_LPM_ENABLE                      (1)
+
+// This setting indicates LPM modes for two cameras. Possible LPM modes are listed
+// under dual_cam_lpm_mode.
+#define DUALCAM_LPM_MODE_MAIN                   (NONE)
+#define DUALCAM_LPM_MODE_AUX                    (SENSOR_SLEEP)
+
+
+// FOV-control settings
 
 // Main camera fallback mechanism for low light and macro scene
 // If set to 1, low light and macro scene will force the transition from narrow FOV to
@@ -72,4 +96,4 @@
 #define FOVC_AUXCAM_SWITCH_LUX_MIN              (100)
 #define FOVC_AUXCAM_SWITCH_FOCUS_DIST_CM_MIN    (15)
 
-#endif /* __QCAMERAFOVCONTROL_H__ */
+#endif /* __QCAMERADUALCAM_H__ */

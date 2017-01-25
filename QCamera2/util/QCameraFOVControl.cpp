@@ -29,9 +29,12 @@
 
 #define LOG_TAG "QCameraFOVControl"
 
+#include <stdlib.h>
+#include <cutils/properties.h>
 #include <utils/Errors.h>
 #include "QCameraFOVControl.h"
-#include "QCameraFOVControlSettings.h"
+#include "QCameraDualCamSettings.h"
+
 
 extern "C" {
 #include "mm_camera_dbg.h"
@@ -151,6 +154,7 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
         cam_capability_t *capsAuxCam)
 {
     cam_capability_t capsConsolidated;
+    memset(&capsConsolidated, 0, sizeof(cam_capability_t));
 
     if ((capsMainCam != NULL) &&
         (capsAuxCam  != NULL)) {
@@ -309,6 +313,66 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
 
 
 /*===========================================================================
+ * FUNCTION    : resetVars
+ *
+ * DESCRIPTION : Reset the variables used in FOV-control.
+ *
+ * PARAMETERS  : None
+ *
+ * RETURN      : None
+ *
+ *==========================================================================*/
+void QCameraFOVControl::resetVars()
+{
+    // Copy the FOV-control settings for camera/camcorder from QCameraFOVControlSettings.h
+    if (mFovControlData.camcorderMode) {
+        mFovControlConfig.snapshotPPConfig.enablePostProcess =
+                FOVC_CAMCORDER_SNAPSHOT_PP_ENABLE;
+    } else {
+        mFovControlConfig.snapshotPPConfig.enablePostProcess = FOVC_CAM_SNAPSHOT_PP_ENABLE;
+        mFovControlConfig.snapshotPPConfig.zoomMin           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MIN;
+        mFovControlConfig.snapshotPPConfig.zoomMax           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MAX;
+        mFovControlConfig.snapshotPPConfig.luxMin            = FOVC_CAM_SNAPSHOT_PP_LUX_MIN;
+    }
+    mFovControlConfig.auxSwitchBrightnessMin  = FOVC_AUXCAM_SWITCH_LUX_MIN;
+    mFovControlConfig.auxSwitchFocusDistCmMin = FOVC_AUXCAM_SWITCH_FOCUS_DIST_CM_MIN;
+
+    mFovControlData.fallbackEnabled = FOVC_MAIN_CAM_FALLBACK_MECHANISM;
+
+    // Reset variables
+    mFovControlData.zoomStableCount       = 0;
+    mFovControlData.brightnessStableCount = 0;
+    mFovControlData.focusDistStableCount  = 0;
+    mFovControlData.zoomDirection         = ZOOM_STABLE;
+    mFovControlData.fallbackToWide        = false;
+
+    // TODO : These threshold values should be changed from counters to time based
+    // Systems team will provide the correct values as part of tuning
+    mFovControlData.zoomStableCountThreshold       = 30;
+    mFovControlData.focusDistStableCountThreshold  = 30;
+    mFovControlData.brightnessStableCountThreshold = 30;
+
+    mFovControlData.status3A.main.af.status   = AF_INVALID;
+    mFovControlData.status3A.aux.af.status    = AF_INVALID;
+
+    mFovControlData.afStatusMain = CAM_AF_STATE_INACTIVE;
+    mFovControlData.afStatusAux  = CAM_AF_STATE_INACTIVE;
+
+    mFovControlData.wideCamStreaming = false;
+    mFovControlData.teleCamStreaming = false;
+
+    mFovControlData.spatialAlignResult.readyStatus = 0;
+    mFovControlData.spatialAlignResult.activeCameras = (uint32_t)CAM_TYPE_MAIN;
+    mFovControlData.spatialAlignResult.shiftWide.shiftHorz = 0;
+    mFovControlData.spatialAlignResult.shiftWide.shiftVert = 0;
+    mFovControlData.spatialAlignResult.shiftTele.shiftHorz = 0;
+    mFovControlData.spatialAlignResult.shiftTele.shiftVert = 0;
+
+    // WA for now until the QTI solution is in place writing the spatial alignment ready status
+    mFovControlData.spatialAlignResult.readyStatus = 1;
+}
+
+/*===========================================================================
  * FUNCTION    : updateConfigSettings
  *
  * DESCRIPTION : Update the config settings such as margins and preview size
@@ -385,46 +449,8 @@ int32_t QCameraFOVControl::updateConfigSettings(
             }
         }
 
-        // Copy the FOV-control settings for camera/camcorder from QCameraFOVControlSettings.h
-        if (mFovControlData.camcorderMode) {
-            mFovControlConfig.snapshotPPConfig.enablePostProcess =
-                    FOVC_CAMCORDER_SNAPSHOT_PP_ENABLE;
-        } else {
-            mFovControlConfig.snapshotPPConfig.enablePostProcess = FOVC_CAM_SNAPSHOT_PP_ENABLE;
-            mFovControlConfig.snapshotPPConfig.zoomMin           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MIN;
-            mFovControlConfig.snapshotPPConfig.zoomMax           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MAX;
-            mFovControlConfig.snapshotPPConfig.luxMin            = FOVC_CAM_SNAPSHOT_PP_LUX_MIN;
-        }
-        mFovControlConfig.auxSwitchBrightnessMin  = FOVC_AUXCAM_SWITCH_LUX_MIN;
-        mFovControlConfig.auxSwitchFocusDistCmMin = FOVC_AUXCAM_SWITCH_FOCUS_DIST_CM_MIN;
-
-        mFovControlData.fallbackEnabled = FOVC_MAIN_CAM_FALLBACK_MECHANISM;
-
-        // Reset variables
-        mFovControlData.zoomStableCount       = 0;
-        mFovControlData.brightnessStableCount = 0;
-        mFovControlData.focusDistStableCount  = 0;
-        mFovControlData.zoomDirection         = ZOOM_STABLE;
-        mFovControlData.fallbackToWide        = false;
-
-        // TODO : These threshold values should be changed from counters to time based
-        // Systems team will provide the correct values as part of tuning
-        mFovControlData.zoomStableCountThreshold       = 30;
-        mFovControlData.focusDistStableCountThreshold  = 30;
-        mFovControlData.brightnessStableCountThreshold = 30;
-
-        mFovControlData.status3A.main.af.status   = AF_INVALID;
-        mFovControlData.status3A.aux.af.status    = AF_INVALID;
-
-        mFovControlData.spatialAlignResult.readyStatus = 0;
-        mFovControlData.spatialAlignResult.activeCameras = (uint32_t)CAM_TYPE_MAIN;
-        mFovControlData.spatialAlignResult.shiftWide.shiftHorz = 0;
-        mFovControlData.spatialAlignResult.shiftWide.shiftVert = 0;
-        mFovControlData.spatialAlignResult.shiftTele.shiftHorz = 0;
-        mFovControlData.spatialAlignResult.shiftTele.shiftVert = 0;
-
-        // WA for now until the QTI solution is in place writing the spatial alignment ready status
-        mFovControlData.spatialAlignResult.readyStatus = 1;
+        // Reset the internal variables
+        resetVars();
 
         // Recalculate the transition parameters
         if (calculateBasicFovRatio() && combineFovAdjustment()) {
@@ -438,23 +464,22 @@ int32_t QCameraFOVControl::updateConfigSettings(
                 mFovControlResult.camMasterPreview  = mFovControlData.camTele;
                 mFovControlResult.camMaster3A       = mFovControlData.camTele;
                 mFovControlResult.activeCameras     = (uint32_t)mFovControlData.camTele;
-                mFovControlResult.snapshotPostProcess = false;
 
                 // Initialize spatial alignment results to match with this initial camera state
-                mFovControlData.spatialAlignResult.camMasterHint  = CAM_ROLE_TELE;
-                mFovControlData.spatialAlignResult.activeCameras  = CAM_ROLE_TELE;
+                mFovControlData.spatialAlignResult.camMasterHint  = mFovControlData.camTele;
+                mFovControlData.spatialAlignResult.activeCameras  = mFovControlData.camTele;
                 LOGD("start camera state: TELE");
             } else {
                 mFovControlResult.camMasterPreview  = mFovControlData.camWide;
                 mFovControlResult.camMaster3A       = mFovControlData.camWide;
                 mFovControlResult.activeCameras     = (uint32_t)mFovControlData.camWide;
-                mFovControlResult.snapshotPostProcess = false;
 
                 // Initialize spatial alignment results to match with this initial camera state
-                mFovControlData.spatialAlignResult.camMasterHint  = CAM_ROLE_WIDE;
-                mFovControlData.spatialAlignResult.activeCameras  = CAM_ROLE_WIDE;
+                mFovControlData.spatialAlignResult.camMasterHint  = mFovControlData.camWide;
+                mFovControlData.spatialAlignResult.activeCameras  = mFovControlData.camWide;
                 LOGD("start camera state: WIDE");
             }
+            mFovControlResult.snapshotPostProcess = false;
 
             // FOV-control config is complete for the current use case
             mFovControlData.configCompleted = true;
@@ -591,33 +616,32 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             // Get master camera hint
             if (spatialAlignOutput->is_master_hint_valid) {
                 uint8_t master = spatialAlignOutput->master_hint;
-                if ((master == CAM_ROLE_WIDE) ||
-                    (master == CAM_ROLE_TELE)) {
-                    mFovControlData.spatialAlignResult.camMasterHint = master;
+                if (master == CAM_ROLE_WIDE) {
+                    mFovControlData.spatialAlignResult.camMasterHint = mFovControlData.camWide;
+                } else if (master == CAM_ROLE_TELE) {
+                    mFovControlData.spatialAlignResult.camMasterHint = mFovControlData.camTele;
                 }
             }
 
             // Get master camera used for the preview in the frame corresponding to this metadata
             if (spatialAlignOutput->is_master_preview_valid) {
                 uint8_t master = spatialAlignOutput->master_preview;
-                if ((master == CAM_ROLE_WIDE) ||
-                    (master == CAM_ROLE_TELE)) {
-                    mFovControlData.spatialAlignResult.camMasterPreview = master;
-
-                    if (master == CAM_ROLE_WIDE) {
-                        masterCam = mFovControlData.camWide;
-                    } else {
-                        masterCam = mFovControlData.camTele;
-                    }
+                if (master == CAM_ROLE_WIDE) {
+                    masterCam = mFovControlData.camWide;
+                    mFovControlData.spatialAlignResult.camMasterPreview = masterCam;
+                } else if (master == CAM_ROLE_TELE) {
+                    masterCam = mFovControlData.camTele;
+                    mFovControlData.spatialAlignResult.camMasterPreview = masterCam;
                 }
             }
 
             // Get master camera used for 3A in the frame corresponding to this metadata
             if (spatialAlignOutput->is_master_3A_valid) {
                 uint8_t master = spatialAlignOutput->master_3A;
-                if ((master == CAM_ROLE_WIDE) ||
-                    (master == CAM_ROLE_TELE)) {
-                    mFovControlData.spatialAlignResult.camMaster3A = master;
+                if (master == CAM_ROLE_WIDE) {
+                    mFovControlData.spatialAlignResult.camMaster3A = mFovControlData.camWide;
+                } else if (master == CAM_ROLE_TELE) {
+                    mFovControlData.spatialAlignResult.camMaster3A = mFovControlData.camTele;
                 }
             }
 
@@ -694,9 +718,34 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             }
         }
 
+        // Update the camera streaming status
+
+        metadata_buffer_t *metaWide = isMainCamFovWider() ? metaMain : metaAux;
+        metadata_buffer_t *metaTele = isMainCamFovWider() ? metaAux : metaMain;
+
+        if (metaWide) {
+            mFovControlData.wideCamStreaming = true;
+            IF_META_AVAILABLE(uint8_t, enableLPM, CAM_INTF_META_DC_LOW_POWER_ENABLE, metaWide) {
+                if (*enableLPM) {
+                    // If LPM enabled is 1, this is probably the last metadata returned
+                    // before going into LPM state
+                    mFovControlData.wideCamStreaming = false;
+                }
+            }
+        }
+
+        if (metaTele) {
+            IF_META_AVAILABLE(uint8_t, enableLPM, CAM_INTF_META_DC_LOW_POWER_ENABLE, metaTele) {
+                mFovControlData.teleCamStreaming = true;
+                if (*enableLPM) {
+                    // If LPM enabled is 1, this is probably the last metadata returned
+                    // before going into LPM state
+                    mFovControlData.teleCamStreaming = false;
+                }
+            }
+        }
+
         // Get AF status
-        uint32_t afStatusMain = CAM_AF_STATE_INACTIVE;
-        uint32_t afStatusAux  = CAM_AF_STATE_INACTIVE;
         if (metaMain) {
             IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metaMain) {
                 if (((*afState) == CAM_AF_STATE_FOCUSED_LOCKED)         ||
@@ -707,8 +756,8 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
                 } else {
                     mFovControlData.status3A.main.af.status = AF_INVALID;
                 }
-                afStatusMain = *afState;
-                LOGD("AF state: Main cam: %d", afStatusMain);
+                mFovControlData.afStatusMain = *afState;
+                LOGD("AF state: Main cam: %d", mFovControlData.afStatusMain);
             }
             // WA:Hardcoding dummy lux and focusDistance metadata till that functionality gets added
             mFovControlData.status3A.main.ae.lux         = 1000;
@@ -724,35 +773,10 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
                 } else {
                     mFovControlData.status3A.aux.af.status = AF_INVALID;
                 }
-                afStatusAux = *afState;
-                LOGD("AF state: Aux cam: %d", afStatusAux);
+                mFovControlData.afStatusAux = *afState;
+                LOGD("AF state: Aux cam: %d", mFovControlData.afStatusAux);
             }
         }
-
-        metadata_buffer_t *metaWide;
-        metadata_buffer_t *metaTele;
-
-        // Check if the wide, tele cameras are streaming
-        if (isMainCamFovWider()) {
-            metaWide = metaMain;
-            metaTele = metaAux;
-        } else {
-            metaWide = metaAux;
-            metaTele = metaMain;
-        }
-
-        if (metaWide) {
-            mFovControlData.wideCamStreaming = true;
-        } else {
-            mFovControlData.wideCamStreaming = false;
-        }
-        if (metaTele) {
-            mFovControlData.teleCamStreaming = true;
-        } else {
-            mFovControlData.teleCamStreaming = false;
-        }
-
-        mMutex.unlock();
 
         if ((masterCam == CAM_TYPE_AUX) && metaAux) {
             // Translate face detection ROI
@@ -772,17 +796,20 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             metaResult = NULL;
         }
 
-        // Consolidate the AF status to be sent to the app
+        // If snapshot postprocess is enabled, consolidate the AF status to be sent to the app
+        // when in the transition state.
         // Only return focused if both are focused.
-        if (metaMain && metaAux) {
-            if (((afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) ||
-                    (afStatusMain == CAM_AF_STATE_NOT_FOCUSED_LOCKED)) &&
-                    ((afStatusAux == CAM_AF_STATE_FOCUSED_LOCKED) ||
-                    (afStatusAux == CAM_AF_STATE_NOT_FOCUSED_LOCKED))) {
+        if ((mFovControlResult.snapshotPostProcess == true) &&
+                    (mFovControlData.camState == STATE_TRANSITION) &&
+                    metaResult) {
+            if (((mFovControlData.afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) ||
+                    (mFovControlData.afStatusMain == CAM_AF_STATE_NOT_FOCUSED_LOCKED)) &&
+                    ((mFovControlData.afStatusAux == CAM_AF_STATE_FOCUSED_LOCKED) ||
+                    (mFovControlData.afStatusAux == CAM_AF_STATE_NOT_FOCUSED_LOCKED))) {
                 // If both indicate focused, return focused.
                 // If either one indicates 'not focused', return 'not focused'.
-                if ((afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) &&
-                        (afStatusAux  == CAM_AF_STATE_FOCUSED_LOCKED)) {
+                if ((mFovControlData.afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) &&
+                        (mFovControlData.afStatusAux  == CAM_AF_STATE_FOCUSED_LOCKED)) {
                     ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE,
                             CAM_AF_STATE_FOCUSED_LOCKED);
                 } else {
@@ -791,11 +818,13 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
                 }
             } else {
                 // If either one indicates passive state or active scan, return that state
-                if ((afStatusMain != CAM_AF_STATE_FOCUSED_LOCKED) &&
-                        (afStatusMain != CAM_AF_STATE_NOT_FOCUSED_LOCKED)) {
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE, afStatusMain);
+                if ((mFovControlData.afStatusMain != CAM_AF_STATE_FOCUSED_LOCKED) &&
+                        (mFovControlData.afStatusMain != CAM_AF_STATE_NOT_FOCUSED_LOCKED)) {
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE,
+                            mFovControlData.afStatusMain);
                 } else {
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE, afStatusAux);
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(metaResult, CAM_INTF_META_AF_STATE,
+                            mFovControlData.afStatusAux);
                 }
             }
             IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metaResult) {
@@ -803,8 +832,12 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             }
         }
 
-        // Generate FOV-control result
-        generateFovControlResult();
+        mMutex.unlock();
+
+        // Generate FOV-control result only if the result meta is valid
+        if (metaResult) {
+            generateFovControlResult();
+        }
     }
     return metaResult;
 }
@@ -841,6 +874,14 @@ void QCameraFOVControl::generateFovControlResult()
     uint16_t  currentFocusDist  = mFovControlData.status3A.main.af.focusDistCm;
 
     af_status afStatusAux = mFovControlData.status3A.aux.af.status;
+
+    char prop[PROPERTY_VALUE_MAX];
+    int override = 0;
+    property_get("persist.camera.fovc.override", prop, "0");
+    override = atoi(prop);
+    if(override) {
+        afStatusAux = AF_VALID;
+    }
 
     float transitionLow     = mFovControlData.transitionParams.transitionLow;
     float transitionHigh    = mFovControlData.transitionParams.transitionHigh;
@@ -1112,14 +1153,10 @@ bool QCameraFOVControl::isSpatialAlignmentReady()
     bool ret = true;
 
     if (mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) {
-        cam_sync_type_t camWide = mFovControlData.camWide;
-        cam_sync_type_t camTele = mFovControlData.camTele;
-        cam_sync_type_t currentMaster  = mFovControlResult.camMasterPreview;
-
+        uint8_t currentMaster = (uint8_t)mFovControlResult.camMasterPreview;
         uint8_t camMasterHint = mFovControlData.spatialAlignResult.camMasterHint;
 
-        if (((currentMaster == camWide) && (camMasterHint == CAM_ROLE_TELE)) ||
-            ((currentMaster == camTele) && (camMasterHint == CAM_ROLE_WIDE))) {
+        if (currentMaster != camMasterHint) {
             ret = true;
         } else {
             ret = false;
@@ -1130,6 +1167,14 @@ bool QCameraFOVControl::isSpatialAlignmentReady()
         } else {
             ret = false;
         }
+    }
+
+    char prop[PROPERTY_VALUE_MAX];
+    int override = 0;
+    property_get("persist.camera.fovc.override", prop, "0");
+    override = atoi(prop);
+    if(override) {
+        ret = true;
     }
 
     return ret;
@@ -1405,7 +1450,7 @@ void QCameraFOVControl::calculateDualCamTransitionParams()
         if (mFovControlConfig.snapshotPPConfig.zoomMin <
                 mFovControlData.transitionParams.transitionLow) {
             mFovControlData.transitionParams.transitionLow =
-                mFovControlConfig.snapshotPPConfig.zoomMax;
+                mFovControlConfig.snapshotPPConfig.zoomMin;
         }
 
         // Set aux switch brightness threshold as the lower of aux switch and
@@ -1748,5 +1793,34 @@ cam_face_detection_data_t QCameraFOVControl::translateRoiFD(
         }
     }
     return metaFDTranslated;
+}
+
+
+/*===========================================================================
+ * FUNCTION      : getFrameMargins
+ *
+ * DESCRIPTION   : Return frame margin data for the requested camera
+ *
+ * PARAMETERS    :
+ * @masterCamera : Master camera id
+ *
+ * RETURN        : Frame margins
+ *
+ *==========================================================================*/
+cam_frame_margins_t QCameraFOVControl::getFrameMargins(
+        int8_t masterCamera)
+{
+    cam_frame_margins_t frameMargins;
+    memset(&frameMargins, 0, sizeof(cam_frame_margins_t));
+
+    if (masterCamera == CAM_TYPE_MAIN) {
+        frameMargins.widthMargins  = mFovControlData.camMainWidthMargin;
+        frameMargins.heightMargins = mFovControlData.camMainHeightMargin;
+    } else if (masterCamera == CAM_TYPE_AUX) {
+        frameMargins.widthMargins  = mFovControlData.camAuxWidthMargin;
+        frameMargins.heightMargins = mFovControlData.camAuxHeightMargin;
+    }
+
+    return frameMargins;
 }
 }; // namespace qcamera

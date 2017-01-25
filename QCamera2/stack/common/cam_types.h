@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,6 +44,7 @@
 #define BESTATS_BUFFER_DEBUG_DATA_SIZE    (150000)
 #define BHIST_STATS_DEBUG_DATA_SIZE       (70000)
 #define TUNING_INFO_DEBUG_DATA_SIZE       (4)
+#define OIS_DATA_MAX_SIZE                 (32)
 
 #define CEILING64(X) (((X) + 0x0003F) & 0xFFFFFFC0)
 #define CEILING32(X) (((X) + 0x0001F) & 0xFFFFFFE0)
@@ -945,6 +946,16 @@ typedef enum {
     CAM_VIDEO_HDR_MODE_MAX,
 } cam_video_hdr_mode_t;
 
+typedef enum {
+    CAM_BINNING_CORRECTION_MODE_OFF,
+    CAM_BINNING_CORRECTION_MODE_ON,
+    CAM_BINNING_CORRECTION_MODE_MAX,
+} cam_binning_correction_mode_t;
+
+typedef struct {
+    uint32_t size;
+    uint8_t data[OIS_DATA_MAX_SIZE];
+} cam_ois_data_t;
 
 typedef struct  {
     int32_t left;
@@ -1467,9 +1478,15 @@ typedef struct {
 } cam_stream_crop_info_t;
 
 typedef struct {
+    float widthMargins;  /*Width margin in %*/
+    float heightMargins; /*Height margin in %*/
+} cam_frame_margins_t;
+
+typedef struct {
     uint8_t num_of_streams;
     uint8_t ignore_crop; // CPP ignores the CROP in this special mode
     cam_stream_crop_info_t crop_info[MAX_NUM_STREAMS];
+    cam_frame_margins_t margins; // Margins used by dual camera with spatial alignment block
 } cam_crop_data_t;
 
 typedef struct {
@@ -1749,11 +1766,6 @@ typedef enum {
     CAM_3A_SYNC_FOLLOW,   /* Master->Slave: Master updates slave */
     CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
 } cam_3a_sync_mode_t;
-
-typedef struct {
-    float widthMargins;  /*Width margin in %*/
-    float heightMargins; /*Height margin in %*/
-} cam_frame_margins_t;
 
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
@@ -2389,6 +2401,10 @@ typedef enum {
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     /* AF focus position info */
     CAM_INTF_META_AF_FOCUS_POS,
+    /* Binning Correction Algorithm */
+    CAM_INTF_META_BINNING_CORRECTION_MODE,
+    /* Read Sensor OIS data */
+    CAM_INTF_META_OIS_READ_DATA,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -2619,6 +2635,9 @@ typedef struct {
 #define CAM_QTI_FEATURE_CPP_DOWNSCALE   (((cam_feature_mask_t)1UL)<<39)
 #define CAM_QTI_FEATURE_FIXED_FOVC      (((cam_feature_mask_t)1UL) << 40)
 #define CAM_QCOM_FEATURE_IR             (((cam_feature_mask_t)1UL)<<41)
+#define CAM_QTI_FEATURE_SAC             (((cam_feature_mask_t)1UL)<<42)
+#define CAM_QTI_FEATURE_RTBDM           (((cam_feature_mask_t)1UL)<<43)
+#define CAM_QTI_FEATURE_BINNING_CORRECTION (((cam_feature_mask_t)1UL)<<44)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\

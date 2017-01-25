@@ -22,6 +22,12 @@ LOCAL_C_INCLUDES += \
     system/media/private/camera/include \
     $(LOCAL_PATH)/../ \
     $(LOCAL_PATH)/../../stack/mm-camera-interface/inc \
+    hardware/libhardware/include/hardware \
+    hardware/qcom/media/libstagefrighthw \
+    hardware/qcom/media/mm-core/inc \
+    system/core/include/cutils \
+    system/core/include/system \
+    system/media/camera/include/system
 
 
 LOCAL_SRC_FILES := \
@@ -40,7 +46,7 @@ LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 
 LOCAL_MODULE:= hal3-test-app
 
-LOCAL_CFLAGS += -Wall -Wextra
+LOCAL_CFLAGS += -Wall -Wextra -Werror
 
 LOCAL_CFLAGS += -std=c++11 -std=gnu++0x
 

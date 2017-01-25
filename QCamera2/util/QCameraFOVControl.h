@@ -148,6 +148,8 @@ typedef struct {
     uint32_t                     focusDistStableCount;
     uint32_t                     focusDistStableCountThreshold;
     dual_cam_transition_params_t transitionParams;
+    uint32_t                     afStatusMain;
+    uint32_t                     afStatusAux;
 } fov_control_data_t;
 
 typedef struct {
@@ -207,6 +209,7 @@ public:
     metadata_buffer_t* processResultMetadata(metadata_buffer_t* metaMainCam,
             metadata_buffer_t* metaAuxCam);
     fov_control_result_t getFovControlResult();
+    cam_frame_margins_t getFrameMargins(int8_t masterCamera);
 
 private:
     QCameraFOVControl();
@@ -227,6 +230,7 @@ private:
     void generateFovControlResult();
     bool isMainCamFovWider();
     bool isSpatialAlignmentReady();
+    void resetVars();
 
     Mutex                           mMutex;
     fov_control_config_t            mFovControlConfig;
