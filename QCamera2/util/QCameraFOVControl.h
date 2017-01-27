@@ -87,8 +87,8 @@ typedef struct {
 } dual_cam_3A_status_t;
 
 typedef struct {
-    uint32_t shiftHorz;
-    uint32_t shiftVert;
+    int32_t shiftHorz;
+    int32_t shiftVert;
 } spatial_align_shift_t;
 
 typedef struct {
@@ -99,6 +99,8 @@ typedef struct {
     uint32_t              activeCameras;
     spatial_align_shift_t shiftWide;
     spatial_align_shift_t shiftTele;
+    spatial_align_shift_t shiftAfRoiWide;
+    spatial_align_shift_t shiftAfRoiTele;
 } spatial_align_result_t;
 
 typedef struct {
@@ -130,8 +132,6 @@ typedef struct {
     cam_dimension_t              previewSize;
     spatial_align_result_t       spatialAlignResult;
     uint32_t                     availableSpatialAlignSolns;
-    uint32_t                     shiftHorzAdjusted;
-    uint32_t                     shiftVertAdjusted;
     float                        camMainWidthMargin;
     float                        camMainHeightMargin;
     float                        camAuxWidthMargin;
@@ -223,10 +223,10 @@ private:
     uint32_t readjustZoomForWide(uint32_t zoomTele);
     uint32_t findZoomRatio(uint32_t zoom);
     inline uint32_t findZoomValue(uint32_t zoomRatio);
-    cam_face_detection_data_t translateRoiFD(cam_face_detection_data_t faceDetectionInfo);
-    cam_roi_info_t translateFocusAreas(cam_roi_info_t roiAfMain);
-    cam_set_aec_roi_t translateMeteringAreas(cam_set_aec_roi_t roiAecMain);
-    void convertDisparityForInputParams();
+    cam_face_detection_data_t translateRoiFD(cam_face_detection_data_t faceDetectionInfo,
+            cam_sync_type_t cam);
+    cam_roi_info_t translateFocusAreas(cam_roi_info_t roiAfMain, cam_sync_type_t cam);
+    cam_set_aec_roi_t translateMeteringAreas(cam_set_aec_roi_t roiAecMain, cam_sync_type_t cam);
     void generateFovControlResult();
     bool isMainCamFovWider();
     bool isSpatialAlignmentReady();
