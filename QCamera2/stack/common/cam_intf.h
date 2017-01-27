@@ -1132,6 +1132,8 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_FOV_COMP_ENABLE,              int32_t,                     1);
     INCLUDE(CAM_INTF_META_LED_CALIB_RESULT,             int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_DC_USERZOOM,                  int32_t,                     1);
+    INCLUDE(CAM_INTF_META_AEC_LUX_INDEX,                float,                       1);
+    INCLUDE(CAM_INTF_META_AF_OBJ_DIST_CM,               int32_t,                     1);
     INCLUDE(CAM_INTF_META_BINNING_CORRECTION_MODE,      cam_binning_correction_mode_t,  1);
     INCLUDE(CAM_INTF_META_OIS_READ_DATA,                cam_ois_data_t,              1);
 } metadata_data_t;
