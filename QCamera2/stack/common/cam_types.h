@@ -2645,6 +2645,7 @@ typedef struct {
 #define CAM_QTI_FEATURE_SAC             (((cam_feature_mask_t)1UL)<<42)
 #define CAM_QTI_FEATURE_RTBDM           (((cam_feature_mask_t)1UL)<<43)
 #define CAM_QTI_FEATURE_BINNING_CORRECTION (((cam_feature_mask_t)1UL)<<44)
+#define CAM_QTI_FEATURE_RTB             (((cam_feature_mask_t)1UL)<<45)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\

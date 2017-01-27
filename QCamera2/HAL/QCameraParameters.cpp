@@ -14538,6 +14538,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         bool satEnabledFlag = FALSE;
         bool sacEnabledFlag = FALSE;
         bool rtbdmEnabledFlag = FALSE;
+        bool rtbEnabledFlag = FALSE;
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.sat.enable", prop, "0");
         satEnabledFlag = atoi(prop);
@@ -14561,7 +14562,12 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
         if (sacEnabledFlag) {
         LOGH("SAC flag enabled");
-            if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
+            if (stream_type == CAM_STREAM_TYPE_VIDEO &&
+                !is4k2kVideoResolution()) {
+                feature_mask |= CAM_QTI_FEATURE_SAC;
+                LOGH("SAC feature mask set");
+            } else if ((stream_type == CAM_STREAM_TYPE_PREVIEW)||
+                (stream_type == CAM_STREAM_TYPE_CALLBACK)) {
                 feature_mask |= CAM_QTI_FEATURE_SAC;
                 LOGH("SAC feature mask set");
             }
@@ -14573,9 +14579,23 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
         if (rtbdmEnabledFlag) {
         LOGH("RTBDM flag enabled");
-            if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
+            if ((stream_type == CAM_STREAM_TYPE_PREVIEW)||
+                (stream_type == CAM_STREAM_TYPE_CALLBACK)) {
                 feature_mask |= CAM_QTI_FEATURE_RTBDM;
                 LOGH("RTBDM feature mask set");
+            }
+        }
+
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.rtb.enable", prop, "0");
+        rtbEnabledFlag = atoi(prop);
+
+        if (rtbEnabledFlag) {
+        LOGH("RTB flag enabled");
+            if ((stream_type == CAM_STREAM_TYPE_PREVIEW)||
+                (stream_type == CAM_STREAM_TYPE_CALLBACK)) {
+                feature_mask |= CAM_QTI_FEATURE_RTB;
+                LOGH("RTB feature mask set");
             }
         }
     }
