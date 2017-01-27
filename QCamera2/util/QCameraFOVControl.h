@@ -64,6 +64,11 @@ typedef enum {
     ZOOM_OUT
 } dual_cam_zoom_dir;
 
+typedef enum {
+    CAM_TYPE_WIDE,
+    CAM_TYPE_TELE
+} cam_type;
+
 
 
 typedef struct {
@@ -179,10 +184,6 @@ typedef struct{
 
 typedef struct {
     uint32_t               minFocusDistanceCm;
-    float                  baselineMm;
-    float                  rollDegrees;
-    float                  pitchDegrees;
-    float                  yawDegrees;
     cam_relative_position  positionAux;
     intrinsic_cam_params_t paramsMain;
     intrinsic_cam_params_t paramsAux;
@@ -231,6 +232,7 @@ private:
     bool isMainCamFovWider();
     bool isSpatialAlignmentReady();
     void resetVars();
+    bool canSwitchMasterTo(cam_type cam);
 
     Mutex                           mMutex;
     fov_control_config_t            mFovControlConfig;
