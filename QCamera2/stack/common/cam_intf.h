@@ -92,6 +92,7 @@ typedef enum {
 
 /* Enum to define different low performance modes in dual camera*/
 typedef enum {
+    CAM_PERF_NONE,
     CAM_PERF_SENSOR_SUSPEND,
     CAM_PERF_ISPIF_FRAME_DROP,
     CAM_PERF_ISPIF_FRAME_SKIP,

@@ -12307,6 +12307,7 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
     bundle_info.type = (cam_sync_type_t)type;
     bundle_info.cam_role = (cam_dual_camera_role_t)role;
     bundle_info.related_sensor_session_id = sessionId[bundle_cam_idx];
+    bundle_info.perf_mode = getLowPowerMode(bundle_info.type);
     num_cam++;
 
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
@@ -13978,6 +13979,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
                 &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
+        bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_MAIN);
         num_cam++;
         bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
         bundle_info[num_cam].type = CAM_TYPE_AUX;
@@ -13988,6 +13990,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 get_main_camera_handle(m_pCamOpsTbl->camera_handle),
                 &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
+        bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_AUX);
         num_cam++;
         rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
                 num_cam, &bundle_info[0]);
@@ -15754,6 +15757,54 @@ int32_t QCameraParameters::setDeferCamera(cam_dual_camera_defer_cmd_t type)
 }
 
 /*===========================================================================
+ * FUNCTION   : getLowPowerMode
+ *
+ * DESCRIPTION: Get Low Power Mode for the given camera
+ *
+ * PARAMETERS :
+ * @cam       : Camera type for which Low Power Mode is queried
+ *
+ * RETURN     : Low Power Mode with type cam_dual_camera_perf_mode_t
+ *==========================================================================*/
+cam_dual_camera_perf_mode_t QCameraParameters::getLowPowerMode(cam_sync_type_t cam)
+{
+    char prop[PROPERTY_VALUE_MAX];
+    int32_t lpm = 0;
+    int32_t lpmConfig = 0;
+
+    if (cam == CAM_TYPE_MAIN) {
+        property_get("persist.dualcam.lpm.main", prop, "0");
+        lpm = atoi(prop);
+        lpmConfig = DUALCAM_LPM_MAIN;
+    } else if (cam == CAM_TYPE_AUX) {
+        property_get("persist.dualcam.lpm.aux", prop, "0");
+        lpm = atoi(prop);
+        lpmConfig = DUALCAM_LPM_AUX;
+    } else {
+        LOGE("Invalid camera type queried for LPM");
+        return CAM_PERF_NONE;
+    }
+
+    if (lpm == 0) {
+        switch(lpmConfig) {
+            case SENSOR_SLEEP:
+                lpm = CAM_PERF_SENSOR_SUSPEND;
+                break;
+            case ISPIF_FRAME_DROP:
+                lpm = CAM_PERF_ISPIF_FRAME_DROP;
+                break;
+            case NONE:
+            default:
+                lpm = CAM_PERF_NONE;
+                break;
+        }
+    }
+    LOGD("LPM for %s camera: %d", cam == CAM_TYPE_MAIN ? "main" : "aux", lpm);
+    return (cam_dual_camera_perf_mode_t)lpm;
+}
+
+
+/*===========================================================================
  * FUNCTION   : setCameraControls
  *
  * DESCRIPTION: activate or deactive camera's
@@ -15769,33 +15820,37 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     int32_t rc = NO_ERROR;
     int32_t cameraControl[MM_CAMERA_MAX_CAM_CNT] = {0};
     char prop[PROPERTY_VALUE_MAX];
-    int value = 0;
     int lpmEnable = 1;
+    cam_dual_camera_perf_mode_t lpmMain = CAM_PERF_NONE;
+    cam_dual_camera_perf_mode_t lpmAux  = CAM_PERF_NONE;
 
+    cam_dual_camera_perf_control_t perf_value[MM_CAMERA_MAX_CAM_CNT];
+    uint8_t num_cam = 0;
+
+    lpmMain = getLowPowerMode(CAM_TYPE_MAIN);
+    lpmAux  = getLowPowerMode(CAM_TYPE_AUX);
+
+    // Keep the camera active if indicated by the active state or if LPM is NONE
     if ((state & MM_CAMERA_TYPE_MAIN) ||
-                (DUALCAM_LPM_MODE_MAIN == NONE)) {
+            (lpmMain == CAM_PERF_NONE)) {
         cameraControl[0] = 1;
     } else {
         cameraControl[0] = 0;
     }
+
+    // Keep the camera active if indicated by the active state or if LPM is NONE
     if ((state & MM_CAMERA_TYPE_AUX)  ||
-                (DUALCAM_LPM_MODE_AUX == NONE)) {
+            (lpmAux == CAM_PERF_NONE)) {
         cameraControl[1] = 1;
     } else {
         cameraControl[1] = 0;
     }
 
-    cam_dual_camera_perf_control_t perf_value[MM_CAMERA_MAX_CAM_CNT];
-    uint8_t num_cam = 0;
-
-    property_get("persist.dualcam.lpm.mode", prop, "0");
-    value = atoi(prop);
-
-    perf_value[num_cam].perf_mode = (cam_dual_camera_perf_mode_t)value;
+    perf_value[num_cam].perf_mode = lpmMain;
     perf_value[num_cam].enable = cameraControl[0] ? 0 : 1;
     perf_value[num_cam].priority = 0;
     num_cam++;
-    perf_value[num_cam].perf_mode = (cam_dual_camera_perf_mode_t)value;
+    perf_value[num_cam].perf_mode = lpmAux;
     perf_value[num_cam].enable = cameraControl[1] ? 0 : 1;
     perf_value[num_cam].priority = 0;
     num_cam++;
