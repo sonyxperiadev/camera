@@ -772,9 +772,11 @@ uint32_t QCameraChannel::getSnapshotHandle()
 
     if ((mActiveCameras == MM_CAMERA_DUAL_CAM) && mBundledSnapshot) {
         snapshotHandle = m_handle;
+        LOGD("snapshot handle: composite");
     } else {
         snapshotHandle = (mMasterCamera == MM_CAMERA_TYPE_MAIN) ?
                 get_main_camera_handle(m_handle) : get_aux_camera_handle(m_handle);
+        LOGD("snapshot handle: %s", (mMasterCamera == MM_CAMERA_TYPE_MAIN ? "main" : "aux"));
     }
 
     return snapshotHandle;
@@ -910,15 +912,27 @@ int32_t QCameraPicChannel::startAdvancedCapture(mm_camera_advanced_capture_t typ
  * DESCRIPTION: flush the all superbuffer frames.
  *
  * PARAMETERS :
+ *   @cam       : Camera for which the super buffer needs to be flushed
  *   @frame_idx : frame index of focused frame
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraPicChannel::flushSuperbuffer(uint32_t frame_idx)
+int32_t QCameraPicChannel::flushSuperbuffer(uint32_t cam, uint32_t frame_idx)
 {
-    int32_t rc = m_camOps->flush_super_buf_queue(m_camHandle, m_handle, frame_idx);
+    uint32_t channelHandle = m_handle;
+    if (cam == MM_CAMERA_TYPE_MAIN) {
+        channelHandle = get_main_camera_handle(m_handle);
+        LOGD("Flushing zsl buffer queue for main cam");
+    } else if (cam == MM_CAMERA_TYPE_AUX) {
+        channelHandle = get_aux_camera_handle(m_handle);
+        LOGD("Flushing zsl buffer queue for aux cam");
+    } else {
+        LOGD("Flushing zsl buffer queue for composite cam");
+    }
+
+    int32_t rc = m_camOps->flush_super_buf_queue(m_camHandle, channelHandle, frame_idx);
     return rc;
 }
 

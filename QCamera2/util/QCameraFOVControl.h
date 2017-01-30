@@ -66,6 +66,11 @@ typedef enum {
 } dual_cam_zoom_dir;
 
 
+typedef enum {
+    FOVCONTROL_FLAG_TAKE_BUNDLED_SNAPSHOT = 0,
+    FOVCONTROL_FLAG_THERMAL_THROTTLE,
+    FOVCONTROL_FLAG_COUNT
+} fov_control_flag;
 
 
 typedef struct {
@@ -75,7 +80,7 @@ typedef struct {
 
 typedef struct {
     af_status status;
-    uint32_t  focusDistCm;
+    uint16_t  focusDistCm;
 } af_info;
 
 typedef struct {
@@ -116,16 +121,17 @@ typedef struct {
 } dual_cam_transition_params_t;
 
 typedef struct {
+    bool    active;
+    nsecs_t timeout;
+} timer_t;
+
+typedef struct {
     bool                         configCompleted;
-    uint32_t                     zoomMain;
-    uint32_t                     zoomAux;
     uint32_t                     zoomWide;
     uint32_t                     zoomTele;
     uint32_t                     zoomWidePrev;
-    uint32_t                     zoomMainPrev;
     uint32_t                    *zoomRatioTable;
     uint32_t                     zoomRatioTableCount;
-    uint32_t                     zoomStableCount;
     dual_cam_zoom_dir            zoomDirection;
     zoom_trans_init_data         zoomTransInitData;
     cam_sync_type_t              camWide;
@@ -145,12 +151,16 @@ typedef struct {
     bool                         teleCamStreaming;
     bool                         fallbackEnabled;
     bool                         fallbackToWide;
+    bool                         fallbackInitedInTransition;
+    timer_t                      timerLowLitMacroScene;
+    timer_t                      timerWellLitNonMacroScene;
+    timer_t                      timerConstZoom;
     float                        basicFovRatio;
-    uint32_t                     brightnessStableCount;
-    uint32_t                     focusDistStableCount;
     dual_cam_transition_params_t transitionParams;
     uint32_t                     afStatusMain;
     uint32_t                     afStatusAux;
+    bool                         takeBundledSnapshot;
+    bool                         thermalThrottle;
     bool                         lpmEnabled;
     uint8_t                      oisSetting;
 } fov_control_data_t;
@@ -159,7 +169,7 @@ typedef struct {
     bool     enablePostProcess;
     float    zoomMin;
     float    zoomMax;
-    uint16_t luxMin;
+    uint16_t LuxIdxMax;
     uint16_t focusDistanceMin;
 } snapshot_pp_config_t;
 
@@ -167,13 +177,12 @@ typedef struct {
     float    percentMarginHysterisis;
     float    percentMarginAux;
     float    percentMarginMain;
-    uint32_t waitTimeForHandoffMs;
-    uint16_t auxSwitchBrightnessMin;
+    uint16_t auxSwitchLuxIdxMax;
     uint16_t auxSwitchFocusDistCmMin;
-    uint16_t zoomStableCountThreshold;
-    uint16_t focusDistStableCountThreshold;
-    uint16_t brightnessStableCountThreshold;
     snapshot_pp_config_t snapshotPPConfig;
+    uint32_t fallbackTimeout;
+    uint32_t constZoomTimeout;
+    uint32_t constZoomTimeoutSnapshotPPRange;
 } fov_control_config_t;
 
 typedef struct{
@@ -184,8 +193,6 @@ typedef struct{
 } intrinsic_cam_params_t;
 
 typedef struct {
-    uint32_t               minFocusDistanceCm;
-    cam_relative_position  positionAux;
     intrinsic_cam_params_t paramsMain;
     intrinsic_cam_params_t paramsAux;
 } dual_cam_params_t;
@@ -214,6 +221,7 @@ public:
     fov_control_result_t getFovControlResult();
     cam_frame_margins_t getFrameMargins(int8_t masterCamera);
     void setHalPPType(cam_hal_pp_type_t halPPtype);
+    void UpdateFlag(fov_control_flag flag, void *value);
 
 private:
     QCameraFOVControl();
@@ -235,8 +243,12 @@ private:
     bool isMainCamFovWider();
     bool isSpatialAlignmentReady();
     void resetVars();
+    bool isMaster(cam_sync_type_t cam);
     bool canSwitchMasterTo(uint32_t cam);
-    bool sacRequestedDualZone();
+    bool needDualZone();
+    bool isTimedOut(timer_t timer);
+    void startTimer(timer_t *timer, uint32_t time);
+    void inactivateTimer(timer_t *timer);
 
     Mutex                           mMutex;
     fov_control_config_t            mFovControlConfig;
@@ -244,7 +256,7 @@ private:
     fov_control_result_t            mFovControlResult;
     dual_cam_params_t               mDualCamParams;
     QCameraExtZoomTranslator       *mZoomTranslator;
-    cam_hal_pp_type_t             mHalPPType;
+    cam_hal_pp_type_t               mHalPPType;
 };
 
 }; // namespace qcamera

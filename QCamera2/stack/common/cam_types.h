@@ -185,6 +185,8 @@
 /* Index to switch H/W to consume to free-run Q*/
 #define CAM_FREERUN_IDX 0xFFFFFFFF
 
+#define DUALCAM_CAMERA_CNT 2
+
 typedef uint64_t cam_feature_mask_t;
 
 typedef enum {
@@ -1882,6 +1884,11 @@ typedef enum {
 } cam_spatial_align_type_t;
 
 typedef struct {
+    uint32_t camera_role;
+    uint8_t  lpm_enable;
+} cam_sac_lpm_info_t;
+
+typedef struct {
     int32_t shift_horz;
     int32_t shift_vert;
 } cam_sac_output_shift_t;
@@ -1895,6 +1902,8 @@ typedef struct {
     uint8_t                master_3A;
     uint8_t                is_ready_status_valid;
     uint8_t                ready_status;
+    uint8_t                is_lpm_info_valid;
+    cam_sac_lpm_info_t     lpm_info[DUALCAM_CAMERA_CNT];
     uint8_t                is_output_shift_valid;
     cam_sac_output_shift_t output_shift;
     cam_dimension_t        reference_res_for_output_shift;

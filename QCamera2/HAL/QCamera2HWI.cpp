@@ -4820,7 +4820,7 @@ int32_t QCamera2HardwareInterface::configureHalPostProcess()
 
     /* check if halpp is needed in dual camera mode */
     if (isDualCamera()) {
-        if (mActiveCameras == MM_CAMERA_DUAL_CAM && mBundledSnapshot == TRUE) {
+        if (mBundledSnapshot) {
             LOGH("Use HALPP for dual camera bundle snapshot.");
             m_bNeedHalPP = TRUE;
         }
@@ -5005,19 +5005,30 @@ int QCamera2HardwareInterface::takePicture()
         numSnapshots = mParameters.getBurstCountForAdvancedCapture();
     }
 
-    if (mActiveCameras == MM_CAMERA_DUAL_CAM && mBundledSnapshot) {
-        char prop[PROPERTY_VALUE_MAX];
-        memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.dualfov.jpegnum", prop, "1");
-        int dualfov_snap_num = atoi(prop);
-
-        if(mParameters.getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
-            dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
+    if (mBundledSnapshot) {
+        // Indicate FOV-control about the bundled snapshot with only one camera in active state
+        if (mActiveCameras != MM_CAMERA_DUAL_CAM) {
+            bool enable = true;
+            m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_TAKE_BUNDLED_SNAPSHOT, &enable);
+            processDualCamFovControl();
+            enable = false;
+            m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_TAKE_BUNDLED_SNAPSHOT, &enable);
         }
 
-        dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
-        LOGD("dualfov_snap_num:%d", dualfov_snap_num);
-        numSnapshots /= dualfov_snap_num;
+        if (mActiveCameras == MM_CAMERA_DUAL_CAM) {
+            char prop[PROPERTY_VALUE_MAX];
+            memset(prop, 0, sizeof(prop));
+            property_get("persist.camera.dualfov.jpegnum", prop, "1");
+            int dualfov_snap_num = atoi(prop);
+
+            if(mParameters.getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
+                dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
+            }
+
+            dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
+            LOGD("dualfov_snap_num:%d", dualfov_snap_num);
+            numSnapshots /= dualfov_snap_num;
+        }
     }
 
     LOGI("snap count = %d zsl = %d advanced = %d, active camera:%d",
@@ -6794,8 +6805,9 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
             if (NULL != pZSLChannel) {
                 //flush the zsl-buffer
                 uint32_t flush_frame_idx = focus_data.flush_info.focused_frame_idx;
-                LOGD("flush the zsl-buffer before frame = %u.", flush_frame_idx);
-                pZSLChannel->flushSuperbuffer(flush_frame_idx);
+                LOGD("flush the zsl-buffer for cam %d before frame = %u.",
+                        mActiveCameras, flush_frame_idx);
+                pZSLChannel->flushSuperbuffer(mActiveCameras, flush_frame_idx);
             }
         }
 
@@ -6846,8 +6858,9 @@ int32_t QCamera2HardwareInterface::processAutoFocusEvent(cam_auto_focus_data_t &
                 if (NULL != pZSLChannel) {
                     //flush the zsl-buffer
                     uint32_t flush_frame_idx = focus_data.flush_info.focused_frame_idx;
-                    LOGD("flush the zsl-buffer before frame = %u.", flush_frame_idx);
-                    pZSLChannel->flushSuperbuffer(flush_frame_idx);
+                    LOGD("flush the zsl-buffer for cam %d before frame = %u.",
+                        mActiveCameras, flush_frame_idx);
+                    pZSLChannel->flushSuperbuffer(mActiveCameras, flush_frame_idx);
                 }
             }
 
@@ -7341,12 +7354,27 @@ int32_t QCamera2HardwareInterface::processCameraControl(
     }
 
     if ((activeCameras != mActiveCameras) ||
-            ((activeCameras == MM_CAMERA_DUAL_CAM) && (bundledSnapshot != mBundledSnapshot))) {
+            (bundledSnapshot != mBundledSnapshot)) {
 
         if (activeCameras != mActiveCameras) {
             //Set camera controls to parameter and back-end
             ret = mParameters.setCameraControls(activeCameras);
-        }
+
+            if (activeCameras == MM_CAMERA_DUAL_CAM) {
+                // Flush the ZSL buffer queue for the camera that's put into LPM
+                QCameraPicChannel *pZSLChannel =
+                        (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
+                if (NULL != pZSLChannel) {
+                    if (mActiveCameras == MM_CAMERA_TYPE_MAIN) {
+                        // Flush ZSL buffer queue for the aux camera
+                        pZSLChannel->flushSuperbuffer(MM_CAMERA_TYPE_AUX, 0);
+                    } else {
+                        // Flush ZSL buffer queue for the main camera
+                        pZSLChannel->flushSuperbuffer(MM_CAMERA_TYPE_MAIN, 0);
+                    }
+                }
+             }
+         }
 
         mParameters.setBundledSnapshot(bundledSnapshot);
         mParameters.setNumOfSnapshot();
@@ -9867,6 +9895,19 @@ int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
     else
         LOGW("Incorrect thermal mode %d", thermalMode);
 
+    if (isDualCamera()) {
+        bool enable = false;
+        // Provide the thermal level to FOV-control
+        if ((mThermalLevel >= QCAMERA_THERMAL_SLIGHT_ADJUSTMENT) &&
+                (mThermalLevel <= QCAMERA_THERMAL_MAX_ADJUSTMENT)) {
+            enable = true;
+            m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_THERMAL_THROTTLE, &enable);
+        } else if (mThermalLevel == QCAMERA_THERMAL_NO_ADJUSTMENT) {
+            enable = false;
+            m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_THERMAL_THROTTLE, &enable);
+        }
+        processDualCamFovControl();
+    }
     return ret;
 
 }
