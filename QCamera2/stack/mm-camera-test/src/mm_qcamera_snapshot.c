@@ -177,7 +177,7 @@ int createEncodingSession(mm_camera_test_obj_t *test_obj,
  *
  *
  **/
-static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
+__unused static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   void *user_data)
 {
   uint32_t i = 0;

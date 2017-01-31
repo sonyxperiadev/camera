@@ -152,7 +152,6 @@ QCamera2Factory::~QCamera2Factory()
 int QCamera2Factory::get_number_of_cameras()
 {
     int numCameras = 0;
-    int rc = NO_ERROR;
 
     if (!gQCamera2Factory) {
         gQCamera2Factory = new QCamera2Factory();
@@ -433,7 +432,7 @@ int QCamera2Factory::camera_device_open(
 }
 
 struct hw_module_methods_t QCamera2Factory::mModuleMethods = {
-    open: QCamera2Factory::camera_device_open,
+    .open = QCamera2Factory::camera_device_open,
 };
 
 /*===========================================================================
