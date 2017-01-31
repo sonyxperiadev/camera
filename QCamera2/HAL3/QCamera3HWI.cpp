@@ -2024,6 +2024,13 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 if ((m_bIs4KVideo && !isZsl) || (bSmallJpegSize && !isZsl)) {
                      mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                              CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                     /* Remove rotation if it is not supported
+                        for 4K LiveVideo snapshot case (online processing) */
+                     if (!(gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                                CAM_QCOM_FEATURE_ROTATION)) {
+                         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams]
+                                 &= ~CAM_QCOM_FEATURE_ROTATION;
+                     }
                 } else {
                     if (bUseCommonFeatureMask &&
                             isOnEncoder(maxViewfinderSize, newStream->width,

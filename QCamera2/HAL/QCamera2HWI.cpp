@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -5947,9 +5947,12 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
                         if (CAM_STREAM_TYPE_METADATA == pStream->getMyType()) {
                             pMetaStream = pStream;
                         } else if ((CAM_STREAM_TYPE_PREVIEW == pStream->getMyType())
-                                && (!mParameters.isHfrMode())) {
-                            // Do not link preview stream for HFR live snapshot.
-                            // Thumbnail will not be derived from preview for HFR live snapshot.
+                                && (!mParameters.isHfrMode())
+                                && (mParameters.isLinkPreviewForLiveShot())) {
+                            // Do not link preview stream for
+                            // 1)HFR live snapshot,Thumbnail will not be derived from
+                            //   preview for HFR live snapshot.
+                            // 2)persist.camera.linkpreview is 0
                             pPreviewStream = pStream;
                         }
                     }
