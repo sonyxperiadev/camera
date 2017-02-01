@@ -3975,25 +3975,25 @@ int32_t QCameraParameters::setQuadraCfaMode(uint32_t enable, bool initCommit) {
         } else  {
             setOfflineRAW(FALSE);
         }
-         if (initCommit) {
-             if (initBatchUpdate() < 0) {
-                 LOGE("Failed to initialize group update table");
-                 return FAILED_TRANSACTION;
-             }
-         }
-         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_QUADRA_CFA, enable)) {
-             LOGE("Failed to update Quadra CFA mode");
-             return BAD_VALUE;
-         }
-         if (initCommit) {
-             rc = commitSetBatch();
-             if (rc != NO_ERROR) {
-                 LOGE("Failed to commit Quadra CFA mode");
-                 return rc;
-             }
-         }
+        if (initCommit) {
+            if (initBatchUpdate() < 0) {
+                LOGE("Failed to initialize group update table");
+                return FAILED_TRANSACTION;
+            }
+        }
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_QUADRA_CFA, enable)) {
+            LOGE("Failed to update Quadra CFA mode");
+            return BAD_VALUE;
+        }
+        if (initCommit) {
+            rc = commitSetBatch();
+            if (rc != NO_ERROR) {
+                LOGE("Failed to commit Quadra CFA mode");
+                return rc;
+            }
+        }
+        LOGI("Quadra CFA mode %d ", enable);
     }
-    LOGI("Quadra CFA mode %d ", enable);
     return rc;
 }
 
@@ -4051,6 +4051,7 @@ int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
                 m_bNeedRestart = true;
             }
         }
+        setReprocCount();
     }
     LOGH("Quadra CFA mode = %d", m_bQuadraCfa);
     return rc;

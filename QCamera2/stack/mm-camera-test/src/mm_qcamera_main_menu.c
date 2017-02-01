@@ -1356,7 +1356,7 @@ int set_manual_whitebalance (mm_camera_lib_handle *lib_handle, int wb_action_par
            manual_info.type = CAM_MANUAL_WB_MODE_GAIN;
            #if 1
            i = 0;
-           printf("\nEnter R, G, B gain value:");
+           printf("\nEnter R, G, B gain value (separated by whitespace):");
            fgets(data, sizeof(data), stdin);
 
            for (pSTR = data; ; pSTR = ePTR) {
@@ -1369,15 +1369,15 @@ int set_manual_whitebalance (mm_camera_lib_handle *lib_handle, int wb_action_par
            }
            #endif
            manual_info.gains.r_gain = fgain[0];
-           manual_info.gains.b_gain = fgain[1];
-           manual_info.gains.g_gain = fgain[2];
+           manual_info.gains.g_gain = fgain[1];
+           manual_info.gains.b_gain = fgain[2];
 
            LOGD("you entered: %f\n",
                manual_info.gains.r_gain);
            LOGD("you entered: %f\n",
-               manual_info.gains.b_gain);
-           LOGD("you entered: %f\n",
                manual_info.gains.g_gain);
+           LOGD("you entered: %f\n",
+               manual_info.gains.b_gain);
            break;
       default:
            break;
