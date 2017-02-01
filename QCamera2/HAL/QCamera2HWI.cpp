@@ -71,7 +71,7 @@ namespace qcamera {
 
 extern cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 extern pthread_mutex_t gCamLock;
-volatile uint32_t gCamHalLogLevel = 1;
+volatile uint32_t gCamHalLogLevel = 0;
 extern uint8_t gNumCameraSessions;
 uint32_t QCamera2HardwareInterface::sNextJobId = 1;
 
