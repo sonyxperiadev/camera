@@ -1000,6 +1000,7 @@ QCameraParameters::QCameraParameters()
       mAecFrameBound(0),
       mAecSkipDisplayFrameBound(0),
       m_bQuadraCfa(false),
+      mMasterCamera(CAM_TYPE_MAIN),
       m_bSmallJpegSize(false),
       mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
       mFrameNumber(0),
@@ -1138,6 +1139,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAecFrameBound(0),
     mAecSkipDisplayFrameBound(0),
     m_bQuadraCfa(false),
+    mMasterCamera(CAM_TYPE_MAIN),
     m_bSmallJpegSize(false),
     mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
     mFrameNumber(0),
@@ -4347,7 +4349,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
         nBurstNum = m_pCapability->refocus_af_bracketing_need.output_count + 1;
     }
 
-    if (mActiveState == MM_CAMERA_DUAL_CAM && mbundledSnapshot) {
+    if (mActiveCameras == MM_CAMERA_DUAL_CAM && mbundledSnapshot) {
         int dualfov_snap_num = 1;
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
@@ -6369,7 +6371,9 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t
     }
 
     m_pParamBuf = (parm_buffer_t*) DATA_PTR(m_pParamHeap, 0);
+    mActiveCameras = MM_CAMERA_TYPE_MAIN;
     if (isDualCamera()) {
+        mActiveCameras |= MM_CAMERA_TYPE_AUX;
         memset(&bufMapList, 0, sizeof(cam_buf_map_type_list));
         rc = QCameraBufferMaps::makeSingletonBufMapList(
                 CAM_MAPPING_BUF_TYPE_PARM_BUF, 0 /*stream id*/,
@@ -12516,7 +12520,7 @@ void QCameraParameters::setSyncDCParams()
     property_get("persist.camera.syncDCParams.en", prop, "1");
     temp_mSyncDCParam = atoi(prop);
 
-    if (MM_CAMERA_DUAL_CAM == mActiveState) {
+    if (MM_CAMERA_DUAL_CAM == mActiveCameras) {
         mSyncDCParam = temp_mSyncDCParam;
     }
 }
@@ -13995,6 +13999,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         num_cam++;
         rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
                 num_cam, &bundle_info[0]);
+
+        // Send dual cam cmd for master camera info
+        setSwitchCamera(mMasterCamera);
     }
 
     rc = sendStreamConfigInfo(stream_config_info);
@@ -15710,35 +15717,30 @@ int32_t QCameraParameters::SetDualCamera(bool value)
  * DESCRIPTION: Trigger event to inform about camera role switch
  *
  * PARAMETERS :
- *         @controls : Flag with camera bit field set in case of dual camera
+ *         @camMaster : Master camera
  *
  * RETURN     : NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setSwitchCamera()
+int32_t QCameraParameters::setSwitchCamera(uint32_t camMaster)
 {
     int32_t rc = NO_ERROR;
-
-    if (mActiveState != MM_CAMERA_DUAL_CAM) {
-        LOGW("Both cameras are not active. Cannot switch");
-        return rc;
-    }
-
     cam_dual_camera_master_info_t camState[MM_CAMERA_MAX_CAM_CNT];
     uint8_t num_cam = 0;
 
-    if (mActiveCamera == MM_CAMERA_TYPE_MAIN) {
-        camState[0].mode = CAM_MODE_SECONDARY;
-        camState[1].mode = CAM_MODE_PRIMARY;
-        mActiveCamera = MM_CAMERA_TYPE_AUX;
-    } else if (mActiveCamera == MM_CAMERA_TYPE_AUX) {
+    if (camMaster == MM_CAMERA_TYPE_MAIN) {
         camState[0].mode = CAM_MODE_PRIMARY;
         camState[1].mode = CAM_MODE_SECONDARY;
-        mActiveCamera = MM_CAMERA_TYPE_MAIN;
+    } else if (camMaster == MM_CAMERA_TYPE_AUX) {
+        camState[0].mode = CAM_MODE_SECONDARY;
+        camState[1].mode = CAM_MODE_PRIMARY;
     } else {
-        LOGW("Invalid state");
+        LOGW("Invalid master camera info");
         return rc;
     }
+
+    // Update master camera
+    mMasterCamera = camMaster;
 
     num_cam = MM_CAMERA_MAX_CAM_CNT;
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_MASTER_INFO,
@@ -15896,11 +15898,7 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_LOW_POWER_MODE,
           num_cam, &perf_value[0]);
 
-    mActiveState = state;
-
-    if (state != MM_CAMERA_DUAL_CAM) {
-        mActiveCamera = state;
-    }
+    mActiveCameras = state;
 
     return rc;
 }

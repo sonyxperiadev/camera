@@ -63,8 +63,6 @@ QCameraChannel::QCameraChannel(uint32_t cam_handle,
     m_bAllowDynBufAlloc = false;
     mDualChannel = is_dual_camera_by_handle(cam_handle);
     m_handle = 0;
-    mActiveHandle = 0;
-    mSnapshotHandle = 0;
 }
 
 /*===========================================================================
@@ -83,8 +81,6 @@ QCameraChannel::QCameraChannel()
     m_bIsActive = false;
     mDualChannel = 0;
     m_handle = 0;
-    mActiveHandle = 0;
-    mSnapshotHandle = 0;
 }
 
 /*===========================================================================
@@ -111,8 +107,6 @@ QCameraChannel::~QCameraChannel()
     mStreams.clear();
     m_camOps->delete_channel(m_camHandle, m_handle);
     m_handle = 0;
-    mActiveHandle = 0;
-    mSnapshotHandle = 0;
 }
 
 /*===========================================================================
@@ -190,12 +184,13 @@ int32_t QCameraChannel::init(mm_camera_channel_attr_t *attr,
         LOGE("Add channel failed");
         return UNKNOWN_ERROR;
     }
-    mActiveHandle = m_handle;
-    mSnapshotHandle = mActiveHandle;
-    mActiveCamera = MM_CAMERA_TYPE_MAIN;
+
+    mActiveCameras = MM_CAMERA_TYPE_MAIN;
     if (isDualChannel()) {
-        mActiveCamera |= MM_CAMERA_TYPE_AUX;
+        mActiveCameras |= MM_CAMERA_TYPE_AUX;
     }
+    mMasterCamera = MM_CAMERA_TYPE_MAIN;
+    mBundledSnapshot = false;
     return NO_ERROR;
 }
 
@@ -692,8 +687,9 @@ int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraChannel::processCameraControl(uint32_t camState,
-        bool bundledSnapshot, cam_sync_type_t camMasterSnapshot)
+int32_t QCameraChannel::processCameraControl(
+        uint32_t camState,
+        bool     bundledSnapshot)
 {
     int32_t ret = NO_ERROR;
 
@@ -707,30 +703,8 @@ int32_t QCameraChannel::processCameraControl(uint32_t camState,
         }
     }
 
-    if (ret == NO_ERROR) {
-        if (camState == MM_CAMERA_TYPE_MAIN) {
-            mActiveHandle = get_main_camera_handle(m_handle);
-        } else if (camState == MM_CAMERA_TYPE_AUX) {
-            mActiveHandle = get_aux_camera_handle(m_handle);
-        } else {
-            mActiveHandle = m_handle;
-        }
-    }
-
-    mSnapshotHandle = mActiveHandle;
-    // Overwrite Snapshot handle in dual zone depending on bundled value
-    if (camState == MM_CAMERA_DUAL_CAM) {
-        if (bundledSnapshot) {
-            mSnapshotHandle = m_handle;
-        } else {
-            if (camMasterSnapshot == MM_CAMERA_TYPE_MAIN) {
-                mSnapshotHandle = get_main_camera_handle(m_handle);
-            } else if (camMasterSnapshot == MM_CAMERA_TYPE_AUX) {
-                mSnapshotHandle = get_aux_camera_handle(m_handle);
-            }
-        }
-    }
-    mActiveCamera = camState;
+    mActiveCameras   = camState;
+    mBundledSnapshot = bundledSnapshot;
     return ret;
 }
 
@@ -740,18 +714,19 @@ int32_t QCameraChannel::processCameraControl(uint32_t camState,
  * DESCRIPTION: switch channel's in case of dual camera
  *
  * PARAMETERS :
+ * @camMaster : Master camera
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraChannel::switchChannelCb()
+int32_t QCameraChannel::switchChannelCb(uint32_t camMaster)
 {
     int32_t ret = NO_ERROR;
 
     for (size_t i = 0; i < mStreams.size(); i++) {
         if (mStreams[i] != NULL && mStreams[i]->isDualStream()) {
-            ret = mStreams[i]->switchStreamCb();
+            ret = mStreams[i]->switchStreamCb(camMaster);
             if (ret != NO_ERROR) {
                 LOGE("Stream Switch Failed");
                 break;
@@ -759,27 +734,34 @@ int32_t QCameraChannel::switchChannelCb()
         }
     }
 
-    if (get_aux_camera_handle(m_handle)
-            == mActiveHandle) {
-        mActiveHandle = get_main_camera_handle(m_handle);
-    } else if (get_main_camera_handle(m_handle)
-            == mActiveHandle) {
-        mActiveHandle = get_aux_camera_handle(m_handle);
+    // Update master camera
+    mMasterCamera = camMaster;
+    return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : getSnapshotHandle
+ *
+ * DESCRIPTION: Get the camera handle for snapshot based on the bundlesnapshot
+ *              flag and active camera state
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : camera handle for snapshot
+ *
+ *==========================================================================*/
+uint32_t QCameraChannel::getSnapshotHandle()
+{
+    uint32_t snapshotHandle = 0;
+
+    if ((mActiveCameras == MM_CAMERA_DUAL_CAM) && mBundledSnapshot) {
+        snapshotHandle = m_handle;
     } else {
-        mActiveHandle = m_handle;
-    }
-    // Swap the active handle
-    if (mActiveCamera == MM_CAMERA_DUAL_CAM) {
-        if (get_aux_camera_handle(m_handle)
-                == mSnapshotHandle) {
-            mSnapshotHandle = get_main_camera_handle(m_handle);
-        } else if (get_main_camera_handle(m_handle)
-                == mSnapshotHandle) {
-            mSnapshotHandle = get_aux_camera_handle(m_handle);
-        }
+        snapshotHandle = (mMasterCamera == MM_CAMERA_TYPE_MAIN) ?
+                get_main_camera_handle(m_handle) : get_aux_camera_handle(m_handle);
     }
 
-    return ret;
+    return snapshotHandle;
 }
 
 /*===========================================================================
@@ -841,8 +823,9 @@ QCameraPicChannel::~QCameraPicChannel()
  *==========================================================================*/
 int32_t QCameraPicChannel::takePicture (mm_camera_req_buf_t *buf)
 {
-    LOGD(" mActiveHandle = 0x%x mSnapshotHandle = 0x%x", mActiveHandle, mSnapshotHandle);
-    int32_t rc = m_camOps->request_super_buf(m_camHandle, mSnapshotHandle, buf);
+    uint32_t snapshotHandle = getSnapshotHandle();
+    LOGD("mSnapshotHandle = 0x%x", snapshotHandle);
+    int32_t rc = m_camOps->request_super_buf(m_camHandle, snapshotHandle, buf);
     return rc;
 }
 
@@ -900,7 +883,7 @@ int32_t QCameraPicChannel::startAdvancedCapture(mm_camera_advanced_capture_t typ
 {
     int32_t rc = NO_ERROR;
 
-    rc = m_camOps->process_advanced_capture(m_camHandle, mSnapshotHandle, type,
+    rc = m_camOps->process_advanced_capture(m_camHandle, getSnapshotHandle(), type,
             1, config);
     return rc;
 }
@@ -980,8 +963,9 @@ QCameraVideoChannel::~QCameraVideoChannel()
  *==========================================================================*/
 int32_t QCameraVideoChannel::takePicture(mm_camera_req_buf_t *buf)
 {
-    LOGD(" mActiveHandle = 0x%x mSnapshotHandle = 0x%x", mActiveHandle, mSnapshotHandle);
-    int32_t rc = m_camOps->request_super_buf(m_camHandle, mSnapshotHandle, buf);
+    uint32_t snapshotHandle = getSnapshotHandle();
+    LOGD("mSnapshotHandle = 0x%x", snapshotHandle);
+    int32_t rc = m_camOps->request_super_buf(m_camHandle, snapshotHandle, buf);
     return rc;
 }
 

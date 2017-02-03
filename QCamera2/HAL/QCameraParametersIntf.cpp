@@ -1489,11 +1489,11 @@ int32_t QCameraParametersIntf::setCameraControls(int32_t controls)
     return mImpl->setCameraControls(controls);
 }
 
-int32_t QCameraParametersIntf::setSwitchCamera()
+int32_t QCameraParametersIntf::setSwitchCamera(uint32_t camMaster)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->setSwitchCamera();
+    return mImpl->setSwitchCamera(camMaster);
 }
 
 int32_t QCameraParametersIntf::setDeferCamera(cam_dual_camera_defer_cmd_t type)

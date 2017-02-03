@@ -907,7 +907,7 @@ public:
     bool isDualCamera() {return m_bDualCamera;};
     int32_t setCameraControls(int32_t controls);
     cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
-    int32_t setSwitchCamera();
+    int32_t setSwitchCamera(uint32_t camMaster);
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
     void setBundledSnapshot(bool value) { mbundledSnapshot = value; }
     int32_t getDualLedCalibration() {return m_dualLedCalibration;};
@@ -1287,8 +1287,8 @@ private:
     uint8_t mAecSkipDisplayFrameBound;
     bool m_bQuadraCfa;
     bool m_bDualCamera;
-    uint32_t mActiveState;
-    uint32_t mActiveCamera;
+    uint32_t mActiveCameras;
+    uint32_t mMasterCamera;
     bool m_bSmallJpegSize;
     cam_stream_type_t mSecureStraemType;
     //Frame number for super parameter
