@@ -661,7 +661,7 @@ public:
              cam_sub_format_type_t &sub_format);
 
     int32_t getStreamDimension(cam_stream_type_t streamType,
-            cam_dimension_t &dim);
+            cam_dimension_t &dim, uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     void getThumbnailSize(int *width, int *height) const;
 
 
@@ -907,10 +907,11 @@ public:
     bool isDualCamera() {return m_bDualCamera;};
     int32_t setCameraControls(int32_t controls);
     cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
-    int32_t setSwitchCamera();
+    int32_t setSwitchCamera(uint32_t camMaster);
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
     void setBundledSnapshot(bool value) { mbundledSnapshot = value; }
     int32_t getDualLedCalibration() {return m_dualLedCalibration;};
+    bool isDCmAsymmetricSnapMode (){return mAsymmetricSnapMode;};
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1120,6 +1121,7 @@ private:
     int32_t updateFrameNumber();
     int32_t SyncDCParams();
     void setSyncDCParams();
+    void setAsymmetricSnapMode();
 
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
@@ -1287,14 +1289,15 @@ private:
     uint8_t mAecSkipDisplayFrameBound;
     bool m_bQuadraCfa;
     bool m_bDualCamera;
-    uint32_t mActiveState;
-    uint32_t mActiveCamera;
+    uint32_t mActiveCameras;
+    uint32_t mMasterCamera;
     bool m_bSmallJpegSize;
     cam_stream_type_t mSecureStraemType;
     //Frame number for super parameter
     uint32_t mFrameNumber;
     uint32_t mSyncDCParam;
     bool mbundledSnapshot;
+    bool mAsymmetricSnapMode;
 };
 
 }; // namespace qcamera

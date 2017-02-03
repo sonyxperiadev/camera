@@ -286,7 +286,8 @@ public:
     virtual int32_t allocateMoreStreamBuf(QCameraMemory *mem_obj,
             size_t size, uint8_t &bufferCnt);
     virtual QCameraHeapMemory *allocateStreamInfoBuf(
-            cam_stream_type_t stream_type, uint8_t bufCount = 1);
+            cam_stream_type_t stream_type, uint8_t bufCount = 1,
+            uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     virtual QCameraHeapMemory *allocateMiscBuf(cam_stream_info_t *streamInfo);
     virtual QCameraMemory *allocateStreamUserBuf(cam_stream_info_t *streamInfo);
     virtual void waitForDeferredAlloc(cam_stream_type_t stream_type);
@@ -305,7 +306,7 @@ public:
     friend class QCameraMuxer;
 
     int32_t initStreamInfoBuf(cam_stream_type_t stream_type,
-            cam_stream_info_t *streamInfo);
+            cam_stream_info_t *streamInfo, uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     void setJpegCallBacks(jpeg_data_callback jpegCb,
             void *callbackCookie);
     int32_t initJpegHandle();
@@ -486,6 +487,8 @@ private:
     uint8_t getBufNumRequired(cam_stream_type_t stream_type);
     uint8_t getBufNumForAux(cam_stream_type_t stream_type);
     bool needFDMetadata(qcamera_ch_type_enum_t channel_type);
+    int32_t getPaddingInfo(cam_stream_type_t streamType,
+            cam_padding_info_t *padding_info);
     int32_t configureOnlineRotation(QCameraChannel &ch);
     int32_t declareSnapshotStreams();
     int32_t unconfigureAdvancedCapture();
@@ -592,18 +595,18 @@ private:
     bool isDisplayFrameToSkip(uint32_t frameId);
     bool isDualCamera() { return mDualCamera; };
     void fillDualCameraFOVControl();
-    uint8_t getStreamRefCount(cam_stream_type_t stream_type);
+    uint8_t getStreamRefCount(cam_stream_type_t stream_type,
+            uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     uint32_t getCamHandleForChannel(qcamera_ch_type_enum_t ch_type);
-    int32_t switchCameraCb();
-    int32_t processCameraControl(uint32_t camState,
-            bool bundledSnapshot, cam_sync_type_t camMasterSnapshot);
+    int32_t switchCameraCb(uint32_t camMaster);
+    int32_t processCameraControl(uint32_t camState, bool bundledSnapshot);
     bool needSyncCB(cam_stream_type_t stream_type);
+    uint32_t getSnapshotHandle();
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
     mm_camera_vtbl_t *mCameraHandle;
-    uint32_t m_ActiveHandle;
-    uint32_t mActiveCamera;
+    uint32_t mActiveCameras;
     uint32_t mMasterCamera;
     bool mBundledSnapshot;
     bool mCameraOpened;

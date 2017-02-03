@@ -979,10 +979,10 @@ int32_t mm_camera_muxer_config_stream(uint32_t camera_handle,
         pthread_mutex_unlock(&cam_obj->muxer_lock);
         if (config->stream_info->aux_str_info != NULL) {
             aux_config.stream_info = config->stream_info->aux_str_info;
+            aux_config.mem_vtbl.get_bufs = NULL;
+            aux_config.mem_vtbl.put_bufs = NULL;
+            aux_config.mem_vtbl.set_config_ops = NULL;
         }
-        aux_config.mem_vtbl.get_bufs = NULL;
-        aux_config.mem_vtbl.put_bufs = NULL;
-        aux_config.mem_vtbl.set_config_ops = NULL;
         rc = mm_camera_config_stream(my_obj, ch_id, stream_id, &aux_config);
     } else {
         pthread_mutex_unlock(&cam_obj->muxer_lock);

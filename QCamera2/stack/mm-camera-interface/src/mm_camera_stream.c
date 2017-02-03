@@ -1702,7 +1702,7 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
         buf_info->buf->cache_flags = 0;
 
         LOGH("VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d,"
-                "queued: %d, buf_type = %d flags = %d",
+                "queued: %d, buf_type = %d flags = %d FD = %d",
                 vb.index, buf_info->buf->frame_idx,
                 my_obj->stream_info->stream_type, rc,
                 my_obj->queued_buffer_count, buf_info->buf->buf_type,

@@ -568,6 +568,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
             m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         }
+        m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         pthread_mutex_unlock(&gCamLock);
 
         rc = mCameraHandle->ops->set_dual_cam_cmd(
@@ -1632,8 +1633,14 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         if ((HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == newStream->format) &&
                 (newStream->usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER)) {
             m_bIsVideo = true;
-            videoWidth = newStream->width;
-            videoHeight = newStream->height;
+            // In HAL3 we can have multiple different video streams.
+            // The variables video width and height are used below as
+            // dimensions of the biggest of them
+            if (videoWidth < newStream->width ||
+                videoHeight < newStream->height) {
+              videoWidth = newStream->width;
+              videoHeight = newStream->height;
+            }
             if ((VIDEO_4K_WIDTH <= newStream->width) &&
                     (VIDEO_4K_HEIGHT <= newStream->height)) {
                 m_bIs4KVideo = true;
@@ -1929,7 +1936,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         return rc;
     }
 
+    cam_feature_mask_t zsl_ppmask = CAM_QCOM_FEATURE_NONE;
     bool isRawStreamRequested = false;
+    bool onlyRaw = true;
     memset(&mStreamConfigInfo, 0, sizeof(cam_stream_size_info_t));
     /* Allocate channel objects for the requested streams */
     for (size_t i = 0; i < streamList->num_streams; i++) {
@@ -1944,22 +1953,29 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         if ((newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
                 || IS_USAGE_ZSL(newStream->usage)) &&
             newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
+            onlyRaw = false; // There is non-raw stream - bypass flag if set
             mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
-            if (bUseCommonFeatureMask) {
-                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
-                        commonFeatureMask;
+            if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
+                if (bUseCommonFeatureMask)
+                    zsl_ppmask = commonFeatureMask;
+                else
+                    zsl_ppmask = CAM_QCOM_FEATURE_NONE;
             } else {
-                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
-                        CAM_QCOM_FEATURE_NONE;
+                if (numStreamsOnEncoder > 0)
+                    zsl_ppmask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                else
+                    zsl_ppmask = CAM_QCOM_FEATURE_NONE;
             }
-
+            mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = zsl_ppmask;
         } else if(newStream->stream_type == CAMERA3_STREAM_INPUT) {
+            onlyRaw = false; // There is non-raw stream - bypass flag if set
                 LOGH("Input stream configured, reprocess config");
         } else {
             //for non zsl streams find out the format
             switch (newStream->format) {
             case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED :
             {
+                onlyRaw = false; // There is non-raw stream - bypass flag if set
                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                         CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                 /* add additional features to pp feature mask */
@@ -2005,6 +2021,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             }
             break;
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
+                onlyRaw = false; // There is non-raw stream - bypass flag if set
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_CALLBACK;
                 if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
                     if (bUseCommonFeatureMask)
@@ -2019,6 +2036,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 }
             break;
             case HAL_PIXEL_FORMAT_BLOB:
+                onlyRaw = false; // There is non-raw stream - bypass flag if set
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
                 // No need to check bSmallJpegSize if ZSL is present since JPEG uses ZSL stream
                 if ((m_bIs4KVideo && !isZsl) || (bSmallJpegSize && !isZsl)) {
@@ -2046,6 +2064,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                                 (int32_t)zslStream->width;
                         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
                                 (int32_t)zslStream->height;
+                        mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                                zsl_ppmask;
                     } else {
                         LOGE("Error, No ZSL stream identified");
                         pthread_mutex_unlock(&mMutex);
@@ -2069,6 +2089,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 isRawStreamRequested = true;
                 break;
             default:
+                onlyRaw = false; // There is non-raw stream - bypass flag if set
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_DEFAULT;
                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = CAM_QCOM_FEATURE_NONE;
                 break;
@@ -2284,8 +2305,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             mStreamConfigInfo.num_streams++;
     }
 
+    if (mOpMode != QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE) {
+        onlyRaw = false;
+    }
+
     // Create analysis stream all the time, even when h/w support is not available
-    {
+    if (!onlyRaw) {
         cam_feature_mask_t analysisFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
         setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
                 gCamCapability[mCameraId]->color_arrangement);
@@ -2369,7 +2394,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         mStreamConfigInfo.num_streams++;
     }
 
-    if (isSupportChannelNeeded(streamList, mStreamConfigInfo)) {
+    if (!onlyRaw && isSupportChannelNeeded(streamList, mStreamConfigInfo)) {
         cam_analysis_info_t supportInfo;
         memset(&supportInfo, 0, sizeof(cam_analysis_info_t));
         cam_feature_mask_t callbackFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
@@ -4466,6 +4491,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 m_pRelCamSyncBuf->cam_role = CAM_ROLE_MONO;
                 m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
             }
+            m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
             pthread_mutex_unlock(&gCamLock);
 
             rc = mCameraHandle->ops->set_dual_cam_cmd(
@@ -5233,6 +5259,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
             m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         }
+        m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         pthread_mutex_unlock(&gCamLock);
 
         rc = mCameraHandle->ops->set_dual_cam_cmd(
@@ -8060,6 +8087,27 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     cam_dimension_t active_array_dim;
     active_array_dim.width = gCamCapability[cameraId]->active_array_size.width;
     active_array_dim.height = gCamCapability[cameraId]->active_array_size.height;
+
+    /*advertise list of input dimensions supported based on below property.
+    By default all sizes upto 5MP will be advertised.
+    Note that the setprop resolution format should be WxH.
+    e.g: adb shell setprop persist.camera.input.minsize 1280x720
+    To list all supported sizes, setprop needs to be set with "0x0" */
+    cam_dimension_t minInputSize = {2592,1944}; //5MP
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.input.minsize", prop, "2592x1944");
+    if (strlen(prop) > 0) {
+        char *saveptr = NULL;
+        char *token = strtok_r(prop, "x", &saveptr);
+        if (token != NULL) {
+            minInputSize.width = atoi(token);
+        }
+        token = strtok_r(NULL, "x", &saveptr);
+        if (token != NULL) {
+            minInputSize.height = atoi(token);
+        }
+    }
+
     /* Add input/output stream configurations for each scalar formats*/
     for (size_t j = 0; j < scalar_formats_count; j++) {
         switch (scalar_formats[j]) {
@@ -8091,20 +8139,19 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                 addStreamConfig(available_stream_configs, scalar_formats[j],
                         gCamCapability[cameraId]->picture_sizes_tbl[i],
                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
-                /* Book keep largest */
-                if (gCamCapability[cameraId]->picture_sizes_tbl[i].width
-                        >= largest_picture_size.width &&
-                        gCamCapability[cameraId]->picture_sizes_tbl[i].height
-                        >= largest_picture_size.height)
-                    largest_picture_size = gCamCapability[cameraId]->picture_sizes_tbl[i];
+                /*For below 2 formats we also support i/p streams for reprocessing advertise those*/
+                if (scalar_formats[j] == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED ||
+                        scalar_formats[j] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+                     if ((gCamCapability[cameraId]->picture_sizes_tbl[i].width
+                            >= minInputSize.width) || (gCamCapability[cameraId]->
+                            picture_sizes_tbl[i].height >= minInputSize.height)) {
+                         addStreamConfig(available_stream_configs, scalar_formats[j],
+                                 gCamCapability[cameraId]->picture_sizes_tbl[i],
+                                 ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
+                     }
+                }
             }
-            /*For below 2 formats we also support i/p streams for reprocessing advertise those*/
-            if (scalar_formats[j] == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED ||
-                    scalar_formats[j] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-                 addStreamConfig(available_stream_configs, scalar_formats[j],
-                         largest_picture_size,
-                         ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT);
-            }
+
             break;
         }
     }

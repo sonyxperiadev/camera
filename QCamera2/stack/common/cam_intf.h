@@ -121,6 +121,8 @@ typedef struct {
     uint8_t is_frame_sync_enabled;
     /*Low power mode type. Static info per device*/
     cam_dual_camera_perf_mode_t perf_mode;
+    /*flag indicating if hw-sync is enabled*/
+    uint8_t is_hw_sync_enabled;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 
@@ -656,6 +658,7 @@ typedef enum {
     CAM_STREAM_PARAM_TYPE_GET_IMG_PROP = CAM_INTF_PARM_GET_IMG_PROP,
     CAM_STREAM_PARAM_TYPE_REQUEST_FRAMES = CAM_INTF_PARM_REQUEST_FRAMES,
     CAM_STREAM_PARAM_TYPE_REQUEST_OPS_MODE = CAM_INTF_PARM_REQUEST_OPS_MODE,
+    CAM_STREAM_PARAM_TYPE_FLUSH_FRAME = CAM_INTF_PARM_FLUSH_FRAMES,
     CAM_STREAM_PARAM_TYPE_MAX
 } cam_stream_param_type_e;
 
