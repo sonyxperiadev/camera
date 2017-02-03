@@ -1268,19 +1268,20 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
     int32_t rc = NO_ERROR;
     int index = -1;
     QCameraVideoMemory *mVideoMem = NULL;
+    bool needPerfEvet = FALSE;
 
     if ((mStreamInfo != NULL)
             && (mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH)
             && (mStreamBatchBufs != NULL)) {
-        index = mStreamBatchBufs->getMatchBufIndex(opaque, isMetaData);
         mVideoMem = (QCameraVideoMemory *)mStreamBatchBufs;
     } else if (mStreamBufs != NULL){
-        index = mStreamBufs->getMatchBufIndex(opaque, isMetaData);
         mVideoMem = (QCameraVideoMemory *)mStreamBufs;
     }
 
     //Close and delete duplicated native handle and FD's.
     if (mVideoMem != NULL) {
+        index = mVideoMem->getMatchBufIndex(opaque, isMetaData);
+        needPerfEvet = mVideoMem->needPerfEvent(opaque, isMetaData);
         rc = mVideoMem->closeNativeHandle(opaque, isMetaData);
         if (rc != NO_ERROR) {
             LOGE("Invalid video metadata");
@@ -1293,6 +1294,14 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
     if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
         LOGE("Cannot find buf for opaque data = %p", opaque);
         return BAD_INDEX;
+    }
+
+    if (needPerfEvet == TRUE) {
+        //Trigger Perf Flush event to back-end
+        cam_stream_parm_buffer_t param;
+        memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+        param.type = CAM_STREAM_PARAM_TYPE_FLUSH_FRAME;
+        rc = setParameter(param);
     }
 
     if ((CAMERA_MIN_VIDEO_BATCH_BUFFERS > index)
