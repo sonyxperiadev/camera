@@ -812,7 +812,7 @@ public:
     bool isUBWCEnabled();
 
     int getBrightness();
-    int32_t updateOisValue(bool oisValue);
+    int32_t updateOisMode(cam_ois_mode_t oisMode);
     int32_t setIntEvent(cam_int_evt_params_t params);
     bool getofflineRAW() {return mOfflineRAW;}
     bool getQuadraCfa();
@@ -1218,7 +1218,7 @@ private:
     bool m_bLocalHDREnabled;   // This flag tells whether HDR enabled or not regarless of APP mode
     bool m_bAVTimerEnabled;    //if AVTimer is enabled
     bool m_bDISEnabled;
-    bool m_bOISEnabled;
+    cam_ois_mode_t m_bOISMode;
     cam_still_more_t m_stillmore_config;
     bool m_bMetaRawEnabled;
 

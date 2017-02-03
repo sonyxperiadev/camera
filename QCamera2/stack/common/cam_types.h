@@ -1767,6 +1767,12 @@ typedef enum {
     CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
 } cam_3a_sync_mode_t;
 
+typedef enum {
+    OIS_MODE_INACTIVE,
+    OIS_MODE_ACTIVE,
+    OIS_MODE_HOLD,
+} cam_ois_mode_t;
+
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
     uint32_t num_streams;

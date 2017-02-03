@@ -36,6 +36,15 @@ typedef enum {
     ISPIF_FRAME_DROP
 } dual_cam_low_power_mode;
 
+typedef enum {
+    OIS_HOLD,
+    OIS_ACTIVE_IN_LPM
+} dual_cam_ois_setting;
+// OIS_HOLD: This is partially active OIS with servo control enabled and gyro control disabled.
+// In this mode, the lens moves back to its hold position indicated in the OTP calibration data.
+// OIS_ACTIVE_IN_LPM: This setting dynamically chooses between ACTIVE and HOLD modes based on
+// active camera state. It activates OIS when one of the cameras goes into LPM. When both
+// the cameras stream, HOLD mode gets selected.
 
 // Dual camera settings
 
@@ -50,6 +59,10 @@ typedef enum {
 // under dual_cam_low_power_mode.
 #define DUALCAM_LPM_MAIN                   (ISPIF_FRAME_DROP)
 #define DUALCAM_LPM_AUX                    (SENSOR_SLEEP)
+
+// This setting indicates the OIS modes for camera and camcorder modes
+#define DUALCAM_OIS_MODE_CAM               (OIS_ACTIVE_IN_LPM)
+#define DUALCAM_OIS_MODE_CAMCORDER         (OIS_HOLD)
 
 
 // FOV-control settings

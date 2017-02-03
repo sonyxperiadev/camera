@@ -3921,7 +3921,7 @@ int QCamera2HardwareInterface::startPreview()
 int32_t QCamera2HardwareInterface::updatePostPreviewParameters() {
     // Enable OIS only in Camera mode and 4k2k camcoder mode
     int32_t rc = NO_ERROR;
-    rc = mParameters.updateOisValue(1);
+    rc = mParameters.updateOisMode(OIS_MODE_ACTIVE);
     return NO_ERROR;
 }
 
@@ -7166,6 +7166,9 @@ void QCamera2HardwareInterface::processDualCamFovControl()
 
         processCameraControl(activeCameras, bundledSnapshot);
         switchCameraCb(fovControlResult.camMasterPreview);
+
+        // Update OIS mode based on the value in FOV-control result
+        mParameters.updateOisMode(fovControlResult.oisMode);
     }
 }
 
