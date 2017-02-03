@@ -273,13 +273,18 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
             }
         }
 
-        // Choose the smaller of the two max picture dimensions
-        if ((maxPicDimAux.width * maxPicDimAux.height) <
+        LOGH("MAIN Max picture wxh %dx%d", maxPicDimMain.width, maxPicDimMain.height);
+        LOGH("AUX Max picture wxh %dx%d", maxPicDimAux.width, maxPicDimAux.height);
+
+        // Choose the larger of the two max picture dimensions
+        if ((maxPicDimAux.width * maxPicDimAux.height) >
                 (maxPicDimMain.width * maxPicDimMain.height)) {
             capsConsolidated.picture_sizes_tbl_cnt = capsAuxCam->picture_sizes_tbl_cnt;
             memcpy(capsConsolidated.picture_sizes_tbl, capsAuxCam->picture_sizes_tbl,
                     (capsAuxCam->picture_sizes_tbl_cnt * sizeof(cam_dimension_t)));
         }
+        LOGH("Consolidated Max picture wxh %dx%d", capsConsolidated.picture_sizes_tbl[0].width,
+                capsConsolidated.picture_sizes_tbl[0].height);
 
         // Consolidate supported preview formats
         uint32_t supportedPreviewFmtCntMain  = capsMainCam->supported_preview_fmt_cnt;

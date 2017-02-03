@@ -381,6 +381,12 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mSyncCBEnabled(false)
 {
     mDualStream = is_dual_camera_by_handle(chId);
+    if (get_main_camera_handle(chId)) {
+        mCamType = MM_CAMERA_TYPE_MAIN;
+    }
+    if (get_aux_camera_handle(chId)) {
+        mCamType |= MM_CAMERA_TYPE_AUX;
+    }
     mMemVtbl.user_data = this;
     if ( !deffered ) {
         mMemVtbl.get_bufs = get_bufs;
@@ -636,7 +642,8 @@ int32_t QCameraStream::mapBufs(QCameraMemory *Buf,
 
         if ((bufType == CAM_MAPPING_BUF_TYPE_STREAM_INFO)
                 || (bufType == CAM_MAPPING_BUF_TYPE_MISC_BUF)) {
-            if (i > 0 && isDualStream()) {
+            if ((i > 0 && isDualStream()) ||
+                    (mCamType == MM_CAMERA_TYPE_AUX)) {
                 activeHandle = get_aux_camera_handle(mHandle);
             } else {
                 activeHandle = get_main_camera_handle(mHandle);
@@ -765,10 +772,15 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         rc = UNKNOWN_ERROR;
         goto done;
     }
-    mActiveCameras = MM_CAMERA_TYPE_MAIN;
-    mMasterCamera  = MM_CAMERA_TYPE_MAIN;
-    if (isDualStream()) {
+
+    mMasterCamera = MM_CAMERA_TYPE_MAIN;
+    if (mCamType & MM_CAMERA_TYPE_MAIN) {
+        mActiveCameras = MM_CAMERA_TYPE_MAIN;
+    }
+    if (mCamType & MM_CAMERA_TYPE_AUX) {
         mActiveCameras |= MM_CAMERA_TYPE_AUX;
+    }
+    if (isDualStream()) {
         if (needFrameSync()) {
             mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                     mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);

@@ -2879,6 +2879,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
  *
  * PARAMETERS :
  *   @stream_type  : type of stream
+ *   @cam_type      : Type of camera for this stream
  *
  * RETURN     : number of stream instances
  * NOTE      :  Based on the use cases and auxillary camera type,
@@ -2886,9 +2887,15 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
                      For example in wide and tele use case, we duplicate all stream
                      streams from premary to auxillary.
  *==========================================================================*/
-uint8_t QCamera2HardwareInterface::getStreamRefCount(cam_stream_type_t stream_type)
+uint8_t QCamera2HardwareInterface::getStreamRefCount(cam_stream_type_t stream_type,
+        uint32_t cam_type)
 {
     uint8_t ref_cnt = 1;
+
+    if (cam_type != MM_CAMERA_DUAL_CAM) {
+        return ref_cnt;
+    }
+
     switch (stream_type) {
     case CAM_STREAM_TYPE_PREVIEW:
     case CAM_STREAM_TYPE_SNAPSHOT:
@@ -2946,7 +2953,13 @@ uint32_t QCamera2HardwareInterface::getCamHandleForChannel(qcamera_ch_type_enum_
         handle = mCameraHandle->camera_handle;
         break;
     case QCAMERA_CH_TYPE_REPROCESSING:
-        handle = get_main_camera_handle(mCameraHandle->camera_handle);
+        if (!mParameters.isDCmAsymmetricSnapMode()) {
+            handle = get_main_camera_handle(mCameraHandle->camera_handle);
+        } else {
+            /*In Asymmetric mode, we create 2 reproc channels. But
+                     one stream is added per channel */
+            handle = mCameraHandle->camera_handle;
+        }
         break;
     }
     return handle;
@@ -3273,12 +3286,13 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateMiscBuf(
  *
  * PARAMETERS :
  *   @stream_type  : type of stream
+ *   @cam_type      : Camera type in case of dual camera
  *
  * RETURN     : ptr to a memory obj that holds stream info buffer.
  *              NULL if failed
  *==========================================================================*/
 int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
-            cam_stream_info_t *streamInfo)
+            cam_stream_info_t *streamInfo, uint32_t cam_type)
 {
     int rc = NO_ERROR;
     int32_t dt = 0;
@@ -3287,7 +3301,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     memset(streamInfo, 0, sizeof(cam_stream_info_t));
     streamInfo->stream_type = stream_type;
     rc = mParameters.getStreamFormat(stream_type, streamInfo->fmt);
-    rc = mParameters.getStreamDimension(stream_type, streamInfo->dim);
+    rc = mParameters.getStreamDimension(stream_type, streamInfo->dim, cam_type);
     rc = mParameters.getStreamRotation(stream_type, streamInfo->pp_config, streamInfo->dim);
     streamInfo->num_bufs = getBufNumRequired(stream_type);
     streamInfo->buf_cnt = streamInfo->num_bufs;
@@ -3466,12 +3480,13 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
  * PARAMETERS :
  *   @stream_type  : type of stream
  *   @bufCount       : stream info buffer count
+ *   @cam_type     : Camera type in case of dual camera
  *
  * RETURN     : ptr to a memory obj that holds stream info buffer.
  *              NULL if failed
  *==========================================================================*/
 QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
-        cam_stream_type_t stream_type, uint8_t bufCount)
+        cam_stream_type_t stream_type, uint8_t bufCount, uint32_t cam_type)
 {
     int rc = NO_ERROR;
 
@@ -3495,7 +3510,7 @@ QCameraHeapMemory *QCamera2HardwareInterface::allocateStreamInfoBuf(
     for (uint8_t i = 0; i < bufCount; i++) {
         cam_stream_info_t *streamInfo = (cam_stream_info_t *)streamInfoBuf->getPtr(i);
         memset(streamInfo, 0, sizeof(cam_stream_info_t));
-        rc = initStreamInfoBuf(stream_type, streamInfo);
+        rc = initStreamInfoBuf(stream_type, streamInfo, cam_type);
         if (rc < 0) {
             LOGE("initStreamInfoBuf failed");
             delete streamInfoBuf;
@@ -7416,6 +7431,57 @@ int32_t QCamera2HardwareInterface::prepareRawStream(QCameraChannel *curChannel)
 }
 
 /*===========================================================================
+ * FUNCTION   : getPaddingInfo
+ *
+ * DESCRIPTION: calculate padding per stream
+ *
+ * PARAMETERS :
+ *   @streamType  : type of stream to be added
+ *   @padding_info : Padding info. Output
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::getPaddingInfo(cam_stream_type_t streamType,
+        cam_padding_info_t *padding_info)
+{
+    int32_t rc = NO_ERROR;
+    if (streamType == CAM_STREAM_TYPE_ANALYSIS) {
+        cam_analysis_info_t analysisInfo;
+        cam_feature_mask_t featureMask;
+
+        featureMask = 0;
+        mParameters.getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
+        rc = mParameters.getAnalysisInfo(
+                ((mParameters.getRecordingHintValue() == true) &&
+                 mParameters.fdModeInVideo()),
+                featureMask,
+                &analysisInfo);
+        if (rc != NO_ERROR) {
+            LOGE("getAnalysisInfo failed, ret = %d", rc);
+            return rc;
+        }
+
+        *padding_info = analysisInfo.analysis_padding_info;
+    } else {
+        *padding_info =
+                gCamCapability[mCameraId]->padding_info;
+        if (streamType == CAM_STREAM_TYPE_PREVIEW || streamType == CAM_STREAM_TYPE_POSTVIEW) {
+            padding_info->width_padding = mSurfaceStridePadding;
+            padding_info->height_padding = CAM_PAD_TO_2;
+        }
+        if((!needReprocess())
+                || (streamType != CAM_STREAM_TYPE_SNAPSHOT)
+                || (!mParameters.isLLNoiseEnabled())) {
+            padding_info->offset_info.offset_x = 0;
+            padding_info->offset_info.offset_y = 0;
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : addStreamToChannel
  *
  * DESCRIPTION: add a stream into a channel
@@ -7437,12 +7503,24 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
 {
     int32_t rc = NO_ERROR;
     QCameraHeapMemory *pStreamInfo = NULL;
+    uint32_t cam_type = MM_CAMERA_TYPE_MAIN;
+    bool needAuxStream = FALSE;
 
     if (streamType == CAM_STREAM_TYPE_RAW) {
         prepareRawStream(pChannel);
     }
 
-    pStreamInfo = allocateStreamInfoBuf(streamType, getStreamRefCount(streamType));
+    if (isDualCamera()) {
+        if (!((mParameters.isDCmAsymmetricSnapMode()) &&
+                (streamType == CAM_STREAM_TYPE_SNAPSHOT))) {
+            cam_type |= MM_CAMERA_TYPE_AUX;
+        } else {
+            needAuxStream = TRUE;
+        }
+    }
+
+    pStreamInfo = allocateStreamInfoBuf(streamType,
+            getStreamRefCount(streamType, cam_type), cam_type);
     if (pStreamInfo == NULL) {
         LOGE("no mem for stream info buf");
         return NO_MEMORY;
@@ -7454,56 +7532,41 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
     }
 
     cam_padding_info_t padding_info;
-
-    if (streamType == CAM_STREAM_TYPE_ANALYSIS) {
-        cam_analysis_info_t analysisInfo;
-        cam_feature_mask_t featureMask;
-
-        featureMask = 0;
-        mParameters.getStreamPpMask(CAM_STREAM_TYPE_ANALYSIS, featureMask);
-        rc = mParameters.getAnalysisInfo(
-                ((mParameters.getRecordingHintValue() == true) &&
-                 mParameters.fdModeInVideo()),
-                featureMask,
-                &analysisInfo);
-        if (rc != NO_ERROR) {
-            LOGE("getAnalysisInfo failed, ret = %d", rc);
-            return rc;
-        }
-
-        padding_info = analysisInfo.analysis_padding_info;
-    } else {
-        padding_info =
-                gCamCapability[mCameraId]->padding_info;
-        if (streamType == CAM_STREAM_TYPE_PREVIEW || streamType == CAM_STREAM_TYPE_POSTVIEW) {
-            padding_info.width_padding = mSurfaceStridePadding;
-            padding_info.height_padding = CAM_PAD_TO_2;
-        }
-        if((!needReprocess())
-                || (streamType != CAM_STREAM_TYPE_SNAPSHOT)
-                || (!mParameters.isLLNoiseEnabled())) {
-            padding_info.offset_info.offset_x = 0;
-            padding_info.offset_info.offset_y = 0;
-        }
-    }
+    getPaddingInfo(streamType, &padding_info);
 
     bool deferAllocation = needDeferred(streamType);
     LOGD("deferAllocation = %d bDynAllocBuf = %d, stream type = %d",
             deferAllocation, bDynAllocBuf, streamType);
     rc = pChannel->addStream(*this,
-            pStreamInfo,
-            NULL,
-            &padding_info,
-            streamCB, userData,
-            bDynAllocBuf,
-            deferAllocation);
+            pStreamInfo, NULL, &padding_info,
+            streamCB, userData, bDynAllocBuf,
+            deferAllocation, ROTATE_0, cam_type);
 
     if (rc != NO_ERROR) {
-        LOGE("add stream type (%d) failed, ret = %d",
-               streamType, rc);
+        LOGE("add stream type (%d) cam = %d failed, ret = %d",
+               streamType, cam_type, rc);
         return rc;
     }
 
+    /*Add stream for Asymmetric dual camera use case*/
+    if (needAuxStream) {
+        cam_type = MM_CAMERA_TYPE_AUX;
+        pStreamInfo = allocateStreamInfoBuf(streamType,
+                getStreamRefCount(streamType, cam_type), cam_type);
+        if (pStreamInfo == NULL) {
+            LOGE("no mem for stream info buf");
+            return NO_MEMORY;
+        }
+        rc = pChannel->addStream(*this,
+                pStreamInfo, NULL, &padding_info,
+                streamCB, userData, bDynAllocBuf,
+                deferAllocation, ROTATE_0, cam_type);
+        if (rc != NO_ERROR) {
+            LOGE("add stream type (%d) cam = %d failed, ret = %d",
+                   streamType, cam_type, rc);
+            return rc;
+        }
+    }
     return rc;
 }
 
