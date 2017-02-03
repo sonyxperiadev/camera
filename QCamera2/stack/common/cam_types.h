@@ -1874,6 +1874,9 @@ typedef struct {
     uint8_t                is_output_shift_valid;
     cam_sac_output_shift_t output_shift;
     cam_dimension_t        reference_res_for_output_shift;
+    uint8_t                is_focus_roi_shift_valid;
+    cam_sac_output_shift_t focus_roi_shift;
+    cam_dimension_t        reference_res_for_focus_roi_shift;
 } cam_sac_output_info_t;
 
 
@@ -2401,6 +2404,10 @@ typedef enum {
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     /* AF focus position info */
     CAM_INTF_META_AF_FOCUS_POS,
+    /* AEC LUX index */
+    CAM_INTF_META_AEC_LUX_INDEX,
+    /* Object's focus distance in cm*/
+    CAM_INTF_META_AF_OBJ_DIST_CM,
     /* Binning Correction Algorithm */
     CAM_INTF_META_BINNING_CORRECTION_MODE,
     /* Read Sensor OIS data */
@@ -2638,6 +2645,7 @@ typedef struct {
 #define CAM_QTI_FEATURE_SAC             (((cam_feature_mask_t)1UL)<<42)
 #define CAM_QTI_FEATURE_RTBDM           (((cam_feature_mask_t)1UL)<<43)
 #define CAM_QTI_FEATURE_BINNING_CORRECTION (((cam_feature_mask_t)1UL)<<44)
+#define CAM_QTI_FEATURE_RTB             (((cam_feature_mask_t)1UL)<<45)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\

@@ -415,7 +415,6 @@ private:
     QCamera3RawDumpChannel *mRawDumpChannel;
     QCamera3RegularChannel *mDummyBatchChannel;
     QCameraPerfLockMgr mPerfLockMgr;
-    QCameraCommon   mCommon;
 
     uint32_t mChannelHandle;
 
@@ -541,6 +540,7 @@ private:
 public:
     uint8_t mOpMode;
     bool mStreamConfig;
+    QCameraCommon   mCommon;
 private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;

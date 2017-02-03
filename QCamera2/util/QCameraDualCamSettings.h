@@ -34,7 +34,7 @@ typedef enum {
     NONE,
     SENSOR_SLEEP,
     ISPIF_FRAME_DROP
-} dual_cam_lpm_mode;
+} dual_cam_low_power_mode;
 
 
 // Dual camera settings
@@ -46,10 +46,10 @@ typedef enum {
 // into low power mode.
 #define DUALCAM_LPM_ENABLE                      (1)
 
-// This setting indicates LPM modes for two cameras. Possible LPM modes are listed
-// under dual_cam_lpm_mode.
-#define DUALCAM_LPM_MODE_MAIN                   (NONE)
-#define DUALCAM_LPM_MODE_AUX                    (SENSOR_SLEEP)
+// This setting indicates low power modes for two cameras. Possible low power modes are listed
+// under dual_cam_low_power_mode.
+#define DUALCAM_LPM_MAIN                   (ISPIF_FRAME_DROP)
+#define DUALCAM_LPM_AUX                    (SENSOR_SLEEP)
 
 
 // FOV-control settings
@@ -95,5 +95,18 @@ typedef enum {
 // these thresholds, camera preview will not switch from main to aux.
 #define FOVC_AUXCAM_SWITCH_LUX_MIN              (100)
 #define FOVC_AUXCAM_SWITCH_FOCUS_DIST_CM_MIN    (15)
+
+// This setting indicates the threshold for zoom stable count in terms of number of frames.
+// This is a power optimization setting. When in the transition zone, if the zoom doesn't
+// change for thse many frames, the non-master camera is put in LPM.
+#define FOVC_ZOOM_STABLE_COUNT_THRESHOLD        (15)
+
+// This setting indicates the threshold for focus distance stable count in terms of number of frames
+// This threshold is used for the macro scene focus and change the camera state accordingly.
+#define FOVC_FOCUS_DIST_STABLE_COUNT_THRESHOLD  (15)
+
+// This setting indicates the threshold for brightness stable count in terms of number of frames.
+// This threshold is used for the low light condition and change the camera state accordingly.
+#define FOVC_BRIGHTNESS_STABLE_COUNT_THRESHOLD  (15)
 
 #endif /* __QCAMERADUALCAM_H__ */

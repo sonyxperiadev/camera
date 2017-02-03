@@ -64,16 +64,21 @@ typedef enum {
     ZOOM_OUT
 } dual_cam_zoom_dir;
 
+typedef enum {
+    CAM_TYPE_WIDE,
+    CAM_TYPE_TELE
+} cam_type;
+
 
 
 typedef struct {
     ae_status status;
-    uint16_t  lux;
+    float     luxIndex;
 } ae_info;
 
 typedef struct {
     af_status status;
-    uint16_t  focusDistCm;
+    uint32_t  focusDistCm;
 } af_info;
 
 typedef struct {
@@ -87,8 +92,8 @@ typedef struct {
 } dual_cam_3A_status_t;
 
 typedef struct {
-    uint32_t shiftHorz;
-    uint32_t shiftVert;
+    int32_t shiftHorz;
+    int32_t shiftVert;
 } spatial_align_shift_t;
 
 typedef struct {
@@ -99,6 +104,8 @@ typedef struct {
     uint32_t              activeCameras;
     spatial_align_shift_t shiftWide;
     spatial_align_shift_t shiftTele;
+    spatial_align_shift_t shiftAfRoiWide;
+    spatial_align_shift_t shiftAfRoiTele;
 } spatial_align_result_t;
 
 typedef struct {
@@ -122,7 +129,6 @@ typedef struct {
     uint32_t                    *zoomRatioTable;
     uint32_t                     zoomRatioTableCount;
     uint32_t                     zoomStableCount;
-    uint32_t                     zoomStableCountThreshold;
     dual_cam_zoom_dir            zoomDirection;
     cam_sync_type_t              camWide;
     cam_sync_type_t              camTele;
@@ -131,8 +137,6 @@ typedef struct {
     cam_dimension_t              previewSize;
     spatial_align_result_t       spatialAlignResult;
     uint32_t                     availableSpatialAlignSolns;
-    uint32_t                     shiftHorzAdjusted;
-    uint32_t                     shiftVertAdjusted;
     float                        camMainWidthMargin;
     float                        camMainHeightMargin;
     float                        camAuxWidthMargin;
@@ -144,12 +148,11 @@ typedef struct {
     bool                         fallbackToWide;
     float                        basicFovRatio;
     uint32_t                     brightnessStableCount;
-    uint32_t                     brightnessStableCountThreshold;
     uint32_t                     focusDistStableCount;
-    uint32_t                     focusDistStableCountThreshold;
     dual_cam_transition_params_t transitionParams;
     uint32_t                     afStatusMain;
     uint32_t                     afStatusAux;
+    bool                         lpmEnabled;
 } fov_control_data_t;
 
 typedef struct {
@@ -167,6 +170,9 @@ typedef struct {
     uint32_t waitTimeForHandoffMs;
     uint16_t auxSwitchBrightnessMin;
     uint16_t auxSwitchFocusDistCmMin;
+    uint16_t zoomStableCountThreshold;
+    uint16_t focusDistStableCountThreshold;
+    uint16_t brightnessStableCountThreshold;
     snapshot_pp_config_t snapshotPPConfig;
 } fov_control_config_t;
 
@@ -179,10 +185,6 @@ typedef struct{
 
 typedef struct {
     uint32_t               minFocusDistanceCm;
-    float                  baselineMm;
-    float                  rollDegrees;
-    float                  pitchDegrees;
-    float                  yawDegrees;
     cam_relative_position  positionAux;
     intrinsic_cam_params_t paramsMain;
     intrinsic_cam_params_t paramsAux;
@@ -223,14 +225,16 @@ private:
     uint32_t readjustZoomForWide(uint32_t zoomTele);
     uint32_t findZoomRatio(uint32_t zoom);
     inline uint32_t findZoomValue(uint32_t zoomRatio);
-    cam_face_detection_data_t translateRoiFD(cam_face_detection_data_t faceDetectionInfo);
-    cam_roi_info_t translateFocusAreas(cam_roi_info_t roiAfMain);
-    cam_set_aec_roi_t translateMeteringAreas(cam_set_aec_roi_t roiAecMain);
-    void convertDisparityForInputParams();
+    cam_face_detection_data_t translateRoiFD(cam_face_detection_data_t faceDetectionInfo,
+            cam_sync_type_t cam);
+    cam_roi_info_t translateFocusAreas(cam_roi_info_t roiAfMain, cam_sync_type_t cam);
+    cam_set_aec_roi_t translateMeteringAreas(cam_set_aec_roi_t roiAecMain, cam_sync_type_t cam);
     void generateFovControlResult();
     bool isMainCamFovWider();
     bool isSpatialAlignmentReady();
     void resetVars();
+    bool canSwitchMasterTo(cam_type cam);
+    bool sacRequestedDualZone();
 
     Mutex                           mMutex;
     fov_control_config_t            mFovControlConfig;

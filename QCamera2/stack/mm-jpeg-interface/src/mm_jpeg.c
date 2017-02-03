@@ -1974,7 +1974,7 @@ static OMX_ERRORTYPE mm_jpeg_session_encode(mm_jpeg_job_session_t *p_session)
     char thumb_filename[FILENAME_MAX];
     snprintf(thumb_filename, sizeof(thumb_filename),
       QCAMERA_DUMP_FRM_LOCATION"jpeg/mm_jpeg_int_t%d.yuv", p_session->ebd_count);
-    DUMP_TO_FILE(filename, p_in_thumb_buf->pBuffer,
+    DUMP_TO_FILE(thumb_filename, p_in_thumb_buf->pBuffer,
       (size_t)p_in_thumb_buf->nAllocLen);
 #endif
     ret = OMX_EmptyThisBuffer(p_session->omx_handle, p_in_thumb_buf);
