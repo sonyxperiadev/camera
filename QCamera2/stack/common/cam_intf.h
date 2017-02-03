@@ -121,6 +121,8 @@ typedef struct {
     uint8_t is_frame_sync_enabled;
     /*Low power mode type. Static info per device*/
     cam_dual_camera_perf_mode_t perf_mode;
+    /*flag indicating if hw-sync is enabled*/
+    uint8_t is_hw_sync_enabled;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 

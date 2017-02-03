@@ -568,6 +568,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
             m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         }
+        m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         pthread_mutex_unlock(&gCamLock);
 
         rc = mCameraHandle->ops->set_dual_cam_cmd(
@@ -4479,6 +4480,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 m_pRelCamSyncBuf->cam_role = CAM_ROLE_MONO;
                 m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
             }
+            m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
             pthread_mutex_unlock(&gCamLock);
 
             rc = mCameraHandle->ops->set_dual_cam_cmd(
@@ -5246,6 +5248,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
             m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         }
+        m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         pthread_mutex_unlock(&gCamLock);
 
         rc = mCameraHandle->ops->set_dual_cam_cmd(
