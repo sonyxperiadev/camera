@@ -69,6 +69,17 @@ typedef enum {
 } cam_sync_related_sensors_control_t;
 
 typedef enum {
+    /* Absence of any sync mechanism */
+    CAM_SYNC_NO_SYNC,
+    /* Sensor turns on hw-sync */
+    CAM_SYNC_HW_SYNC,
+    /* Sensor ensures the phase difference is kept close to zero */
+    CAM_SYNC_SW_SYNC,
+    /* Sensor turns on hw-sync and also injects phase as needed */
+    CAM_SYNC_HYBRID_SYNC
+} cam_sync_mechanism_t;
+
+typedef enum {
     /* Driving camera of the related camera sub-system */
     /* Certain features are enabled only for primary camera
        such as display mode for preview, autofocus etc
@@ -110,6 +121,7 @@ typedef enum {
 /* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;
+    cam_sync_mechanism_t sync_mechanism;
     cam_sync_type_t type;
     cam_sync_mode_t mode;
     cam_3a_sync_mode_t sync_3a_mode;
@@ -118,11 +130,8 @@ typedef struct {
        Linking will be done with this session in the
        backend */
     uint32_t related_sensor_session_id;
-    uint8_t is_frame_sync_enabled;
     /*Low power mode type. Static info per device*/
     cam_dual_camera_perf_mode_t perf_mode;
-    /*flag indicating if hw-sync is enabled*/
-    uint8_t is_hw_sync_enabled;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 
