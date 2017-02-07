@@ -6943,7 +6943,7 @@ int32_t QCamera2HardwareInterface::processHDRData(
 int32_t QCamera2HardwareInterface::processLEDCalibration(int32_t value)
 {
     int32_t rc = NO_ERROR;
-
+#ifndef VANILLA_HAL
     if (mParameters.getDualLedCalibration()) {
         LOGH("Dual LED calibration value = %d", value);
         int32_t data_len = sizeof(value);
@@ -6982,6 +6982,9 @@ int32_t QCamera2HardwareInterface::processLEDCalibration(int32_t value)
             buffer->release(buffer);
         }
     }
+#else
+    (void)value;  // unused
+#endif
     return rc;
 }
 
