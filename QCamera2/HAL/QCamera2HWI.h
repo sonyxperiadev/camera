@@ -282,7 +282,8 @@ public:
 
     // Implementation of QCameraAllocator
     virtual QCameraMemory *allocateStreamBuf(cam_stream_type_t stream_type,
-            size_t size, int stride, int scanline, uint8_t &bufferCnt);
+            size_t size, int stride, int scanline, uint8_t &bufferCnt,
+            uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     virtual int32_t allocateMoreStreamBuf(QCameraMemory *mem_obj,
             size_t size, uint8_t &bufferCnt);
     virtual QCameraHeapMemory *allocateStreamInfoBuf(
@@ -472,7 +473,8 @@ private:
     int32_t prepareHardwareForSnapshot(int32_t afNeeded);
     bool needProcessPreviewFrame(uint32_t frameID);
     bool needSendPreviewCallback();
-    bool isNoDisplayMode() {return mParameters.isNoDisplayMode();};
+    bool isNoDisplayMode(uint32_t cam_type) {
+        return mParameters.isNoDisplayMode(cam_type); };
     bool isZSLMode() {return mParameters.isZSLMode();};
     bool isRdiMode() {return mParameters.isRdiMode();};
     uint8_t numOfSnapshotsExpected() {
@@ -484,7 +486,8 @@ private:
     void setRetroPicture(bool enable) { bRetroPicture = enable; };
     bool isRetroPicture() {return bRetroPicture; };
     bool isHDRMode() {return mParameters.isHDREnabled();};
-    uint8_t getBufNumRequired(cam_stream_type_t stream_type);
+    uint8_t getBufNumRequired(cam_stream_type_t stream_type,
+            uint32_t cam_type = CAM_TYPE_MAIN);
     uint8_t getBufNumForAux(cam_stream_type_t stream_type);
     bool needFDMetadata(qcamera_ch_type_enum_t channel_type);
     int32_t getPaddingInfo(cam_stream_type_t streamType,

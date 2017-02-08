@@ -96,6 +96,7 @@ public:
     QCameraHeapMemory *getMiscBuf() {return mMiscBuf;};
     uint32_t getMyServerID();
     cam_stream_type_t getMyType();
+    bool isStreamSyncCbNeeded();
     cam_stream_type_t getMyOriginalType();
     int32_t acquireStreamBufs();
 

@@ -2889,8 +2889,8 @@ static int32_t mm_camera_intf_register_stream_buf_cb(uint32_t camera_handle,
     uint32_t strid = get_main_camera_handle(stream_id);
     uint32_t aux_strid = get_aux_camera_handle(stream_id);
 
-    LOGD("E handle = %u ch_id = %u",
-          camera_handle, ch_id);
+    LOGD("E handle = %u ch_id = %u stream_id = %d strid: %d aux_strid: %d",
+          camera_handle, ch_id, stream_id, strid, aux_strid);
 
     if (strid) {
         pthread_mutex_lock(&g_intf_lock);

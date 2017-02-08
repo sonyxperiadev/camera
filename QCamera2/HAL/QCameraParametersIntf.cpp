@@ -240,11 +240,11 @@ cam_stream_type_t QCameraParametersIntf::getSecureStreamType()
     return mImpl->getSecureStreamType();
 }
 
-bool QCameraParametersIntf::isNoDisplayMode()
+bool QCameraParametersIntf::isNoDisplayMode(uint32_t cam_type)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->isNoDisplayMode();
+    return mImpl->isNoDisplayMode(cam_type);
 }
 
 bool QCameraParametersIntf::isWNREnabled()
@@ -1530,6 +1530,12 @@ int32_t QCameraParametersIntf::getDualLedCalibration()
     CHECK_PARAM_INTF(mImpl);
     return mImpl->getDualLedCalibration();
 }
+cam_hal_pp_type_t QCameraParametersIntf::getHalPPType()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getHalPPType();
+}
 
 bool QCameraParametersIntf::isLinkPreviewForLiveShot()
 {
@@ -1543,6 +1549,13 @@ bool QCameraParametersIntf::isDCmAsymmetricSnapMode()
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->isDCmAsymmetricSnapMode();
+}
+
+bool QCameraParametersIntf::isDCAsymmetricPrevMode()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isDCAsymmetricPrevMode();
 }
 
 }; // namespace qcamera
