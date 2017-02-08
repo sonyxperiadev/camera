@@ -98,6 +98,7 @@ public:
             cam_dimension_t &dim, uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
 
     void getThumbnailSize(int *width, int *height) const;
+    uint8_t getSecureQueueDepth();
     uint8_t getZSLBurstInterval();
     uint8_t getZSLQueueDepth();
     uint8_t getZSLBackLookCount();
