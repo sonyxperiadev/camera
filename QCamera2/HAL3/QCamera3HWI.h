@@ -539,7 +539,7 @@ private:
     // Fixed video fps
     float mHFRVideoFps;
 public:
-    uint8_t mOpMode;
+    uint32_t mOpMode;
     bool mStreamConfig;
     QCameraCommon   mCommon;
 private:
