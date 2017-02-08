@@ -1321,16 +1321,23 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
                     |= CAM_QCOM_FEATURE_LCAC;
             LOGH("Added LCAC to pp feature mask");
         }
-
-        if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
-                CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) {
-            mStreamConfigInfo.postprocess_mask[stream_idx] |= CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
-        }
         if ((m_bIsVideo) && (gCamCapability[mCameraId]->qcom_supported_feature_mask &
                 CAM_QTI_FEATURE_BINNING_CORRECTION)) {
             mStreamConfigInfo.postprocess_mask[stream_idx] |=
                     CAM_QTI_FEATURE_BINNING_CORRECTION;
         }
+
+        if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) {
+            mStreamConfigInfo.postprocess_mask[stream_idx] |=
+                    CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
+            if ( mStreamConfigInfo.postprocess_mask[stream_idx] &
+                    CAM_QTI_FEATURE_BINNING_CORRECTION) {
+                mStreamConfigInfo.postprocess_mask[stream_idx] &=
+                        ~CAM_QTI_FEATURE_BINNING_CORRECTION;
+            }
+        }
+
         break;
     }
     default:
