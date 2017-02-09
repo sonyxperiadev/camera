@@ -61,7 +61,8 @@ LOCAL_SRC_FILES += \
         HAL/QCameraThermalAdapter.cpp \
         util/QCameraFOVControl.cpp \
         util/QCameraHALPP.cpp \
-        util/QCameraDualFOVPP.cpp
+        util/QCameraDualFOVPP.cpp \
+        util/QCameraExtZoomTranslator.cpp
 endif
 
 # System header file path prefix
