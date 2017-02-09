@@ -11817,14 +11817,16 @@ int32_t QCameraParameters::setFrameSkip(enum msm_vfe_frame_skip_pattern pattern)
  * DESCRIPTION: Query sensor output size based on maximum stream dimension
  *
  * PARAMETERS :
- *   @max_dim : maximum stream dimension
+ *   @max_dim    : maximum stream dimension
  *   @sensor_dim : sensor dimension
+ *   @cam_type   : camera type in case of dual camera
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim, cam_dimension_t &sensor_dim)
+int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
+        cam_dimension_t &sensor_dim, uint32_t cam_type)
 {
     int32_t rc = NO_ERROR;
     cam_dimension_t pic_dim;
@@ -11883,7 +11885,11 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim, cam_dime
         return rc;
     }
 
-    READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+    if (cam_type == MM_CAMERA_TYPE_AUX) {
+        READ_PARAM_ENTRY(m_pParamBufAux, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+    } else {
+        READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+    }
 
     LOGH("RAW Dimension = %d X %d",sensor_dim.width,sensor_dim.height);
     if (sensor_dim.width == 0 || sensor_dim.height == 0) {
@@ -13598,6 +13604,25 @@ uint8_t QCameraParameters::getMobicatMask()
  *==========================================================================*/
 bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_config_info) {
     int32_t rc = NO_ERROR;
+    cam_dimension_t sensor_dim_main = {0,0};
+    cam_dimension_t sensor_dim_aux  = {0,0};
+
+    if (isDualCamera()) {
+        // Get the sensor output dimensions for main and aux cameras.
+        cam_dimension_t max_dim = {0,0};
+        for (uint32_t i = 0; i < stream_config_info.num_streams; i++) {
+            // Find the max dimension among all the streams
+            if (stream_config_info.stream_sizes[i].width > max_dim.width) {
+               max_dim.width = stream_config_info.stream_sizes[i].width;
+            }
+            if (stream_config_info.stream_sizes[i].height > max_dim.height) {
+               max_dim.height = stream_config_info.stream_sizes[i].height;
+            }
+        }
+        getSensorOutputSize(max_dim, sensor_dim_main, MM_CAMERA_TYPE_MAIN);
+        getSensorOutputSize(max_dim, sensor_dim_aux,  MM_CAMERA_TYPE_AUX);
+    }
+
     if(initBatchUpdate() < 0 ) {
         LOGE("Failed to initialize group update table");
         return BAD_TYPE;
@@ -13615,7 +13640,15 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
         return rc;
     }
 
-    if(isDualCamera()) {
+    if (isDualCamera()) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                CAM_INTF_PARM_RAW_DIMENSION, sensor_dim_main) ||
+                ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux,
+                    CAM_INTF_PARM_RAW_DIMENSION, sensor_dim_aux)) {
+            LOGE("Failed to update table for CAM_INTF_PARM_RAW_DIMENSION");
+            return BAD_VALUE;
+        }
+
         // Update FOV-control config settings due to the change in the configuration
         rc = m_pFovControl->updateConfigSettings(m_pParamBuf, m_pParamBufAux);
 

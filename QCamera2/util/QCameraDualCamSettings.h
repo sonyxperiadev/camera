@@ -61,6 +61,11 @@ typedef enum {
 // wide FOV camera will not take place
 #define FOVC_MAIN_CAM_FALLBACK_MECHANISM        (1)
 
+// Use external zoom translator. Setting this to 1 allows opening an external lib containing
+// implementation for custom zoom translation for user zoom to wide zoom and tele zoom. This
+// would override the default zoom translation logic present in the FOV-control.
+#define FOVC_USE_EXTERNAL_ZOOM_TRANSLATOR       (0)
+
 // camera mode settings
 
 // This setting will enable the snapshot postprocessing.
