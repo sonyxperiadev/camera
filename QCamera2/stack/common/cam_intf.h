@@ -92,6 +92,7 @@ typedef enum {
 
 /* Enum to define different low performance modes in dual camera*/
 typedef enum {
+    CAM_PERF_NONE,
     CAM_PERF_SENSOR_SUSPEND,
     CAM_PERF_ISPIF_FRAME_DROP,
     CAM_PERF_ISPIF_FRAME_SKIP,
@@ -120,6 +121,8 @@ typedef struct {
     uint8_t is_frame_sync_enabled;
     /*Low power mode type. Static info per device*/
     cam_dual_camera_perf_mode_t perf_mode;
+    /*flag indicating if hw-sync is enabled*/
+    uint8_t is_hw_sync_enabled;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 
@@ -655,6 +658,7 @@ typedef enum {
     CAM_STREAM_PARAM_TYPE_GET_IMG_PROP = CAM_INTF_PARM_GET_IMG_PROP,
     CAM_STREAM_PARAM_TYPE_REQUEST_FRAMES = CAM_INTF_PARM_REQUEST_FRAMES,
     CAM_STREAM_PARAM_TYPE_REQUEST_OPS_MODE = CAM_INTF_PARM_REQUEST_OPS_MODE,
+    CAM_STREAM_PARAM_TYPE_FLUSH_FRAME = CAM_INTF_PARM_FLUSH_FRAMES,
     CAM_STREAM_PARAM_TYPE_MAX
 } cam_stream_param_type_e;
 
@@ -1131,6 +1135,8 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_FOV_COMP_ENABLE,              int32_t,                     1);
     INCLUDE(CAM_INTF_META_LED_CALIB_RESULT,             int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_DC_USERZOOM,                  int32_t,                     1);
+    INCLUDE(CAM_INTF_META_AEC_LUX_INDEX,                float,                       1);
+    INCLUDE(CAM_INTF_META_AF_OBJ_DIST_CM,               int32_t,                     1);
     INCLUDE(CAM_INTF_META_BINNING_CORRECTION_MODE,      cam_binning_correction_mode_t,  1);
     INCLUDE(CAM_INTF_META_OIS_READ_DATA,                cam_ois_data_t,              1);
 } metadata_data_t;

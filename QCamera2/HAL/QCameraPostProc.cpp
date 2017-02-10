@@ -90,6 +90,7 @@ QCameraPostProcessor::QCameraPostProcessor(QCamera2HardwareInterface *cam_ctrl)
       mJpegMemOpt(true),
       m_JpegOutputMemCount(0),
       m_JpegOutputMemCountHALPP(0),
+      pJpegSrcStream(NULL),
       mNewJpegSessionNeeded(true),
       mNewJpegSessionNeededHalPP(true),
       m_bufCountPPQ(0),
@@ -499,6 +500,7 @@ int32_t QCameraPostProcessor::createJpegSession(QCameraChannel *pSrcChannel)
                 LOGE("error creating a new jpeg encoding session");
                 return rc;
             }
+            pJpegSrcStream = pSnapshotStream;
             mNewJpegSessionNeeded = false;
         }
     }
@@ -1445,6 +1447,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
             setYUVFrameInfo(frame);
         return processRawData(frame);
     }
+
 #ifdef TARGET_TS_MAKEUP
     // find snapshot frame frame
     mm_camera_buf_def_t *pReprocFrame = NULL;
@@ -1474,6 +1477,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
             }
         }
     }
+
     if (pReprocFrame != NULL && m_parent->mParameters.isFaceDetectionEnabled()) {
         m_parent->TsMakeupProcess_Snapshot(pReprocFrame,pSnapshotStream);
     } else {
@@ -1481,7 +1485,9 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
                 m_parent->mParameters.isFaceDetectionEnabled());
     }
 #endif
-    if ((m_parent->isLongshotEnabled())
+    int8_t mCurReprocCount = job->reprocCount;
+    if ((m_parent->isLongshotEnabled()
+            && (!(m_parent->mParameters.getQuadraCfa())|| (mCurReprocCount == 2)))
             && (!m_parent->isCaptureShutterEnabled())
             && (!m_parent->mCACDoneReceived)) {
         // play shutter sound for longshot
@@ -1490,7 +1496,6 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
     }
     m_parent->mCACDoneReceived = FALSE;
 
-    int8_t mCurReprocCount = job->reprocCount;
     int8_t mCurChannelIndex = job->ppChannelIndex;
     if ( mCurReprocCount > 1 ) {
         //In case of pp 2nd pass, we can release input of 2nd pass
@@ -2437,8 +2442,22 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         return UNKNOWN_ERROR;
     }
 
+    if ((pJpegSrcStream != NULL) &&
+            (!validate_handle(pJpegSrcStream->getMyHandle(),
+            main_stream->getMyHandle()))) {
+        if (mJpegSessionId) {
+            mJpegHandle.destroy_session(mJpegSessionId);
+            mJpegSessionId = 0;
+        }
+        pJpegSrcStream = NULL;
+        mNewJpegSessionNeeded = TRUE;
+    }
     if (needNewSess) {
         // create jpeg encoding session
+        if (mJpegSessionId) {
+            mJpegHandle.destroy_session(mJpegSessionId);
+            mJpegSessionId = 0;
+        }
         mm_jpeg_encode_params_t encodeParam;
         memset(&encodeParam, 0, sizeof(mm_jpeg_encode_params_t));
         if (!is_halpp_output_buf) {
@@ -2462,6 +2481,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             return ret;
         }
         needNewSess = FALSE;
+        pJpegSrcStream = main_stream;
     }
 
     // Fill in new job
@@ -3239,6 +3259,7 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                 // signal cmd is completed
                 cam_sem_post(&cmdThread->sync_sem);
 
+                pme->pJpegSrcStream = NULL;
                 pme->mNewJpegSessionNeeded = true;
                 pme->mNewJpegSessionNeededHalPP = true;
             }
@@ -3247,8 +3268,12 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
             {
                 LOGH("Do next job, active is %d", is_active);
                 if (is_active == TRUE) {
-                    qcamera_jpeg_data_t *jpeg_job =
-                        (qcamera_jpeg_data_t *)pme->m_inputJpegQ.dequeue();
+                    qcamera_jpeg_data_t *jpeg_job = NULL;
+
+                    if ((!pme->m_parent->isDualCamera()) ||
+                            (pme->m_ongoingJpegQ.isEmpty())) {
+                        jpeg_job = (qcamera_jpeg_data_t *)pme->m_inputJpegQ.dequeue();
+                    }
 
                     if (NULL != jpeg_job) {
                         // To avoid any race conditions,

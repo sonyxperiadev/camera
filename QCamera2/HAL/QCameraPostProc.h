@@ -277,6 +277,7 @@ private:
     bool mJpegMemOpt;
     uint32_t   m_JpegOutputMemCount;
     uint32_t   m_JpegOutputMemCountHALPP;
+    QCameraStream *pJpegSrcStream;
     uint8_t mNewJpegSessionNeeded;
     uint8_t mNewJpegSessionNeededHalPP;
     int32_t m_bufCountPPQ;

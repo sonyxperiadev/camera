@@ -1001,7 +1001,7 @@ static int32_t mm_camera_intf_get_queued_buf_count(uint32_t camera_handle,
     int32_t rc = -1;
     mm_camera_obj_t * my_obj = NULL;
     uint32_t strid = get_main_camera_handle(stream_id);
-    uint32_t aux_strid = get_main_camera_handle(stream_id);
+    uint32_t aux_strid = get_aux_camera_handle(stream_id);
 
     if (strid) {
         pthread_mutex_lock(&g_intf_lock);
@@ -1011,7 +1011,7 @@ static int32_t mm_camera_intf_get_queued_buf_count(uint32_t camera_handle,
         if(my_obj) {
             pthread_mutex_lock(&my_obj->cam_lock);
             pthread_mutex_unlock(&g_intf_lock);
-            rc = mm_camera_get_queued_buf_count(my_obj, chid, stream_id);
+            rc = mm_camera_get_queued_buf_count(my_obj, chid, strid);
         } else {
             pthread_mutex_unlock(&g_intf_lock);
         }
@@ -1238,7 +1238,7 @@ static int32_t mm_camera_intf_config_stream(uint32_t camera_handle,
                                             uint32_t stream_id,
                                             mm_camera_stream_config_t *config)
 {
-    int32_t rc = -1;
+    int32_t rc = 0;
     mm_camera_obj_t * my_obj = NULL;
     uint32_t strid = get_main_camera_handle(stream_id);
     uint32_t aux_strid = get_aux_camera_handle(stream_id);
@@ -3019,8 +3019,8 @@ uint8_t is_dual_camera_by_idx(uint32_t camera_id)
 
 uint8_t is_dual_camera_by_handle(uint32_t handle)
 {
-    return ((handle >> MM_CAMERA_HANDLE_SHIFT_MASK)
-            ? 1 : 0);
+    return ((handle >> MM_CAMERA_HANDLE_SHIFT_MASK) &&
+            (handle & (MM_CAMERA_HANDLE_BIT_MASK)) ? 1 : 0);
 }
 
 uint32_t get_aux_camera_handle(uint32_t handle)

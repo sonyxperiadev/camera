@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -69,7 +69,7 @@ static void jpeg_encode_cb(jpeg_job_status_t status,
                          ION_IOC_INV_CACHES);
     }
 
-    free(pme->jpeg_buf.buf.buffer);
+    mm_app_deallocate_ion_memory(&pme->jpeg_buf);
     free(pme->current_job_frames);
     pme->current_job_frames = NULL;
 
@@ -240,9 +240,9 @@ int createEncodingSession(mm_camera_test_obj_t *test_obj,
     /* fill in sink img param */
     encode_param.num_dst_bufs = 1;
     encode_param.dest_buf[0].index = 0;
-    encode_param.dest_buf[0].buf_size = test_obj->jpeg_buf.buf.frame_len;
-    encode_param.dest_buf[0].buf_vaddr = (uint8_t *)test_obj->jpeg_buf.buf.buffer;
-    encode_param.dest_buf[0].fd = test_obj->jpeg_buf.buf.fd;
+    encode_param.dest_buf[0].buf_size = test_obj->jpeg_buf.mem_info.size;
+    encode_param.dest_buf[0].buf_vaddr = (uint8_t *) test_obj->jpeg_buf.mem_info.data;
+    encode_param.dest_buf[0].fd = test_obj->jpeg_buf.mem_info.fd;
     encode_param.dest_buf[0].format = MM_JPEG_FMT_YUV;
 
     /* main dimension */
@@ -489,18 +489,16 @@ static void mm_app_snapshot_notify_cb(mm_camera_super_buf_t *bufs,
     mm_app_cache_ops((mm_camera_app_meminfo_t *)m_frame->mem_info,
                      ION_IOC_CLEAN_INV_CACHES);
 
-    pme->jpeg_buf.buf.buffer = (uint8_t *)malloc(m_frame->frame_len);
-    if ( NULL == pme->jpeg_buf.buf.buffer ) {
-        LOGE(" error allocating jpeg output buffer");
-        goto error;
-    }
+    pme->jpeg_buf.mem_info.size = m_frame->frame_len;
 
-    pme->jpeg_buf.buf.frame_len = m_frame->frame_len;
+    mm_app_allocate_ion_memory(&pme->jpeg_buf,
+                              (0x1 << CAMERA_ION_FALLBACK_HEAP_ID));
+
     /* create a new jpeg encoding session */
     rc = createEncodingSession(pme, m_stream, m_frame);
     if (0 != rc) {
         LOGE(" error creating jpeg session");
-        free(pme->jpeg_buf.buf.buffer);
+        mm_app_deallocate_ion_memory(&pme->jpeg_buf);
         goto error;
     }
 
@@ -508,7 +506,7 @@ static void mm_app_snapshot_notify_cb(mm_camera_super_buf_t *bufs,
     rc = encodeData(pme, bufs, m_stream);
     if (0 != rc) {
         LOGE(" error creating jpeg session");
-        free(pme->jpeg_buf.buf.buffer);
+        mm_app_deallocate_ion_memory(&pme->jpeg_buf);
         goto error;
     }
 
