@@ -652,6 +652,7 @@ private:
     QCameraChannel *m_channels[QCAMERA_CH_TYPE_MAX]; // array holding channel ptr
 
     bool m_bPreviewStarted;             //flag indicates first preview frame callback is received
+    bool m_bFirstPreviewFrameReceived;
     bool m_bRecordStarted;             //flag indicates Recording is started for first time
 
     // Signifies if ZSL Retro Snapshots are enabled

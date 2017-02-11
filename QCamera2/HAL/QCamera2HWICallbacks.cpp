@@ -734,6 +734,7 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
         pme->m_perfLockMgr.releasePerfLock(PERF_LOCK_START_PREVIEW);
         pme->m_perfLockMgr.releasePerfLock(PERF_LOCK_OPEN_CAMERA);
         pme->m_bPreviewStarted = false;
+        pme->m_bFirstPreviewFrameReceived = true;
 
         // Set power Hint for preview
         pme->m_perfLockMgr.acquirePerfLock(PERF_LOCK_POWERHINT_PREVIEW, 0);
@@ -869,6 +870,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         pme->m_perfLockMgr.releasePerfLock(PERF_LOCK_START_PREVIEW);
         pme->m_perfLockMgr.releasePerfLock(PERF_LOCK_OPEN_CAMERA);
         pme->m_bPreviewStarted = false;
+        pme->m_bFirstPreviewFrameReceived = true;
 
         // Set power Hint for preview
         pme->m_perfLockMgr.acquirePerfLock(PERF_LOCK_POWERHINT_PREVIEW, 0);
@@ -2686,8 +2688,15 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
       LOGD("touch_ae_status: %d", *touch_ae_status);
     }
 
+    //Wait for first preview frame to process Dual fov control
+    LOGD("pme->m_bFirstPreviewFrameReceived: %d", pme->m_bFirstPreviewFrameReceived);
     if (pme->isDualCamera()) {
-        pme->fillDualCameraFOVControl();
+        if ((pme->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
+                !pme->m_bFirstPreviewFrameReceived) {
+            LOGH("skip fillDualCameraFovControl as preview has not started!!");
+        } else {
+            pme->fillDualCameraFOVControl();
+        }
     }
 
     IF_META_AVAILABLE(int32_t, led_result, CAM_INTF_META_LED_CALIB_RESULT, pMetaData) {

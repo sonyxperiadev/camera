@@ -1640,6 +1640,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       m_cbNotifier(this),
       m_perfLockMgr(),
       m_bPreviewStarted(false),
+      m_bFirstPreviewFrameReceived(false),
       m_bRecordStarted(false),
       m_currentFocusState(CAM_AF_STATE_INACTIVE),
       mDumpFrmCnt(0U),
@@ -4033,6 +4034,7 @@ int QCamera2HardwareInterface::stopPreview()
 
     // delete all channels from preparePreview
     unpreparePreview();
+    m_bFirstPreviewFrameReceived = false;
 
     m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_PREVIEW);
     LOGI("X");
