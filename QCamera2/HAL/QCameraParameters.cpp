@@ -15794,6 +15794,15 @@ int32_t QCameraParameters::setDeferCamera(cam_dual_camera_defer_cmd_t type)
     char prop[PROPERTY_VALUE_MAX];
     int value = 0;
 
+    property_get("persist.camera.raw_yuv", prop, "0");
+    value = atoi(prop);
+    if (value) {
+        //In RAW + YUV, we need to query for RAW size. Cannot defer camera
+        return rc;
+    } else {
+        memset(prop, 0, sizeof(prop));
+    }
+
     property_get("persist.dualcam.defer.cam", prop, "1");
     value = atoi(prop);
 
