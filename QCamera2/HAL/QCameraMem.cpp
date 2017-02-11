@@ -1840,18 +1840,23 @@ bool QCameraVideoMemory::needPerfEvent(const void *opaque, bool metadata)
 {
     bool isPerf = FALSE;
     if (metadata) {
-#ifdef USE_MEDIA_EXTENSIONS
         const media_metadata_buffer *packet =
                 (const media_metadata_buffer *)opaque;
         native_handle_t *nh = NULL;
+#ifdef USE_MEDIA_EXTENSIONS
         if ((packet != NULL) && (packet->eType ==
                 kMetadataBufferTypeNativeHandleSource)
                 && (packet->pHandle)) {
             nh = (native_handle_t *)packet->pHandle;
-            isPerf = (MetaBufferUtil::getIntAt(nh, 0, VIDEO_META_EVENT) ==
-                    CAM_META_BUFFER_EVENT_PERF) ? TRUE : FALSE;
         }
+        isPerf = (MetaBufferUtil::getIntAt(nh, 0, VIDEO_META_EVENT) ==
+                CAM_META_BUFFER_EVENT_PERF) ? TRUE : FALSE;
 #else
+		if ((packet != NULL) && (packet->buffer_type ==
+                kMetadataBufferTypeNativeHandleSource)
+                && (packet->meta_handle)) {
+            nh = (native_handle_t *)packet->meta_handle;
+        }
         for (int i = 0; i < mMetaBufCount; i++) {
             if(mMetadata[i]->data == opaque) {
                 isPerf = (MetaBufferUtil::getIntAt(nh, 0, VIDEO_META_EVENT) ==
