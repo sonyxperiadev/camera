@@ -163,11 +163,11 @@ int32_t QCameraParametersIntf::getStreamFormat(cam_stream_type_t streamType,
 }
 
 int32_t QCameraParametersIntf::getStreamDimension(cam_stream_type_t streamType,
-                                               cam_dimension_t &dim)
+                                               cam_dimension_t &dim, uint32_t cam_type)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->getStreamDimension(streamType, dim);
+    return mImpl->getStreamDimension(streamType, dim, cam_type);
 }
 
 void QCameraParametersIntf::getThumbnailSize(int *width, int *height) const
@@ -1489,11 +1489,11 @@ int32_t QCameraParametersIntf::setCameraControls(int32_t controls)
     return mImpl->setCameraControls(controls);
 }
 
-int32_t QCameraParametersIntf::setSwitchCamera()
+int32_t QCameraParametersIntf::setSwitchCamera(uint32_t camMaster)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->setSwitchCamera();
+    return mImpl->setSwitchCamera(camMaster);
 }
 
 int32_t QCameraParametersIntf::setDeferCamera(cam_dual_camera_defer_cmd_t type)
@@ -1522,6 +1522,13 @@ bool QCameraParametersIntf::isLinkPreviewForLiveShot()
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->isLinkPreviewForLiveShot();
+}
+
+bool QCameraParametersIntf::isDCmAsymmetricSnapMode()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isDCmAsymmetricSnapMode();
 }
 
 }; // namespace qcamera

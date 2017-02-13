@@ -400,6 +400,20 @@ typedef enum qcamera3_ext_iso_mode {
     QCAMERA3_ISO_MODE_3200,
 } qcamera3_ext_iso_mode_t;
 
+typedef enum {
+    /* RAW only mode for devices that will simultaneously use more than two
+     * cameras. This is required because by default the HAL will start support
+     * stream along with RAW stream. This will allocate resources which
+     * otherwise can be used for another camera. Using this mode indicates HAL
+     * that the additional functionality provided by support stream is not
+     * needed.
+     * This mode has following limitations:
+     *    - Back end 3A, Face Detect or any additional functionality depending
+     *   on image/sensor statistics and YUV streams will be disabled.
+     */
+    QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE = 0x8000,
+} QCamera3VendorStreamConfiguration;
+
 class QCamera3VendorTags {
 
 public:

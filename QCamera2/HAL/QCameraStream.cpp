@@ -352,7 +352,6 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mCamHandle(camHandle),
         mChannelHandle(chId),
         mHandle(0),
-        mActiveHandle(0),
         mCamOps(camOps),
         mStreamInfo(NULL),
         mNumBufs(0),
@@ -382,6 +381,12 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         mSyncCBEnabled(false)
 {
     mDualStream = is_dual_camera_by_handle(chId);
+    if (get_main_camera_handle(chId)) {
+        mCamType = MM_CAMERA_TYPE_MAIN;
+    }
+    if (get_aux_camera_handle(chId)) {
+        mCamType |= MM_CAMERA_TYPE_AUX;
+    }
     mMemVtbl.user_data = this;
     if ( !deffered ) {
         mMemVtbl.get_bufs = get_bufs;
@@ -455,7 +460,6 @@ QCameraStream::~QCameraStream()
     if (mHandle > 0) {
         mCamOps->delete_stream(mCamHandle, mChannelHandle, mHandle);
         mHandle = 0;
-        mActiveHandle = 0;
     }
     pthread_mutex_destroy(&m_lock);
     pthread_cond_destroy(&m_cond);
@@ -638,7 +642,8 @@ int32_t QCameraStream::mapBufs(QCameraMemory *Buf,
 
         if ((bufType == CAM_MAPPING_BUF_TYPE_STREAM_INFO)
                 || (bufType == CAM_MAPPING_BUF_TYPE_MISC_BUF)) {
-            if (i > 0 && isDualStream()) {
+            if ((i > 0 && isDualStream()) ||
+                    (mCamType == MM_CAMERA_TYPE_AUX)) {
                 activeHandle = get_aux_camera_handle(mHandle);
             } else {
                 activeHandle = get_main_camera_handle(mHandle);
@@ -767,10 +772,15 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         rc = UNKNOWN_ERROR;
         goto done;
     }
-    mActiveHandle = mHandle;
-    mActiveCamera = MM_CAMERA_TYPE_MAIN;
+
+    mMasterCamera = MM_CAMERA_TYPE_MAIN;
+    if (mCamType & MM_CAMERA_TYPE_MAIN) {
+        mActiveCameras = MM_CAMERA_TYPE_MAIN;
+    }
+    if (mCamType & MM_CAMERA_TYPE_AUX) {
+        mActiveCameras |= MM_CAMERA_TYPE_AUX;
+    }
     if (isDualStream()) {
-        mActiveCamera |= MM_CAMERA_TYPE_AUX;
         if (needFrameSync()) {
             mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                     mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
@@ -820,7 +830,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
 err1:
     mCamOps->delete_stream(mCamHandle, mChannelHandle, mHandle);
     mHandle = 0;
-    mActiveHandle = 0;
 done:
     return rc;
 }
@@ -1268,19 +1277,20 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
     int32_t rc = NO_ERROR;
     int index = -1;
     QCameraVideoMemory *mVideoMem = NULL;
+    bool needPerfEvet = FALSE;
 
     if ((mStreamInfo != NULL)
             && (mStreamInfo->streaming_mode == CAM_STREAMING_MODE_BATCH)
             && (mStreamBatchBufs != NULL)) {
-        index = mStreamBatchBufs->getMatchBufIndex(opaque, isMetaData);
         mVideoMem = (QCameraVideoMemory *)mStreamBatchBufs;
     } else if (mStreamBufs != NULL){
-        index = mStreamBufs->getMatchBufIndex(opaque, isMetaData);
         mVideoMem = (QCameraVideoMemory *)mStreamBufs;
     }
 
     //Close and delete duplicated native handle and FD's.
     if (mVideoMem != NULL) {
+        index = mVideoMem->getMatchBufIndex(opaque, isMetaData);
+        needPerfEvet = mVideoMem->needPerfEvent(opaque, isMetaData);
         rc = mVideoMem->closeNativeHandle(opaque, isMetaData);
         if (rc != NO_ERROR) {
             LOGE("Invalid video metadata");
@@ -1293,6 +1303,14 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
     if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
         LOGE("Cannot find buf for opaque data = %p", opaque);
         return BAD_INDEX;
+    }
+
+    if (needPerfEvet == TRUE) {
+        //Trigger Perf Flush event to back-end
+        cam_stream_parm_buffer_t param;
+        memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+        param.type = CAM_STREAM_PARAM_TYPE_FLUSH_FRAME;
+        rc = setParameter(param);
     }
 
     if ((CAMERA_MIN_VIDEO_BATCH_BUFFERS > index)
@@ -2803,19 +2821,8 @@ int32_t QCameraStream::setSyncDataCB(stream_cb_routine data_cb)
  *==========================================================================*/
 int32_t QCameraStream::processCameraControl(uint32_t camState)
 {
-    int32_t ret = NO_ERROR;
-
-    if (ret == NO_ERROR) {
-        if (camState == MM_CAMERA_TYPE_MAIN) {
-            mActiveHandle = get_main_camera_handle(mHandle);
-        } else if (camState == MM_CAMERA_TYPE_AUX) {
-            mActiveHandle = get_aux_camera_handle(mHandle);
-        } else {
-            mActiveHandle = mHandle;
-        }
-        mActiveCamera = camState;
-    }
-    return ret;
+    mActiveCameras = camState;
+    return NO_ERROR;
 }
 
 /*===========================================================================
@@ -2824,29 +2831,21 @@ int32_t QCameraStream::processCameraControl(uint32_t camState)
  * DESCRIPTION: switch stream's in case of dual camera
  *
  * PARAMETERS :
+ * @camMaster : Master camera
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraStream::switchStreamCb()
+int32_t QCameraStream::switchStreamCb(uint32_t camMaster)
 {
     int32_t ret = NO_ERROR;
-    if ((mActiveCamera == MM_CAMERA_DUAL_CAM)
-            && (needCbSwitch())) {
+    if (needCbSwitch() && (camMaster != mMasterCamera)) {
         ret = mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                 mHandle, MM_CAMERA_CB_REQ_TYPE_SWITCH);
     }
-
-    if (get_aux_camera_handle(mHandle)
-            == mActiveHandle) {
-        mActiveHandle = get_main_camera_handle(mHandle);
-    } else if (get_main_camera_handle(mHandle)
-            == mActiveHandle) {
-        mActiveHandle = get_aux_camera_handle(mHandle);
-    } else {
-        mActiveHandle = mHandle;
-    }
+    // Update master camera
+    mMasterCamera = camMaster;
     return ret;
 }
 

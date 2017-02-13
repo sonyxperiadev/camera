@@ -1000,10 +1000,12 @@ QCameraParameters::QCameraParameters()
       mAecFrameBound(0),
       mAecSkipDisplayFrameBound(0),
       m_bQuadraCfa(false),
+      mMasterCamera(CAM_TYPE_MAIN),
       m_bSmallJpegSize(false),
       mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
       mFrameNumber(0),
-      mSyncDCParam(0)
+      mSyncDCParam(0),
+      mAsymmetricSnapMode(false)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1138,10 +1140,12 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAecFrameBound(0),
     mAecSkipDisplayFrameBound(0),
     m_bQuadraCfa(false),
+    mMasterCamera(CAM_TYPE_MAIN),
     m_bSmallJpegSize(false),
     mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
     mFrameNumber(0),
-    mSyncDCParam(0)
+    mSyncDCParam(0),
+    mAsymmetricSnapMode(false)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -4347,7 +4351,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
         nBurstNum = m_pCapability->refocus_af_bracketing_need.output_count + 1;
     }
 
-    if (mActiveState == MM_CAMERA_DUAL_CAM && mbundledSnapshot) {
+    if (mActiveCameras == MM_CAMERA_DUAL_CAM && mbundledSnapshot) {
         int dualfov_snap_num = 1;
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
@@ -5343,6 +5347,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     setQuadraCfa(params);
     setVideoBatchSize();
     setLowLightCapture();
+    setAsymmetricSnapMode();
 
     if ((rc = updateFlash(false)))                      final_rc = rc;
 #ifdef TARGET_TS_MAKEUP
@@ -6369,7 +6374,9 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t
     }
 
     m_pParamBuf = (parm_buffer_t*) DATA_PTR(m_pParamHeap, 0);
+    mActiveCameras = MM_CAMERA_TYPE_MAIN;
     if (isDualCamera()) {
+        mActiveCameras |= MM_CAMERA_TYPE_AUX;
         memset(&bufMapList, 0, sizeof(cam_buf_map_type_list));
         rc = QCameraBufferMaps::makeSingletonBufMapList(
                 CAM_MAPPING_BUF_TYPE_PARM_BUF, 0 /*stream id*/,
@@ -10474,14 +10481,15 @@ bool QCameraParameters::isSnapshotFDNeeded()
  *
  * PARAMETERS :
  *   @streamType : [input] stream type
- *   @dim        : [output] stream dimension
+ *   @dim             : [output] stream dimension
+ *   @cam_type    : Camera type in case of dual camera
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
-                                               cam_dimension_t &dim)
+        cam_dimension_t &dim, uint32_t cam_type)
 {
     int32_t ret = NO_ERROR;
     memset(&dim, 0, sizeof(cam_dimension_t));
@@ -10503,6 +10511,21 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         } else {
             getPictureSize(&dim.width, &dim.height);
         }
+        if (isDCmAsymmetricSnapMode()) {
+            int32_t supportedWidth = 0, supportedHeight = 0;
+            if (cam_type & MM_CAMERA_TYPE_MAIN) {
+                supportedWidth = m_pCapability->main_cam_cap->picture_sizes_tbl[0].width;
+                supportedHeight = m_pCapability->main_cam_cap->picture_sizes_tbl[0].height;
+            } else {
+                supportedWidth = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].width;
+                supportedHeight = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].height;
+            }
+            if ((dim.width * dim.height) >
+                    (supportedWidth * supportedHeight)){
+                dim.width = supportedWidth;
+                dim.height = supportedHeight;
+            }
+        }
         break;
     case CAM_STREAM_TYPE_VIDEO:
         getVideoSize(&dim.width, &dim.height);
@@ -10516,7 +10539,7 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         dim.height = 1;
         break;
     case CAM_STREAM_TYPE_OFFLINE_PROC:
-        if (isPostProcScaling()) {
+        if (isPostProcScaling() || isDCmAsymmetricSnapMode()) {
             if (getRecordingHintValue()) {
                 // live snapshot
                 getLiveSnapshotSize(dim);
@@ -11794,14 +11817,16 @@ int32_t QCameraParameters::setFrameSkip(enum msm_vfe_frame_skip_pattern pattern)
  * DESCRIPTION: Query sensor output size based on maximum stream dimension
  *
  * PARAMETERS :
- *   @max_dim : maximum stream dimension
+ *   @max_dim    : maximum stream dimension
  *   @sensor_dim : sensor dimension
+ *   @cam_type   : camera type in case of dual camera
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim, cam_dimension_t &sensor_dim)
+int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
+        cam_dimension_t &sensor_dim, uint32_t cam_type)
 {
     int32_t rc = NO_ERROR;
     cam_dimension_t pic_dim;
@@ -11860,7 +11885,11 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim, cam_dime
         return rc;
     }
 
-    READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+    if (cam_type == MM_CAMERA_TYPE_AUX) {
+        READ_PARAM_ENTRY(m_pParamBufAux, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+    } else {
+        READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+    }
 
     LOGH("RAW Dimension = %d X %d",sensor_dim.width,sensor_dim.height);
     if (sensor_dim.width == 0 || sensor_dim.height == 0) {
@@ -12309,6 +12338,7 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
     bundle_info.cam_role = (cam_dual_camera_role_t)role;
     bundle_info.related_sensor_session_id = sessionId[bundle_cam_idx];
     bundle_info.perf_mode = getLowPowerMode(bundle_info.type);
+    bundle_info.is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
     num_cam++;
 
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
@@ -12360,10 +12390,11 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
                 memcpy(&m_pDualCamCmdPtr[i]->bundle_info,
                         &info[i],
                         sizeof(cam_dual_camera_bundle_info_t));
-                LOGH("SYNC CMD %d: cmd %d mode %d type %d session - %d", i,
+                LOGH("SYNC CMD %d: cmd %d mode %d type %d hw-sync %d session - %d", i,
                         m_pDualCamCmdPtr[i]->cmd_type,
                         m_pDualCamCmdPtr[i]->bundle_info.mode,
                         m_pDualCamCmdPtr[i]->bundle_info.type,
+                        m_pDualCamCmdPtr[i]->bundle_info.is_hw_sync_enabled,
                         m_pDualCamCmdPtr[i]->bundle_info.related_sensor_session_id);
             }
         }
@@ -12516,7 +12547,7 @@ void QCameraParameters::setSyncDCParams()
     property_get("persist.camera.syncDCParams.en", prop, "1");
     temp_mSyncDCParam = atoi(prop);
 
-    if (MM_CAMERA_DUAL_CAM == mActiveState) {
+    if (MM_CAMERA_DUAL_CAM == mActiveCameras) {
         mSyncDCParam = temp_mSyncDCParam;
     }
 }
@@ -12609,6 +12640,16 @@ void QCameraParameters::setAuxParameters()
         if (aux_param) {
             cam_stream_size_info_t *info = (cam_stream_size_info_t *)aux_param;
             info->sync_type = CAM_TYPE_AUX;
+
+            if (isDCmAsymmetricSnapMode()) {
+                for (uint32_t i = 0; i < info->num_streams; i++) {
+                    if (info->type[i] == CAM_STREAM_TYPE_SNAPSHOT) {
+                        getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
+                                info->stream_sizes[i], CAM_TYPE_AUX);
+                        break;
+                    }
+                }
+            }
         }
     }
 }
@@ -12670,11 +12711,6 @@ int32_t QCameraParameters::commitSetBatch()
             LOGE("FOV-control: Failed to set params for Aux camera");
             return rc;
         }
-    }
-
-    if (i < CAM_INTF_PARM_MAX) {
-        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
-            m_pParamBuf);
     }
 
     if (rc == NO_ERROR) {
@@ -13568,6 +13604,25 @@ uint8_t QCameraParameters::getMobicatMask()
  *==========================================================================*/
 bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_config_info) {
     int32_t rc = NO_ERROR;
+    cam_dimension_t sensor_dim_main = {0,0};
+    cam_dimension_t sensor_dim_aux  = {0,0};
+
+    if (isDualCamera()) {
+        // Get the sensor output dimensions for main and aux cameras.
+        cam_dimension_t max_dim = {0,0};
+        for (uint32_t i = 0; i < stream_config_info.num_streams; i++) {
+            // Find the max dimension among all the streams
+            if (stream_config_info.stream_sizes[i].width > max_dim.width) {
+               max_dim.width = stream_config_info.stream_sizes[i].width;
+            }
+            if (stream_config_info.stream_sizes[i].height > max_dim.height) {
+               max_dim.height = stream_config_info.stream_sizes[i].height;
+            }
+        }
+        getSensorOutputSize(max_dim, sensor_dim_main, MM_CAMERA_TYPE_MAIN);
+        getSensorOutputSize(max_dim, sensor_dim_aux,  MM_CAMERA_TYPE_AUX);
+    }
+
     if(initBatchUpdate() < 0 ) {
         LOGE("Failed to initialize group update table");
         return BAD_TYPE;
@@ -13585,7 +13640,15 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
         return rc;
     }
 
-    if(isDualCamera()) {
+    if (isDualCamera()) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                CAM_INTF_PARM_RAW_DIMENSION, sensor_dim_main) ||
+                ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux,
+                    CAM_INTF_PARM_RAW_DIMENSION, sensor_dim_aux)) {
+            LOGE("Failed to update table for CAM_INTF_PARM_RAW_DIMENSION");
+            return BAD_VALUE;
+        }
+
         // Update FOV-control config settings due to the change in the configuration
         rc = m_pFovControl->updateConfigSettings(m_pParamBuf, m_pParamBufAux);
 
@@ -13981,6 +14044,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
         bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_MAIN);
+        bundle_info[num_cam].is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         num_cam++;
         bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
         bundle_info[num_cam].type = CAM_TYPE_AUX;
@@ -13992,9 +14056,13 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
         bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_AUX);
+        bundle_info[num_cam].is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         num_cam++;
         rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
                 num_cam, &bundle_info[0]);
+
+        // Send dual cam cmd for master camera info
+        setSwitchCamera(mMasterCamera);
     }
 
     rc = sendStreamConfigInfo(stream_config_info);
@@ -14086,7 +14154,8 @@ bool QCameraParameters::needThumbnailReprocess(cam_feature_mask_t *pFeatureMask)
             isOptiZoomEnabled() || isUbiRefocus() ||
             isStillMoreEnabled() ||
             (isHDREnabled() && !isHDRThumbnailProcessNeeded())
-            || isUBWCEnabled()|| getQuadraCfa()) {
+            || isUBWCEnabled()|| getQuadraCfa() ||
+            isDualCamera()) {
         *pFeatureMask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_UBIFOCUS;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_REFOCUS;
@@ -14563,12 +14632,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
         if (sacEnabledFlag) {
         LOGH("SAC flag enabled");
-            if (stream_type == CAM_STREAM_TYPE_VIDEO &&
-                !is4k2kVideoResolution()) {
-                feature_mask |= CAM_QTI_FEATURE_SAC;
-                LOGH("SAC feature mask set");
-            } else if ((stream_type == CAM_STREAM_TYPE_PREVIEW)||
-                (stream_type == CAM_STREAM_TYPE_CALLBACK)) {
+            if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
                 feature_mask |= CAM_QTI_FEATURE_SAC;
                 LOGH("SAC feature mask set");
             }
@@ -14580,8 +14644,7 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
 
         if (rtbdmEnabledFlag) {
         LOGH("RTBDM flag enabled");
-            if ((stream_type == CAM_STREAM_TYPE_PREVIEW)||
-                (stream_type == CAM_STREAM_TYPE_CALLBACK)) {
+            if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
                 feature_mask |= CAM_QTI_FEATURE_RTBDM;
                 LOGH("RTBDM feature mask set");
             }
@@ -15710,35 +15773,30 @@ int32_t QCameraParameters::SetDualCamera(bool value)
  * DESCRIPTION: Trigger event to inform about camera role switch
  *
  * PARAMETERS :
- *         @controls : Flag with camera bit field set in case of dual camera
+ *         @camMaster : Master camera
  *
  * RETURN     : NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setSwitchCamera()
+int32_t QCameraParameters::setSwitchCamera(uint32_t camMaster)
 {
     int32_t rc = NO_ERROR;
-
-    if (mActiveState != MM_CAMERA_DUAL_CAM) {
-        LOGW("Both cameras are not active. Cannot switch");
-        return rc;
-    }
-
     cam_dual_camera_master_info_t camState[MM_CAMERA_MAX_CAM_CNT];
     uint8_t num_cam = 0;
 
-    if (mActiveCamera == MM_CAMERA_TYPE_MAIN) {
-        camState[0].mode = CAM_MODE_SECONDARY;
-        camState[1].mode = CAM_MODE_PRIMARY;
-        mActiveCamera = MM_CAMERA_TYPE_AUX;
-    } else if (mActiveCamera == MM_CAMERA_TYPE_AUX) {
+    if (camMaster == MM_CAMERA_TYPE_MAIN) {
         camState[0].mode = CAM_MODE_PRIMARY;
         camState[1].mode = CAM_MODE_SECONDARY;
-        mActiveCamera = MM_CAMERA_TYPE_MAIN;
+    } else if (camMaster == MM_CAMERA_TYPE_AUX) {
+        camState[0].mode = CAM_MODE_SECONDARY;
+        camState[1].mode = CAM_MODE_PRIMARY;
     } else {
-        LOGW("Invalid state");
+        LOGW("Invalid master camera info");
         return rc;
     }
+
+    // Update master camera
+    mMasterCamera = camMaster;
 
     num_cam = MM_CAMERA_MAX_CAM_CNT;
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_MASTER_INFO,
@@ -15896,12 +15954,45 @@ int32_t QCameraParameters::setCameraControls(int32_t state)
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_LOW_POWER_MODE,
           num_cam, &perf_value[0]);
 
-    mActiveState = state;
-
-    if (state != MM_CAMERA_DUAL_CAM) {
-        mActiveCamera = state;
-    }
+    mActiveCameras = state;
 
     return rc;
 }
+
+/*===========================================================================
+ * FUNCTION   : setAsymmetricSnapMode
+ *
+ * DESCRIPTION: Function to detect Asymmetric Snapshot mode
+ *
+ * PARAMETERS :
+ *
+ * RETURN     :
+ *==========================================================================*/
+void QCameraParameters::setAsymmetricSnapMode()
+{
+    int width, height, maxWidth, maxHeight;
+
+    if (!isDualCamera()) {
+        mAsymmetricSnapMode = false;
+        return;
+    }
+
+    getPictureSize(&width, &height);
+    maxWidth = m_pCapability->main_cam_cap->picture_sizes_tbl[0].width;
+    maxHeight = m_pCapability->main_cam_cap->picture_sizes_tbl[0].height;
+
+    if ((maxWidth * maxHeight) < (width * height)) {
+        mAsymmetricSnapMode = true;
+        return;
+    }
+
+    maxWidth = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].width;
+    maxHeight = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].height;
+    if ((maxWidth * maxHeight) < (width * height)) {
+        mAsymmetricSnapMode = true;
+        return;
+    }
+    mAsymmetricSnapMode = false;
+}
+
 }; // namespace qcamera

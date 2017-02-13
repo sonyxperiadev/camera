@@ -61,7 +61,8 @@ LOCAL_SRC_FILES += \
         HAL/QCameraThermalAdapter.cpp \
         util/QCameraFOVControl.cpp \
         util/QCameraHALPP.cpp \
-        util/QCameraDualFOVPP.cpp
+        util/QCameraDualFOVPP.cpp \
+        util/QCameraExtZoomTranslator.cpp
 endif
 
 # System header file path prefix
@@ -124,6 +125,8 @@ endif
 ifneq (,$(filter msm8996,$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DTARGET_MSM8996
 endif
+
+LOCAL_CFLAGS += -DUSE_CAMERA_METABUFFER_UTILS
 
 #LOCAL_STATIC_LIBRARIES := libqcamera2_util
 LOCAL_C_INCLUDES += \

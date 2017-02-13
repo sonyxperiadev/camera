@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,39 +27,54 @@
  *
  */
 
-#ifndef __QCAMERA_ALLOCATOR__
-#define __QCAMERA_ALLOCATOR__
+#ifndef __QCAMERAEXTZOOMTRANSLATOR_H__
+#define __QCAMERAEXTZOOMTRANSLATOR_H__
 
-extern "C" {
-#include "mm_camera_interface.h"
-}
+#include "cam_intf.h"
+
+using namespace android;
 
 namespace qcamera {
 
-class QCameraMemory;
-class QCameraHeapMemory;
+typedef enum {
+    MODE_CAMERA,
+    MODE_CAMCORDER,
+    MODE_RTB
+} dual_cam_mode;
 
 typedef struct {
-    int32_t (*bgFunction) (void *);
-    void* bgArgs;
-} BackgroundTask;
+    uint32_t width;
+    uint32_t height;
+} dimension_t;
 
-class QCameraAllocator {
+typedef struct {
+    dual_cam_mode mode;
+    void*         calibData;
+    uint32_t      calibDataSize;
+    dimension_t   previewDimension;
+    dimension_t   ispOutDimension;
+    dimension_t   sensorOutDimensionMain;
+    dimension_t   sensorOutDimensionAux;
+    uint32_t     *zoomRatioTable;
+    uint32_t      zoomRatioTableCount;
+} zoom_trans_init_data;
+
+class QCameraExtZoomTranslator {
 public:
-    virtual QCameraMemory *allocateStreamBuf(cam_stream_type_t stream_type,
-            size_t size, int stride, int scanline, uint8_t &bufferCnt) = 0;
-    virtual int32_t allocateMoreStreamBuf(QCameraMemory *mem_obj,
-            size_t size, uint8_t &bufferCnt) = 0;
-    virtual QCameraHeapMemory *allocateStreamInfoBuf(
-            cam_stream_type_t stream_type, uint8_t bufCount = 1,
-            uint32_t cam_type = MM_CAMERA_TYPE_MAIN) = 0;
-    virtual QCameraHeapMemory *allocateMiscBuf(cam_stream_info_t *streamInfo) = 0;
-    virtual QCameraMemory *allocateStreamUserBuf(cam_stream_info_t *streamInfo) = 0;
-    virtual void waitForDeferredAlloc(cam_stream_type_t stream_type) = 0;
-    virtual uint32_t scheduleBackgroundTask(BackgroundTask* bgTask) = 0;
-    virtual int32_t waitForBackgroundTask(uint32_t &taskId) = 0;
-    virtual ~QCameraAllocator() {}
+    ~QCameraExtZoomTranslator();
+    static QCameraExtZoomTranslator* create();
+    int32_t init(zoom_trans_init_data initData);
+    int32_t deInit();
+    int32_t getZoomValues(uint32_t userZoom, uint32_t *wideZoom, uint32_t *teleZoom);
+    bool isInitialized();
+private:
+    QCameraExtZoomTranslator();
+
+    void                   *mLibHandle;
+    bool                    mInitSuccess;
+    zoom_trans_init_data    mInitData;
 };
 
-}; /* namespace qcamera */
-#endif /* __QCAMERA_ALLOCATOR__ */
+}; // namespace qcamera
+
+#endif /* __QCAMERAEXTZOOMTRANSLATOR_H__ */

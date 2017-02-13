@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -54,6 +54,7 @@ namespace qcamera {
  *==========================================================================*/
 QCameraFOVControl::QCameraFOVControl()
 {
+    mZoomTranslator = NULL;
     memset(&mDualCamParams,    0, sizeof(dual_cam_params_t));
     memset(&mFovControlConfig, 0, sizeof(fov_control_config_t));
     memset(&mFovControlData,   0, sizeof(fov_control_data_t));
@@ -73,6 +74,10 @@ QCameraFOVControl::QCameraFOVControl()
  *==========================================================================*/
 QCameraFOVControl::~QCameraFOVControl()
 {
+    // De-initialize zoom translator lib
+    if (mZoomTranslator && mZoomTranslator->isInitialized()) {
+        mZoomTranslator->deInit();
+    }
 }
 
 
@@ -119,7 +124,6 @@ QCameraFOVControl* QCameraFOVControl::create(
                 // Initialize the master info to main camera
                 pFovControl->mFovControlResult.camMasterPreview  = CAM_TYPE_MAIN;
                 pFovControl->mFovControlResult.camMaster3A       = CAM_TYPE_MAIN;
-                success = true;
 
                 // Check if LPM is enabled
                 char prop[PROPERTY_VALUE_MAX];
@@ -131,6 +135,16 @@ QCameraFOVControl* QCameraFOVControl::create(
                 } else {
                     pFovControl->mFovControlData.lpmEnabled = true;
                 }
+
+                // Open the external zoom translation library if requested
+                if (FOVC_USE_EXTERNAL_ZOOM_TRANSLATOR) {
+                    pFovControl->mZoomTranslator =
+                            QCameraExtZoomTranslator::create();
+                    if (!pFovControl->mZoomTranslator) {
+                        LOGE("Unable to open zoom translation lib");
+                    }
+                }
+                success = true;
             }
 
             if (!success) {
@@ -273,13 +287,18 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
             }
         }
 
-        // Choose the smaller of the two max picture dimensions
-        if ((maxPicDimAux.width * maxPicDimAux.height) <
+        LOGH("MAIN Max picture wxh %dx%d", maxPicDimMain.width, maxPicDimMain.height);
+        LOGH("AUX Max picture wxh %dx%d", maxPicDimAux.width, maxPicDimAux.height);
+
+        // Choose the larger of the two max picture dimensions
+        if ((maxPicDimAux.width * maxPicDimAux.height) >
                 (maxPicDimMain.width * maxPicDimMain.height)) {
             capsConsolidated.picture_sizes_tbl_cnt = capsAuxCam->picture_sizes_tbl_cnt;
             memcpy(capsConsolidated.picture_sizes_tbl, capsAuxCam->picture_sizes_tbl,
                     (capsAuxCam->picture_sizes_tbl_cnt * sizeof(cam_dimension_t)));
         }
+        LOGH("Consolidated Max picture wxh %dx%d", capsConsolidated.picture_sizes_tbl[0].width,
+                capsConsolidated.picture_sizes_tbl[0].height);
 
         // Consolidate supported preview formats
         uint32_t supportedPreviewFmtCntMain  = capsMainCam->supported_preview_fmt_cnt;
@@ -318,6 +337,14 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
             }
         }
         capsConsolidated.supported_picture_fmt_cnt = supportedPictureFmtCntFinal;
+
+        if (mZoomTranslator) {
+            // Copy the opaque calibration data pointer and size
+            mFovControlData.zoomTransInitData.calibData =
+                    capsConsolidated.related_cam_calibration.dc_otp_params;
+            mFovControlData.zoomTransInitData.calibDataSize =
+                    capsConsolidated.related_cam_calibration.dc_otp_size;
+        }
     }
     return capsConsolidated;
 }
@@ -427,8 +454,9 @@ int32_t QCameraFOVControl::updateConfigSettings(
                 mFovControlData.camMainHeightMargin = camMainStreamInfo.margins[i].heightMargins;
             }
             if (camMainStreamInfo.type[i] == CAM_STREAM_TYPE_PREVIEW) {
-                // Update the preview dimension
+                // Update the preview dimension and ISP output size
                 mFovControlData.previewSize = camMainStreamInfo.stream_sizes[i];
+                mFovControlData.ispOutSize  = camMainStreamInfo.stream_sz_plus_margin[i];
                 if (!mFovControlData.camcorderMode) {
                     mFovControlData.camMainWidthMargin  =
                             camMainStreamInfo.margins[i].widthMargins;
@@ -459,6 +487,16 @@ int32_t QCameraFOVControl::updateConfigSettings(
             }
         }
 
+        // Get the sensor out dimensions
+        cam_dimension_t sensorDimMain = {0,0};
+        cam_dimension_t sensorDimAux  = {0,0};
+        if (paramsMainCam->is_valid[CAM_INTF_PARM_RAW_DIMENSION]) {
+            READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_RAW_DIMENSION, sensorDimMain);
+        }
+        if (paramsAuxCam->is_valid[CAM_INTF_PARM_RAW_DIMENSION]) {
+            READ_PARAM_ENTRY(paramsAuxCam, CAM_INTF_PARM_RAW_DIMENSION, sensorDimAux);
+        }
+
         // Reset the internal variables
         resetVars();
 
@@ -484,6 +522,48 @@ int32_t QCameraFOVControl::updateConfigSettings(
                 LOGD("start camera state: WIDE");
             }
             mFovControlResult.snapshotPostProcess = false;
+
+            // Deinit zoom translation lib if needed
+            if (mZoomTranslator && mZoomTranslator->isInitialized()) {
+                if (mZoomTranslator->deInit() != NO_ERROR) {
+                    ALOGW("deinit failed for zoom translation lib");
+                }
+            }
+
+            // Initialize the zoom translation lib
+            if (mZoomTranslator) {
+                // Set the initialization data
+                mFovControlData.zoomTransInitData.previewDimension.width =
+                        mFovControlData.previewSize.width;
+                mFovControlData.zoomTransInitData.previewDimension.height =
+                        mFovControlData.previewSize.height;
+                mFovControlData.zoomTransInitData.ispOutDimension.width =
+                        mFovControlData.ispOutSize.width;
+                mFovControlData.zoomTransInitData.ispOutDimension.height =
+                        mFovControlData.ispOutSize.height;
+                mFovControlData.zoomTransInitData.sensorOutDimensionMain.width =
+                        sensorDimMain.width;
+                mFovControlData.zoomTransInitData.sensorOutDimensionMain.height =
+                        sensorDimMain.height;
+                mFovControlData.zoomTransInitData.sensorOutDimensionAux.width =
+                        sensorDimAux.width;
+                mFovControlData.zoomTransInitData.sensorOutDimensionAux.height =
+                        sensorDimAux.height;
+                mFovControlData.zoomTransInitData.zoomRatioTable =
+                        mFovControlData.zoomRatioTable;
+                mFovControlData.zoomTransInitData.zoomRatioTableCount =
+                        mFovControlData.zoomRatioTableCount;
+                mFovControlData.zoomTransInitData.mode = mFovControlData.camcorderMode ?
+                        MODE_CAMCORDER : MODE_CAMERA;
+
+                if(mZoomTranslator->init(mFovControlData.zoomTransInitData) != NO_ERROR) {
+                    LOGE("init failed for zoom translation lib");
+
+                    // deinitialize the zoom translator and set to NULL
+                    mZoomTranslator->deInit();
+                    mZoomTranslator = NULL;
+                }
+            }
 
             // FOV-control config is complete for the current use case
             mFovControlData.configCompleted = true;
@@ -527,16 +607,13 @@ int32_t QCameraFOVControl::translateInputParams(
             convertUserZoomToWideAndTele(userZoom);
 
             // Update zoom values in the param buffers
+            uint32_t zoomMain = isMainCamFovWider() ?
+                    mFovControlData.zoomWide : mFovControlData.zoomTele;
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_ZOOM, zoomMain);
+
             uint32_t zoomAux = isMainCamFovWider() ?
                     mFovControlData.zoomTele : mFovControlData.zoomWide;
             ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_ZOOM, zoomAux);
-
-            // Write the updated zoom value for the main camera if the main camera FOV
-            // is not the wider of the two.
-            if (!isMainCamFovWider()) {
-                ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_ZOOM,
-                        mFovControlData.zoomTele);
-            }
 
             // Write the user zoom in main and aux param buffers
             // The user zoom will always correspond to the wider camera
@@ -1723,8 +1800,25 @@ void QCameraFOVControl::convertUserZoomToWideAndTele(
 {
     Mutex::Autolock lock(mMutex);
 
-    mFovControlData.zoomWide = zoom;
-    mFovControlData.zoomTele = readjustZoomForTele(mFovControlData.zoomWide);
+    // If the zoom translation library is present and initialized,
+    // use it to get wide and tele zoom values
+    if (mZoomTranslator && mZoomTranslator->isInitialized()) {
+        uint32_t zoomWide = 0;
+        uint32_t zoomTele = 0;
+        if (mZoomTranslator->getZoomValues(zoom, &zoomWide, &zoomTele) != NO_ERROR) {
+            LOGE("getZoomValues failed from zoom translation lib");
+            // Use zoom translation logic from FOV-control
+            mFovControlData.zoomWide = zoom;
+            mFovControlData.zoomTele = readjustZoomForTele(mFovControlData.zoomWide);
+        } else {
+            // Use the zoom values provided by zoom translation lib
+            mFovControlData.zoomWide = zoomWide;
+            mFovControlData.zoomTele = zoomTele;
+        }
+    } else {
+        mFovControlData.zoomWide = zoom;
+        mFovControlData.zoomTele = readjustZoomForTele(mFovControlData.zoomWide);
+    }
 }
 
 
