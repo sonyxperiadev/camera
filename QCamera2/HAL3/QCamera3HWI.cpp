@@ -1318,6 +1318,13 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
                     |= CAM_QCOM_FEATURE_LLVD;
             LOGH("Added LLVD SeeMore to pp feature mask");
         }
+
+        if (feature_mask & CAM_QCOM_FEATURE_LCAC) {
+            mStreamConfigInfo.postprocess_mask[stream_idx]
+                    |= CAM_QCOM_FEATURE_LCAC;
+            LOGH("Added LCAC to pp feature mask");
+        }
+
         if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
                 CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) {
             mStreamConfigInfo.postprocess_mask[stream_idx] |= CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
