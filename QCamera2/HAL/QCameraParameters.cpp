@@ -221,6 +221,7 @@ const char QCameraParameters::KEY_QC_IS_BOKEH_MODE_SUPPORTED[] = "is-bokeh-suppo
 const char QCameraParameters::KEY_QC_IS_BOKEH_MPO_SUPPORTED[] = "is-bokeh-mpo-supported";
 const char QCameraParameters::KEY_QC_BOKEH_BLUR_VALUE[] = "bokeh-blur-value";
 const char QCameraParameters::KEY_QC_BOKEH_MPO_MODE[] = "bokeh-mpo-mode";
+const char QCameraParameters::KEY_QC_BOKEH_PICTURE_SIZE[] = "bokeh-picture-size";
 
 
 // Values for effect settings.
@@ -1629,6 +1630,10 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
     int width, height;
     params.getPictureSize(&width, &height);
     int old_width, old_height;
+    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+        width = CAM_BOKEH_TELE_WIDTH;
+        height = CAM_BOKEH_TELE_HEIGHT;
+    }
     LOGH("Requested picture size %d x %d", width, height);
     CameraParameters::getPictureSize(&old_width, &old_height);
     LOGH("old picture size %d x %d", old_width, old_height);
@@ -5407,6 +5412,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     }
 
     if ((rc = setSecureMode(params)))                   final_rc = rc;
+    if ((rc = setBokehMode(params)))                    final_rc = rc;
     if ((rc = setPreviewSize(params)))                  final_rc = rc;
     if ((rc = setVideoSize(params)))                    final_rc = rc;
     if ((rc = setPictureSize(params)))                  final_rc = rc;
@@ -5491,7 +5497,6 @@ int32_t QCameraParameters::updateParameters(const String8& p,
 
     if ((rc = setLongshotParam(params)))                final_rc = rc;
     if ((rc = setDualLedCalibration(params)))           final_rc = rc;
-    if ((rc = setBokehMode(params)))                   final_rc = rc;
     if ((rc = setNoDisplayMode(params)))                final_rc = rc;
 
     setQuadraCfa(params);
@@ -6401,6 +6406,12 @@ int32_t QCameraParameters::initDefaultParameters()
         set(KEY_QC_BOKEH_MODE, 0);
         set(KEY_QC_BOKEH_BLUR_VALUE, 0);
         set(KEY_QC_BOKEH_MPO_MODE, 0);
+        cam_dimension_t bokehPicSize = { CAM_BOKEH_TELE_WIDTH, CAM_BOKEH_TELE_HEIGHT };
+        String8 bokehPictureSizeValue = createSizesString(
+                &bokehPicSize, 1);
+        set(KEY_QC_BOKEH_PICTURE_SIZE, bokehPictureSizeValue.string());
+        LOGH("supported bokeh picture size: %s", bokehPictureSizeValue.string());
+
     } else {
         String8 minMaxValues = createMinMaxValuesString(0, 0, 0);
         set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
@@ -14327,6 +14338,10 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     }
     if ((rc == NO_ERROR) && isDualCamera()) {
         bundleRelatedCameras(true);
+        if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+            LOGH("Set mMasterCamera as CAM_TYPE_AUX");
+            mMasterCamera = CAM_TYPE_AUX;
+        }
         setSwitchCamera(mMasterCamera);
     }
 
