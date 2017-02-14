@@ -63,10 +63,10 @@ QCamera3Memory::QCamera3Memory()
     mBufferCount = 0;
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
         mMemInfo[i].fd = -1;
+        mMemInfo[i].main_ion_fd = -1;
         mMemInfo[i].handle = 0;
         mMemInfo[i].size = 0;
     }
-    main_ion_fd = open("/dev/ion", O_RDONLY);
 }
 
 /*===========================================================================
@@ -80,7 +80,6 @@ QCamera3Memory::QCamera3Memory()
  *==========================================================================*/
 QCamera3Memory::~QCamera3Memory()
 {
-    close(main_ion_fd);
 }
 
 /*===========================================================================
@@ -128,8 +127,8 @@ int QCamera3Memory::cacheOpsInternal(uint32_t index, unsigned int cmd, void *vad
     CDBG("%s: addr = %p, fd = %d, handle = %lx length = %d, ION Fd = %d",
          __func__, cache_inv_data.vaddr, cache_inv_data.fd,
          (unsigned long)cache_inv_data.handle, cache_inv_data.length,
-         main_ion_fd);
-    ret = ioctl(main_ion_fd, ION_IOC_CUSTOM, &custom_data);
+         mMemInfo[index].main_ion_fd);
+    ret = ioctl(mMemInfo[index].main_ion_fd, ION_IOC_CUSTOM, &custom_data);
     if (ret < 0)
         ALOGE("%s: Cache Invalidate failed: %s\n", __func__, strerror(errno));
 
@@ -353,7 +352,9 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
     struct ion_handle_data handle_data;
     struct ion_allocation_data allocData;
     struct ion_fd_data ion_info_fd;
+    int main_ion_fd = -1;
 
+    main_ion_fd = open("/dev/ion", O_RDONLY);
     if (main_ion_fd < 0) {
         ALOGE("Ion dev open failed: %s\n", strerror(errno));
         goto ION_OPEN_FAILED;
@@ -381,6 +382,7 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
         goto ION_MAP_FAILED;
     }
 
+    memInfo.main_ion_fd = main_ion_fd;
     memInfo.fd = ion_info_fd.fd;
     memInfo.handle = ion_info_fd.handle;
     memInfo.size = allocData.len;
@@ -391,6 +393,7 @@ ION_MAP_FAILED:
     handle_data.handle = ion_info_fd.handle;
     ioctl(main_ion_fd, ION_IOC_FREE, &handle_data);
 ION_ALLOC_FAILED:
+    close(main_ion_fd);
 ION_OPEN_FAILED:
     return NO_MEMORY;
 }
@@ -414,10 +417,12 @@ void QCamera3HeapMemory::deallocOneBuffer(QCamera3MemInfo &memInfo)
         memInfo.fd = -1;
     }
 
-    if (main_ion_fd >= 0) {
+    if (memInfo.main_ion_fd >= 0) {
         memset(&handle_data, 0, sizeof(handle_data));
         handle_data.handle = memInfo.handle;
-        ioctl(main_ion_fd, ION_IOC_FREE, &handle_data);
+        ioctl(memInfo.main_ion_fd, ION_IOC_FREE, &handle_data);
+        close(memInfo.main_ion_fd);
+        memInfo.main_ion_fd = -1;
     }
     memInfo.handle = 0;
     memInfo.size = 0;
@@ -675,15 +680,17 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
 
     setMetaData(mPrivateHandle[idx], UPDATE_COLOR_SPACE, &colorSpace);
 
-    if (main_ion_fd < 0) {
+    mMemInfo[idx].main_ion_fd = open("/dev/ion", O_RDONLY);
+    if (mMemInfo[idx].main_ion_fd < 0) {
         ALOGE("%s: failed: could not open ion device", __func__);
         ret = NO_MEMORY;
         goto end;
     } else {
         ion_info_fd.fd = mPrivateHandle[idx]->fd;
-        if (ioctl(main_ion_fd,
+        if (ioctl(mMemInfo[idx].main_ion_fd,
                   ION_IOC_IMPORT, &ion_info_fd) < 0) {
             ALOGE("%s: ION import failed\n", __func__);
+            close(mMemInfo[idx].main_ion_fd);
             ret = NO_MEMORY;
             goto end;
         }
@@ -736,10 +743,12 @@ int32_t QCamera3GrallocMemory::unregisterBufferLocked(size_t idx)
     struct ion_handle_data ion_handle;
     memset(&ion_handle, 0, sizeof(ion_handle));
     ion_handle.handle = mMemInfo[idx].handle;
-    if (ioctl(main_ion_fd, ION_IOC_FREE, &ion_handle) < 0) {
+    if (ioctl(mMemInfo[idx].main_ion_fd, ION_IOC_FREE, &ion_handle) < 0) {
         ALOGE("ion free failed");
     }
+    close(mMemInfo[idx].main_ion_fd);
     memset(&mMemInfo[idx], 0, sizeof(struct QCamera3MemInfo));
+    mMemInfo[idx].main_ion_fd = -1;
     mBufferHandle[idx] = NULL;
     mPrivateHandle[idx] = NULL;
     mBufferCount--;
