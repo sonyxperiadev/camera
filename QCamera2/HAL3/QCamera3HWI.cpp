@@ -3947,18 +3947,27 @@ void QCamera3HardwareInterface::orchestrateNotify(camera3_notify_msg_t *notify_m
 {
     uint32_t frameworkFrameNumber;
     uint32_t internalFrameNumber = notify_msg->message.shutter.frame_number;
-    int32_t rc = _orchestrationDb.getFrameworkFrameNumber(internalFrameNumber,
+    int32_t rc = NO_ERROR;
+
+    rc = _orchestrationDb.getFrameworkFrameNumber(internalFrameNumber,
                                                           frameworkFrameNumber);
+
     if (rc != NO_ERROR) {
-        LOGE("Cannot find translated frameworkFrameNumber");
-        assert(0);
-    } else {
-        if (frameworkFrameNumber == EMPTY_FRAMEWORK_FRAME_NUMBER) {
-            LOGD("Internal Request drop the notifyCb");
+        if (notify_msg->message.error.error_code == CAMERA3_MSG_ERROR_DEVICE) {
+            LOGD("Sending CAMERA3_MSG_ERROR_DEVICE to framework");
+            frameworkFrameNumber = 0;
         } else {
-            notify_msg->message.shutter.frame_number = frameworkFrameNumber;
-            mCallbackOps->notify(mCallbackOps, notify_msg);
+            LOGE("Cannot find translated frameworkFrameNumber");
+            assert(0);
+            return;
         }
+    }
+
+    if (frameworkFrameNumber == EMPTY_FRAMEWORK_FRAME_NUMBER) {
+        LOGD("Internal Request drop the notifyCb");
+    } else {
+        notify_msg->message.shutter.frame_number = frameworkFrameNumber;
+        mCallbackOps->notify(mCallbackOps, notify_msg);
     }
 }
 
@@ -5327,18 +5336,16 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
             pthread_mutex_unlock(&mMutex);
             return rc;
         }
-    }
-
-    if (mChannelHandle) {
-        mCameraHandle->ops->start_channel(mCameraHandle->camera_handle,
-                    mChannelHandle);
-        if (rc < 0) {
-            LOGE("start_channel failed");
-            pthread_mutex_unlock(&mMutex);
-            return rc;
+        if (mChannelHandle) {
+            mCameraHandle->ops->start_channel(mCameraHandle->camera_handle,
+                        mChannelHandle);
+            if (rc < 0) {
+                LOGE("start_channel failed");
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
         }
     }
-
     pthread_mutex_unlock(&mMutex);
 
     return 0;
