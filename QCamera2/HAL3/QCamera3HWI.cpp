@@ -569,7 +569,6 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
             m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         }
-        m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         pthread_mutex_unlock(&gCamLock);
 
         rc = mCameraHandle->ops->set_dual_cam_cmd(
@@ -1318,15 +1317,29 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
                     |= CAM_QCOM_FEATURE_LLVD;
             LOGH("Added LLVD SeeMore to pp feature mask");
         }
-        if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
-                CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) {
-            mStreamConfigInfo.postprocess_mask[stream_idx] |= CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
+
+        if (feature_mask & CAM_QCOM_FEATURE_LCAC) {
+            mStreamConfigInfo.postprocess_mask[stream_idx]
+                    |= CAM_QCOM_FEATURE_LCAC;
+            LOGH("Added LCAC to pp feature mask");
         }
         if ((m_bIsVideo) && (gCamCapability[mCameraId]->qcom_supported_feature_mask &
                 CAM_QTI_FEATURE_BINNING_CORRECTION)) {
             mStreamConfigInfo.postprocess_mask[stream_idx] |=
                     CAM_QTI_FEATURE_BINNING_CORRECTION;
         }
+
+        if (gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR) {
+            mStreamConfigInfo.postprocess_mask[stream_idx] |=
+                    CAM_QCOM_FEATURE_STAGGERED_VIDEO_HDR;
+            if ( mStreamConfigInfo.postprocess_mask[stream_idx] &
+                    CAM_QTI_FEATURE_BINNING_CORRECTION) {
+                mStreamConfigInfo.postprocess_mask[stream_idx] &=
+                        ~CAM_QTI_FEATURE_BINNING_CORRECTION;
+            }
+        }
+
         break;
     }
     default:
@@ -4509,7 +4522,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 m_pRelCamSyncBuf->cam_role = CAM_ROLE_MONO;
                 m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
             }
-            m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
             pthread_mutex_unlock(&gCamLock);
 
             rc = mCameraHandle->ops->set_dual_cam_cmd(
@@ -5277,7 +5289,6 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
             m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         }
-        m_pRelCamSyncBuf->is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
         pthread_mutex_unlock(&gCamLock);
 
         rc = mCameraHandle->ops->set_dual_cam_cmd(
@@ -5825,8 +5836,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_LENS_FOCAL_LENGTH, focalLength, 1);
     }
 
-    IF_META_AVAILABLE(uint32_t, opticalStab, CAM_INTF_META_LENS_OPT_STAB_MODE, metadata) {
-        uint8_t fwk_opticalStab = (uint8_t) *opticalStab;
+    IF_META_AVAILABLE(cam_ois_mode_t, opticalStab, CAM_INTF_META_LENS_OPT_STAB_MODE, metadata) {
+        uint8_t fwk_opticalStab = 0;
+        if ((*opticalStab) == OIS_MODE_ACTIVE) {
+            fwk_opticalStab = 1;
+        }
         camMetadata.update(ANDROID_LENS_OPTICAL_STABILIZATION_MODE, &fwk_opticalStab, 1);
     }
 
@@ -10694,8 +10708,12 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_LENS_OPTICAL_STABILIZATION_MODE)) {
         uint8_t optStabMode =
                 frame_settings.find(ANDROID_LENS_OPTICAL_STABILIZATION_MODE).data.u8[0];
+        cam_ois_mode_t oisMode = OIS_MODE_INACTIVE;
+        if (optStabMode) {
+            oisMode = OIS_MODE_ACTIVE;
+        }
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_OPT_STAB_MODE,
-                optStabMode)) {
+                oisMode)) {
             rc = BAD_VALUE;
         }
     }

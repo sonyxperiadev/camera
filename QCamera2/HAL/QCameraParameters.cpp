@@ -1001,6 +1001,7 @@ QCameraParameters::QCameraParameters()
       mAecSkipDisplayFrameBound(0),
       m_bQuadraCfa(false),
       mMasterCamera(CAM_TYPE_MAIN),
+      m_bRedEyeReduction(false),
       m_bSmallJpegSize(false),
       mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
       mFrameNumber(0),
@@ -1047,6 +1048,7 @@ QCameraParameters::QCameraParameters()
     mVideoBatchSize = 0;
     m_bOEMFeatEnabled = isOEMFeat1PropEnabled();
     m_bDualCamera = 0;
+    m_bOISMode = (cam_ois_mode_t)(-1);
 }
 
 /*===========================================================================
@@ -1141,6 +1143,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAecSkipDisplayFrameBound(0),
     m_bQuadraCfa(false),
     mMasterCamera(CAM_TYPE_MAIN),
+    m_bRedEyeReduction(false),
     m_bSmallJpegSize(false),
     mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
     mFrameNumber(0),
@@ -1163,6 +1166,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mVideoBatchSize = 0;
     m_bOEMFeatEnabled = isOEMFeat1PropEnabled();
     m_bDualCamera = 0;
+    m_bOISMode = (cam_ois_mode_t)(-1);
 }
 
 /*===========================================================================
@@ -4372,7 +4376,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
     } else {
         set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum));
         LOGH("nBurstNum = %d, nExpnum = %d snapshots = %d", nBurstNum, nExpnum,
-                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
+                (nBurstNum * nExpnum));
     }
 
     return NO_ERROR;
@@ -8480,43 +8484,61 @@ int32_t QCameraParameters::setDISValue(const char *disStr)
 }
 
 /*===========================================================================
- * FUNCTION   : updateOisValue
+ * FUNCTION   : updateOisMode
  *
- * DESCRIPTION: update OIS value
+ * DESCRIPTION: update OIS mode
  *
  * PARAMETERS :
- *   @oisValue : OIS value TRUE/FALSE
+ *   @oisMode : OIS mode
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::updateOisValue(bool oisValue)
+int32_t QCameraParameters::updateOisMode(cam_ois_mode_t reqOisMode)
 {
-    uint8_t enable = 0;
+    cam_ois_mode_t ois_mode = OIS_MODE_INACTIVE;
     int32_t rc = NO_ERROR;
 
-    // Check for OIS disable
+    // Check for OIS disable or hold
     char ois_prop[PROPERTY_VALUE_MAX];
     memset(ois_prop, 0, sizeof(ois_prop));
-    property_get("persist.camera.ois.disable", ois_prop, "0");
-    uint8_t ois_disable = (uint8_t)atoi(ois_prop);
+    // default ois_mode of 1 is OIS_MODE_ACTIVE
+    property_get("persist.camera.ois.mode", ois_prop, "1");
+    uint8_t ois_mode_prop = (uint8_t)atoi(ois_prop);
 
-    //Enable OIS if it is camera mode or Camcoder 4K mode
-    if (!m_bRecordingHint || (is4k2kVideoResolution() && m_bRecordingHint)) {
-        enable = 1;
-        LOGH("Valid OIS mode!! ");
+    // In dual camera mode, set the requested ois mode
+    if (isDualCamera()) {
+        cam_ois_mode_t mode = reqOisMode;
+        // Check if setprop is overriding the requested ois mode
+        if ((ois_mode_prop == OIS_MODE_INACTIVE) ||
+                (ois_mode_prop == OIS_MODE_HOLD)) {
+            mode = (cam_ois_mode_t)ois_mode_prop;
+        }
+        // Only update if requested OIS mode is changed
+        if (m_bOISMode != mode) {
+            ois_mode = mode;
+        } else {
+            return NO_ERROR;
+        }
+    } else {
+        // Make OIS active if it is camera mode or Camcoder 4K mode
+        if (!m_bRecordingHint || (is4k2kVideoResolution() && m_bRecordingHint)) {
+            ois_mode = OIS_MODE_ACTIVE;
+            LOGH("Valid OIS mode!! ");
+        }
+        // Disable OIS if setprop is set
+        if ((ois_mode_prop == 0) || (reqOisMode == OIS_MODE_INACTIVE)) {
+            //Disable OIS
+            ois_mode = OIS_MODE_INACTIVE;
+            LOGH("Disable OIS mode!! ois_mode_prop(%d) reqOisMode(%d)",
+                     ois_mode_prop, reqOisMode);
+        }
     }
-    // Disable OIS if setprop is set
-    if (ois_disable || !oisValue) {
-        //Disable OIS
-        enable = 0;
-        LOGH("Disable OIS mode!! ois_disable(%d) oisValue(%d)",
-                 ois_disable, oisValue);
 
-    }
-    m_bOISEnabled = enable;
-    if (m_bOISEnabled) {
+    m_bOISMode = ois_mode;
+
+    if (m_bOISMode == OIS_MODE_ACTIVE) {
         updateParamEntry(KEY_QC_OIS, VALUE_ENABLE);
     } else {
         updateParamEntry(KEY_QC_OIS, VALUE_DISABLE);
@@ -8527,8 +8549,8 @@ int32_t QCameraParameters::updateOisValue(bool oisValue)
         return BAD_TYPE;
     }
 
-    LOGH("Sending OIS mode (%d)", enable);
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_LENS_OPT_STAB_MODE, enable)) {
+    LOGH("Sending OIS mode (%d)", m_bOISMode);
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_LENS_OPT_STAB_MODE, m_bOISMode)) {
         LOGE("Failed to update table");
         return BAD_VALUE;
     }
@@ -9963,6 +9985,7 @@ int32_t QCameraParameters::setRedeyeReduction(const char *redeyeStr)
         int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
                 PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), redeyeStr);
         if (value != NAME_NOT_FOUND) {
+            m_bRedEyeReduction = (value != 0);
             LOGD("Setting RedEye Reduce value %s", redeyeStr);
             updateParamEntry(KEY_QC_REDEYE_REDUCTION, redeyeStr);
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
@@ -12333,12 +12356,12 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
     }
     bundle_info.sync_control =
             (cam_sync_related_sensors_control_t)sync;
+    bundle_info.sync_mechanism = DUALCAM_SYNC_MECHANISM;
     bundle_info.mode = (cam_sync_mode_t)mode;
     bundle_info.type = (cam_sync_type_t)type;
     bundle_info.cam_role = (cam_dual_camera_role_t)role;
     bundle_info.related_sensor_session_id = sessionId[bundle_cam_idx];
     bundle_info.perf_mode = getLowPowerMode(bundle_info.type);
-    bundle_info.is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
     num_cam++;
 
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
@@ -12390,11 +12413,13 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
                 memcpy(&m_pDualCamCmdPtr[i]->bundle_info,
                         &info[i],
                         sizeof(cam_dual_camera_bundle_info_t));
-                LOGH("SYNC CMD %d: cmd %d mode %d type %d hw-sync %d session - %d", i,
+                LOGH("SYNC CMD %d: cmd %d mode %d type %d sync-control %d "
+                        "sync-mechanism %d session - %d", i,
                         m_pDualCamCmdPtr[i]->cmd_type,
                         m_pDualCamCmdPtr[i]->bundle_info.mode,
                         m_pDualCamCmdPtr[i]->bundle_info.type,
-                        m_pDualCamCmdPtr[i]->bundle_info.is_hw_sync_enabled,
+                        m_pDualCamCmdPtr[i]->bundle_info.sync_control,
+                        m_pDualCamCmdPtr[i]->bundle_info.sync_mechanism,
                         m_pDualCamCmdPtr[i]->bundle_info.related_sensor_session_id);
             }
         }
@@ -12538,18 +12563,13 @@ int32_t QCameraParameters::getRelatedCamCalibration(
  *==========================================================================*/
 void QCameraParameters::setSyncDCParams()
 {
-    uint32_t temp_mSyncDCParam = 0;
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
 
     //Keep it enable by default.
     //It will be used for Dual camera sync parameters
     property_get("persist.camera.syncDCParams.en", prop, "1");
-    temp_mSyncDCParam = atoi(prop);
-
-    if (MM_CAMERA_DUAL_CAM == mActiveCameras) {
-        mSyncDCParam = temp_mSyncDCParam;
-    }
+    mSyncDCParam = atoi(prop);
 }
 
 
@@ -12570,11 +12590,14 @@ void QCameraParameters::setSyncDCParams()
  *==========================================================================*/
 int32_t QCameraParameters::SyncDCParams()
 {
-    //Add dual-parameter in parameters
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
-        CAM_INTF_PARM_SYNC_DC_PARAMETERS, mSyncDCParam)) {
-        LOGE("Failed to update table");
-        return BAD_VALUE;
+    // If mSyncDCParam is set, sync dual camera params in the dual zone only
+    if (mSyncDCParam && (MM_CAMERA_DUAL_CAM == mActiveCameras)) {
+        //Add dual-parameter in parameters
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+            CAM_INTF_PARM_SYNC_DC_PARAMETERS, mSyncDCParam)) {
+            LOGE("Failed to update table");
+            return BAD_VALUE;
+        }
     }
     return NO_ERROR;
 }
@@ -12692,10 +12715,6 @@ int32_t QCameraParameters::commitSetBatch()
         updateFrameNumber();
         SyncDCParams();
     }
-    if (i < CAM_INTF_PARM_MAX) {
-        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
-            m_pParamBuf);
-    }
 
     if ((i < CAM_INTF_PARM_MAX) && isDualCamera()) {
         // Translate input parameters from main camera to create parameter set for aux camera
@@ -12711,6 +12730,11 @@ int32_t QCameraParameters::commitSetBatch()
             LOGE("FOV-control: Failed to set params for Aux camera");
             return rc;
         }
+    }
+
+    if (i < CAM_INTF_PARM_MAX) {
+        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+            m_pParamBuf);
     }
 
     if (rc == NO_ERROR) {
@@ -14030,11 +14054,15 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         cam_dual_camera_bundle_info_t bundle_info[MM_CAMERA_MAX_CAM_CNT];
         uint8_t num_cam = 0;
         uint32_t sessionID = 0;
+        cam_sync_related_sensors_control_t syncControl;
 
         property_get("persist.camera.stats.test.2outs", prop, "0");
         sync_3a_mode = (atoi(prop) > 0) ? CAM_3A_SYNC_ALGO_CTRL : sync_3a_mode;
 
-        bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
+        // Update syncControl based on DUALCAM_SYNC_MECHANISM setting
+        syncControl = (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) ?
+                CAM_SYNC_RELATED_SENSORS_OFF : CAM_SYNC_RELATED_SENSORS_ON;
+        bundle_info[num_cam].sync_control = syncControl;
         bundle_info[num_cam].type = CAM_TYPE_MAIN;
         bundle_info[num_cam].mode = CAM_MODE_PRIMARY;
         bundle_info[num_cam].cam_role = CAM_ROLE_WIDE;
@@ -14044,9 +14072,9 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
         bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_MAIN);
-        bundle_info[num_cam].is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
+        bundle_info[num_cam].sync_mechanism = DUALCAM_SYNC_MECHANISM;
         num_cam++;
-        bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
+        bundle_info[num_cam].sync_control = syncControl;
         bundle_info[num_cam].type = CAM_TYPE_AUX;
         bundle_info[num_cam].mode = CAM_MODE_SECONDARY;
         bundle_info[num_cam].cam_role = CAM_ROLE_TELE;
@@ -14056,7 +14084,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
         bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_AUX);
-        bundle_info[num_cam].is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
+        bundle_info[num_cam].sync_mechanism = DUALCAM_SYNC_MECHANISM;
         num_cam++;
         rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
                 num_cam, &bundle_info[0]);
@@ -15751,6 +15779,37 @@ bool QCameraParameters::isLinkPreviewForLiveShot()
 }
 
 /*===========================================================================
+ * FUNCTION   : needSnapshotPP
+ *
+ * DESCRIPTION: Check if Snapshot postprocessing is required or not
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : true: needed
+ *              false: no need
+ *==========================================================================*/
+bool QCameraParameters::needSnapshotPP()
+{
+    int stillWidth, stillHeight, maxWidth, maxHeight;
+    bool maxPicSize;
+    // Get current Picture & max Snapshot sizes
+    getPictureSize(&stillWidth, &stillHeight);
+    maxWidth  = m_pCapability->picture_sizes_tbl[0].width;
+    maxHeight = m_pCapability->picture_sizes_tbl[0].height;
+
+    maxPicSize = (stillWidth == maxWidth) && (stillHeight == maxHeight);
+    // Disable Snapshot Postprocessing if any of the below features are enabled
+    if (!maxPicSize || m_bLongshotEnabled || m_bRecordingHint ||
+            (mFlashValue != CAM_FLASH_MODE_OFF) || m_bRedEyeReduction ||
+            isAdvCamFeaturesEnabled() || getQuadraCfa()) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+
+/*===========================================================================
  * FUNCTION   : SetDualCamera
  *
  * DESCRIPTION: set Dual Camera
@@ -15794,6 +15853,9 @@ int32_t QCameraParameters::setSwitchCamera(uint32_t camMaster)
         LOGW("Invalid master camera info");
         return rc;
     }
+
+    LOGD("Switching to %s", (camMaster == MM_CAMERA_TYPE_MAIN) ?
+            "CAM_TYPE_MAIN" : "CAM_TYPE_AUX");
 
     // Update master camera
     mMasterCamera = camMaster;
@@ -15864,19 +15926,9 @@ cam_dual_camera_perf_mode_t QCameraParameters::getLowPowerMode(cam_sync_type_t c
         return CAM_PERF_NONE;
     }
 
+    // If setprop doesn't set low power mode read the mode from config file QCameraDualCamSettings.h
     if (lpm == 0) {
-        switch(lpmConfig) {
-            case SENSOR_SLEEP:
-                lpm = CAM_PERF_SENSOR_SUSPEND;
-                break;
-            case ISPIF_FRAME_DROP:
-                lpm = CAM_PERF_ISPIF_FRAME_DROP;
-                break;
-            case NONE:
-            default:
-                lpm = CAM_PERF_NONE;
-                break;
-        }
+        lpm = lpmConfig;
     }
     LOGD("LPM for %s camera: %d", cam == CAM_TYPE_MAIN ? "main" : "aux", lpm);
     return (cam_dual_camera_perf_mode_t)lpm;

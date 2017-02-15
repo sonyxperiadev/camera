@@ -156,6 +156,7 @@ typedef struct {
     uint32_t                     afStatusMain;
     uint32_t                     afStatusAux;
     bool                         lpmEnabled;
+    uint8_t                      oisSetting;
 } fov_control_data_t;
 
 typedef struct {
@@ -200,6 +201,7 @@ typedef struct {
     uint32_t        activeCameras;
     bool            snapshotPostProcess;
     bool            snapshotPostProcessZoomRange;
+    cam_ois_mode_t  oisMode;
 } fov_control_result_t;
 
 

@@ -118,6 +118,8 @@ static int32_t perfLockParamsStartPreview[] = {
 };
 
 static int32_t perfLockParamsTakeSnapshot[] = {
+    // Disable power collapse
+    MPCTLV3_ALL_CPUS_PWR_CLPS_DIS,          0x1,
     #ifdef TARGET_MSM8996
     // Set little cluster and big cluster cores to 1.555 GHz
     MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0, 0x613,
