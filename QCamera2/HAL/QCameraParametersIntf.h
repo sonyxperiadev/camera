@@ -237,7 +237,7 @@ public:
     bool isUBWCEnabled();
 
     int getBrightness();
-    int32_t updateOisValue(bool oisValue);
+    int32_t updateOisMode(cam_ois_mode_t oisMode);
     int32_t setIntEvent(cam_int_evt_params_t params);
     bool getofflineRAW();
     bool getQuadraCfa();

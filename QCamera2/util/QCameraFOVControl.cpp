@@ -505,6 +505,16 @@ int32_t QCameraFOVControl::updateConfigSettings(
 
             calculateDualCamTransitionParams();
 
+            // Initialize the result OIS mode as HOLD
+            mFovControlResult.oisMode = OIS_MODE_HOLD;
+
+            // Update OIS setting / scheme
+            if (mFovControlData.camcorderMode) {
+                mFovControlData.oisSetting = DUALCAM_OIS_MODE_CAMCORDER;
+            } else {
+                mFovControlData.oisSetting = DUALCAM_OIS_MODE_CAM;
+            }
+
             // Set initial camera state
             float zoom = findZoomRatio(mFovControlData.zoomWide) /
                     (float)mFovControlData.zoomRatioTable[0];
@@ -1205,10 +1215,19 @@ void QCameraFOVControl::generateFovControlResult()
         mFovControlResult.snapshotPostProcess = false;
     }
 
+    // Update OIS mode in the result
+    if (mFovControlData.oisSetting == OIS_ACTIVE_IN_LPM) {
+        mFovControlResult.oisMode = (mFovControlData.camState == STATE_TRANSITION) ?
+                OIS_MODE_HOLD : OIS_MODE_ACTIVE;
+    } else if (mFovControlData.oisSetting == OIS_HOLD) {
+        mFovControlResult.oisMode = OIS_MODE_HOLD;
+    }
+
     mFovControlResult.isValid = true;
     // Debug print for the FOV-control result
     LOGD("Effective zoom: %f", zoom);
-    LOGD("zoom direction: %d", (uint32_t)mFovControlData.zoomDirection);
+    LOGD("zoom direction: %s", ((mFovControlData.zoomDirection == ZOOM_STABLE) ? "STABLE" :
+            ((mFovControlData.zoomDirection == ZOOM_IN) ? "IN" : "OUT")));
     LOGD("zoomWide: %d, zoomTele: %d", zoomWide, mFovControlData.zoomTele);
     LOGD("Snapshot postprocess: %d", mFovControlResult.snapshotPostProcess);
     LOGD("Master camera            : %s", (mFovControlResult.camMasterPreview == CAM_TYPE_MAIN) ?
@@ -1223,6 +1242,8 @@ void QCameraFOVControl::generateFovControlResult()
             (mFovControlResult.activeCameras & camTele) ? "Active" : "LPM");
     LOGD("transition state: %s", ((mFovControlData.camState == STATE_WIDE) ? "STATE_WIDE" :
             ((mFovControlData.camState == STATE_TELE) ? "STATE_TELE" : "STATE_TRANSITION" )));
+    LOGD("OIS mode: %s", ((mFovControlResult.oisMode == OIS_MODE_ACTIVE) ? "ACTIVE" :
+            ((mFovControlResult.oisMode == OIS_MODE_HOLD) ? "HOLD" : "INACTIVE")));
 }
 
 

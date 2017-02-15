@@ -5839,8 +5839,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(ANDROID_LENS_FOCAL_LENGTH, focalLength, 1);
     }
 
-    IF_META_AVAILABLE(uint32_t, opticalStab, CAM_INTF_META_LENS_OPT_STAB_MODE, metadata) {
-        uint8_t fwk_opticalStab = (uint8_t) *opticalStab;
+    IF_META_AVAILABLE(cam_ois_mode_t, opticalStab, CAM_INTF_META_LENS_OPT_STAB_MODE, metadata) {
+        uint8_t fwk_opticalStab = 0;
+        if ((*opticalStab) == OIS_MODE_ACTIVE) {
+            fwk_opticalStab = 1;
+        }
         camMetadata.update(ANDROID_LENS_OPTICAL_STABILIZATION_MODE, &fwk_opticalStab, 1);
     }
 
@@ -10708,8 +10711,12 @@ int QCamera3HardwareInterface::translateToHalMetadata
     if (frame_settings.exists(ANDROID_LENS_OPTICAL_STABILIZATION_MODE)) {
         uint8_t optStabMode =
                 frame_settings.find(ANDROID_LENS_OPTICAL_STABILIZATION_MODE).data.u8[0];
+        cam_ois_mode_t oisMode = OIS_MODE_INACTIVE;
+        if (optStabMode) {
+            oisMode = OIS_MODE_ACTIVE;
+        }
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_OPT_STAB_MODE,
-                optStabMode)) {
+                oisMode)) {
             rc = BAD_VALUE;
         }
     }

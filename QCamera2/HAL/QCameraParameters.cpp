@@ -1047,6 +1047,7 @@ QCameraParameters::QCameraParameters()
     mVideoBatchSize = 0;
     m_bOEMFeatEnabled = isOEMFeat1PropEnabled();
     m_bDualCamera = 0;
+    m_bOISMode = (cam_ois_mode_t)(-1);
 }
 
 /*===========================================================================
@@ -1163,6 +1164,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mVideoBatchSize = 0;
     m_bOEMFeatEnabled = isOEMFeat1PropEnabled();
     m_bDualCamera = 0;
+    m_bOISMode = (cam_ois_mode_t)(-1);
 }
 
 /*===========================================================================
@@ -8480,43 +8482,61 @@ int32_t QCameraParameters::setDISValue(const char *disStr)
 }
 
 /*===========================================================================
- * FUNCTION   : updateOisValue
+ * FUNCTION   : updateOisMode
  *
- * DESCRIPTION: update OIS value
+ * DESCRIPTION: update OIS mode
  *
  * PARAMETERS :
- *   @oisValue : OIS value TRUE/FALSE
+ *   @oisMode : OIS mode
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::updateOisValue(bool oisValue)
+int32_t QCameraParameters::updateOisMode(cam_ois_mode_t reqOisMode)
 {
-    uint8_t enable = 0;
+    cam_ois_mode_t ois_mode = OIS_MODE_INACTIVE;
     int32_t rc = NO_ERROR;
 
-    // Check for OIS disable
+    // Check for OIS disable or hold
     char ois_prop[PROPERTY_VALUE_MAX];
     memset(ois_prop, 0, sizeof(ois_prop));
-    property_get("persist.camera.ois.disable", ois_prop, "0");
-    uint8_t ois_disable = (uint8_t)atoi(ois_prop);
+    // default ois_mode of 1 is OIS_MODE_ACTIVE
+    property_get("persist.camera.ois.mode", ois_prop, "1");
+    uint8_t ois_mode_prop = (uint8_t)atoi(ois_prop);
 
-    //Enable OIS if it is camera mode or Camcoder 4K mode
-    if (!m_bRecordingHint || (is4k2kVideoResolution() && m_bRecordingHint)) {
-        enable = 1;
-        LOGH("Valid OIS mode!! ");
+    // In dual camera mode, set the requested ois mode
+    if (isDualCamera()) {
+        cam_ois_mode_t mode = reqOisMode;
+        // Check if setprop is overriding the requested ois mode
+        if ((ois_mode_prop == OIS_MODE_INACTIVE) ||
+                (ois_mode_prop == OIS_MODE_HOLD)) {
+            mode = (cam_ois_mode_t)ois_mode_prop;
+        }
+        // Only update if requested OIS mode is changed
+        if (m_bOISMode != mode) {
+            ois_mode = mode;
+        } else {
+            return NO_ERROR;
+        }
+    } else {
+        // Make OIS active if it is camera mode or Camcoder 4K mode
+        if (!m_bRecordingHint || (is4k2kVideoResolution() && m_bRecordingHint)) {
+            ois_mode = OIS_MODE_ACTIVE;
+            LOGH("Valid OIS mode!! ");
+        }
+        // Disable OIS if setprop is set
+        if ((ois_mode_prop == 0) || (reqOisMode == OIS_MODE_INACTIVE)) {
+            //Disable OIS
+            ois_mode = OIS_MODE_INACTIVE;
+            LOGH("Disable OIS mode!! ois_mode_prop(%d) reqOisMode(%d)",
+                     ois_mode_prop, reqOisMode);
+        }
     }
-    // Disable OIS if setprop is set
-    if (ois_disable || !oisValue) {
-        //Disable OIS
-        enable = 0;
-        LOGH("Disable OIS mode!! ois_disable(%d) oisValue(%d)",
-                 ois_disable, oisValue);
 
-    }
-    m_bOISEnabled = enable;
-    if (m_bOISEnabled) {
+    m_bOISMode = ois_mode;
+
+    if (m_bOISMode == OIS_MODE_ACTIVE) {
         updateParamEntry(KEY_QC_OIS, VALUE_ENABLE);
     } else {
         updateParamEntry(KEY_QC_OIS, VALUE_DISABLE);
@@ -8527,8 +8547,8 @@ int32_t QCameraParameters::updateOisValue(bool oisValue)
         return BAD_TYPE;
     }
 
-    LOGH("Sending OIS mode (%d)", enable);
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_LENS_OPT_STAB_MODE, enable)) {
+    LOGH("Sending OIS mode (%d)", m_bOISMode);
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_LENS_OPT_STAB_MODE, m_bOISMode)) {
         LOGE("Failed to update table");
         return BAD_VALUE;
     }
