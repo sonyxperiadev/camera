@@ -7161,7 +7161,7 @@ void QCamera2HardwareInterface::processDualCamFovControl()
 
     if (fovControlResult.isValid) {
         activeCameras = fovControlResult.activeCameras;
-        bundledSnapshot = fovControlResult.snapshotPostProcess;
+        bundledSnapshot = fovControlResult.snapshotPostProcess && mParameters.needSnapshotPP();
         camMasterSnapshot = fovControlResult.camMasterPreview;
 
         processCameraControl(activeCameras, bundledSnapshot);

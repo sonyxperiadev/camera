@@ -1001,6 +1001,7 @@ QCameraParameters::QCameraParameters()
       mAecSkipDisplayFrameBound(0),
       m_bQuadraCfa(false),
       mMasterCamera(CAM_TYPE_MAIN),
+      m_bRedEyeReduction(false),
       m_bSmallJpegSize(false),
       mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
       mFrameNumber(0),
@@ -1142,6 +1143,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAecSkipDisplayFrameBound(0),
     m_bQuadraCfa(false),
     mMasterCamera(CAM_TYPE_MAIN),
+    m_bRedEyeReduction(false),
     m_bSmallJpegSize(false),
     mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
     mFrameNumber(0),
@@ -4374,7 +4376,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
     } else {
         set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum));
         LOGH("nBurstNum = %d, nExpnum = %d snapshots = %d", nBurstNum, nExpnum,
-                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
+                (nBurstNum * nExpnum));
     }
 
     return NO_ERROR;
@@ -9983,6 +9985,7 @@ int32_t QCameraParameters::setRedeyeReduction(const char *redeyeStr)
         int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
                 PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), redeyeStr);
         if (value != NAME_NOT_FOUND) {
+            m_bRedEyeReduction = (value != 0);
             LOGD("Setting RedEye Reduce value %s", redeyeStr);
             updateParamEntry(KEY_QC_REDEYE_REDUCTION, redeyeStr);
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
@@ -15776,6 +15779,37 @@ bool QCameraParameters::isLinkPreviewForLiveShot()
 }
 
 /*===========================================================================
+ * FUNCTION   : needSnapshotPP
+ *
+ * DESCRIPTION: Check if Snapshot postprocessing is required or not
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : true: needed
+ *              false: no need
+ *==========================================================================*/
+bool QCameraParameters::needSnapshotPP()
+{
+    int stillWidth, stillHeight, maxWidth, maxHeight;
+    bool maxPicSize;
+    // Get current Picture & max Snapshot sizes
+    getPictureSize(&stillWidth, &stillHeight);
+    maxWidth  = m_pCapability->picture_sizes_tbl[0].width;
+    maxHeight = m_pCapability->picture_sizes_tbl[0].height;
+
+    maxPicSize = (stillWidth == maxWidth) && (stillHeight == maxHeight);
+    // Disable Snapshot Postprocessing if any of the below features are enabled
+    if (!maxPicSize || m_bLongshotEnabled || m_bRecordingHint ||
+            (mFlashValue != CAM_FLASH_MODE_OFF) || m_bRedEyeReduction ||
+            isAdvCamFeaturesEnabled() || getQuadraCfa()) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+
+/*===========================================================================
  * FUNCTION   : SetDualCamera
  *
  * DESCRIPTION: set Dual Camera
@@ -15819,6 +15853,9 @@ int32_t QCameraParameters::setSwitchCamera(uint32_t camMaster)
         LOGW("Invalid master camera info");
         return rc;
     }
+
+    LOGD("Switching to %s", (camMaster == MM_CAMERA_TYPE_MAIN) ?
+            "CAM_TYPE_MAIN" : "CAM_TYPE_AUX");
 
     // Update master camera
     mMasterCamera = camMaster;

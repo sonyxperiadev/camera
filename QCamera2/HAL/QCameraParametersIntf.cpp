@@ -1475,6 +1475,13 @@ int32_t QCameraParametersIntf::updateDtVc(int32_t *dt, int32_t *vc)
     return mImpl->updateDtVc(dt, vc);
 }
 
+bool QCameraParametersIntf::needSnapshotPP()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->needSnapshotPP();
+}
+
 int32_t QCameraParametersIntf::SetDualCamera(bool value)
 {
     Mutex::Autolock lock(mLock);
