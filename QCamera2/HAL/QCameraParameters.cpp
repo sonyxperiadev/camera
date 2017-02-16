@@ -506,6 +506,8 @@ const char QCameraParameters::QC_METADATA_ASD[] = "metadata-asd";
 const char QCameraParameters::QC_METADATA_FD[] = "metadata-fd";
 const char QCameraParameters::QC_METADATA_HDR[] = "metadata-hdr";
 const char QCameraParameters::QC_METADATA_LED_CALIB[] = "metadata-led-calib";
+//Real time bokeh metadata
+const char QCameraParameters::QC_METADATA_RTB[] = "metadata-rtb";
 
 const char QCameraParameters::KEY_QC_LED_CALIBRATION[] = "led-calibration";
 
@@ -884,7 +886,8 @@ const QCameraParameters::QCameraMap<int>
     {QC_METADATA_ASD,        QCAMERA_METADATA_ASD},
     {QC_METADATA_FD,         QCAMERA_METADATA_FD},
     {QC_METADATA_HDR,        QCAMERA_METADATA_HDR},
-    {QC_METADATA_LED_CALIB,  QCAMERA_METADATA_LED_CALIB}
+    {QC_METADATA_LED_CALIB,  QCAMERA_METADATA_LED_CALIB},
+    {QC_METADATA_RTB,        QCAMERA_METADATA_RTB}
 };
 
 
@@ -3221,8 +3224,13 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
             requestedBlurLevel = 100;
         }
         if (m_bBokehBlurLevel != requestedBlurLevel) {
+            cam_rtb_blur_info_t info;
+            memset(&info, 0, sizeof(info));
+            info.blur_level = requestedBlurLevel;
+            info.blur_min_value = 0;
+            info.blur_max_value = 100;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
-                    CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, requestedBlurLevel)) {
+                    CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, info)) {
                 LOGE("Failed to update table");
                 return BAD_VALUE;
             }
@@ -11818,6 +11826,40 @@ int32_t QCameraParameters::updateRecordingHintValue(int32_t value)
         return rc;
     }
 
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : updateCaptureRequest
+ *
+ * DESCRIPTION: This function is used by dual camera to notify capture mode in dual
+ *                      camera
+ *
+ * PARAMETERS :
+ *   @value   : 0 capture not in progress
+ *                : 1 capture in progress
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateCaptureRequest(uint8_t value)
+{
+    int32_t rc = NO_ERROR;
+    LOGH("Notify take picture mode (%d) to modules", value);
+    if(initBatchUpdate() < 0 ) {
+        LOGE("Failed to initialize group update table");
+        return BAD_TYPE;
+    }
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_DC_CAPTURE, value)) {
+        LOGE("Failed to update table");
+        return BAD_VALUE;
+    }
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        LOGE("Failed to update capture mode");
+        return rc;
+    }
     return rc;
 }
 

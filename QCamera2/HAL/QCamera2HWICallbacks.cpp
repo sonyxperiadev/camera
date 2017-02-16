@@ -2268,6 +2268,31 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
                 pMetaDataAux  = pMetaData;
             }
         }
+        if (pMetaDataAux && (pme->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+            //Handle Tele metadata for sending bokeh messages to app
+            IF_META_AVAILABLE(cam_rtb_msg_type_t, rtb_metadata,
+                    CAM_INTF_META_RTB_DATA, pMetaDataAux) {
+                //Handle this meta data only if capture is not in process
+                if (!pme->m_stateMachine.isCaptureRunning()) {
+                    qcamera_sm_internal_evt_payload_t *payload =
+                            (qcamera_sm_internal_evt_payload_t *)
+                            malloc(sizeof(qcamera_sm_internal_evt_payload_t));
+                    if (NULL != payload) {
+                        memset(payload, 0, sizeof(qcamera_sm_internal_evt_payload_t));
+                        payload->evt_type = QCAMERA_INTERNAL_EVT_RTB_METADATA;
+                        payload->rtb_data = *rtb_metadata;
+                        int32_t rc = pme->processEvt(QCAMERA_SM_EVT_EVT_INTERNAL, payload);
+                        if (rc != NO_ERROR) {
+                            LOGW("processEvt rtb update failed");
+                            free(payload);
+                            payload = NULL;
+                        }
+                    } else {
+                        LOGE("No memory for rtb update qcamera_sm_internal_evt_payload_t");
+                    }
+                }
+            }
+        }
 
         resultMetadata = pme->m_pFovControl->processResultMetadata(pMetaDataMain, pMetaDataAux);
         if (resultMetadata != NULL) {

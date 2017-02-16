@@ -123,7 +123,8 @@ typedef enum {
     QCAMERA_METADATA_ASD = 0x001,
     QCAMERA_METADATA_FD,
     QCAMERA_METADATA_HDR,
-    QCAMERA_METADATA_LED_CALIB
+    QCAMERA_METADATA_LED_CALIB,
+    QCAMERA_METADATA_RTB
 } cam_manual_capture_type;
 
 typedef void (*camera_release_callback)(void *user_data,
@@ -415,6 +416,7 @@ private:
     int32_t processJpegNotify(qcamera_jpeg_evt_payload_t *jpeg_job);
     int32_t processHDRData(cam_asd_hdr_scene_data_t hdr_scene);
     int32_t processLEDCalibration(int32_t value);
+    int32_t processRTBData(cam_rtb_msg_type_t rtbData);
     int32_t processRetroAECUnlock();
     int32_t processZSLCaptureDone();
     int32_t processSceneData(cam_scene_mode_type scene);

@@ -165,6 +165,7 @@ typedef enum {
     QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE,   // ZSL capture done event
     QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL,   // FOV Control event
     QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE,   //LED calibration result update
+    QCAMERA_INTERNAL_EVT_RTB_METADATA,   //RTB Metadata
     QCAMERA_INTERNAL_EVT_MAX
 } qcamera_internal_evt_type_t;
 
@@ -183,6 +184,7 @@ typedef struct {
         cam_focus_pos_info_t focus_pos;
         cam_asd_hdr_scene_data_t hdr_data;
         int32_t led_calib_result;
+        cam_rtb_msg_type_t rtb_data;
     };
 } qcamera_sm_internal_evt_payload_t;
 
