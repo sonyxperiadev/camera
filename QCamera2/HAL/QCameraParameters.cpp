@@ -12673,6 +12673,19 @@ void QCameraParameters::setAuxParameters()
                     }
                 }
             }
+            for (uint32_t k = 0; k < info->num_streams; k++) {
+                LOGI("AUX STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
+                        Format = %d, dt =%d cid =%d subformat =%d, is_type %d",
+                        info->type[k],
+                        info->stream_sizes[k].width,
+                        info->stream_sizes[k].height,
+                        info->postprocess_mask[k],
+                        info->format[k],
+                        info->dt[k],
+                        info->vc[k],
+                        info->sub_format_type[k],
+                        info->is_type[k]);
+            }
         }
     }
 }
@@ -13550,7 +13563,7 @@ int32_t QCameraParameters::updateSnapshotPpMask(cam_stream_size_info_t &stream_c
                   updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
                   stream_config_info.postprocess_mask[k] =
                       mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
-                  LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
+                  LOGI("After CPP LINK, STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
                         Format = %d, dt =%d cid =%d subformat =%d, is_type %d",
                         stream_config_info.type[k],
                         stream_config_info.stream_sizes[k].width,
@@ -15800,8 +15813,7 @@ bool QCameraParameters::needSnapshotPP()
     maxPicSize = (stillWidth == maxWidth) && (stillHeight == maxHeight);
     // Disable Snapshot Postprocessing if any of the below features are enabled
     if (!maxPicSize || m_bLongshotEnabled || m_bRecordingHint ||
-            (mFlashValue != CAM_FLASH_MODE_OFF) || m_bRedEyeReduction ||
-            isAdvCamFeaturesEnabled() || getQuadraCfa()) {
+            m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()) {
         return false;
     } else {
         return true;
@@ -16035,6 +16047,7 @@ void QCameraParameters::setAsymmetricSnapMode()
 
     if ((maxWidth * maxHeight) < (width * height)) {
         mAsymmetricSnapMode = true;
+        LOGD("Asymmetric Snap mode is set since the MAIN max res < Picture res");
         return;
     }
 
@@ -16042,6 +16055,7 @@ void QCameraParameters::setAsymmetricSnapMode()
     maxHeight = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].height;
     if ((maxWidth * maxHeight) < (width * height)) {
         mAsymmetricSnapMode = true;
+        LOGD("Asymmetric Snap mode is set since the Aux max res < Picture res");
         return;
     }
     mAsymmetricSnapMode = false;

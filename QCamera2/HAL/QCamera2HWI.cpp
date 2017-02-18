@@ -7161,7 +7161,11 @@ void QCamera2HardwareInterface::processDualCamFovControl()
 
     if (fovControlResult.isValid) {
         activeCameras = fovControlResult.activeCameras;
-        bundledSnapshot = fovControlResult.snapshotPostProcess && mParameters.needSnapshotPP();
+        bundledSnapshot = fovControlResult.snapshotPostProcess;
+        if (bundledSnapshot && (!mParameters.needSnapshotPP() || mFlashNeeded)) {
+            bundledSnapshot = false;
+            LOGD("Disable snapshot pp as one of unsupported feature is set");
+        }
         camMasterSnapshot = fovControlResult.camMasterPreview;
 
         processCameraControl(activeCameras, bundledSnapshot);
