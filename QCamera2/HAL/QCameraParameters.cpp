@@ -5038,10 +5038,10 @@ int32_t QCameraParameters::initDefaultParameters()
             PARAM_MAP_SIZE(PREVIEW_FORMATS_MAP));
     set(KEY_SUPPORTED_PREVIEW_FORMATS, previewFormatValues.string());
     // Set default preview format
-    CameraParameters::setPreviewFormat(PIXEL_FORMAT_YUV420SP);
+    CameraParameters::setPreviewFormat(PIXEL_FORMAT_NV12);
 
     // Set default Video Format
-    set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_YUV420SP);
+    set(KEY_VIDEO_FRAME_FORMAT, PIXEL_FORMAT_NV12);
 
     // Set supported picture formats
     String8 pictureTypeValues(PIXEL_FORMAT_JPEG);
