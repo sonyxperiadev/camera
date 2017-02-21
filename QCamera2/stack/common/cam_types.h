@@ -1769,6 +1769,12 @@ typedef enum {
     CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
 } cam_3a_sync_mode_t;
 
+typedef enum {
+    OIS_MODE_INACTIVE,
+    OIS_MODE_ACTIVE,
+    OIS_MODE_HOLD,
+} cam_ois_mode_t;
+
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
     uint32_t num_streams;
@@ -2009,7 +2015,7 @@ typedef enum {
     CAM_INTF_PARM_FPS_RANGE, /* 10 */
     CAM_INTF_PARM_AWB_LOCK,
     CAM_INTF_PARM_EFFECT,
-    CAM_INTF_PARM_BESTSHOT_MODE,
+    CAM_INTF_PARM_RAW_DIMENSION,
     CAM_INTF_PARM_DIS_ENABLE,
     CAM_INTF_PARM_LED_MODE,
     CAM_INTF_META_HISTOGRAM,
@@ -2044,7 +2050,7 @@ typedef enum {
     CAM_INTF_PARM_RECORDING_HINT,
     CAM_INTF_PARM_HDR,
     CAM_INTF_PARM_MAX_DIMENSION,
-    CAM_INTF_PARM_RAW_DIMENSION,
+    CAM_INTF_PARM_BESTSHOT_MODE,
     CAM_INTF_PARM_FRAMESKIP,
     CAM_INTF_PARM_ZSL_MODE,  /* indicating if it's running in ZSL mode */
     CAM_INTF_PARM_BURST_NUM,
@@ -2650,6 +2656,7 @@ typedef struct {
 #define CAM_QTI_FEATURE_RTBDM           (((cam_feature_mask_t)1UL)<<43)
 #define CAM_QTI_FEATURE_BINNING_CORRECTION (((cam_feature_mask_t)1UL)<<44)
 #define CAM_QTI_FEATURE_RTB             (((cam_feature_mask_t)1UL)<<45)
+#define CAM_QCOM_FEATURE_LCAC           ((cam_feature_mask_t)1UL<<46)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\

@@ -1049,11 +1049,11 @@ int QCameraParametersIntf::getBrightness()
     return mImpl->getBrightness();
 }
 
-int32_t QCameraParametersIntf::updateOisValue(bool oisValue)
+int32_t QCameraParametersIntf::updateOisMode(cam_ois_mode_t oisMode)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->updateOisValue(oisValue);
+    return mImpl->updateOisMode(oisMode);
 }
 
 int32_t QCameraParametersIntf::setIntEvent(cam_int_evt_params_t params)
@@ -1473,6 +1473,13 @@ int32_t QCameraParametersIntf::updateDtVc(int32_t *dt, int32_t *vc)
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->updateDtVc(dt, vc);
+}
+
+bool QCameraParametersIntf::needSnapshotPP()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->needSnapshotPP();
 }
 
 int32_t QCameraParametersIntf::SetDualCamera(bool value)
