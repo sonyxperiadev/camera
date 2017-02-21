@@ -10765,16 +10765,6 @@ int QCamera3HardwareInterface::translateToHalMetadata
         scalerCropSet = true;
     }
 
-    if (frame_settings.exists(ANDROID_SENSOR_EXPOSURE_TIME)) {
-        int64_t sensorExpTime =
-                frame_settings.find(ANDROID_SENSOR_EXPOSURE_TIME).data.i64[0];
-        LOGD("setting sensorExpTime %lld", sensorExpTime);
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_EXPOSURE_TIME,
-                sensorExpTime)) {
-            rc = BAD_VALUE;
-        }
-    }
-
     if (frame_settings.exists(ANDROID_SENSOR_FRAME_DURATION)) {
         int64_t sensorFrameDuration =
                 frame_settings.find(ANDROID_SENSOR_FRAME_DURATION).data.i64[0];
@@ -10785,19 +10775,6 @@ int QCamera3HardwareInterface::translateToHalMetadata
         LOGD("clamp sensorFrameDuration to %lld", sensorFrameDuration);
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_FRAME_DURATION,
                 sensorFrameDuration)) {
-            rc = BAD_VALUE;
-        }
-    }
-
-    if (frame_settings.exists(ANDROID_SENSOR_SENSITIVITY)) {
-        int32_t sensorSensitivity = frame_settings.find(ANDROID_SENSOR_SENSITIVITY).data.i32[0];
-        if (sensorSensitivity < gCamCapability[mCameraId]->sensitivity_range.min_sensitivity)
-                sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.min_sensitivity;
-        if (sensorSensitivity > gCamCapability[mCameraId]->sensitivity_range.max_sensitivity)
-                sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.max_sensitivity;
-        LOGD("clamp sensorSensitivity to %d", sensorSensitivity);
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_SENSITIVITY,
-                sensorSensitivity)) {
             rc = BAD_VALUE;
         }
     }
@@ -11269,6 +11246,28 @@ int QCamera3HardwareInterface::translateToHalMetadata
             }
         }
     } else {
+        if (frame_settings.exists(ANDROID_SENSOR_EXPOSURE_TIME)) {
+            int64_t sensorExpTime =
+                frame_settings.find(ANDROID_SENSOR_EXPOSURE_TIME).data.i64[0];
+            LOGD("setting sensorExpTime %lld", sensorExpTime);
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_EXPOSURE_TIME,
+                        sensorExpTime)) {
+                rc = BAD_VALUE;
+            }
+        }
+        if (frame_settings.exists(ANDROID_SENSOR_SENSITIVITY)) {
+            int32_t sensorSensitivity = frame_settings.find(ANDROID_SENSOR_SENSITIVITY).data.i32[0];
+            if (sensorSensitivity < gCamCapability[mCameraId]->sensitivity_range.min_sensitivity)
+                sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.min_sensitivity;
+            if (sensorSensitivity > gCamCapability[mCameraId]->sensitivity_range.max_sensitivity)
+                sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.max_sensitivity;
+            LOGD("clamp sensorSensitivity to %d", sensorSensitivity);
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_SENSITIVITY,
+                        sensorSensitivity)) {
+                rc = BAD_VALUE;
+            }
+        }
+
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ZSL_MODE, 0)) {
             rc = BAD_VALUE;
         }
