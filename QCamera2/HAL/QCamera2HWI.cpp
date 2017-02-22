@@ -2644,7 +2644,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
         }
     }
 
-    LOGD("minCaptureBuffers = %d zslQBuffers = %d minCircularBufNum = %d"
+    LOGD("minCaptureBuffers = %d zslQBuffers = %d minCircularBufNum = %d "
             "maxStreamBuf = %d minUndequeCount = %d",
             minCaptureBuffers, zslQBuffers, minCircularBufNum,
             maxStreamBuf, minUndequeCount);
@@ -2652,7 +2652,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
     switch (stream_type) {
     case CAM_STREAM_TYPE_PREVIEW:
         {
-            if (mParameters.isZSLMode()) {
+            if (isSecureMode()) {
+                bufferCnt = mParameters.getSecureQueueDepth();
+            } else if (mParameters.isZSLMode()) {
                 // We need to add two extra streming buffers to add
                 // flexibility in forming matched super buf in ZSL queue.
                 // with number being 'zslQBuffers + minCircularBufNum'
@@ -2766,6 +2768,12 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(cam_stream_type_t stream_ty
             if (bufferCnt > maxStreamBuf) {
                 bufferCnt = maxStreamBuf;
             }
+        }
+
+        if (isSecureMode() && isRdiMode()) {
+            //Redefine buffer count for Gralloc based Secure RDI and add
+            //the preview window minUndequeCount count on top of camera requirement
+            bufferCnt = mParameters.getSecureQueueDepth() + minUndequeCount;
         }
 
         property_get("persist.camera.preview_raw", value, "0");
@@ -3078,12 +3086,49 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
         break;
     case CAM_STREAM_TYPE_RAW:
         if(isSecureMode()) {
-            mem = new QCameraStreamMemory(mGetMemory,
-                    bCachedMem,
-                    (bPoolMem) ? &m_memoryPool : NULL,
-                    stream_type,
-                    QCAMERA_MEM_TYPE_SECURE);
-            LOGH("Allocating %d secure buffers of size %d ", bufferCnt, size);
+            if (isRdiMode()) {
+                QCameraGrallocMemory *grallocMemory = NULL;
+                grallocMemory = new QCameraGrallocMemory(mGetMemory, QCAMERA_MEM_TYPE_SECURE);
+                if (grallocMemory) {
+                    //min bufferCnt = CAMERA_MIN_SECURE_BUFFERS(2) + minUndequeCount(1)
+                    grallocMemory->setMappable(bufferCnt);
+
+                    cam_dimension_t dim;
+                    mParameters.getStreamDimension(CAM_STREAM_TYPE_RAW, dim);
+                    cam_format_t fmt;
+                    mParameters.getStreamFormat(CAM_STREAM_TYPE_RAW, fmt);
+                    int minFPS, maxFPS;
+                    mParameters.getPreviewFpsRange(&minFPS, &maxFPS);
+
+                    LOGD("StreamCfg: %dx%d, stride: %d, scanline: %d, fmt: %d, FPS: %d-%d",
+                        dim.width, dim.height, stride, scanline,
+                        fmt, minFPS, maxFPS);
+
+                    int gralloc_fmt = HAL_PIXEL_FORMAT_RAW_OPAQUE;
+                    int width = size;
+                    int height = 1;
+                    int actual_stride = stride;
+                    int actual_scanline = scanline;
+                    // we are interested only in minFPS here
+                    int fps = minFPS;
+                    int usage = 0;
+
+                    grallocMemory->setWindowInfo(mPreviewWindow,
+                        width, height, actual_stride, actual_scanline,
+                        gralloc_fmt, fps, usage);
+                    LOGD("setWindowInfo %dx%d, stride: %d, scanline: %d, fmt: %d, FPS: %d, usage: 0x%08X",
+                        width, height, actual_stride, actual_scanline,
+                        gralloc_fmt, fps, usage);
+                }
+                mem = grallocMemory;
+            } else {
+                mem = new QCameraStreamMemory(mGetMemory,
+                        bCachedMem,
+                        (bPoolMem) ? &m_memoryPool : NULL,
+                        stream_type,
+                        QCAMERA_MEM_TYPE_SECURE);
+                LOGH("Allocating %d secure buffers of size %d ", bufferCnt, size);
+            }
         } else {
             mem = new QCameraStreamMemory(mGetMemory,
                     bCachedMem,
@@ -3863,7 +3908,7 @@ int QCamera2HardwareInterface::startPreview()
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
         rc = startChannel(QCAMERA_CH_TYPE_ZSL);
     } else if (isSecureMode()) {
-        if (mParameters.getSecureStreamType() == CAM_STREAM_TYPE_RAW) {
+        if (mParameters.getSecureStreamType() == CAM_STREAM_TYPE_RAW && !isRdiMode()) {
             rc = startChannel(QCAMERA_CH_TYPE_RAW);
         }else {
             rc = startChannel(QCAMERA_CH_TYPE_PREVIEW);
@@ -3903,7 +3948,8 @@ int QCamera2HardwareInterface::startPreview()
 
     // if job id is non-zero, that means the postproc init job is already
     // pending or complete
-    if (mInitPProcJob == 0) {
+    if (mInitPProcJob == 0
+            && !(isSecureMode() && isRdiMode())) {
         mInitPProcJob = deferPPInit();
         if (mInitPProcJob == 0) {
             LOGE("Unable to initialize postprocessor, mCameraHandle = %p",
@@ -7470,7 +7516,8 @@ int32_t QCamera2HardwareInterface::getPaddingInfo(cam_stream_type_t streamType,
     } else {
         *padding_info =
                 gCamCapability[mCameraId]->padding_info;
-        if (streamType == CAM_STREAM_TYPE_PREVIEW || streamType == CAM_STREAM_TYPE_POSTVIEW) {
+        if (streamType == CAM_STREAM_TYPE_PREVIEW || streamType == CAM_STREAM_TYPE_POSTVIEW ||
+            (isSecureMode() && isRdiMode())) {
             padding_info->width_padding = mSurfaceStridePadding;
             padding_info->height_padding = CAM_PAD_TO_2;
         }
@@ -7623,18 +7670,34 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
     }
 
     if (isRdiMode()) {
-        rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
-                rdi_mode_stream_cb_routine, this);
+        if (isSecureMode()) {
+            LOGI("RDI - secure CB");
+            rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
+                    secure_stream_cb_routine, this);
+        }
+        else {
+            LOGI("RDI - rdi CB");
+            rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
+                    rdi_mode_stream_cb_routine, this);
+        }
     } else {
-        if (isNoDisplayMode()) {
+        if (isSecureMode()) {
+            LOGI("PREVIEW - secure CB");
             rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
-                    nodisplay_preview_stream_cb_routine, this);
-        } else {
-            rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
-                    preview_stream_cb_routine, this);
-            if (needSyncCB(CAM_STREAM_TYPE_PREVIEW) == TRUE) {
-                pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
-                        synchronous_stream_cb_routine);
+                    secure_stream_cb_routine, this);
+        }
+        else {
+            LOGI("PREVIEW - non-secure CB");
+            if (isNoDisplayMode()) {
+                rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
+                        nodisplay_preview_stream_cb_routine, this);
+            } else {
+                    rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_PREVIEW,
+                            preview_stream_cb_routine, this);
+                    if (needSyncCB(CAM_STREAM_TYPE_PREVIEW) == TRUE) {
+                        pChannel->setStreamSyncCB(CAM_STREAM_TYPE_PREVIEW,
+                                synchronous_stream_cb_routine);
+                    }
             }
         }
     }
@@ -7866,7 +7929,7 @@ int32_t QCamera2HardwareInterface::addRawChannel()
     if (mParameters.getofflineRAW()) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
                 NULL, this);
-    } else if(isSecureMode()) {
+    } else if (isSecureMode()) {
         rc = addStreamToChannel(pChannel, CAM_STREAM_TYPE_RAW,
                 secure_stream_cb_routine, this);
     } else {
@@ -8897,7 +8960,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
             addChannel(QCAMERA_CH_TYPE_RAW);
         }
     } else if(isSecureMode()) {
-        if (mParameters.getSecureStreamType() == CAM_STREAM_TYPE_RAW) {
+        if (mParameters.getSecureStreamType() == CAM_STREAM_TYPE_RAW && !isRdiMode()) {
             rc = addChannel(QCAMERA_CH_TYPE_RAW);
         } else {
             rc = addChannel(QCAMERA_CH_TYPE_PREVIEW);
@@ -9846,6 +9909,11 @@ bool QCamera2HardwareInterface::needReprocess()
     if (!mParameters.isJpegPictureFormat() &&
         !mParameters.isNV21PictureFormat()) {
         // RAW image, no need to reprocess
+        return false;
+    }
+
+    if (isSecureMode() && isRdiMode()) {
+        // RDI in secure mode -> RAW image, no need to reprocess
         return false;
     }
 
