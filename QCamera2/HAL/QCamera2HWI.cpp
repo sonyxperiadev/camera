@@ -5970,12 +5970,13 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
                         if (CAM_STREAM_TYPE_METADATA == pStream->getMyType()) {
                             pMetaStream = pStream;
                         } else if ((CAM_STREAM_TYPE_PREVIEW == pStream->getMyType())
-                                && (!mParameters.isHfrMode())
+                                && (!mParameters.isHfrMode()) && (!isDualCamera())
                                 && (mParameters.isLinkPreviewForLiveShot())) {
                             // Do not link preview stream for
                             // 1)HFR live snapshot,Thumbnail will not be derived from
                             //   preview for HFR live snapshot.
-                            // 2)persist.camera.linkpreview is 0
+                            // 2)Dual Camera since preview & snapshot correction is different
+                            // 3)persist.camera.linkpreview is 0
                             pPreviewStream = pStream;
                         }
                     }
