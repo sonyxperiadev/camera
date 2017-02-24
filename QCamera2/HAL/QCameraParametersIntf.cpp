@@ -177,6 +177,13 @@ void QCameraParametersIntf::getThumbnailSize(int *width, int *height) const
     mImpl->getThumbnailSize(width, height);
 }
 
+uint8_t QCameraParametersIntf::getSecureQueueDepth()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getSecureQueueDepth();
+}
+
 uint8_t QCameraParametersIntf::getZSLBurstInterval()
 {
     Mutex::Autolock lock(mLock);

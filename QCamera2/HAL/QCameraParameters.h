@@ -506,6 +506,8 @@ private:
     static const char KEY_QC_RDI_MODE[];
     static const char KEY_QC_SUPPORTED_RDI_MODES[];
     static const char KEY_QC_SECURE_MODE[];
+    static const char KEY_QC_SECURE_MODE_UBWC[];
+    static const char KEY_QC_SECURE_QUEUE_DEPTH[];
     static const char KEY_QC_SUPPORTED_SECURE_MODES[];
 
     // Values for SKIN TONE ENHANCEMENT
@@ -664,6 +666,7 @@ public:
             cam_dimension_t &dim, uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     void getThumbnailSize(int *width, int *height) const;
 
+    uint8_t getSecureQueueDepth();
 
     uint8_t getZSLBurstInterval();
     uint8_t getZSLQueueDepth();
@@ -1247,6 +1250,7 @@ private:
     bool m_bSensorHDREnabled;             // if HDR is enabled
     bool m_bRdiMode;                // if RDI mode
     bool m_bSecureMode;
+    bool m_bSecureModeUBWC;
     bool m_bAeBracketingEnabled;
     int32_t mFlashValue;
     int32_t mFlashDaemonValue;
