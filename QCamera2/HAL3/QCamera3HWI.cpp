@@ -9098,6 +9098,8 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         int32_t available_iso_modes[CAM_ISO_MODE_MAX];
         size = 0;
         count = MIN(gCamCapability[cameraId]->supported_iso_modes_cnt, CAM_ISO_MODE_MAX);
+        uint8_t max_analog_mode = getIsoMode(gCamCapability[cameraId]->max_analog_sensitivity);
+        count = MIN(count, max_analog_mode + 1);
         for (size_t i = 0; i < count; i++) {
             int32_t val = lookupFwkName(ISO_MODES_MAP, METADATA_MAP_SIZE(ISO_MODES_MAP),
                     gCamCapability[cameraId]->supported_iso_modes[i]);
@@ -9344,6 +9346,43 @@ int32_t QCamera3HardwareInterface::getSensorSensitivity(int32_t iso_mode)
         break;
     }
     return sensitivity;
+}
+
+/*===========================================================================
+ * FUNCTION   : getIsoMode
+ *
+ * DESCRIPTION: round down sensor sensitivity to an integer iso mode value
+ *              i.e. 398 is converted to iso mode 3 (200), 802 is converted to iso mode 5 (800)
+ *
+ * PARAMETERS : sensitivity : the sensitivity supported by sensor
+ *
+ ** RETURN    : iso mode supported by sensor
+ *
+ *==========================================================================*/
+uint8_t QCamera3HardwareInterface::getIsoMode(int32_t sensitivity)
+{
+    // error checking, make sure sensitivity in the range [100, 3200]
+    if (sensitivity < 0) {
+        LOGE("sensitivity < 0");
+        return CAM_ISO_MODE_AUTO;
+    }
+    if (sensitivity < 100) {
+        return CAM_ISO_MODE_AUTO;
+    }
+    if (sensitivity > 3200) {
+        sensitivity = 3200;
+    }
+
+    // count the position of the highest set bit
+    sensitivity /= 100;
+    int32_t iso_mode = -1;
+    while(sensitivity > 0) {
+        iso_mode++;
+        sensitivity >>= 1;
+    }
+    iso_mode += CAM_ISO_MODE_100;
+
+    return iso_mode;
 }
 
 /*===========================================================================
