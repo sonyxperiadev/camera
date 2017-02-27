@@ -356,6 +356,10 @@ int32_t QCameraDualFOVPP::process()
     if (canProcess()) {
         LOGI("start Dual FOV process");
         uint32_t *pFrameIndex = (uint32_t *)m_iuputQ.dequeue();
+        if (pFrameIndex == NULL) {
+            LOGE("frame index is null");
+            return UNEXPECTED_NULL;
+        }
         uint32_t frameIndex = *pFrameIndex;
         std::vector<qcamera_hal_pp_data_t*> *pVector = getFrameVector(frameIndex);
         // Search vector of input frames in frame map
@@ -548,7 +552,7 @@ mm_camera_buf_def_t* QCameraDualFOVPP::getMetadataBuf(qcamera_hal_pp_data_t *pDa
             LOGE("Cannot find src_reproc_frame channel");
             return pBufDef;
     }
-    for (uint32_t i = 0; pData->src_reproc_frame &&
+    for (uint32_t i = 0;
             (i < pData->src_reproc_frame->num_bufs); i++) {
         pMetadataStream = pChannel->getStreamByHandle(pData->src_reproc_frame->bufs[i]->stream_id);
         if (pData->src_reproc_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {

@@ -1120,9 +1120,11 @@ int QCamera3GrallocMemory::cacheOps(uint32_t index, unsigned int cmd)
     struct private_handle_t *privateHandle = NULL;
     privateHandle = (struct private_handle_t *)getBufferHandle(index);
 
-    if(privateHandle->flags &
-         (private_handle_t::PRIV_FLAGS_NON_CPU_WRITER)){
-           needToInvalidate = true;
+    if (privateHandle != NULL){
+        if(privateHandle->flags &
+             (private_handle_t::PRIV_FLAGS_NON_CPU_WRITER)){
+               needToInvalidate = true;
+        }
     }
 
     if (index >= MM_CAMERA_MAX_NUM_FRAMES) {
