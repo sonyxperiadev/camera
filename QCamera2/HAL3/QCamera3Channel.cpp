@@ -881,10 +881,12 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
        if(hal_obj->mStreamConfig == true) {
           switch (stream->getMyType()) {
               case CAM_STREAM_TYPE_PREVIEW:
-                  LOGH("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
+                  LOGI("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME camera id %d",
+                        hal_obj->getCameraID());
                   break;
               case CAM_STREAM_TYPE_VIDEO:
-                  LOGH("[KPI Perf] : PROFILE_FIRST_VIDEO_FRAME");
+                  LOGI("[KPI Perf] : PROFILE_FIRST_VIDEO_FRAME camera id %d ",
+                        hal_obj->getCameraID());
                   break;
               default:
                   break;

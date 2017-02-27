@@ -285,7 +285,7 @@ public:
         cam_cds_mode_type_t val;
     } QCameraPropMap;
 
-
+    uint32_t getCameraID() {return mCameraId;}
 private:
 
     // State transition conditions:
