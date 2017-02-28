@@ -2911,12 +2911,12 @@ uint8_t QCamera2HardwareInterface::getStreamRefCount(cam_stream_type_t stream_ty
     case CAM_STREAM_TYPE_METADATA:
     case CAM_STREAM_TYPE_ANALYSIS:
     case CAM_STREAM_TYPE_CALLBACK:
+    case CAM_STREAM_TYPE_RAW:
         if (isDualCamera()) {
             ref_cnt++;
         }
         break;
     case CAM_STREAM_TYPE_POSTVIEW:
-    case CAM_STREAM_TYPE_RAW:
     case CAM_STREAM_TYPE_OFFLINE_PROC:
     case CAM_STREAM_TYPE_DEFAULT:
     case CAM_STREAM_TYPE_MAX:

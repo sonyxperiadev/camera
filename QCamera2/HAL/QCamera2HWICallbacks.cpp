@@ -89,6 +89,14 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
         return;
     }
 
+    if (!validate_handle(pChannel->getSnapshotHandle(),
+            recvd_frame->ch_id)) {
+        LOGH("Unexpected Snapshot Frame received - %d expected = %d",
+                recvd_frame->ch_id, pChannel->getSnapshotHandle());
+        pChannel->bufDone(recvd_frame);
+        return;
+    }
+
     if(pme->mParameters.isSceneSelectionEnabled() &&
             !pme->m_stateMachine.isCaptureRunning()) {
         pme->selectScene(pChannel, recvd_frame);
@@ -1788,6 +1796,14 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
         return;
     }
 
+    if (!validate_handle(pChannel->getSnapshotHandle(),
+            super_frame->ch_id)) {
+        LOGH("Unexpected Snapshot Frame received - %d expected = %d",
+                super_frame->ch_id, pChannel->getSnapshotHandle());
+        pChannel->bufDone(super_frame);
+        return;
+    }
+
     property_get("persist.camera.dumpmetadata", value, "0");
     int32_t enabled = atoi(value);
     if (enabled) {
@@ -3046,8 +3062,20 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                     stream->getFrameOffset(offset);
 
                     if (NULL != timeinfo) {
-                        strftime(timeBuf, sizeof(timeBuf),
-                                QCAMERA_DUMP_FRM_LOCATION "%Y%m%d%H%M%S", timeinfo);
+                        if (!isDualCamera()) {
+                            strftime(timeBuf, sizeof(timeBuf),
+                                    QCAMERA_DUMP_FRM_LOCATION "%Y%m%d%H%M%S", timeinfo);
+                        } else {
+                            if (get_aux_camera_handle(frame->stream_id)) {
+                                strftime(timeBuf, sizeof(timeBuf),
+                                        QCAMERA_DUMP_FRM_LOCATION "Aux_%Y%m%d%H%M%S",
+                                        timeinfo);
+                            } else {
+                                strftime(timeBuf, sizeof(timeBuf),
+                                        QCAMERA_DUMP_FRM_LOCATION "Main_%Y%m%d%H%M%S",
+                                        timeinfo);
+                            }
+                        }
                     }
                     String8 filePath(timeBuf);
                     switch (dump_type) {
