@@ -69,6 +69,8 @@ extern "C" {
 
 #define CAMERA_OPEN_PERF_TIME_OUT 500 // 500 milliseconds
 
+#define PREPARE_SNAP_TIMEOUT 3 // 3 seconds
+
 // Very long wait, just to be sure we don't deadlock
 #define CAMERA_DEFERRED_THREAD_TIMEOUT 5000000000 // 5 seconds
 #define CAMERA_DEFERRED_MAP_BUF_TIMEOUT 2000000000 // 2 seconds
@@ -1593,7 +1595,8 @@ int QCamera2HardwareInterface::prepare_snapshot(struct camera_device *device)
         /* Prepare snapshot in case LED needs to be flashed */
         ret = hw->processAPI(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, NULL);
         if (ret == NO_ERROR) {
-          hw->waitAPIResult(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, &apiResult);
+            hw->waitAPIResult(QCAMERA_SM_EVT_PREPARE_SNAPSHOT,
+                    &apiResult, PREPARE_SNAP_TIMEOUT);
             ret = apiResult.status;
         }
         hw->mPrepSnapRun = true;
@@ -7336,12 +7339,46 @@ void QCamera2HardwareInterface::lockAPI()
  * RETURN     : none
  *==========================================================================*/
 void QCamera2HardwareInterface::waitAPIResult(qcamera_sm_evt_enum_t api_evt,
-        qcamera_api_result_t *apiResult)
+        qcamera_api_result_t *apiResult, int timeoutSec)
 {
     LOGD("wait for API result of evt (%d)", api_evt);
     int resultReceived = 0;
+    int32_t rc = NO_ERROR;
+    struct timespec ts_start;
+
+    if (timeoutSec != -1) {
+        rc = clock_gettime(CLOCK_REALTIME, &ts_start);
+        if (rc < 0) {
+            LOGE("Error reading the real time clock!!");
+            timeoutSec = -1;
+        }
+    }
+
     while  (!resultReceived) {
-        pthread_cond_wait(&m_cond, &m_lock);
+        if (timeoutSec == -1) {
+            pthread_cond_wait(&m_cond, &m_lock);
+        } else {
+            struct timespec ts_now;
+            rc = clock_gettime(CLOCK_REALTIME, &ts_now);
+            if (rc < 0) {
+                LOGE("Error reading the real time clock!!");
+                timeoutSec = -1;
+                continue;
+            }
+            int elapsed = ts_now.tv_sec - ts_start.tv_sec;
+            if (timeoutSec > elapsed) {
+                ts_now.tv_sec += (timeoutSec - elapsed);
+                rc = pthread_cond_timedwait(&m_cond, &m_lock, &ts_now);
+            } else {
+                rc = ETIMEDOUT;
+            }
+
+            if (rc == ETIMEDOUT) {
+                apiResult->status = rc;
+                LOGE("Timed out waiting for API (%d) result", api_evt);
+                break;
+            }
+        }
         if (m_apiResultList != NULL) {
             api_result_list *apiResultList = m_apiResultList;
             api_result_list *apiResultListPrevious = m_apiResultList;
