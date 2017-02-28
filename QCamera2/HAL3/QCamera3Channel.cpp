@@ -3251,7 +3251,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                     }
 
                     size_t jpeg_eof_offset =
-                            (size_t)(maxJpegSize - (ssize_t)sizeof(jpegHeader));
+                            (size_t)(maxJpegSize - (ssize_t)sizeof(jpegHeader) - 1);
                     char *jpeg_eof = &jpeg_buf[jpeg_eof_offset];
                     memcpy(jpeg_eof, &jpegHeader, sizeof(jpegHeader));
                     obj->mMemory.cleanInvalidateCache(bufIdx);
