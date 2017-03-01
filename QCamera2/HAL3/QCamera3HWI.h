@@ -274,6 +274,7 @@ public:
     bool isMainCamera() {return mIsMainCamera;}
     uint32_t getSensorMountAngle();
     const cam_related_system_calibration_data_t *getRelatedCalibrationData();
+    int getCameraId() {return mCameraId;}
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
