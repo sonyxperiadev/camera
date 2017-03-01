@@ -3268,8 +3268,15 @@ int32_t QCameraParameters::setVideoRotation(const QCameraParameters& params)
         int value = lookupAttr(VIDEO_ROTATION_MODES_MAP,
                 PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP), str);
         if (value != NAME_NOT_FOUND) {
+            if (value == 90 || value == 180 || value == 270) {
+                if (!(m_pCapability->qcom_supported_feature_mask &
+                        CAM_QCOM_FEATURE_ROTATION)) {
+                    LOGE("Video Rotation not supported for %d", value);
+                    return BAD_VALUE;
+                }
+            }
             updateParamEntry(KEY_QC_VIDEO_ROTATION, str);
-            LOGL("setVideoRotation:  %s %d: ", str, value);
+            LOGL("setVideoRotation:  %s %d", str, value);
         } else {
             LOGE("Invalid rotation value: %d", value);
             return BAD_VALUE;
@@ -15948,6 +15955,15 @@ int32_t QCameraParameters::setDeferCamera(cam_dual_camera_defer_cmd_t type)
     int32_t rc = NO_ERROR;
     char prop[PROPERTY_VALUE_MAX];
     int value = 0;
+
+    property_get("persist.camera.raw_yuv", prop, "0");
+    value = atoi(prop);
+    if (value) {
+        //In RAW + YUV, we need to query for RAW size. Cannot defer camera
+        return rc;
+    } else {
+        memset(prop, 0, sizeof(prop));
+    }
 
     property_get("persist.dualcam.defer.cam", prop, "1");
     value = atoi(prop);

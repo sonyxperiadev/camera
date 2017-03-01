@@ -378,7 +378,8 @@ QCameraStream::QCameraStream(QCameraAllocator &allocator,
         wait_for_cond(false),
         mAllocTaskId(0),
         mMapTaskId(0),
-        mSyncCBEnabled(false)
+        mSyncCBEnabled(false),
+        mCamType(0)
 {
     mDualStream = is_dual_camera_by_handle(chId);
     if (get_main_camera_handle(chId)) {
@@ -2871,7 +2872,8 @@ bool QCameraStream::needCbSwitch()
             || (mStreamInfo->pp_config.feature_mask & CAM_QTI_FEATURE_SAC)
             || (needFrameSync())
             || (getMyType() == CAM_STREAM_TYPE_SNAPSHOT)
-            || (getMyType() == CAM_STREAM_TYPE_METADATA)) {
+            || (getMyType() == CAM_STREAM_TYPE_METADATA)
+            || (getMyType() == CAM_STREAM_TYPE_RAW)) {
         return false;
     } else {
         return true;
