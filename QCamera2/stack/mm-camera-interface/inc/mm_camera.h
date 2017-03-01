@@ -350,6 +350,7 @@ typedef struct mm_stream {
     struct mm_stream *aux_str_obj[MM_CAMERA_MAX_AUX_CAMERA];  /*aux stream of this stream*/
     mm_frame_sync_t frame_sync;
     uint8_t is_res_shared;
+    uint8_t is_deferred;
 } mm_stream_t;
 
 /* mm_channel */

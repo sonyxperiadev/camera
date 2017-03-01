@@ -60,6 +60,7 @@ QCameraFOVControl::QCameraFOVControl()
     memset(&mFovControlConfig, 0, sizeof(fov_control_config_t));
     memset(&mFovControlData,   0, sizeof(fov_control_data_t));
     memset(&mFovControlResult, 0, sizeof(fov_control_result_t));
+    memset(&mFovControlParm,   0, sizeof(mFovControlParm));
     mHalPPType = CAM_HAL_PP_TYPE_NONE;
 }
 
@@ -593,6 +594,12 @@ int32_t QCameraFOVControl::updateConfigSettings(
             // FOV-control config is complete for the current use case
             mFovControlData.configCompleted = true;
             rc = NO_ERROR;
+
+            rc = translateInputParams(paramsMainCam, paramsAuxCam);
+            if (rc != NO_ERROR) {
+                LOGE("FOV-control: Failed to translate");
+                return rc;
+            }
         }
     }
 
@@ -633,7 +640,16 @@ int32_t QCameraFOVControl::translateInputParams(
 
         // Translate zoom
         if (paramsMainCam->is_valid[CAM_INTF_PARM_ZOOM]) {
+            //Cache user zoom
             uint32_t userZoom = 0;
+            READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_ZOOM, userZoom);
+            mFovControlParm.zoom_valid = 1;
+            mFovControlParm.zoom_value = userZoom;
+        }
+
+        // Translate zoom
+        if (mFovControlParm.zoom_valid) {
+            uint32_t userZoom = mFovControlParm.zoom_value;
             READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_ZOOM, userZoom);
             convertUserZoomToWideAndTele(userZoom);
 
@@ -648,9 +664,6 @@ int32_t QCameraFOVControl::translateInputParams(
 
             // Write the user zoom in main and aux param buffers
             // The user zoom will always correspond to the wider camera
-            paramsMainCam->is_valid[CAM_INTF_PARM_DC_USERZOOM] = 1;
-            paramsAuxCam->is_valid[CAM_INTF_PARM_DC_USERZOOM]  = 1;
-
             ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_DC_USERZOOM,
                     userZoom);
             ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_DC_USERZOOM,
@@ -658,6 +671,9 @@ int32_t QCameraFOVControl::translateInputParams(
 
             // Generate FOV-control result
             generateFovControlResult();
+            if (mFovControlData.configCompleted) {
+                mFovControlParm.zoom_valid = 0;
+            }
         }
 
         // Translate focus areas

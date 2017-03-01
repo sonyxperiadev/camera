@@ -928,15 +928,16 @@ public:
     int32_t SetDualCamera(bool value);
     bool isDualCamera() {return m_bDualCamera;};
     cam_hal_pp_type_t getHalPPType() {return m_halPPType;}
-
-    int32_t setCameraControls(int32_t controls);
+    int32_t setCameraControls(uint32_t controls, bool bundleSnap);
+    int32_t setDCLowPowerMode(uint32_t state);
     cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
     int32_t setSwitchCamera(uint32_t camMaster);
-    int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
-    void setBundledSnapshot(bool value) { mbundledSnapshot = value; }
+    int32_t setDCDeferCamera(cam_dual_camera_defer_cmd_t type);
     int32_t getDualLedCalibration() {return m_dualLedCalibration;};
     bool isDCmAsymmetricSnapMode (){return mAsymmetricSnapMode;};
     bool isDCAsymmetricPrevMode (){return mAsymmetricPreviewMode;};
+    void initDCSettings(int32_t state, uint32_t camMaster,
+            bool bundleSnapshot);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1321,6 +1322,7 @@ private:
     bool m_bDualCamera;
     uint32_t mActiveCameras;
     uint32_t mMasterCamera;
+    bool lpmEnable;
     bool m_bRedEyeReduction;
     bool m_bSmallJpegSize;
     cam_stream_type_t mSecureStraemType;

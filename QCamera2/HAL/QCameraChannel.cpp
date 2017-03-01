@@ -690,6 +690,35 @@ int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param
 }
 
 /*===========================================================================
+ * FUNCTION   : initDCSettings
+ *
+ * DESCRIPTION: initialize dual camera settings
+ *
+ * PARAMETERS :
+ *    @state            : Flag with camera bit field set in case of dual camera
+ *    @camMaster        : Master camera
+ *    @bundleSnapshot   : Flag to update bundle snapshot info
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraChannel::initDCSettings(int32_t camState, uint32_t camMaster,
+        bool bundledSnapshot)
+{
+    if (!isDualChannel()) {
+        return;
+    }
+
+    for (size_t i = 0; i < mStreams.size(); i++) {
+        if (mStreams[i] != NULL && mStreams[i]->isDualStream()) {
+            mStreams[i]->initDCSettings(camState, camMaster);
+        }
+    }
+    mActiveCameras = camState;
+    mMasterCamera = camMaster;
+    mBundledSnapshot = bundledSnapshot;
+}
+
+/*===========================================================================
  * FUNCTION   : processCameraControl
  *
  * DESCRIPTION:  Suspend and resume camera

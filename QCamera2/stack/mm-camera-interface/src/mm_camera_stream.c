@@ -1235,6 +1235,11 @@ int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj,
             LOGD("ALL_CB s_obj->is_cb_active: %d, m_obj->is_cb_active: %d",
                     s_obj->is_cb_active, m_obj->is_cb_active)
         break;
+
+        case MM_CAMERA_CB_REQ_TYPE_DEFER:
+            my_obj->is_deferred = 1;
+        break;
+
         default:
             //no-op
             break;
@@ -1999,8 +2004,8 @@ int32_t mm_stream_request_buf(mm_stream_t * my_obj)
     int32_t rc = 0;
     struct v4l2_requestbuffers bufreq;
     uint8_t buf_num = my_obj->total_buf_cnt;
-    LOGD("E, my_handle = 0x%x, fd = %d, state = %d",
-          my_obj->my_hdl, my_obj->fd, my_obj->state);
+    LOGD("E, my_handle = 0x%x, fd = %d, state = %d buf_num = %d",
+          my_obj->my_hdl, my_obj->fd, my_obj->state, buf_num);
 
     if(buf_num > MM_CAMERA_MAX_NUM_FRAMES) {
         LOGE("buf num %d > max limit %d\n",
@@ -2294,7 +2299,7 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
           my_obj->my_hdl, my_obj->fd, my_obj->state);
 
     /* deinit buf if it's not NULL*/
-    if (NULL != my_obj->buf) {
+    if ((NULL != my_obj->buf) && (!my_obj->is_res_shared)) {
         mm_stream_deinit_bufs(my_obj);
     }
 
@@ -2306,11 +2311,11 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
             for (i = 0; i < my_obj->total_buf_cnt; i++) {
                 my_obj->buf_status[i].initial_reg_flag = reg_flags[i];
             }
+            if ((my_obj->num_s_cnt != 0) && (my_obj->total_buf_cnt != 0)) {
+                rc = mm_camera_muxer_get_stream_bufs(my_obj);
+            }
         }
-    } else {
-        rc = mm_camera_muxer_get_stream_bufs(my_obj);
     }
-
     if (0 != rc) {
         LOGE("Error get buf, rc = %d\n", rc);
         return rc;
@@ -2427,7 +2432,7 @@ int32_t mm_stream_reg_buf(mm_stream_t * my_obj)
         if (my_obj->buf_status[i].initial_reg_flag) {
             rc = mm_stream_qbuf(my_obj, &my_obj->buf[i]);
             if (rc != 0) {
-                LOGE("VIDIOC_QBUF rc = %d\n", rc);
+                LOGE("VIDIOC_QBUF idx = %d rc = %d\n", i, rc);
                 break;
             }
             my_obj->buf_status[i].buf_refcnt = 0;
