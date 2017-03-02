@@ -1764,6 +1764,8 @@ typedef enum {
     CAM_DUAL_CAMERA_MASTER_INFO,
     /*Command to Defer dual camera session*/
     CAM_DUAL_CAMERA_DEFER_INFO,
+    /*cmd to send information about fallback in case of low light / macro scene*/
+    CAM_DUAL_CAMERA_FALLBACK_INFO,
 } cam_dual_camera_cmd_type;
 
 typedef enum {

@@ -103,6 +103,7 @@ typedef struct {
     uint8_t               camMasterHint;
     uint8_t               camMasterPreview;
     uint8_t               camMaster3A;
+    uint8_t               fallbackComplete;
     uint32_t              activeCameras;
     spatial_align_shift_t shiftWide;
     spatial_align_shift_t shiftTele;
@@ -210,6 +211,7 @@ typedef struct {
     bool            snapshotPostProcess;
     bool            snapshotPostProcessZoomRange;
     cam_ois_mode_t  oisMode;
+    cam_fallback_mode_t fallback;
 } fov_control_result_t;
 
 

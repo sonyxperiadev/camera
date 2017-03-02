@@ -743,10 +743,15 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             // Get master camera hint
             if (spatialAlignOutput->is_master_hint_valid) {
                 uint8_t master = spatialAlignOutput->master_hint;
+                mFovControlData.spatialAlignResult.fallbackComplete = 0;
                 if (master == CAM_ROLE_WIDE) {
                     mFovControlData.spatialAlignResult.camMasterHint = mFovControlData.camWide;
                 } else if (master == CAM_ROLE_TELE) {
                     mFovControlData.spatialAlignResult.camMasterHint = mFovControlData.camTele;
+                } else if (master == CAM_ROLE_WIDE_FALLBACK) {
+                    // Confirmation on fallback complete
+                    mFovControlData.spatialAlignResult.camMasterHint = 0;
+                    mFovControlData.spatialAlignResult.fallbackComplete = 1;
                 }
             }
 
@@ -1127,6 +1132,9 @@ void QCameraFOVControl::generateFovControlResult()
         mFovControlResult.snapshotPostProcess = false;
     }
 
+    // Default the fallback to No fallback
+    mFovControlResult.fallback = CAM_NO_FALLBACK;
+
     switch (mFovControlData.camState) {
         case STATE_WIDE:
             // Start timerWellLitNonMacroScene timer if the scene is bright and non-macro,
@@ -1166,7 +1174,8 @@ void QCameraFOVControl::generateFovControlResult()
                  due to low light, macro-scene and user zooms in with zoom hitting the threshold */
                 if ((mFovControlData.takeBundledSnapshot) ||
                     (needDualZone() &&
-                    (mFovControlData.zoomDirection == ZOOM_IN) &&
+                    ((mFovControlData.zoomDirection == ZOOM_IN) ||
+                    (zoom >= mFovControlData.transitionParams.cutOverTeleToWide)) &&
                     (mFovControlData.fallbackToWide == false))) {
                     mFovControlData.camState = STATE_TRANSITION;
                     mFovControlResult.activeCameras = (camWide | camTele);
@@ -1197,6 +1206,8 @@ void QCameraFOVControl::generateFovControlResult()
                 }
             } else {
                 LOGD("state: wide: low light / macro scene. Remain in Wide state.");
+                // Set the fallback to Wide
+                mFovControlResult.fallback = CAM_WIDE_FALLBACK;
             }
             break;
 
@@ -1388,6 +1399,11 @@ void QCameraFOVControl::generateFovControlResult()
         mFovControlResult.oisMode = OIS_MODE_HOLD;
     }
 
+    // Update fallback result if needed
+    if (mFovControlData.fallbackEnabled && mFovControlData.fallbackToWide) {
+        mFovControlResult.fallback = CAM_WIDE_FALLBACK;
+    }
+
     mFovControlResult.isValid = true;
     // Debug print for the FOV-control result
     LOGD("Effective zoom: %f", zoom);
@@ -1409,8 +1425,7 @@ void QCameraFOVControl::generateFovControlResult()
             ((mFovControlData.camState == STATE_TELE) ? "STATE_TELE" : "STATE_TRANSITION" )));
     LOGD("OIS mode: %s", ((mFovControlResult.oisMode == OIS_MODE_ACTIVE) ? "ACTIVE" :
             ((mFovControlResult.oisMode == OIS_MODE_HOLD) ? "HOLD" : "INACTIVE")));
-    LOGD("fallback : %d, thermal throttle: %d",
-            (mFovControlData.fallbackEnabled && mFovControlData.fallbackToWide),
+    LOGD("fallback : %d, thermal throttle: %d", mFovControlResult.fallback,
             mFovControlData.thermalThrottle);
 }
 
@@ -1542,9 +1557,12 @@ bool QCameraFOVControl::canSwitchMasterTo(
             }
         } else if (mFovControlData.wideCamStreaming) {
             if (mFovControlData.fallbackEnabled && mFovControlData.fallbackToWide) {
-                // If fallback is initiated, switch the master w/o waiting for spatial
-                // alignment to complete.
-                ret = true;
+                /* If the fallback is initiated, only switch the master when the spatial alignment
+                 confirms the completion of the fallback. */
+                if ((mFovControlData.spatialAlignResult.camMasterHint == 0) &&
+                        mFovControlData.spatialAlignResult.fallbackComplete) {
+                    ret = true;
+                }
             } else if (mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) {
                 // In case of OEM Spatial alignment solution, check the spatial alignment ready
                 if (isSpatialAlignmentReady()) {

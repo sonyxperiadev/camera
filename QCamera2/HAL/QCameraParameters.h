@@ -928,8 +928,9 @@ public:
     int32_t SetDualCamera(bool value);
     bool isDualCamera() {return m_bDualCamera;};
     cam_hal_pp_type_t getHalPPType() {return m_halPPType;}
-    int32_t setCameraControls(uint32_t controls, bool bundleSnap);
+    int32_t setCameraControls(uint32_t controls, bool bundleSnap, cam_fallback_mode_t fallbackMode);
     int32_t setDCLowPowerMode(uint32_t state);
+    int32_t setDCFallbackMode(cam_fallback_mode_t fallback);
     cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
     int32_t setSwitchCamera(uint32_t camMaster);
     int32_t setDCDeferCamera(cam_dual_camera_defer_cmd_t type);
@@ -937,7 +938,7 @@ public:
     bool isDCmAsymmetricSnapMode (){return mAsymmetricSnapMode;};
     bool isDCAsymmetricPrevMode (){return mAsymmetricPreviewMode;};
     void initDCSettings(int32_t state, uint32_t camMaster,
-            bool bundleSnapshot);
+            bool bundleSnapshot, cam_fallback_mode_t fallback);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1330,6 +1331,7 @@ private:
     uint32_t mFrameNumber;
     uint32_t mSyncDCParam;
     bool mbundledSnapshot;
+    cam_fallback_mode_t mFallback;
     bool mAsymmetricSnapMode;
     bool mAsymmetricPreviewMode;
     cam_hal_pp_type_t m_halPPType;
