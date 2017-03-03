@@ -779,7 +779,7 @@ bool QCameraPostProcessor::validatePostProcess(mm_camera_super_buf_t *frame)
         for (uint8_t i = 0; i < m_pReprocChannel->getNumOfStreams(); i++) {
             pStream = m_pReprocChannel->getStreamByIndex(i);
             if (pStream && (m_inputPPQ.getCurrentSize() > 0) &&
-                    m_ongoingPPQ.getCurrentSize() >=  pStream->getNumQueuedBuf()) {
+                    (pStream->getNumQueuedBuf() <= 0)) {
                 CDBG_HIGH("Out of PP Buffer PPQ = %d ongoingQ = %d Jpeg = %d onJpeg = %d",
                         m_inputPPQ.getCurrentSize(), m_inputPPQ.getCurrentSize(),
                         m_inputJpegQ.getCurrentSize(), m_ongoingJpegQ.getCurrentSize());
