@@ -825,6 +825,7 @@ public:
             cam_related_system_calibration_data_t* calib);
     int32_t bundleRelatedCameras(bool sync, uint32_t sessionid);
     int32_t setInstantAEC(uint8_t enable, bool initCommit);
+    bool isFDInVideoEnabled();
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
