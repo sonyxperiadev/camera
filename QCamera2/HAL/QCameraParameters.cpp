@@ -10530,15 +10530,9 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             LOGE("getAnalysisInfo failed, ret = %d", ret);
             return ret;
         }
-
-        if (analysisInfo.hw_analysis_supported &&
-                analysisInfo.analysis_format == CAM_FORMAT_Y_ONLY) {
+        if (analysisInfo.analysis_format == CAM_FORMAT_Y_ONLY) {
             format = analysisInfo.analysis_format;
         } else {
-            if (analysisInfo.hw_analysis_supported) {
-                LOGW("Invalid analysis_format %d\n",
-                        analysisInfo.analysis_format);
-            }
             format = mAppPreviewFormat;
         }
         break;
