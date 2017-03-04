@@ -221,6 +221,7 @@ const char QCameraParameters::KEY_QC_IS_BOKEH_MODE_SUPPORTED[] = "is-bokeh-suppo
 const char QCameraParameters::KEY_QC_IS_BOKEH_MPO_SUPPORTED[] = "is-bokeh-mpo-supported";
 const char QCameraParameters::KEY_QC_BOKEH_BLUR_VALUE[] = "bokeh-blur-value";
 const char QCameraParameters::KEY_QC_BOKEH_MPO_MODE[] = "bokeh-mpo-mode";
+const char QCameraParameters::KEY_QC_BOKEH_PICTURE_SIZE[] = "bokeh-picture-size";
 
 
 // Values for effect settings.
@@ -505,6 +506,8 @@ const char QCameraParameters::QC_METADATA_ASD[] = "metadata-asd";
 const char QCameraParameters::QC_METADATA_FD[] = "metadata-fd";
 const char QCameraParameters::QC_METADATA_HDR[] = "metadata-hdr";
 const char QCameraParameters::QC_METADATA_LED_CALIB[] = "metadata-led-calib";
+//Real time bokeh metadata
+const char QCameraParameters::QC_METADATA_RTB[] = "metadata-rtb";
 
 const char QCameraParameters::KEY_QC_LED_CALIBRATION[] = "led-calibration";
 
@@ -883,7 +886,8 @@ const QCameraParameters::QCameraMap<int>
     {QC_METADATA_ASD,        QCAMERA_METADATA_ASD},
     {QC_METADATA_FD,         QCAMERA_METADATA_FD},
     {QC_METADATA_HDR,        QCAMERA_METADATA_HDR},
-    {QC_METADATA_LED_CALIB,  QCAMERA_METADATA_LED_CALIB}
+    {QC_METADATA_LED_CALIB,  QCAMERA_METADATA_LED_CALIB},
+    {QC_METADATA_RTB,        QCAMERA_METADATA_RTB}
 };
 
 
@@ -1629,6 +1633,10 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
     int width, height;
     params.getPictureSize(&width, &height);
     int old_width, old_height;
+    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+        width = CAM_BOKEH_TELE_WIDTH;
+        height = CAM_BOKEH_TELE_HEIGHT;
+    }
     LOGH("Requested picture size %d x %d", width, height);
     CameraParameters::getPictureSize(&old_width, &old_height);
     LOGH("old picture size %d x %d", old_width, old_height);
@@ -3216,8 +3224,13 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
             requestedBlurLevel = 100;
         }
         if (m_bBokehBlurLevel != requestedBlurLevel) {
+            cam_rtb_blur_info_t info;
+            memset(&info, 0, sizeof(info));
+            info.blur_level = requestedBlurLevel;
+            info.blur_min_value = 0;
+            info.blur_max_value = 100;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
-                    CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, requestedBlurLevel)) {
+                    CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, info)) {
                 LOGE("Failed to update table");
                 return BAD_VALUE;
             }
@@ -5407,6 +5420,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     }
 
     if ((rc = setSecureMode(params)))                   final_rc = rc;
+    if ((rc = setBokehMode(params)))                    final_rc = rc;
     if ((rc = setPreviewSize(params)))                  final_rc = rc;
     if ((rc = setVideoSize(params)))                    final_rc = rc;
     if ((rc = setPictureSize(params)))                  final_rc = rc;
@@ -5491,7 +5505,6 @@ int32_t QCameraParameters::updateParameters(const String8& p,
 
     if ((rc = setLongshotParam(params)))                final_rc = rc;
     if ((rc = setDualLedCalibration(params)))           final_rc = rc;
-    if ((rc = setBokehMode(params)))                   final_rc = rc;
     if ((rc = setNoDisplayMode(params)))                final_rc = rc;
 
     setQuadraCfa(params);
@@ -6401,6 +6414,12 @@ int32_t QCameraParameters::initDefaultParameters()
         set(KEY_QC_BOKEH_MODE, 0);
         set(KEY_QC_BOKEH_BLUR_VALUE, 0);
         set(KEY_QC_BOKEH_MPO_MODE, 0);
+        cam_dimension_t bokehPicSize = { CAM_BOKEH_TELE_WIDTH, CAM_BOKEH_TELE_HEIGHT };
+        String8 bokehPictureSizeValue = createSizesString(
+                &bokehPicSize, 1);
+        set(KEY_QC_BOKEH_PICTURE_SIZE, bokehPictureSizeValue.string());
+        LOGH("supported bokeh picture size: %s", bokehPictureSizeValue.string());
+
     } else {
         String8 minMaxValues = createMinMaxValuesString(0, 0, 0);
         set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
@@ -11811,6 +11830,40 @@ int32_t QCameraParameters::updateRecordingHintValue(int32_t value)
 }
 
 /*===========================================================================
+ * FUNCTION   : updateCaptureRequest
+ *
+ * DESCRIPTION: This function is used by dual camera to notify capture mode in dual
+ *                      camera
+ *
+ * PARAMETERS :
+ *   @value   : 0 capture not in progress
+ *                : 1 capture in progress
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateCaptureRequest(uint8_t value)
+{
+    int32_t rc = NO_ERROR;
+    LOGH("Notify take picture mode (%d) to modules", value);
+    if(initBatchUpdate() < 0 ) {
+        LOGE("Failed to initialize group update table");
+        return BAD_TYPE;
+    }
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_DC_CAPTURE, value)) {
+        LOGE("Failed to update table");
+        return BAD_VALUE;
+    }
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        LOGE("Failed to update capture mode");
+        return rc;
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setHistogram
  *
  * DESCRIPTION: set histogram
@@ -14327,6 +14380,10 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     }
     if ((rc == NO_ERROR) && isDualCamera()) {
         bundleRelatedCameras(true);
+        if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+            LOGH("Set mMasterCamera as CAM_TYPE_AUX");
+            mMasterCamera = CAM_TYPE_AUX;
+        }
         setSwitchCamera(mMasterCamera);
     }
 

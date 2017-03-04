@@ -1640,6 +1640,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       m_cbNotifier(this),
       m_perfLockMgr(),
       m_bPreviewStarted(false),
+      m_bFirstPreviewFrameReceived(false),
       m_bRecordStarted(false),
       m_currentFocusState(CAM_AF_STATE_INACTIVE),
       mDumpFrmCnt(0U),
@@ -4033,6 +4034,7 @@ int QCamera2HardwareInterface::stopPreview()
 
     // delete all channels from preparePreview
     unpreparePreview();
+    m_bFirstPreviewFrameReceived = false;
 
     m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_PREVIEW);
     LOGI("X");
@@ -4956,6 +4958,10 @@ int QCamera2HardwareInterface::preTakePicture()
         }
     }
 
+    if (isDualCamera()) {
+        //Send capture request to modules
+        mParameters.updateCaptureRequest(1);
+    }
     LOGH("X rc = %d", rc);
     return rc;
 }
@@ -5486,6 +5492,11 @@ int QCamera2HardwareInterface::cancelPicture()
 
     //stop post processor
     m_postprocessor.stop();
+
+    if (isDualCamera()) {
+        //Send cancel capture request to modules
+        mParameters.updateCaptureRequest(0);
+    }
 
     unconfigureAdvancedCapture();
     LOGH("Enable display frames again");
@@ -7063,6 +7074,64 @@ int32_t QCamera2HardwareInterface::processLEDCalibration(int32_t value)
         pData[0] = QCAMERA_METADATA_LED_CALIB;
         pData[1] = (int)data_len;
         pData[2] = value;
+
+        qcamera_callback_argm_t cbArg;
+        memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
+        cbArg.cb_type = QCAMERA_DATA_CALLBACK;
+        cbArg.msg_type = CAMERA_MSG_META_DATA;
+        cbArg.data = buffer;
+        cbArg.user_data = buffer;
+        cbArg.cookie = this;
+        cbArg.release_cb = releaseCameraMemory;
+        int32_t rc = m_cbNotifier.notifyCallback(cbArg);
+        if (rc != NO_ERROR) {
+            LOGE("fail sending notification");
+            buffer->release(buffer);
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : processRTBData
+ *
+ * DESCRIPTION: process messages from RTB module
+ *
+ * PARAMETERS :
+ *   @rtbData : RTB metadata message
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
+{
+    int32_t rc = NO_ERROR;
+
+    //Check if we are in real time bokeh mode
+    if (isDualCamera() && (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+        LOGH("DC RTB metadata: msgType: %d",rtbData);
+        int32_t data_len = sizeof(rtbData);
+        int32_t buffer_len = sizeof(rtbData)       //meta type
+                + sizeof(int)                  //data len
+                + data_len;                    //data
+        camera_memory_t *buffer = mGetMemory(-1,
+                buffer_len, 1, mCallbackCookie);
+        if ( NULL == buffer ) {
+            LOGE("Not enough memory for data");
+            return NO_MEMORY;
+        }
+
+        int *pData = (int *)buffer->data;
+        if (pData == NULL) {
+            LOGE("memory data ptr is NULL");
+            buffer->release(buffer);
+            return UNKNOWN_ERROR;
+        }
+
+        pData[0] = QCAMERA_METADATA_RTB;
+        pData[1] = (int)data_len;
+        pData[2] = rtbData;
 
         qcamera_callback_argm_t cbArg;
         memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));

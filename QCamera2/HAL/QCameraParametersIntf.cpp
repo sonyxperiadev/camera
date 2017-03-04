@@ -570,6 +570,13 @@ int32_t QCameraParametersIntf::updateRecordingHintValue(int32_t value)
     return mImpl->updateRecordingHintValue(value);
 }
 
+int32_t QCameraParametersIntf::updateCaptureRequest(uint8_t value)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->updateCaptureRequest(value);
+}
+
 int32_t QCameraParametersIntf::setHDRAEBracket(cam_exp_bracketing_t hdrBracket)
 {
     Mutex::Autolock lock(mLock);

@@ -159,6 +159,7 @@ public:
     int32_t setFrameSkip(enum msm_vfe_frame_skip_pattern pattern);
     qcamera_thermal_mode getThermalMode();
     int32_t updateRecordingHintValue(int32_t value);
+    int32_t updateCaptureRequest(uint8_t value);
     int32_t setHDRAEBracket(cam_exp_bracketing_t hdrBracket);
     bool isHDREnabled();
     bool isAutoHDREnabled();

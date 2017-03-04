@@ -345,6 +345,7 @@ private:
     static const char KEY_QC_IS_BOKEH_MPO_SUPPORTED[];
     static const char KEY_QC_BOKEH_BLUR_VALUE[];
     static const char KEY_QC_BOKEH_MPO_MODE[];
+    static const char KEY_QC_BOKEH_PICTURE_SIZE[];
 
     // Values for Touch AF/AEC
     static const char TOUCH_AF_AEC_OFF[];
@@ -622,6 +623,7 @@ private:
     static const char QC_METADATA_FD[];
     static const char QC_METADATA_HDR[];
     static const char QC_METADATA_LED_CALIB[];
+    static const char QC_METADATA_RTB[];
 
     //Key to enable dual LED calibration
     static const char KEY_QC_LED_CALIBRATION[];
@@ -741,6 +743,7 @@ public:
     int32_t setFrameSkip(enum msm_vfe_frame_skip_pattern pattern);
     qcamera_thermal_mode getThermalMode() {return m_ThermalMode;};
     int32_t updateRecordingHintValue(int32_t value);
+    int32_t updateCaptureRequest(uint8_t value);
     int32_t setHDRAEBracket(cam_exp_bracketing_t hdrBracket);
     bool isHDREnabled();
     bool isAutoHDREnabled();
