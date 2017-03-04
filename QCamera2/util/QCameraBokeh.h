@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,41 +27,41 @@
  *
  */
 
-#ifndef __QCAMERA_DUAL_FOV_PP_H__
-#define __QCAMERA_DUAL_FOV_PP_H__
+#ifndef __QCAMERA_BOKEH_H__
+#define __QCAMERA_BOKEH_H__
 
 // Camera dependencies
 #include "QCameraHALPP.h"
+#include "QCameraPostProc.h"
 
-#define WIDE_TELE_CAMERA_NUMBER 2
-enum dualfov_af_status_t {
-    AF_STATUS_VALID,
-    AF_STATUS_INVALID
-};
-
-typedef struct _dualfov_input_params_t {
+typedef struct  {
     cam_frame_size_t wide;
     cam_frame_size_t tele;
+} bokeh_input_params_t;
 
-    uint32_t user_zoom;
-
-    dualfov_af_status_t af_status;
-} dualfov_input_params_t;
-
-typedef struct _dualfov_output_params_t {
+typedef struct  {
     cam_frame_size_t out;
     uint32_t result;
-} dualfov_output_params_t;
+} bokeh_output_params_t;
 
 
 namespace qcamera {
 
-class QCameraDualFOVPP : public QCameraHALPP
+typedef struct  {
+    qcamera_hal_pp_data_t* wide_input;
+    qcamera_hal_pp_data_t* tele_input;
+    qcamera_hal_pp_data_t* tele_output;
+} bokeh_data_t;
+
+class QCameraBokeh : public QCameraHALPP
 {
 public:
-    QCameraDualFOVPP();
-    ~QCameraDualFOVPP();
-    int32_t init(halPPBufNotify bufNotifyCb, halPPGetOutput getOutputCb, void *pUserData,
+    QCameraBokeh();
+    ~QCameraBokeh();
+    int32_t init(
+            halPPBufNotify bufNotifyCb,
+            halPPGetOutput getOutputCb,
+            void *pUserData,
             void *pStaticParam);
     int32_t deinit();
     int32_t start();
@@ -71,26 +71,26 @@ public:
 protected:
     bool canProcess();
 private:
-    void getInputParams(mm_camera_buf_def_t *pMainMetaBuf, mm_camera_buf_def_t *pAuxMetaBuf,
-            QCameraStream* pMainSnapshotStream, QCameraStream* pAuxSnapshotStream,
-            dualfov_input_params_t& inParams);
-    int32_t doDualFovPPInit();
-    int32_t doDualFovPPProcess(const uint8_t* pWide, const uint8_t* pTele,
-            dualfov_input_params_t inParams, uint8_t* pOut);
-    uint32_t getUserZoomRatio(int32_t zoom_level);
-    void dumpYUVtoFile(const uint8_t* pBuf, cam_frame_len_offset_t offset, uint32_t idx,
+    void getInputParams(bokeh_input_params_t& inParams);
+    int32_t doBokehInit();
+    int32_t doBokehProcess(
+            const uint8_t* pWide,
+            const uint8_t* pTele,
+            bokeh_input_params_t inParams,
+            uint8_t* pOut);
+    void dumpYUVtoFile(
+            const uint8_t* pBuf,
+            cam_frame_len_offset_t offset,
+            uint32_t idx,
             const char* name_prefix);
-    void dumpInputParams(const dualfov_input_params_t& p);
-    void dumpOISData(metadata_buffer_t*  pMetadata);
-
+    void dumpInputParams(const bokeh_input_params_t& p);
 
 private:
     void *m_dlHandle;
     const cam_capability_t *m_pCaps;
-}; // QCameraDualFOVPP class
+    bokeh_data_t mBokehData;
+}; // QCameraBokeh class
 }; // namespace qcamera
 
-#endif /* __QCAMERA_DUAL_FOV_PP_H__ */
-
-
+#endif /* __QCAMERA_BOKEH_H__ */
 

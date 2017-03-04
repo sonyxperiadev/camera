@@ -46,7 +46,7 @@ namespace qcamera {
 
 class QCameraExif;
 class QCamera2HardwareInterface;
-class QCameraHALPP;
+class QCameraHALPPManager;
 
 typedef struct {
     uint32_t jobId;                  // job ID
@@ -128,14 +128,6 @@ typedef struct {
     qcamera_release_data_t   release_data; // any data needs to be release after notify
 } qcamera_data_argm_t;
 
-typedef enum {
-    QCAMERA_HAL_PP_TYPE_UNDEFINED = 0,       // default undefined type
-    QCAMERA_HAL_PP_TYPE_DUAL_FOV,            // dual camera Wide+Tele Dual FOV blending
-    QCAMERA_HAL_PP_TYPE_BOKEH,               // dual camera Wide+Tele Snapshot Bokeh
-    QCAMERA_HAL_PP_TYPE_CLEARSIGHT,          // dual camera Bayer+Mono Clearsight
-    QCAMERA_HAL_PP_TYPE_MAX
-} HALPPType;
-
 #define MAX_EXIF_TABLE_ENTRIES 17
 class QCameraExif
 {
@@ -185,7 +177,7 @@ public:
     static void getHalPPOutputBufferCB(uint32_t frameIndex, void* pUserData);
     QCameraMemory *mOfflineDataBufs;
     QCameraChannel *getChannelByHandle(uint32_t channelHandle);
-    bool isHalPPEnabled() { return (m_halPP != NULL);}
+    bool isHalPPEnabled() { return (m_pHalPPManager != NULL);}
     void releaseSuperBuf(mm_camera_super_buf_t *super_buf);
     QCamera2HardwareInterface *m_parent;
 private:
@@ -239,7 +231,8 @@ private:
     void getHalPPOutputBuffer(uint32_t frameIndex);
     int32_t doReprocess();
     int32_t stopCapture();
-    int32_t initHALPP();
+    void createHalPPManager();
+    int32_t initHalPPManager();
 private:
     jpeg_encode_callback_t     mJpegCB;
     void *                     mJpegUserData;
@@ -284,8 +277,8 @@ private:
     Vector<mm_camera_buf_def_t *> m_InputMetadata; // store input metadata buffers for AOST cases
     size_t m_PPindex;                   // counter for each incoming AOST buffer
     pthread_mutex_t m_reprocess_lock;   // lock to ensure reprocess job is not freed early.
-    HALPPType m_halPPType;              // HAL Post process type
-    QCameraHALPP *m_halPP;              // HAL Post process block
+    cam_hal_pp_type_t m_halPPType;              // HAL Post process type
+    QCameraHALPPManager *m_pHalPPManager;              // HAL Post process block
 
 public:
     cam_dimension_t m_dst_dim;

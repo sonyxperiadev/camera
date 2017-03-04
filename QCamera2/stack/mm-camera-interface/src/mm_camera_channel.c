@@ -1334,6 +1334,7 @@ int32_t mm_channel_init(mm_channel_t *my_obj,
     pthread_mutex_init(&my_obj->frame_sync.sync_lock, NULL);
     mm_muxer_frame_sync_queue_init(&my_obj->frame_sync.superbuf_queue);
     my_obj->bundle.is_cb_active = 1;
+    LOGD("my_obj->bundle.is_cb_active = %d", my_obj->bundle.is_cb_active);
 
     LOGD("Launch data poll thread in channel open");
     snprintf(my_obj->poll_thread[0].threadName, THREAD_NAME_SIZE, "CAM_dataPoll");

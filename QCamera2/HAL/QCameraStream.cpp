@@ -773,7 +773,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
         rc = UNKNOWN_ERROR;
         goto done;
     }
-
     mMasterCamera = MM_CAMERA_TYPE_MAIN;
     if (mCamType & MM_CAMERA_TYPE_MAIN) {
         mActiveCameras = MM_CAMERA_TYPE_MAIN;
@@ -781,16 +780,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     if (mCamType & MM_CAMERA_TYPE_AUX) {
         mActiveCameras |= MM_CAMERA_TYPE_AUX;
     }
-    if (isDualStream()) {
-        if (needFrameSync()) {
-            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
-                    mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
-        } else if (!needCbSwitch()) {
-            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
-                    mHandle, MM_CAMERA_CB_REQ_TYPE_ALL_CB);
-        }
-    }
-
     rc = mapBufs(mStreamInfoBuf, CAM_MAPPING_BUF_TYPE_STREAM_INFO, NULL);
     if (rc < 0) {
         LOGE("Failed to map stream info buffer");
@@ -811,6 +800,16 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     if (rc < 0) {
         LOGE("Failed to config stream ");
         goto err1;
+    }
+
+    if (isDualStream()) {
+        if (needFrameSync()) {
+            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                    mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
+        } else if (!needCbSwitch()) {
+            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                    mHandle, MM_CAMERA_CB_REQ_TYPE_ALL_CB);
+        }
     }
 
     if (mDefferedAllocation) {
@@ -1405,7 +1404,7 @@ int32_t QCameraStream::getBufs(cam_frame_len_offset_t *offset,
     //Allocate stream buffer
     mStreamBufs = mAllocator.allocateStreamBuf(mStreamInfo->stream_type,
             mFrameLenOffset.frame_len, mFrameLenOffset.mp[0].stride,
-            mFrameLenOffset.mp[0].scanline, numBufAlloc);
+            mFrameLenOffset.mp[0].scanline, numBufAlloc, mStreamInfo->cam_type);
     if (!mStreamBufs) {
         LOGE("Failed to allocate stream buffers");
         return NO_MEMORY;
@@ -1653,7 +1652,8 @@ int32_t QCameraStream::allocateBuffers()
             mFrameLenOffset.frame_len,
             mFrameLenOffset.mp[0].stride,
             mFrameLenOffset.mp[0].scanline,
-            numBufAlloc);
+            numBufAlloc,
+            mStreamInfo->cam_type);
 
     if (!mStreamBufs) {
         LOGE("Failed to allocate stream buffers");
@@ -1868,7 +1868,8 @@ int32_t QCameraStream::allocateBatchBufs(cam_frame_len_offset_t *offset,
     //Allocate stream buffer
     mStreamBufs = mAllocator.allocateStreamBuf(mStreamInfo->stream_type,
             mFrameLenOffset.frame_len,mFrameLenOffset.mp[0].stride,
-            mFrameLenOffset.mp[0].scanline,mNumPlaneBufs);
+            mFrameLenOffset.mp[0].scanline,mNumPlaneBufs,
+            mStreamInfo->cam_type);
     if (!mStreamBufs) {
         LOGE("Failed to allocate stream buffers");
         rc = NO_MEMORY;
@@ -2399,6 +2400,25 @@ cam_stream_type_t QCameraStream::getMyType()
 }
 
 /*===========================================================================
+ * FUNCTION   : isStreamSyncCbNeeded
+ *
+ * DESCRIPTION: Check if stream sync CB needed
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : TRUE for preview in display mode
+ *                 : FALSE for all other streams
+ *==========================================================================*/
+bool QCameraStream::isStreamSyncCbNeeded()
+{
+    if (mStreamInfo != NULL) {
+        return mStreamInfo->bStreamSyncCbNeeded;
+    } else {
+        return FALSE;
+    }
+}
+
+/*===========================================================================
  * FUNCTION   : getMyOriginalType
  *
  * DESCRIPTION: return stream type
@@ -2841,11 +2861,13 @@ int32_t QCameraStream::processCameraControl(uint32_t camState)
 int32_t QCameraStream::switchStreamCb(uint32_t camMaster)
 {
     int32_t ret = NO_ERROR;
+    LOGD("mMasterCamera %d camMaster %d", mMasterCamera, camMaster);
     if (needCbSwitch() && (camMaster != mMasterCamera)) {
         ret = mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                 mHandle, MM_CAMERA_CB_REQ_TYPE_SWITCH);
     }
     // Update master camera
+    LOGD("Updating mMasterCamera from %d to %d", mMasterCamera, camMaster);
     mMasterCamera = camMaster;
     return ret;
 }

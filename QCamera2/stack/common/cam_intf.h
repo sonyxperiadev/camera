@@ -791,6 +791,11 @@ typedef struct cam_stream_info {
 
     /* Cache ops for this stream */
     cam_stream_cache_ops_t cache_ops;
+
+    /* Specify cam type for this stream */
+    cam_sync_type_t cam_type;
+    /* Signifies if stream sync cb is needed */
+    uint32_t bStreamSyncCbNeeded;
 } cam_stream_info_t;
 
 /*****************************************************************************
@@ -1148,6 +1153,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_AF_OBJ_DIST_CM,               int32_t,                     1);
     INCLUDE(CAM_INTF_META_BINNING_CORRECTION_MODE,      cam_binning_correction_mode_t,  1);
     INCLUDE(CAM_INTF_META_OIS_READ_DATA,                cam_ois_data_t,              1);
+    INCLUDE(CAM_INTF_PARAM_BOKEH_BLUR_LEVEL,                uint32_t,              1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
