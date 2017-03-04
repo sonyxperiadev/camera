@@ -3251,7 +3251,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                     }
 
                     size_t jpeg_eof_offset =
-                            (size_t)(maxJpegSize - (ssize_t)sizeof(jpegHeader) - 1);
+                            (size_t)(maxJpegSize - (ssize_t)sizeof(jpegHeader));
                     char *jpeg_eof = &jpeg_buf[jpeg_eof_offset];
                     memcpy(jpeg_eof, &jpegHeader, sizeof(jpegHeader));
                     obj->mMemory.cleanInvalidateCache(bufIdx);
@@ -5001,7 +5001,6 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
                     cam_stream_type_t streamType,
                     cam_dimension_t *dim,
                     cam_format_t streamFormat,
-                    uint8_t hw_analysis_supported,
                     cam_color_filter_arrangement_t color_arrangement,
                     void *userData, uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, channel_handle, cam_ops,
@@ -5013,8 +5012,9 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
     mStreamType = streamType;
     mStreamFormat = streamFormat;
    // Make Analysis same as Preview format
-   if (!hw_analysis_supported && mStreamType == CAM_STREAM_TYPE_ANALYSIS &&
-           color_arrangement != CAM_FILTER_ARRANGEMENT_Y) {
+   if ((mStreamFormat != CAM_FORMAT_Y_ONLY) &&
+           (mStreamType == CAM_STREAM_TYPE_ANALYSIS) &&
+           (color_arrangement != CAM_FILTER_ARRANGEMENT_Y)) {
         mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW,
                 dim->width, dim->height);
    }

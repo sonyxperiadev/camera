@@ -107,7 +107,7 @@ public:
     bool isRdiMode();
     bool isSecureMode();
     cam_stream_type_t getSecureStreamType();
-    bool isNoDisplayMode();
+    bool isNoDisplayMode(uint32_t cam_type = CAM_TYPE_MAIN);
     bool isWNREnabled();
     bool isTNRSnapshotEnabled();
     int32_t getCDSMode();
@@ -317,12 +317,14 @@ public:
     int32_t updateDtVc(int32_t *dt, int32_t *vc);
     bool needSnapshotPP();
     int32_t SetDualCamera(bool value);
+    cam_hal_pp_type_t getHalPPType();
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera(uint32_t camMaster);
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
     void setBundledSnapshot(bool value);
     int32_t getDualLedCalibration();
     bool isDCmAsymmetricSnapMode();
+    bool isDCAsymmetricPrevMode ();
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;

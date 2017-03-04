@@ -59,6 +59,7 @@ QCameraFOVControl::QCameraFOVControl()
     memset(&mFovControlConfig, 0, sizeof(fov_control_config_t));
     memset(&mFovControlData,   0, sizeof(fov_control_data_t));
     memset(&mFovControlResult, 0, sizeof(fov_control_result_t));
+    mHalPPType = CAM_HAL_PP_TYPE_NONE;
 }
 
 
@@ -430,6 +431,19 @@ int32_t QCameraFOVControl::updateConfigSettings(
 {
     int32_t rc = INVALID_OPERATION;
 
+    if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
+        // Tele is primary camera
+        mFovControlResult.camMasterPreview  = mFovControlData.camTele;
+        mFovControlResult.camMaster3A  = mFovControlData.camTele;
+        mFovControlResult.activeCameras =
+                (uint32_t)(mFovControlData.camTele | mFovControlData.camWide);
+        mFovControlData.configCompleted = true;
+        mFovControlConfig.snapshotPPConfig.enablePostProcess = true;
+        mFovControlResult.snapshotPostProcess = true;
+        LOGH("Bokeh : start camera state for Bokeh Mode: TELE");
+        return NO_ERROR;
+    }
+
     if (paramsMainCam &&
         paramsAuxCam  &&
         paramsMainCam->is_valid[CAM_INTF_META_STREAM_INFO] &&
@@ -523,13 +537,13 @@ int32_t QCameraFOVControl::updateConfigSettings(
                 mFovControlResult.camMaster3A       = mFovControlData.camTele;
                 mFovControlResult.activeCameras     = (uint32_t)mFovControlData.camTele;
                 mFovControlData.camState            = STATE_TELE;
-                LOGD("start camera state: TELE");
+                LOGH("start camera state: TELE");
             } else {
                 mFovControlResult.camMasterPreview  = mFovControlData.camWide;
                 mFovControlResult.camMaster3A       = mFovControlData.camWide;
                 mFovControlResult.activeCameras     = (uint32_t)mFovControlData.camWide;
                 mFovControlData.camState            = STATE_WIDE;
-                LOGD("start camera state: WIDE");
+                LOGH("start camera state: WIDE");
             }
             mFovControlResult.snapshotPostProcess = false;
 
@@ -609,6 +623,12 @@ int32_t QCameraFOVControl::translateInputParams(
     if (paramsMainCam && paramsAuxCam) {
         // First copy all the parameters from main to aux and then translate the subset
         memcpy(paramsAuxCam, paramsMainCam, sizeof(parm_buffer_t));
+
+        if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
+           // Tele is primary camera
+           // No translation is required. Return from here
+            return NO_ERROR;
+        }
 
         // Translate zoom
         if (paramsMainCam->is_valid[CAM_INTF_PARM_ZOOM]) {
@@ -935,6 +955,7 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         } else {
             // Metadata for the master camera was dropped
             metaResult = NULL;
+            LOGD("Metadata Result is NULL")
         }
 
         // If snapshot postprocess is enabled, consolidate the AF status to be sent to the app
@@ -997,6 +1018,20 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
 void QCameraFOVControl::generateFovControlResult()
 {
     Mutex::Autolock lock(mMutex);
+
+
+    if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
+        // Tele is primary camera
+        mFovControlResult.camMasterPreview  = mFovControlData.camTele;
+        mFovControlResult.camMaster3A  = mFovControlData.camTele;
+        mFovControlResult.activeCameras =
+                (uint32_t)(mFovControlData.camTele | mFovControlData.camWide);
+        mFovControlData.configCompleted = true;
+        mFovControlConfig.snapshotPPConfig.enablePostProcess = true;
+        mFovControlResult.snapshotPostProcess = true;
+        mFovControlResult.isValid = true;
+        return;
+    }
 
     float zoom = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
     uint32_t zoomWide     = mFovControlData.zoomWide;
@@ -1122,13 +1157,13 @@ void QCameraFOVControl::generateFovControlResult()
             // Set the master info
             // Switch to wide
             if ((mFovControlResult.camMasterPreview == camTele) &&
-                canSwitchMasterTo(CAM_TYPE_WIDE)) {
+                canSwitchMasterTo(CAM_ROLE_WIDE)) {
                 mFovControlResult.camMasterPreview = camWide;
                 mFovControlResult.camMaster3A      = camWide;
             }
             // switch to tele
             else if ((mFovControlResult.camMasterPreview == camWide) &&
-                    canSwitchMasterTo(CAM_TYPE_TELE)) {
+                    canSwitchMasterTo(CAM_ROLE_TELE)) {
                 mFovControlResult.camMasterPreview = camTele;
                 mFovControlResult.camMaster3A      = camTele;
             }
@@ -1244,6 +1279,7 @@ void QCameraFOVControl::generateFovControlResult()
             ((mFovControlData.camState == STATE_TELE) ? "STATE_TELE" : "STATE_TRANSITION" )));
     LOGD("OIS mode: %s", ((mFovControlResult.oisMode == OIS_MODE_ACTIVE) ? "ACTIVE" :
             ((mFovControlResult.oisMode == OIS_MODE_HOLD) ? "HOLD" : "INACTIVE")));
+    LOGD("fallback : %d", (mFovControlData.fallbackEnabled && mFovControlData.fallbackToWide));
 }
 
 
@@ -1331,7 +1367,7 @@ inline bool QCameraFOVControl::sacRequestedDualZone()
  *
  *==========================================================================*/
 bool QCameraFOVControl::canSwitchMasterTo(
-        cam_type cam)
+        uint32_t cam)
 {
     bool ret = false;
     float zoom = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
@@ -1347,7 +1383,7 @@ bool QCameraFOVControl::canSwitchMasterTo(
         afStatusAux = AF_VALID;
     }
 
-    if (cam == CAM_TYPE_WIDE) {
+    if (cam == CAM_ROLE_WIDE) {
         if (mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) {
             // In case of OEM Spatial alignment solution, check the spatial alignment ready
             if (mFovControlData.wideCamStreaming && isSpatialAlignmentReady()) {
@@ -1363,7 +1399,7 @@ bool QCameraFOVControl::canSwitchMasterTo(
                  }
             }
         }
-    } else if (cam == CAM_TYPE_TELE) {
+    } else if (cam == CAM_ROLE_TELE) {
         if (mFovControlData.fallbackEnabled && mFovControlData.fallbackToWide) {
             // If fallback to wide is initiated, don't switch the master to tele
             ret = false;
@@ -1386,6 +1422,7 @@ bool QCameraFOVControl::canSwitchMasterTo(
         } else {
             // In case of no spatial alignment solution check af status and
             // if the zoom level has crossed the threhold.
+            LOGD("zoom :%f, cutOverWideToTele: %f", zoom, cutOverWideToTele);
             if ((zoom > cutOverWideToTele) &&
                     (afStatusAux == AF_VALID)) {
                 ret = true;
@@ -2143,4 +2180,23 @@ cam_frame_margins_t QCameraFOVControl::getFrameMargins(
 
     return frameMargins;
 }
+
+/*===========================================================================
+ * FUNCTION      : setHalPPType
+ *
+ * DESCRIPTION   : set the mode in which dual camera is performing
+ *
+ * PARAMETERS    :
+ * @halPPType : HAL post processing type for current dual camera mode
+ *
+ * RETURN        : NONE
+ *
+ *==========================================================================*/
+void QCameraFOVControl::setHalPPType(cam_hal_pp_type_t halPPType)
+{
+    mHalPPType = halPPType;
+    LOGH("halPPType: %d", halPPType);
+    return;
+}
+
 }; // namespace qcamera

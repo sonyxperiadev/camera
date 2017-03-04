@@ -2422,6 +2422,8 @@ typedef enum {
     CAM_INTF_META_OIS_READ_DATA,
     /*event to flush stream buffers*/
     CAM_INTF_PARM_FLUSH_FRAMES,
+    /* set Bokeh Blur Level */
+    CAM_INTF_PARAM_BOKEH_BLUR_LEVEL,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -3038,5 +3040,13 @@ typedef struct {
   int reserved_i[16];
   float reserved_f[16];
 }tuning_mod1_data_AF;
+
+typedef enum {
+    CAM_HAL_PP_TYPE_NONE = 0,       // default undefined type
+    CAM_HAL_PP_TYPE_DUAL_FOV,            // dual camera Wide+Tele Dual FOV blending
+    CAM_HAL_PP_TYPE_BOKEH,               // dual camera Wide+Tele Snapshot Bokeh
+    CAM_HAL_PP_TYPE_CLEARSIGHT,          // dual camera Bayer+Mono Clearsight
+    CAM_HAL_PP_TYPE_MAX
+} cam_hal_pp_type_t;
 
 #endif /* __QCAMERA_TYPES_H__ */

@@ -150,7 +150,10 @@ int32_t QCameraChannel::setStreamSyncCB (cam_stream_type_t stream_type,
 {
     int32_t rc = UNKNOWN_ERROR;
     for (size_t i = 0; i < mStreams.size(); i++) {
-        if ((mStreams[i] != NULL) && (stream_type == mStreams[i]->getMyType())) {
+        if ((mStreams[i] != NULL) &&
+                (stream_type == mStreams[i]->getMyType()) &&
+                mStreams[i]->isStreamSyncCbNeeded()) {
+            LOGH("Setting Stream Cb Sync on mStreams[%d]", i );
             rc = mStreams[i]->setSyncDataCB(stream_cb);
             break;
         }
@@ -734,9 +737,10 @@ int32_t QCameraChannel::processCameraControl(
 int32_t QCameraChannel::switchChannelCb(uint32_t camMaster)
 {
     int32_t ret = NO_ERROR;
-
+    LOGD("mMasterCamera %d    camMaster  %d", mMasterCamera, camMaster);
     for (size_t i = 0; i < mStreams.size(); i++) {
         if (mStreams[i] != NULL && mStreams[i]->isDualStream()) {
+            LOGD("Calling stream cb");
             ret = mStreams[i]->switchStreamCb(camMaster);
             if (ret != NO_ERROR) {
                 LOGE("Stream Switch Failed");
@@ -745,6 +749,7 @@ int32_t QCameraChannel::switchChannelCb(uint32_t camMaster)
         }
     }
 
+    LOGD("Updating mMasterCamera from %d to %d", mMasterCamera, camMaster);
     // Update master camera
     mMasterCamera = camMaster;
     return ret;
@@ -1234,7 +1239,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                     pStream->getFrameDimension(streamInfo->dim);
                 }
             } else {
-                if ((param.isPostProcScaling() || param.isDCmAsymmetricSnapMode()) &&
+                if ((param.isPostProcScaling() || (param.isDCmAsymmetricSnapMode() &&
+                        (param.getHalPPType() != CAM_HAL_PP_TYPE_BOKEH))) &&
                         (pp_featuremask.feature_mask & CAM_QCOM_FEATURE_SCALE)) {
                     rc = param.getStreamDimension(CAM_STREAM_TYPE_OFFLINE_PROC,
                             streamInfo->dim);
