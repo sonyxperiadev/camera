@@ -9668,11 +9668,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     float default_focal_length = gCamCapability[mCameraId]->focal_length;
     settings.update(ANDROID_LENS_FOCAL_LENGTH, &default_focal_length, 1);
 
-    if (focusMode == ANDROID_CONTROL_AF_MODE_OFF) {
-        float default_focus_distance = 0;
-        settings.update(ANDROID_LENS_FOCUS_DISTANCE, &default_focus_distance, 1);
-    }
-
     static const uint8_t demosaicMode = ANDROID_DEMOSAIC_MODE_FAST;
     settings.update(ANDROID_DEMOSAIC_MODE, &demosaicMode, 1);
 
@@ -10517,9 +10512,10 @@ int QCamera3HardwareInterface::translateToHalMetadata
     char af_value[PROPERTY_VALUE_MAX];
     property_get("persist.camera.af.infinity", af_value, "0");
 
+    uint8_t fwk_focusMode = 0;
     if (atoi(af_value) == 0) {
         if (frame_settings.exists(ANDROID_CONTROL_AF_MODE)) {
-            uint8_t fwk_focusMode = frame_settings.find(ANDROID_CONTROL_AF_MODE).data.u8[0];
+            fwk_focusMode = frame_settings.find(ANDROID_CONTROL_AF_MODE).data.u8[0];
             int val = lookupHalName(FOCUS_MODES_MAP, METADATA_MAP_SIZE(FOCUS_MODES_MAP),
                     fwk_focusMode);
             if (NAME_NOT_FOUND != val) {
@@ -10539,7 +10535,8 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    if (frame_settings.exists(ANDROID_LENS_FOCUS_DISTANCE)) {
+    if (frame_settings.exists(ANDROID_LENS_FOCUS_DISTANCE) &&
+            fwk_focusMode == ANDROID_CONTROL_AF_MODE_OFF) {
         float focalDistance = frame_settings.find(ANDROID_LENS_FOCUS_DISTANCE).data.f[0];
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_FOCUS_DISTANCE,
                 focalDistance)) {
