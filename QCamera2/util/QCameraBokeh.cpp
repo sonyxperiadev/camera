@@ -277,6 +277,13 @@ int32_t QCameraBokeh::process()
         mm_camera_buf_def_t *pTeleSnap = getSnapshotBuf(mBokehData.tele_input, pTeleStream);
         mm_camera_buf_def_t *pWideSnap = getSnapshotBuf(mBokehData.wide_input, pWideStream);
 
+        if (!pTeleStream || !pWideStream || !pTeleSnap || !pWideSnap) {
+            releaseData(mBokehData.tele_input);
+            releaseData(mBokehData.wide_input);
+            releaseData(mBokehData.tele_output);
+            LOGE("Error!! Snapshot buffer/stream not available");
+            return BAD_VALUE;
+        }
         mm_camera_super_buf_t *pOutputSuperBuf = mBokehData.tele_output->frame;
         mm_camera_buf_def_t *pOutputBuf = pOutputSuperBuf->bufs[0];
 

@@ -14002,12 +14002,11 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
             return BAD_VALUE;
         }
 
+        // Set Hal PP type to FOV control
+        LOGH("Setting HAL PP type to FOV control: %d", m_halPPType);
+        m_pFovControl->setHalPPType(m_halPPType);
+
         // Update FOV-control config settings due to the change in the configuration
-        if (m_pFovControl) {
-            // Set Hal PP type to FOV control
-            m_pFovControl->setHalPPType(m_halPPType);
-            LOGH("Setting HAL PP type to FOV control: %d", m_halPPType);
-        }
         rc = m_pFovControl->updateConfigSettings(m_pParamBuf, m_pParamBufAux);
 
         if (rc != NO_ERROR) {
