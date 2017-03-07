@@ -1726,6 +1726,7 @@ int32_t mm_channel_get_bundle_info(mm_channel_t *my_obj,
             if (NULL != s_obj) {
                 stream_type = s_obj->stream_info->stream_type;
                 if ((CAM_STREAM_TYPE_METADATA != stream_type) &&
+                        (CAM_STREAM_TYPE_ANALYSIS != stream_type) &&
                         (s_obj->ch_obj == my_obj)) {
                     bundle_info->stream_ids[bundle_info->num_of_streams++] =
                                                         s_obj->server_stream_id;
