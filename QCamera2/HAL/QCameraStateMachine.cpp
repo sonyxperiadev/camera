@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -1320,9 +1320,9 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_STOP_PREVIEW:
         {
+            m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
             rc = m_parent->stopPreview();
             applyDelayedMsgs();
-            m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -1654,6 +1654,9 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
                 break;
+            case QCAMERA_INTERNAL_EVT_RTB_METADATA:
+                rc = m_parent->processRTBData(internal_evt->rtb_data);
+                break;
             default:
                 LOGE("Invalid internal event %d in state(%d)",
                              internal_evt->evt_type, m_state);
@@ -1844,6 +1847,9 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
                 break;
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
+                break;
+            case QCAMERA_INTERNAL_EVT_RTB_METADATA:
+                rc = m_parent->processRTBData(internal_evt->rtb_data);
                 break;
             default:
                 LOGE("Invalid internal event %d in state(%d)",
@@ -2249,6 +2255,9 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 break;
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
+                break;
+            case QCAMERA_INTERNAL_EVT_RTB_METADATA:
+                rc = m_parent->processRTBData(internal_evt->rtb_data);
                 break;
             default:
                 break;
@@ -2730,6 +2739,9 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
                 break;
+            case QCAMERA_INTERNAL_EVT_RTB_METADATA:
+                rc = m_parent->processRTBData(internal_evt->rtb_data);
+                break;
             default:
                 break;
             }
@@ -3115,6 +3127,9 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
                 break;
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
+                break;
+            case QCAMERA_INTERNAL_EVT_RTB_METADATA:
+                rc = m_parent->processRTBData(internal_evt->rtb_data);
                 break;
             default:
                 break;
@@ -3630,6 +3645,9 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                 break;
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
+                break;
+            case QCAMERA_INTERNAL_EVT_RTB_METADATA:
+                rc = m_parent->processRTBData(internal_evt->rtb_data);
                 break;
             default:
                 break;

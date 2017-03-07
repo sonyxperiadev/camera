@@ -98,6 +98,7 @@ public:
             cam_dimension_t &dim, uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
 
     void getThumbnailSize(int *width, int *height) const;
+    uint8_t getSecureQueueDepth();
     uint8_t getZSLBurstInterval();
     uint8_t getZSLQueueDepth();
     uint8_t getZSLBackLookCount();
@@ -106,7 +107,7 @@ public:
     bool isRdiMode();
     bool isSecureMode();
     cam_stream_type_t getSecureStreamType();
-    bool isNoDisplayMode();
+    bool isNoDisplayMode(uint32_t cam_type = CAM_TYPE_MAIN);
     bool isWNREnabled();
     bool isTNRSnapshotEnabled();
     int32_t getCDSMode();
@@ -158,6 +159,7 @@ public:
     int32_t setFrameSkip(enum msm_vfe_frame_skip_pattern pattern);
     qcamera_thermal_mode getThermalMode();
     int32_t updateRecordingHintValue(int32_t value);
+    int32_t updateCaptureRequest(uint8_t value);
     int32_t setHDRAEBracket(cam_exp_bracketing_t hdrBracket);
     bool isHDREnabled();
     bool isAutoHDREnabled();
@@ -316,12 +318,14 @@ public:
     int32_t updateDtVc(int32_t *dt, int32_t *vc);
     bool needSnapshotPP();
     int32_t SetDualCamera(bool value);
+    cam_hal_pp_type_t getHalPPType();
     int32_t setCameraControls(int32_t controls);
     int32_t setSwitchCamera(uint32_t camMaster);
     int32_t setDeferCamera(cam_dual_camera_defer_cmd_t type);
     void setBundledSnapshot(bool value);
     int32_t getDualLedCalibration();
     bool isDCmAsymmetricSnapMode();
+    bool isDCAsymmetricPrevMode ();
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;

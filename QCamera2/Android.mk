@@ -62,7 +62,9 @@ LOCAL_SRC_FILES += \
         util/QCameraFOVControl.cpp \
         util/QCameraHALPP.cpp \
         util/QCameraDualFOVPP.cpp \
-        util/QCameraExtZoomTranslator.cpp
+        util/QCameraExtZoomTranslator.cpp \
+        util/QCameraPprocManager.cpp \
+        util/QCameraBokeh.cpp
 endif
 
 # System header file path prefix

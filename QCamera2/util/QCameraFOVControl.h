@@ -65,10 +65,6 @@ typedef enum {
     ZOOM_OUT
 } dual_cam_zoom_dir;
 
-typedef enum {
-    CAM_TYPE_WIDE,
-    CAM_TYPE_TELE
-} cam_type;
 
 
 
@@ -217,6 +213,7 @@ public:
             metadata_buffer_t* metaAuxCam);
     fov_control_result_t getFovControlResult();
     cam_frame_margins_t getFrameMargins(int8_t masterCamera);
+    void setHalPPType(cam_hal_pp_type_t halPPtype);
 
 private:
     QCameraFOVControl();
@@ -238,7 +235,7 @@ private:
     bool isMainCamFovWider();
     bool isSpatialAlignmentReady();
     void resetVars();
-    bool canSwitchMasterTo(cam_type cam);
+    bool canSwitchMasterTo(uint32_t cam);
     bool sacRequestedDualZone();
 
     Mutex                           mMutex;
@@ -247,6 +244,7 @@ private:
     fov_control_result_t            mFovControlResult;
     dual_cam_params_t               mDualCamParams;
     QCameraExtZoomTranslator       *mZoomTranslator;
+    cam_hal_pp_type_t             mHalPPType;
 };
 
 }; // namespace qcamera

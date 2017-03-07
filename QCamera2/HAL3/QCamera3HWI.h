@@ -203,6 +203,7 @@ public:
                                    uint32_t tag);
     static bool resetIfNeededROI(cam_area_t* roi, const cam_crop_region_t* scalerCropRegion);
     static int32_t getSensorSensitivity(int32_t iso_mode);
+    static uint8_t getIsoMode(int32_t sensitivity);
 
     double computeNoiseModelEntryS(int32_t sensitivity);
     double computeNoiseModelEntryO(int32_t sensitivity);
