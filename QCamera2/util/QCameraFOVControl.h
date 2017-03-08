@@ -129,9 +129,11 @@ typedef struct {
 typedef struct {
     bool                         configCompleted;
     uint32_t                     zoomUser;
+    uint32_t                     zoomUserPrev;
     uint32_t                     zoomWide;
     uint32_t                     zoomTele;
-    uint32_t                     zoomUserPrev;
+    uint32_t                     zoomWideIsp;
+    uint32_t                     zoomTeleIsp;
     uint32_t                    *zoomRatioTable;
     uint32_t                     zoomRatioTableCount;
     dual_cam_zoom_dir            zoomDirection;
@@ -165,6 +167,7 @@ typedef struct {
     bool                         thermalThrottle;
     bool                         lpmEnabled;
     uint8_t                      oisSetting;
+    cam_stream_size_info_t       camStreamInfo;
 } fov_control_data_t;
 
 typedef struct {

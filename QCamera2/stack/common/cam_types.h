@@ -1494,9 +1494,25 @@ typedef struct {
 } cam_auto_focus_data_t;
 
 typedef struct {
+    cam_stream_type_t stream_type;
+    uint32_t stream_zoom;
+    uint32_t isp_zoom;
+} cam_stream_zoom_info_t;
+
+typedef struct {
+    uint32_t user_zoom;
+    uint8_t  is_stream_zoom_info_valid;
+    uint32_t num_streams;
+    cam_stream_zoom_info_t stream_zoom_info[MAX_NUM_STREAMS];
+} cam_zoom_info_t;
+
+typedef struct {
     uint32_t stream_id;
     cam_rect_t crop;
     cam_rect_t roi_map;
+    uint32_t user_zoom;
+    uint32_t stream_zoom;
+    float scale_ratio;
 } cam_stream_crop_info_t;
 
 typedef struct {
@@ -2060,7 +2076,7 @@ typedef enum {
     CAM_INTF_PARM_SATURATION,
     CAM_INTF_PARM_BRIGHTNESS,
     CAM_INTF_PARM_ISO,
-    CAM_INTF_PARM_ZOOM,
+    CAM_INTF_PARM_USERZOOM,
     CAM_INTF_PARM_ROLLOFF,
     CAM_INTF_PARM_MODE,             /* camera mode */
     CAM_INTF_PARM_AEC_ALGO_TYPE, /* 30 */ /* auto exposure algorithm */
@@ -2435,8 +2451,6 @@ typedef enum {
     CAM_INTF_PARM_FOV_COMP_ENABLE,
     /*Meta to update dual LED calibration results to app*/
     CAM_INTF_META_LED_CALIB_RESULT,
-    /* Dual camera - user zoom value. This will always be the wider camera zoom value */
-    CAM_INTF_PARM_DC_USERZOOM,
     /* Dual camera sync parameter */
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     /* AF focus position info */
