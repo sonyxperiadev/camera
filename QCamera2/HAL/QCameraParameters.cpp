@@ -6278,6 +6278,8 @@ int32_t QCameraParameters::initDefaultParameters()
         videoRotationValues = createValuesStringFromMap(VIDEO_ROTATION_MODES_MAP,
                 PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP));
         set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, videoRotationValues.string());
+    } else {
+        set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, VIDEO_ROTATION_0);
     }
     set(KEY_QC_VIDEO_ROTATION, VIDEO_ROTATION_0);
 
