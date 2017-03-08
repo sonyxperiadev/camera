@@ -7840,6 +7840,7 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
               "flashMode:%d, aeMode:%u!!!",
                  redeye, flashMode, aeMode);
     }
+
     if (mInstantAEC) {
         // Increment frame Idx count untill a bound reached for instant AEC.
         mInstantAecFrameIdxCount++;
@@ -7856,6 +7857,13 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
                 mInstantAecFrameIdxCount = 0;
             }
         }
+    }
+
+    IF_META_AVAILABLE(cam_3a_params_t, ae_params, CAM_INTF_META_AEC_INFO, metadata) {
+        LOGD("ae_params->settled = %d and brightness is : %f",
+                ae_params->settled, ae_params->brightness);
+        float brightness_val = ae_params->brightness;
+        camMetadata.update(QCAMERA3_BRIGHTNESS_VALUE, &brightness_val, 1);
     }
     resultMetadata = camMetadata.release();
     return resultMetadata;

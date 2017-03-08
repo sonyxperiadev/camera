@@ -71,7 +71,8 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_QUADRA_CFA_DATA_END,
         QCAMERA3_HFR_END,
         NEXUS_EXPERIMENTAL_2016_END,
-        NEXUS_EXPERIMENTAL_2017_END
+        NEXUS_EXPERIMENTAL_2017_END,
+        QCAMERA3_BRIGHTNESS_END
 };
 
 typedef struct vendor_tag_info {
@@ -109,7 +110,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.quadra_cfa",
     "org.codeaurora.qcamera3.hfr",
     "com.google.nexus.experimental2016",
-    "com.google.nexus.experimental2017"
+    "com.google.nexus.experimental2017",
+    "org.codeaurora.qcamera3.brightness"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -298,6 +300,11 @@ vendor_tag_info_t nexus_experimental_2017[NEXUS_EXPERIMENTAL_2017_END -
     { "sensorEepromInfo", TYPE_BYTE }
 };
 
+vendor_tag_info_t qcamera3_brightness[QCAMERA3_BRIGHTNESS_END -
+        QCAMERA3_BRIGHTNESS_START] = {
+    {"brightness_val", TYPE_FLOAT }
+};
+
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
     qcamera3_privatedata,
@@ -328,7 +335,8 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_quadra_cfa,
     qcamera3_hfr,
     nexus_experimental_2016,
-    nexus_experimental_2017
+    nexus_experimental_2017,
+    qcamera3_brightness
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -455,6 +463,9 @@ uint32_t qcamera3_all_tags[] = {
     //NEXUS_EXPERIMENTAL_2017
     (uint32_t)NEXUS_EXPERIMENTAL_2017_DISABLE_HDRPLUS,
     (uint32_t)NEXUS_EXPERIMENTAL_2017_EEPROM_VERSION_INFO,
+
+    //QCAMERA3_BRIGHTNESS
+    (uint32_t)QCAMERA3_BRIGHTNESS_VALUE
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
