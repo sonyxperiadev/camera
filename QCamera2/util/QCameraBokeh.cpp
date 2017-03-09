@@ -153,6 +153,28 @@ int32_t QCameraBokeh::start()
     return rc;
 }
 
+/*===========================================================================
+ * FUNCTION   : stop
+ *
+ * DESCRIPTION: stop QCameraBokeh
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraBokeh::stop()
+{
+    int32_t rc = NO_ERROR;
+    LOGH("E");
+
+    rc = QCameraHALPP::stop();
+
+    LOGH("X");
+    return rc;
+}
+
 
 /*===========================================================================
  * FUNCTION   : feedInput

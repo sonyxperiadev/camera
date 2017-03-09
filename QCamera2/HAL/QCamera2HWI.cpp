@@ -3536,7 +3536,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     }
     streamInfo->aux_str_info = NULL;
 
-    LOGH("type %d, fmt %d, dim %dx%d, num_bufs %d mask = 0x%x is_type %d\n",
+    LOGH("type %d, fmt %d, dim %dx%d, num_bufs %d mask = 0x%llx is_type %d\n",
            stream_type, streamInfo->fmt, streamInfo->dim.width,
            streamInfo->dim.height, streamInfo->num_bufs,
            streamInfo->pp_config.feature_mask,
@@ -4017,6 +4017,9 @@ int QCamera2HardwareInterface::stopPreview()
     LOGI("E");
     mNumPreviewFaces = -1;
     mActiveAF = false;
+
+    // Wake up both sensors before stopping preview
+    mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
 
     // Disable power Hint for preview
     m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);

@@ -65,6 +65,7 @@ public:
             void *pStaticParam);
     int32_t deinit();
     int32_t start();
+    int32_t stop();
     int32_t feedInput(qcamera_hal_pp_data_t *pInputData);
     int32_t feedOutput(qcamera_hal_pp_data_t *pOutputData);
     int32_t process();

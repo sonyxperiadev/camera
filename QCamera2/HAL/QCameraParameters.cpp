@@ -16129,7 +16129,8 @@ bool QCameraParameters::needSnapshotPP()
 
     maxPicSize = (stillWidth == maxWidth) && (stillHeight == maxHeight);
     // Disable Snapshot Postprocessing if any of the below features are enabled
-    if (!maxPicSize || m_bLongshotEnabled || m_bRecordingHint ||
+    if ((!maxPicSize  &&  (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) ||
+            m_bLongshotEnabled || m_bRecordingHint ||
             m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()) {
         return false;
     } else {
@@ -16324,16 +16325,12 @@ int32_t QCameraParameters::setDCDeferCamera(cam_dual_camera_defer_cmd_t type)
             return rc;
         }
 
-        sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO, MM_CAMERA_MAX_CAM_CNT,
-                &defer_val[0]);
-
         // Fix me: Do not defer camera for Bokeh Mode
         if (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH) {
-            sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO,MM_CAMERA_MAX_CAM_CNT,
+            sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO, MM_CAMERA_MAX_CAM_CNT,
                     &defer_val[0]);
         }
     }
-
     return rc;
 }
 
@@ -16352,6 +16349,12 @@ cam_dual_camera_perf_mode_t QCameraParameters::getLowPowerMode(cam_sync_type_t c
     char prop[PROPERTY_VALUE_MAX];
     int32_t lpm = 0;
     int32_t lpmConfig = 0;
+
+    // LPM is disabled for Bokeh mode as both sensors have to be running all the time
+    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+        LOGD("LPM disabled in bokeh mode:  %s camera", cam == CAM_TYPE_MAIN ? "main" : "aux");
+        return CAM_PERF_NONE;
+    }
 
     if (cam == CAM_TYPE_MAIN) {
         property_get("persist.dualcam.lpm.main", prop, "0");

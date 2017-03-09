@@ -431,6 +431,7 @@ int32_t QCameraFOVControl::updateConfigSettings(
 
     if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
         // Tele is primary camera
+        mFovControlResult.isValid = true;
         mFovControlResult.camMasterPreview  = mFovControlData.camTele;
         mFovControlResult.camMaster3A  = mFovControlData.camTele;
         mFovControlResult.activeCameras =
