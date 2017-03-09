@@ -1697,6 +1697,14 @@ void QCamera3ProcessingChannel::issueChannelCb(buffer_handle_t *resultBuffer,
  *==========================================================================*/
 void QCamera3ProcessingChannel::showDebugFPS(int32_t streamType)
 {
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    int cameraId = -1;
+    if (hal_obj != NULL) {
+        cameraId = hal_obj->getCameraId();
+    } else {
+        LOGE("Failed to get hal obj for cameraId");
+    }
+
     double fps = 0;
     mFrameCount++;
     nsecs_t now = systemTime();
@@ -1706,20 +1714,20 @@ void QCamera3ProcessingChannel::showDebugFPS(int32_t streamType)
                 (double)(s2ns(1))) / (double)diff;
         switch(streamType) {
             case CAM_STREAM_TYPE_PREVIEW:
-                LOGH("PROFILE_PREVIEW_FRAMES_PER_SECOND : %.4f: mFrameCount=%d",
-                         fps, mFrameCount);
+                LOGH("PROFILE_PREVIEW_FRAMES_PER_SECOND CAMERA %d: %.4f: mFrameCount=%d",
+                         cameraId, fps, mFrameCount);
                 break;
             case CAM_STREAM_TYPE_VIDEO:
-                LOGH("PROFILE_VIDEO_FRAMES_PER_SECOND : %.4f",
-                         fps);
+                LOGH("PROFILE_VIDEO_FRAMES_PER_SECOND CAMERA %d: %.4f",
+                         cameraId, fps);
                 break;
             case CAM_STREAM_TYPE_CALLBACK:
-                LOGH("PROFILE_CALLBACK_FRAMES_PER_SECOND : %.4f",
-                         fps);
+                LOGH("PROFILE_CALLBACK_FRAMES_PER_SECOND CAMERA %d: %.4f",
+                         cameraId, fps);
                 break;
             case CAM_STREAM_TYPE_RAW:
-                LOGH("PROFILE_RAW_FRAMES_PER_SECOND : %.4f",
-                         fps);
+                LOGH("PROFILE_RAW_FRAMES_PER_SECOND CAMERA %d: %.4f",
+                         cameraId, fps);
                 break;
             default:
                 LOGH("logging not supported for the stream");
