@@ -226,6 +226,7 @@ const char QCameraParameters::KEY_QC_BOKEH_BLUR_VALUE[] = "bokeh-blur-value";
 const char QCameraParameters::KEY_QC_BOKEH_MPO_MODE[] = "bokeh-mpo-mode";
 const char QCameraParameters::KEY_QC_BOKEH_PICTURE_SIZE[] = "bokeh-picture-size";
 
+const char QCameraParameters::KEY_QC_VFE1_RESERVED_RDI[] = "vfe1-reserved-rdi";
 
 // Values for effect settings.
 const char QCameraParameters::EFFECT_EMBOSS[] = "emboss";
@@ -5643,6 +5644,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     if ((rc = setSecureModeAecMode(params)))            final_rc = rc;
     if ((rc = setSecureModeSensitivity(params)))        final_rc = rc;
     if ((rc = setSecureModeExposureTime(params)))       final_rc = rc;
+    if ((rc = setVfe1ReservedRdi(params)))              final_rc = rc;
 
     setQuadraCfa(params);
     setVideoBatchSize();
@@ -5719,6 +5721,13 @@ int32_t QCameraParameters::initDefaultParameters()
     set(QCameraParameters::KEY_FOCUS_DISTANCES, "Infinity,Infinity,Infinity");
     set(KEY_QC_AUTO_HDR_SUPPORTED,
         (m_pCapability->auto_hdr_supported)? VALUE_TRUE : VALUE_FALSE);
+
+    //no restriction by default
+    char reserved_rdi[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.vfe1.reservedrdi", reserved_rdi, "-1");
+    set(KEY_QC_VFE1_RESERVED_RDI, reserved_rdi);
+        setVfe1ReservedRdi(reserved_rdi);
+
     // Set supported preview sizes
     if (m_pCapability->preview_sizes_tbl_cnt > 0 &&
         m_pCapability->preview_sizes_tbl_cnt <= MAX_SIZES_CNT) {
@@ -16014,6 +16023,65 @@ int32_t QCameraParameters::setDualLedCalibration(const char *str)
             (str == NULL) ? "NULL" : str);
     return BAD_VALUE;
 }
+
+/*===========================================================================
+ * FUNCTION   : setVfe1ReservedRdi
+ *
+ * DESCRIPTION:
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setVfe1ReservedRdi(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_VFE1_RESERVED_RDI);
+    const char *prev_str = get(KEY_QC_VFE1_RESERVED_RDI);
+
+    if (str != NULL) {
+        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
+            return setVfe1ReservedRdi(str);
+        }
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setVfe1ReservedRdi
+ *
+ * DESCRIPTION:
+ *
+ * PARAMETERS :
+ *   @calibration_mode :
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setVfe1ReservedRdi(const char *str)
+{
+    if (str != NULL) {
+        int32_t value = atoi(str);
+        if (value < -1 || value > 3) {
+            value = -1;
+            updateParamEntry(KEY_QC_VFE1_RESERVED_RDI, "-1");
+        }
+        else
+            updateParamEntry(KEY_QC_VFE1_RESERVED_RDI, str);
+
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                CAM_INTF_PARM_VFE1_RESERVED_RDI, value)) {
+            LOGE("Failed to update vfe1 max rdi param");
+            return BAD_VALUE;
+        }
+        return NO_ERROR;
+    }
+    return BAD_VALUE;
+}
+
 
 /*===========================================================================
  * FUNCTION   : setinstantAEC
