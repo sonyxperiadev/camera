@@ -549,6 +549,11 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
              || (m_obj->frame_sync.is_active)) {
         uint8_t trigger_cb = 0;
 
+        LOGD("Inside while Loop ch_obj->pending_cnt %d, notify_mode %d, frame_sync %d",
+                ch_obj->pending_cnt,
+                notify_mode,
+                m_obj->frame_sync.is_active);
+
         /* dequeue */
         mm_channel_node_info_t info;
         memset(&info, 0x0, sizeof(info));
@@ -690,6 +695,7 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
 
             if (trigger_cb) {
                 trigger_cb = 0;
+                LOGH("Request super buffer from Muxer");
                 mm_channel_send_frame_sync_req_buf(ch_obj);
             }
         } else {
