@@ -3301,7 +3301,7 @@ void QCamera2HardwareInterface::fillFacesData(cam_faces_data_t &faces_data,
             faces_data.detection_data.num_faces_detected = MAX_ROI;
         }
 
-        LOGH("[KPI Perf] PROFILE_NUMBER_OF_FACES_DETECTED %d",
+        LOGH("[KPI Perf] FD_DEBUG : NUMBER_OF_FACES_DETECTED %d",
                 faces_data.detection_data.num_faces_detected);
 
         IF_META_AVAILABLE(cam_face_recog_data_t, p_recog_data,

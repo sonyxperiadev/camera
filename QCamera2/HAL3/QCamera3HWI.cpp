@@ -108,6 +108,13 @@ namespace qcamera {
 
 #define TIMEOUT_NEVER -1
 
+/* Face rect indices */
+#define FACE_LEFT              0
+#define FACE_TOP               1
+#define FACE_RIGHT             2
+#define FACE_BOTTOM            3
+#define FACE_WEIGHT            4
+
 /* Face landmarks indices */
 #define LEFT_EYE_X             0
 #define LEFT_EYE_Y             1
@@ -6039,6 +6046,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         convertToRegions(faceDetectionInfo->faces[i].face_boundary,
                                 faceRectangles+j, -1);
 
+                        LOGL("FD_DEBUG : Frame[%d] Face[%d] : top-left (%d, %d), "
+                                "bottom-right (%d, %d)",
+                                faceDetectionInfo->frame_id, i,
+                                faceRectangles[j + FACE_LEFT], faceRectangles[j + FACE_TOP],
+                                faceRectangles[j + FACE_RIGHT], faceRectangles[j + FACE_BOTTOM]);
+
                         j+= 4;
                     }
                     if (numFaces <= 0) {
@@ -6071,6 +6084,17 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                         landmarks->face_landmarks[i].mouth_center.y);
 
                                 convertLandmarks(landmarks->face_landmarks[i], faceLandmarks+k);
+
+                                LOGL("FD_DEBUG LANDMARK : Frame[%d] Face[%d] : "
+                                        "left-eye (%d, %d), right-eye (%d, %d), mouth (%d, %d)",
+                                        faceDetectionInfo->frame_id, i,
+                                        faceLandmarks[k + LEFT_EYE_X],
+                                        faceLandmarks[k + LEFT_EYE_Y],
+                                        faceLandmarks[k + RIGHT_EYE_X],
+                                        faceLandmarks[k + RIGHT_EYE_Y],
+                                        faceLandmarks[k + MOUTH_X],
+                                        faceLandmarks[k + MOUTH_Y]);
+
                                 k+= TOTAL_LANDMARK_INDICES;
                             }
                         } else {
@@ -6092,6 +6116,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             detected[i] = blinks->blink[i].blink_detected;
                             degree[2 * i] = blinks->blink[i].left_blink;
                             degree[2 * i + 1] = blinks->blink[i].right_blink;
+
+                        LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
+                                "blink_detected=%d, leye_blink=%d, reye_blink=%d",
+                                faceDetectionInfo->frame_id, i, detected[i], degree[2 * i],
+                                degree[2 * i + 1]);
                         }
                         camMetadata.update(QCAMERA3_STATS_BLINK_DETECTED,
                                 detected, numFaces);
@@ -6105,6 +6134,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         for (size_t i = 0; i < numFaces; i++) {
                             degree[i] = smiles->smile[i].smile_degree;
                             confidence[i] = smiles->smile[i].smile_confidence;
+
+                        LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
+                                "smile_degree=%d, smile_score=%d",
+                                faceDetectionInfo->frame_id, i, degree[i], confidence[i]);
                         }
                         camMetadata.update(QCAMERA3_STATS_SMILE_DEGREE,
                                 degree, numFaces);
@@ -6123,6 +6156,14 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             direction[3 * i + 2] = gazes->gaze[i].roll_dir;
                             degree[2 * i] = gazes->gaze[i].left_right_gaze;
                             degree[2 * i + 1] = gazes->gaze[i].top_bottom_gaze;
+
+                            LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : gaze_angle=%d, "
+                                    "updown_dir=%d, leftright_dir=%d,, roll_dir=%d, "
+                                    "left_right_gaze=%d, top_bottom_gaze=%d",
+                                    faceDetectionInfo->frame_id, i, angle[i],
+                                    direction[3 * i], direction[3 * i + 1],
+                                    direction[3 * i + 2],
+                                    degree[2 * i], degree[2 * i + 1]);
                         }
                         camMetadata.update(QCAMERA3_STATS_GAZE_ANGLE,
                                 (uint8_t *)angle, numFaces);
@@ -7310,12 +7351,12 @@ void QCamera3HardwareInterface::extractJpegMetadata(
 void QCamera3HardwareInterface::convertToRegions(cam_rect_t rect,
         int32_t *region, int weight)
 {
-    region[0] = rect.left;
-    region[1] = rect.top;
-    region[2] = rect.left + rect.width;
-    region[3] = rect.top + rect.height;
+    region[FACE_LEFT] = rect.left;
+    region[FACE_TOP] = rect.top;
+    region[FACE_RIGHT] = rect.left + rect.width;
+    region[FACE_BOTTOM] = rect.top + rect.height;
     if (weight > -1) {
-        region[4] = weight;
+        region[FACE_WEIGHT] = weight;
     }
 }
 
