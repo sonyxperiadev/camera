@@ -365,7 +365,8 @@ private:
     int processEvt(qcamera_sm_evt_enum_t evt, void *evt_payload);
     int processSyncEvt(qcamera_sm_evt_enum_t evt, void *evt_payload);
     void lockAPI();
-    void waitAPIResult(qcamera_sm_evt_enum_t api_evt, qcamera_api_result_t *apiResult);
+    void waitAPIResult(qcamera_sm_evt_enum_t api_evt,
+            qcamera_api_result_t *apiResult, int timeoutSec = -1);
     void unlockAPI();
     void signalAPIResult(qcamera_api_result_t *result);
     void signalEvtResult(qcamera_api_result_t *result);
