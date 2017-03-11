@@ -70,6 +70,8 @@ extern "C" {
 
 #define CAMERA_OPEN_PERF_TIME_OUT 500 // 500 milliseconds
 
+#define PREPARE_SNAP_TIMEOUT 3 // 3 seconds
+
 // Very long wait, just to be sure we don't deadlock
 #define CAMERA_DEFERRED_THREAD_TIMEOUT 5000000000 // 5 seconds
 #define CAMERA_DEFERRED_MAP_BUF_TIMEOUT 2000000000 // 2 seconds
@@ -1595,7 +1597,8 @@ int QCamera2HardwareInterface::prepare_snapshot(struct camera_device *device)
         /* Prepare snapshot in case LED needs to be flashed */
         ret = hw->processAPI(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, NULL);
         if (ret == NO_ERROR) {
-          hw->waitAPIResult(QCAMERA_SM_EVT_PREPARE_SNAPSHOT, &apiResult);
+            hw->waitAPIResult(QCAMERA_SM_EVT_PREPARE_SNAPSHOT,
+                    &apiResult, PREPARE_SNAP_TIMEOUT);
             ret = apiResult.status;
         }
         hw->mPrepSnapRun = true;
@@ -7425,12 +7428,46 @@ void QCamera2HardwareInterface::lockAPI()
  * RETURN     : none
  *==========================================================================*/
 void QCamera2HardwareInterface::waitAPIResult(qcamera_sm_evt_enum_t api_evt,
-        qcamera_api_result_t *apiResult)
+        qcamera_api_result_t *apiResult, int timeoutSec)
 {
     LOGD("wait for API result of evt (%d)", api_evt);
     int resultReceived = 0;
+    int32_t rc = NO_ERROR;
+    struct timespec ts_start;
+
+    if (timeoutSec != -1) {
+        rc = clock_gettime(CLOCK_REALTIME, &ts_start);
+        if (rc < 0) {
+            LOGE("Error reading the real time clock!!");
+            timeoutSec = -1;
+        }
+    }
+
     while  (!resultReceived) {
-        pthread_cond_wait(&m_cond, &m_lock);
+        if (timeoutSec == -1) {
+            pthread_cond_wait(&m_cond, &m_lock);
+        } else {
+            struct timespec ts_now;
+            rc = clock_gettime(CLOCK_REALTIME, &ts_now);
+            if (rc < 0) {
+                LOGE("Error reading the real time clock!!");
+                timeoutSec = -1;
+                continue;
+            }
+            int elapsed = ts_now.tv_sec - ts_start.tv_sec;
+            if (timeoutSec > elapsed) {
+                ts_now.tv_sec += (timeoutSec - elapsed);
+                rc = pthread_cond_timedwait(&m_cond, &m_lock, &ts_now);
+            } else {
+                rc = ETIMEDOUT;
+            }
+
+            if (rc == ETIMEDOUT) {
+                apiResult->status = rc;
+                LOGE("Timed out waiting for API (%d) result", api_evt);
+                break;
+            }
+        }
         if (m_apiResultList != NULL) {
             api_result_list *apiResultList = m_apiResultList;
             api_result_list *apiResultListPrevious = m_apiResultList;
@@ -9362,6 +9399,9 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *
 
     roiData->number_of_faces = detect_data->num_faces_detected;
     roiData->faces = faces;
+    LOGL("FD_DEBUG : Frame[%d] : number_of_faces=%d, display_dim=%d %d",
+            detect_data->frame_id, detect_data->num_faces_detected,
+            display_dim.width, display_dim.height);
     if (roiData->number_of_faces > 0) {
         for (int i = 0; i < roiData->number_of_faces; i++) {
             faces[i].id = detect_data->faces[i].face_id;
@@ -9388,6 +9428,17 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *
                     MAP_TO_DRIVER_COORDINATE(
                     detect_data->faces[i].face_boundary.height,
                     display_dim.height, 2000, 0);
+
+            LOGL("FD_DEBUG : Frame[%d] : Face[%d] : id=%d, score=%d, "
+                    "CAM[left=%d, top=%d, w=%d, h=%d], "
+                    "APP[left=%d, top=%d, right=%d, bottom=%d] ",
+                    detect_data->frame_id, i, faces[i].id, faces[i].score,
+                    detect_data->faces[i].face_boundary.left,
+                    detect_data->faces[i].face_boundary.top,
+                    detect_data->faces[i].face_boundary.width,
+                    detect_data->faces[i].face_boundary.height,
+                    faces[i].rect[0], faces[i].rect[1],
+                    faces[i].rect[2], faces[i].rect[3]);
 
             if (faces_data->landmark_valid) {
                 // Center of left eye
@@ -9428,6 +9479,12 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *
                     faces[i].mouth[0] = FACE_INVALID_POINT;
                     faces[i].mouth[1] = FACE_INVALID_POINT;
                 }
+
+                LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
+                        "eye : left(%d, %d) right(%d, %d), mouth(%d, %d)",
+                        detect_data->frame_id, i, faces[i].left_eye[0], faces[i].left_eye[1],
+                        faces[i].right_eye[0], faces[i].right_eye[1],
+                        faces[i].mouth[0], faces[i].mouth[1]);
             } else {
                 // return -2000 if invalid
                 faces[i].left_eye[0] = FACE_INVALID_POINT;
@@ -9450,14 +9507,25 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *
             if (faces_data->smile_valid) {
                 faces[i].smile_degree = faces_data->smile_data.smile[i].smile_degree;
                 faces[i].smile_score = faces_data->smile_data.smile[i].smile_confidence;
+
+                LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : smile_degree=%d, smile_score=%d",
+                        detect_data->frame_id, i, faces[i].smile_degree, faces[i].smile_score);
             }
             if (faces_data->blink_valid) {
                 faces[i].blink_detected = faces_data->blink_data.blink[i].blink_detected;
                 faces[i].leye_blink = faces_data->blink_data.blink[i].left_blink;
                 faces[i].reye_blink = faces_data->blink_data.blink[i].right_blink;
+
+                LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
+                        "blink_detected=%d, leye_blink=%d, reye_blink=%d",
+                        detect_data->frame_id, i, faces[i].blink_detected, faces[i].leye_blink,
+                        faces[i].reye_blink);
             }
             if (faces_data->recog_valid) {
                 faces[i].face_recognised = faces_data->recog_data.face_rec[i].face_recognised;
+
+                LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : face_recognised=%d",
+                        detect_data->frame_id, i, faces[i].face_recognised);
             }
             if (faces_data->gaze_valid) {
                 faces[i].gaze_angle = faces_data->gaze_data.gaze[i].gaze_angle;
@@ -9466,6 +9534,12 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *
                 faces[i].roll_dir = faces_data->gaze_data.gaze[i].roll_dir;
                 faces[i].left_right_gaze = faces_data->gaze_data.gaze[i].left_right_gaze;
                 faces[i].top_bottom_gaze = faces_data->gaze_data.gaze[i].top_bottom_gaze;
+
+                LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : gaze_angle=%d, updown_dir=%d, "
+                        "leftright_dir=%d,, roll_dir=%d, left_right_gaze=%d, top_bottom_gaze=%d",
+                        detect_data->frame_id, i, faces[i].gaze_angle, faces[i].updown_dir,
+                        faces[i].leftright_dir, faces[i].roll_dir, faces[i].left_right_gaze,
+                        faces[i].top_bottom_gaze);
             }
 #endif
 

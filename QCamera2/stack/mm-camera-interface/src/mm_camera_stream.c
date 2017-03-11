@@ -2266,9 +2266,12 @@ int32_t mm_stream_unmap_buf(mm_stream_t * my_obj,
     ret = mm_camera_module_send_cmd(shim_cmd);
     mm_camera_destroy_shim_cmd_packet(shim_cmd);
 #endif
-    pthread_mutex_lock(&my_obj->buf_lock);
-    my_obj->buf_status[frame_idx].map_status = 0;
-    pthread_mutex_unlock(&my_obj->buf_lock);
+    if ((buf_type == CAM_MAPPING_BUF_TYPE_STREAM_BUF) ||
+            (buf_type == CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF)) {
+        pthread_mutex_lock(&my_obj->buf_lock);
+        my_obj->buf_status[frame_idx].map_status = 0;
+        pthread_mutex_unlock(&my_obj->buf_lock);
+    }
     return ret;
 }
 

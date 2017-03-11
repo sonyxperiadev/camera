@@ -741,7 +741,7 @@ uint32_t mm_camera_muxer_add_channel(uint32_t camera_handle,
         mm_camera_channel_attr_t *attr, mm_camera_buf_notify_t channel_cb,
         void *userdata, uint32_t m_ch_id, mm_camera_obj_t *cam_obj)
 {
-    int32_t ch_id = 0;
+    uint32_t ch_id = 0;
     mm_camera_obj_t *my_obj = NULL;
 
     my_obj = mm_muxer_util_get_camera_by_obj(camera_handle, cam_obj);

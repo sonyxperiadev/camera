@@ -686,7 +686,7 @@ static uint32_t mm_camera_intf_add_channel(uint32_t camera_handle,
     uint32_t handle = get_main_camera_handle(camera_handle);
     uint32_t aux_handle = get_aux_camera_handle(camera_handle);
 
-    LOGD("E camera_handler = %d", camera_handle);
+    LOGD("E camera_handler = 0x%x", camera_handle);
     if (handle) {
         pthread_mutex_lock(&g_intf_lock);
         my_obj = mm_camera_util_get_camera_by_handler(handle);
@@ -717,7 +717,7 @@ static uint32_t mm_camera_intf_add_channel(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("camera_handle = %u ch_id = %u X", camera_handle, ch_id);
+    LOGH("camera_handle = 0x%x ch_id = 0x%x X", camera_handle, ch_id);
     return ch_id;
 }
 
@@ -744,7 +744,7 @@ static int32_t mm_camera_intf_del_channel(uint32_t camera_handle,
     uint32_t m_chid = get_main_camera_handle(ch_id);
     uint32_t aux_chid = get_aux_camera_handle(ch_id);
 
-    LOGD("E ch_id = %d", ch_id);
+    LOGD("E ch_id = 0x%x", ch_id);
 
     if (aux_chid) {
         pthread_mutex_lock(&g_intf_lock);
@@ -772,7 +772,7 @@ static int32_t mm_camera_intf_del_channel(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("rc = %d ch_id = %u X", rc, ch_id);
+    LOGH("rc = %d ch_id = 0x%x X", rc, ch_id);
     return rc;
 }
 
@@ -1119,7 +1119,7 @@ static uint32_t mm_camera_intf_add_stream(uint32_t camera_handle,
     uint32_t m_ch_id = get_main_camera_handle(ch_id);
     uint32_t aux_chid = get_aux_camera_handle(ch_id);
 
-    LOGD("E handle = %d ch_id = %d",
+    LOGD("E handle = 0x%x ch_id = 0x%x",
           camera_handle, ch_id);
     if (m_ch_id) {
         pthread_mutex_lock(&g_intf_lock);
@@ -1154,7 +1154,7 @@ static uint32_t mm_camera_intf_add_stream(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("X ch_id = %u stream_id = %u", ch_id, stream_id);
+    LOGH("X ch_id = 0x%x stream_id = 0x%x", ch_id, stream_id);
     return stream_id;
 }
 
@@ -1182,7 +1182,7 @@ static int32_t mm_camera_intf_del_stream(uint32_t camera_handle,
     uint32_t m_strid = get_main_camera_handle(stream_id);
     uint32_t aux_strid = get_aux_camera_handle(stream_id);
 
-    LOGD("E handle = %d ch_id = %d stream_id = %d",
+    LOGD("E handle = 0x%x ch_id = 0x%x stream_id = 0x%x",
           camera_handle, ch_id, stream_id);
 
     if (aux_strid) {
@@ -1214,7 +1214,7 @@ static int32_t mm_camera_intf_del_stream(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    LOGH("X stream_id = %u rc = %d", stream_id, rc);
+    LOGH("X stream_id = 0x%x rc = %d", stream_id, rc);
     return rc;
 }
 
@@ -1403,7 +1403,7 @@ static int32_t mm_camera_intf_request_super_buf(uint32_t camera_handle,
         uint32_t ch_id, mm_camera_req_buf_t *buf)
 {
     int32_t rc = -1;
-    LOGD("E camera_handler = %d,ch_id = %d",
+    LOGD("E camera_handler = 0x%x,ch_id = 0x%x",
           camera_handle, ch_id);
     mm_camera_obj_t * my_obj = NULL;
     uint32_t chid = get_main_camera_handle(ch_id);
@@ -1445,7 +1445,7 @@ static int32_t mm_camera_intf_request_super_buf(uint32_t camera_handle,
         }
     }
 
-    LOGH("X ch_id = %u rc = %d", ch_id, rc);
+    LOGH("X ch_id = 0x%x rc = %d", ch_id, rc);
     return rc;
 }
 
@@ -1467,7 +1467,7 @@ static int32_t mm_camera_intf_cancel_super_buf_request(uint32_t camera_handle,
                                                        uint32_t ch_id)
 {
     int32_t rc = -1;
-    LOGD("E camera_handler = %d,ch_id = %d",
+    LOGD("E camera_handler = 0x%x,ch_id = 0x%x",
           camera_handle, ch_id);
     mm_camera_obj_t * my_obj = NULL;
     uint32_t chid = get_main_camera_handle(ch_id);
@@ -1508,7 +1508,7 @@ static int32_t mm_camera_intf_cancel_super_buf_request(uint32_t camera_handle,
         }
     }
 
-    LOGH("X ch_id = %u rc = %d", ch_id, rc);
+    LOGH("X ch_id = 0x%x rc = %d", ch_id, rc);
     return rc;
 }
 
