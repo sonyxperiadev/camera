@@ -80,6 +80,8 @@ public:
     int32_t processCameraControl(uint32_t camState, bool bundledSnapshot);
     bool isDualChannel(){return mDualChannel;};
     uint32_t getSnapshotHandle();
+    void initDCSettings(int32_t camState, uint32_t camMaster,
+        bool bundledSnapshot);
 protected:
     uint32_t m_camHandle;
     mm_camera_ops_t *m_camOps;

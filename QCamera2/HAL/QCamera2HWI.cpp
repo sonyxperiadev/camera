@@ -3945,9 +3945,10 @@ int QCamera2HardwareInterface::startPreview()
 
     if (isDualCamera()) {
         if (rc == NO_ERROR) {
-            mParameters.setDeferCamera(CAM_DEFER_PROCESS);
+            mParameters.setDCDeferCamera(CAM_DEFER_PROCESS);
+            mParameters.setDCLowPowerMode(mActiveCameras);
         } else {
-            mParameters.setDeferCamera(CAM_DEFER_FLUSH);
+            mParameters.setDCDeferCamera(CAM_DEFER_FLUSH);
         }
     }
 
@@ -5207,6 +5208,10 @@ int QCamera2HardwareInterface::takePicture()
             if ((rc == NO_ERROR) &&
                     (NULL != m_channels[QCAMERA_CH_TYPE_CAPTURE])) {
 
+                if (isDualCamera()) {
+                    updateDCSettings();
+                }
+
                 if (!mParameters.getofflineRAW()) {
                     rc = configureOnlineRotation(
                         *m_channels[QCAMERA_CH_TYPE_CAPTURE]);
@@ -5411,6 +5416,9 @@ int32_t QCamera2HardwareInterface::declareSnapshotStreams()
         return rc;
     }
 
+    if (isDualCamera()) {
+        initDCSettings();
+    }
     return rc;
 }
 
@@ -7288,6 +7296,59 @@ int32_t QCamera2HardwareInterface::processJpegNotify(qcamera_jpeg_evt_payload_t 
 
 
 /*===========================================================================
+ * FUNCTION   : initDCSettings
+ *
+ * DESCRIPTION: initialize dual camera settings
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera2HardwareInterface::initDCSettings()
+{
+    fov_control_result_t fovControlResult;
+
+    if (!isDualCamera()) {
+        return;
+    }
+
+    fovControlResult = m_pFovControl->getFovControlResult();
+    if (fovControlResult.isValid) {
+        mActiveCameras = fovControlResult.activeCameras;
+        mMasterCamera = fovControlResult.camMasterPreview;
+        mBundledSnapshot = fovControlResult.snapshotPostProcess;
+
+        if (mBundledSnapshot && (!mParameters.needSnapshotPP() || mFlashNeeded)) {
+            mBundledSnapshot = false;
+            LOGD("Disable snapshot pp as one of unsupported feature is set");
+        }
+        mParameters.updateOisMode(fovControlResult.oisMode);
+    }
+    mParameters.initDCSettings(mActiveCameras, mMasterCamera, mBundledSnapshot);
+    LOGH("mActiveCameras = %d, mMasterCamera = %d bundledSnapshot = %d to %d",
+            mActiveCameras, mMasterCamera, mBundledSnapshot);
+}
+
+/*===========================================================================
+ * FUNCTION   : updateDCSettings
+ *
+ * DESCRIPTION: update dual camera settings to channels and streams
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera2HardwareInterface::updateDCSettings()
+{
+    //Update camera status to internal channel
+    for (int i = 0; i < QCAMERA_CH_TYPE_MAX; i++) {
+        if (m_channels[i] != NULL && m_channels[i]->isDualChannel()) {
+            m_channels[i]->initDCSettings(mActiveCameras, mMasterCamera, mBundledSnapshot);
+        }
+    }
+}
+
+/*===========================================================================
  * FUNCTION   : processDualCamFovControl
  *
  * DESCRIPTION: Based on the result collected from FOV control-
@@ -7356,37 +7417,28 @@ int32_t QCamera2HardwareInterface::processCameraControl(
         }
     }
 
-    if ((activeCameras != mActiveCameras) ||
-            (bundledSnapshot != mBundledSnapshot)) {
+    //Set camera controls to parameter and back-end
+    ret = mParameters.setCameraControls(activeCameras, bundledSnapshot);
 
-        if (activeCameras != mActiveCameras) {
-            //Set camera controls to parameter and back-end
-            ret = mParameters.setCameraControls(activeCameras);
-
-            if (activeCameras == MM_CAMERA_DUAL_CAM) {
-                // Flush the ZSL buffer queue for the camera that's put into LPM
-                QCameraPicChannel *pZSLChannel =
-                        (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
-                if (NULL != pZSLChannel) {
-                    if (mActiveCameras == MM_CAMERA_TYPE_MAIN) {
-                        // Flush ZSL buffer queue for the aux camera
-                        pZSLChannel->flushSuperbuffer(MM_CAMERA_TYPE_AUX, 0);
-                    } else {
-                        // Flush ZSL buffer queue for the main camera
-                        pZSLChannel->flushSuperbuffer(MM_CAMERA_TYPE_MAIN, 0);
-                    }
-                }
-             }
-         }
-
-        mParameters.setBundledSnapshot(bundledSnapshot);
-        mParameters.setNumOfSnapshot();
-
-        LOGH("mActiveCameras = %d to %d, bundledSnapshot = %d to %d",
-                mActiveCameras, activeCameras, mBundledSnapshot, bundledSnapshot);
-        mActiveCameras   = activeCameras;
-        mBundledSnapshot = bundledSnapshot;
+    if ((activeCameras != mActiveCameras) && (activeCameras == MM_CAMERA_DUAL_CAM)) {
+        // Flush the ZSL buffer queue for the camera that's put into LPM
+        QCameraPicChannel *pZSLChannel =
+                (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
+        if (NULL != pZSLChannel) {
+            if (mActiveCameras == MM_CAMERA_TYPE_MAIN) {
+                // Flush ZSL buffer queue for the aux camera
+                pZSLChannel->flushSuperbuffer(MM_CAMERA_TYPE_AUX, 0);
+            } else {
+                // Flush ZSL buffer queue for the main camera
+                pZSLChannel->flushSuperbuffer(MM_CAMERA_TYPE_MAIN, 0);
+            }
+        }
     }
+
+    LOGH("mActiveCameras = %d to %d, bundledSnapshot = %d to %d",
+            mActiveCameras, activeCameras, mBundledSnapshot, bundledSnapshot);
+    mActiveCameras   = activeCameras;
+    mBundledSnapshot = bundledSnapshot;
 
     return ret;
 }
@@ -7421,6 +7473,7 @@ int32_t QCamera2HardwareInterface::switchCameraCb(uint32_t camMaster)
             if (ret == NO_ERROR) {
                 //Trigger Event to modules to update Master info
                 mParameters.setSwitchCamera(camMaster);
+                setDisplayFrameSkip();
             }
         }
         // Update master camera
@@ -8895,6 +8948,9 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         return NULL;
     }
 
+    if (isDualCamera()) {
+        pChannel->initDCSettings(mActiveCameras, mMasterCamera, mBundledSnapshot);
+    }
     return pChannel;
 }
 
@@ -9115,7 +9171,8 @@ int32_t QCamera2HardwareInterface::preparePreview()
 
     //Trigger deferred job second camera
     if (isDualCamera()) {
-        mParameters.setDeferCamera(CAM_DEFER_START);
+        initDCSettings();
+        mParameters.setDCDeferCamera(CAM_DEFER_START);
     }
 
     if (mParameters.isZSLMode() && mParameters.getRecordingHintValue() != true) {
@@ -9212,8 +9269,12 @@ int32_t QCamera2HardwareInterface::preparePreview()
         }
     }
 
-    if ((rc != NO_ERROR) && (isDualCamera())) {
-        mParameters.setDeferCamera(CAM_DEFER_FLUSH);
+    if (isDualCamera()) {
+        if (rc == NO_ERROR) {
+            updateDCSettings();
+        } else {
+            mParameters.setDCDeferCamera(CAM_DEFER_FLUSH);
+        }
     }
 
     LOGI("X rc = %d", rc);
@@ -9232,7 +9293,7 @@ int32_t QCamera2HardwareInterface::preparePreview()
 void QCamera2HardwareInterface::unpreparePreview()
 {
     if (isDualCamera()) {
-        mParameters.setDeferCamera(CAM_DEFER_FLUSH);
+        mParameters.setDCDeferCamera(CAM_DEFER_FLUSH);
     }
     delChannel(QCAMERA_CH_TYPE_ZSL);
     delChannel(QCAMERA_CH_TYPE_PREVIEW);

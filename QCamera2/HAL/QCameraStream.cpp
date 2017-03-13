@@ -780,6 +780,7 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     if (mCamType & MM_CAMERA_TYPE_AUX) {
         mActiveCameras |= MM_CAMERA_TYPE_AUX;
     }
+
     rc = mapBufs(mStreamInfoBuf, CAM_MAPPING_BUF_TYPE_STREAM_INFO, NULL);
     if (rc < 0) {
         LOGE("Failed to map stream info buffer");
@@ -800,16 +801,6 @@ int32_t QCameraStream::init(QCameraHeapMemory *streamInfoBuf,
     if (rc < 0) {
         LOGE("Failed to config stream ");
         goto err1;
-    }
-
-    if (isDualStream()) {
-        if (needFrameSync()) {
-            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
-                    mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
-        } else if (!needCbSwitch()) {
-            mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
-                    mHandle, MM_CAMERA_CB_REQ_TYPE_ALL_CB);
-        }
     }
 
     if (mDefferedAllocation) {
@@ -2830,6 +2821,43 @@ int32_t QCameraStream::setSyncDataCB(stream_cb_routine data_cb)
 }
 
 /*===========================================================================
+ * FUNCTION   : initDCSettings
+ *
+ * DESCRIPTION: initialize dual camera settings
+ *
+ * PARAMETERS :
+ *    @state     : Flag with camera bit field set in case of dual camera
+ *    @camMaster : Master camera
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraStream::initDCSettings(int32_t state, uint32_t camMaster)
+{
+    if (!isDualStream()) {
+        return;
+    }
+
+    if (camMaster != MM_CAMERA_TYPE_MAIN) {
+        mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                get_main_camera_handle(mHandle),
+                MM_CAMERA_CB_REQ_TYPE_DEFER);
+    }
+
+    if (needFrameSync()) {
+        mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                mHandle, MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC);
+    } else if (!needCbSwitch()) {
+        mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                mHandle, MM_CAMERA_CB_REQ_TYPE_ALL_CB);
+    } else if (needCbSwitch() && camMaster != mMasterCamera) {
+        mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+                mHandle, MM_CAMERA_CB_REQ_TYPE_SWITCH);
+    }
+    mActiveCameras = state;
+    mMasterCamera = camMaster;
+}
+
+/*===========================================================================
  * FUNCTION   : processCameraControl
  *
  * DESCRIPTION: Suspend and resume camera
@@ -2866,6 +2894,7 @@ int32_t QCameraStream::switchStreamCb(uint32_t camMaster)
         ret = mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
                 mHandle, MM_CAMERA_CB_REQ_TYPE_SWITCH);
     }
+
     // Update master camera
     LOGD("Updating mMasterCamera from %d to %d", mMasterCamera, camMaster);
     mMasterCamera = camMaster;

@@ -608,6 +608,8 @@ private:
     int32_t processCameraControl(uint32_t camState, bool bundledSnapshot);
     bool needSyncCB(cam_stream_type_t stream_type);
     uint32_t getSnapshotHandle();
+    void initDCSettings();
+    void updateDCSettings();
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;

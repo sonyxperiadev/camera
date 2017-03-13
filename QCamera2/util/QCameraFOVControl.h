@@ -166,6 +166,11 @@ typedef struct {
 } fov_control_data_t;
 
 typedef struct {
+    bool zoom_valid;
+    int32_t zoom_value;
+} fov_control_parm_t;
+
+typedef struct {
     bool     enablePostProcess;
     float    zoomMin;
     float    zoomMax;
@@ -257,6 +262,7 @@ private:
     dual_cam_params_t               mDualCamParams;
     QCameraExtZoomTranslator       *mZoomTranslator;
     cam_hal_pp_type_t               mHalPPType;
+    fov_control_parm_t              mFovControlParm;
 };
 
 }; // namespace qcamera
