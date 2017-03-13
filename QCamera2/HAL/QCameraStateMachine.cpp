@@ -1842,9 +1842,6 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
             case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
                 rc = m_parent->processZSLCaptureDone();
                 break;
-            case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                m_parent->processDualCamFovControl();
-                break;
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
                 break;
@@ -2249,9 +2246,6 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 break;
             case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
                 rc = m_parent->processZSLCaptureDone();
-                break;
-            case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                m_parent->processDualCamFovControl();
                 break;
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
@@ -3122,9 +3116,6 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
             case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
                 rc = m_parent->processZSLCaptureDone();
                 break;
-            case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                m_parent->processDualCamFovControl();
-                break;
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);
                 break;
@@ -3639,9 +3630,6 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                 break;
             case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
                 rc = m_parent->processZSLCaptureDone();
-                break;
-            case QCAMERA_INTERNAL_EVT_DUAL_CAMERA_FOV_CONTROL:
-                m_parent->processDualCamFovControl();
                 break;
             case QCAMERA_INTERNAL_EVT_LED_CALIB_UPDATE:
                 rc = m_parent->processLEDCalibration(internal_evt->led_calib_result);

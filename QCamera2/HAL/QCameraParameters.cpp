@@ -1023,6 +1023,7 @@ QCameraParameters::QCameraParameters()
       mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
       mFrameNumber(0),
       mSyncDCParam(0),
+      mbundledSnapshot(false),
       mAsymmetricSnapMode(false),
       mAsymmetricPreviewMode(false)
 {
@@ -1173,6 +1174,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
     mFrameNumber(0),
     mSyncDCParam(0),
+    mbundledSnapshot(false),
     mAsymmetricSnapMode(false),
     mAsymmetricPreviewMode(false)
 {
@@ -4483,7 +4485,8 @@ int32_t QCameraParameters::setNumOfSnapshot()
     }
 
     LOGD("mActiveCameras = %d, mbundledSnapshot = %d", mActiveCameras, mbundledSnapshot);
-    if (mActiveCameras == MM_CAMERA_DUAL_CAM && mbundledSnapshot) {
+
+    if (mbundledSnapshot) {
         int dualfov_snap_num = 1;
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
