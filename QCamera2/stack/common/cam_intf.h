@@ -92,13 +92,20 @@ typedef enum {
     CAM_MODE_SECONDARY
 } cam_sync_mode_t;
 
+/*Enum to inform about camera fllback type in dual camera use-cases*/
+typedef enum {
+    CAM_NO_FALLBACK,
+    CAM_WIDE_FALLBACK,
+} cam_fallback_mode_t;
+
 /*Enum to inform about camera type in dual camera use-cases*/
 typedef enum {
     CAM_ROLE_DEFAULT,
     CAM_ROLE_BAYER,
     CAM_ROLE_MONO,
     CAM_ROLE_WIDE,
-    CAM_ROLE_TELE
+    CAM_ROLE_TELE,
+    CAM_ROLE_WIDE_FALLBACK,
 } cam_dual_camera_role_t;
 
 /* Enum to define different low performance modes in dual camera*/
@@ -147,6 +154,11 @@ typedef struct {
     uint8_t priority; /*Can be used to make LPM forcefully*/
 } cam_dual_camera_perf_control_t;
 
+/* Structrue to update fallback camera info in dual camera case*/
+typedef struct {
+    cam_fallback_mode_t fallback;
+} cam_dual_camera_fallback_info_t;
+
 /* dual camera event payload */
 typedef struct {
     cam_dual_camera_cmd_type cmd_type; /*dual camera command type*/
@@ -157,6 +169,7 @@ typedef struct {
         cam_dual_camera_master_info_t  mode;
         cam_dual_camera_perf_control_t value;
         cam_dual_camera_defer_cmd_t defer_cmd;
+        cam_dual_camera_fallback_info_t fallback;
     };
 } cam_dual_camera_cmd_info_t;
 

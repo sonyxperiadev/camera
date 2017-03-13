@@ -605,7 +605,8 @@ private:
             uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     uint32_t getCamHandleForChannel(qcamera_ch_type_enum_t ch_type);
     int32_t switchCameraCb(uint32_t camMaster);
-    int32_t processCameraControl(uint32_t camState, bool bundledSnapshot);
+    int32_t processCameraControl(uint32_t camState, bool bundledSnapshot,
+            cam_fallback_mode_t fallbackMode);
     bool needSyncCB(cam_stream_type_t stream_type);
     uint32_t getSnapshotHandle();
     void initDCSettings();
@@ -617,6 +618,7 @@ private:
     uint32_t mActiveCameras;
     uint32_t mMasterCamera;
     bool mBundledSnapshot;
+    cam_fallback_mode_t mFallbackMode;
     bool mCameraOpened;
     bool mDualCamera;
     QCameraFOVControl *m_pFovControl;

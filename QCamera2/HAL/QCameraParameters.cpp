@@ -1024,6 +1024,7 @@ QCameraParameters::QCameraParameters()
       mFrameNumber(0),
       mSyncDCParam(0),
       mbundledSnapshot(false),
+      mFallback(CAM_NO_FALLBACK),
       mAsymmetricSnapMode(false),
       mAsymmetricPreviewMode(false)
 {
@@ -1175,6 +1176,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mFrameNumber(0),
     mSyncDCParam(0),
     mbundledSnapshot(false),
+    mFallback(CAM_NO_FALLBACK),
     mAsymmetricSnapMode(false),
     mAsymmetricPreviewMode(false)
 {
@@ -12780,6 +12782,22 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
             }
         }
         break;
+
+        case CAM_DUAL_CAMERA_FALLBACK_INFO: {
+            for (int i = 0; i < num_cam; i++) {
+                cam_dual_camera_fallback_info_t *info =
+                        (cam_dual_camera_fallback_info_t *)cmd_value;
+                m_pDualCamCmdPtr[i]->cmd_type = type;
+                memcpy(&m_pDualCamCmdPtr[i]->fallback,
+                        &info[i],
+                        sizeof(cam_dual_camera_fallback_info_t));
+                LOGH("FALLBACK INFO CMD %d: cmd %d value %d", i,
+                        m_pDualCamCmdPtr[i]->cmd_type,
+                        m_pDualCamCmdPtr[i]->fallback);
+            }
+        }
+        break;
+
         default :
         break;
     }
@@ -16235,6 +16253,35 @@ int32_t QCameraParameters::setDCLowPowerMode(uint32_t state)
 }
 
 /*===========================================================================
+ * FUNCTION   : setDCFallbackMode
+ *
+ * DESCRIPTION: Trigger fallback mode in dual camera.
+ *
+ * PARAMETERS :
+ *         @fallback : Fallback mode for master in case of low light / macro scene
+ *
+ * RETURN     : NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setDCFallbackMode(cam_fallback_mode_t fallback)
+{
+    int32_t rc = NO_ERROR;
+
+    cam_dual_camera_fallback_info_t fallbackMode[MM_CAMERA_MAX_CAM_CNT];
+    uint8_t num_cam = 0;
+
+    fallbackMode[num_cam].fallback = fallback;
+    num_cam++;
+    fallbackMode[num_cam].fallback = fallback;
+    num_cam++;
+
+    rc = sendDualCamCmd(CAM_DUAL_CAMERA_FALLBACK_INFO,
+            num_cam, &fallbackMode[0]);
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setDeferCamera
  *
  * DESCRIPTION: configure camera in background for KPI in dual camera
@@ -16336,18 +16383,19 @@ cam_dual_camera_perf_mode_t QCameraParameters::getLowPowerMode(cam_sync_type_t c
  *    @state         : Flag with camera bit field set in case of dual camera
  *    @camMaster     : Master camera
  *    @bundleSnapshot: Flag to update bundle snapshot info
-
+ *    @fallback : Fallback mode for master in case of low light / macro scene
  *
  * RETURN     : none
  *==========================================================================*/
 void QCameraParameters::initDCSettings(int32_t state, uint32_t camMaster,
-        bool bundleSnapshot)
+        bool bundleSnapshot, cam_fallback_mode_t fallback)
 {
     char prop[PROPERTY_VALUE_MAX];
 
     mActiveCameras = state;
     mMasterCamera = camMaster;
     mbundledSnapshot = bundleSnapshot;
+    mFallback = fallback;
     lpmEnable = true;
 
     // LPM is enabled by default.
@@ -16373,19 +16421,25 @@ void QCameraParameters::initDCSettings(int32_t state, uint32_t camMaster,
  * PARAMETERS :
  *         @state          : Flag with camera bit field set in case of dual camera
  *         @bundleSnapshot : Flag to update bundle snapshot info
+ *         @fallback : Fallback mode for master in case of low light / macro scene
  *
  * RETURN     : NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setCameraControls(uint32_t state, bool bundleSnap)
+int32_t QCameraParameters::setCameraControls(uint32_t state, bool bundleSnap,
+        cam_fallback_mode_t fallback)
 {
     int32_t rc = NO_ERROR;
 
     if (state != mActiveCameras) {
         rc = setDCLowPowerMode(state);
     }
+    if (fallback != mFallback) {
+        rc = setDCFallbackMode(fallback);
+    }
 
     mActiveCameras = state;
+    mFallback = fallback;
     mbundledSnapshot = bundleSnap;
     setNumOfSnapshot();
 

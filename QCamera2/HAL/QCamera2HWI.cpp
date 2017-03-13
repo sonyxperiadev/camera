@@ -1622,6 +1622,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
     : mCameraId(cameraId),
       mCameraHandle(NULL),
       mMasterCamera(CAM_TYPE_MAIN),
+      mFallbackMode(CAM_NO_FALLBACK),
       mCameraOpened(false),
       mDualCamera(false),
       m_pFovControl(NULL),
@@ -1958,6 +1959,7 @@ int QCamera2HardwareInterface::openCamera()
     }
     mBundledSnapshot = 0;
     mActiveCameras = MM_CAMERA_TYPE_MAIN;
+    mFallbackMode = CAM_NO_FALLBACK;
     if (isDualCamera()) {
         mActiveCameras |= MM_CAMERA_TYPE_AUX;
 
@@ -7317,6 +7319,7 @@ void QCamera2HardwareInterface::initDCSettings()
         mActiveCameras = fovControlResult.activeCameras;
         mMasterCamera = fovControlResult.camMasterPreview;
         mBundledSnapshot = fovControlResult.snapshotPostProcess;
+        mFallbackMode = fovControlResult.fallback;
 
         if (mBundledSnapshot && (!mParameters.needSnapshotPP() || mFlashNeeded)) {
             mBundledSnapshot = false;
@@ -7324,9 +7327,9 @@ void QCamera2HardwareInterface::initDCSettings()
         }
         mParameters.updateOisMode(fovControlResult.oisMode);
     }
-    mParameters.initDCSettings(mActiveCameras, mMasterCamera, mBundledSnapshot);
-    LOGH("mActiveCameras = %d, mMasterCamera = %d bundledSnapshot = %d to %d",
-            mActiveCameras, mMasterCamera, mBundledSnapshot);
+    mParameters.initDCSettings(mActiveCameras, mMasterCamera, mBundledSnapshot, mFallbackMode);
+    LOGH("mActiveCameras = %d, mMasterCamera = %d bundledSnapshot = %d mFallbackMode = %d",
+            mActiveCameras, mMasterCamera, mBundledSnapshot, mFallbackMode);
 }
 
 /*===========================================================================
@@ -7364,7 +7367,7 @@ void QCamera2HardwareInterface::processDualCamFovControl()
    uint32_t activeCameras;
    bool bundledSnapshot;
    fov_control_result_t fovControlResult;
-   cam_sync_type_t camMasterSnapshot;
+   cam_fallback_mode_t fallbackMode;
 
     if (!isDualCamera()) {
         return;
@@ -7375,13 +7378,14 @@ void QCamera2HardwareInterface::processDualCamFovControl()
     if (fovControlResult.isValid) {
         activeCameras = fovControlResult.activeCameras;
         bundledSnapshot = fovControlResult.snapshotPostProcess;
+        fallbackMode = fovControlResult.fallback;
+
         if (bundledSnapshot && (!mParameters.needSnapshotPP() || mFlashNeeded)) {
             bundledSnapshot = false;
             LOGD("Disable snapshot pp as one of unsupported feature is set");
         }
-        camMasterSnapshot = fovControlResult.camMasterPreview;
 
-        processCameraControl(activeCameras, bundledSnapshot);
+        processCameraControl(activeCameras, bundledSnapshot, fallbackMode);
         switchCameraCb(fovControlResult.camMasterPreview);
 
         // Update OIS mode based on the value in FOV-control result
@@ -7402,7 +7406,8 @@ void QCamera2HardwareInterface::processDualCamFovControl()
  *==========================================================================*/
 int32_t QCamera2HardwareInterface::processCameraControl(
         uint32_t activeCameras,
-        bool     bundledSnapshot)
+        bool     bundledSnapshot,
+        cam_fallback_mode_t fallbackMode)
 {
     int32_t ret = NO_ERROR;
 
@@ -7418,7 +7423,7 @@ int32_t QCamera2HardwareInterface::processCameraControl(
     }
 
     //Set camera controls to parameter and back-end
-    ret = mParameters.setCameraControls(activeCameras, bundledSnapshot);
+    ret = mParameters.setCameraControls(activeCameras, bundledSnapshot, fallbackMode);
 
     if ((activeCameras != mActiveCameras) && (activeCameras == MM_CAMERA_DUAL_CAM)) {
         // Flush the ZSL buffer queue for the camera that's put into LPM
@@ -7435,10 +7440,12 @@ int32_t QCamera2HardwareInterface::processCameraControl(
         }
     }
 
-    LOGH("mActiveCameras = %d to %d, bundledSnapshot = %d to %d",
-            mActiveCameras, activeCameras, mBundledSnapshot, bundledSnapshot);
+    LOGH("mActiveCameras = %d to %d, bundledSnapshot = %d to %d, fallback = %d to %d",
+            mActiveCameras, activeCameras, mBundledSnapshot, bundledSnapshot,
+            mFallbackMode, fallbackMode);
     mActiveCameras   = activeCameras;
     mBundledSnapshot = bundledSnapshot;
+    mFallbackMode    = fallbackMode;
 
     return ret;
 }

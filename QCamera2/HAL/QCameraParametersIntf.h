@@ -319,7 +319,7 @@ public:
     bool needSnapshotPP();
     int32_t SetDualCamera(bool value);
     cam_hal_pp_type_t getHalPPType();
-    int32_t setCameraControls(uint32_t controls, bool bundleSnap);
+    int32_t setCameraControls(uint32_t controls, bool bundleSnap, cam_fallback_mode_t fallbackMode);
     int32_t setSwitchCamera(uint32_t camMaster);
     int32_t setDCDeferCamera(cam_dual_camera_defer_cmd_t type);
     int32_t getDualLedCalibration();
@@ -327,7 +327,7 @@ public:
     bool isDCAsymmetricPrevMode ();
     int32_t setDCLowPowerMode(uint32_t state);
     void initDCSettings(int32_t state, uint32_t camMaster,
-        bool bundleSnapshot);
+        bool bundleSnapshot, cam_fallback_mode_t fallbackMode);
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;
