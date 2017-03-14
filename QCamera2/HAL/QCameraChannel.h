@@ -80,6 +80,8 @@ public:
     int32_t processCameraControl(uint32_t camState, bool bundledSnapshot);
     bool isDualChannel(){return mDualChannel;};
     uint32_t getSnapshotHandle();
+    void initDCSettings(int32_t camState, uint32_t camMaster,
+        bool bundledSnapshot);
 protected:
     uint32_t m_camHandle;
     mm_camera_ops_t *m_camOps;
@@ -110,7 +112,7 @@ public:
     int32_t stopAdvancedCapture(mm_camera_advanced_capture_t type);
     int32_t startAdvancedCapture(mm_camera_advanced_capture_t type,
             cam_capture_frame_config_t *config = NULL);
-    int32_t flushSuperbuffer(uint32_t frame_idx);
+    int32_t flushSuperbuffer(uint32_t cam, uint32_t frame_idx);
 };
 
 // video channel class

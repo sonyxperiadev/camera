@@ -1503,11 +1503,12 @@ int32_t QCameraParametersIntf::SetDualCamera(bool value)
     return mImpl->SetDualCamera(value);
 }
 
-int32_t QCameraParametersIntf::setCameraControls(int32_t controls)
+int32_t QCameraParametersIntf::setCameraControls(uint32_t controls, bool bundleSnap,
+        cam_fallback_mode_t fallbackMode)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->setCameraControls(controls);
+    return mImpl->setCameraControls(controls, bundleSnap, fallbackMode);
 }
 
 int32_t QCameraParametersIntf::setSwitchCamera(uint32_t camMaster)
@@ -1517,18 +1518,18 @@ int32_t QCameraParametersIntf::setSwitchCamera(uint32_t camMaster)
     return mImpl->setSwitchCamera(camMaster);
 }
 
-int32_t QCameraParametersIntf::setDeferCamera(cam_dual_camera_defer_cmd_t type)
+int32_t QCameraParametersIntf::setDCLowPowerMode(uint32_t state)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->setDeferCamera(type);
+    return mImpl->setDCLowPowerMode(state);
 }
 
-void QCameraParametersIntf::setBundledSnapshot(bool value)
+int32_t QCameraParametersIntf::setDCDeferCamera(cam_dual_camera_defer_cmd_t type)
 {
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
-    return mImpl->setBundledSnapshot(value);
+    return mImpl->setDCDeferCamera(type);
 }
 
 int32_t QCameraParametersIntf::getDualLedCalibration()
@@ -1563,6 +1564,14 @@ bool QCameraParametersIntf::isDCAsymmetricPrevMode()
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->isDCAsymmetricPrevMode();
+}
+
+void QCameraParametersIntf::initDCSettings(int32_t state, uint32_t camMaster,
+        bool bundleSnapshot, cam_fallback_mode_t fallback)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    mImpl->initDCSettings(state, camMaster, bundleSnapshot, fallback);
 }
 
 }; // namespace qcamera

@@ -690,6 +690,35 @@ int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param
 }
 
 /*===========================================================================
+ * FUNCTION   : initDCSettings
+ *
+ * DESCRIPTION: initialize dual camera settings
+ *
+ * PARAMETERS :
+ *    @state            : Flag with camera bit field set in case of dual camera
+ *    @camMaster        : Master camera
+ *    @bundleSnapshot   : Flag to update bundle snapshot info
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraChannel::initDCSettings(int32_t camState, uint32_t camMaster,
+        bool bundledSnapshot)
+{
+    if (!isDualChannel()) {
+        return;
+    }
+
+    for (size_t i = 0; i < mStreams.size(); i++) {
+        if (mStreams[i] != NULL && mStreams[i]->isDualStream()) {
+            mStreams[i]->initDCSettings(camState, camMaster);
+        }
+    }
+    mActiveCameras = camState;
+    mMasterCamera = camMaster;
+    mBundledSnapshot = bundledSnapshot;
+}
+
+/*===========================================================================
  * FUNCTION   : processCameraControl
  *
  * DESCRIPTION:  Suspend and resume camera
@@ -772,9 +801,11 @@ uint32_t QCameraChannel::getSnapshotHandle()
 
     if ((mActiveCameras == MM_CAMERA_DUAL_CAM) && mBundledSnapshot) {
         snapshotHandle = m_handle;
+        LOGD("snapshot handle: composite");
     } else {
         snapshotHandle = (mMasterCamera == MM_CAMERA_TYPE_MAIN) ?
                 get_main_camera_handle(m_handle) : get_aux_camera_handle(m_handle);
+        LOGD("snapshot handle: %s", (mMasterCamera == MM_CAMERA_TYPE_MAIN ? "main" : "aux"));
     }
 
     return snapshotHandle;
@@ -910,15 +941,27 @@ int32_t QCameraPicChannel::startAdvancedCapture(mm_camera_advanced_capture_t typ
  * DESCRIPTION: flush the all superbuffer frames.
  *
  * PARAMETERS :
+ *   @cam       : Camera for which the super buffer needs to be flushed
  *   @frame_idx : frame index of focused frame
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraPicChannel::flushSuperbuffer(uint32_t frame_idx)
+int32_t QCameraPicChannel::flushSuperbuffer(uint32_t cam, uint32_t frame_idx)
 {
-    int32_t rc = m_camOps->flush_super_buf_queue(m_camHandle, m_handle, frame_idx);
+    uint32_t channelHandle = m_handle;
+    if (cam == MM_CAMERA_TYPE_MAIN) {
+        channelHandle = get_main_camera_handle(m_handle);
+        LOGD("Flushing zsl buffer queue for main cam");
+    } else if (cam == MM_CAMERA_TYPE_AUX) {
+        channelHandle = get_aux_camera_handle(m_handle);
+        LOGD("Flushing zsl buffer queue for aux cam");
+    } else {
+        LOGD("Flushing zsl buffer queue for composite cam");
+    }
+
+    int32_t rc = m_camOps->flush_super_buf_queue(m_camHandle, channelHandle, frame_idx);
     return rc;
 }
 
