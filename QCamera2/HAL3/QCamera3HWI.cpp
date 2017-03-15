@@ -1580,7 +1580,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     cam_padding_info_t padding_info = gCamCapability[mCameraId]->padding_info;
 
     /*EIS configuration*/
-    bool oisSupported = false;
     uint8_t eis_prop_set;
     uint32_t maxEisWidth = 0;
     uint32_t maxEisHeight = 0;
@@ -1605,14 +1604,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             break;
         }
     }
-    count = CAM_OPT_STAB_MAX;
-    count = MIN(gCamCapability[mCameraId]->optical_stab_modes_count, count);
-    for (size_t i = 0; i < count; i++) {
-        if (gCamCapability[mCameraId]->optical_stab_modes[i] ==  CAM_OPT_STAB_ON) {
-            oisSupported = true;
-            break;
-        }
-    }
 
     if (m_bEisSupported) {
         maxEisWidth = MAX_EIS_WIDTH;
@@ -1625,11 +1616,11 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     property_get("persist.camera.eis.enable", eis_prop, "1");
     eis_prop_set = (uint8_t)atoi(eis_prop);
 
-    m_bEisEnable = eis_prop_set && (!oisSupported && m_bEisSupported) &&
+    m_bEisEnable = eis_prop_set && m_bEisSupported &&
             (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE);
 
-    LOGD("m_bEisEnable: %d, eis_prop_set: %d, m_bEisSupported: %d, oisSupported:%d ",
-            m_bEisEnable, eis_prop_set, m_bEisSupported, oisSupported);
+    LOGD("m_bEisEnable: %d, eis_prop_set: %d, m_bEisSupported: %d",
+            m_bEisEnable, eis_prop_set, m_bEisSupported);
 
     /* stream configurations */
     for (size_t i = 0; i < streamList->num_streams; i++) {
