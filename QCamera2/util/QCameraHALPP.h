@@ -32,7 +32,7 @@
 
 // Camera dependencies
 #include "QCamera2HWI.h"
-#include "QCameraPostProc.h"
+#include "QCameraPprocManager.h"
 
 // STL dependencies
 #include <unordered_map>
@@ -43,21 +43,20 @@ extern "C" {
 #include "mm_jpeg_interface.h"
 }
 
+enum halPPInputType {
+    WIDE_INPUT = 0,
+    TELE_INPUT = 1
+};
+typedef struct _cam_frame_size_t {
+    uint32_t width;
+    uint32_t height;
+    uint32_t stride;
+    uint32_t scanline;
+    uint32_t frame_len;
+} cam_frame_size_t;
+
 namespace qcamera {
 
-/** halPPBufNotify: function definition for frame notify
-*   handling
-*    @pOutput  : received qcamera_hal_pp_data_t data
-*    @pUserData: user data pointer
-**/
-typedef void (*halPPBufNotify) (qcamera_hal_pp_data_t *pOutput,
-                                        void *pUserData);
-
-/** halPPGetOutput: function definition for get output buffer
-*    @frameIndex: output frame index should match input frame index
-*    @pUserData: user data pointer
-**/
-typedef void (*halPPGetOutput) (uint32_t frameIndex, void *pUserData);
 
 class QCameraHALPP
 {
@@ -82,6 +81,14 @@ protected:
     static void releaseInputDataCb(void *pData, void *pUserData);
     static void releaseOngoingDataCb(void *pData, void *pUserData);
     void dumpYUVtoFile(const uint8_t* pBuf, const char *name, ssize_t buf_len);
+    int32_t getOutputBuffer(
+            qcamera_hal_pp_data_t *pInputData,
+            qcamera_hal_pp_data_t *pOutputData);
+
+    mm_camera_buf_def_t* getSnapshotBuf(qcamera_hal_pp_data_t* pData,
+            QCameraStream* &pSnapshotStream);
+    mm_camera_buf_def_t* getMetadataBuf(qcamera_hal_pp_data_t* pData,
+            QCameraStream* &pMetadataStream);
 
 protected:
     QCameraQueue m_iuputQ;
@@ -92,7 +99,7 @@ protected:
 
     halPPBufNotify m_halPPBufNotifyCB;
     halPPGetOutput m_halPPGetOutputCB;
-    QCameraPostProcessor *m_pQCameraPostProc;
+    QCameraHALPPManager *m_pHalPPMgr;
 }; // QCameraHALPP class
 }; // namespace qcamera
 

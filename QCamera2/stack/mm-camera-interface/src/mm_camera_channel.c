@@ -1334,6 +1334,7 @@ int32_t mm_channel_init(mm_channel_t *my_obj,
     pthread_mutex_init(&my_obj->frame_sync.sync_lock, NULL);
     mm_muxer_frame_sync_queue_init(&my_obj->frame_sync.superbuf_queue);
     my_obj->bundle.is_cb_active = 1;
+    LOGD("my_obj->bundle.is_cb_active = %d", my_obj->bundle.is_cb_active);
 
     LOGD("Launch data poll thread in channel open");
     snprintf(my_obj->poll_thread[0].threadName, THREAD_NAME_SIZE, "CAM_dataPoll");
@@ -1725,6 +1726,7 @@ int32_t mm_channel_get_bundle_info(mm_channel_t *my_obj,
             if (NULL != s_obj) {
                 stream_type = s_obj->stream_info->stream_type;
                 if ((CAM_STREAM_TYPE_METADATA != stream_type) &&
+                        (CAM_STREAM_TYPE_ANALYSIS != stream_type) &&
                         (s_obj->ch_obj == my_obj)) {
                     bundle_info->stream_ids[bundle_info->num_of_streams++] =
                                                         s_obj->server_stream_id;
