@@ -1796,6 +1796,11 @@ int32_t mm_camera_muxer_channel_req_data_cb(mm_camera_req_buf_t *req_buf,
         frame_sync->req_buf.type = req_buf->type;
     }
 
+    LOGD("num_buf_requested %d notify_mode %d req_buf.type %d",
+            frame_sync->req_buf.num_buf_requested,
+            frame_sync->superbuf_queue.attr.notify_mode,
+            frame_sync->req_buf.type);
+
     while ((frame_sync->req_buf.num_buf_requested > 0)
             || (frame_sync->superbuf_queue.attr.notify_mode ==
             MM_CAMERA_SUPER_BUF_NOTIFY_CONTINUOUS)) {
