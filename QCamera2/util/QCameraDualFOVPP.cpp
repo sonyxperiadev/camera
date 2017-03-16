@@ -256,7 +256,10 @@ int32_t QCameraDualFOVPP::feedOutput(qcamera_hal_pp_data_t *pOutputData)
             QCameraStream* pSnapshotStreamTele = NULL;
             mm_camera_buf_def_t *pBufWide = getSnapshotBuf(pInputDataWide, pSnapshotStreamWide);
             mm_camera_buf_def_t *pBufTele = getSnapshotBuf(pInputDataTele, pSnapshotStreamTele);
-
+            if (pBufWide == NULL || pBufTele == NULL) {
+                LOGE("%s buf is null",(pBufWide == NULL) ? "wide" : "tele");
+                return UNEXPECTED_NULL;
+            }
             LOGH("snapshot frame len, wide:%d, tele:%d", pBufWide->frame_len, pBufTele->frame_len);
             qcamera_hal_pp_data_t *pInputData = pInputDataWide;
             if (pBufTele->frame_len > pBufWide->frame_len) {
@@ -390,7 +393,10 @@ int32_t QCameraDualFOVPP::process()
             dumpYUVtoFile((uint8_t *)main_snapshot_buf->buffer, frm_offset,
                     main_snapshot_buf->frame_idx, "wide");
         }
-
+        if (pAuxSnapshotStream == NULL) {
+            LOGE("pAuxSnapshotStream is NULL");
+            return UNEXPECTED_NULL;
+        }
         pAuxSnapshotStream->getFrameOffset(frm_offset);
         LOGI("<Tele> Stream type:%d, stride:%d, scanline:%d, frame len:%d",
                 pAuxSnapshotStream->getMyType(),
@@ -403,10 +409,6 @@ int32_t QCameraDualFOVPP::process()
 
         //Get input and output parameter
         dualfov_input_params_t inParams;
-        if (pAuxSnapshotStream == NULL) {
-            LOGE("pAuxSnapshotStream is NULL");
-            return UNEXPECTED_NULL;
-        }
         getInputParams(main_meta_buf, aux_meta_buf, pMainSnapshotStream, pAuxSnapshotStream,
                 inParams);
         dumpInputParams(inParams);
