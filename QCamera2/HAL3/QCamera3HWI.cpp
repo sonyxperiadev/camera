@@ -10076,6 +10076,15 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             custom_hfr_configs.array(), custom_hfr_configs.size());
     }
 
+    size_t eepromLength = strnlen(
+            reinterpret_cast<const char *>(
+                    gCamCapability[cameraId]->eeprom_version_info),
+            sizeof(gCamCapability[cameraId]->eeprom_version_info));
+    if (0 < eepromLength) {
+        staticInfo.update(NEXUS_EXPERIMENTAL_2017_EEPROM_VERSION_INFO,
+                gCamCapability[cameraId]->eeprom_version_info, eepromLength);
+    }
+
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
 }

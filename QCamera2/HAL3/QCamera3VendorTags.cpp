@@ -294,7 +294,8 @@ vendor_tag_info_t nexus_experimental_2016[NEXUS_EXPERIMENTAL_2016_END -
 
 vendor_tag_info_t nexus_experimental_2017[NEXUS_EXPERIMENTAL_2017_END -
         NEXUS_EXPERIMENTAL_2017_START] = {
-    { "request.disable_hdrplus", TYPE_INT32}
+    { "request.disable_hdrplus", TYPE_INT32},
+    { "sensorEepromInfo", TYPE_BYTE }
 };
 
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
@@ -453,6 +454,7 @@ uint32_t qcamera3_all_tags[] = {
 
     //NEXUS_EXPERIMENTAL_2017
     (uint32_t)NEXUS_EXPERIMENTAL_2017_DISABLE_HDRPLUS,
+    (uint32_t)NEXUS_EXPERIMENTAL_2017_EEPROM_VERSION_INFO,
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
