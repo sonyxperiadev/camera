@@ -7970,9 +7970,14 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             MIN(CAM_FILTER_DENSITIES_MAX, gCamCapability[cameraId]->filter_densities_count));
 
 
+    uint8_t available_opt_stab_modes[CAM_OPT_STAB_MAX];
+    size_t mode_count =
+        MIN((size_t)CAM_OPT_STAB_MAX, gCamCapability[cameraId]->optical_stab_modes_count);
+    for (size_t i = 0; i < mode_count; i++) {
+      available_opt_stab_modes[i] = gCamCapability[cameraId]->optical_stab_modes[i];
+    }
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,
-            (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
-            MIN((size_t)CAM_OPT_STAB_MAX, gCamCapability[cameraId]->optical_stab_modes_count));
+            available_opt_stab_modes, mode_count);
 
     int32_t lens_shading_map_size[] = {
             MIN(CAM_MAX_SHADING_MAP_WIDTH, gCamCapability[cameraId]->lens_shading_map_size.width),
