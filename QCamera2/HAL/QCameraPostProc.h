@@ -277,7 +277,6 @@ private:
     Vector<mm_camera_buf_def_t *> m_InputMetadata; // store input metadata buffers for AOST cases
     size_t m_PPindex;                   // counter for each incoming AOST buffer
     pthread_mutex_t m_reprocess_lock;   // lock to ensure reprocess job is not freed early.
-    cam_hal_pp_type_t m_halPPType;              // HAL Post process type
     QCameraHALPPManager *m_pHalPPManager;              // HAL Post process block
 
 public:

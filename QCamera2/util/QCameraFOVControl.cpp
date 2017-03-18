@@ -431,6 +431,7 @@ int32_t QCameraFOVControl::updateConfigSettings(
 
     if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
         // Tele is primary camera
+        mFovControlResult.isValid = true;
         mFovControlResult.camMasterPreview  = mFovControlData.camTele;
         mFovControlResult.camMaster3A  = mFovControlData.camTele;
         mFovControlResult.activeCameras =
@@ -532,7 +533,7 @@ int32_t QCameraFOVControl::updateConfigSettings(
             }
 
             // Set initial camera state
-            float zoom = findZoomRatio(mFovControlData.zoomWide) /
+            float zoom = findZoomRatio(mFovControlData.zoomUser) /
                     (float)mFovControlData.zoomRatioTable[0];
             if (zoom > mFovControlData.transitionParams.cutOverWideToTele) {
                 mFovControlResult.camMasterPreview  = mFovControlData.camTele;
@@ -1072,9 +1073,9 @@ void QCameraFOVControl::generateFovControlResult()
         return;
     }
 
-    float zoom = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
-    uint32_t zoomWide     = mFovControlData.zoomWide;
-    uint32_t zoomWidePrev = mFovControlData.zoomWidePrev;
+    float zoom = findZoomRatio(mFovControlData.zoomUser) / (float)mFovControlData.zoomRatioTable[0];
+    uint32_t zoomCur  = mFovControlData.zoomUser;
+    uint32_t zoomPrev = mFovControlData.zoomUserPrev;
 
     if (mFovControlData.configCompleted == false) {
         // Return as invalid result if the FOV-control configuration is not yet complete
@@ -1083,7 +1084,7 @@ void QCameraFOVControl::generateFovControlResult()
     }
 
     // Update previous zoom value
-    mFovControlData.zoomWidePrev = mFovControlData.zoomWide;
+    mFovControlData.zoomUserPrev = mFovControlData.zoomUser;
 
     uint16_t  currentLuxIdx     = 0;
     uint16_t  currentFocusDist  = 0;
@@ -1107,9 +1108,9 @@ void QCameraFOVControl::generateFovControlResult()
 
     dual_cam_state prevCamState = mFovControlData.camState;
 
-    if (zoomWide == zoomWidePrev) {
+    if (zoomCur == zoomPrev) {
         mFovControlData.zoomDirection = ZOOM_STABLE;
-    } else if (zoomWide > zoomWidePrev) {
+    } else if (zoomCur > zoomPrev) {
         mFovControlData.zoomDirection = ZOOM_IN;
     } else {
         mFovControlData.zoomDirection = ZOOM_OUT;
@@ -1409,7 +1410,7 @@ void QCameraFOVControl::generateFovControlResult()
     LOGD("Effective zoom: %f", zoom);
     LOGD("zoom direction: %s", ((mFovControlData.zoomDirection == ZOOM_STABLE) ? "STABLE" :
             ((mFovControlData.zoomDirection == ZOOM_IN) ? "IN" : "OUT")));
-    LOGD("zoomWide: %d, zoomTele: %d", zoomWide, mFovControlData.zoomTele);
+    LOGD("zoomWide: %d, zoomTele: %d", mFovControlData.zoomWide, mFovControlData.zoomTele);
     LOGD("Snapshot postprocess: %d", mFovControlResult.snapshotPostProcess);
     LOGD("Master camera            : %s", (mFovControlResult.camMasterPreview == CAM_TYPE_MAIN) ?
             "CAM_TYPE_MAIN" : "CAM_TYPE_AUX");
@@ -1488,7 +1489,7 @@ bool QCameraFOVControl::needDualZone()
     bool ret = false;
     cam_sync_type_t camWide = mFovControlData.camWide;
     cam_sync_type_t camTele = mFovControlData.camTele;
-    float zoom = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
+    float zoom = findZoomRatio(mFovControlData.zoomUser) / (float)mFovControlData.zoomRatioTable[0];
     float transitionLow  = mFovControlData.transitionParams.transitionLow;
     float transitionHigh = mFovControlData.transitionParams.transitionHigh;
     float cutoverWideToTele = mFovControlData.transitionParams.cutOverWideToTele;
@@ -1528,7 +1529,7 @@ bool QCameraFOVControl::canSwitchMasterTo(
         uint32_t cam)
 {
     bool ret = false;
-    float zoom = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
+    float zoom = findZoomRatio(mFovControlData.zoomUser) / (float)mFovControlData.zoomRatioTable[0];
     float cutOverWideToTele = mFovControlData.transitionParams.cutOverWideToTele;
     float cutOverTeleToWide = mFovControlData.transitionParams.cutOverTeleToWide;
 
@@ -2077,6 +2078,8 @@ void QCameraFOVControl::convertUserZoomToWideAndTele(
 {
     Mutex::Autolock lock(mMutex);
 
+    mFovControlData.zoomUser = zoom;
+
     // If the zoom translation library is present and initialized,
     // use it to get wide and tele zoom values
     if (mZoomTranslator && mZoomTranslator->isInitialized()) {
@@ -2125,7 +2128,7 @@ cam_roi_info_t QCameraFOVControl::translateFocusAreas(
     cam_roi_info_t roiAfTrans = roiAfMain;
     int32_t shiftHorzAdjusted;
     int32_t shiftVertAdjusted;
-    float zoom = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
+    float zoom = findZoomRatio(mFovControlData.zoomUser) / (float)mFovControlData.zoomRatioTable[0];
 
     zoomWide = findZoomRatio(mFovControlData.zoomWide);
     zoomTele = findZoomRatio(mFovControlData.zoomTele);
@@ -2229,7 +2232,7 @@ cam_set_aec_roi_t QCameraFOVControl::translateMeteringAreas(
     cam_set_aec_roi_t roiAecTrans = roiAecMain;
     int32_t shiftHorzAdjusted;
     int32_t shiftVertAdjusted;
-    float zoom = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
+    float zoom = findZoomRatio(mFovControlData.zoomUser) / (float)mFovControlData.zoomRatioTable[0];
 
     zoomWide = findZoomRatio(mFovControlData.zoomWide);
     zoomTele = findZoomRatio(mFovControlData.zoomTele);

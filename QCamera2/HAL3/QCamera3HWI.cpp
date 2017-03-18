@@ -418,6 +418,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mFirstConfiguration(true),
       mFlush(false),
       mFlushPerf(false),
+      mShouldSetSensorHdr(false),
       mParamHeap(NULL),
       mParameters(NULL),
       mPrevParameters(NULL),
@@ -3771,6 +3772,12 @@ bool QCamera3HardwareInterface::isHdrSnapshotRequest(camera3_capture_request *re
         return false;
     }
 
+    char property[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.sensor.hdr", property, "0");
+    int sensorHdr = atoi(property);
+    if (sensorHdr)
+        return false;
+
     if (!mForceHdrSnapshot) {
         CameraMetadata frame_settings;
         frame_settings = request->settings;
@@ -4366,6 +4373,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 LOGE("setHalFpsRange failed");
             }
         }
+        mShouldSetSensorHdr = true;
+        bool didSetSensorHdr = false;
         if (meta.exists(ANDROID_CONTROL_MODE)) {
             uint8_t metaMode = meta.find(ANDROID_CONTROL_MODE).data.u8[0];
             rc = extractSceneMode(meta, metaMode, mParameters);
@@ -4383,6 +4392,12 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 LOGE("setVideoHDR is failed");
             }
         }
+
+        // e.g. If we used video HDR in camcorder mode but are not using HDR in picture
+        // mode, sensor HDR should be disabled here
+        if (!didSetSensorHdr)
+            setSensorHDR(mParameters, false, false);
+        mShouldSetSensorHdr = false;
 
         //TODO: validate the arguments, HSV scenemode should have only the
         //advertised fps ranges
@@ -7970,9 +7985,14 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             MIN(CAM_FILTER_DENSITIES_MAX, gCamCapability[cameraId]->filter_densities_count));
 
 
+    uint8_t available_opt_stab_modes[CAM_OPT_STAB_MAX];
+    size_t mode_count =
+        MIN((size_t)CAM_OPT_STAB_MAX, gCamCapability[cameraId]->optical_stab_modes_count);
+    for (size_t i = 0; i < mode_count; i++) {
+      available_opt_stab_modes[i] = gCamCapability[cameraId]->optical_stab_modes[i];
+    }
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,
-            (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
-            MIN((size_t)CAM_OPT_STAB_MAX, gCamCapability[cameraId]->optical_stab_modes_count));
+            available_opt_stab_modes, mode_count);
 
     int32_t lens_shading_map_size[] = {
             MIN(CAM_MAX_SHADING_MAP_WIDTH, gCamCapability[cameraId]->lens_shading_map_size.width),
@@ -11933,7 +11953,9 @@ int32_t QCamera3HardwareInterface::setSensorHDR(
             break;
     }
 
-    if(isSupported) {
+    if(isSupported && mShouldSetSensorHdr) {
+        LOGD("send sensor HDR setting %d", sensor_hdr);
+        mShouldSetSensorHdr = false;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
                 CAM_INTF_PARM_SENSOR_HDR, sensor_hdr)) {
             rc = BAD_VALUE;

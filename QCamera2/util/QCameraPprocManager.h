@@ -74,6 +74,7 @@ public:
 
 private:
     static void *dataProcessRoutine(void *pData);
+    Mutex  mLock;
 
 protected:
     static void releaseDataCb(void *pData, void *pUserData);

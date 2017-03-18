@@ -1776,11 +1776,6 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
         mMetadataMem = NULL;
     }
 
-    if (m_pFovControl) {
-        delete m_pFovControl;
-        m_pFovControl = NULL;
-    }
-
     m_perfLockMgr.acquirePerfLock(PERF_LOCK_CLOSE_CAMERA);
     lockAPI();
     m_smThreadActive = false;
@@ -1788,6 +1783,11 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     m_stateMachine.releaseThread();
     closeCamera();
     m_perfLockMgr.releasePerfLock(PERF_LOCK_CLOSE_CAMERA);
+
+    if (m_pFovControl) {
+        delete m_pFovControl;
+        m_pFovControl = NULL;
+    }
 
     pthread_mutex_destroy(&m_lock);
     pthread_cond_destroy(&m_cond);
@@ -2830,7 +2830,11 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
             if (is4k2kResolution(&dim)) {
                  //get additional buffer count
                  property_get("vidc.enc.dcvs.extra-buff-count", value, "0");
-                 bufferCnt += atoi(value);
+                 persist_cnt = atoi(value);
+                 if (persist_cnt >= 0 &&
+                     persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM) {
+                     bufferCnt += persist_cnt;
+                 }
             }
         }
         break;
@@ -2887,7 +2891,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
     }
 
     LOGH("Buffer count = %d for stream type = %d", bufferCnt, stream_type);
-    if (CAM_MAX_NUM_BUFS_PER_STREAM < bufferCnt) {
+    if (bufferCnt < 0 || CAM_MAX_NUM_BUFS_PER_STREAM < bufferCnt) {
         LOGW("Buffer count %d for stream type %d exceeds limit %d",
                  bufferCnt, stream_type, CAM_MAX_NUM_BUFS_PER_STREAM);
         return CAM_MAX_NUM_BUFS_PER_STREAM;
@@ -3536,7 +3540,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     }
     streamInfo->aux_str_info = NULL;
 
-    LOGH("type %d, fmt %d, dim %dx%d, num_bufs %d mask = 0x%x is_type %d\n",
+    LOGH("type %d, fmt %d, dim %dx%d, num_bufs %d mask = 0x%llx is_type %d\n",
            stream_type, streamInfo->fmt, streamInfo->dim.width,
            streamInfo->dim.height, streamInfo->num_bufs,
            streamInfo->pp_config.feature_mask,
@@ -4017,6 +4021,9 @@ int QCamera2HardwareInterface::stopPreview()
     LOGI("E");
     mNumPreviewFaces = -1;
     mActiveAF = false;
+
+    // Wake up both sensors before stopping preview
+    mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
 
     // Disable power Hint for preview
     m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);
