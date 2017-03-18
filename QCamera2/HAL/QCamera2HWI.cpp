@@ -1776,11 +1776,6 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
         mMetadataMem = NULL;
     }
 
-    if (m_pFovControl) {
-        delete m_pFovControl;
-        m_pFovControl = NULL;
-    }
-
     m_perfLockMgr.acquirePerfLock(PERF_LOCK_CLOSE_CAMERA);
     lockAPI();
     m_smThreadActive = false;
@@ -1788,6 +1783,11 @@ QCamera2HardwareInterface::~QCamera2HardwareInterface()
     m_stateMachine.releaseThread();
     closeCamera();
     m_perfLockMgr.releasePerfLock(PERF_LOCK_CLOSE_CAMERA);
+
+    if (m_pFovControl) {
+        delete m_pFovControl;
+        m_pFovControl = NULL;
+    }
 
     pthread_mutex_destroy(&m_lock);
     pthread_cond_destroy(&m_cond);

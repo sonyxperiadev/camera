@@ -128,9 +128,10 @@ typedef struct {
 
 typedef struct {
     bool                         configCompleted;
+    uint32_t                     zoomUser;
     uint32_t                     zoomWide;
     uint32_t                     zoomTele;
-    uint32_t                     zoomWidePrev;
+    uint32_t                     zoomUserPrev;
     uint32_t                    *zoomRatioTable;
     uint32_t                     zoomRatioTableCount;
     dual_cam_zoom_dir            zoomDirection;
