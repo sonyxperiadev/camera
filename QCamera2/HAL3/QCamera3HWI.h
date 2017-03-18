@@ -431,6 +431,7 @@ private:
     bool mFlushPerf;
     bool mEnableRawDump;
     bool mForceHdrSnapshot;
+    bool mShouldSetSensorHdr;
     QCamera3HeapMemory *mParamHeap;
     metadata_buffer_t* mParameters;
     metadata_buffer_t* mPrevParameters;
