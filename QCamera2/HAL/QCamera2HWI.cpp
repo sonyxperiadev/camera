@@ -3481,16 +3481,11 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
         } else {
             streamInfo->is_secure = NON_SECURE;
         }
-        // If SAT enabled, don't add preview stream to Bundled queue
-        if (isDualCamera()) {
-            char prop[PROPERTY_VALUE_MAX];
-            memset(prop, 0, sizeof(prop));
-            bool satEnabledFlag = FALSE;
-            property_get("persist.camera.sat.enable", prop, "0");
-            satEnabledFlag = atoi(prop);
-            if (satEnabledFlag || (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
-                streamInfo->noFrameExpected = 1;
-            }
+        // If DualCamera, Avoid Preview in snapshot super buf bundling as correction will be
+        // different in preview and snapshot path and so, thumbnail is generated from main image
+        if (isDualCamera() && mParameters.generateThumbFromMain()) {
+            streamInfo->noFrameExpected = 1;
+            LOGH("Avoid Preview stream in snapshot super buf bundle");
         }
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
@@ -4501,7 +4496,6 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
         return rc;
     }
     /*Enable Quadra CFA mode*/
-    LOGH("Enabling Quadra CFA mode");
     mParameters.setQuadraCfaMode(true, true);
 
     setOutputImageCount(0);

@@ -782,6 +782,13 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
             if (spatialAlignOutput->is_ready_status_valid) {
                 mFovControlData.spatialAlignResult.readyStatus = spatialAlignOutput->ready_status;
             }
+
+            LOGD("master_hint_valid %d masterCam %d FBcomplete %d camMaster3A %d readyStatus %d",
+                    mFovControlData.spatialAlignResult.camMasterHint,
+                    mFovControlData.spatialAlignResult.camMasterPreview,
+                    mFovControlData.spatialAlignResult.fallbackComplete,
+                    mFovControlData.spatialAlignResult.camMaster3A,
+                    mFovControlData.spatialAlignResult.readyStatus);
         }
 
         metadata_buffer_t *metaWide = isMainCamFovWider() ? metaMain : metaAux;
@@ -1614,6 +1621,7 @@ bool QCameraFOVControl::canSwitchMasterTo(
     } else {
         LOGE("Request to switch to invalid cam type");
     }
+    LOGD("zoom: %f cam %d ret %d", zoom, cam, ret);
     return ret;
 }
 
@@ -1656,6 +1664,7 @@ bool QCameraFOVControl::isSpatialAlignmentReady()
         }
     }
 
+    LOGD("Switching ready status %d", ret);
     return ret;
 }
 
