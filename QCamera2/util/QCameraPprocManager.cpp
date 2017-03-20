@@ -206,6 +206,7 @@ int32_t QCameraHALPPManager::stop()
     int32_t rc = NO_ERROR;
     LOGH("E");
     if (m_bStarted) {
+        Mutex::Autolock l(mLock);
         m_pprocTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
         m_bStarted = false;
     }
@@ -396,7 +397,7 @@ mm_camera_buf_def_t* QCameraHALPPManager::getMetadataBuf(qcamera_hal_pp_data_t *
 {
     LOGH("E");
     mm_camera_buf_def_t *pBufDef = NULL;
-    if (pData == NULL) {
+    if ((pData == NULL) ||(pData->src_reproc_frame == NULL)) {
         LOGE("Cannot find input frame super buffer");
         return pBufDef;
     }
@@ -408,8 +409,7 @@ mm_camera_buf_def_t* QCameraHALPPManager::getMetadataBuf(qcamera_hal_pp_data_t *
             LOGE("Cannot find src_reproc_frame channel");
             return pBufDef;
     }
-    for (uint32_t i = 0;  pData->src_reproc_frame &&
-            (i < pData->src_reproc_frame->num_bufs); i++) {
+    for (uint32_t i = 0;  i < pData->src_reproc_frame->num_bufs; i++) {
         pMetadataStream = pChannel->getStreamByHandle(pData->src_reproc_frame->bufs[i]->stream_id);
         if (pData->src_reproc_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
             pBufDef = pData->src_reproc_frame->bufs[i];
@@ -529,6 +529,7 @@ void *QCameraHALPPManager::dataProcessRoutine(void *pData)
                 //m_outgoingQ->flush();
                 // flush m_halPP
                 if (pme->m_pPprocModule != NULL) {
+                    pme->m_pPprocModule->stop();
                     pme->m_pPprocModule->flushQ();
                 }
                 // signal cmd is completed
@@ -542,12 +543,18 @@ void *QCameraHALPPManager::dataProcessRoutine(void *pData)
                     // Feed Input buffer to PP module
                     qcamera_hal_pp_data_t* inputJob =
                         (qcamera_hal_pp_data_t*)pme->m_inputQ.dequeue();
-                    if(inputJob != NULL) {
-                        ret = pme->m_pPprocModule->feedInput(inputJob);
-                    }
                     // Process HAL PP data if ready
                     if (pme->m_pPprocModule != NULL) {
-                        pme->m_pPprocModule->process();
+                        if(inputJob != NULL) {
+                            ret = pme->m_pPprocModule->feedInput(inputJob);
+                            if (ret != NO_ERROR) {
+                                LOGE("Error feeding input to HAL PP!!");
+                            }
+                        }
+                        {
+                            Mutex::Autolock l(pme->mLock);
+                            pme->m_pPprocModule->process();
+                        }
                     }
                 }
             }

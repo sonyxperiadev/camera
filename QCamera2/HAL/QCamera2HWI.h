@@ -365,7 +365,8 @@ private:
     int processEvt(qcamera_sm_evt_enum_t evt, void *evt_payload);
     int processSyncEvt(qcamera_sm_evt_enum_t evt, void *evt_payload);
     void lockAPI();
-    void waitAPIResult(qcamera_sm_evt_enum_t api_evt, qcamera_api_result_t *apiResult);
+    void waitAPIResult(qcamera_sm_evt_enum_t api_evt,
+            qcamera_api_result_t *apiResult, int timeoutSec = -1);
     void unlockAPI();
     void signalAPIResult(qcamera_api_result_t *result);
     void signalEvtResult(qcamera_api_result_t *result);
@@ -604,9 +605,12 @@ private:
             uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     uint32_t getCamHandleForChannel(qcamera_ch_type_enum_t ch_type);
     int32_t switchCameraCb(uint32_t camMaster);
-    int32_t processCameraControl(uint32_t camState, bool bundledSnapshot);
+    int32_t processCameraControl(uint32_t camState, bool bundledSnapshot,
+            cam_fallback_mode_t fallbackMode);
     bool needSyncCB(cam_stream_type_t stream_type);
     uint32_t getSnapshotHandle();
+    void initDCSettings();
+    void updateDCSettings();
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
@@ -614,6 +618,7 @@ private:
     uint32_t mActiveCameras;
     uint32_t mMasterCamera;
     bool mBundledSnapshot;
+    cam_fallback_mode_t mFallbackMode;
     bool mCameraOpened;
     bool mDualCamera;
     QCameraFOVControl *m_pFovControl;

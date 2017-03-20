@@ -108,6 +108,13 @@ namespace qcamera {
 
 #define TIMEOUT_NEVER -1
 
+/* Face rect indices */
+#define FACE_LEFT              0
+#define FACE_TOP               1
+#define FACE_RIGHT             2
+#define FACE_BOTTOM            3
+#define FACE_WEIGHT            4
+
 /* Face landmarks indices */
 #define LEFT_EYE_X             0
 #define LEFT_EYE_Y             1
@@ -411,6 +418,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mFirstConfiguration(true),
       mFlush(false),
       mFlushPerf(false),
+      mShouldSetSensorHdr(false),
       mParamHeap(NULL),
       mParameters(NULL),
       mPrevParameters(NULL),
@@ -1573,7 +1581,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     cam_padding_info_t padding_info = gCamCapability[mCameraId]->padding_info;
 
     /*EIS configuration*/
-    bool oisSupported = false;
     uint8_t eis_prop_set;
     uint32_t maxEisWidth = 0;
     uint32_t maxEisHeight = 0;
@@ -1598,14 +1605,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             break;
         }
     }
-    count = CAM_OPT_STAB_MAX;
-    count = MIN(gCamCapability[mCameraId]->optical_stab_modes_count, count);
-    for (size_t i = 0; i < count; i++) {
-        if (gCamCapability[mCameraId]->optical_stab_modes[i] ==  CAM_OPT_STAB_ON) {
-            oisSupported = true;
-            break;
-        }
-    }
 
     if (m_bEisSupported) {
         maxEisWidth = MAX_EIS_WIDTH;
@@ -1618,11 +1617,11 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     property_get("persist.camera.eis.enable", eis_prop, "1");
     eis_prop_set = (uint8_t)atoi(eis_prop);
 
-    m_bEisEnable = eis_prop_set && (!oisSupported && m_bEisSupported) &&
+    m_bEisEnable = eis_prop_set && m_bEisSupported &&
             (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE);
 
-    LOGD("m_bEisEnable: %d, eis_prop_set: %d, m_bEisSupported: %d, oisSupported:%d ",
-            m_bEisEnable, eis_prop_set, m_bEisSupported, oisSupported);
+    LOGD("m_bEisEnable: %d, eis_prop_set: %d, m_bEisSupported: %d",
+            m_bEisEnable, eis_prop_set, m_bEisSupported);
 
     /* stream configurations */
     for (size_t i = 0; i < streamList->num_streams; i++) {
@@ -3764,6 +3763,12 @@ bool QCamera3HardwareInterface::isHdrSnapshotRequest(camera3_capture_request *re
         return false;
     }
 
+    char property[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.sensor.hdr", property, "0");
+    int sensorHdr = atoi(property);
+    if (sensorHdr)
+        return false;
+
     if (!mForceHdrSnapshot) {
         CameraMetadata frame_settings;
         frame_settings = request->settings;
@@ -4359,6 +4364,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 LOGE("setHalFpsRange failed");
             }
         }
+        mShouldSetSensorHdr = true;
+        bool didSetSensorHdr = false;
         if (meta.exists(ANDROID_CONTROL_MODE)) {
             uint8_t metaMode = meta.find(ANDROID_CONTROL_MODE).data.u8[0];
             rc = extractSceneMode(meta, metaMode, mParameters);
@@ -4376,6 +4383,12 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 LOGE("setVideoHDR is failed");
             }
         }
+
+        // e.g. If we used video HDR in camcorder mode but are not using HDR in picture
+        // mode, sensor HDR should be disabled here
+        if (!didSetSensorHdr)
+            setSensorHDR(mParameters, false, false);
+        mShouldSetSensorHdr = false;
 
         //TODO: validate the arguments, HSV scenemode should have only the
         //advertised fps ranges
@@ -4734,6 +4747,7 @@ no_error:
     }
 
     if (blob_request) {
+        LOGI("[KPI Perf] : PROFILE_SNAPSHOT_REQUEST_RECEIVED");
         KPI_ATRACE_CAMSCOPE_INT("SNAPSHOT", CAMSCOPE_HAL3_SNAPSHOT, 1);
         mPerfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
     }
@@ -6038,6 +6052,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         convertToRegions(faceDetectionInfo->faces[i].face_boundary,
                                 faceRectangles+j, -1);
 
+                        LOGL("FD_DEBUG : Frame[%d] Face[%d] : top-left (%d, %d), "
+                                "bottom-right (%d, %d)",
+                                faceDetectionInfo->frame_id, i,
+                                faceRectangles[j + FACE_LEFT], faceRectangles[j + FACE_TOP],
+                                faceRectangles[j + FACE_RIGHT], faceRectangles[j + FACE_BOTTOM]);
+
                         j+= 4;
                     }
                     if (numFaces <= 0) {
@@ -6070,6 +6090,17 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                         landmarks->face_landmarks[i].mouth_center.y);
 
                                 convertLandmarks(landmarks->face_landmarks[i], faceLandmarks+k);
+
+                                LOGL("FD_DEBUG LANDMARK : Frame[%d] Face[%d] : "
+                                        "left-eye (%d, %d), right-eye (%d, %d), mouth (%d, %d)",
+                                        faceDetectionInfo->frame_id, i,
+                                        faceLandmarks[k + LEFT_EYE_X],
+                                        faceLandmarks[k + LEFT_EYE_Y],
+                                        faceLandmarks[k + RIGHT_EYE_X],
+                                        faceLandmarks[k + RIGHT_EYE_Y],
+                                        faceLandmarks[k + MOUTH_X],
+                                        faceLandmarks[k + MOUTH_Y]);
+
                                 k+= TOTAL_LANDMARK_INDICES;
                             }
                         } else {
@@ -6091,6 +6122,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             detected[i] = blinks->blink[i].blink_detected;
                             degree[2 * i] = blinks->blink[i].left_blink;
                             degree[2 * i + 1] = blinks->blink[i].right_blink;
+
+                        LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
+                                "blink_detected=%d, leye_blink=%d, reye_blink=%d",
+                                faceDetectionInfo->frame_id, i, detected[i], degree[2 * i],
+                                degree[2 * i + 1]);
                         }
                         camMetadata.update(QCAMERA3_STATS_BLINK_DETECTED,
                                 detected, numFaces);
@@ -6104,6 +6140,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         for (size_t i = 0; i < numFaces; i++) {
                             degree[i] = smiles->smile[i].smile_degree;
                             confidence[i] = smiles->smile[i].smile_confidence;
+
+                        LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
+                                "smile_degree=%d, smile_score=%d",
+                                faceDetectionInfo->frame_id, i, degree[i], confidence[i]);
                         }
                         camMetadata.update(QCAMERA3_STATS_SMILE_DEGREE,
                                 degree, numFaces);
@@ -6122,6 +6162,14 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             direction[3 * i + 2] = gazes->gaze[i].roll_dir;
                             degree[2 * i] = gazes->gaze[i].left_right_gaze;
                             degree[2 * i + 1] = gazes->gaze[i].top_bottom_gaze;
+
+                            LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : gaze_angle=%d, "
+                                    "updown_dir=%d, leftright_dir=%d,, roll_dir=%d, "
+                                    "left_right_gaze=%d, top_bottom_gaze=%d",
+                                    faceDetectionInfo->frame_id, i, angle[i],
+                                    direction[3 * i], direction[3 * i + 1],
+                                    direction[3 * i + 2],
+                                    degree[2 * i], degree[2 * i + 1]);
                         }
                         camMetadata.update(QCAMERA3_STATS_GAZE_ANGLE,
                                 (uint8_t *)angle, numFaces);
@@ -7309,12 +7357,12 @@ void QCamera3HardwareInterface::extractJpegMetadata(
 void QCamera3HardwareInterface::convertToRegions(cam_rect_t rect,
         int32_t *region, int weight)
 {
-    region[0] = rect.left;
-    region[1] = rect.top;
-    region[2] = rect.left + rect.width;
-    region[3] = rect.top + rect.height;
+    region[FACE_LEFT] = rect.left;
+    region[FACE_TOP] = rect.top;
+    region[FACE_RIGHT] = rect.left + rect.width;
+    region[FACE_BOTTOM] = rect.top + rect.height;
     if (weight > -1) {
-        region[4] = weight;
+        region[FACE_WEIGHT] = weight;
     }
 }
 
@@ -7928,9 +7976,14 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             MIN(CAM_FILTER_DENSITIES_MAX, gCamCapability[cameraId]->filter_densities_count));
 
 
+    uint8_t available_opt_stab_modes[CAM_OPT_STAB_MAX];
+    size_t mode_count =
+        MIN((size_t)CAM_OPT_STAB_MAX, gCamCapability[cameraId]->optical_stab_modes_count);
+    for (size_t i = 0; i < mode_count; i++) {
+      available_opt_stab_modes[i] = gCamCapability[cameraId]->optical_stab_modes[i];
+    }
     staticInfo.update(ANDROID_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,
-            (uint8_t *)gCamCapability[cameraId]->optical_stab_modes,
-            MIN((size_t)CAM_OPT_STAB_MAX, gCamCapability[cameraId]->optical_stab_modes_count));
+            available_opt_stab_modes, mode_count);
 
     int32_t lens_shading_map_size[] = {
             MIN(CAM_MAX_SHADING_MAP_WIDTH, gCamCapability[cameraId]->lens_shading_map_size.width),
@@ -11891,7 +11944,9 @@ int32_t QCamera3HardwareInterface::setSensorHDR(
             break;
     }
 
-    if(isSupported) {
+    if(isSupported && mShouldSetSensorHdr) {
+        LOGD("send sensor HDR setting %d", sensor_hdr);
+        mShouldSetSensorHdr = false;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
                 CAM_INTF_PARM_SENSOR_HDR, sensor_hdr)) {
             rc = BAD_VALUE;

@@ -2188,7 +2188,7 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
 
     IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, pMetaData) {
         if (isDualCamera()) {
-            if ((mActiveCameras == MM_CAMERA_DUAL_CAM) && m_bNeedHalPP) {
+            if (m_bNeedHalPP) {
                 crop_data->ignore_crop = 1; // CPP ignores the crop in this special zone
                 // Set the margins to 0.
                 crop_data->margins.widthMargins  = 0.0f;
@@ -2298,7 +2298,6 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
         if (resultMetadata != NULL) {
             pMetaData = resultMetadata;
         } else {
-            LOGE("FOV-control: processResultMetadata failed.");
             stream->bufDone(super_frame);
             free(super_frame);
             return;
@@ -3301,7 +3300,7 @@ void QCamera2HardwareInterface::fillFacesData(cam_faces_data_t &faces_data,
             faces_data.detection_data.num_faces_detected = MAX_ROI;
         }
 
-        LOGH("[KPI Perf] PROFILE_NUMBER_OF_FACES_DETECTED %d",
+        LOGH("[KPI Perf] FD_DEBUG : NUMBER_OF_FACES_DETECTED %d",
                 faces_data.detection_data.num_faces_detected);
 
         IF_META_AVAILABLE(cam_face_recog_data_t, p_recog_data,
