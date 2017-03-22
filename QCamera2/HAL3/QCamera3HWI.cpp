@@ -6864,6 +6864,8 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
     IF_META_AVAILABLE(int32_t, flip, CAM_INTF_PARM_FLIP, metadata) {
         memcpy(&(repro_info.pipeline_flip), flip, sizeof(int32_t));
+    } else {
+        memcpy(&(repro_info.pipeline_flip), &gCamCapability[mCameraId]->sensor_rotation, sizeof(int32_t));
     }
     IF_META_AVAILABLE(cam_rotation_info_t, rotationInfo,
             CAM_INTF_PARM_ROTATION, metadata) {
