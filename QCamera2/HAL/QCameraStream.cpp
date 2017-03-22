@@ -2973,7 +2973,8 @@ int32_t QCameraStream::setBundleInfo()
 
     if ((isTypeOf(CAM_STREAM_TYPE_METADATA))
             || (isTypeOf(CAM_STREAM_TYPE_OFFLINE_PROC))
-            || (isTypeOf(CAM_STREAM_TYPE_ANALYSIS))) {
+            || (isTypeOf(CAM_STREAM_TYPE_ANALYSIS) &&
+            mStreamInfo->bNoBundling)) {
         // Skip metadata for reprocess now because PP module cannot handle meta data
         // May need furthur discussion if Imaginglib need meta data
         return ret;
