@@ -670,6 +670,9 @@ typedef struct cam_capability{
 
     /*Available Spatial Alignment solutions*/
     uint32_t avail_spatial_align_solns;
+
+    /* sensor rotation */
+    int32_t sensor_rotation;
 } cam_capability_t;
 
 typedef enum {
