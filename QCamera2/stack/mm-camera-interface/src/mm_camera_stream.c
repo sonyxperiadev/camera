@@ -2321,8 +2321,9 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
             }
         }
     }
-    if (0 != rc) {
+    if (0 != rc || ((my_obj->buf_num > 0) && (NULL == my_obj->buf))) {
         LOGE("Error get buf, rc = %d\n", rc);
+        rc =-1;
         return rc;
     }
 
