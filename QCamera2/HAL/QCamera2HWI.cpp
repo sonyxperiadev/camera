@@ -4018,7 +4018,9 @@ int QCamera2HardwareInterface::stopPreview()
     mActiveAF = false;
 
     // Wake up both sensors before stopping preview
-    mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+    if (isDualCamera()) {
+        mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+    }
 
     // Disable power Hint for preview
     m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);

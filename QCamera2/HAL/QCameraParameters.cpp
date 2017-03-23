@@ -1074,6 +1074,7 @@ QCameraParameters::QCameraParameters()
     m_bBokehMode = 0;
     m_bBokehBlurLevel = 0;
     m_bBokehMpoEnabled = 0;
+    lpmEnable = false;
 }
 
 /*===========================================================================
@@ -1202,6 +1203,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bBokehMode = 0;
     m_bBokehBlurLevel = 0;
     m_bBokehMpoEnabled = 0;
+    lpmEnable = false;
 }
 
 /*===========================================================================
