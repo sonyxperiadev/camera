@@ -367,10 +367,14 @@ void QCameraFOVControl::resetVars()
 {
     // Copy the FOV-control settings for camera/camcorder from QCameraFOVControlSettings.h
     if (mFovControlData.camcorderMode) {
+        // Disable snapshot post-processing if two cameras have no sync mechanism.
         mFovControlConfig.snapshotPPConfig.enablePostProcess =
-                FOVC_CAMCORDER_SNAPSHOT_PP_ENABLE;
+                (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) ?
+                    0 : FOVC_CAMCORDER_SNAPSHOT_PP_ENABLE;
     } else {
-        mFovControlConfig.snapshotPPConfig.enablePostProcess = FOVC_CAM_SNAPSHOT_PP_ENABLE;
+        // Disable snapshot post-processing if two cameras have no sync mechanism.
+        mFovControlConfig.snapshotPPConfig.enablePostProcess =
+                (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) ? 0 : FOVC_CAM_SNAPSHOT_PP_ENABLE;
         mFovControlConfig.snapshotPPConfig.zoomMin           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MIN;
         mFovControlConfig.snapshotPPConfig.zoomMax           = FOVC_CAM_SNAPSHOT_PP_ZOOM_MAX;
         mFovControlConfig.snapshotPPConfig.LuxIdxMax         = FOVC_CAM_SNAPSHOT_PP_LUX_IDX_MAX;
@@ -387,8 +391,8 @@ void QCameraFOVControl::resetVars()
     mFovControlConfig.constZoomTimeoutSnapshotPPRange = FOVC_CONSTZOOM_SNAPSHOT_PP_RANGE_TIMEOUT_MS;
 
     // Reset variables
-    mFovControlData.zoomDirection         = ZOOM_STABLE;
-    mFovControlData.fallbackToWide        = false;
+    mFovControlData.zoomDirection  = ZOOM_STABLE;
+    mFovControlData.fallbackToWide = false;
 
     mFovControlData.afStatusMain = CAM_AF_STATE_INACTIVE;
     mFovControlData.afStatusAux  = CAM_AF_STATE_INACTIVE;

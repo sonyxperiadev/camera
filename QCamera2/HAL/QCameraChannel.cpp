@@ -1701,7 +1701,7 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
                                     crop->crop_info[crop->num_of_streams].roi_map =
                                             crop->crop_info[j].roi_map;
                                     for (uint8_t k = 0; k < mStreams.size(); k++) {
-                                        if (srcStream->getMyType() ==
+                                        if (srcStream->getMyOriginalType() ==
                                                 mStreams[k]->getMyOriginalType()) {
                                             crop->crop_info[crop->num_of_streams].stream_id =
                                                     mStreams[k]->getMyServerID();
