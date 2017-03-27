@@ -67,7 +67,7 @@ typedef enum {
 
 
 typedef enum {
-    FOVCONTROL_FLAG_TAKE_BUNDLED_SNAPSHOT = 0,
+    FOVCONTROL_FLAG_FORCE_CAMERA_WAKEUP = 0,
     FOVCONTROL_FLAG_THERMAL_THROTTLE,
     FOVCONTROL_FLAG_COUNT
 } fov_control_flag;
@@ -161,7 +161,7 @@ typedef struct {
     dual_cam_transition_params_t transitionParams;
     uint32_t                     afStatusMain;
     uint32_t                     afStatusAux;
-    bool                         takeBundledSnapshot;
+    bool                         forceCameraWakeup;
     bool                         thermalThrottle;
     bool                         lpmEnabled;
     uint8_t                      oisSetting;
