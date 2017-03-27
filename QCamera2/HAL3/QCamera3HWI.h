@@ -388,7 +388,7 @@ private:
 
     bool isOnEncoder(const cam_dimension_t max_viewfinder_size,
             uint32_t width, uint32_t height);
-    void restoreHdrScene(uint8_t sceneMode, const camera_metadata_t *result);
+    camera_metadata_t* restoreHdrScene(uint8_t sceneMode, const camera_metadata_t *result);
     void hdrPlusPerfLock(mm_camera_super_buf_t *metadata_buf);
 
     static bool supportBurstCapture(uint32_t cameraId);
