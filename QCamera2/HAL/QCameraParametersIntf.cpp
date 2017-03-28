@@ -1581,4 +1581,12 @@ void QCameraParametersIntf::initDCSettings(int32_t state, uint32_t camMaster,
     mImpl->initDCSettings(state, camMaster, bundleSnapshot, fallback);
 }
 
+bool QCameraParametersIntf::isDCHWSyncEnabled()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isDCHWSyncEnabled();
+}
+
+
 }; // namespace qcamera

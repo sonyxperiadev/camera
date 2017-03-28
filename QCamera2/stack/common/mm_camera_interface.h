@@ -400,6 +400,7 @@ typedef struct {
     uint8_t enable_frame_sync;
     mm_camera_super_buf_priority_t priority;
     uint8_t user_expected_frame_id;
+    uint8_t need_frame_sync_cb;
 } mm_camera_channel_attr_t;
 
 /** mm_camera_cb_req_type: Callback request type**/
