@@ -356,7 +356,7 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
             LOGH("FrameID Request from Q = %d", cmd_cb->u.req_buf.frame_idx);
         }
 
-        LOGH("pending cnt (%d)", ch_obj->pending_cnt);
+        LOGH("pending cnt (%d) my_num %d", ch_obj->pending_cnt, ch_obj->cam_obj->my_num);
         if (!ch_obj->pending_cnt || (ch_obj->pending_retro_cnt > ch_obj->pending_cnt)) {
           ch_obj->pending_retro_cnt = ch_obj->pending_cnt;
         }
@@ -381,6 +381,8 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
         ch_obj->bundle.superbuf_queue.expected_frame_id = cmd_cb->u.flush_cmd.frame_idx;
         mm_channel_superbuf_flush(ch_obj,
                 &ch_obj->bundle.superbuf_queue, cmd_cb->u.flush_cmd.stream_type);
+        LOGH("Flush with Expected ID %d, my_num %d", cmd_cb->u.flush_cmd.frame_idx,
+                ch_obj->cam_obj->my_num);
         if (m_obj->frame_sync.is_active) {
             cam_sem_wait(&(m_obj->cb_thread.sync_sem));
         }
@@ -538,9 +540,10 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
     /* bufdone for overflowed bufs */
     mm_channel_superbuf_bufdone_overflow(ch_obj, &ch_obj->bundle.superbuf_queue);
 
-    LOGD("Super Buffer received, pending_cnt=%d queue cnt = %d expected = %d",
+    LOGD("Super Buffer received, pending_cnt=%d queue cnt = %d expected = %d my_num %d",
             ch_obj->pending_cnt, ch_obj->bundle.superbuf_queue.match_cnt,
-            ch_obj->bundle.superbuf_queue.expected_frame_id);
+            ch_obj->bundle.superbuf_queue.expected_frame_id,
+            ch_obj->cam_obj->my_num);
 
     /* dispatch frame if pending_cnt>0 or is in continuous streaming mode */
     while ((((ch_obj->pending_cnt > 0) ||
@@ -548,6 +551,11 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
              (!ch_obj->bWaitForPrepSnapshotDone))
              || (m_obj->frame_sync.is_active)) {
         uint8_t trigger_cb = 0;
+
+        LOGD("Inside while Loop ch_obj->pending_cnt %d, notify_mode %d, frame_sync %d",
+                ch_obj->pending_cnt,
+                notify_mode,
+                m_obj->frame_sync.is_active);
 
         /* dequeue */
         mm_channel_node_info_t info;
@@ -690,6 +698,7 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
 
             if (trigger_cb) {
                 trigger_cb = 0;
+                LOGH("Request super buffer from Muxer");
                 mm_channel_send_frame_sync_req_buf(ch_obj);
             }
         } else {
@@ -3208,12 +3217,14 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
                         }
                     }
                     queue->que.size--;
+                    last_buf_ptr = last_buf_ptr->next;
                     cam_list_del_node(&node->list);
                     free(node);
                     free(super_buf);
                     unmatched_bundles--;
+                } else {
+                    last_buf_ptr = last_buf_ptr->next;
                 }
-                last_buf_ptr = last_buf_ptr->next;
             }
 
             if (queue->attr.max_unmatched_frames < unmatched_bundles) {

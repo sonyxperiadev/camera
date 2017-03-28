@@ -131,6 +131,7 @@ public:
     void cond_wait();
     void cond_signal(bool forceExit = false);
 
+    void initDCSettings(int32_t state, uint32_t camMaster);
     int32_t setSyncDataCB(stream_cb_routine data_cb);
     int32_t setBundleInfo();
     int32_t switchStreamCb(uint32_t camMaster);
