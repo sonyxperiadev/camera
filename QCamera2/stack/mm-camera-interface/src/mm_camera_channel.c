@@ -1734,9 +1734,12 @@ int32_t mm_channel_get_bundle_info(mm_channel_t *my_obj,
                                                           my_obj->streams[i].my_hdl);
             if (NULL != s_obj) {
                 stream_type = s_obj->stream_info->stream_type;
-                if ((CAM_STREAM_TYPE_METADATA != stream_type) &&
-                        (CAM_STREAM_TYPE_ANALYSIS != stream_type) &&
-                        (s_obj->ch_obj == my_obj)) {
+                if (((CAM_STREAM_TYPE_ANALYSIS == stream_type) &&
+                        (s_obj->stream_info->bNoBundling))||
+                        (CAM_STREAM_TYPE_METADATA == stream_type) ||
+                        (s_obj->ch_obj != my_obj)) {
+                    LOGD("Don't bundle stream type %d", stream_type);
+                } else {
                     bundle_info->stream_ids[bundle_info->num_of_streams++] =
                                                         s_obj->server_stream_id;
                 }
