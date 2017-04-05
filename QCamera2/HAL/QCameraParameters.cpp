@@ -12893,6 +12893,11 @@ int32_t QCameraParameters::getRelatedCamCalibration(
  *==========================================================================*/
 void QCameraParameters::setSyncDCParams()
 {
+    if (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) {
+        mSyncDCParam = 0;
+        return;
+    }
+
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
 

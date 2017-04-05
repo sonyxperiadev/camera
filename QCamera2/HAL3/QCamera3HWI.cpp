@@ -565,6 +565,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
                 &m_pDualCamCmdPtr->bundle_info;
         m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
         m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+        m_pRelCamSyncBuf->sync_mechanism = CAM_SYNC_NO_SYNC;
         pthread_mutex_lock(&gCamLock);
 
         if (mIsMainCamera == 1) {
@@ -4544,10 +4545,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
             cam_dual_camera_bundle_info_t *m_pRelCamSyncBuf =
                     &m_pDualCamCmdPtr->bundle_info;
             m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
-            if (mIsDeviceLinked)
+            if (mIsDeviceLinked) {
                 m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_ON;
-            else
+                m_pRelCamSyncBuf->sync_mechanism = CAM_SYNC_HW_SYNC;
+            } else {
                 m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+                m_pRelCamSyncBuf->sync_mechanism = CAM_SYNC_NO_SYNC;
+            }
 
             pthread_mutex_lock(&gCamLock);
 
@@ -5327,6 +5331,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
                 &m_pDualCamCmdPtr->bundle_info;
         m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
         m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+        m_pRelCamSyncBuf->sync_mechanism = CAM_SYNC_NO_SYNC;
         pthread_mutex_lock(&gCamLock);
 
         if (mIsMainCamera == 1) {
