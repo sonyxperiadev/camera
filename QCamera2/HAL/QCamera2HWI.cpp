@@ -4289,6 +4289,10 @@ int QCamera2HardwareInterface::autoFocus()
     case CAM_FOCUS_MODE_CONTINOUS_VIDEO:
     case CAM_FOCUS_MODE_CONTINOUS_PICTURE:
         mActiveAF = true;
+        if (isDualCamera() && mBundledSnapshot) {
+            // Force the cameras to stream for auto focus on both
+            forceCameraWakeup();
+        }
         LOGI("Send AUTO FOCUS event. focusMode=%d, m_currentFocusState=%d",
                 focusMode, m_currentFocusState);
         rc = mCameraHandle->ops->do_auto_focus(mCameraHandle->camera_handle);
@@ -5017,15 +5021,10 @@ int QCamera2HardwareInterface::takePicture()
     }
 
     if (mBundledSnapshot) {
-        // Indicate FOV-control about the bundled snapshot with only one camera in active state
+        // Force both the cameras to stream to get the bundled snapshot
         if (mActiveCameras != MM_CAMERA_DUAL_CAM) {
-            bool enable = true;
-            m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_TAKE_BUNDLED_SNAPSHOT, &enable);
-            processDualCamFovControl();
-            enable = false;
-            m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_TAKE_BUNDLED_SNAPSHOT, &enable);
+            forceCameraWakeup();
         }
-
         if (mActiveCameras == MM_CAMERA_DUAL_CAM) {
             char prop[PROPERTY_VALUE_MAX];
             memset(prop, 0, sizeof(prop));
@@ -7493,6 +7492,24 @@ int32_t QCamera2HardwareInterface::switchCameraCb(uint32_t camMaster)
     }
 
     return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : forceCameraWakeup
+ *
+ * DESCRIPTION: Force the two cameras to stream.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCamera2HardwareInterface::forceCameraWakeup()
+{
+    bool enable = true;
+    m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_FORCE_CAMERA_WAKEUP, &enable);
+    processDualCamFovControl();
+    enable = false;
+    m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_FORCE_CAMERA_WAKEUP, &enable);
 }
 
 /*===========================================================================
