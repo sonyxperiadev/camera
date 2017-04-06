@@ -146,6 +146,9 @@ int32_t mm_stream_handle_cache_ops(mm_stream_t* my_obj,
         mm_camera_buf_def_t* buf, bool deque);
 int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj,
         mm_camera_cb_req_type type);
+uint32_t mm_channel_link_stream(mm_channel_t *my_obj,
+        mm_camera_stream_link_t *stream_link);
+
 
 /*===========================================================================
  * FUNCTION   : mm_stream_notify_channel
@@ -1238,6 +1241,21 @@ int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj,
 
         case MM_CAMERA_CB_REQ_TYPE_DEFER:
             my_obj->is_deferred = 1;
+        break;
+
+        case MM_CAMERA_CB_REQ_TYPE_SHARE_FRAME: {
+            mm_camera_stream_link_t stream_link;
+
+            stream_link.ch = s_obj->ch_obj;
+            stream_link.stream_id = s_obj->my_hdl;
+            m_obj->is_frame_shared = 1;
+            mm_channel_link_stream(m_obj->ch_obj,&stream_link);
+
+            stream_link.ch = m_obj->ch_obj;
+            stream_link.stream_id = m_obj->my_hdl;
+            s_obj->is_frame_shared = 1;
+            mm_channel_link_stream(s_obj->ch_obj,&stream_link);
+        }
         break;
 
         default:

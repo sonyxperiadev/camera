@@ -408,7 +408,8 @@ typedef enum {
     MM_CAMERA_CB_REQ_TYPE_SWITCH,
     MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC,
     MM_CAMERA_CB_REQ_TYPE_ALL_CB,
-    MM_CAMERA_CB_REQ_TYPE_DEFER
+    MM_CAMERA_CB_REQ_TYPE_DEFER,
+    MM_CAMERA_CB_REQ_TYPE_SHARE_FRAME
 } mm_camera_cb_req_type;
 
 /** mm_camera_intf_cb_req_type: structure to request different mode of stream callback
