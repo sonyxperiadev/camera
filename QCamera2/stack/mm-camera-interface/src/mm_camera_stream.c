@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1009,10 +1009,18 @@ int32_t mm_stream_fsm_active(mm_stream_t * my_obj,
 int32_t mm_stream_init(mm_stream_t *my_obj)
 {
     int32_t rc = 0;
+
+    pthread_condattr_t cond_attr;
+
+    pthread_condattr_init(&cond_attr);
+    pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+
     pthread_mutex_init(&my_obj->buf_lock, NULL);
     pthread_mutex_init(&my_obj->cb_lock, NULL);
     pthread_mutex_init(&my_obj->cmd_lock, NULL);
-    pthread_cond_init(&my_obj->buf_cond, NULL);
+    pthread_cond_init(&my_obj->buf_cond, &cond_attr);
+    pthread_condattr_destroy(&cond_attr);
+
     memset(my_obj->buf_status, 0,
             sizeof(my_obj->buf_status));
     memset(&my_obj->frame_sync, 0, sizeof(my_obj->frame_sync));
@@ -1040,6 +1048,7 @@ int32_t mm_stream_deinit(mm_stream_t *my_obj)
     pthread_mutex_destroy(&my_obj->buf_lock);
     pthread_mutex_destroy(&my_obj->cb_lock);
     pthread_mutex_destroy(&my_obj->cmd_lock);
+
     return rc;
 }
 
@@ -1355,7 +1364,7 @@ int32_t mm_stream_streamon(mm_stream_t *my_obj)
             LOGD("waiting for mapping to done: strm fd = %d",
                      my_obj->fd);
             struct timespec ts;
-            clock_gettime(CLOCK_REALTIME, &ts);
+            clock_gettime(CLOCK_MONOTONIC, &ts);
             ts.tv_sec += WAIT_TIMEOUT;
             rc = pthread_cond_timedwait(&my_obj->buf_cond, &my_obj->buf_lock, &ts);
             if (rc == ETIMEDOUT) {
