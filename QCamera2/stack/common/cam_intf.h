@@ -670,6 +670,9 @@ typedef struct cam_capability{
 
     /*Available Spatial Alignment solutions*/
     uint32_t avail_spatial_align_solns;
+
+    /* sensor rotation */
+    int32_t sensor_rotation;
 } cam_capability_t;
 
 typedef enum {
@@ -809,6 +812,8 @@ typedef struct cam_stream_info {
     cam_sync_type_t cam_type;
     /* Signifies if stream sync cb is needed */
     uint32_t bStreamSyncCbNeeded;
+    /* signifies whether the stream needs to be bundled or not */
+    uint8_t bNoBundling;
 } cam_stream_info_t;
 
 /*****************************************************************************

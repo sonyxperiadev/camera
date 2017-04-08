@@ -565,6 +565,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
                 &m_pDualCamCmdPtr->bundle_info;
         m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
         m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+        m_pRelCamSyncBuf->sync_mechanism = CAM_SYNC_NO_SYNC;
         pthread_mutex_lock(&gCamLock);
 
         if (mIsMainCamera == 1) {
@@ -2297,7 +2298,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
                 default:
                     LOGE("not a supported format 0x%x", newStream->format);
-                    break;
+                    pthread_mutex_unlock(&mMutex);
+                    return -EINVAL;
                 }
             } else if (newStream->stream_type == CAMERA3_STREAM_INPUT) {
                 newStream->max_buffers = MAX_INFLIGHT_REPROCESS_REQUESTS;
@@ -4544,10 +4546,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
             cam_dual_camera_bundle_info_t *m_pRelCamSyncBuf =
                     &m_pDualCamCmdPtr->bundle_info;
             m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
-            if (mIsDeviceLinked)
+            if (mIsDeviceLinked) {
                 m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_ON;
-            else
+                m_pRelCamSyncBuf->sync_mechanism = CAM_SYNC_HW_SYNC;
+            } else {
                 m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+                m_pRelCamSyncBuf->sync_mechanism = CAM_SYNC_NO_SYNC;
+            }
 
             pthread_mutex_lock(&gCamLock);
 
@@ -5327,6 +5332,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
                 &m_pDualCamCmdPtr->bundle_info;
         m_pDualCamCmdPtr->cmd_type = CAM_DUAL_CAMERA_BUNDLE_INFO;
         m_pRelCamSyncBuf->sync_control = CAM_SYNC_RELATED_SENSORS_OFF;
+        m_pRelCamSyncBuf->sync_mechanism = CAM_SYNC_NO_SYNC;
         pthread_mutex_lock(&gCamLock);
 
         if (mIsMainCamera == 1) {
@@ -5943,12 +5949,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
 #ifndef USE_HAL_3_3
         // Update the ANDROID_SENSOR_DYNAMIC_BLACK_LEVEL
-        // Need convert the internal 16 bit depth to sensor 10 bit sensor raw
+        // Need convert the internal 14 bit depth to sensor 10 bit sensor raw
         // depth space.
-        fwk_blackLevelInd[0] /= 64.0;
-        fwk_blackLevelInd[1] /= 64.0;
-        fwk_blackLevelInd[2] /= 64.0;
-        fwk_blackLevelInd[3] /= 64.0;
+        fwk_blackLevelInd[0] /= 16.0;
+        fwk_blackLevelInd[1] /= 16.0;
+        fwk_blackLevelInd[2] /= 16.0;
+        fwk_blackLevelInd[3] /= 16.0;
         camMetadata.update(ANDROID_SENSOR_DYNAMIC_BLACK_LEVEL, fwk_blackLevelInd, 4);
 #endif
     }
@@ -6864,6 +6870,8 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
     IF_META_AVAILABLE(int32_t, flip, CAM_INTF_PARM_FLIP, metadata) {
         memcpy(&(repro_info.pipeline_flip), flip, sizeof(int32_t));
+    } else {
+        memcpy(&(repro_info.pipeline_flip), &gCamCapability[mCameraId]->sensor_rotation, sizeof(int32_t));
     }
     IF_META_AVAILABLE(cam_rotation_info_t, rotationInfo,
             CAM_INTF_PARM_ROTATION, metadata) {
@@ -12643,6 +12651,9 @@ int32_t QCamera3HardwareInterface::setBundleInfo()
         if (rc != NO_ERROR) {
             LOGE("get_bundle_info failed");
             return rc;
+        }
+        if (mAnalysisChannel && !mCommon.skipAnalysisBundling()) {
+            mAnalysisChannel->setBundleInfo(bundleInfo);
         }
         if (mSupportChannel) {
             mSupportChannel->setBundleInfo(bundleInfo);

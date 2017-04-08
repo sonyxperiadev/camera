@@ -1074,6 +1074,7 @@ QCameraParameters::QCameraParameters()
     m_bBokehMode = 0;
     m_bBokehBlurLevel = 0;
     m_bBokehMpoEnabled = 0;
+    lpmEnable = false;
 }
 
 /*===========================================================================
@@ -1202,6 +1203,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bBokehMode = 0;
     m_bBokehBlurLevel = 0;
     m_bBokehMpoEnabled = 0;
+    lpmEnable = false;
 }
 
 /*===========================================================================
@@ -12891,6 +12893,11 @@ int32_t QCameraParameters::getRelatedCamCalibration(
  *==========================================================================*/
 void QCameraParameters::setSyncDCParams()
 {
+    if (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) {
+        mSyncDCParam = 0;
+        return;
+    }
+
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
 

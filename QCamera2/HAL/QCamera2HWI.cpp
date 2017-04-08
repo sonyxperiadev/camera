@@ -3377,6 +3377,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     streamInfo->buf_cnt = streamInfo->num_bufs;
     streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     streamInfo->is_secure = NON_SECURE;
+    streamInfo->bNoBundling = false;
 
     streamInfo->cam_type = (cam_sync_type_t)cam_type;
     if (!isNoDisplayMode(cam_type) && (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
@@ -3490,6 +3491,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
         break;
     case CAM_STREAM_TYPE_ANALYSIS:
         streamInfo->noFrameExpected = 1;
+        streamInfo->bNoBundling = QCameraCommon::skipAnalysisBundling();
         break;
     case CAM_STREAM_TYPE_METADATA:
         streamInfo->cache_ops = CAM_STREAM_CACHE_OPS_CLEAR_FLAGS;
@@ -4018,7 +4020,9 @@ int QCamera2HardwareInterface::stopPreview()
     mActiveAF = false;
 
     // Wake up both sensors before stopping preview
-    mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+    if (isDualCamera()) {
+        mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+    }
 
     // Disable power Hint for preview
     m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);
@@ -4285,6 +4289,10 @@ int QCamera2HardwareInterface::autoFocus()
     case CAM_FOCUS_MODE_CONTINOUS_VIDEO:
     case CAM_FOCUS_MODE_CONTINOUS_PICTURE:
         mActiveAF = true;
+        if (isDualCamera() && mBundledSnapshot) {
+            // Force the cameras to stream for auto focus on both
+            forceCameraWakeup();
+        }
         LOGI("Send AUTO FOCUS event. focusMode=%d, m_currentFocusState=%d",
                 focusMode, m_currentFocusState);
         rc = mCameraHandle->ops->do_auto_focus(mCameraHandle->camera_handle);
@@ -5013,15 +5021,10 @@ int QCamera2HardwareInterface::takePicture()
     }
 
     if (mBundledSnapshot) {
-        // Indicate FOV-control about the bundled snapshot with only one camera in active state
+        // Force both the cameras to stream to get the bundled snapshot
         if (mActiveCameras != MM_CAMERA_DUAL_CAM) {
-            bool enable = true;
-            m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_TAKE_BUNDLED_SNAPSHOT, &enable);
-            processDualCamFovControl();
-            enable = false;
-            m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_TAKE_BUNDLED_SNAPSHOT, &enable);
+            forceCameraWakeup();
         }
-
         if (mActiveCameras == MM_CAMERA_DUAL_CAM) {
             char prop[PROPERTY_VALUE_MAX];
             memset(prop, 0, sizeof(prop));
@@ -7489,6 +7492,24 @@ int32_t QCamera2HardwareInterface::switchCameraCb(uint32_t camMaster)
     }
 
     return ret;
+}
+
+/*===========================================================================
+ * FUNCTION   : forceCameraWakeup
+ *
+ * DESCRIPTION: Force the two cameras to stream.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : None
+ *==========================================================================*/
+void QCamera2HardwareInterface::forceCameraWakeup()
+{
+    bool enable = true;
+    m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_FORCE_CAMERA_WAKEUP, &enable);
+    processDualCamFovControl();
+    enable = false;
+    m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_FORCE_CAMERA_WAKEUP, &enable);
 }
 
 /*===========================================================================

@@ -91,6 +91,7 @@ private:
     Mutex                mMutex;
     int32_t              mHandle;
     uint32_t             mRefCount;
+    bool                 mEnable;
     nsecs_t              mTimeOut;
     PerfLockEnum         mPerfLockType;
     QCameraPerfLockIntf *mPerfLockIntf;

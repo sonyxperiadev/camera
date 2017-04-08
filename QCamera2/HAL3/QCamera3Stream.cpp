@@ -411,6 +411,11 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     mStreamInfo->pp_config.feature_mask = postprocess_mask;
     mStreamInfo->is_type = is_type;
     mStreamInfo->pp_config.rotation = streamRotation;
+    mStreamInfo->bNoBundling = false;
+
+    if (CAM_STREAM_TYPE_ANALYSIS == streamType) {
+        mStreamInfo->bNoBundling = QCameraCommon::skipAnalysisBundling();
+    }
 
     memset(value, 0, sizeof(value));
     property_get("persist.camera.cache.optimize", value, "1");
