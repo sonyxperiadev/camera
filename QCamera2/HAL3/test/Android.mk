@@ -45,8 +45,6 @@ LOCAL_SHARED_LIBRARIES:= libutils libcamera_client liblog libcamera_metadata lib
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 
 LOCAL_MODULE:= hal3-test-app
-LOCAL_SDCLANG := $(SDCLANGSAVE)
-LOCAL_SDCLANG_LTO := $(SDCLANGSAVE)
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
