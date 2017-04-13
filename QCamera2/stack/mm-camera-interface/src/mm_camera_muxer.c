@@ -1950,6 +1950,10 @@ int32_t mm_camera_muxer_do_frame_sync(
         if (NULL != super_obj) {
             if (super_obj->matched == 1) {
                 /* find a matched super buf, move to next one */
+                if ((NULL == last_buf) &&
+                        (super_obj->frame_idx < buffer->bufs[0]->frame_idx)) {
+                    last_buf = pos;
+                }
                 pos = pos->next;
                 continue;
             } else if (buffer->bufs[0]->frame_idx == super_obj->frame_idx) {
@@ -1962,10 +1966,9 @@ int32_t mm_camera_muxer_do_frame_sync(
                 break;
             } else {
                 unmatched_bundles++;
-                if ( NULL == last_buf ) {
-                    if ( super_obj->frame_idx < buffer->bufs[0]->frame_idx) {
-                        last_buf = pos;
-                    }
+                if ((NULL == last_buf) &&
+                        (super_obj->frame_idx < buffer->bufs[0]->frame_idx)) {
+                    last_buf = pos;
                 }
                 if ( NULL == insert_before_buf ) {
                     if ( super_obj->frame_idx > buffer->bufs[0]->frame_idx) {
@@ -1998,24 +2001,23 @@ int32_t mm_camera_muxer_do_frame_sync(
                 queue->match_cnt++;
             }
         }
+
         /* Any older unmatched buffer need to be released */
-        if ( last_buf ) {
-            while (last_buf != pos ) {
-                node = member_of(last_buf, cam_node_t, list);
-                super_obj = (mm_frame_sync_queue_node_t*)node->data;
-                if (NULL != super_obj) {
-                    for (i = 0; i < MAX_OBJS_FOR_FRAME_SYNC; i++) {
-                        if (super_obj->super_buf[i].num_bufs != 0) {
-                            mm_camera_muxer_buf_done(&super_obj->super_buf[i]);
-                        }
+        while ((last_buf != NULL) && (last_buf != pos)) {
+            node = member_of(last_buf, cam_node_t, list);
+            super_obj = (mm_frame_sync_queue_node_t*)node->data;
+            if (NULL != super_obj && !super_obj->matched) {
+                for (i = 0; i < MAX_OBJS_FOR_FRAME_SYNC; i++) {
+                    if (super_obj->super_buf[i].num_bufs != 0) {
+                        mm_camera_muxer_buf_done(&super_obj->super_buf[i]);
                     }
-                    queue->que.size--;
-                    last_buf = last_buf->next;
-                    cam_list_del_node(&node->list);
-                    free(node);
-                    free(super_obj);
                 }
+                queue->que.size--;
+                cam_list_del_node(&node->list);
+                free(node);
+                free(super_obj);
             }
+            last_buf = last_buf->next;
         }
     } else {
         if ((queue->attr.max_unmatched_frames < unmatched_bundles)
@@ -2039,6 +2041,9 @@ int32_t mm_camera_muxer_do_frame_sync(
                         if (super_obj->super_buf[i].num_bufs != 0) {
                             mm_camera_muxer_buf_done(&super_obj->super_buf[i]);
                         }
+                    }
+                    if (super_obj->matched) {
+                        queue->match_cnt--;
                     }
                 }
             }
