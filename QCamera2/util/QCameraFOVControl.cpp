@@ -762,6 +762,22 @@ int32_t QCameraFOVControl::translateInputParams(
                 ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_AEC_ROI, roiAecMain);
             }
         }
+
+        /*Set torch param only in the active session.With present LPM logic in MCT, if the session
+          which has been put to LPM wakes up, MCT will start applying all the previous settings at
+          one go. This can lead to a sudden unwanted flash sometimes. To avoid this, added WA
+          in HAL to set torch mode only in the active session.*/
+        if (paramsMainCam->is_valid[CAM_INTF_PARM_LED_MODE]) {
+            int32_t flashMode = CAM_FLASH_MODE_OFF;
+            READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_LED_MODE, flashMode);
+            if (CAM_FLASH_MODE_TORCH == flashMode) {
+                if (isMaster(mFovControlData.camWide)) {
+                    paramsAuxCam->is_valid[CAM_INTF_PARM_LED_MODE] = 0;
+                } else {
+                    paramsMainCam->is_valid[CAM_INTF_PARM_LED_MODE] = 0;
+                }
+            }
+        }
         rc = NO_ERROR;
     }
     return rc;
