@@ -3347,7 +3347,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
                     i->capture_intent, internalPproc, i->fwkCacMode,
                     firstMetadataInBatch);
-            restoreHdrScene(i->scene_mode, result.result);
+            result.result = restoreHdrScene(i->scene_mode, result.result);
 
             if (i->blob_request) {
                 {
@@ -3459,10 +3459,10 @@ done_metadata:
  *
  * PARAMETERS : @result: Metadata to be reported in capture result
  *
- * RETURN     : None
+ * RETURN     : camera_metadata_t*
  *
  *==========================================================================*/
-void QCamera3HardwareInterface::restoreHdrScene(
+camera_metadata_t* QCamera3HardwareInterface::restoreHdrScene(
         uint8_t sceneMode, const camera_metadata_t *result)
 {
     CameraMetadata resultWrapper;
@@ -3475,7 +3475,7 @@ void QCamera3HardwareInterface::restoreHdrScene(
         resultWrapper.update(ANDROID_CONTROL_SCENE_MODE, &sceneMode, 1);
     }
 
-    resultWrapper.release();
+    return resultWrapper.release();
 }
 
 /*===========================================================================
@@ -3491,8 +3491,8 @@ void QCamera3HardwareInterface::restoreHdrScene(
 void QCamera3HardwareInterface::hdrPlusPerfLock(
         mm_camera_super_buf_t *metadata_buf)
 {
-    if (NULL == metadata_buf) {
-        LOGE("metadata_buf is NULL");
+    if ((NULL == metadata_buf) || (ERROR == mState)) {
+        LOGE("metadata_buf is NULL or return when mState is error");
         return;
     }
     metadata_buffer_t *metadata =
@@ -5595,8 +5595,8 @@ void QCamera3HardwareInterface::captureResultCb(mm_camera_super_buf_t *metadata_
             handleBatchMetadata(metadata_buf,
                     true /* free_and_bufdone_meta_buf */);
         } else { /* mBatchSize = 0 */
-            hdrPlusPerfLock(metadata_buf);
             pthread_mutex_lock(&mMutex);
+            hdrPlusPerfLock(metadata_buf);
             handleMetadataWithLock(metadata_buf,
                     true /* free_and_bufdone_meta_buf */,
                     false /* first frame of batch metadata */ ,
