@@ -706,6 +706,7 @@ public:
     uint8_t getNumOfRetroSnapshots();
     uint8_t getNumOfExtraHDRInBufsIfNeeded();
     uint8_t getNumOfExtraHDROutBufsIfNeeded();
+    uint8_t getNumOfExtraEISBufsIfNeeded();
 
     bool getRecordingHintValue() {return m_bRecordingHint;}; // return local copy of video hint
     uint32_t getJpegQuality();

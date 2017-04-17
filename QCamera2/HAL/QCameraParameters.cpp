@@ -59,7 +59,6 @@ extern "C" {
 #define FOCUS_PERCISION 0.0000001
 #define CAMERA_MIN_SECURE_BUFFERS 2
 
-
 namespace qcamera {
 // Parameter keys to communicate between camera application and driver.
 const char QCameraParameters::KEY_QC_SUPPORTED_HFR_SIZES[] = "hfr-size-values";
@@ -11403,6 +11402,26 @@ uint8_t QCameraParameters::getNumOfExtraHDROutBufsIfNeeded()
         numOfBufs++;
     }
 
+    return (uint8_t)(numOfBufs);
+}
+
+/*===========================================================================
+ * FUNCTION   : getNumOfExtraEISBufsIfNeeded
+ *
+ * DESCRIPTION: get number of extra buffers needed for EIS
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : number of extra buffers needed by EIS; 0 if EIS 3.0 disabled
+ *==========================================================================*/
+uint8_t QCameraParameters::getNumOfExtraEISBufsIfNeeded()
+{
+    int numOfBufs = 0;
+    if (isHfrMode() && !getBufBatchCount() && (getVideoISType() == IS_TYPE_EIS_3_0)) {
+        char prop[PROPERTY_VALUE_MAX];
+        property_get("persist.camera.is.buffer_delay", prop, "15");
+        numOfBufs = atoi(prop);
+    }
     return (uint8_t)(numOfBufs);
 }
 
