@@ -506,15 +506,27 @@ void QCameraDualFOVPP::getInputParams(mm_camera_buf_def_t *pMainMetaBuf,
 
     // user_zoom
     int32_t zoom_level = -1; // 0 means zoom 1x.
-    IF_META_AVAILABLE(int32_t, userZoom, CAM_INTF_PARM_ZOOM, pMainMeta) {
-        zoom_level = *userZoom;
+    IF_META_AVAILABLE(cam_zoom_info_t, zoomInfoMain, CAM_INTF_PARM_USERZOOM, pMainMeta) {
+        // Get main camera zoom value
+        for (uint32_t i = 0; i < zoomInfoMain->num_streams; ++i) {
+            if (zoomInfoMain->stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+                zoom_level = zoomInfoMain->stream_zoom_info[i].stream_zoom;
+            }
+        }
         LOGD("zoom level in main meta:%d", zoom_level);
     }
     inParams.user_zoom= getUserZoomRatio(zoom_level);
     LOGI("dual fov total zoom ratio: %d", inParams.user_zoom);
 
-    IF_META_AVAILABLE(int32_t, auxUserZoom, CAM_INTF_PARM_ZOOM, pAuxMeta) {
-        LOGD("zoom level in aux meta:%d", *auxUserZoom);
+    IF_META_AVAILABLE(cam_zoom_info_t, zoomInfoAux, CAM_INTF_PARM_USERZOOM, pAuxMeta) {
+        zoom_level = -1;
+        // Get aux camera zoom value
+        for (uint32_t i = 0; i < zoomInfoAux->num_streams; ++i) {
+            if (zoomInfoAux->stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+                zoom_level = zoomInfoAux->stream_zoom_info[i].stream_zoom;
+            }
+        }
+        LOGD("zoom level in aux meta:%d", zoom_level);
     }
 
     IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, pMainMeta) {

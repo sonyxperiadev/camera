@@ -1700,6 +1700,12 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
                                             crop->crop_info[j].crop;
                                     crop->crop_info[crop->num_of_streams].roi_map =
                                             crop->crop_info[j].roi_map;
+                                    crop->crop_info[crop->num_of_streams].user_zoom =
+                                            crop->crop_info[j].user_zoom;
+                                    crop->crop_info[crop->num_of_streams].stream_zoom =
+                                            crop->crop_info[j].stream_zoom;
+                                    crop->crop_info[crop->num_of_streams].scale_ratio =
+                                            crop->crop_info[j].scale_ratio;
                                     for (uint8_t k = 0; k < mStreams.size(); k++) {
                                         if (srcStream->getMyOriginalType() ==
                                                 mStreams[k]->getMyOriginalType()) {
