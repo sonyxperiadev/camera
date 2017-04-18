@@ -1961,7 +1961,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
     cam_feature_mask_t zsl_ppmask = CAM_QCOM_FEATURE_NONE;
     bool isRawStreamRequested = false;
-    bool onlyRaw = true;
     memset(&mStreamConfigInfo, 0, sizeof(cam_stream_size_info_t));
     /* Allocate channel objects for the requested streams */
     for (size_t i = 0; i < streamList->num_streams; i++) {
@@ -1976,7 +1975,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         if ((newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
                 || IS_USAGE_ZSL(newStream->usage)) &&
             newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
-            onlyRaw = false; // There is non-raw stream - bypass flag if set
             mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
             if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
                 if (bUseCommonFeatureMask)
@@ -1991,14 +1989,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             }
             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = zsl_ppmask;
         } else if(newStream->stream_type == CAMERA3_STREAM_INPUT) {
-            onlyRaw = false; // There is non-raw stream - bypass flag if set
                 LOGH("Input stream configured, reprocess config");
         } else {
             //for non zsl streams find out the format
             switch (newStream->format) {
             case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED :
             {
-                onlyRaw = false; // There is non-raw stream - bypass flag if set
                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                         CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                 /* add additional features to pp feature mask */
@@ -2048,7 +2044,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             }
             break;
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
-                onlyRaw = false; // There is non-raw stream - bypass flag if set
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_CALLBACK;
                 if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
                     if (bUseCommonFeatureMask)
@@ -2063,7 +2058,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 }
             break;
             case HAL_PIXEL_FORMAT_BLOB:
-                onlyRaw = false; // There is non-raw stream - bypass flag if set
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_SNAPSHOT;
                 // No need to check bSmallJpegSize if ZSL is present since JPEG uses ZSL stream
                 if ((m_bIs4KVideo && !isZsl) || (bSmallJpegSize && !isZsl)) {
@@ -2116,7 +2110,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 isRawStreamRequested = true;
                 break;
             default:
-                onlyRaw = false; // There is non-raw stream - bypass flag if set
                 mStreamConfigInfo.type[mStreamConfigInfo.num_streams] = CAM_STREAM_TYPE_DEFAULT;
                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = CAM_QCOM_FEATURE_NONE;
                 break;
@@ -2339,12 +2332,55 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             mStreamConfigInfo.num_streams++;
     }
 
-    if (mOpMode != QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE) {
+    bool onlyRaw = true;
+    bool disableSupportStreams = false;
+    switch (mOpMode){
+    case QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE:
+        // Loop through all streams and check for raw only streams.
+        for (size_t i = 0; i < streamList->num_streams; i++) {
+            camera3_stream_t *newStream = streamList->streams[i];
+            if ((newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
+                || IS_USAGE_ZSL(newStream->usage)) &&
+                newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
+                // Non raw stream exists.
+                onlyRaw = false;
+            }
+            else if(newStream->stream_type == CAMERA3_STREAM_INPUT) {
+                // Non raw stream exists.
+                onlyRaw = false;
+            }
+            else {
+                //for non zsl streams find out the format
+                switch (newStream->format) {
+                case HAL_PIXEL_FORMAT_RAW_OPAQUE:
+                case HAL_PIXEL_FORMAT_RAW16:
+                case HAL_PIXEL_FORMAT_RAW10:
+                case HAL_PIXEL_FORMAT_RAW8:
+                    break;
+                default:
+                    onlyRaw = false;
+                    break;
+                }
+            }
+        }
+        break;
+    case QCAMERA3_VENDOR_STREAM_CONFIGURATION_DISABLE_SUPPORT_STREAMS:
+        disableSupportStreams = true;
+        break;
+    default:
         onlyRaw = false;
+        disableSupportStreams = false;
+        break;
     }
 
-    // Create analysis stream all the time, even when h/w support is not available
-    if (!onlyRaw) {
+    // Only create analysis and callback streams if either the disable flag has
+    // been set or if only RAW streams are present.
+    bool createAnalysisAndCallbackStreams = true;
+    if (onlyRaw || disableSupportStreams) {
+        createAnalysisAndCallbackStreams = false;
+    }
+    
+    if (createAnalysisAndCallbackStreams) {
         cam_feature_mask_t analysisFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
         setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
                 gCamCapability[mCameraId]->color_arrangement);
@@ -2425,7 +2461,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         mStreamConfigInfo.num_streams++;
     }
 
-    if (!onlyRaw && isSupportChannelNeeded(streamList, mStreamConfigInfo)) {
+    if (createAnalysisAndCallbackStreams &&
+        isSupportChannelNeeded(streamList, mStreamConfigInfo)) {
         cam_analysis_info_t supportInfo;
         memset(&supportInfo, 0, sizeof(cam_analysis_info_t));
         cam_feature_mask_t callbackFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;

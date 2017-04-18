@@ -412,6 +412,9 @@ typedef enum {
      *   on image/sensor statistics and YUV streams will be disabled.
      */
     QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE = 0x8000,
+
+    /* Disables all support streams for non raw mode configurations. */
+    QCAMERA3_VENDOR_STREAM_CONFIGURATION_DISABLE_SUPPORT_STREAMS = 0x8001
 } QCamera3VendorStreamConfiguration;
 
 class QCamera3VendorTags {
