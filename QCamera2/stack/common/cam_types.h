@@ -2137,6 +2137,7 @@ typedef enum {
     CAM_INTF_PARM_GET_OUTPUT_CROP,
 
     CAM_INTF_PARM_EZTUNE_CMD,
+    CAM_INTF_PARM_VFE1_RESERVED_RDI,
     CAM_INTF_PARM_INT_EVT,
 
     /* specific to HAL3 */
