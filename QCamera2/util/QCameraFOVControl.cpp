@@ -467,6 +467,8 @@ int32_t QCameraFOVControl::updateConfigSettings(
         READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_META_STREAM_INFO, camMainStreamInfo);
         mFovControlData.camcorderMode = false;
 
+        mFovControlData.camStreamInfo = camMainStreamInfo;
+
         // Identify if in camera or camcorder mode
         for (int i = 0; i < MAX_NUM_STREAMS; ++i) {
             if (camMainStreamInfo.type[i] == CAM_STREAM_TYPE_VIDEO) {
@@ -655,35 +657,78 @@ int32_t QCameraFOVControl::translateInputParams(
         }
 
         // Translate zoom
-        if (paramsMainCam->is_valid[CAM_INTF_PARM_ZOOM]) {
+        if (paramsMainCam->is_valid[CAM_INTF_PARM_USERZOOM]) {
             //Cache user zoom
-            uint32_t userZoom = 0;
-            READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_ZOOM, userZoom);
+            cam_zoom_info_t zoomInfo;
+            READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_USERZOOM, zoomInfo);
             mFovControlParm.zoom_valid = 1;
-            mFovControlParm.zoom_value = userZoom;
+            mFovControlParm.zoom_value = zoomInfo.user_zoom;
         }
 
         // Translate zoom
         if (mFovControlParm.zoom_valid) {
             uint32_t userZoom = mFovControlParm.zoom_value;
-            READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_ZOOM, userZoom);
             convertUserZoomToWideAndTele(userZoom);
 
             // Update zoom values in the param buffers
-            uint32_t zoomMain = isMainCamFovWider() ?
+            cam_zoom_info_t zoomInfo;
+            zoomInfo.num_streams = mFovControlData.camStreamInfo.num_streams;
+            if (zoomInfo.num_streams) {
+                zoomInfo.is_stream_zoom_info_valid = 1;
+            }
+            zoomInfo.user_zoom = userZoom;
+            LOGD("user zoom: %d", userZoom);
+
+            // Read the snapshot postprocess flag
+            mMutex.lock();
+            bool snapshotPostProcess = mFovControlResult.snapshotPostProcess;
+            mMutex.unlock();
+
+            // Update zoom value for main camera param buffer
+            uint32_t zoomTotal = isMainCamFovWider() ?
                     mFovControlData.zoomWide : mFovControlData.zoomTele;
-            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_ZOOM, zoomMain);
+            uint32_t zoomIsp   = isMainCamFovWider() ?
+                    mFovControlData.zoomWideIsp : mFovControlData.zoomTeleIsp;
+            for (uint32_t i = 0; i < zoomInfo.num_streams; ++i) {
+                zoomInfo.stream_zoom_info[i].stream_type = mFovControlData.camStreamInfo.type[i];
+                zoomInfo.stream_zoom_info[i].stream_zoom = zoomTotal;
+                zoomInfo.stream_zoom_info[i].isp_zoom    = zoomIsp;
 
-            uint32_t zoomAux = isMainCamFovWider() ?
+                // If the snapshot post-processing is enabled, disable isp zoom
+                if (snapshotPostProcess &&
+                        (zoomInfo.stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT)) {
+                    zoomInfo.stream_zoom_info[i].isp_zoom = 0;
+                }
+
+                LOGD("main cam: stream_type: %d, stream_zoom: %d, isp_zoom: %d",
+                    zoomInfo.stream_zoom_info[i].stream_type,
+                    zoomInfo.stream_zoom_info[i].stream_zoom,
+                    zoomInfo.stream_zoom_info[i].isp_zoom);
+            }
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_USERZOOM, zoomInfo);
+
+            // Update zoom value for aux camera param buffer
+            zoomTotal = isMainCamFovWider() ?
                     mFovControlData.zoomTele : mFovControlData.zoomWide;
-            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_ZOOM, zoomAux);
+            zoomIsp = isMainCamFovWider() ?
+                    mFovControlData.zoomTeleIsp : mFovControlData.zoomWideIsp;
+            for (uint32_t i = 0; i < zoomInfo.num_streams; ++i) {
+                zoomInfo.stream_zoom_info[i].stream_type = mFovControlData.camStreamInfo.type[i];
+                zoomInfo.stream_zoom_info[i].stream_zoom = zoomTotal;
+                zoomInfo.stream_zoom_info[i].isp_zoom    = zoomIsp;
 
-            // Write the user zoom in main and aux param buffers
-            // The user zoom will always correspond to the wider camera
-            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_DC_USERZOOM,
-                    userZoom);
-            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_DC_USERZOOM,
-                    userZoom);
+                // If the snapshot post-processing is enabled, disable isp zoom
+                if (snapshotPostProcess &&
+                        (zoomInfo.stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT)) {
+                    zoomInfo.stream_zoom_info[i].isp_zoom = 0;
+                }
+
+                LOGD("aux cam: stream_type: %d, stream_zoom: %d, isp_zoom: %d",
+                    zoomInfo.stream_zoom_info[i].stream_type,
+                    zoomInfo.stream_zoom_info[i].stream_zoom,
+                    zoomInfo.stream_zoom_info[i].isp_zoom);
+            }
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_USERZOOM, zoomInfo);
 
             // Generate FOV-control result
             generateFovControlResult();
@@ -1405,14 +1450,9 @@ void QCameraFOVControl::generateFovControlResult()
         LOGD("Active camera state changed. Reset timers");
     }
 
-    // Only one active camera in case of thermal throttle
+    // Only one active camera in case of thermal throttle and disable snapshot post-processing
     if (mFovControlData.thermalThrottle) {
         mFovControlResult.activeCameras = isMaster(camWide) ? camWide : camTele;
-    }
-
-    // Update snapshot postprocess result based on fall back or thermal throttle
-    if ((mFovControlData.fallbackEnabled && mFovControlData.fallbackToWide) ||
-            mFovControlData.thermalThrottle) {
         mFovControlResult.snapshotPostProcess = false;
     }
 
@@ -2109,21 +2149,24 @@ void QCameraFOVControl::convertUserZoomToWideAndTele(
     // If the zoom translation library is present and initialized,
     // use it to get wide and tele zoom values
     if (mZoomTranslator && mZoomTranslator->isInitialized()) {
-        uint32_t zoomWide = 0;
-        uint32_t zoomTele = 0;
-        if (mZoomTranslator->getZoomValues(zoom, &zoomWide, &zoomTele) != NO_ERROR) {
+        zoom_data zoomData;
+        if (mZoomTranslator->getZoomValues(zoom, &zoomData) != NO_ERROR) {
             LOGE("getZoomValues failed from zoom translation lib");
             // Use zoom translation logic from FOV-control
             mFovControlData.zoomWide = zoom;
             mFovControlData.zoomTele = readjustZoomForTele(mFovControlData.zoomWide);
         } else {
             // Use the zoom values provided by zoom translation lib
-            mFovControlData.zoomWide = zoomWide;
-            mFovControlData.zoomTele = zoomTele;
+            mFovControlData.zoomWideIsp = zoomData.zoomWideIsp;
+            mFovControlData.zoomTeleIsp = zoomData.zoomTeleIsp;
+            mFovControlData.zoomWide    = zoomData.zoomWideTotal;
+            mFovControlData.zoomTele    = zoomData.zoomTeleTotal;
         }
     } else {
         mFovControlData.zoomWide = zoom;
         mFovControlData.zoomTele = readjustZoomForTele(mFovControlData.zoomWide);
+        mFovControlData.zoomWideIsp = mFovControlData.zoomWide;
+        mFovControlData.zoomTeleIsp = mFovControlData.zoomTele;
     }
 }
 

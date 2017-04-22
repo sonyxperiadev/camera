@@ -310,6 +310,13 @@ uint8_t QCameraParametersIntf::getNumOfExtraHDRInBufsIfNeeded()
     return mImpl->getNumOfExtraHDRInBufsIfNeeded();
 }
 
+uint8_t QCameraParametersIntf::getNumOfExtraEISBufsIfNeeded()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getNumOfExtraEISBufsIfNeeded();
+}
+
 uint8_t QCameraParametersIntf::getNumOfExtraHDROutBufsIfNeeded()
 {
     Mutex::Autolock lock(mLock);

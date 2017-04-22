@@ -1055,7 +1055,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_BRIGHTNESS,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ISO,                          cam_intf_parm_manual_3a_t,   1);
     INCLUDE(CAM_INTF_PARM_EXPOSURE_TIME,                cam_intf_parm_manual_3a_t,   1);
-    INCLUDE(CAM_INTF_PARM_ZOOM,                         int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_USERZOOM,                     cam_zoom_info_t,             1);
     INCLUDE(CAM_INTF_PARM_ROLLOFF,                      int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_MODE,                         int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_AEC_ALGO_TYPE,                int32_t,                     1);

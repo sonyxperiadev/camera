@@ -59,7 +59,6 @@ extern "C" {
 #define FOCUS_PERCISION 0.0000001
 #define CAMERA_MIN_SECURE_BUFFERS 2
 
-
 namespace qcamera {
 // Parameter keys to communicate between camera application and driver.
 const char QCameraParameters::KEY_QC_SUPPORTED_HFR_SIZES[] = "hfr-size-values";
@@ -7640,11 +7639,15 @@ int32_t QCameraParameters::setFaceRecognition(const char *faceRecog,
 int32_t QCameraParameters::setZoom(int zoom_level)
 {
     char val[16];
+    cam_zoom_info_t zoomInfo;
+    memset(&zoomInfo, 0, sizeof(cam_zoom_info_t));
     snprintf(val, sizeof(val), "%d", zoom_level);
     updateParamEntry(KEY_ZOOM, val);
     LOGH("zoom level: %d", zoom_level);
     mZoomLevel = zoom_level;
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZOOM, zoom_level)) {
+    zoomInfo.user_zoom = zoom_level;
+    zoomInfo.is_stream_zoom_info_valid = 0;
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_USERZOOM, zoomInfo)) {
         return BAD_VALUE;
     }
 
@@ -9695,7 +9698,12 @@ int32_t QCameraParameters::setAndCommitZoom(int zoom_level)
         return BAD_TYPE;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZOOM, zoom_level)) {
+    cam_zoom_info_t zoomInfo;
+    memset(&zoomInfo, 0, sizeof(cam_zoom_info_t));
+    zoomInfo.user_zoom = zoom_level;
+    zoomInfo.is_stream_zoom_info_valid = 0;
+
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_USERZOOM, zoomInfo)) {
         LOGE("Failed to update table");
         return BAD_VALUE;
     }
@@ -11407,6 +11415,26 @@ uint8_t QCameraParameters::getNumOfExtraHDROutBufsIfNeeded()
 }
 
 /*===========================================================================
+ * FUNCTION   : getNumOfExtraEISBufsIfNeeded
+ *
+ * DESCRIPTION: get number of extra buffers needed for EIS
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : number of extra buffers needed by EIS; 0 if EIS 3.0 disabled
+ *==========================================================================*/
+uint8_t QCameraParameters::getNumOfExtraEISBufsIfNeeded()
+{
+    int numOfBufs = 0;
+    if (isHfrMode() && !getBufBatchCount() && (getVideoISType() == IS_TYPE_EIS_3_0)) {
+        char prop[PROPERTY_VALUE_MAX];
+        property_get("persist.camera.is.buffer_delay", prop, "15");
+        numOfBufs = atoi(prop);
+    }
+    return (uint8_t)(numOfBufs);
+}
+
+/*===========================================================================
  * FUNCTION   : getJpegQuality
  *
  * DESCRIPTION: get jpeg encoding quality
@@ -12293,34 +12321,57 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
         LOGE("Failed to initialize group update table");
         return BAD_TYPE;
     }
-
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
-        LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION ");
-        return BAD_VALUE;
-    }
-
-    rc = commitSetBatch();
-    if (rc != NO_ERROR) {
-        LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm");
-        return rc;
-    }
-
-    if(initBatchUpdate() < 0 ) {
-        LOGE("Failed to initialize group update table");
-        return BAD_TYPE;
-    }
-
-    ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION);
-
-    rc = commitGetBatch();
-    if (rc != NO_ERROR) {
-        LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION");
-        return rc;
-    }
-
     if (cam_type == MM_CAMERA_TYPE_AUX) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
+            LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION ");
+            return BAD_VALUE;
+        }
+
+        rc = commitSetBatchAux();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm");
+            return rc;
+        }
+
+        if(initBatchUpdate() < 0 ) {
+            LOGE("Failed to initialize group update table");
+            return BAD_TYPE;
+        }
+
+        ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux, CAM_INTF_PARM_RAW_DIMENSION);
+
+        rc = commitGetBatchAux();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION");
+            return rc;
+        }
+
         READ_PARAM_ENTRY(m_pParamBufAux, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
     } else {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
+            LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION ");
+            return BAD_VALUE;
+        }
+
+        rc = commitSetBatch();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm");
+            return rc;
+        }
+
+        if(initBatchUpdate() < 0 ) {
+            LOGE("Failed to initialize group update table");
+            return BAD_TYPE;
+        }
+
+        ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION);
+
+        rc = commitGetBatch();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION");
+            return rc;
+        }
+
         READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
     }
 
@@ -13308,7 +13359,7 @@ int32_t QCameraParameters::commitGetBatch()
     }
 
     if (i < CAM_INTF_PARM_MAX) {
-        return m_pCamOpsTbl->ops->get_parms(m_pCamOpsTbl->camera_handle, m_pParamBuf);
+        rc = m_pCamOpsTbl->ops->get_parms(m_pCamOpsTbl->camera_handle, m_pParamBuf);
     } else {
         return NO_ERROR;
     }
