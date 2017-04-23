@@ -7374,7 +7374,9 @@ void QCamera2HardwareInterface::processDualCamFovControl()
    fov_control_result_t fovControlResult;
    cam_fallback_mode_t fallbackMode;
 
-    if (!isDualCamera()) {
+    if (!isDualCamera() || !m_bFirstPreviewFrameReceived) {
+        LOGD("Ignore DC process isDualCamera: %d, m_bFirstPreviewFrameReceived %d",
+                isDualCamera(), m_bFirstPreviewFrameReceived)
         return;
     }
 
