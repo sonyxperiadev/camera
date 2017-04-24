@@ -433,31 +433,6 @@ int32_t QCameraFOVControl::updateConfigSettings(
 {
     int32_t rc = INVALID_OPERATION;
 
-    if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
-        // Tele is primary camera
-        mFovControlResult.isValid = true;
-        mFovControlResult.camMasterPreview  = mFovControlData.camTele;
-        mFovControlResult.camMaster3A  = mFovControlData.camTele;
-        mFovControlResult.activeCameras =
-                (uint32_t)(mFovControlData.camTele | mFovControlData.camWide);
-        mFovControlData.configCompleted = true;
-        mFovControlResult.snapshotPostProcess = true;
-        LOGH("Bokeh : start camera state for Bokeh Mode: TELE");
-
-        // Get the preview dimensions
-        if (paramsAuxCam && paramsAuxCam->is_valid[CAM_INTF_META_STREAM_INFO]) {
-            cam_stream_size_info_t camAuxStreamInfo;
-            READ_PARAM_ENTRY(paramsAuxCam, CAM_INTF_META_STREAM_INFO, camAuxStreamInfo);
-            for (int i = 0; i < MAX_NUM_STREAMS; ++i) {
-                if (camAuxStreamInfo.type[i] == CAM_STREAM_TYPE_PREVIEW) {
-                    mFovControlData.previewSize = camAuxStreamInfo.stream_sizes[i];
-                    break;
-                }
-            }
-        }
-        return NO_ERROR;
-    }
-
     if (paramsMainCam &&
         paramsAuxCam  &&
         paramsMainCam->is_valid[CAM_INTF_META_STREAM_INFO] &&
@@ -538,6 +513,20 @@ int32_t QCameraFOVControl::updateConfigSettings(
         if (calculateBasicFovRatio() && combineFovAdjustment()) {
 
             calculateDualCamTransitionParams();
+
+            if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
+                // Tele is primary camera
+                mFovControlResult.isValid = true;
+                mFovControlResult.camMasterPreview = mFovControlData.camTele;
+                mFovControlResult.camMaster3A = mFovControlData.camTele;
+                mFovControlResult.activeCameras =
+                        (uint32_t)(mFovControlData.camTele | mFovControlData.camWide);
+                mFovControlResult.snapshotPostProcess = true;
+                mFovControlResult.oisMode = OIS_MODE_HOLD;
+                mFovControlData.configCompleted = true;
+                LOGH("Bokeh : start camera state for Bokeh Mode: TELE");
+                return NO_ERROR;
+            }
 
             // Initialize the result OIS mode as HOLD
             mFovControlResult.oisMode = OIS_MODE_HOLD;
@@ -651,8 +640,27 @@ int32_t QCameraFOVControl::translateInputParams(
         memcpy(paramsAuxCam, paramsMainCam, sizeof(parm_buffer_t));
 
         if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
-           // Tele is primary camera
-           // No translation is required. Return from here
+            // Only translate AF and AEC ROIs in case of Bokeh
+            if (paramsMainCam->is_valid[CAM_INTF_PARM_AF_ROI]) {
+                cam_roi_info_t roiAfInput;
+                cam_roi_info_t roiAfTrans;
+                READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_AF_ROI, roiAfInput);
+                if (roiAfInput.num_roi > 0) {
+                    roiAfTrans = translateFocusAreas(roiAfInput, CAM_TYPE_MAIN);
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_AF_ROI, roiAfTrans);
+                }
+            }
+
+            // Translate metering areas
+            if (paramsMainCam->is_valid[CAM_INTF_PARM_AEC_ROI]) {
+                cam_set_aec_roi_t roiAecInput;
+                cam_set_aec_roi_t roiAecTrans;
+                READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_AEC_ROI, roiAecInput);
+                if (roiAecInput.aec_roi_enable == CAM_AEC_ROI_ON) {
+                    roiAecTrans = translateMeteringAreas(roiAecInput, CAM_TYPE_MAIN);
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_AEC_ROI, roiAecTrans);
+                }
+            }
             return NO_ERROR;
         }
 
@@ -1831,6 +1839,11 @@ bool QCameraFOVControl::validateAndExtractParameters(
 {
     bool rc = false;
     if (capsMainCam && capsAuxCam) {
+        char propSAC[PROPERTY_VALUE_MAX];
+        char propSAT[PROPERTY_VALUE_MAX];
+
+        property_get("persist.camera.sac.enable", propSAC, "0");
+        property_get("persist.camera.sat.enable", propSAT, "0");
 
         mFovControlConfig.percentMarginHysterisis  = 5;
         mFovControlConfig.percentMarginMain        = 25;
@@ -1842,8 +1855,9 @@ bool QCameraFOVControl::validateAndExtractParameters(
         mDualCamParams.paramsMain.pixelPitchUm = capsMainCam->pixel_pitch_um;
         mDualCamParams.paramsAux.pixelPitchUm  = capsAuxCam->pixel_pitch_um;
 
-        if ((capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_QTI) ||
-                (capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_OEM)) {
+        if (((capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_QTI) && atoi(propSAC)) ||
+                ((capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_OEM) &&
+                        atoi(propSAT))) {
             mFovControlData.availableSpatialAlignSolns =
                     capsMainCam->avail_spatial_align_solns;
         } else {
@@ -2190,8 +2204,6 @@ cam_roi_info_t QCameraFOVControl::translateFocusAreas(
     float fovRatio;
     float zoomWide;
     float zoomTele;
-    float AuxDiffRoiLeft;
-    float AuxDiffRoiTop;
     float AuxRoiLeft;
     float AuxRoiTop;
     cam_roi_info_t roiAfTrans = roiAfMain;
@@ -2202,7 +2214,8 @@ cam_roi_info_t QCameraFOVControl::translateFocusAreas(
     zoomTele = findZoomRatio(mFovControlData.zoomTele) / (float)mFovControlData.zoomRatioTable[0];
 
     if (cam == mFovControlData.camWide) {
-        fovRatio = 1.0f;
+        fovRatio = (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) ?
+                        (1.0f / mFovControlData.transitionParams.cropRatio) : 1.0f;
     } else {
         fovRatio = (zoomTele / zoomWide) * mFovControlData.transitionParams.cropRatio;
     }
@@ -2223,41 +2236,44 @@ cam_roi_info_t QCameraFOVControl::translateFocusAreas(
         roiAfTrans.roi[i].width  = roiAfMain.roi[i].width * fovRatio;
         roiAfTrans.roi[i].height = roiAfMain.roi[i].height * fovRatio;
 
-        AuxDiffRoiLeft = (roiAfTrans.roi[i].width - roiAfMain.roi[i].width) / 2.0f;
-        AuxRoiLeft = roiAfMain.roi[i].left - AuxDiffRoiLeft;
-        AuxDiffRoiTop = (roiAfTrans.roi[i].height - roiAfMain.roi[i].height) / 2.0f;
-        AuxRoiTop = roiAfMain.roi[i].top - AuxDiffRoiTop;
-
+        AuxRoiTop = ((roiAfMain.roi[i].top - mFovControlData.previewSize.height / 2.0f) * fovRatio)
+                        + (mFovControlData.previewSize.height / 2.0f);
+        roiAfTrans.roi[i].top =  AuxRoiTop - shiftVertAdjusted;
+        AuxRoiLeft = ((roiAfMain.roi[i].left - mFovControlData.previewSize.width / 2.0f) * fovRatio)
+                        + (mFovControlData.previewSize.width / 2.0f);
         roiAfTrans.roi[i].left = AuxRoiLeft - shiftHorzAdjusted;
-        roiAfTrans.roi[i].top  = AuxRoiTop - shiftVertAdjusted;
 
         // Check the ROI bounds and correct if necessory
-        if ((roiAfTrans.roi[i].left >= mFovControlData.previewSize.width) ||
-            (roiAfTrans.roi[i].top >= mFovControlData.previewSize.height) ||
-            (roiAfTrans.roi[i].width >= mFovControlData.previewSize.width) ||
+        if ((roiAfTrans.roi[i].width >= mFovControlData.previewSize.width) ||
             (roiAfTrans.roi[i].height >= mFovControlData.previewSize.height)) {
             roiAfTrans = roiAfMain;
             LOGW("AF ROI translation failed, reverting to the pre-translation ROI");
         } else {
+            bool error = false;
             if (roiAfTrans.roi[i].left < 0) {
                 roiAfTrans.roi[i].left = 0;
-                LOGW("AF ROI translation failed");
+                error = true;
             }
             if (roiAfTrans.roi[i].top < 0) {
                 roiAfTrans.roi[i].top = 0;
-                LOGW("AF ROI translation failed");
+                error = true;
             }
-            if ((roiAfTrans.roi[i].left + roiAfTrans.roi[i].width) >=
-                        mFovControlData.previewSize.width) {
-                roiAfTrans.roi[i].width =
-                        mFovControlData.previewSize.width - roiAfTrans.roi[i].left;
-                LOGW("AF ROI translation failed");
+            if ((roiAfTrans.roi[i].left >= mFovControlData.previewSize.width) ||
+                ((roiAfTrans.roi[i].left + roiAfTrans.roi[i].width) >
+                        mFovControlData.previewSize.width)) {
+                roiAfTrans.roi[i].left = mFovControlData.previewSize.width -
+                                                roiAfTrans.roi[i].width;
+                error = true;
             }
-            if ((roiAfTrans.roi[i].top + roiAfTrans.roi[i].height) >=
-                        mFovControlData.previewSize.height) {
-                roiAfTrans.roi[i].height =
-                        mFovControlData.previewSize.height - roiAfTrans.roi[i].top;
-                LOGW("AF ROI translation failed");
+            if ((roiAfTrans.roi[i].top >= mFovControlData.previewSize.height) ||
+                ((roiAfTrans.roi[i].top + roiAfTrans.roi[i].height) >
+                        mFovControlData.previewSize.height)) {
+                roiAfTrans.roi[i].top = mFovControlData.previewSize.height -
+                                                roiAfTrans.roi[i].height;
+                error = true;
+            }
+            if (error) {
+                LOGW("Translated ROI - out of bounds. Clamping to the nearest valid ROI");
             }
         }
 
@@ -2300,7 +2316,8 @@ cam_set_aec_roi_t QCameraFOVControl::translateMeteringAreas(
     zoomTele = findZoomRatio(mFovControlData.zoomTele) / (float)mFovControlData.zoomRatioTable[0];
 
     if (cam == mFovControlData.camWide) {
-        fovRatio = 1.0f;
+        fovRatio = (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) ?
+                        (1.0f / mFovControlData.transitionParams.cropRatio) : 1.0f;
     } else {
         fovRatio = (zoomTele / zoomWide) * mFovControlData.transitionParams.cropRatio;
     }
