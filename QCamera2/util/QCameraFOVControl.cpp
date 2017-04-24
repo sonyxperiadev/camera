@@ -687,6 +687,7 @@ int32_t QCameraFOVControl::translateInputParams(
 
             // Update zoom values in the param buffers
             cam_zoom_info_t zoomInfo;
+            memset(&zoomInfo, 0, sizeof(cam_zoom_info_t));
             zoomInfo.num_streams = mFovControlData.camStreamInfo.num_streams;
             if (zoomInfo.num_streams) {
                 zoomInfo.is_stream_zoom_info_valid = 1;
