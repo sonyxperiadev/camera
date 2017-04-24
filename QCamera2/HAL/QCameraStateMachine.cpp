@@ -330,6 +330,18 @@ int32_t QCameraStateMachine::stateMachine(qcamera_sm_evt_enum_t evt, void *paylo
         break;
     }
 
+    if (m_parent->isDualCamera()) {
+        /* Update the FOVControl dual camera result state based on the current state.
+         Update the result only in previewing and recording states */
+        bool updateResultState = false;
+        if ((m_state == QCAMERA_SM_STATE_PREVIEWING) ||
+                (m_state == QCAMERA_SM_STATE_RECORDING)) {
+            updateResultState = true;
+        }
+        m_parent->m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_UPDATE_RESULT_STATE,
+                &updateResultState);
+    }
+
     return rc;
 }
 

@@ -2268,6 +2268,14 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
                 pMetaDataAux  = pMetaData;
             }
         }
+
+        //Wait for first preview frame to process Dual fov control
+        LOGD("pme->m_bFirstPreviewFrameReceived: %d", pme->m_bFirstPreviewFrameReceived);
+        // skip fillDualCameraFOVControl till HAL receives first preview frame
+        if (pme->m_bFirstPreviewFrameReceived) {
+            pme->fillDualCameraFOVControl();
+        }
+
         if (pMetaDataAux && (pme->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
             //Handle Tele metadata for sending bokeh messages to app
             IF_META_AVAILABLE(cam_rtb_msg_type_t, rtb_metadata,
@@ -2710,13 +2718,6 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
 
     IF_META_AVAILABLE(int32_t, touch_ae_status, CAM_INTF_META_TOUCH_AE_RESULT, pMetaData) {
       LOGD("touch_ae_status: %d", *touch_ae_status);
-    }
-
-    //Wait for first preview frame to process Dual fov control
-    LOGD("pme->m_bFirstPreviewFrameReceived: %d", pme->m_bFirstPreviewFrameReceived);
-    // skip fillDualCameraFOVControl till HAL receives first preview frame
-    if (pme->isDualCamera() && pme->m_bFirstPreviewFrameReceived) {
-        pme->fillDualCameraFOVControl();
     }
 
     IF_META_AVAILABLE(int32_t, led_result, CAM_INTF_META_LED_CALIB_RESULT, pMetaData) {

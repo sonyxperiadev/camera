@@ -69,6 +69,7 @@ typedef enum {
 typedef enum {
     FOVCONTROL_FLAG_FORCE_CAMERA_WAKEUP = 0,
     FOVCONTROL_FLAG_THERMAL_THROTTLE,
+    FOVCONTROL_FLAG_UPDATE_RESULT_STATE,
     FOVCONTROL_FLAG_COUNT
 } fov_control_flag;
 
@@ -166,6 +167,7 @@ typedef struct {
     bool                         forceCameraWakeup;
     bool                         thermalThrottle;
     bool                         lpmEnabled;
+    bool                         updateResultState;
     uint8_t                      oisSetting;
     cam_stream_size_info_t       camStreamInfo;
 } fov_control_data_t;
@@ -265,6 +267,7 @@ private:
     fov_control_config_t            mFovControlConfig;
     fov_control_data_t              mFovControlData;
     fov_control_result_t            mFovControlResult;
+    fov_control_result_t            mFovControlResultCachedCopy;
     dual_cam_params_t               mDualCamParams;
     QCameraExtZoomTranslator       *mZoomTranslator;
     cam_hal_pp_type_t               mHalPPType;

@@ -61,6 +61,7 @@ QCameraFOVControl::QCameraFOVControl()
     memset(&mFovControlData,   0, sizeof(fov_control_data_t));
     memset(&mFovControlResult, 0, sizeof(fov_control_result_t));
     memset(&mFovControlParm,   0, sizeof(mFovControlParm));
+    memset(&mFovControlResultCachedCopy, 0, sizeof(fov_control_result_t));
     mHalPPType = CAM_HAL_PP_TYPE_NONE;
 }
 
@@ -408,6 +409,8 @@ void QCameraFOVControl::resetVars()
     mFovControlData.spatialAlignResult.shiftTele.shiftHorz = 0;
     mFovControlData.spatialAlignResult.shiftTele.shiftVert = 0;
 
+    mFovControlData.updateResultState = true;
+
     // WA for now until the QTI solution is in place writing the spatial alignment ready status
     mFovControlData.spatialAlignResult.readyStatus = 1;
 }
@@ -524,6 +527,8 @@ int32_t QCameraFOVControl::updateConfigSettings(
                 mFovControlResult.snapshotPostProcess = true;
                 mFovControlResult.oisMode = OIS_MODE_HOLD;
                 mFovControlData.configCompleted = true;
+                memcpy(&mFovControlResultCachedCopy, &mFovControlResult,
+                        sizeof(fov_control_result_t));
                 LOGH("Bokeh : start camera state for Bokeh Mode: TELE");
                 return NO_ERROR;
             }
@@ -601,6 +606,8 @@ int32_t QCameraFOVControl::updateConfigSettings(
             // FOV-control config is complete for the current use case
             mFovControlData.configCompleted = true;
             rc = NO_ERROR;
+
+            memcpy(&mFovControlResultCachedCopy, &mFovControlResult, sizeof(fov_control_result_t));
 
             rc = translateInputParams(paramsMainCam, paramsAuxCam);
             if (rc != NO_ERROR) {
@@ -801,10 +808,13 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
     metadata_buffer_t* metaResult = NULL;
 
     if (metaMain || metaAux) {
-        metadata_buffer_t *meta   = metaMain ? metaMain : metaAux;
-        cam_sync_type_t masterCam = mFovControlResult.camMasterPreview;
 
         mMutex.lock();
+
+        metadata_buffer_t *meta   = metaMain ? metaMain : metaAux;
+        cam_sync_type_t masterCam = mFovControlData.updateResultState ?
+                mFovControlResult.camMasterPreview : mFovControlResultCachedCopy.camMasterPreview;
+
         // Book-keep the needed metadata from main camera and aux camera
         IF_META_AVAILABLE(cam_sac_output_info_t, spatialAlignOutput,
                 CAM_INTF_META_DC_SAC_OUTPUT_INFO, meta) {
@@ -1076,9 +1086,14 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         // If snapshot postprocess is enabled, consolidate the AF status to be sent to the app
         // when in the transition state.
         // Only return focused if both are focused.
-        if ((mFovControlResult.snapshotPostProcess == true) &&
-                    (mFovControlData.camState == STATE_TRANSITION) &&
-                    metaResult) {
+        bool snapshotPostProcess = mFovControlData.updateResultState ?
+                mFovControlResult.snapshotPostProcess :
+                mFovControlResultCachedCopy.snapshotPostProcess;
+        uint32_t camState = mFovControlData.updateResultState ?
+                mFovControlResult.activeCameras : mFovControlResultCachedCopy.activeCameras;
+        if (snapshotPostProcess &&
+                (camState == (CAM_TYPE_MAIN | CAM_TYPE_AUX)) &&
+                metaResult) {
             if (((mFovControlData.afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) ||
                     (mFovControlData.afStatusMain == CAM_AF_STATE_NOT_FOCUSED_LOCKED)) &&
                     ((mFovControlData.afStatusAux == CAM_AF_STATE_FOCUSED_LOCKED) ||
@@ -1133,7 +1148,6 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
 void QCameraFOVControl::generateFovControlResult()
 {
     Mutex::Autolock lock(mMutex);
-
 
     if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
         // Tele is primary camera
@@ -1516,7 +1530,10 @@ void QCameraFOVControl::generateFovControlResult()
  fov_control_result_t QCameraFOVControl::getFovControlResult()
 {
     Mutex::Autolock lock(mMutex);
-    fov_control_result_t fovControlResult = mFovControlResult;
+    /* Return either the latest result or the cached result based on the update flag
+      set by HAL */
+    fov_control_result_t fovControlResult = mFovControlData.updateResultState ?
+            mFovControlResult : mFovControlResultCachedCopy;
     return fovControlResult;
 }
 
@@ -2537,11 +2554,24 @@ void QCameraFOVControl::UpdateFlag(
             case FOVCONTROL_FLAG_THERMAL_THROTTLE:
                 mFovControlData.thermalThrottle = *(bool*)value;
                 break;
+            case FOVCONTROL_FLAG_UPDATE_RESULT_STATE:
+                if (mFovControlData.updateResultState == *(bool*)value) {
+                    mMutex.unlock();
+                    return;
+                } else {
+                    mFovControlData.updateResultState = *(bool*)value;
+                    // Cache the latest result if the update flag is set to false
+                    if (mFovControlData.updateResultState == false) {
+                        memcpy(&mFovControlResultCachedCopy, &mFovControlResult,
+                                sizeof(fov_control_result_t));
+                    }
+                }
             default:
                 LOGE("Invalid event to process");
                 break;
         }
         mMutex.unlock();
+        LOGD("FOV-Control received flag %d with value %d", flag, *(bool*)value);
         generateFovControlResult();
     }
 }
