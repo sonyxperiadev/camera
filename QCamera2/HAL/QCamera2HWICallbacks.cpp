@@ -2714,13 +2714,9 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
 
     //Wait for first preview frame to process Dual fov control
     LOGD("pme->m_bFirstPreviewFrameReceived: %d", pme->m_bFirstPreviewFrameReceived);
-    if (pme->isDualCamera()) {
-        if ((pme->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
-                !pme->m_bFirstPreviewFrameReceived) {
-            LOGH("skip fillDualCameraFovControl as preview has not started!!");
-        } else {
-            pme->fillDualCameraFOVControl();
-        }
+    // skip fillDualCameraFOVControl till HAL receives first preview frame
+    if (pme->isDualCamera() && pme->m_bFirstPreviewFrameReceived) {
+        pme->fillDualCameraFOVControl();
     }
 
     IF_META_AVAILABLE(int32_t, led_result, CAM_INTF_META_LED_CALIB_RESULT, pMetaData) {
