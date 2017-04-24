@@ -1614,6 +1614,20 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_buf_def_t *frame,
         param.reprocess.meta_buf_index = meta_buf_index;
     }
 
+    uint32_t strid = get_main_camera_handle(frame->stream_id);
+    uint32_t aux_strid = get_aux_camera_handle(frame->stream_id);
+    if (strid) {
+       LOGI("WIDE");
+       param.reprocess.is_dc_wide = 1;
+    }
+    if (aux_strid) {
+        if (strid) {
+            LOGI("TELE already WIDE? %d", param.reprocess.is_dc_wide);
+        }
+        LOGI("TELE");
+       param.reprocess.is_dc_wide = 0;
+    }
+
     LOGI("Offline reprocessing id = %d buf Id = %d meta index = %d type = %d",
              param.reprocess.frame_idx, param.reprocess.buf_index,
             param.reprocess.meta_buf_index, pStream->getMyOriginalType());

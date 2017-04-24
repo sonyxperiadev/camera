@@ -389,6 +389,7 @@ private:
     bool isRegularCapture();
     bool needOfflineReprocessing();
     bool isCACEnabled();
+    bool isZaraEnabled();
     bool is4k2kResolution(cam_dimension_t* resolution);
     bool isPreviewRestartEnabled();
     bool needReprocess();
