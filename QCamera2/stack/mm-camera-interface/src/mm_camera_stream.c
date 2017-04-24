@@ -108,6 +108,10 @@ int32_t mm_stream_calc_offset_video(cam_format_t fmt,
 int32_t mm_stream_calc_offset_metadata(cam_dimension_t *dim,
                                        cam_padding_info_t *padding,
                                        cam_stream_buf_plane_info_t *buf_planes);
+int32_t mm_stream_calc_offset_depth(cam_format_t fmt,
+                                    cam_dimension_t *dim,
+                                    cam_padding_info_t *padding,
+                                    cam_stream_buf_plane_info_t *buf_planes);
 int32_t mm_stream_calc_offset_postproc(cam_stream_info_t *stream_info,
                                        cam_padding_info_t *padding,
                                        cam_stream_buf_plane_info_t *plns);
@@ -2629,6 +2633,9 @@ uint32_t mm_stream_get_v4l2_fmt(cam_format_t fmt)
         val = 0;
         LOGE("Unknown fmt=%d", fmt);
         break;
+    case CAM_FORMAT_DEPTH16:
+    case CAM_FORMAT_DEPTH8:
+    case CAM_FORMAT_DEPTH_POINT_CLOUD:
     case CAM_FORMAT_MAX:
         /* CAM_STREAM_TYPE_DEFAULT,
          * CAM_STREAM_TYPE_OFFLINE_PROC,
@@ -4194,6 +4201,87 @@ int32_t mm_stream_calc_offset_video(cam_format_t fmt,
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_stream_calc_offset_depth
+ *
+ * DESCRIPTION: calculate depth frame offset based on format and
+ *              padding information
+ *
+ * PARAMETERS :
+ *   @fmt     : stream format
+ *   @dim     : image dimension
+ *   @padding : padding information
+ *   @buf_planes : [out] buffer plane information
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_stream_calc_offset_depth(cam_format_t fmt,
+                                       cam_dimension_t *dim,
+                                       cam_padding_info_t *padding,
+                                       cam_stream_buf_plane_info_t *buf_planes)
+{
+    int32_t rc = 0;
+    int32_t offset_x = 0, offset_y = 0;
+    int32_t stride, scanline;
+
+    /* Clip to minimum supported bytes per line */
+    if ((uint32_t)dim->width < padding->min_stride) {
+        stride = (int32_t)padding->min_stride;
+    } else {
+        stride = dim->width;
+    }
+
+    if ((uint32_t)dim->height < padding->min_scanline) {
+      scanline = (int32_t)padding->min_scanline;
+    } else {
+      scanline = dim->height;
+    }
+
+    stride = PAD_TO_SIZE(stride, padding->width_padding);
+    scanline = PAD_TO_SIZE(scanline, padding->height_padding);
+    switch (fmt) {
+    case CAM_FORMAT_DEPTH_POINT_CLOUD:
+        buf_planes->plane_info.num_planes = 1;
+        buf_planes->plane_info.mp[0].offset = 0;
+        buf_planes->plane_info.mp[0].len =
+                PAD_TO_SIZE((uint32_t)(dim->width * dim->height),
+                padding->plane_padding);
+        buf_planes->plane_info.frame_len =
+                buf_planes->plane_info.mp[0].len;
+
+        buf_planes->plane_info.mp[0].offset_x =0;
+        buf_planes->plane_info.mp[0].offset_y = 0;
+        buf_planes->plane_info.mp[0].stride = dim->width;
+        buf_planes->plane_info.mp[0].scanline = dim->height;
+        buf_planes->plane_info.mp[0].width = dim->width;
+        buf_planes->plane_info.mp[0].height = dim->height;
+        break;
+    case CAM_FORMAT_DEPTH16:
+    case CAM_FORMAT_DEPTH8:
+        buf_planes->plane_info.num_planes = 1;
+
+        buf_planes->plane_info.mp[0].len =
+                PAD_TO_SIZE((uint32_t)(stride * scanline),
+                padding->plane_padding);
+        buf_planes->plane_info.mp[0].offset =
+                PAD_TO_SIZE((uint32_t)(offset_x + stride * offset_y),
+                padding->plane_padding);
+        buf_planes->plane_info.mp[0].offset_x = offset_x;
+        buf_planes->plane_info.mp[0].offset_y = offset_y;
+        buf_planes->plane_info.mp[0].stride = stride;
+        buf_planes->plane_info.mp[0].scanline = scanline;
+        buf_planes->plane_info.mp[0].width = dim->width;
+        buf_planes->plane_info.mp[0].height = dim->height;
+        buf_planes->plane_info.frame_len =
+                PAD_TO_SIZE(buf_planes->plane_info.mp[0].len, CAM_PAD_TO_4K);
+        break;
+    default:
+        LOGE("Unsupported depth format %d",fmt);
+    }
+    return rc;
+}
+/*===========================================================================
  * FUNCTION   : mm_stream_calc_offset_metadata
  *
  * DESCRIPTION: calculate metadata frame offset based on format and
@@ -4745,6 +4833,12 @@ int32_t mm_stream_calc_offset(mm_stream_t *my_obj)
         rc = mm_stream_calc_offset_metadata(&dim,
                                             &my_obj->padding_info,
                                             &my_obj->stream_info->buf_planes);
+        break;
+    case CAM_STREAM_TYPE_DEPTH:
+        rc = mm_stream_calc_offset_depth(my_obj->stream_info->fmt,
+                                         &dim,
+                                         &my_obj->padding_info,
+                                         &my_obj->stream_info->buf_planes);
         break;
     default:
         LOGE("not supported for stream type %d",
