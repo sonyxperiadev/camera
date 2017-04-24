@@ -1843,8 +1843,10 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
                     } else if (s_objs[i]->aux_str_obj[0] != NULL) {
                         dst_obj = s_objs[i]->aux_str_obj[0];
                     }
-                    my_obj->bundle.superbuf_queue.bundled_streams[j]
+                    if (dst_obj) {
+                        my_obj->bundle.superbuf_queue.bundled_streams[j]
                             |= dst_obj->my_hdl;
+                    }
                 }
                 j++;
             }
