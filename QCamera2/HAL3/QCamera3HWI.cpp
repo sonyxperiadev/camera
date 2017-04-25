@@ -6116,17 +6116,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             }
                         }
 
-                        for (size_t i = 0; i < numFaces; i++) {
-                            faceIds[i] = faceDetectionInfo->faces[i].face_id;
-
-                            LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : faceIds=%d",
-                                    faceDetectionInfo->frame_id, i, faceIds[i]);
-                        }
-
                         camMetadata.update(ANDROID_STATISTICS_FACE_IDS, faceIds, numFaces);
                         camMetadata.update(ANDROID_STATISTICS_FACE_LANDMARKS,
                                 faceLandmarks, numFaces * 6U);
-                    }
+                   }
                     IF_META_AVAILABLE(cam_face_blink_data_t, blinks,
                             CAM_INTF_META_FACE_BLINK, metadata) {
                         uint8_t detected[MAX_ROI];
@@ -6136,10 +6129,10 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             degree[2 * i] = blinks->blink[i].left_blink;
                             degree[2 * i + 1] = blinks->blink[i].right_blink;
 
-                            LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
-                                    "blink_detected=%d, leye_blink=%d, reye_blink=%d",
-                                    faceDetectionInfo->frame_id, i, detected[i], degree[2 * i],
-                                    degree[2 * i + 1]);
+                        LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
+                                "blink_detected=%d, leye_blink=%d, reye_blink=%d",
+                                faceDetectionInfo->frame_id, i, detected[i], degree[2 * i],
+                                degree[2 * i + 1]);
                         }
                         camMetadata.update(QCAMERA3_STATS_BLINK_DETECTED,
                                 detected, numFaces);
@@ -6154,9 +6147,9 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                             degree[i] = smiles->smile[i].smile_degree;
                             confidence[i] = smiles->smile[i].smile_confidence;
 
-                            LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
-                                    "smile_degree=%d, smile_score=%d",
-                                    faceDetectionInfo->frame_id, i, degree[i], confidence[i]);
+                        LOGL("FD_DEBUG LANDMARK : Frame[%d] : Face[%d] : "
+                                "smile_degree=%d, smile_score=%d",
+                                faceDetectionInfo->frame_id, i, degree[i], confidence[i]);
                         }
                         camMetadata.update(QCAMERA3_STATS_SMILE_DEGREE,
                                 degree, numFaces);
