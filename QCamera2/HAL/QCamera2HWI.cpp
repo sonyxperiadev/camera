@@ -8688,9 +8688,6 @@ int32_t QCamera2HardwareInterface::getPPConfig(cam_pp_feature_config_t &pp_confi
             if (isCACEnabled()) {
                 pp_config.feature_mask |= CAM_QCOM_FEATURE_CAC;
             }
-            if (isZaraEnabled()) {
-                pp_config.feature_mask |= CAM_QTI_FEATURE_ZARA;
-            }
 
             //check if rotation is required
             if ((feature_mask & CAM_QCOM_FEATURE_ROTATION) && (rotation > 0)) {
@@ -11767,25 +11764,5 @@ void QCamera2HardwareInterface::fillDualCameraFOVControl()
         LOGE("No memory for Dual camera fill FOV control event");
     }
 }
-
-/*===========================================================================
- * FUNCTION   : isZaraEnabled
- *
- * DESCRIPTION: if ZARA is enabled
- *
- * PARAMETERS : none
- *
- * RETURN     : true: needed
- *              false: no need
- *==========================================================================*/
-bool QCamera2HardwareInterface::isZaraEnabled()
-{
-    char prop[PROPERTY_VALUE_MAX];
-    memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.imglib.zara", prop, "0");
-    int enableZARA = atoi(prop);
-    return enableZARA == 1;
-}
-
 
 }; // namespace qcamera
