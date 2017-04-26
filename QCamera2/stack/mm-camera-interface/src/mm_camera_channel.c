@@ -3706,6 +3706,9 @@ int32_t mm_channel_superbuf_flush_matched(mm_channel_t* my_obj,
     }
     pthread_mutex_unlock(&queue->que.lock);
 
+    /*Flush Super buffer frame sync queue*/
+    mm_channel_send_frame_sync_flush(my_obj);
+
     return rc;
 }
 
