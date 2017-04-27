@@ -118,6 +118,7 @@ public:
     uint8_t getNumOfRetroSnapshots();
     uint8_t getNumOfExtraHDRInBufsIfNeeded();
     uint8_t getNumOfExtraHDROutBufsIfNeeded();
+    uint8_t getNumOfExtraEISBufsIfNeeded();
 
     bool getRecordingHintValue();
     uint32_t getJpegQuality();

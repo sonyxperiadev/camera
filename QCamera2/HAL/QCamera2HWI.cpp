@@ -2865,6 +2865,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
             if (CAMERA_MIN_METADATA_BUFFERS > bufferCnt) {
                 bufferCnt = CAMERA_MIN_METADATA_BUFFERS;
             }
+            bufferCnt += mParameters.getNumOfExtraEISBufsIfNeeded();
         }
         break;
     case CAM_STREAM_TYPE_OFFLINE_PROC:
@@ -8038,7 +8039,8 @@ int32_t QCamera2HardwareInterface::addVideoChannel()
         attr.look_back = 0; //wait for future frame for liveshot
         attr.post_frame_skip = mParameters.getZSLBurstInterval();
         attr.water_mark = 1; //hold min buffers possible in Q
-        attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue();
+        attr.max_unmatched_frames = mParameters.getMaxUnmatchedFramesInQueue()
+                + mParameters.getNumOfExtraEISBufsIfNeeded();
         rc = pChannel->init(&attr, snapshot_channel_cb_routine, this);
     } else {
         // preview only channel, don't need bundle attr and cb
@@ -11697,6 +11699,8 @@ bool QCamera2HardwareInterface::isLowPowerMode()
 
     bool isLowpower = mParameters.getRecordingHintValue() && enable
             && ((dim.width * dim.height) >= (2048 * 1080));
+    isLowpower = isLowpower || (mParameters.isHfrMode() && !mParameters.getBufBatchCount());
+    LOGD("low power mode %d",isLowpower);
     return isLowpower;
 }
 
