@@ -58,6 +58,8 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror
 LOCAL_SRC_FILES := $(MM_CAM_FILES)
 
 LOCAL_MODULE           := libmmcamera_interface
+LOCAL_SDCLANG := $(SDCLANGSAVE)
+LOCAL_SDCLANG_LTO := $(SDCLANGSAVE)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog
 LOCAL_MODULE_TAGS := optional
