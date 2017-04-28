@@ -1843,8 +1843,10 @@ int32_t mm_channel_start(mm_channel_t *my_obj)
                     } else if (s_objs[i]->aux_str_obj[0] != NULL) {
                         dst_obj = s_objs[i]->aux_str_obj[0];
                     }
-                    my_obj->bundle.superbuf_queue.bundled_streams[j]
+                    if (dst_obj) {
+                        my_obj->bundle.superbuf_queue.bundled_streams[j]
                             |= dst_obj->my_hdl;
+                    }
                 }
                 j++;
             }
@@ -3703,6 +3705,9 @@ int32_t mm_channel_superbuf_flush_matched(mm_channel_t* my_obj,
         super_buf = mm_channel_superbuf_dequeue_internal(queue, TRUE, my_obj);
     }
     pthread_mutex_unlock(&queue->que.lock);
+
+    /*Flush Super buffer frame sync queue*/
+    mm_channel_send_frame_sync_flush(my_obj);
 
     return rc;
 }

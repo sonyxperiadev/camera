@@ -10072,7 +10072,9 @@ int QCamera2HardwareInterface::updateThermalLevel(void *thermal_level)
             enable = false;
             m_pFovControl->UpdateFlag(FOVCONTROL_FLAG_THERMAL_THROTTLE, &enable);
         }
-        processDualCamFovControl();
+        if (m_bFirstPreviewFrameReceived) {
+            processDualCamFovControl();
+        }
     }
     return ret;
 
