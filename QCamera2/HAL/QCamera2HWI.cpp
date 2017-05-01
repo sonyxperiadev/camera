@@ -417,6 +417,9 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
     LOGI("[KPI Perf]: E PROFILE_STOP_PREVIEW camera id %d",
              hw->getCameraId());
 
+    // Disable power Hint for preview
+    hw->m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);
+
     hw->m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_STOP_PREVIEW);
 
     hw->lockAPI();
@@ -426,6 +429,7 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
         hw->waitAPIResult(QCAMERA_SM_EVT_STOP_PREVIEW, &apiResult);
     }
     hw->unlockAPI();
+    hw->m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_PREVIEW);
     LOGI("[KPI Perf]: X ret = %d", ret);
 }
 
@@ -4029,9 +4033,7 @@ int QCamera2HardwareInterface::stopPreview()
         mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
     }
 
-    // Disable power Hint for preview
     m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);
-
     m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_STOP_PREVIEW);
 
     // stop preview stream
