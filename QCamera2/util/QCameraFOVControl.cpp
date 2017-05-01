@@ -400,6 +400,8 @@ void QCameraFOVControl::resetVars()
 
     mFovControlData.wideCamStreaming = false;
     mFovControlData.teleCamStreaming = false;
+    mFovControlData.frameCountWide = 0;
+    mFovControlData.frameCountTele = 0;
 
     mFovControlData.spatialAlignResult.readyStatus = 0;
     mFovControlData.spatialAlignResult.activeCameras = 0;
@@ -1020,22 +1022,26 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         // Update the camera streaming status
         if (metaWide) {
             mFovControlData.wideCamStreaming = true;
+            ++mFovControlData.frameCountWide;
             IF_META_AVAILABLE(uint8_t, enableLPM, CAM_INTF_META_DC_LOW_POWER_ENABLE, metaWide) {
                 if (*enableLPM) {
                     // If LPM enabled is 1, this is probably the last metadata returned
                     // before going into LPM state
                     mFovControlData.wideCamStreaming = false;
+                    mFovControlData.frameCountWide = 0;
                 }
             }
         }
 
         if (metaTele) {
             mFovControlData.teleCamStreaming = true;
+            ++mFovControlData.frameCountTele;
             IF_META_AVAILABLE(uint8_t, enableLPM, CAM_INTF_META_DC_LOW_POWER_ENABLE, metaTele) {
                 if (*enableLPM) {
                     // If LPM enabled is 1, this is probably the last metadata returned
                     // before going into LPM state
                     mFovControlData.teleCamStreaming = false;
+                    mFovControlData.frameCountTele = 0;
                 }
             }
         }
@@ -1660,6 +1666,8 @@ bool QCameraFOVControl::canSwitchMasterTo(
     LOGD("Tele: current LuxIdx: %d, threshold LuxIdx: %d", currentLuxIdxTele, thresholdLuxIdx);
     LOGD("Tele: current focus dist: %d, threshold focus dist: %d",
             currentFocusDistTele, thresholdFocusDist);
+    LOGD("frameCountWide: %d, frameCountTele: %d",
+            mFovControlData.frameCountWide, mFovControlData.frameCountTele);
 
     if (cam == CAM_ROLE_WIDE) {
         // In case of thermal throttle, only check zoom value for master switch.
@@ -1667,7 +1675,8 @@ bool QCameraFOVControl::canSwitchMasterTo(
             if (zoom < cutOverTeleToWide) {
                 ret = true;
             }
-        } else if (mFovControlData.wideCamStreaming) {
+        } else if (mFovControlData.wideCamStreaming &&
+                        (mFovControlData.frameCountWide > FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH)) {
             if (mFovControlData.fallbackEnabled && mFovControlData.fallbackToWide) {
                 /* If the fallback is initiated, only switch the master when the spatial alignment
                  confirms the completion of the fallback. */
@@ -1696,7 +1705,8 @@ bool QCameraFOVControl::canSwitchMasterTo(
             if (zoom > cutOverWideToTele) {
                 ret = true;
             }
-        } else if (mFovControlData.teleCamStreaming) {
+        } else if (mFovControlData.teleCamStreaming &&
+                        (mFovControlData.frameCountTele > FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH)) {
             bool teleWellLitNonMacroScene = !mFovControlData.fallbackEnabled ||
                                                 ((currentLuxIdxTele <= thresholdLuxIdx) &&
                                                 (currentFocusDistTele >= thresholdFocusDist));
