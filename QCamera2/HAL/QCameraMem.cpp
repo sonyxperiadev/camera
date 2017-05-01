@@ -513,8 +513,8 @@ int QCameraMemory::allocOneBuffer(QCameraMemInfo &memInfo,
     memInfo.cached = cached;
     memInfo.heap_id = heap_id;
 
-    LOGD("ION buffer %lx with size %d allocated",
-             (unsigned long)memInfo.handle, alloc.len);
+    LOGH("ION buffer %lx with size %d allocated memInfo.fd: %d main_ion_fd: %d",
+            (unsigned long)memInfo.handle, alloc.len, memInfo.fd, main_ion_fd);
     return OK;
 
 ION_MAP_FAILED:
@@ -540,6 +540,8 @@ ION_OPEN_FAILED:
 void QCameraMemory::deallocOneBuffer(QCameraMemInfo &memInfo)
 {
     struct ion_handle_data handle_data;
+
+    LOGH("memInfo.fd: %d main_ion_fd: %d", memInfo.fd, memInfo.main_ion_fd);
 
     if (memInfo.fd >= 0) {
         close(memInfo.fd);
@@ -2038,8 +2040,9 @@ int QCameraGrallocMemory::displayBuffer(uint32_t index)
                         1,
                         (void *)this);
             }
-            LOGH("idx = %d, fd = %d, size = %d, offset = %d",
+            LOGH("idx = %d, fd = %d, main_ion_fd = %d, size = %d, offset = %d",
                      dequeuedIdx, mPrivateHandle[dequeuedIdx]->fd,
+                    mMemInfo[dequeuedIdx].main_ion_fd,
                     mPrivateHandle[dequeuedIdx]->size,
                     mPrivateHandle[dequeuedIdx]->offset);
             mMemInfo[dequeuedIdx].fd = mPrivateHandle[dequeuedIdx]->fd;
@@ -2174,8 +2177,9 @@ int32_t QCameraGrallocMemory::dequeueBuffer()
                         1,
                         (void *)this);
             }
-            LOGH("idx = %d, fd = %d, size = %d, offset = %d",
+            LOGH("idx = %d, fd = %d, main_ion_fd = %d, size = %d, offset = %d",
                      dequeuedIdx, mPrivateHandle[dequeuedIdx]->fd,
+                    mMemInfo[dequeuedIdx].main_ion_fd,
                     mPrivateHandle[dequeuedIdx]->size,
                     mPrivateHandle[dequeuedIdx]->offset);
             mMemInfo[dequeuedIdx].fd = mPrivateHandle[dequeuedIdx]->fd;
@@ -2373,8 +2377,9 @@ int QCameraGrallocMemory::allocate(uint8_t count, size_t /*size*/)
                         1,
                         (void *)this);
         }
-        LOGH("idx = %d, fd = %d, size = %d, offset = %d",
+        LOGH("idx = %d, fd = %d, main_ion_fd = %d, size = %d, offset = %d",
                cnt, mPrivateHandle[cnt]->fd,
+              mMemInfo[cnt].main_ion_fd,
               mPrivateHandle[cnt]->size,
               mPrivateHandle[cnt]->offset);
         mMemInfo[cnt].fd = mPrivateHandle[cnt]->fd;
@@ -2440,6 +2445,8 @@ void QCameraGrallocMemory::deallocate()
         if (ioctl(mMemInfo[cnt].main_ion_fd, ION_IOC_FREE, &ion_handle) < 0) {
             LOGE("ion free failed");
         }
+        LOGH("cnt: %d mMemInfo[cnt].main_ion_fd: %d mMemInfo[cnt].fd: %d",
+                cnt, mMemInfo[cnt].main_ion_fd, mMemInfo[cnt].fd);
         close(mMemInfo[cnt].main_ion_fd);
         if(mLocalFlag[cnt] != BUFFER_NOT_OWNED) {
             if (mWindow && (mBufferHandle[cnt] != NULL)
