@@ -417,6 +417,9 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
     LOGI("[KPI Perf]: E PROFILE_STOP_PREVIEW camera id %d",
              hw->getCameraId());
 
+    // Disable power Hint for preview
+    hw->m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);
+
     hw->m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_STOP_PREVIEW);
 
     hw->lockAPI();
@@ -426,6 +429,7 @@ void QCamera2HardwareInterface::stop_preview(struct camera_device *device)
         hw->waitAPIResult(QCAMERA_SM_EVT_STOP_PREVIEW, &apiResult);
     }
     hw->unlockAPI();
+    hw->m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_PREVIEW);
     LOGI("[KPI Perf]: X ret = %d", ret);
 }
 
@@ -1706,19 +1710,23 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
     mCameraDevice.priv = this;
 
     mDualCamera = is_dual_camera_by_idx(cameraId);
+    pthread_condattr_t mCondAttr;
+
+    pthread_condattr_init(&mCondAttr);
+    pthread_condattr_setclock(&mCondAttr, CLOCK_MONOTONIC);
 
     pthread_mutex_init(&m_lock, NULL);
-    pthread_cond_init(&m_cond, NULL);
+    pthread_cond_init(&m_cond, &mCondAttr);
 
     m_apiResultList = NULL;
 
     pthread_mutex_init(&m_evtLock, NULL);
-    pthread_cond_init(&m_evtCond, NULL);
+    pthread_cond_init(&m_evtCond, &mCondAttr);
     memset(&m_evtResult, 0, sizeof(qcamera_api_result_t));
 
-
     pthread_mutex_init(&m_int_lock, NULL);
-    pthread_cond_init(&m_int_cond, NULL);
+    pthread_cond_init(&m_int_cond, &mCondAttr);
+    pthread_condattr_destroy(&mCondAttr);
 
     memset(m_channels, 0, sizeof(m_channels));
 
@@ -4025,9 +4033,7 @@ int QCamera2HardwareInterface::stopPreview()
         mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
     }
 
-    // Disable power Hint for preview
     m_perfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_PREVIEW);
-
     m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_STOP_PREVIEW);
 
     // stop preview stream
@@ -5710,10 +5716,12 @@ void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt, char *raw_fo
     int rc = NO_ERROR;
 
     struct timespec   ts;
-    struct timeval    tp;
-    gettimeofday(&tp, NULL);
+    struct timespec   tp;
+    if( clock_gettime(CLOCK_MONOTONIC, &tp) < 0) {
+        LOGE("Error reading the monotonic time clock, cannot use timed wait");
+    }
     ts.tv_sec  = tp.tv_sec + 5;
-    ts.tv_nsec = tp.tv_usec * 1000;
+    ts.tv_nsec = tp.tv_nsec;
 
     if (true == m_bIntJpegEvtPending ||
         (true == m_bIntRawEvtPending)) {
@@ -7374,7 +7382,9 @@ void QCamera2HardwareInterface::processDualCamFovControl()
    fov_control_result_t fovControlResult;
    cam_fallback_mode_t fallbackMode;
 
-    if (!isDualCamera()) {
+    if (!isDualCamera() || !m_bFirstPreviewFrameReceived) {
+        LOGD("Ignore DC process isDualCamera: %d, m_bFirstPreviewFrameReceived %d",
+                isDualCamera(), m_bFirstPreviewFrameReceived)
         return;
     }
 
@@ -7547,7 +7557,7 @@ void QCamera2HardwareInterface::waitAPIResult(qcamera_sm_evt_enum_t api_evt,
     struct timespec ts_start;
 
     if (timeoutSec != -1) {
-        rc = clock_gettime(CLOCK_REALTIME, &ts_start);
+        rc = clock_gettime(CLOCK_MONOTONIC, &ts_start);
         if (rc < 0) {
             LOGE("Error reading the real time clock!!");
             timeoutSec = -1;
@@ -7559,7 +7569,7 @@ void QCamera2HardwareInterface::waitAPIResult(qcamera_sm_evt_enum_t api_evt,
             pthread_cond_wait(&m_cond, &m_lock);
         } else {
             struct timespec ts_now;
-            rc = clock_gettime(CLOCK_REALTIME, &ts_now);
+            rc = clock_gettime(CLOCK_MONOTONIC, &ts_now);
             if (rc < 0) {
                 LOGE("Error reading the real time clock!!");
                 timeoutSec = -1;

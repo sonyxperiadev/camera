@@ -413,7 +413,12 @@ void QCameraFOVControl::resetVars()
 
     // WA for now until the QTI solution is in place writing the spatial alignment ready status
     mFovControlData.spatialAlignResult.readyStatus = 1;
-}
+
+    // Inactivate the timers
+    inactivateTimer(&mFovControlData.timerLowLitMacroScene);
+    inactivateTimer(&mFovControlData.timerWellLitNonMacroScene);
+    inactivateTimer(&mFovControlData.timerConstZoom);
+ }
 
 /*===========================================================================
  * FUNCTION    : updateConfigSettings
