@@ -558,6 +558,9 @@ int QCameraMuxer::start_preview(struct camera_device * device)
 
     if (cam->numCameras > 1) {
         uint sessionId = 0;
+        /* DUALCAM_SYNC_MECHANISM setting dictates if the camera sync should be
+        enabled or disabled */
+        bool camSync = (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) ? false : true;
         // Set up sync for camera sessions
         for (uint32_t i = 0; i < cam->numCameras; i++) {
             pCam = gMuxer->getPhysicalCamera(cam, i);
@@ -576,7 +579,7 @@ int QCameraMuxer::start_preview(struct camera_device * device)
                     LOGH("Related cam id: %d, server id: %d sync ON"
                             " related session_id %d",
                             cam->pId[i], cam->sId[i], sessionId);
-                    rc = hwi->bundleRelatedCameras(true);
+                    rc = hwi->bundleRelatedCameras(camSync);
                     if (rc != NO_ERROR) {
                         LOGE("Error Bundling physical cameras !! ");
                         return rc;
@@ -590,7 +593,7 @@ int QCameraMuxer::start_preview(struct camera_device * device)
                 LOGH("Related cam id: %d, server id: %d sync ON"
                         " related session_id %d",
                         cam->pId[i], cam->sId[i], sessionId);
-                rc = hwi->bundleRelatedCameras(true);
+                rc = hwi->bundleRelatedCameras(camSync);
                 if (rc != NO_ERROR) {
                     LOGE("Error Bundling physical cameras !! ");
                     return rc;

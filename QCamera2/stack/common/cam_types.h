@@ -53,6 +53,8 @@
 #define CEILING2(X)  (((X) + 0x0001) & 0xFFFE)
 
 #define MAX_ZOOMS_CNT 91
+#define ZOOM_MIN 4096        // min zoom value: 1x
+#define ZOOM_MAX 4096 * 8 // max zoom value: 8x
 #define MAX_SIZES_CNT 40
 #define MAX_EXP_BRACKETING_LENGTH 32
 #define MAX_ROI 10
@@ -184,6 +186,8 @@
 
 /* Index to switch H/W to consume to free-run Q*/
 #define CAM_FREERUN_IDX 0xFFFFFFFF
+
+#define DUALCAM_CAMERA_CNT 2
 
 typedef uint64_t cam_feature_mask_t;
 
@@ -959,6 +963,22 @@ typedef struct {
     uint8_t data[OIS_DATA_MAX_SIZE];
 } cam_ois_data_t;
 
+typedef enum {
+    CAM_RTB_MSG_NO_DEPTH_EFFECT,
+    CAM_RTB_MSG_DEPTH_EFFECT_SUCCESS,
+    CAM_RTB_MSG_TOO_NEAR,
+    CAM_RTB_MSG_TOO_FAR,
+    CAM_RTB_MSG_LOW_LIGHT,
+    CAM_RTB_MSG_SUBJECT_NOT_FOUND,
+    CAM_RTB_MSG_TOUCH_TO_FOCUS
+} cam_rtb_msg_type_t;
+
+typedef struct {
+    uint32_t blur_level;
+    uint32_t blur_min_value;
+    uint32_t blur_max_value;
+} cam_rtb_blur_info_t;
+
 typedef struct  {
     int32_t left;
     int32_t top;
@@ -1474,9 +1494,25 @@ typedef struct {
 } cam_auto_focus_data_t;
 
 typedef struct {
+    cam_stream_type_t stream_type;
+    uint32_t stream_zoom;
+    uint32_t isp_zoom;
+} cam_stream_zoom_info_t;
+
+typedef struct {
+    uint32_t user_zoom;
+    uint8_t  is_stream_zoom_info_valid;
+    uint32_t num_streams;
+    cam_stream_zoom_info_t stream_zoom_info[MAX_NUM_STREAMS];
+} cam_zoom_info_t;
+
+typedef struct {
     uint32_t stream_id;
     cam_rect_t crop;
     cam_rect_t roi_map;
+    uint32_t user_zoom;
+    uint32_t stream_zoom;
+    float scale_ratio;
 } cam_stream_crop_info_t;
 
 typedef struct {
@@ -1746,6 +1782,8 @@ typedef enum {
     CAM_DUAL_CAMERA_MASTER_INFO,
     /*Command to Defer dual camera session*/
     CAM_DUAL_CAMERA_DEFER_INFO,
+    /*cmd to send information about fallback in case of low light / macro scene*/
+    CAM_DUAL_CAMERA_FALLBACK_INFO,
 } cam_dual_camera_cmd_type;
 
 typedef enum {
@@ -1768,6 +1806,12 @@ typedef enum {
     CAM_3A_SYNC_FOLLOW,   /* Master->Slave: Master updates slave */
     CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
 } cam_3a_sync_mode_t;
+
+typedef enum {
+    OIS_MODE_INACTIVE,
+    OIS_MODE_ACTIVE,
+    OIS_MODE_HOLD,
+} cam_ois_mode_t;
 
 typedef struct {
     cam_dimension_t stream_sizes[MAX_NUM_STREAMS];
@@ -1860,6 +1904,11 @@ typedef enum {
 } cam_spatial_align_type_t;
 
 typedef struct {
+    uint32_t camera_role;
+    uint8_t  lpm_enable;
+} cam_sac_lpm_info_t;
+
+typedef struct {
     int32_t shift_horz;
     int32_t shift_vert;
 } cam_sac_output_shift_t;
@@ -1873,6 +1922,8 @@ typedef struct {
     uint8_t                master_3A;
     uint8_t                is_ready_status_valid;
     uint8_t                ready_status;
+    uint8_t                is_lpm_info_valid;
+    cam_sac_lpm_info_t     lpm_info[DUALCAM_CAMERA_CNT];
     uint8_t                is_output_shift_valid;
     cam_sac_output_shift_t output_shift;
     cam_dimension_t        reference_res_for_output_shift;
@@ -2009,7 +2060,7 @@ typedef enum {
     CAM_INTF_PARM_FPS_RANGE, /* 10 */
     CAM_INTF_PARM_AWB_LOCK,
     CAM_INTF_PARM_EFFECT,
-    CAM_INTF_PARM_BESTSHOT_MODE,
+    CAM_INTF_PARM_RAW_DIMENSION,
     CAM_INTF_PARM_DIS_ENABLE,
     CAM_INTF_PARM_LED_MODE,
     CAM_INTF_META_HISTOGRAM,
@@ -2025,7 +2076,7 @@ typedef enum {
     CAM_INTF_PARM_SATURATION,
     CAM_INTF_PARM_BRIGHTNESS,
     CAM_INTF_PARM_ISO,
-    CAM_INTF_PARM_ZOOM,
+    CAM_INTF_PARM_USERZOOM,
     CAM_INTF_PARM_ROLLOFF,
     CAM_INTF_PARM_MODE,             /* camera mode */
     CAM_INTF_PARM_AEC_ALGO_TYPE, /* 30 */ /* auto exposure algorithm */
@@ -2044,7 +2095,7 @@ typedef enum {
     CAM_INTF_PARM_RECORDING_HINT,
     CAM_INTF_PARM_HDR,
     CAM_INTF_PARM_MAX_DIMENSION,
-    CAM_INTF_PARM_RAW_DIMENSION,
+    CAM_INTF_PARM_BESTSHOT_MODE,
     CAM_INTF_PARM_FRAMESKIP,
     CAM_INTF_PARM_ZSL_MODE,  /* indicating if it's running in ZSL mode */
     CAM_INTF_PARM_BURST_NUM,
@@ -2102,6 +2153,7 @@ typedef enum {
     CAM_INTF_PARM_GET_OUTPUT_CROP,
 
     CAM_INTF_PARM_EZTUNE_CMD,
+    CAM_INTF_PARM_VFE1_RESERVED_RDI,
     CAM_INTF_PARM_INT_EVT,
 
     /* specific to HAL3 */
@@ -2400,8 +2452,6 @@ typedef enum {
     CAM_INTF_PARM_FOV_COMP_ENABLE,
     /*Meta to update dual LED calibration results to app*/
     CAM_INTF_META_LED_CALIB_RESULT,
-    /* Dual camera - user zoom value. This will always be the wider camera zoom value */
-    CAM_INTF_PARM_DC_USERZOOM,
     /* Dual camera sync parameter */
     CAM_INTF_PARM_SYNC_DC_PARAMETERS,
     /* AF focus position info */
@@ -2416,6 +2466,12 @@ typedef enum {
     CAM_INTF_META_OIS_READ_DATA,
     /*event to flush stream buffers*/
     CAM_INTF_PARM_FLUSH_FRAMES,
+    /* set Bokeh Blur Level */
+    CAM_INTF_PARAM_BOKEH_BLUR_LEVEL,
+    /* Read Real-Time Bokeh messages */
+    CAM_INTF_META_RTB_DATA,
+    /* Notify capture request for Dual Camera */
+    CAM_INTF_META_DC_CAPTURE,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -2650,6 +2706,7 @@ typedef struct {
 #define CAM_QTI_FEATURE_RTBDM           (((cam_feature_mask_t)1UL)<<43)
 #define CAM_QTI_FEATURE_BINNING_CORRECTION (((cam_feature_mask_t)1UL)<<44)
 #define CAM_QTI_FEATURE_RTB             (((cam_feature_mask_t)1UL)<<45)
+#define CAM_QCOM_FEATURE_LCAC           ((cam_feature_mask_t)1UL<<46)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
@@ -3031,5 +3088,13 @@ typedef struct {
   int reserved_i[16];
   float reserved_f[16];
 }tuning_mod1_data_AF;
+
+typedef enum {
+    CAM_HAL_PP_TYPE_NONE = 0,       // default undefined type
+    CAM_HAL_PP_TYPE_DUAL_FOV,            // dual camera Wide+Tele Dual FOV blending
+    CAM_HAL_PP_TYPE_BOKEH,               // dual camera Wide+Tele Snapshot Bokeh
+    CAM_HAL_PP_TYPE_CLEARSIGHT,          // dual camera Bayer+Mono Clearsight
+    CAM_HAL_PP_TYPE_MAX
+} cam_hal_pp_type_t;
 
 #endif /* __QCAMERA_TYPES_H__ */

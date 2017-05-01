@@ -60,6 +60,7 @@ enum qcamera3_ext_section {
     QCAMERA3_HISTOGRAM,
     QCAMERA3_BINNING_CORRECTION,
     QCAMERA3_STATS,
+    QCAMERA3_SIMULTANEOUS_CAMERA,
     QCAMERA3_SECTIONS_END
 };
 
@@ -87,7 +88,8 @@ enum qcamera3_ext_section_ranges {
     QCAMERA3_SHARPNESS_START = QCAMERA3_SHARPNESS_DATA << 16,
     QCAMERA3_HISTOGRAM_START = QCAMERA3_HISTOGRAM << 16,
     QCAMERA3_BINNING_CORRECTION_START = QCAMERA3_BINNING_CORRECTION << 16,
-    QCAMERA3_STATS_START = QCAMERA3_STATS << 16
+    QCAMERA3_STATS_START = QCAMERA3_STATS << 16,
+    QCAMERA3_SIMULTANEOUS_CAMERA_START = QCAMERA3_SIMULTANEOUS_CAMERA << 16
 };
 
 enum qcamera3_ext_tags {
@@ -335,7 +337,18 @@ enum qcamera3_ext_tags {
        gaze_degree[1] = top-bottom
     */
     QCAMERA3_STATS_GAZE_DEGREE,
-    QCAMERA3_STATS_END
+    QCAMERA3_STATS_END,
+
+    QCAMERA3_SIMULTANEOUS_CAMERA_VFE1_RESERVED_RDI = QCAMERA3_SIMULTANEOUS_CAMERA_START,
+    /* Property Name:  org.codeaurora.qcamera3.simultaneous_camera.vfe1_reserved_rdi
+       Type: int32
+       Description: number of RDI interface reserved on VFE1(the smaller VFE)
+       Details: It will guarantee the available RDI interfaces for RDI streams,
+                and any RDI stream requests that exceed the reserved number will
+                be allocated  to the other VFE.
+                Range from -1 to 3, -1 means the feature is disabled.
+    */
+    QCAMERA3_SIMULTANEOUS_CAMERA_END
 };
 
 // QCAMERA3_OPAQUE_RAW_FORMAT
@@ -412,6 +425,9 @@ typedef enum {
      *   on image/sensor statistics and YUV streams will be disabled.
      */
     QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE = 0x8000,
+
+    /* Disables all support streams for non raw mode configurations. */
+    QCAMERA3_VENDOR_STREAM_CONFIGURATION_DISABLE_SUPPORT_STREAMS = 0x8001
 } QCamera3VendorStreamConfiguration;
 
 class QCamera3VendorTags {

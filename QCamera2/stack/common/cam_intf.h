@@ -69,6 +69,17 @@ typedef enum {
 } cam_sync_related_sensors_control_t;
 
 typedef enum {
+    /* Absence of any sync mechanism */
+    CAM_SYNC_NO_SYNC,
+    /* Sensor turns on hw-sync */
+    CAM_SYNC_HW_SYNC,
+    /* Sensor ensures the phase difference is kept close to zero */
+    CAM_SYNC_SW_SYNC,
+    /* Sensor turns on hw-sync and also injects phase as needed */
+    CAM_SYNC_HYBRID_SYNC
+} cam_sync_mechanism_t;
+
+typedef enum {
     /* Driving camera of the related camera sub-system */
     /* Certain features are enabled only for primary camera
        such as display mode for preview, autofocus etc
@@ -81,13 +92,20 @@ typedef enum {
     CAM_MODE_SECONDARY
 } cam_sync_mode_t;
 
+/*Enum to inform about camera fllback type in dual camera use-cases*/
+typedef enum {
+    CAM_NO_FALLBACK,
+    CAM_WIDE_FALLBACK,
+} cam_fallback_mode_t;
+
 /*Enum to inform about camera type in dual camera use-cases*/
 typedef enum {
     CAM_ROLE_DEFAULT,
     CAM_ROLE_BAYER,
     CAM_ROLE_MONO,
     CAM_ROLE_WIDE,
-    CAM_ROLE_TELE
+    CAM_ROLE_TELE,
+    CAM_ROLE_WIDE_FALLBACK,
 } cam_dual_camera_role_t;
 
 /* Enum to define different low performance modes in dual camera*/
@@ -110,6 +128,7 @@ typedef enum {
 /* Payload for sending bundling info to backend */
 typedef struct {
     cam_sync_related_sensors_control_t sync_control;
+    cam_sync_mechanism_t sync_mechanism;
     cam_sync_type_t type;
     cam_sync_mode_t mode;
     cam_3a_sync_mode_t sync_3a_mode;
@@ -118,11 +137,8 @@ typedef struct {
        Linking will be done with this session in the
        backend */
     uint32_t related_sensor_session_id;
-    uint8_t is_frame_sync_enabled;
     /*Low power mode type. Static info per device*/
     cam_dual_camera_perf_mode_t perf_mode;
-    /*flag indicating if hw-sync is enabled*/
-    uint8_t is_hw_sync_enabled;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 
@@ -138,6 +154,11 @@ typedef struct {
     uint8_t priority; /*Can be used to make LPM forcefully*/
 } cam_dual_camera_perf_control_t;
 
+/* Structrue to update fallback camera info in dual camera case*/
+typedef struct {
+    cam_fallback_mode_t fallback;
+} cam_dual_camera_fallback_info_t;
+
 /* dual camera event payload */
 typedef struct {
     cam_dual_camera_cmd_type cmd_type; /*dual camera command type*/
@@ -148,6 +169,7 @@ typedef struct {
         cam_dual_camera_master_info_t  mode;
         cam_dual_camera_perf_control_t value;
         cam_dual_camera_defer_cmd_t defer_cmd;
+        cam_dual_camera_fallback_info_t fallback;
     };
 } cam_dual_camera_cmd_info_t;
 
@@ -418,7 +440,7 @@ typedef struct cam_capability{
     float filter_densities[CAM_FILTER_DENSITIES_MAX];
     uint8_t filter_densities_count;
 
-    uint8_t optical_stab_modes[CAM_OPT_STAB_MAX];
+    cam_optical_stab_modes_t optical_stab_modes[CAM_OPT_STAB_MAX];
     uint8_t optical_stab_modes_count;
 
     cam_dimension_t lens_shading_map_size;
@@ -648,6 +670,9 @@ typedef struct cam_capability{
 
     /*Available Spatial Alignment solutions*/
     uint32_t avail_spatial_align_solns;
+
+    /* sensor rotation */
+    int32_t sensor_rotation;
 } cam_capability_t;
 
 typedef enum {
@@ -782,6 +807,13 @@ typedef struct cam_stream_info {
 
     /* Cache ops for this stream */
     cam_stream_cache_ops_t cache_ops;
+
+    /* Specify cam type for this stream */
+    cam_sync_type_t cam_type;
+    /* Signifies if stream sync cb is needed */
+    uint32_t bStreamSyncCbNeeded;
+    /* signifies whether the stream needs to be bundled or not */
+    uint8_t bNoBundling;
 } cam_stream_info_t;
 
 /*****************************************************************************
@@ -952,7 +984,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_SPOT_LIGHT_DETECT,            uint8_t,                     1);
     INCLUDE(CAM_INTF_META_LENS_FOCUS_RANGE,             float,                       2);
     INCLUDE(CAM_INTF_META_LENS_STATE,                   cam_af_lens_state_t,         1);
-    INCLUDE(CAM_INTF_META_LENS_OPT_STAB_MODE,           uint32_t,                    1);
+    INCLUDE(CAM_INTF_META_LENS_OPT_STAB_MODE,           cam_ois_mode_t,              1);
     INCLUDE(CAM_INTF_META_VIDEO_STAB_MODE,              uint32_t,                    1);
     INCLUDE(CAM_INTF_META_LENS_FOCUS_STATE,             uint32_t,                    1);
     INCLUDE(CAM_INTF_META_NOISE_REDUCTION_MODE,         uint32_t,                    1);
@@ -1023,7 +1055,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_BRIGHTNESS,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ISO,                          cam_intf_parm_manual_3a_t,   1);
     INCLUDE(CAM_INTF_PARM_EXPOSURE_TIME,                cam_intf_parm_manual_3a_t,   1);
-    INCLUDE(CAM_INTF_PARM_ZOOM,                         int32_t,                     1);
+    INCLUDE(CAM_INTF_PARM_USERZOOM,                     cam_zoom_info_t,             1);
     INCLUDE(CAM_INTF_PARM_ROLLOFF,                      int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_MODE,                         int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_AEC_ALGO_TYPE,                int32_t,                     1);
@@ -1070,6 +1102,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_QUADRA_CFA,                   int32_t,                     1);
     INCLUDE(CAM_INTF_META_RAW,                          cam_dimension_t,             1);
     INCLUDE(CAM_INTF_META_STREAM_INFO_FOR_PIC_RES,      cam_stream_size_info_t,      1);
+    INCLUDE(CAM_INTF_PARM_VFE1_RESERVED_RDI,            int32_t,                     1);
 
 
     /* HAL3 specific */
@@ -1138,7 +1171,12 @@ typedef struct {
     INCLUDE(CAM_INTF_META_AEC_LUX_INDEX,                float,                       1);
     INCLUDE(CAM_INTF_META_AF_OBJ_DIST_CM,               int32_t,                     1);
     INCLUDE(CAM_INTF_META_BINNING_CORRECTION_MODE,      cam_binning_correction_mode_t,  1);
+
+    /* HAL1 and HAL3 Dual Camera */
     INCLUDE(CAM_INTF_META_OIS_READ_DATA,                cam_ois_data_t,              1);
+    INCLUDE(CAM_INTF_PARAM_BOKEH_BLUR_LEVEL,            cam_rtb_blur_info_t,         1);
+    INCLUDE(CAM_INTF_META_RTB_DATA,                     cam_rtb_msg_type_t,          1);
+    INCLUDE(CAM_INTF_META_DC_CAPTURE,                   uint8_t,                     1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to

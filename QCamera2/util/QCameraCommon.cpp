@@ -302,4 +302,20 @@ bool QCameraCommon::isVideoUBWCEnabled()
 #endif
 }
 
+bool QCameraCommon::skipAnalysisBundling()
+{
+    //Enabling analysis stream dynamically at ISP requires removing
+    //it from bundled list of streams. This has the advantage of power
+    //savings. But as of now, this feature is enabled only via setprop.
+    //So, by default analysis stream gets bundled.
+    char prop[PROPERTY_VALUE_MAX];
+    bool needBundling = true;
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.isp.analysis_en", prop, "1");
+    needBundling = atoi(prop);
+
+    return !needBundling;
+}
+
+
 }; // namespace qcamera
