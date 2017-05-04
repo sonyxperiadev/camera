@@ -207,6 +207,44 @@ static void mm_camera_event_notify(void* user_data)
 }
 
 /*===========================================================================
+ * FUNCTION   : mm_camera_defer_enqueue_evt
+ *
+ * DESCRIPTION: enqueue received event into event queue to be processed by
+ *              defer thread.
+ *
+ * PARAMETERS :
+ *   @my_obj   : ptr to a camera object
+ *   @event    : event to be queued
+ *
+ * RETURN     : int32_t type of status
+ *              0  -- success
+ *              -1 -- failure
+ *==========================================================================*/
+int32_t mm_camera_defer_enqueue_evt(mm_camera_obj_t *my_obj,
+        mm_camera_defer_cmd_t *event)
+{
+    int32_t rc = 0;
+    mm_camera_cmdcb_t *node = NULL;
+
+    node = (mm_camera_cmdcb_t *)malloc(sizeof(mm_camera_cmdcb_t));
+    if (NULL != node) {
+        memset(node, 0, sizeof(mm_camera_cmdcb_t));
+        node->cmd_type = MM_CAMERA_CMD_DEFER;
+        node->u.defer_evt = *event;
+
+        /* enqueue to evt cmd thread */
+        cam_queue_enq(&(my_obj->defer_thread.cmd_queue), node);
+        /* wake up evt cmd thread */
+        cam_sem_post(&(my_obj->defer_thread.cmd_sem));
+    } else {
+        LOGE("No memory for mm_camera_node_t");
+        rc = -1;
+    }
+
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : mm_camera_enqueue_evt
  *
  * DESCRIPTION: enqueue received event into event queue to be processed by
@@ -221,7 +259,7 @@ static void mm_camera_event_notify(void* user_data)
  *              -1 -- failure
  *==========================================================================*/
 int32_t mm_camera_enqueue_evt(mm_camera_obj_t *my_obj,
-                              mm_camera_event_t *event)
+                              mm_camera_event_t*event)
 {
     int32_t rc = 0;
     mm_camera_cmdcb_t *node = NULL;
