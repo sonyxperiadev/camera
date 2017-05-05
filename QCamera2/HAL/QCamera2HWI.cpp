@@ -7850,6 +7850,15 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
         }
     }
 
+    if ((streamType == CAM_STREAM_TYPE_ANALYSIS) &&
+            !mParameters.needAnalysisStream()) {
+        if (isDualCamera()) {
+            cam_type = MM_CAMERA_TYPE_MAIN;
+        } else {
+            return NO_ERROR;
+        }
+    }
+
     pStreamInfo = allocateStreamInfoBuf(streamType,
             getStreamRefCount(streamType, cam_type), cam_type);
     if (pStreamInfo == NULL) {

@@ -673,6 +673,9 @@ typedef struct cam_capability{
 
     /* sensor rotation */
     int32_t sensor_rotation;
+
+    /*Mono Stats support*/
+    uint8_t is_mono_stats_suport;
 } cam_capability_t;
 
 typedef enum {

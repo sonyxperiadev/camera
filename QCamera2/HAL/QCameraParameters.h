@@ -948,6 +948,7 @@ public:
     bool isDCAsymmetricPrevMode (){return mAsymmetricPreviewMode;};
     void initDCSettings(int32_t state, uint32_t camMaster,
             bool bundleSnapshot, cam_fallback_mode_t fallback);
+    bool needAnalysisStream();
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );

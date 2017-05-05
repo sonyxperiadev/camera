@@ -2391,7 +2391,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         createAnalysisAndCallbackStreams = false;
     }
     
-    if (createAnalysisAndCallbackStreams) {
+    if (createAnalysisAndCallbackStreams && mCommon.needAnalysisStream()) {
         cam_feature_mask_t analysisFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
         setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
                 gCamCapability[mCameraId]->color_arrangement);
