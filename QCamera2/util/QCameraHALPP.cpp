@@ -53,7 +53,7 @@ QCameraHALPP::QCameraHALPP()
       m_outgoingQ(releaseOngoingDataCb, this),
       m_halPPBufNotifyCB(NULL),
       m_halPPGetOutputCB(NULL),
-      m_pQCameraPostProc(NULL)
+      m_pHalPPMgr(NULL)
 {
 }
 
@@ -87,10 +87,12 @@ QCameraHALPP::~QCameraHALPP()
 int32_t QCameraHALPP::init(halPPBufNotify bufNotifyCb, halPPGetOutput getOutputCb, void *pUserData)
 {
     int32_t rc = NO_ERROR;
+    LOGH("E");
     // connect HALPP call back function
     m_halPPBufNotifyCB = bufNotifyCb;
     m_halPPGetOutputCB = getOutputCb;
-    m_pQCameraPostProc = (QCameraPostProcessor*)pUserData;
+    m_pHalPPMgr = (QCameraHALPPManager*)pUserData;
+    LOGH("X");
     return rc;
 }
 
@@ -110,7 +112,7 @@ int32_t QCameraHALPP::deinit()
     int32_t rc = NO_ERROR;
     m_halPPBufNotifyCB = NULL;
     m_halPPGetOutputCB = NULL;
-    m_pQCameraPostProc = NULL;
+    m_pHalPPMgr = NULL;
     return rc;
 }
 
@@ -221,44 +223,9 @@ std::vector<qcamera_hal_pp_data_t*>*
  *==========================================================================*/
 void QCameraHALPP::releaseData(qcamera_hal_pp_data_t *pData)
 {
-    if (pData) {
-        if (pData->src_reproc_frame) {
-            if (!pData->reproc_frame_release) {
-                m_pQCameraPostProc->releaseSuperBuf(pData->src_reproc_frame);
-            }
-            free(pData->src_reproc_frame);
-            pData->src_reproc_frame = NULL;
-        }
-        mm_camera_super_buf_t *frame = pData->frame;
-        if (frame) {
-            if (pData->halPPAllocatedBuf && pData->bufs) {
-                free(pData->bufs);
-            } else {
-                m_pQCameraPostProc->releaseSuperBuf(frame);
-            }
-            free(frame);
-            frame = NULL;
-        }
-        if (pData->snapshot_heap) {
-            pData->snapshot_heap->deallocate();
-            delete pData->snapshot_heap;
-            pData->snapshot_heap = NULL;
-        }
-        if (pData->metadata_heap) {
-            pData->metadata_heap->deallocate();
-            delete pData->metadata_heap;
-            pData->metadata_heap = NULL;
-        }
-        if (NULL != pData->src_reproc_bufs) {
-            delete [] pData->src_reproc_bufs;
-        }
-        if ((pData->offline_reproc_buf != NULL)
-                && (pData->offline_buffer)) {
-            free(pData->offline_reproc_buf);
-            pData->offline_reproc_buf = NULL;
-            pData->offline_buffer = false;
-        }
-    }
+    LOGH("E");
+    m_pHalPPMgr->releaseData(pData);
+    LOGH("X");
 }
 
 /*===========================================================================
@@ -276,6 +243,7 @@ void QCameraHALPP::releaseOngoingDataCb(void *pData, void *pUserData)
 {
     if (pUserData != NULL && pData != NULL) {
         QCameraHALPP *pme = (QCameraHALPP *)pUserData;
+        LOGH("releasing Data!!!!");
         pme->releaseData((qcamera_hal_pp_data_t*)pData);
     }
 }
@@ -294,6 +262,7 @@ void QCameraHALPP::releaseOngoingDataCb(void *pData, void *pUserData)
 void QCameraHALPP::releaseInputDataCb(void *pData, void *pUserData)
 {
     if (pUserData != NULL && pData != NULL) {
+        LOGH("releasing now");
         QCameraHALPP *pme = (QCameraHALPP *)pUserData;
         // what enqueued to the input queue is just the frame index
         // we need to use hash map to find the vector of frames and release the buffers
@@ -312,6 +281,126 @@ void QCameraHALPP::releaseInputDataCb(void *pData, void *pUserData)
         delete pFrameIndex;
         pFrameIndex = NULL;
     }
+}
+
+/*===========================================================================
+ * FUNCTION   : getOutputBuffer
+ *
+ * DESCRIPTION: function to get snapshot buf def and the stream from frame
+ * PARAMETERS :
+ *   @pInputData   : input frame pp data
+ *   @pOutputData : ouput frame pp data
+ * RETURN             : NO_ERROR if successful else error type
+ *==========================================================================*/
+int32_t QCameraHALPP::getOutputBuffer(
+        qcamera_hal_pp_data_t *pInputData,
+        qcamera_hal_pp_data_t *pOutputData)
+{
+    int32_t rc = NO_ERROR;
+    LOGH("E");
+    if (!pInputData || !pOutputData) {
+        LOGE("Error!! Cannot generate output buffer : pInputData: %p pOutputData:%p, ",
+                pInputData, pOutputData);
+        return UNEXPECTED_NULL;
+    }
+
+    QCameraStream* pSnapshotStream = NULL;
+    QCameraStream* pMetadataStream = NULL;
+    mm_camera_super_buf_t *pInputFrame = pInputData->frame;
+    mm_camera_buf_def_t *pInputSnapshotBuf = getSnapshotBuf(pInputData, pSnapshotStream);
+    mm_camera_buf_def_t *pInputMetadataBuf = getMetadataBuf(pInputData, pMetadataStream);
+    mm_camera_super_buf_t *pOutputFrame = pOutputData->frame;
+    mm_camera_buf_def_t *pOutputBufDefs = pOutputData->bufs;
+
+    if ((pInputSnapshotBuf == NULL) || (pInputMetadataBuf == NULL)) {
+        LOGE("cannot get sanpshot or metadata buf def");
+        releaseData(pOutputData);
+        return UNEXPECTED_NULL;
+    }
+    if ((pSnapshotStream == NULL) || (pMetadataStream == NULL)) {
+        LOGE("cannot get sanpshot or metadata stream");
+        releaseData(pOutputData);
+        return UNEXPECTED_NULL;
+    }
+
+    // Copy main input frame info to output frame
+    pOutputFrame->camera_handle = pInputFrame->camera_handle;
+    pOutputFrame->ch_id = pInputFrame->ch_id;
+    pOutputFrame->num_bufs = HAL_PP_NUM_BUFS;//snapshot and metadata
+    pOutputFrame->bUnlockAEC = pInputFrame->bUnlockAEC;
+    pOutputFrame->bReadyForPrepareSnapshot = pInputFrame->bReadyForPrepareSnapshot;
+
+    // Reconstruction of output_frame super buffer
+    pOutputFrame->bufs[0] = &pOutputBufDefs[0];
+    pOutputFrame->bufs[1] = &pOutputBufDefs[1];
+
+    // Allocate heap buffer for output image frame
+    cam_frame_len_offset_t offset;
+    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
+    LOGH("pInputSnapshotBuf->frame_len = %d", pInputSnapshotBuf->frame_len);
+    rc = pOutputData->snapshot_heap->allocate(1, pInputSnapshotBuf->frame_len);
+    if (rc < 0) {
+        LOGE("Unable to allocate heap memory for image buf");
+        releaseData(pOutputData);
+        return NO_MEMORY;
+    }
+    pSnapshotStream->getFrameOffset(offset);
+    memcpy(&pOutputBufDefs[0], pInputSnapshotBuf, sizeof(mm_camera_buf_def_t));
+    LOGH("pOutputFrame->bufs[0]->fd = %d, pOutputFrame->bufs[0]->buffer = %x",
+            pOutputFrame->bufs[0]->fd, pOutputFrame->bufs[0]->buffer);
+    pOutputData->snapshot_heap->getBufDef(offset, pOutputBufDefs[0], 0);
+    LOGH("pOutputFrame->bufs[0]->fd = %d, pOutputFrame->bufs[0]->buffer = %x",
+            pOutputFrame->bufs[0]->fd, pOutputFrame->bufs[0]->buffer);
+
+    // Allocate heap buffer for output metadata
+    LOGH("pInputMetadataBuf->frame_len = %d", pInputMetadataBuf->frame_len);
+    rc = pOutputData->metadata_heap->allocate(1, pInputMetadataBuf->frame_len);
+    if (rc < 0) {
+        LOGE("Unable to allocate heap memory for metadata buf");
+        releaseData(pOutputData);
+        return NO_MEMORY;
+    }
+    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
+    pMetadataStream->getFrameOffset(offset);
+    memcpy(&pOutputBufDefs[1], pInputMetadataBuf, sizeof(mm_camera_buf_def_t));
+    pOutputData->metadata_heap->getBufDef(offset, pOutputBufDefs[1], 0);
+    // copy the whole metadata
+    memcpy(pOutputBufDefs[1].buffer, pInputMetadataBuf->buffer,
+            pInputMetadataBuf->frame_len);
+    LOGH("X");
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : getSnapshotBuf
+ *
+ * DESCRIPTION: function to get snapshot buf def and the stream from frame
+ * PARAMETERS :
+ *   @pData           : input frame super buffer
+ *   @pSnapshotStream : stream of snapshot that found
+ * RETURN             : snapshot buf def
+ *==========================================================================*/
+mm_camera_buf_def_t* QCameraHALPP::getSnapshotBuf(qcamera_hal_pp_data_t* pData,
+        QCameraStream* &pSnapshotStream)
+{
+    LOGH("getSnapBuffer");
+    return m_pHalPPMgr->getSnapshotBuf(pData, pSnapshotStream);
+}
+
+/*===========================================================================
+ * FUNCTION   : getMetadataBuf
+ *
+ * DESCRIPTION: function to get metadata buf def and the stream from frame
+ * PARAMETERS :
+ *   @pData     : input frame super buffer
+ *   @pMetadataStream : stream of metadata that found
+ * RETURN     : metadata buf def
+ *==========================================================================*/
+mm_camera_buf_def_t* QCameraHALPP::getMetadataBuf(qcamera_hal_pp_data_t *pData,
+        QCameraStream* &pMetadataStream)
+{
+    LOGH("getMetaBuf");
+    return m_pHalPPMgr->getMetadataBuf(pData, pMetadataStream);
 }
 
 void QCameraHALPP::dumpYUVtoFile(const uint8_t* pBuf, const char *name, ssize_t buf_len)

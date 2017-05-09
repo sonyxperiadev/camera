@@ -146,6 +146,9 @@ int32_t mm_stream_handle_cache_ops(mm_stream_t* my_obj,
         mm_camera_buf_def_t* buf, bool deque);
 int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj,
         mm_camera_cb_req_type type);
+uint32_t mm_channel_link_stream(mm_channel_t *my_obj,
+        mm_camera_stream_link_t *stream_link);
+
 
 /*===========================================================================
  * FUNCTION   : mm_stream_notify_channel
@@ -423,6 +426,8 @@ static void mm_stream_dispatch_app_data(mm_camera_cmdcb_t *cmd_cb,
     }
 
     pthread_mutex_lock(&m_obj->frame_sync.sync_lock);
+    LOGD("frame_sync.is_active = %d, is_cb_active = %d",
+            m_obj->frame_sync.is_active, my_obj->is_cb_active);
     if (m_obj->frame_sync.is_active) {
         pthread_mutex_lock(&my_obj->buf_lock);
         my_obj->buf_status[buf_info->buf->buf_idx].buf_refcnt++;
@@ -1013,11 +1018,10 @@ int32_t mm_stream_init(mm_stream_t *my_obj)
     memset(&my_obj->frame_sync, 0, sizeof(my_obj->frame_sync));
     pthread_mutex_init(&my_obj->frame_sync.sync_lock, NULL);
     mm_muxer_frame_sync_queue_init(&my_obj->frame_sync.superbuf_queue);
-    if (my_obj->ch_obj->cam_obj->my_num == 0) {
-        my_obj->is_cb_active = 1;
-    } else {
-        my_obj->is_cb_active = 0;
-    }
+    my_obj->is_cb_active = 1;
+    LOGD("my_obj->is_cb_active = %d, my_obj->ch_obj->cam_obj->my_num: %d",
+            my_obj->is_cb_active, my_obj->ch_obj->cam_obj->my_num);
+
     my_obj->is_res_shared = 0;
     my_obj->map_ops.map_ops = mm_camera_map_stream_buf_ops;
     my_obj->map_ops.bundled_map_ops = mm_camera_bundled_map_stream_buf_ops;
@@ -1083,6 +1087,16 @@ int32_t mm_stream_config(mm_stream_t *my_obj,
     my_obj->buf_cb[cb_index].user_data = config->userdata;
     my_obj->buf_cb[cb_index].cb_count = -1; /* infinite by default */
     my_obj->buf_cb[cb_index].cb_type = MM_CAMERA_STREAM_CB_TYPE_ASYNC;
+    // For dual camera use case, make cb active only for main camera
+    // For asymmetric streams, cb is always active and the streams are not linked
+    if ((my_obj->ch_obj->cam_obj->my_num == 0) ||(my_obj->master_str_obj == NULL)) {
+        my_obj->is_cb_active = 1;
+    } else {
+        // Disable CB only if CB is not requested on all streams
+        my_obj->is_cb_active = 0;
+    }
+    LOGD("my_obj->is_cb_active = %d, my_obj->ch_obj->cam_obj->my_num: %d",
+            my_obj->is_cb_active, my_obj->ch_obj->cam_obj->my_num);
 
     if ((my_obj->frame_sync.superbuf_queue.num_objs != 0)
             && (my_obj->frame_sync.super_buf_notify_cb == NULL)) {
@@ -1205,6 +1219,8 @@ int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj,
                 m_obj->is_cb_active = 1;
             }
             pthread_mutex_unlock(&m_obj->cb_lock);
+            LOGD("FD: %d After switch s_obj->is_cb_active: %d, m_obj->is_cb_active: %d",
+                    my_obj->fd, s_obj->is_cb_active, m_obj->is_cb_active);
         break;
 
         case MM_CAMERA_CB_REQ_TYPE_FRAME_SYNC:
@@ -1219,7 +1235,29 @@ int32_t mm_stream_trigger_frame_sync(mm_stream_t *my_obj,
             pthread_mutex_lock(&s_obj->cb_lock);
             s_obj->is_cb_active = 1;
             pthread_mutex_unlock(&s_obj->cb_lock);
+            LOGD("ALL_CB s_obj->is_cb_active: %d, m_obj->is_cb_active: %d",
+                    s_obj->is_cb_active, m_obj->is_cb_active)
         break;
+
+        case MM_CAMERA_CB_REQ_TYPE_DEFER:
+            my_obj->is_deferred = 1;
+        break;
+
+        case MM_CAMERA_CB_REQ_TYPE_SHARE_FRAME: {
+            mm_camera_stream_link_t stream_link;
+
+            stream_link.ch = s_obj->ch_obj;
+            stream_link.stream_id = s_obj->my_hdl;
+            m_obj->is_frame_shared = 1;
+            mm_channel_link_stream(m_obj->ch_obj,&stream_link);
+
+            stream_link.ch = m_obj->ch_obj;
+            stream_link.stream_id = m_obj->my_hdl;
+            s_obj->is_frame_shared = 1;
+            mm_channel_link_stream(s_obj->ch_obj,&stream_link);
+        }
+        break;
+
         default:
             //no-op
             break;
@@ -1702,12 +1740,13 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
         buf_info->buf->cache_flags = 0;
 
         LOGH("VIDIOC_DQBUF buf_index %d, frame_idx %d, stream type %d, rc %d,"
-                "queued: %d, buf_type = %d flags = %d FD = %d",
+                "queued: %d, buf_type = %d flags = %d FD = %d my_num %d",
                 vb.index, buf_info->buf->frame_idx,
                 my_obj->stream_info->stream_type, rc,
                 my_obj->queued_buffer_count, buf_info->buf->buf_type,
                 buf_info->buf->flags,
-                my_obj->fd);
+                my_obj->fd,
+                my_obj->ch_obj->cam_obj->my_num);
 
         buf_info->buf->is_uv_subsampled =
             (vb.reserved == V4L2_PIX_FMT_NV14 || vb.reserved == V4L2_PIX_FMT_NV41);
@@ -1957,9 +1996,10 @@ int32_t mm_stream_qbuf(mm_stream_t *my_obj, mm_camera_buf_def_t *buf)
         }
     } else {
         LOGH("VIDIOC_QBUF buf_index %d, frame_idx %d stream type %d, rc %d,"
-                " queued: %d, buf_type = %d stream-FD = %d",
+                " queued: %d, buf_type = %d stream-FD = %d my_num %d",
                 buffer.index, buf->frame_idx, my_obj->stream_info->stream_type, rc,
-                my_obj->queued_buffer_count, buf->buf_type, my_obj->fd);
+                my_obj->queued_buffer_count, buf->buf_type, my_obj->fd,
+                my_obj->ch_obj->cam_obj->my_num);
     }
     pthread_mutex_unlock(&my_obj->buf_lock);
 
@@ -1984,8 +2024,8 @@ int32_t mm_stream_request_buf(mm_stream_t * my_obj)
     int32_t rc = 0;
     struct v4l2_requestbuffers bufreq;
     uint8_t buf_num = my_obj->total_buf_cnt;
-    LOGD("E, my_handle = 0x%x, fd = %d, state = %d",
-          my_obj->my_hdl, my_obj->fd, my_obj->state);
+    LOGD("E, my_handle = 0x%x, fd = %d, state = %d buf_num = %d",
+          my_obj->my_hdl, my_obj->fd, my_obj->state, buf_num);
 
     if(buf_num > MM_CAMERA_MAX_NUM_FRAMES) {
         LOGE("buf num %d > max limit %d\n",
@@ -2251,9 +2291,12 @@ int32_t mm_stream_unmap_buf(mm_stream_t * my_obj,
     ret = mm_camera_module_send_cmd(shim_cmd);
     mm_camera_destroy_shim_cmd_packet(shim_cmd);
 #endif
-    pthread_mutex_lock(&my_obj->buf_lock);
-    my_obj->buf_status[frame_idx].map_status = 0;
-    pthread_mutex_unlock(&my_obj->buf_lock);
+    if ((buf_type == CAM_MAPPING_BUF_TYPE_STREAM_BUF) ||
+            (buf_type == CAM_MAPPING_BUF_TYPE_STREAM_USER_BUF)) {
+        pthread_mutex_lock(&my_obj->buf_lock);
+        my_obj->buf_status[frame_idx].map_status = 0;
+        pthread_mutex_unlock(&my_obj->buf_lock);
+    }
     return ret;
 }
 
@@ -2279,7 +2322,7 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
           my_obj->my_hdl, my_obj->fd, my_obj->state);
 
     /* deinit buf if it's not NULL*/
-    if (NULL != my_obj->buf) {
+    if ((NULL != my_obj->buf) && (!my_obj->is_res_shared)) {
         mm_stream_deinit_bufs(my_obj);
     }
 
@@ -2291,13 +2334,14 @@ int32_t mm_stream_init_bufs(mm_stream_t * my_obj)
             for (i = 0; i < my_obj->total_buf_cnt; i++) {
                 my_obj->buf_status[i].initial_reg_flag = reg_flags[i];
             }
+            if ((my_obj->num_s_cnt != 0) && (my_obj->total_buf_cnt != 0)) {
+                rc = mm_camera_muxer_get_stream_bufs(my_obj);
+            }
         }
-    } else {
-        rc = mm_camera_muxer_get_stream_bufs(my_obj);
     }
-
-    if (0 != rc) {
+    if (0 != rc || ((my_obj->buf_num > 0) && (NULL == my_obj->buf))) {
         LOGE("Error get buf, rc = %d\n", rc);
+        rc =-1;
         return rc;
     }
 
@@ -2412,7 +2456,7 @@ int32_t mm_stream_reg_buf(mm_stream_t * my_obj)
         if (my_obj->buf_status[i].initial_reg_flag) {
             rc = mm_stream_qbuf(my_obj, &my_obj->buf[i]);
             if (rc != 0) {
-                LOGE("VIDIOC_QBUF rc = %d\n", rc);
+                LOGE("VIDIOC_QBUF idx = %d rc = %d\n", i, rc);
                 break;
             }
             my_obj->buf_status[i].buf_refcnt = 0;

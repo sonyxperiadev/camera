@@ -47,7 +47,8 @@ typedef struct {
 class QCameraAllocator {
 public:
     virtual QCameraMemory *allocateStreamBuf(cam_stream_type_t stream_type,
-            size_t size, int stride, int scanline, uint8_t &bufferCnt) = 0;
+            size_t size, int stride, int scanline, uint8_t &bufferCnt,
+            uint32_t cam_type = MM_CAMERA_TYPE_MAIN) = 0;
     virtual int32_t allocateMoreStreamBuf(QCameraMemory *mem_obj,
             size_t size, uint8_t &bufferCnt) = 0;
     virtual QCameraHeapMemory *allocateStreamInfoBuf(

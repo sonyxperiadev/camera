@@ -1560,6 +1560,8 @@ ERROR:
 int setZoom(mm_camera_test_obj_t *test_obj, int zoom)
 {
     int rc = MM_CAMERA_OK;
+    cam_zoom_info_t zoomInfo;
+    memset(&zoomInfo, 0, sizeof(cam_zoom_info_t));
 
     rc = initBatchUpdate(test_obj);
     if (rc != MM_CAMERA_OK) {
@@ -1567,8 +1569,11 @@ int setZoom(mm_camera_test_obj_t *test_obj, int zoom)
         goto ERROR;
     }
 
+    zoomInfo.user_zoom = zoom;
+    zoomInfo.is_stream_zoom_info_valid = 0;
+
     if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_ZOOM, zoom)) {
+            CAM_INTF_PARM_USERZOOM, zoomInfo)) {
         LOGE("Zoom parameter not added to batch\n");
         rc = -1;
         goto ERROR;
