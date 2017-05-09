@@ -741,7 +741,7 @@ uint32_t mm_camera_muxer_add_channel(uint32_t camera_handle,
         mm_camera_channel_attr_t *attr, mm_camera_buf_notify_t channel_cb,
         void *userdata, uint32_t m_ch_id, mm_camera_obj_t *cam_obj)
 {
-    int32_t ch_id = 0;
+    uint32_t ch_id = 0;
     mm_camera_obj_t *my_obj = NULL;
 
     my_obj = mm_muxer_util_get_camera_by_obj(camera_handle, cam_obj);
@@ -1796,6 +1796,11 @@ int32_t mm_camera_muxer_channel_req_data_cb(mm_camera_req_buf_t *req_buf,
         frame_sync->req_buf.type = req_buf->type;
     }
 
+    LOGD("num_buf_requested %d notify_mode %d req_buf.type %d",
+            frame_sync->req_buf.num_buf_requested,
+            frame_sync->superbuf_queue.attr.notify_mode,
+            frame_sync->req_buf.type);
+
     while ((frame_sync->req_buf.num_buf_requested > 0)
             || (frame_sync->superbuf_queue.attr.notify_mode ==
             MM_CAMERA_SUPER_BUF_NOTIFY_CONTINUOUS)) {
@@ -1945,6 +1950,10 @@ int32_t mm_camera_muxer_do_frame_sync(
         if (NULL != super_obj) {
             if (super_obj->matched == 1) {
                 /* find a matched super buf, move to next one */
+                if ((NULL == last_buf) &&
+                        (super_obj->frame_idx < buffer->bufs[0]->frame_idx)) {
+                    last_buf = pos;
+                }
                 pos = pos->next;
                 continue;
             } else if (buffer->bufs[0]->frame_idx == super_obj->frame_idx) {
@@ -1957,10 +1966,9 @@ int32_t mm_camera_muxer_do_frame_sync(
                 break;
             } else {
                 unmatched_bundles++;
-                if ( NULL == last_buf ) {
-                    if ( super_obj->frame_idx < buffer->bufs[0]->frame_idx) {
-                        last_buf = pos;
-                    }
+                if ((NULL == last_buf) &&
+                        (super_obj->frame_idx < buffer->bufs[0]->frame_idx)) {
+                    last_buf = pos;
                 }
                 if ( NULL == insert_before_buf ) {
                     if ( super_obj->frame_idx > buffer->bufs[0]->frame_idx) {
@@ -1993,24 +2001,23 @@ int32_t mm_camera_muxer_do_frame_sync(
                 queue->match_cnt++;
             }
         }
+
         /* Any older unmatched buffer need to be released */
-        if ( last_buf ) {
-            while (last_buf != pos ) {
-                node = member_of(last_buf, cam_node_t, list);
-                super_obj = (mm_frame_sync_queue_node_t*)node->data;
-                if (NULL != super_obj) {
-                    for (i = 0; i < MAX_OBJS_FOR_FRAME_SYNC; i++) {
-                        if (super_obj->super_buf[i].num_bufs != 0) {
-                            mm_camera_muxer_buf_done(&super_obj->super_buf[i]);
-                        }
+        while ((last_buf != NULL) && (last_buf != pos)) {
+            node = member_of(last_buf, cam_node_t, list);
+            super_obj = (mm_frame_sync_queue_node_t*)node->data;
+            if (NULL != super_obj && !super_obj->matched) {
+                for (i = 0; i < MAX_OBJS_FOR_FRAME_SYNC; i++) {
+                    if (super_obj->super_buf[i].num_bufs != 0) {
+                        mm_camera_muxer_buf_done(&super_obj->super_buf[i]);
                     }
-                    queue->que.size--;
-                    last_buf = last_buf->next;
-                    cam_list_del_node(&node->list);
-                    free(node);
-                    free(super_obj);
                 }
+                queue->que.size--;
+                cam_list_del_node(&node->list);
+                free(node);
+                free(super_obj);
             }
+            last_buf = last_buf->next;
         }
     } else {
         if ((queue->attr.max_unmatched_frames < unmatched_bundles)
@@ -2034,6 +2041,9 @@ int32_t mm_camera_muxer_do_frame_sync(
                         if (super_obj->super_buf[i].num_bufs != 0) {
                             mm_camera_muxer_buf_done(&super_obj->super_buf[i]);
                         }
+                    }
+                    if (super_obj->matched) {
+                        queue->match_cnt--;
                     }
                 }
             }
@@ -2314,42 +2324,26 @@ int32_t mm_camera_muxer_get_stream_bufs(mm_stream_t *my_obj)
 {
     int32_t rc = 0;
     uint32_t i = 0;
-    mm_stream_t *master_obj = NULL;
 
-    if (my_obj == NULL || my_obj->master_str_obj == NULL
-            || !my_obj->is_res_shared) {
-        LOGE("Invalid argument");
-        return rc;
+    if (my_obj->num_s_cnt != 0 && my_obj->aux_str_obj[0]->is_res_shared) {
+        mm_stream_t *a_obj = my_obj->aux_str_obj[0];
+        a_obj->total_buf_cnt = my_obj->total_buf_cnt;
+        a_obj->buf = my_obj->buf;
+        for (i = 0; i < my_obj->total_buf_cnt; i++) {
+            a_obj->buf_status[i].initial_reg_flag =
+                    my_obj->buf_status[i].initial_reg_flag;
+        }
+        if ((my_obj->is_deferred == 1) && (a_obj->is_deferred == 0)) {
+            a_obj->buf_idx = 0;
+            my_obj->buf_idx = a_obj->buf_num;
+        } else {
+            a_obj->buf_idx = my_obj->buf_num;
+        }
+        LOGH("Total = %d %d Master - buf_cnt = %d idx = %d Aux - buf_cnt = %d idx = %d",
+                my_obj->total_buf_cnt, my_obj->aux_str_obj[0]->total_buf_cnt,
+                my_obj->buf_num, my_obj->buf_idx, a_obj->buf_num, a_obj->buf_idx);
     }
-    master_obj = my_obj->master_str_obj;
-
-    if (master_obj->total_buf_cnt == 0) {
-        my_obj->buf_idx = 0;
-        return rc;
-    }
-
-    if ((master_obj->total_buf_cnt -
-            (master_obj->buf_idx + master_obj->buf_num))
-            <= 0) {
-        LOGE("No enough buffer available %d num_bufs = %d",
-                master_obj->total_buf_cnt, master_obj->buf_num);
-        return rc;
-    }
-
-    my_obj->total_buf_cnt = master_obj->total_buf_cnt;
-    my_obj->buf_idx = master_obj->buf_idx + master_obj->buf_num;
-    if ((my_obj->buf_idx + my_obj->buf_num) > my_obj->total_buf_cnt) {
-        my_obj->buf_num = my_obj->total_buf_cnt - my_obj->buf_idx;
-    }
-
-    my_obj->buf = master_obj->buf;
-    for (i = my_obj->buf_idx; i < (my_obj->buf_idx + my_obj->buf_num); i++) {
-        my_obj->buf_status[i].initial_reg_flag =
-                master_obj->buf_status[i].initial_reg_flag;
-    }
-    LOGH("Buffer total = %d buf_cnt = %d offsset = %d",my_obj->total_buf_cnt,
-            my_obj->buf_num, my_obj->buf_idx);
-    return 0;
+    return rc;
 }
 
 /*===========================================================================

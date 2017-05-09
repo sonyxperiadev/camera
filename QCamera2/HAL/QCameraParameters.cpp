@@ -57,7 +57,7 @@ extern "C" {
 #define CAMERA_DEFAULT_LONGSHOT_STAGES 4
 #define CAMERA_MIN_LONGSHOT_STAGES 2
 #define FOCUS_PERCISION 0.0000001
-
+#define CAMERA_MIN_SECURE_BUFFERS 2
 
 namespace qcamera {
 // Parameter keys to communicate between camera application and driver.
@@ -185,6 +185,11 @@ const char QCameraParameters::KEY_INTERNAL_PERVIEW_RESTART[] = "internal-restart
 const char QCameraParameters::KEY_QC_RDI_MODE[] = "rdi-mode";
 const char QCameraParameters::KEY_QC_SUPPORTED_RDI_MODES[] = "rdi-mode-values";
 const char QCameraParameters::KEY_QC_SECURE_MODE[] = "secure-mode";
+const char QCameraParameters::KEY_QC_SECURE_MODE_UBWC[] = "secure-mode-ubwc";
+const char QCameraParameters::KEY_QC_SECURE_QUEUE_DEPTH[] = "secure-mode-queue-depth";
+const char QCameraParameters::KEY_QC_SECURE_MODE_AEC_MODE[] = "secure-mode-aec-mode";
+const char QCameraParameters::KEY_QC_SECURE_MODE_EXPOSURE_TIME[] = "secure-mode-exposure-time";
+const char QCameraParameters::KEY_QC_SECURE_MODE_SENSITIVITY[] = "secure-mode-sensitivity";
 const char QCameraParameters::KEY_QC_SUPPORTED_SECURE_MODES[] = "secure-mode-values";
 const char QCameraParameters::ISO_HJR[] = "ISO_HJR";
 const char QCameraParameters::KEY_QC_AUTO_HDR_SUPPORTED[] = "auto-hdr-supported";
@@ -211,6 +216,16 @@ const char QCameraParameters::KEY_QC_INSTANT_AEC[] = "instant-aec";
 const char QCameraParameters::KEY_QC_INSTANT_CAPTURE[] = "instant-capture";
 const char QCameraParameters::KEY_QC_INSTANT_AEC_SUPPORTED_MODES[] = "instant-aec-values";
 const char QCameraParameters::KEY_QC_INSTANT_CAPTURE_SUPPORTED_MODES[] = "instant-capture-values";
+
+const char QCameraParameters::KEY_QC_BOKEH_MODE[] = "bokeh-mode";
+const char QCameraParameters::KEY_QC_SUPPORTED_DEGREES_OF_BLUR[] = "supported-blur-degrees";
+const char QCameraParameters::KEY_QC_IS_BOKEH_MODE_SUPPORTED[] = "is-bokeh-supported";
+const char QCameraParameters::KEY_QC_IS_BOKEH_MPO_SUPPORTED[] = "is-bokeh-mpo-supported";
+const char QCameraParameters::KEY_QC_BOKEH_BLUR_VALUE[] = "bokeh-blur-value";
+const char QCameraParameters::KEY_QC_BOKEH_MPO_MODE[] = "bokeh-mpo-mode";
+const char QCameraParameters::KEY_QC_BOKEH_PICTURE_SIZE[] = "bokeh-picture-size";
+
+const char QCameraParameters::KEY_QC_VFE1_RESERVED_RDI[] = "vfe1-reserved-rdi";
 
 // Values for effect settings.
 const char QCameraParameters::EFFECT_EMBOSS[] = "emboss";
@@ -494,6 +509,8 @@ const char QCameraParameters::QC_METADATA_ASD[] = "metadata-asd";
 const char QCameraParameters::QC_METADATA_FD[] = "metadata-fd";
 const char QCameraParameters::QC_METADATA_HDR[] = "metadata-hdr";
 const char QCameraParameters::QC_METADATA_LED_CALIB[] = "metadata-led-calib";
+//Real time bokeh metadata
+const char QCameraParameters::QC_METADATA_RTB[] = "metadata-rtb";
 
 const char QCameraParameters::KEY_QC_LED_CALIBRATION[] = "led-calibration";
 
@@ -872,7 +889,8 @@ const QCameraParameters::QCameraMap<int>
     {QC_METADATA_ASD,        QCAMERA_METADATA_ASD},
     {QC_METADATA_FD,         QCAMERA_METADATA_FD},
     {QC_METADATA_HDR,        QCAMERA_METADATA_HDR},
-    {QC_METADATA_LED_CALIB,  QCAMERA_METADATA_LED_CALIB}
+    {QC_METADATA_LED_CALIB,  QCAMERA_METADATA_LED_CALIB},
+    {QC_METADATA_RTB,        QCAMERA_METADATA_RTB}
 };
 
 
@@ -938,7 +956,8 @@ QCameraParameters::QCameraParameters()
       mAppPreviewFormat(CAM_FORMAT_YUV_420_NV21),
       mPictureFormat(CAM_FORMAT_JPEG),
       m_bNeedRestart(false),
-      m_bNoDisplayMode(false),
+      m_bNoDisplayModeMain(false),
+      m_bNoDisplayModeAux(false),
       m_bWNROn(false),
       m_bTNRPreviewOn(false),
       m_bTNRVideoOn(false),
@@ -979,6 +998,7 @@ QCameraParameters::QCameraParameters()
       m_bSensorHDREnabled(false),
       m_bRdiMode(false),
       m_bSecureMode(false),
+      m_bSecureModeUBWC(true),
       m_bAeBracketingEnabled(false),
       mFlashValue(CAM_FLASH_MODE_OFF),
       mFlashDaemonValue(CAM_FLASH_MODE_OFF),
@@ -1001,11 +1021,15 @@ QCameraParameters::QCameraParameters()
       mAecSkipDisplayFrameBound(0),
       m_bQuadraCfa(false),
       mMasterCamera(CAM_TYPE_MAIN),
+      m_bRedEyeReduction(false),
       m_bSmallJpegSize(false),
       mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
       mFrameNumber(0),
       mSyncDCParam(0),
-      mAsymmetricSnapMode(false)
+      mbundledSnapshot(false),
+      mFallback(CAM_NO_FALLBACK),
+      mAsymmetricSnapMode(false),
+      mAsymmetricPreviewMode(false)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1047,6 +1071,13 @@ QCameraParameters::QCameraParameters()
     mVideoBatchSize = 0;
     m_bOEMFeatEnabled = isOEMFeat1PropEnabled();
     m_bDualCamera = 0;
+    m_bOISMode = (cam_ois_mode_t)(-1);
+    m_halPPType = CAM_HAL_PP_TYPE_NONE;
+    m_defaultHalPPType = CAM_HAL_PP_TYPE_NONE;
+    m_bBokehMode = 0;
+    m_bBokehBlurLevel = 0;
+    m_bBokehMpoEnabled = 0;
+    lpmEnable = false;
 }
 
 /*===========================================================================
@@ -1083,7 +1114,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAppPreviewFormat(CAM_FORMAT_YUV_420_NV21),
     mPictureFormat(CAM_FORMAT_JPEG),
     m_bNeedRestart(false),
-    m_bNoDisplayMode(false),
+    m_bNoDisplayModeMain(false),
+    m_bNoDisplayModeAux(false),
     m_bWNROn(false),
     m_bTNRPreviewOn(false),
     m_bTNRVideoOn(false),
@@ -1118,6 +1150,7 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bSensorHDREnabled(false),
     m_bRdiMode(false),
     m_bSecureMode(false),
+    m_bSecureModeUBWC(true),
     m_bAeBracketingEnabled(false),
     mFlashValue(CAM_FLASH_MODE_OFF),
     mFlashDaemonValue(CAM_FLASH_MODE_OFF),
@@ -1141,11 +1174,15 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mAecSkipDisplayFrameBound(0),
     m_bQuadraCfa(false),
     mMasterCamera(CAM_TYPE_MAIN),
+    m_bRedEyeReduction(false),
     m_bSmallJpegSize(false),
     mSecureStraemType(CAM_STREAM_TYPE_PREVIEW),
     mFrameNumber(0),
     mSyncDCParam(0),
-    mAsymmetricSnapMode(false)
+    mbundledSnapshot(false),
+    mFallback(CAM_NO_FALLBACK),
+    mAsymmetricSnapMode(false),
+    mAsymmetricPreviewMode(false)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -1163,6 +1200,13 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mVideoBatchSize = 0;
     m_bOEMFeatEnabled = isOEMFeat1PropEnabled();
     m_bDualCamera = 0;
+    m_bOISMode = (cam_ois_mode_t)(-1);
+    m_halPPType = CAM_HAL_PP_TYPE_NONE;
+    m_defaultHalPPType = CAM_HAL_PP_TYPE_NONE;
+    m_bBokehMode = 0;
+    m_bBokehBlurLevel = 0;
+    m_bBokehMpoEnabled = 0;
+    lpmEnable = false;
 }
 
 /*===========================================================================
@@ -1297,6 +1341,28 @@ String8 QCameraParameters::createZoomRatioValuesString(uint32_t *zoomRatios,
         snprintf(buffer, sizeof(buffer), ",%d", zoomRatios[i]);
         str.append(buffer);
     }
+    return str;
+}
+
+/*===========================================================================
+ * FUNCTION   : createMinMaxValuesString
+ *
+ * DESCRIPTION: create string obj contains mininum, maximum and step values
+ *
+ * PARAMETERS :
+ *   @minValue  : Min value
+ *   @maxValue : Max value
+ *   @stepValue : Step value
+ *
+ * RETURN     : string obj
+ *==========================================================================*/
+String8 QCameraParameters::createMinMaxValuesString(uint32_t minValue,
+        uint32_t maxValue, uint32_t stepValue)
+{
+    String8 str;
+    char buffer[32] = {0};
+    snprintf(buffer, sizeof(buffer), "%d,%d,%d", minValue, maxValue, stepValue);
+    str.append(buffer);
     return str;
 }
 
@@ -1576,7 +1642,13 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
     int width, height;
     params.getPictureSize(&width, &height);
     int old_width, old_height;
+    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+        width = CAM_BOKEH_TELE_WIDTH;
+        height = CAM_BOKEH_TELE_HEIGHT;
+    }
+    LOGH("Requested picture size %d x %d", width, height);
     CameraParameters::getPictureSize(&old_width, &old_height);
+    LOGH("old picture size %d x %d", old_width, old_height);
 
     // Validate the picture size
     if(!m_reprocScaleParam.isScaleEnabled()){
@@ -3126,6 +3198,67 @@ int32_t QCameraParameters::setZoom(const QCameraParameters& params)
 }
 
 /*===========================================================================
+ * FUNCTION   : setBokehMode
+ *
+ * DESCRIPTION: set bokeh mode and related params
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
+{
+    if (!isDualCamera()) {
+        LOGH("Bokeh Mode not available for single camera");
+        return NO_ERROR;
+    }
+
+    uint32_t bRequestedBokehMode = params.getInt(KEY_QC_BOKEH_MODE);
+    LOGH("bRequestedBokehMode: %d, m_bBokehMode: %d", bRequestedBokehMode, m_bBokehMode);
+
+    if (bRequestedBokehMode != m_bBokehMode) {
+         m_bBokehMode = bRequestedBokehMode;
+         m_bNeedRestart = true;
+    }
+    if (m_bBokehMode) {
+        //Bokeh Mode set, set halpp type
+        m_halPPType = CAM_HAL_PP_TYPE_BOKEH;
+        mAsymmetricPreviewMode = true;
+        m_bBokehMpoEnabled = params.getInt(KEY_QC_BOKEH_MPO_MODE);
+        uint32_t requestedBlurLevel = params.getInt(KEY_QC_BOKEH_BLUR_VALUE);
+        if (requestedBlurLevel > 100) {
+            requestedBlurLevel = 100;
+        }
+        if (m_bBokehBlurLevel != requestedBlurLevel) {
+            cam_rtb_blur_info_t info;
+            memset(&info, 0, sizeof(info));
+            info.blur_level = requestedBlurLevel;
+            info.blur_min_value = 0;
+            info.blur_max_value = 100;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                    CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, info)) {
+                LOGE("Failed to update table");
+                return BAD_VALUE;
+            }
+            m_bBokehBlurLevel = requestedBlurLevel;
+        }
+        LOGH("Bokeh m_halPPType:%d", m_halPPType);
+    } else {
+        mAsymmetricPreviewMode = false;
+        m_bBokehMpoEnabled = 0;
+        m_bBokehBlurLevel = 0;
+        m_halPPType = m_defaultHalPPType;
+    }
+    LOGH("Bokeh Mode: %d, Mpo Mode: %d, Blur Level %d",
+            m_bBokehMode, m_bBokehMpoEnabled, m_bBokehBlurLevel);
+
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : setISOValue
  *
  * DESCRIPTION: set ISO value from user setting
@@ -3259,8 +3392,15 @@ int32_t QCameraParameters::setVideoRotation(const QCameraParameters& params)
         int value = lookupAttr(VIDEO_ROTATION_MODES_MAP,
                 PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP), str);
         if (value != NAME_NOT_FOUND) {
+            if (value == 90 || value == 180 || value == 270) {
+                if (!(m_pCapability->qcom_supported_feature_mask &
+                        CAM_QCOM_FEATURE_ROTATION)) {
+                    LOGE("Video Rotation not supported for %d", value);
+                    return BAD_VALUE;
+                }
+            }
             updateParamEntry(KEY_QC_VIDEO_ROTATION, str);
-            LOGL("setVideoRotation:  %s %d: ", str, value);
+            LOGL("setVideoRotation:  %s %d", str, value);
         } else {
             LOGE("Invalid rotation value: %d", value);
             return BAD_VALUE;
@@ -4351,17 +4491,16 @@ int32_t QCameraParameters::setNumOfSnapshot()
         nBurstNum = m_pCapability->refocus_af_bracketing_need.output_count + 1;
     }
 
-    if (mActiveCameras == MM_CAMERA_DUAL_CAM && mbundledSnapshot) {
+    LOGD("mActiveCameras = %d, mbundledSnapshot = %d", mActiveCameras, mbundledSnapshot);
+
+    if (mbundledSnapshot) {
         int dualfov_snap_num = 1;
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.dualfov.jpegnum", prop, "1");
         dualfov_snap_num = atoi(prop);
 
-        memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.halpp", prop, "0");
-        int halpp_enabled = atoi(prop);
-        if(halpp_enabled == 0) {
+        if(getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
             dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
         }
         dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
@@ -4372,7 +4511,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
     } else {
         set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum));
         LOGH("nBurstNum = %d, nExpnum = %d snapshots = %d", nBurstNum, nExpnum,
-                (nBurstNum * nExpnum * MM_CAMERA_MAX_CAM_CNT));
+                (nBurstNum * nExpnum));
     }
 
     return NO_ERROR;
@@ -4441,11 +4580,19 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
     char prop[PROPERTY_VALUE_MAX];
     LOGD("str_val: %s, prev_str: %s", str_val, prev_str);
 
+    if (m_halPPType == CAM_HAL_PP_TYPE_BOKEH) {
+        m_bNoDisplayModeMain = true;
+        m_bNoDisplayModeAux = false;
+        LOGH("Bokeh m_bNoDisplayModeMain = %d      m_bNoDisplayModeAux = %d",
+                m_bNoDisplayModeMain, m_bNoDisplayModeAux);
+        return NO_ERROR;
+    }
+
     // Aux Camera Mode, set no display mode
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
-        if (!m_bNoDisplayMode) {
+        if (!m_bNoDisplayModeAux) {
             set(KEY_QC_NO_DISPLAY_MODE, 1);
-            m_bNoDisplayMode = true;
+            m_bNoDisplayModeAux = true;
             m_bNeedRestart = true;
         }
         return NO_ERROR;
@@ -4453,16 +4600,17 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
 
     if(str_val && strlen(str_val) > 0) {
         if (prev_str == NULL || strcmp(str_val, prev_str) != 0) {
-            m_bNoDisplayMode = atoi(str_val);
+            m_bNoDisplayModeMain = atoi(str_val);
             set(KEY_QC_NO_DISPLAY_MODE, str_val);
             m_bNeedRestart = true;
         }
     } else {
         memset(prop, 0, sizeof(prop));
         property_get("persist.camera.no-display", prop, "0");
-        m_bNoDisplayMode = atoi(prop);
+        m_bNoDisplayModeMain = atoi(prop);
     }
-    LOGH("Param m_bNoDisplayMode = %d", m_bNoDisplayMode);
+    LOGH("Param m_bNoDisplayModeMain = %d, m_bNoDisplayModeAux: %d",
+            m_bNoDisplayModeMain, m_bNoDisplayModeAux);
     return NO_ERROR;
 }
 
@@ -4883,11 +5031,11 @@ int32_t QCameraParameters::setRdiMode(const QCameraParameters& params)
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
 
-    property_get("persist.camera.rdi.mode", prop, VALUE_DISABLE);
+    property_get("persist.camera.rdi.mode", prop, "");
     if ((str != NULL) && (prev_str == NULL || strcmp(str, prev_str) != 0)) {
         LOGD("RDI mode set to %s", str);
         setRdiMode(str);
-    } else if (prev_str == NULL || strcmp(prev_str, prop) != 0 ) {
+    } else if ((strlen(prop)!=0) && (prev_str == NULL || strcmp(prev_str, prop) != 0)) {
         LOGD("RDI mode set to prop: %s", prop);
         setRdiMode(prop);
     }
@@ -4906,7 +5054,6 @@ int32_t QCameraParameters::setRdiMode(const QCameraParameters& params)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *===========================================================*/
-
 int32_t QCameraParameters::setSecureMode(const QCameraParameters& params)
 {
     const char *str = params.get(KEY_QC_SECURE_MODE);
@@ -4914,18 +5061,19 @@ int32_t QCameraParameters::setSecureMode(const QCameraParameters& params)
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
 
-    property_get("persist.camera.secure.mode", prop, VALUE_DISABLE);
+    property_get("persist.camera.secure.mode", prop, "");
     if ((str != NULL) && (prev_str == NULL || strcmp(str, prev_str) != 0)) {
         LOGD("Secure mode set to KEY: %s", str);
         setSecureMode(str);
         updateParamEntry(KEY_QC_SECURE_MODE, str);
-    } else if (prev_str == NULL || strcmp(prev_str, prop) != 0 ) {
+    } else if ((strlen(prop)!=0) && (prev_str == NULL || strcmp(prev_str, prop) != 0)) {
         LOGD("Secure mode set to prop: %s", prop);
         setSecureMode(prop);
     }
 
     if (isSecureMode() && (m_bZslMode || m_bZslMode_new)) {
-        //Enable NZSl if secure mode
+        //Force disable ZSl in secure mode
+        set(KEY_QC_ZSL, VALUE_OFF);
         setZslMode(FALSE);
         m_bNeedRestart = true;
     }
@@ -4938,6 +5086,154 @@ int32_t QCameraParameters::setSecureMode(const QCameraParameters& params)
         mSecureStraemType = CAM_STREAM_TYPE_PREVIEW;
     }
 
+    str = params.get(KEY_QC_SECURE_MODE_UBWC);
+    prev_str = get(KEY_QC_SECURE_MODE_UBWC);
+    if (str != NULL && (prev_str == NULL || strcmp(str, prev_str) != 0)) {
+        int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
+                PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), str);
+        if (value != NAME_NOT_FOUND) {
+            m_bSecureModeUBWC = (value == 0)? false : true;
+        }
+        LOGD("UBWC in Secure mode set to KEY: %s (%s)", str,
+            m_bSecureModeUBWC? "true" : "false");
+        updateParamEntry(KEY_QC_SECURE_MODE_UBWC, str);
+    }
+
+    str = params.get(KEY_QC_SECURE_QUEUE_DEPTH);
+    if (str != NULL) {
+        set(KEY_QC_SECURE_QUEUE_DEPTH, str);
+        LOGD("Secure Queue depth: %s (%d)",
+            str, getSecureQueueDepth());
+    }
+
+    return NO_ERROR;
+}
+
+/*==========================================================
+ * FUNCTION   : setSecureModeAecMode
+ *
+ * DESCRIPTION: set AEC mode in Secure mode from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *===========================================================*/
+int32_t QCameraParameters::setSecureModeAecMode(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_SECURE_MODE_AEC_MODE);
+    const char *prev_str = get(KEY_QC_SECURE_MODE_AEC_MODE);
+
+    if (!isSecureMode()) {
+        LOGD("AEC mode selection is only avalable in Secure mode!");
+    }
+    else {
+        if ((str != NULL) && (prev_str == NULL || strcmp(str, prev_str) != 0)) {
+            int32_t value = lookupAttr(ON_OFF_MODES_MAP,
+                    PARAM_MAP_SIZE(ON_OFF_MODES_MAP), str);
+            if (value != NAME_NOT_FOUND) {
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                        CAM_INTF_META_AEC_MODE,
+                        (value)?CAM_AE_MODE_ON:CAM_AE_MODE_OFF))  {
+                    LOGH("Failed to set AEC mode in the parameters");
+                    return BAD_VALUE;
+                }
+                updateParamEntry(KEY_QC_SECURE_MODE, str);
+            }
+            LOGD("AEC mode in Secure mode set to KEY: %s", str);
+        }
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setSecureModeSensitivity
+ *
+ * DESCRIPTION: set Sensor Sensitivity in Secure mode from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setSecureModeSensitivity(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_SECURE_MODE_SENSITIVITY);
+    const char *prev_str = get(KEY_QC_SECURE_MODE_SENSITIVITY);
+
+    if (!isSecureMode()) {
+        LOGD("Sensor Sensitivity selection is only avalable in Secure mode!");
+    }
+    else {
+        if ((str != NULL) && (prev_str == NULL || strcmp(str, prev_str) != 0)) {
+            int32_t sensitivity = atoi(str);
+            if (sensitivity < m_pCapability->sensitivity_range.min_sensitivity) {
+                sensitivity = m_pCapability->sensitivity_range.min_sensitivity;
+            }
+            if (sensitivity > m_pCapability->sensitivity_range.max_sensitivity) {
+                sensitivity = m_pCapability->sensitivity_range.max_sensitivity;
+            }
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                    CAM_INTF_META_SENSOR_SENSITIVITY,
+                    sensitivity))  {
+                LOGH("Failed to set Sensor Sensitivity in the parameters");
+                return BAD_VALUE;
+            }
+            updateParamEntry(KEY_QC_SECURE_MODE_SENSITIVITY, str);
+            LOGD("Sensor Sensitivity in Secure mode set to KEY: %s (%d)", str, sensitivity);
+        }
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setSecureModeExposureTime
+ *
+ * DESCRIPTION: set Exposure Time in Secure mode from user setting
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setSecureModeExposureTime(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_SECURE_MODE_EXPOSURE_TIME);
+    const char *prev_str = get(KEY_QC_SECURE_MODE_EXPOSURE_TIME);
+
+    if (!isSecureMode()) {
+        LOGD("Exposure Time selection is only avalable in Secure mode!");
+    }
+    else {
+        if ((str != NULL) && (prev_str == NULL || strcmp(str, prev_str) != 0)) {
+            double exp_time_ms = atof(str);
+            //input is in milli seconds. Convert to nano sec for backend
+            int64_t exp_time_ns = (int64_t)(exp_time_ms * 1000000L);
+
+            if (exp_time_ns < m_pCapability->exposure_time_range[0]) {
+                exp_time_ns = m_pCapability->exposure_time_range[0];
+            }
+            if (exp_time_ns > m_pCapability->exposure_time_range[1]) {
+                exp_time_ns = m_pCapability->exposure_time_range[1];
+            }
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                    CAM_INTF_META_SENSOR_EXPOSURE_TIME,
+                    exp_time_ns))  {
+                LOGH("Failed to set Exposure Time in the parameters");
+                return BAD_VALUE;
+            }
+            updateParamEntry(KEY_QC_SECURE_MODE_EXPOSURE_TIME, str);
+            LOGD("Exposure Time in Secure mode set to KEY: %s (%" PRId64 "ns)",
+                str, exp_time_ns);
+        }
+    }
     return NO_ERROR;
 }
 
@@ -5257,6 +5553,8 @@ int32_t QCameraParameters::updateParameters(const String8& p,
         goto UPDATE_PARAM_DONE;
     }
 
+    if ((rc = setSecureMode(params)))                   final_rc = rc;
+    if ((rc = setBokehMode(params)))                    final_rc = rc;
     if ((rc = setPreviewSize(params)))                  final_rc = rc;
     if ((rc = setVideoSize(params)))                    final_rc = rc;
     if ((rc = setPictureSize(params)))                  final_rc = rc;
@@ -5266,14 +5564,12 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     if ((rc = setOrientation(params)))                  final_rc = rc;
     if ((rc = setRotation(params)))                     final_rc = rc;
     if ((rc = setVideoRotation(params)))                final_rc = rc;
-    if ((rc = setNoDisplayMode(params)))                final_rc = rc;
     if ((rc = setZslMode(params)))                      final_rc = rc;
     if ((rc = setZslAttributes(params)))                final_rc = rc;
     if ((rc = setCameraMode(params)))                   final_rc = rc;
     if ((rc = setSceneSelectionMode(params)))           final_rc = rc;
     if ((rc = setRecordingHint(params)))                final_rc = rc;
     if ((rc = setRdiMode(params)))                      final_rc = rc;
-    if ((rc = setSecureMode(params)))                   final_rc = rc;
     if ((rc = setPreviewFrameRate(params)))             final_rc = rc;
     if ((rc = setPreviewFpsRange(params)))              final_rc = rc;
     if ((rc = setAutoExposure(params)))                 final_rc = rc;
@@ -5343,6 +5639,11 @@ int32_t QCameraParameters::updateParameters(const String8& p,
 
     if ((rc = setLongshotParam(params)))                final_rc = rc;
     if ((rc = setDualLedCalibration(params)))           final_rc = rc;
+    if ((rc = setNoDisplayMode(params)))                final_rc = rc;
+    if ((rc = setSecureModeAecMode(params)))            final_rc = rc;
+    if ((rc = setSecureModeSensitivity(params)))        final_rc = rc;
+    if ((rc = setSecureModeExposureTime(params)))       final_rc = rc;
+    if ((rc = setVfe1ReservedRdi(params)))              final_rc = rc;
 
     setQuadraCfa(params);
     setVideoBatchSize();
@@ -5419,6 +5720,13 @@ int32_t QCameraParameters::initDefaultParameters()
     set(QCameraParameters::KEY_FOCUS_DISTANCES, "Infinity,Infinity,Infinity");
     set(KEY_QC_AUTO_HDR_SUPPORTED,
         (m_pCapability->auto_hdr_supported)? VALUE_TRUE : VALUE_FALSE);
+
+    //no restriction by default
+    char reserved_rdi[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.vfe1.reservedrdi", reserved_rdi, "-1");
+    set(KEY_QC_VFE1_RESERVED_RDI, reserved_rdi);
+        setVfe1ReservedRdi(reserved_rdi);
+
     // Set supported preview sizes
     if (m_pCapability->preview_sizes_tbl_cnt > 0 &&
         m_pCapability->preview_sizes_tbl_cnt <= MAX_SIZES_CNT) {
@@ -6238,8 +6546,36 @@ int32_t QCameraParameters::initDefaultParameters()
         videoRotationValues = createValuesStringFromMap(VIDEO_ROTATION_MODES_MAP,
                 PARAM_MAP_SIZE(VIDEO_ROTATION_MODES_MAP));
         set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, videoRotationValues.string());
+    } else {
+        set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, VIDEO_ROTATION_0);
     }
     set(KEY_QC_VIDEO_ROTATION, VIDEO_ROTATION_0);
+
+    // Change to enable App team to test Bokeh mode
+    // Set min max values for Blur values (min: 0, max: 100, step: 1)
+    if (isDualCamera()) {
+        String8 minMaxValues = createMinMaxValuesString(0, 100, 1);
+        set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
+        set(KEY_QC_IS_BOKEH_MODE_SUPPORTED, 1);
+        set(KEY_QC_IS_BOKEH_MPO_SUPPORTED, 1);
+        set(KEY_QC_BOKEH_MODE, 0);
+        set(KEY_QC_BOKEH_BLUR_VALUE, 0);
+        set(KEY_QC_BOKEH_MPO_MODE, 0);
+        cam_dimension_t bokehPicSize = { CAM_BOKEH_TELE_WIDTH, CAM_BOKEH_TELE_HEIGHT };
+        String8 bokehPictureSizeValue = createSizesString(
+                &bokehPicSize, 1);
+        set(KEY_QC_BOKEH_PICTURE_SIZE, bokehPictureSizeValue.string());
+        LOGH("supported bokeh picture size: %s", bokehPictureSizeValue.string());
+
+    } else {
+        String8 minMaxValues = createMinMaxValuesString(0, 0, 0);
+        set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
+        set(KEY_QC_IS_BOKEH_MODE_SUPPORTED, 0);
+        set(KEY_QC_IS_BOKEH_MPO_SUPPORTED, 0);
+        set(KEY_QC_BOKEH_MODE, 0);
+        set(KEY_QC_BOKEH_BLUR_VALUE, 0);
+        set(KEY_QC_BOKEH_MPO_MODE, 0);
+    }
 
     String8 metadataTypeValues = createValuesStringFromMap(METADATA_TYPES_MAP,
         PARAM_MAP_SIZE(METADATA_TYPES_MAP));
@@ -6258,7 +6594,7 @@ int32_t QCameraParameters::initDefaultParameters()
     // by default set no display mode
     if (m_relCamSyncInfo.mode == CAM_MODE_SECONDARY) {
         set(KEY_QC_NO_DISPLAY_MODE, 1);
-        m_bNoDisplayMode = true;
+        m_bNoDisplayModeAux = true;
     }
 
     cam_dimension_t pic_dim;
@@ -6443,6 +6779,23 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t
     }
     rc = m_pCamOpsTbl->ops->get_session_id(m_pCamOpsTbl->camera_handle,
             &sessionId[m_pCapability->camera_index]);
+
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.halpp", prop, "0");
+    m_defaultHalPPType = (cam_hal_pp_type_t)atoi(prop);
+
+    if (m_defaultHalPPType < CAM_HAL_PP_TYPE_NONE ||
+            m_defaultHalPPType >= CAM_HAL_PP_TYPE_MAX) {
+        m_defaultHalPPType = CAM_HAL_PP_TYPE_NONE;
+    }
+    m_halPPType = m_defaultHalPPType;
+
+    if (m_pFovControl) {
+        // Set Hal PP type to FOV control
+        m_pFovControl->setHalPPType(m_halPPType);
+        LOGH("Setting HAL PP type to FOV control: %d", m_halPPType);
+    }
 
     initDefaultParameters();
     mCommon.init(capabilities);
@@ -7286,11 +7639,15 @@ int32_t QCameraParameters::setFaceRecognition(const char *faceRecog,
 int32_t QCameraParameters::setZoom(int zoom_level)
 {
     char val[16];
+    cam_zoom_info_t zoomInfo;
+    memset(&zoomInfo, 0, sizeof(cam_zoom_info_t));
     snprintf(val, sizeof(val), "%d", zoom_level);
     updateParamEntry(KEY_ZOOM, val);
     LOGH("zoom level: %d", zoom_level);
     mZoomLevel = zoom_level;
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZOOM, zoom_level)) {
+    zoomInfo.user_zoom = zoom_level;
+    zoomInfo.is_stream_zoom_info_valid = 0;
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_USERZOOM, zoomInfo)) {
         return BAD_VALUE;
     }
 
@@ -8480,43 +8837,61 @@ int32_t QCameraParameters::setDISValue(const char *disStr)
 }
 
 /*===========================================================================
- * FUNCTION   : updateOisValue
+ * FUNCTION   : updateOisMode
  *
- * DESCRIPTION: update OIS value
+ * DESCRIPTION: update OIS mode
  *
  * PARAMETERS :
- *   @oisValue : OIS value TRUE/FALSE
+ *   @oisMode : OIS mode
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::updateOisValue(bool oisValue)
+int32_t QCameraParameters::updateOisMode(cam_ois_mode_t reqOisMode)
 {
-    uint8_t enable = 0;
+    cam_ois_mode_t ois_mode = OIS_MODE_INACTIVE;
     int32_t rc = NO_ERROR;
 
-    // Check for OIS disable
+    // Check for OIS disable or hold
     char ois_prop[PROPERTY_VALUE_MAX];
     memset(ois_prop, 0, sizeof(ois_prop));
-    property_get("persist.camera.ois.disable", ois_prop, "0");
-    uint8_t ois_disable = (uint8_t)atoi(ois_prop);
+    // default ois_mode of 1 is OIS_MODE_ACTIVE
+    property_get("persist.camera.ois.mode", ois_prop, "1");
+    uint8_t ois_mode_prop = (uint8_t)atoi(ois_prop);
 
-    //Enable OIS if it is camera mode or Camcoder 4K mode
-    if (!m_bRecordingHint || (is4k2kVideoResolution() && m_bRecordingHint)) {
-        enable = 1;
-        LOGH("Valid OIS mode!! ");
+    // In dual camera mode, set the requested ois mode
+    if (isDualCamera()) {
+        cam_ois_mode_t mode = reqOisMode;
+        // Check if setprop is overriding the requested ois mode
+        if ((ois_mode_prop == OIS_MODE_INACTIVE) ||
+                (ois_mode_prop == OIS_MODE_HOLD)) {
+            mode = (cam_ois_mode_t)ois_mode_prop;
+        }
+        // Only update if requested OIS mode is changed
+        if (m_bOISMode != mode) {
+            ois_mode = mode;
+        } else {
+            return NO_ERROR;
+        }
+    } else {
+        // Make OIS active if it is camera mode or Camcoder 4K mode
+        if (!m_bRecordingHint || (is4k2kVideoResolution() && m_bRecordingHint)) {
+            ois_mode = OIS_MODE_ACTIVE;
+            LOGH("Valid OIS mode!! ");
+        }
+        // Disable OIS if setprop is set
+        if ((ois_mode_prop == 0) || (reqOisMode == OIS_MODE_INACTIVE)) {
+            //Disable OIS
+            ois_mode = OIS_MODE_INACTIVE;
+            LOGH("Disable OIS mode!! ois_mode_prop(%d) reqOisMode(%d)",
+                     ois_mode_prop, reqOisMode);
+        }
     }
-    // Disable OIS if setprop is set
-    if (ois_disable || !oisValue) {
-        //Disable OIS
-        enable = 0;
-        LOGH("Disable OIS mode!! ois_disable(%d) oisValue(%d)",
-                 ois_disable, oisValue);
 
-    }
-    m_bOISEnabled = enable;
-    if (m_bOISEnabled) {
+    m_bOISMode = ois_mode;
+
+    if (m_bOISMode == OIS_MODE_ACTIVE) {
         updateParamEntry(KEY_QC_OIS, VALUE_ENABLE);
     } else {
         updateParamEntry(KEY_QC_OIS, VALUE_DISABLE);
@@ -8527,8 +8902,8 @@ int32_t QCameraParameters::updateOisValue(bool oisValue)
         return BAD_TYPE;
     }
 
-    LOGH("Sending OIS mode (%d)", enable);
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_LENS_OPT_STAB_MODE, enable)) {
+    LOGH("Sending OIS mode (%d)", m_bOISMode);
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_LENS_OPT_STAB_MODE, m_bOISMode)) {
         LOGE("Failed to update table");
         return BAD_VALUE;
     }
@@ -9323,7 +9698,12 @@ int32_t QCameraParameters::setAndCommitZoom(int zoom_level)
         return BAD_TYPE;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_ZOOM, zoom_level)) {
+    cam_zoom_info_t zoomInfo;
+    memset(&zoomInfo, 0, sizeof(cam_zoom_info_t));
+    zoomInfo.user_zoom = zoom_level;
+    zoomInfo.is_stream_zoom_info_valid = 0;
+
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_USERZOOM, zoomInfo)) {
         LOGE("Failed to update table");
         return BAD_VALUE;
     }
@@ -9963,6 +10343,7 @@ int32_t QCameraParameters::setRedeyeReduction(const char *redeyeStr)
         int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
                 PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), redeyeStr);
         if (value != NAME_NOT_FOUND) {
+            m_bRedEyeReduction = (value != 0);
             LOGD("Setting RedEye Reduce value %s", redeyeStr);
             updateParamEntry(KEY_QC_REDEYE_REDUCTION, redeyeStr);
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
@@ -10119,6 +10500,7 @@ int32_t QCameraParameters::setSecureMode(const char *str)
     int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
             PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), str);
     if (value != NAME_NOT_FOUND) {
+        updateParamEntry(KEY_QC_SECURE_MODE, str);
         m_bSecureMode = (value == 0)? false : true;
         return NO_ERROR;
     }
@@ -10324,15 +10706,9 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             LOGE("getAnalysisInfo failed, ret = %d", ret);
             return ret;
         }
-
-        if (analysisInfo.hw_analysis_supported &&
-                analysisInfo.analysis_format == CAM_FORMAT_Y_ONLY) {
+        if (analysisInfo.analysis_format == CAM_FORMAT_Y_ONLY) {
             format = analysisInfo.analysis_format;
         } else {
-            if (analysisInfo.hw_analysis_supported) {
-                LOGW("Invalid analysis_format %d\n",
-                        analysisInfo.analysis_format);
-            }
             format = mAppPreviewFormat;
         }
         break;
@@ -10524,6 +10900,19 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
                     (supportedWidth * supportedHeight)){
                 dim.width = supportedWidth;
                 dim.height = supportedHeight;
+            }
+
+            if (m_halPPType == CAM_HAL_PP_TYPE_BOKEH) {
+                 if (cam_type & MM_CAMERA_TYPE_MAIN) {
+                      dim.width = CAM_BOKEH_WIDE_WIDTH;
+                      dim.height = CAM_BOKEH_WIDE_HEIGHT;
+                 } else if (cam_type & MM_CAMERA_TYPE_AUX) {
+                     // Tele Camera
+                     dim.width = CAM_BOKEH_TELE_WIDTH;
+                     dim.height = CAM_BOKEH_TELE_HEIGHT;
+                 }
+                 LOGH("Bokeh : Hardcoding Snapshot ( %d x %d), cam_type: 0x%x",
+                        dim.width, dim.height, cam_type);
             }
         }
         break;
@@ -10737,6 +11126,24 @@ void QCameraParameters::getThumbnailSize(int *width, int *height) const
 {
     *width = getInt(KEY_JPEG_THUMBNAIL_WIDTH);
     *height = getInt(KEY_JPEG_THUMBNAIL_HEIGHT);
+}
+
+/*===========================================================================
+ * FUNCTION   : getSecureQueueDepth
+ *
+ * DESCRIPTION: get Secure Queue depth
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : Secure Queue depth value
+ *==========================================================================*/
+uint8_t QCameraParameters::getSecureQueueDepth()
+{
+    int qdepth = getInt(KEY_QC_SECURE_QUEUE_DEPTH);
+    if (qdepth < CAMERA_MIN_SECURE_BUFFERS) {
+        qdepth = CAMERA_MIN_SECURE_BUFFERS;
+    }
+    return (uint8_t)qdepth;
 }
 
 /*===========================================================================
@@ -11004,6 +11411,26 @@ uint8_t QCameraParameters::getNumOfExtraHDROutBufsIfNeeded()
         numOfBufs++;
     }
 
+    return (uint8_t)(numOfBufs);
+}
+
+/*===========================================================================
+ * FUNCTION   : getNumOfExtraEISBufsIfNeeded
+ *
+ * DESCRIPTION: get number of extra buffers needed for EIS
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : number of extra buffers needed by EIS; 0 if EIS 3.0 disabled
+ *==========================================================================*/
+uint8_t QCameraParameters::getNumOfExtraEISBufsIfNeeded()
+{
+    int numOfBufs = 0;
+    if (isHfrMode() && !getBufBatchCount() && (getVideoISType() == IS_TYPE_EIS_3_0)) {
+        char prop[PROPERTY_VALUE_MAX];
+        property_get("persist.camera.is.buffer_delay", prop, "15");
+        numOfBufs = atoi(prop);
+    }
     return (uint8_t)(numOfBufs);
 }
 
@@ -11580,6 +12007,40 @@ int32_t QCameraParameters::updateRecordingHintValue(int32_t value)
 }
 
 /*===========================================================================
+ * FUNCTION   : updateCaptureRequest
+ *
+ * DESCRIPTION: This function is used by dual camera to notify capture mode in dual
+ *                      camera
+ *
+ * PARAMETERS :
+ *   @value   : 0 capture not in progress
+ *                : 1 capture in progress
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::updateCaptureRequest(uint8_t value)
+{
+    int32_t rc = NO_ERROR;
+    LOGH("Notify take picture mode (%d) to modules", value);
+    if(initBatchUpdate() < 0 ) {
+        LOGE("Failed to initialize group update table");
+        return BAD_TYPE;
+    }
+    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_DC_CAPTURE, value)) {
+        LOGE("Failed to update table");
+        return BAD_VALUE;
+    }
+    rc = commitSetBatch();
+    if (rc != NO_ERROR) {
+        LOGE("Failed to update capture mode");
+        return rc;
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : setHistogram
  *
  * DESCRIPTION: set histogram
@@ -11860,34 +12321,57 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
         LOGE("Failed to initialize group update table");
         return BAD_TYPE;
     }
-
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
-        LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION ");
-        return BAD_VALUE;
-    }
-
-    rc = commitSetBatch();
-    if (rc != NO_ERROR) {
-        LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm");
-        return rc;
-    }
-
-    if(initBatchUpdate() < 0 ) {
-        LOGE("Failed to initialize group update table");
-        return BAD_TYPE;
-    }
-
-    ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION);
-
-    rc = commitGetBatch();
-    if (rc != NO_ERROR) {
-        LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION");
-        return rc;
-    }
-
     if (cam_type == MM_CAMERA_TYPE_AUX) {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
+            LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION ");
+            return BAD_VALUE;
+        }
+
+        rc = commitSetBatchAux();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm");
+            return rc;
+        }
+
+        if(initBatchUpdate() < 0 ) {
+            LOGE("Failed to initialize group update table");
+            return BAD_TYPE;
+        }
+
+        ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux, CAM_INTF_PARM_RAW_DIMENSION);
+
+        rc = commitGetBatchAux();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION");
+            return rc;
+        }
+
         READ_PARAM_ENTRY(m_pParamBufAux, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
     } else {
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
+            LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION ");
+            return BAD_VALUE;
+        }
+
+        rc = commitSetBatch();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm");
+            return rc;
+        }
+
+        if(initBatchUpdate() < 0 ) {
+            LOGE("Failed to initialize group update table");
+            return BAD_TYPE;
+        }
+
+        ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION);
+
+        rc = commitGetBatch();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION");
+            return rc;
+        }
+
         READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
     }
 
@@ -12303,46 +12787,89 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
     int32_t rc = NO_ERROR;
     cam_dual_camera_bundle_info_t bundle_info;
     uint8_t num_cam = 0;
-    int32_t sync = 0;
     uint32_t mode, type, role = 0;
     cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
 
-    if(enable_sync) {
-        sync = (int32_t)CAM_SYNC_RELATED_SENSORS_ON;
-    } else {
-        sync = (int32_t)CAM_SYNC_RELATED_SENSORS_OFF;
-    }
-
+    cam_sync_related_sensors_control_t syncControl = CAM_SYNC_RELATED_SENSORS_OFF;
     property_get("persist.camera.stats.test.2outs", prop, "0");
     sync_3a_mode = (atoi(prop) > 0) ? CAM_3A_SYNC_ALGO_CTRL : sync_3a_mode;
 
-    if (m_pCapability->position == CAM_POSITION_BACK_AUX) {
-        mode = CAM_MODE_SECONDARY;
-        type = CAM_TYPE_AUX;
-    } else {
-        mode = CAM_MODE_PRIMARY;
-        type = CAM_TYPE_MAIN;
-    }
+    //Check if dual camera by handle
+    if (isDualCamera()) {
+        //Trigger dual camera Link command before Meta info
+        cam_dual_camera_bundle_info_t bundle_info[MM_CAMERA_MAX_CAM_CNT];
+        uint8_t num_cam = 0;
+        uint32_t sessionID = 0;
+        // Update syncControl based on DUALCAM_SYNC_MECHANISM setting
+        if (enable_sync) {
+            syncControl = (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) ?
+                    CAM_SYNC_RELATED_SENSORS_OFF : CAM_SYNC_RELATED_SENSORS_ON;
+        } else {
+            syncControl = CAM_SYNC_RELATED_SENSORS_OFF;
+        }
 
-    if (m_pCapability->lens_type == CAM_LENS_WIDE) {
-        role = CAM_ROLE_WIDE;
-    } else if (m_pCapability->lens_type == CAM_LENS_TELE) {
-        role = CAM_ROLE_TELE;
-    }
-    bundle_info.sync_control =
-            (cam_sync_related_sensors_control_t)sync;
-    bundle_info.mode = (cam_sync_mode_t)mode;
-    bundle_info.type = (cam_sync_type_t)type;
-    bundle_info.cam_role = (cam_dual_camera_role_t)role;
-    bundle_info.related_sensor_session_id = sessionId[bundle_cam_idx];
-    bundle_info.perf_mode = getLowPowerMode(bundle_info.type);
-    bundle_info.is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
-    num_cam++;
+        bundle_info[num_cam].sync_control = syncControl;
+        bundle_info[num_cam].type = CAM_TYPE_MAIN;
+        bundle_info[num_cam].mode = CAM_MODE_PRIMARY;
+        bundle_info[num_cam].cam_role = CAM_ROLE_WIDE;
+        bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
+        m_pCamOpsTbl->ops->get_session_id(
+                get_aux_camera_handle(m_pCamOpsTbl->camera_handle), &sessionID);
+        bundle_info[num_cam].related_sensor_session_id = sessionID;
+        bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_MAIN);
+        bundle_info[num_cam].sync_mechanism = DUALCAM_SYNC_MECHANISM;
+        num_cam++;
 
-    rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
-            num_cam, &bundle_info);
+        bundle_info[num_cam].sync_control = syncControl;
+        bundle_info[num_cam].type = CAM_TYPE_AUX;
+        bundle_info[num_cam].mode = CAM_MODE_SECONDARY;
+        bundle_info[num_cam].cam_role = CAM_ROLE_TELE;
+        bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
+        m_pCamOpsTbl->ops->get_session_id(
+                get_main_camera_handle(m_pCamOpsTbl->camera_handle), &sessionID);
+        bundle_info[num_cam].related_sensor_session_id = sessionID;
+        bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_AUX);
+        bundle_info[num_cam].sync_mechanism = DUALCAM_SYNC_MECHANISM;
+        num_cam++;
+
+        rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
+                num_cam, &bundle_info[0]);
+    }
+    else {
+        //Dual camera through HAL Muxer
+        if(enable_sync) {
+            syncControl = CAM_SYNC_RELATED_SENSORS_ON;
+        } else {
+            syncControl = CAM_SYNC_RELATED_SENSORS_OFF;
+        }
+        if (m_pCapability->position == CAM_POSITION_BACK_AUX) {
+            mode = CAM_MODE_SECONDARY;
+            type = CAM_TYPE_AUX;
+        } else {
+            mode = CAM_MODE_PRIMARY;
+            type = CAM_TYPE_MAIN;
+        }
+
+        if (m_pCapability->lens_type == CAM_LENS_WIDE) {
+            role = CAM_ROLE_WIDE;
+        } else if (m_pCapability->lens_type == CAM_LENS_TELE) {
+            role = CAM_ROLE_TELE;
+        }
+        bundle_info.sync_control =
+                (cam_sync_related_sensors_control_t)syncControl;
+        bundle_info.sync_mechanism = DUALCAM_SYNC_MECHANISM;
+        bundle_info.mode = (cam_sync_mode_t)mode;
+        bundle_info.type = (cam_sync_type_t)type;
+        bundle_info.cam_role = (cam_dual_camera_role_t)role;
+        bundle_info.related_sensor_session_id = sessionId[bundle_cam_idx];
+        bundle_info.perf_mode = getLowPowerMode(bundle_info.type);
+        num_cam++;
+
+        rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
+                num_cam, &bundle_info);
+    }
     return rc;
 }
 
@@ -12390,11 +12917,14 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
                 memcpy(&m_pDualCamCmdPtr[i]->bundle_info,
                         &info[i],
                         sizeof(cam_dual_camera_bundle_info_t));
-                LOGH("SYNC CMD %d: cmd %d mode %d type %d hw-sync %d session - %d", i,
+
+                LOGH("SYNC CMD %d: cmd %d mode %d type %d sync-control %d "
+                        "sync-mechanism %d session - %d", i,
                         m_pDualCamCmdPtr[i]->cmd_type,
                         m_pDualCamCmdPtr[i]->bundle_info.mode,
                         m_pDualCamCmdPtr[i]->bundle_info.type,
-                        m_pDualCamCmdPtr[i]->bundle_info.is_hw_sync_enabled,
+                        m_pDualCamCmdPtr[i]->bundle_info.sync_control,
+                        m_pDualCamCmdPtr[i]->bundle_info.sync_mechanism,
                         m_pDualCamCmdPtr[i]->bundle_info.related_sensor_session_id);
             }
         }
@@ -12445,6 +12975,22 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
             }
         }
         break;
+
+        case CAM_DUAL_CAMERA_FALLBACK_INFO: {
+            for (int i = 0; i < num_cam; i++) {
+                cam_dual_camera_fallback_info_t *info =
+                        (cam_dual_camera_fallback_info_t *)cmd_value;
+                m_pDualCamCmdPtr[i]->cmd_type = type;
+                memcpy(&m_pDualCamCmdPtr[i]->fallback,
+                        &info[i],
+                        sizeof(cam_dual_camera_fallback_info_t));
+                LOGH("FALLBACK INFO CMD %d: cmd %d value %d", i,
+                        m_pDualCamCmdPtr[i]->cmd_type,
+                        m_pDualCamCmdPtr[i]->fallback);
+            }
+        }
+        break;
+
         default :
         break;
     }
@@ -12538,18 +13084,18 @@ int32_t QCameraParameters::getRelatedCamCalibration(
  *==========================================================================*/
 void QCameraParameters::setSyncDCParams()
 {
-    uint32_t temp_mSyncDCParam = 0;
+    if (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) {
+        mSyncDCParam = 0;
+        return;
+    }
+
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
 
     //Keep it enable by default.
     //It will be used for Dual camera sync parameters
     property_get("persist.camera.syncDCParams.en", prop, "1");
-    temp_mSyncDCParam = atoi(prop);
-
-    if (MM_CAMERA_DUAL_CAM == mActiveCameras) {
-        mSyncDCParam = temp_mSyncDCParam;
-    }
+    mSyncDCParam = atoi(prop);
 }
 
 
@@ -12570,11 +13116,14 @@ void QCameraParameters::setSyncDCParams()
  *==========================================================================*/
 int32_t QCameraParameters::SyncDCParams()
 {
-    //Add dual-parameter in parameters
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
-        CAM_INTF_PARM_SYNC_DC_PARAMETERS, mSyncDCParam)) {
-        LOGE("Failed to update table");
-        return BAD_VALUE;
+    // If mSyncDCParam is set, sync dual camera params in the dual zone only
+    if (mSyncDCParam && (MM_CAMERA_DUAL_CAM == mActiveCameras)) {
+        //Add dual-parameter in parameters
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+            CAM_INTF_PARM_SYNC_DC_PARAMETERS, mSyncDCParam)) {
+            LOGE("Failed to update table");
+            return BAD_VALUE;
+        }
     }
     return NO_ERROR;
 }
@@ -12644,11 +13193,35 @@ void QCameraParameters::setAuxParameters()
             if (isDCmAsymmetricSnapMode()) {
                 for (uint32_t i = 0; i < info->num_streams; i++) {
                     if (info->type[i] == CAM_STREAM_TYPE_SNAPSHOT) {
+                        LOGH("Bokeh: Getting stream dimesion for AUX Snapshot");
                         getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
                                 info->stream_sizes[i], CAM_TYPE_AUX);
                         break;
                     }
                 }
+            }
+            if (isDCAsymmetricPrevMode()) {
+                for (uint32_t i = 0; i < info->num_streams; i++) {
+                    if (info->type[i] == CAM_STREAM_TYPE_PREVIEW) {
+                        LOGH("Bokeh: Getting stream dimesion for AUX preview");
+                        getStreamDimension(CAM_STREAM_TYPE_PREVIEW,
+                                info->stream_sizes[i], CAM_TYPE_AUX);
+                        break;
+                    }
+                }
+            }
+            for (uint32_t k = 0; k < info->num_streams; k++) {
+                LOGI("AUX STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
+                        Format = %d, dt =%d cid =%d subformat =%d, is_type %d",
+                        info->type[k],
+                        info->stream_sizes[k].width,
+                        info->stream_sizes[k].height,
+                        info->postprocess_mask[k],
+                        info->format[k],
+                        info->dt[k],
+                        info->vc[k],
+                        info->sub_format_type[k],
+                        info->is_type[k]);
             }
         }
     }
@@ -12692,10 +13265,6 @@ int32_t QCameraParameters::commitSetBatch()
         updateFrameNumber();
         SyncDCParams();
     }
-    if (i < CAM_INTF_PARM_MAX) {
-        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
-            m_pParamBuf);
-    }
 
     if ((i < CAM_INTF_PARM_MAX) && isDualCamera()) {
         // Translate input parameters from main camera to create parameter set for aux camera
@@ -12711,6 +13280,11 @@ int32_t QCameraParameters::commitSetBatch()
             LOGE("FOV-control: Failed to set params for Aux camera");
             return rc;
         }
+    }
+
+    if (i < CAM_INTF_PARM_MAX) {
+        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+            m_pParamBuf);
     }
 
     if (rc == NO_ERROR) {
@@ -12785,7 +13359,7 @@ int32_t QCameraParameters::commitGetBatch()
     }
 
     if (i < CAM_INTF_PARM_MAX) {
-        return m_pCamOpsTbl->ops->get_parms(m_pCamOpsTbl->camera_handle, m_pParamBuf);
+        rc = m_pCamOpsTbl->ops->get_parms(m_pCamOpsTbl->camera_handle, m_pParamBuf);
     } else {
         return NO_ERROR;
     }
@@ -13526,7 +14100,7 @@ int32_t QCameraParameters::updateSnapshotPpMask(cam_stream_size_info_t &stream_c
                   updatePpFeatureMask(CAM_STREAM_TYPE_SNAPSHOT);
                   stream_config_info.postprocess_mask[k] =
                       mStreamPpMask[CAM_STREAM_TYPE_SNAPSHOT];
-                  LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
+                  LOGI("After CPP LINK, STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
                         Format = %d, dt =%d cid =%d subformat =%d, is_type %d",
                         stream_config_info.type[k],
                         stream_config_info.stream_sizes[k].width,
@@ -13649,11 +14223,19 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
             return BAD_VALUE;
         }
 
+        // Set Hal PP type to FOV control
+        LOGH("Setting HAL PP type to FOV control: %d", m_halPPType);
+        m_pFovControl->setHalPPType(m_halPPType);
+
         // Update FOV-control config settings due to the change in the configuration
         rc = m_pFovControl->updateConfigSettings(m_pParamBuf, m_pParamBufAux);
-
         if (rc != NO_ERROR) {
             LOGE("Failed to update FOV-control config settings");
+            return rc;
+        }
+        rc = commitSetBatch();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to set stream info parm");
             return rc;
         }
     }
@@ -13774,7 +14356,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
             }
         }
     }  else if(isSecureMode()) {
-        if (mSecureStraemType == CAM_STREAM_TYPE_RAW) {
+        if (mSecureStraemType == CAM_STREAM_TYPE_RAW || isRdiMode()) {
             raw_capture = true;
             cam_dimension_t max_dim = {0,0};
             updateRAW(max_dim);
@@ -14005,8 +14587,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
         stream_config_info.num_streams++;
     }
 
-    //For dual camera.
-    stream_config_info.sync_type = CAM_TYPE_MAIN;
+    stream_config_info.sync_type = CAM_TYPE_STANDALONE;
 
     for (uint32_t k = 0; k < stream_config_info.num_streams; k++) {
         LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%llx \
@@ -14022,47 +14603,12 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
                 stream_config_info.is_type[k]);
     }
 
-    if (rc == NO_ERROR && isDualCamera()) {
-        //Trigger dual camera Link command before Meta info
-        cam_3a_sync_mode_t sync_3a_mode = CAM_3A_SYNC_FOLLOW;
-        char prop[PROPERTY_VALUE_MAX];
-        memset(prop, 0, sizeof(prop));
-        cam_dual_camera_bundle_info_t bundle_info[MM_CAMERA_MAX_CAM_CNT];
-        uint8_t num_cam = 0;
-        uint32_t sessionID = 0;
-
-        property_get("persist.camera.stats.test.2outs", prop, "0");
-        sync_3a_mode = (atoi(prop) > 0) ? CAM_3A_SYNC_ALGO_CTRL : sync_3a_mode;
-
-        bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
-        bundle_info[num_cam].type = CAM_TYPE_MAIN;
-        bundle_info[num_cam].mode = CAM_MODE_PRIMARY;
-        bundle_info[num_cam].cam_role = CAM_ROLE_WIDE;
-        bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
-        m_pCamOpsTbl->ops->get_session_id(
-                get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
-                &sessionID);
-        bundle_info[num_cam].related_sensor_session_id = sessionID;
-        bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_MAIN);
-        bundle_info[num_cam].is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
-        num_cam++;
-        bundle_info[num_cam].sync_control = CAM_SYNC_RELATED_SENSORS_ON;
-        bundle_info[num_cam].type = CAM_TYPE_AUX;
-        bundle_info[num_cam].mode = CAM_MODE_SECONDARY;
-        bundle_info[num_cam].cam_role = CAM_ROLE_TELE;
-        bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
-        m_pCamOpsTbl->ops->get_session_id(
-                get_main_camera_handle(m_pCamOpsTbl->camera_handle),
-                &sessionID);
-        bundle_info[num_cam].related_sensor_session_id = sessionID;
-        bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_AUX);
-        bundle_info[num_cam].is_hw_sync_enabled = DUALCAM_HW_SYNC_ENABLED;
-        num_cam++;
-        rc = sendDualCamCmd(CAM_DUAL_CAMERA_BUNDLE_INFO,
-                num_cam, &bundle_info[0]);
-
-        // Send dual cam cmd for master camera info
-        setSwitchCamera(mMasterCamera);
+    if ((rc == NO_ERROR) && isDualCamera()) {
+        bool syncCams = true;
+        if (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) {
+            syncCams = false;
+        }
+        bundleRelatedCameras(syncCams);
     }
 
     rc = sendStreamConfigInfo(stream_config_info);
@@ -14613,8 +15159,9 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         property_get("persist.camera.sat.enable", prop, "0");
         satEnabledFlag = atoi(prop);
 
-        if (satEnabledFlag) {
-        LOGH("SAT flag enabled");
+        if (satEnabledFlag &&
+                (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) {
+            LOGH("SAT flag enabled");
             if (stream_type == CAM_STREAM_TYPE_VIDEO &&
                 !is4k2kVideoResolution()) {
                 feature_mask |= CAM_QTI_FEATURE_SAT;
@@ -14630,9 +15177,12 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         property_get("persist.camera.sac.enable", prop, "0");
         sacEnabledFlag = atoi(prop);
 
-        if (sacEnabledFlag) {
-        LOGH("SAC flag enabled");
-            if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
+        if (sacEnabledFlag  &&
+                (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) {
+            LOGH("SAC flag enabled");
+            if ((stream_type == CAM_STREAM_TYPE_ANALYSIS) ||
+                (stream_type == CAM_STREAM_TYPE_VIDEO) ||
+                (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
                 feature_mask |= CAM_QTI_FEATURE_SAC;
                 LOGH("SAC feature mask set");
             }
@@ -14642,8 +15192,9 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         property_get("persist.camera.rtbdm.enable", prop, "0");
         rtbdmEnabledFlag = atoi(prop);
 
-        if (rtbdmEnabledFlag) {
-        LOGH("RTBDM flag enabled");
+        if (rtbdmEnabledFlag  &&
+                (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+            LOGH("RTBDM flag enabled");
             if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
                 feature_mask |= CAM_QTI_FEATURE_RTBDM;
                 LOGH("RTBDM feature mask set");
@@ -14654,8 +15205,9 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         property_get("persist.camera.rtb.enable", prop, "0");
         rtbEnabledFlag = atoi(prop);
 
-        if (rtbEnabledFlag) {
-        LOGH("RTB flag enabled");
+        if (rtbEnabledFlag ||
+                (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+            LOGH("RTB flag enabled");
             if ((stream_type == CAM_STREAM_TYPE_PREVIEW)||
                 (stream_type == CAM_STREAM_TYPE_CALLBACK)) {
                 feature_mask |= CAM_QTI_FEATURE_RTB;
@@ -14827,6 +15379,12 @@ bool QCameraParameters::isUBWCEnabled()
     if (prop_value) {
         return FALSE;
     }
+
+    //Get UBWC status in secure use cases
+    if (isSecureMode()) {
+        return m_bSecureModeUBWC;
+    }
+
     return TRUE;
 #else
     return FALSE;
@@ -15520,6 +16078,65 @@ int32_t QCameraParameters::setDualLedCalibration(const char *str)
 }
 
 /*===========================================================================
+ * FUNCTION   : setVfe1ReservedRdi
+ *
+ * DESCRIPTION:
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setVfe1ReservedRdi(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_VFE1_RESERVED_RDI);
+    const char *prev_str = get(KEY_QC_VFE1_RESERVED_RDI);
+
+    if (str != NULL) {
+        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
+            return setVfe1ReservedRdi(str);
+        }
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setVfe1ReservedRdi
+ *
+ * DESCRIPTION:
+ *
+ * PARAMETERS :
+ *   @calibration_mode :
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setVfe1ReservedRdi(const char *str)
+{
+    if (str != NULL) {
+        int32_t value = atoi(str);
+        if (value < -1 || value > 3) {
+            value = -1;
+            updateParamEntry(KEY_QC_VFE1_RESERVED_RDI, "-1");
+        }
+        else
+            updateParamEntry(KEY_QC_VFE1_RESERVED_RDI, str);
+
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
+                CAM_INTF_PARM_VFE1_RESERVED_RDI, value)) {
+            LOGE("Failed to update vfe1 max rdi param");
+            return BAD_VALUE;
+        }
+        return NO_ERROR;
+    }
+    return BAD_VALUE;
+}
+
+
+/*===========================================================================
  * FUNCTION   : setinstantAEC
  *
  * DESCRIPTION: set instant AEC value to backend
@@ -15751,6 +16368,37 @@ bool QCameraParameters::isLinkPreviewForLiveShot()
 }
 
 /*===========================================================================
+ * FUNCTION   : needSnapshotPP
+ *
+ * DESCRIPTION: Check if Snapshot postprocessing is required or not
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : true: needed
+ *              false: no need
+ *==========================================================================*/
+bool QCameraParameters::needSnapshotPP()
+{
+    int stillWidth, stillHeight, maxWidth, maxHeight;
+    bool maxPicSize;
+    // Get current Picture & max Snapshot sizes
+    getPictureSize(&stillWidth, &stillHeight);
+    maxWidth  = m_pCapability->picture_sizes_tbl[0].width;
+    maxHeight = m_pCapability->picture_sizes_tbl[0].height;
+
+    maxPicSize = (stillWidth == maxWidth) && (stillHeight == maxHeight);
+    // Disable Snapshot Postprocessing if any of the below features are enabled
+    if ((!maxPicSize  &&  (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) ||
+            m_bLongshotEnabled || m_bRecordingHint ||
+            m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+
+/*===========================================================================
  * FUNCTION   : SetDualCamera
  *
  * DESCRIPTION: set Dual Camera
@@ -15795,12 +16443,101 @@ int32_t QCameraParameters::setSwitchCamera(uint32_t camMaster)
         return rc;
     }
 
+    LOGD("Switching to %s", (camMaster == MM_CAMERA_TYPE_MAIN) ?
+            "CAM_TYPE_MAIN" : "CAM_TYPE_AUX");
+
     // Update master camera
     mMasterCamera = camMaster;
-
+    LOGH("setting Master Camera from %d to %d", mMasterCamera, camMaster);
     num_cam = MM_CAMERA_MAX_CAM_CNT;
     rc = sendDualCamCmd(CAM_DUAL_CAMERA_MASTER_INFO,
               num_cam, &camState[0]);
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setDCLowPowerMode
+ *
+ * DESCRIPTION: trigger low power mode in dual camera.
+ *
+ * PARAMETERS :
+ *    @state : Flag with camera bit field set in case of dual camera
+ *
+ * RETURN     : NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setDCLowPowerMode(uint32_t state)
+{
+    int32_t rc = NO_ERROR;
+
+    if (lpmEnable) {
+        int32_t cameraControl[MM_CAMERA_MAX_CAM_CNT] = {0};
+        cam_dual_camera_perf_mode_t lpmMain = CAM_PERF_NONE;
+        cam_dual_camera_perf_mode_t lpmAux  = CAM_PERF_NONE;
+
+        cam_dual_camera_perf_control_t perf_value[MM_CAMERA_MAX_CAM_CNT];
+        uint8_t num_cam = 0;
+
+        lpmMain = getLowPowerMode(CAM_TYPE_MAIN);
+        lpmAux  = getLowPowerMode(CAM_TYPE_AUX);
+
+        // Keep the camera active if indicated by the active state or if LPM is NONE
+        if ((state & MM_CAMERA_TYPE_MAIN) ||
+                (lpmMain == CAM_PERF_NONE)) {
+            cameraControl[0] = 1;
+        } else {
+            cameraControl[0] = 0;
+        }
+
+        // Keep the camera active if indicated by the active state or if LPM is NONE
+        if ((state & MM_CAMERA_TYPE_AUX)  ||
+                 (lpmAux == CAM_PERF_NONE)) {
+             cameraControl[1] = 1;
+        } else {
+             cameraControl[1] = 0;
+        }
+
+        perf_value[num_cam].perf_mode = lpmMain;
+        perf_value[num_cam].enable = cameraControl[0] ? 0 : 1;
+        perf_value[num_cam].priority = 0;
+        num_cam++;
+        perf_value[num_cam].perf_mode = lpmAux;
+        perf_value[num_cam].enable = cameraControl[1] ? 0 : 1;
+        perf_value[num_cam].priority = 0;
+        num_cam++;
+
+        rc = sendDualCamCmd(CAM_DUAL_CAMERA_LOW_POWER_MODE,
+                 num_cam, &perf_value[0]);
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setDCFallbackMode
+ *
+ * DESCRIPTION: Trigger fallback mode in dual camera.
+ *
+ * PARAMETERS :
+ *         @fallback : Fallback mode for master in case of low light / macro scene
+ *
+ * RETURN     : NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setDCFallbackMode(cam_fallback_mode_t fallback)
+{
+    int32_t rc = NO_ERROR;
+
+    cam_dual_camera_fallback_info_t fallbackMode[MM_CAMERA_MAX_CAM_CNT];
+    uint8_t num_cam = 0;
+
+    fallbackMode[num_cam].fallback = fallback;
+    num_cam++;
+    fallbackMode[num_cam].fallback = fallback;
+    num_cam++;
+
+    rc = sendDualCamCmd(CAM_DUAL_CAMERA_FALLBACK_INFO,
+            num_cam, &fallbackMode[0]);
+
     return rc;
 }
 
@@ -15815,23 +16552,44 @@ int32_t QCameraParameters::setSwitchCamera(uint32_t camMaster)
  * RETURN     : NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setDeferCamera(cam_dual_camera_defer_cmd_t type)
+int32_t QCameraParameters::setDCDeferCamera(cam_dual_camera_defer_cmd_t type)
 {
     int32_t rc = NO_ERROR;
     char prop[PROPERTY_VALUE_MAX];
     int value = 0;
+    bool deferEnable = TRUE;
 
-    property_get("persist.dualcam.defer.cam", prop, "1");
+    property_get("persist.camera.raw_yuv", prop, "0");
     value = atoi(prop);
-
-    cam_dual_camera_defer_cmd_t defer_val[MM_CAMERA_MAX_CAM_CNT];
-    memset(&defer_val[0], 0, sizeof(defer_val));
-
-    if (value >= 0 && value < MM_CAMERA_MAX_CAM_CNT) {
-        defer_val[value] = type;
+    if (value) {
+        //In RAW + YUV, we need to query for RAW size. Cannot defer camera
+        return rc;
+    } else {
+        memset(prop, 0, sizeof(prop));
     }
-    sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO,MM_CAMERA_MAX_CAM_CNT,
-            &defer_val[0]);
+
+    property_get("persist.dualcam.defer.enable", prop, "1");
+    deferEnable = atoi(prop) ? TRUE : FALSE;
+
+    if (deferEnable) {
+        cam_dual_camera_defer_cmd_t defer_val[MM_CAMERA_MAX_CAM_CNT];
+        memset(&defer_val[0], 0, sizeof(defer_val));
+
+        if (mMasterCamera == MM_CAMERA_TYPE_MAIN) {
+            defer_val[1] = type;
+        } else if (mMasterCamera == MM_CAMERA_TYPE_AUX) {
+            defer_val[0] = type;
+        } else {
+            LOGW("Invalid master camera info");
+            return rc;
+        }
+
+        // Fix me: Do not defer camera for Bokeh Mode
+        if (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH) {
+            sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO, MM_CAMERA_MAX_CAM_CNT,
+                    &defer_val[0]);
+        }
+    }
     return rc;
 }
 
@@ -15851,6 +16609,12 @@ cam_dual_camera_perf_mode_t QCameraParameters::getLowPowerMode(cam_sync_type_t c
     int32_t lpm = 0;
     int32_t lpmConfig = 0;
 
+    // LPM is disabled for Bokeh mode as both sensors have to be running all the time
+    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+        LOGD("LPM disabled in bokeh mode:  %s camera", cam == CAM_TYPE_MAIN ? "main" : "aux");
+        return CAM_PERF_NONE;
+    }
+
     if (cam == CAM_TYPE_MAIN) {
         property_get("persist.dualcam.lpm.main", prop, "0");
         lpm = atoi(prop);
@@ -15864,24 +16628,52 @@ cam_dual_camera_perf_mode_t QCameraParameters::getLowPowerMode(cam_sync_type_t c
         return CAM_PERF_NONE;
     }
 
+    // If setprop doesn't set low power mode read the mode from config file QCameraDualCamSettings.h
     if (lpm == 0) {
-        switch(lpmConfig) {
-            case SENSOR_SLEEP:
-                lpm = CAM_PERF_SENSOR_SUSPEND;
-                break;
-            case ISPIF_FRAME_DROP:
-                lpm = CAM_PERF_ISPIF_FRAME_DROP;
-                break;
-            case NONE:
-            default:
-                lpm = CAM_PERF_NONE;
-                break;
-        }
+        lpm = lpmConfig;
     }
     LOGD("LPM for %s camera: %d", cam == CAM_TYPE_MAIN ? "main" : "aux", lpm);
     return (cam_dual_camera_perf_mode_t)lpm;
 }
 
+/*===========================================================================
+ * FUNCTION   : initDCSettings
+ *
+ * DESCRIPTION: initialize dual camera settings
+ *
+ * PARAMETERS :
+ *    @state         : Flag with camera bit field set in case of dual camera
+ *    @camMaster     : Master camera
+ *    @bundleSnapshot: Flag to update bundle snapshot info
+ *    @fallback : Fallback mode for master in case of low light / macro scene
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::initDCSettings(int32_t state, uint32_t camMaster,
+        bool bundleSnapshot, cam_fallback_mode_t fallback)
+{
+    char prop[PROPERTY_VALUE_MAX];
+
+    mActiveCameras = state;
+    mMasterCamera = camMaster;
+    mbundledSnapshot = bundleSnapshot;
+    mFallback = fallback;
+    lpmEnable = true;
+
+    // LPM is enabled by default.
+    // It can disabled at the compile time using DUALCAM_LPM_ENABLE from QCameraDualCamSettings.h
+    // It can be disabled dynamically using the setprop persist.dualcam.lpm.enable.
+    property_get("persist.dualcam.lpm.enable", prop, "1");
+    lpmEnable = atoi(prop) ? TRUE : FALSE;
+
+    if (DUALCAM_LPM_ENABLE == 0) {
+        lpmEnable = 0;
+    }
+
+    // Send dual cam cmd for master camera info
+    setSwitchCamera(mMasterCamera);
+    setNumOfSnapshot();
+}
 
 /*===========================================================================
  * FUNCTION   : setCameraControls
@@ -15889,72 +16681,29 @@ cam_dual_camera_perf_mode_t QCameraParameters::getLowPowerMode(cam_sync_type_t c
  * DESCRIPTION: activate or deactive camera's
  *
  * PARAMETERS :
- *         @controls : Flag with camera bit field set in case of dual camera
+ *         @state          : Flag with camera bit field set in case of dual camera
+ *         @bundleSnapshot : Flag to update bundle snapshot info
+ *         @fallback : Fallback mode for master in case of low light / macro scene
  *
  * RETURN     : NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setCameraControls(int32_t state)
+int32_t QCameraParameters::setCameraControls(uint32_t state, bool bundleSnap,
+        cam_fallback_mode_t fallback)
 {
     int32_t rc = NO_ERROR;
-    int32_t cameraControl[MM_CAMERA_MAX_CAM_CNT] = {0};
-    char prop[PROPERTY_VALUE_MAX];
-    int lpmEnable = 1;
-    cam_dual_camera_perf_mode_t lpmMain = CAM_PERF_NONE;
-    cam_dual_camera_perf_mode_t lpmAux  = CAM_PERF_NONE;
 
-    cam_dual_camera_perf_control_t perf_value[MM_CAMERA_MAX_CAM_CNT];
-    uint8_t num_cam = 0;
-
-    lpmMain = getLowPowerMode(CAM_TYPE_MAIN);
-    lpmAux  = getLowPowerMode(CAM_TYPE_AUX);
-
-    // Keep the camera active if indicated by the active state or if LPM is NONE
-    if ((state & MM_CAMERA_TYPE_MAIN) ||
-            (lpmMain == CAM_PERF_NONE)) {
-        cameraControl[0] = 1;
-    } else {
-        cameraControl[0] = 0;
+    if (state != mActiveCameras) {
+        rc = setDCLowPowerMode(state);
     }
-
-    // Keep the camera active if indicated by the active state or if LPM is NONE
-    if ((state & MM_CAMERA_TYPE_AUX)  ||
-            (lpmAux == CAM_PERF_NONE)) {
-        cameraControl[1] = 1;
-    } else {
-        cameraControl[1] = 0;
+    if (fallback != mFallback) {
+        rc = setDCFallbackMode(fallback);
     }
-
-    perf_value[num_cam].perf_mode = lpmMain;
-    perf_value[num_cam].enable = cameraControl[0] ? 0 : 1;
-    perf_value[num_cam].priority = 0;
-    num_cam++;
-    perf_value[num_cam].perf_mode = lpmAux;
-    perf_value[num_cam].enable = cameraControl[1] ? 0 : 1;
-    perf_value[num_cam].priority = 0;
-    num_cam++;
-
-    // LPM is enabled by default.
-    // It can disabled at the compile time using DUALCAM_LPM_ENABLE from QCameraDualCamSettings.h
-    // It can be disabled dynamically using the setprop persist.dualcam.lpm.enable.
-    property_get("persist.dualcam.lpm.enable", prop, "1");
-    lpmEnable = atoi(prop);
-
-    if (DUALCAM_LPM_ENABLE == 0) {
-        lpmEnable = 0;
-    }
-
-    if (lpmEnable == 0) {
-        LOGD("Dual camera: Low Power Mode disabled");
-        for (int i = 0; i < num_cam; ++i) {
-            perf_value[i].enable = 0;
-        }
-    }
-
-    rc = sendDualCamCmd(CAM_DUAL_CAMERA_LOW_POWER_MODE,
-          num_cam, &perf_value[0]);
 
     mActiveCameras = state;
+    mFallback = fallback;
+    mbundledSnapshot = bundleSnap;
+    setNumOfSnapshot();
 
     return rc;
 }
@@ -15977,12 +16726,18 @@ void QCameraParameters::setAsymmetricSnapMode()
         return;
     }
 
+    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+        mAsymmetricSnapMode = true;
+        return;
+    }
+
     getPictureSize(&width, &height);
     maxWidth = m_pCapability->main_cam_cap->picture_sizes_tbl[0].width;
     maxHeight = m_pCapability->main_cam_cap->picture_sizes_tbl[0].height;
 
     if ((maxWidth * maxHeight) < (width * height)) {
         mAsymmetricSnapMode = true;
+        LOGD("Asymmetric Snap mode is set since the MAIN max res < Picture res");
         return;
     }
 
@@ -15990,9 +16745,24 @@ void QCameraParameters::setAsymmetricSnapMode()
     maxHeight = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].height;
     if ((maxWidth * maxHeight) < (width * height)) {
         mAsymmetricSnapMode = true;
+        LOGD("Asymmetric Snap mode is set since the Aux max res < Picture res");
         return;
     }
     mAsymmetricSnapMode = false;
+}
+
+bool QCameraParameters::isNoDisplayMode(uint32_t cam_type)
+{
+    bool bNoDisplayMode = false;
+    if (cam_type == MM_CAMERA_DUAL_CAM) {
+        bNoDisplayMode =  m_bNoDisplayModeMain && m_bNoDisplayModeAux ;
+    } else if (cam_type == CAM_TYPE_AUX) {
+        bNoDisplayMode =  m_bNoDisplayModeAux;
+    } else {
+        bNoDisplayMode =  m_bNoDisplayModeMain;
+    }
+    LOGH("bNoDisplayMode: %d cam_type: %d", bNoDisplayMode, cam_type);
+    return bNoDisplayMode;
 }
 
 }; // namespace qcamera
