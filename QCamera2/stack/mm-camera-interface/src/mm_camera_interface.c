@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -294,7 +294,8 @@ static int32_t mm_camera_intf_set_parms(uint32_t camera_handle,
                                         parm_buffer_t *parms)
 {
     int32_t rc = 0;
-    mm_camera_obj_t * my_obj = NULL;
+    mm_camera_obj_t *my_obj = NULL;
+    mm_camera_obj_t *master_obj = NULL;
 
     uint32_t handle = get_main_camera_handle(camera_handle);
     uint32_t aux_handle = get_aux_camera_handle(camera_handle);
@@ -307,6 +308,7 @@ static int32_t mm_camera_intf_set_parms(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
 
             if (my_obj->defer_thread.is_active) {
+                master_obj = my_obj;
                 mm_camera_intf_defer_set_param_t set_params;
                 memset(&set_params, 0, sizeof(mm_camera_intf_defer_set_param_t));
                 set_params.aux_handle = aux_handle;
@@ -337,10 +339,9 @@ static int32_t mm_camera_intf_set_parms(uint32_t camera_handle,
             pthread_mutex_unlock(&g_intf_lock);
         }
     }
-    if (aux_handle && my_obj->defer_thread.is_active) {
-       my_obj = mm_camera_util_get_camera_head(aux_handle);
-       cam_sem_wait(&my_obj->defer_thread.sync_sem);
-       rc |= my_obj->defer_status;
+    if (master_obj != NULL) {
+       cam_sem_wait(&master_obj->defer_thread.sync_sem);
+       rc |= master_obj->defer_status;
     }
     return rc;
 }

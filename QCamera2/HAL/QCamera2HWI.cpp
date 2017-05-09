@@ -1942,9 +1942,11 @@ int QCamera2HardwareInterface::openCamera()
             goto error_exit2;
         }
 
-        mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
-                camEvtHandle,
-                (void *) this);
+        if (mCameraHandle != NULL) {
+            mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
+                    camEvtHandle,
+                    (void *) this);
+        }
     } else {
         LOGH("Capabilities not inited, initializing now.");
 
@@ -1961,9 +1963,11 @@ int QCamera2HardwareInterface::openCamera()
             goto error_exit3;
         }
 
-        mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
-                camEvtHandle,
-                (void *) this);
+        if (mCameraHandle != NULL) {
+            mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
+                    camEvtHandle,
+                    (void *) this);
+        }
     }
     mBundledSnapshot = 0;
     mActiveCameras = MM_CAMERA_TYPE_MAIN;
@@ -2049,8 +2053,10 @@ error_exit3:
     if(mJpegClientHandle) {
         deinitJpegHandle();
     }
-    mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
-    mCameraHandle = NULL;
+    if (mCameraHandle != NULL) {
+        mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
+        mCameraHandle = NULL;
+    }
 error_exit2:
     waitDeferredWork(mMetadataAllocJob);
 error_exit1:
