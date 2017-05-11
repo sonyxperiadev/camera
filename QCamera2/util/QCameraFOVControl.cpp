@@ -1722,8 +1722,7 @@ bool QCameraFOVControl::canSwitchMasterTo(
         } else if (mFovControlData.teleCamStreaming &&
                         (mFovControlData.frameCountTele > FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH)) {
             bool teleWellLitNonMacroScene = !mFovControlData.fallbackEnabled ||
-                                                ((currentLuxIdxTele <= thresholdLuxIdx) &&
-                                                (currentFocusDistTele >= thresholdFocusDist));
+                                                (currentLuxIdxTele <= thresholdLuxIdx);
             if (mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) {
                 // In case of OEM Spatial alignment solution, check the spatial alignment ready
                 if (isSpatialAlignmentReady() &&
