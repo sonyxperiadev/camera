@@ -390,7 +390,6 @@ int QCamera2HardwareInterface::start_preview(struct camera_device *device)
         ret = apiResult.status;
     }
     hw->unlockAPI();
-    hw->m_bPreviewStarted = true;
     LOGI("[KPI Perf]: X ret = %d", ret);
     return ret;
 }
@@ -4004,7 +4003,7 @@ int QCamera2HardwareInterface::startPreview()
             return rc;
         }
     }
-
+    m_bPreviewStarted = true;
     LOGI("X rc = %d", rc);
     return rc;
 }
