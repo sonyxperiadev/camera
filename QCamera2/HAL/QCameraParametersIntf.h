@@ -329,7 +329,6 @@ public:
     int32_t setDCLowPowerMode(uint32_t state);
     void initDCSettings(int32_t state, uint32_t camMaster,
         bool bundleSnapshot, cam_fallback_mode_t fallbackMode);
-    bool isDCHWSyncEnabled();
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;

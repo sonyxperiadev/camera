@@ -56,66 +56,6 @@ extern mm_stream_t *mm_channel_util_get_stream_by_handler(mm_channel_t *ch_obj,
 extern int32_t mm_camera_util_set_camera_object(uint8_t cam_idx, mm_camera_obj_t *obj);
 
 
-
-/*===========================================================================
- * FUNCTION   : mm_muxer_defer_thread
- *
- * DESCRIPTION: function to handle defer command in dual camera usecase.
- *
- * PARAMETERS :
- *   @cmd_cb   : callback cmd
- *   @user_data: payload
- *
- * RETURN     : void
- *==========================================================================*/
-void mm_muxer_defer_thread(mm_camera_cmdcb_t *cmd_cb,
-        void* user_data)
-{
-    int32_t rc = 0;
-    mm_camera_obj_t *cam_obj = (mm_camera_obj_t *)user_data;
-
-    if (!cmd_cb && !user_data) {
-        LOGE("Command or Payload is NULL");
-        cam_sem_post(&cam_obj->defer_thread.sync_sem);
-        pthread_mutex_unlock(&cam_obj->muxer_lock);
-        return;
-    }
-
-    if (cmd_cb->cmd_type != MM_CAMERA_CMD_DEFER) {
-        LOGE("Wrong command type");
-        cam_sem_post(&cam_obj->defer_thread.sync_sem);
-        pthread_mutex_unlock(&cam_obj->muxer_lock);
-        return;
-    }
-
-    cam_obj->defer_status = 0;
-    switch(cmd_cb->u.defer_evt.defer_cmd_type) {
-        case MM_CAMERA_DEFER_CAMERA_OPEN: {
-            uint8_t aux_idx = *(uint8_t *)cmd_cb->u.defer_evt.data;
-            rc = mm_camera_muxer_camera_open(aux_idx, cam_obj);
-            if (rc != 0) {
-                LOGE("Aux Camera open failed");
-                cam_obj->defer_status = rc;
-            }
-        }
-        break;
-
-        case MM_CAMERA_DEFER_SET_PARAM: {
-            mm_camera_intf_defer_set_param_t *set_parms =
-                    (mm_camera_intf_defer_set_param_t *)cmd_cb->u.defer_evt.data;
-            rc = mm_camera_muxer_set_parms(set_parms->aux_handle,
-                    set_parms->parm_buffer, cam_obj);
-            if (rc != 0) {
-                LOGE("Aux Camera Set param failed");
-                cam_obj->defer_status = rc;
-            }
-        }
-        break;
-    }
-    cam_sem_post(&cam_obj->defer_thread.sync_sem);
-    return;
-
-}
 /*===========================================================================
  * FUNCTION   : mm_camera_util_get_index_by_num
  *

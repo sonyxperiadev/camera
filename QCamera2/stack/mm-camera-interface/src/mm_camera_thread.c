@@ -593,7 +593,6 @@ static void *mm_camera_cmd_thread(void *data)
             case MM_CAMERA_CMD_TYPE_STOP_ZSL:
             case MM_CAMERA_CMD_TYPE_GENERAL:
             case MM_CAMERA_CMD_TYPE_FLUSH_QUEUE:
-            case MM_CAMERA_CMD_DEFER:
                 if (NULL != cmd_thread->cb) {
                     cmd_thread->cb(node, cmd_thread->user_data);
                 }

@@ -83,17 +83,16 @@ typedef int64_t nsecs_t;
 
 typedef enum
 {
-    MM_CAMERA_CMD_TYPE_DATA_CB,       /* dataB CMD */
-    MM_CAMERA_CMD_TYPE_EVT_CB,        /* evtCB CMD */
-    MM_CAMERA_CMD_TYPE_EXIT,          /* EXIT */
-    MM_CAMERA_CMD_TYPE_REQ_DATA_CB,   /* request data */
-    MM_CAMERA_CMD_TYPE_SUPER_BUF_DATA_CB,/* superbuf dataB CMD */
-    MM_CAMERA_CMD_TYPE_CONFIG_NOTIFY,    /* configure notify mode */
-    MM_CAMERA_CMD_TYPE_START_ZSL,        /* start zsl snapshot for channel */
-    MM_CAMERA_CMD_TYPE_STOP_ZSL,         /* stop zsl snapshot for channel */
-    MM_CAMERA_CMD_TYPE_FLUSH_QUEUE,      /* flush queue */
-    MM_CAMERA_CMD_TYPE_GENERAL,          /* general cmd */
-    MM_CAMERA_CMD_DEFER,                 /*Defer command */
+    MM_CAMERA_CMD_TYPE_DATA_CB,    /* dataB CMD */
+    MM_CAMERA_CMD_TYPE_EVT_CB,     /* evtCB CMD */
+    MM_CAMERA_CMD_TYPE_EXIT,       /* EXIT */
+    MM_CAMERA_CMD_TYPE_REQ_DATA_CB,/* request data */
+    MM_CAMERA_CMD_TYPE_SUPER_BUF_DATA_CB,    /* superbuf dataB CMD */
+    MM_CAMERA_CMD_TYPE_CONFIG_NOTIFY, /* configure notify mode */
+    MM_CAMERA_CMD_TYPE_START_ZSL, /* start zsl snapshot for channel */
+    MM_CAMERA_CMD_TYPE_STOP_ZSL, /* stop zsl snapshot for channel */
+    MM_CAMERA_CMD_TYPE_FLUSH_QUEUE, /* flush queue */
+    MM_CAMERA_CMD_TYPE_GENERAL,  /* general cmd */
     MM_CAMERA_CMD_TYPE_MAX
 } mm_camera_cmdcb_type_t;
 
@@ -126,22 +125,6 @@ typedef struct {
 } mm_camera_flush_cmd_t;
 
 typedef struct {
-    uint32_t aux_handle;
-    parm_buffer_t *parm_buffer;
-} mm_camera_intf_defer_set_param_t;
-
-typedef enum {
-    MM_CAMERA_DEFER_CAMERA_OPEN,
-    MM_CAMERA_DEFER_SET_PARAM,
-} mm_camera_defer_cmd_type_t;
-
-typedef struct {
-    mm_camera_defer_cmd_type_t defer_cmd_type;
-    void *data;
-} mm_camera_defer_cmd_t;
-
-
-typedef struct {
     mm_camera_cmdcb_type_t cmd_type;
     union {
         mm_camera_buf_info_t buf;    /* frame buf if dataCB */
@@ -151,22 +134,20 @@ typedef struct {
         mm_camera_flush_cmd_t flush_cmd; /* frame idx boundary for flush superbuf queue*/
         mm_camera_super_buf_notify_mode_t notify_mode; /* notification mode */
         mm_camera_generic_cmd_t gen_cmd;
-        mm_camera_defer_cmd_t defer_evt; /*defer commands*/
     } u;
 } mm_camera_cmdcb_t;
 
 typedef void (*mm_camera_cmd_cb_t)(mm_camera_cmdcb_t * cmd_cb, void* user_data);
 
 typedef struct {
-    uint8_t is_active;     /* indicates whether thread is active or not */
+    uint8_t is_active;     /*indicates whether thread is active or not */
     cam_queue_t cmd_queue; /* cmd queue (queuing dataCB, asyncCB, or exitCMD) */
     pthread_t cmd_pid;           /* cmd thread ID */
     cam_semaphore_t cmd_sem;     /* semaphore for cmd thread */
-    cam_semaphore_t sync_sem;    /* semaphore for synchronization with cmd thread */
+    cam_semaphore_t sync_sem;     /* semaphore for synchronization with cmd thread */
     mm_camera_cmd_cb_t cb;       /* cb for cmd */
     void* user_data;             /* user_data for cb */
     char threadName[THREAD_NAME_SIZE];
-    int32_t status;              /*return status from this thread process*/
 } mm_camera_cmd_thread_t;
 
 typedef enum {
@@ -623,8 +604,6 @@ typedef struct mm_camera_obj {
     mm_camera_evt_obj_t evt;
     mm_camera_poll_thread_t evt_poll_thread; /* evt poll thread */
     mm_camera_cmd_thread_t evt_thread;       /* thread for evt CB */
-    mm_camera_cmd_thread_t defer_thread;
-    int32_t defer_status;
     mm_camera_vtbl_t vtbl;
 
     pthread_mutex_t evt_lock;
@@ -916,8 +895,5 @@ cam_status_t mm_camera_module_open_session(int sessionid,
         int (*event_cb)(uint32_t sessionid, cam_event_t *event));
 int32_t mm_camera_module_close_session(int session);
 int32_t mm_camera_module_send_cmd(cam_shim_packet_t *event);
-int32_t mm_camera_defer_enqueue_evt(mm_camera_obj_t *my_obj,
-        mm_camera_defer_cmd_t *event);
-
 
 #endif /* __MM_CAMERA_H__ */
