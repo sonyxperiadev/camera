@@ -513,6 +513,9 @@ const char QCameraParameters::QC_METADATA_LED_CALIB[] = "metadata-led-calib";
 const char QCameraParameters::QC_METADATA_RTB[] = "metadata-rtb";
 
 const char QCameraParameters::KEY_QC_LED_CALIBRATION[] = "led-calibration";
+// AF fine tune values
+const char QCameraParameters::KEY_QC_AF_FINETUNE[] = "finetune";
+const char QCameraParameters::KEY_QC_SUPPORTED_FINETUNE_MODES[] = "finetune-values";
 
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
@@ -5534,6 +5537,31 @@ int32_t QCameraParameters::checkFeatureConcurrency()
 }
 
 /*===========================================================================
+ * FUNCTION   : setAfFineTune
+ *
+ * DESCRIPTION: Enable/Disable Af fine search
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setAfFineTune(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_AF_FINETUNE);
+    const char *prev_str = get(KEY_QC_AF_FINETUNE);
+    if (str != NULL) {
+        if (prev_str == NULL ||
+            strcmp(str, prev_str) != 0) {
+            return setAfFineTune(str);
+        }
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : updateParameters
  *
  * DESCRIPTION: update parameters from user setting
@@ -5632,6 +5660,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     if ((rc = setInitialExposureIndex(params)))         final_rc = rc;
     if ((rc = setInstantCapture(params)))               final_rc = rc;
     if ((rc = setInstantAEC(params)))                   final_rc = rc;
+    if ((rc = setAfFineTune(params)))                   final_rc = rc;
 
     // update live snapshot size after all other parameters are set
     if ((rc = setLiveSnapshotSize(params)))             final_rc = rc;
@@ -6557,6 +6586,10 @@ int32_t QCameraParameters::initDefaultParameters()
         set(KEY_QC_SUPPORTED_VIDEO_ROTATION_VALUES, VIDEO_ROTATION_0);
     }
     set(KEY_QC_VIDEO_ROTATION, VIDEO_ROTATION_0);
+
+    // Set AF Fine Tuning
+    set(KEY_QC_SUPPORTED_FINETUNE_MODES, enableDisableValues);
+    setAfFineTune(VALUE_ENABLE);
 
     // Change to enable App team to test Bokeh mode
     // Set min max values for Blur values (min: 0, max: 100, step: 1)
@@ -16847,6 +16880,37 @@ dual_cam_type QCameraParameters::getDualCameraConfig(cam_capability_t *capsMainC
         type = DUAL_CAM_BAYER_MONO;
     }
     return type;
+}
+
+/*===========================================================================
+ * FUNCTION   : setAfFineTune
+ *
+ * DESCRIPTION: set AF fine tune value
+ *
+ * PARAMETERS :
+ *   @FineTuneStr : AF fine tune value string
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setAfFineTune(const char *FineTuneStr)
+{
+    if (FineTuneStr != NULL) {
+        int32_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
+                PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), FineTuneStr);
+        if (value != NAME_NOT_FOUND) {
+            LOGH("Setting AF fine tune value %s", FineTuneStr);
+            updateParamEntry(KEY_QC_AF_FINETUNE, FineTuneStr);
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SKIP_FINE_SCAN, value)) {
+                return BAD_VALUE;
+            }
+            return NO_ERROR;
+        }
+    }
+    LOGE("Invalid AF fine tune value: %s",
+          (FineTuneStr == NULL) ? "NULL" : FineTuneStr);
+    return BAD_VALUE;
 }
 
 }; // namespace qcamera

@@ -244,6 +244,8 @@ private:
     static const char KEY_QC_CURRENT_EXPOSURE_TIME[];
     static const char KEY_QC_CURRENT_ISO[];
     static const char KEY_QC_CACHE_VIDEO_BUFFERS[];
+    static const char KEY_QC_AF_FINETUNE[];
+    static const char KEY_QC_SUPPORTED_FINETUNE_MODES[];
 
     // DENOISE
     static const char KEY_QC_DENOISE[];
@@ -1037,6 +1039,7 @@ private:
     int32_t setCacheVideoBuffers(const QCameraParameters& params);
     int32_t setCustomParams(const QCameraParameters& params);
     int32_t setBokehMode(const QCameraParameters& params);
+    int32_t setAfFineTune(const QCameraParameters& );
     int32_t setAutoExposure(const char *autoExp);
     int32_t setPreviewFpsRange(int min_fps,int max_fps,
             int vid_min_fps,int vid_max_fps);
@@ -1145,6 +1148,7 @@ private:
     int32_t setDualLedCalibration(const QCameraParameters& params);
     int32_t setDualLedCalibration(const char *str);
     int32_t setAdvancedCaptureMode();
+    int32_t setAfFineTune(const char *FineTuneStr);
 
     // ops for batch set/get params with server
     int32_t initBatchUpdate();
