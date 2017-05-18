@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -74,7 +74,7 @@ void mm_muxer_defer_thread(mm_camera_cmdcb_t *cmd_cb,
     int32_t rc = 0;
     mm_camera_obj_t *cam_obj = (mm_camera_obj_t *)user_data;
 
-    if ((cmd_cb == NULL) || (user_data == NULL)) {
+    if (!cmd_cb && !user_data) {
         LOGE("Command or Payload is NULL");
         cam_sem_post(&cam_obj->defer_thread.sync_sem);
         pthread_mutex_unlock(&cam_obj->muxer_lock);
