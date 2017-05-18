@@ -186,6 +186,5 @@ int32_t mm_camera_bundled_map_stream_buf_ops(
         void *userdata);
 int32_t mm_camera_unmap_stream_buf_ops(uint32_t buf_idx,
         int32_t plane_idx, cam_mapping_buf_type type, void *userdata);
-void mm_muxer_defer_thread(mm_camera_cmdcb_t *cmd_cb, void* user_data);
 
 #endif /*__MM_CAMERA_MUXER_H */

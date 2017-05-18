@@ -946,7 +946,6 @@ public:
     bool isDCAsymmetricPrevMode (){return mAsymmetricPreviewMode;};
     void initDCSettings(int32_t state, uint32_t camMaster,
             bool bundleSnapshot, cam_fallback_mode_t fallback);
-    bool isDCHWSyncEnabled();
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1151,8 +1150,8 @@ private:
     int32_t initBatchUpdate();
     int32_t commitSetBatch();
     int32_t commitGetBatch();
-    int32_t commitSetBatchAux(bool &needCommit);
-    int32_t commitGetBatchAux(bool &needCommit);
+    int32_t commitSetBatchAux();
+    int32_t commitGetBatchAux();
     void    setAuxParameters();
 
     // ops to tempororily update parameter entries and commit

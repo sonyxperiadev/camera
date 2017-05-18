@@ -12291,7 +12291,6 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
 {
     int32_t rc = NO_ERROR;
     cam_dimension_t pic_dim;
-    parm_buffer_t *param_buf = NULL;
 
     //No need to update RAW dimensions if meta raw is enabled.
     if (m_bMetaRawEnabled) {
@@ -12322,39 +12321,63 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
         LOGE("Failed to initialize group update table");
         return BAD_TYPE;
     }
-
     if (cam_type == MM_CAMERA_TYPE_AUX) {
-        param_buf = m_pParamBufAux;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
+            LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION ");
+            return BAD_VALUE;
+        }
+
+        rc = commitSetBatchAux();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm");
+            return rc;
+        }
+
+        if(initBatchUpdate() < 0 ) {
+            LOGE("Failed to initialize group update table");
+            return BAD_TYPE;
+        }
+
+        ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux, CAM_INTF_PARM_RAW_DIMENSION);
+
+        rc = commitGetBatchAux();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION");
+            return rc;
+        }
+
+        READ_PARAM_ENTRY(m_pParamBufAux, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
     } else {
-        param_buf = m_pParamBuf;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
+            LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION ");
+            return BAD_VALUE;
+        }
+
+        rc = commitSetBatch();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm");
+            return rc;
+        }
+
+        if(initBatchUpdate() < 0 ) {
+            LOGE("Failed to initialize group update table");
+            return BAD_TYPE;
+        }
+
+        ADD_GET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION);
+
+        rc = commitGetBatch();
+        if (rc != NO_ERROR) {
+            LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION");
+            return rc;
+        }
+
+        READ_PARAM_ENTRY(m_pParamBuf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(param_buf, CAM_INTF_PARM_MAX_DIMENSION, max_dim)) {
-        LOGE("Failed to update table for CAM_INTF_PARM_MAX_DIMENSION - %d", cam_type);
-        return BAD_VALUE;
-    }
-    rc = commitSetBatch();
-    if (rc != NO_ERROR) {
-        LOGE("Failed to set lock CAM_INTF_PARM_MAX_DIMENSION parm - %d", cam_type);
-        return rc;
-    }
-
-    if(initBatchUpdate() < 0 ) {
-        LOGE("Failed to initialize group update table = %d", cam_type);
-        return BAD_TYPE;
-    }
-
-    ADD_GET_PARAM_ENTRY_TO_BATCH(param_buf, CAM_INTF_PARM_RAW_DIMENSION);
-    rc = commitGetBatch();
-    if (rc != NO_ERROR) {
-        LOGE("Failed to get commit CAM_INTF_PARM_RAW_DIMENSION = %d", cam_type);
-        return rc;
-    }
-    READ_PARAM_ENTRY(param_buf, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
-
-    LOGH("RAW Dimension = %d X %d Type = %d",sensor_dim.width,sensor_dim.height, cam_type);
+    LOGH("RAW Dimension = %d X %d",sensor_dim.width,sensor_dim.height);
     if (sensor_dim.width == 0 || sensor_dim.height == 0) {
-        LOGW("Error getting RAW size. Setting to Capability value - %d", cam_type);
+        LOGW("Error getting RAW size. Setting to Capability value");
         if (getQuadraCfa()) {
             sensor_dim = m_pCapability->quadra_cfa_dim[0];
         } else {
@@ -12945,7 +12968,7 @@ int32_t QCameraParameters::sendDualCamCmd(cam_dual_camera_cmd_type type,
                 m_pDualCamCmdPtr[i]->cmd_type = type;
                 memcpy(&m_pDualCamCmdPtr[i]->defer_cmd,
                         &info[i],
-                        sizeof(cam_dual_camera_defer_cmd_t));
+                        sizeof(cam_dual_camera_master_info_t));
                 LOGH("DEFER INFO CMD %d: cmd %d value %d", i,
                         m_pDualCamCmdPtr[i]->cmd_type,
                         m_pDualCamCmdPtr[i]->defer_cmd);
@@ -13061,7 +13084,7 @@ int32_t QCameraParameters::getRelatedCamCalibration(
  *==========================================================================*/
 void QCameraParameters::setSyncDCParams()
 {
-    if (!isDCHWSyncEnabled()) {
+    if (DUALCAM_SYNC_MECHANISM == CAM_SYNC_NO_SYNC) {
         mSyncDCParam = 0;
         return;
     }
@@ -13219,8 +13242,6 @@ int32_t QCameraParameters::commitSetBatch()
 {
     int32_t rc = NO_ERROR;
     int32_t i = 0;
-    uint32_t handle = 0;
-    bool needCommit = 0;
 
     if (NULL == m_pParamBuf) {
         LOGE("Params not initialized");
@@ -13229,49 +13250,41 @@ int32_t QCameraParameters::commitSetBatch()
 
     /* Loop to check if atleast one entry is valid */
     for(i = 0; i < CAM_INTF_PARM_MAX; i++){
-        if(m_pParamBuf->is_valid[i]) {
-            needCommit = TRUE;
+        if(m_pParamBuf->is_valid[i])
             break;
-        }
     }
 
     if (NULL == m_pCamOpsTbl) {
         LOGE("Ops not initialized");
         return NO_INIT;
     }
-
-    if (needCommit) {
-        handle = get_main_camera_handle(m_pCamOpsTbl->camera_handle);
-    }
     if (isDualCamera()) {
-        //Trigger back-end to sync param if needed
-        if (needCommit) {
-            updateFrameNumber();
-            SyncDCParams();
+        /* Add frame number logic for HAL1 in dual camera
+         * to synchronize parameters in MCT
+         */
+        updateFrameNumber();
+        SyncDCParams();
+    }
 
-            /* Translate input parameters from main camera to
-            create parameter set for aux camera */
-            rc = m_pFovControl->translateInputParams(m_pParamBuf,
-                    m_pParamBufAux);
-            if (rc != NO_ERROR) {
-                LOGE("FOV-control: Failed to translate params for aux camera");
-                return rc;
-            }
+    if ((i < CAM_INTF_PARM_MAX) && isDualCamera()) {
+        // Translate input parameters from main camera to create parameter set for aux camera
+        rc = m_pFovControl->translateInputParams(m_pParamBuf, m_pParamBufAux);
+
+        if (rc != NO_ERROR) {
+            LOGE("FOV-control: Failed to translate params for aux camera");
+            return rc;
         }
 
-        needCommit = FALSE;
-        rc = commitSetBatchAux(needCommit);
+        rc = commitSetBatchAux();
         if (rc != NO_ERROR) {
             LOGE("FOV-control: Failed to set params for Aux camera");
             return rc;
         }
-        if (needCommit) {
-            handle |= get_aux_camera_handle(m_pCamOpsTbl->camera_handle);
-        }
     }
 
-    if (handle != 0) {
-        rc = m_pCamOpsTbl->ops->set_parms(handle, m_pParamBuf);
+    if (i < CAM_INTF_PARM_MAX) {
+        rc = m_pCamOpsTbl->ops->set_parms(get_main_camera_handle(m_pCamOpsTbl->camera_handle),
+            m_pParamBuf);
     }
 
     if (rc == NO_ERROR) {
@@ -13287,18 +13300,16 @@ int32_t QCameraParameters::commitSetBatch()
  * DESCRIPTION: commit all Aux set parameters in the batch work to backend
  *
  * PARAMETERS : none
- *         needCommit: TRUE to commit
- *                      FALSE to not commit
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::commitSetBatchAux(bool &needCommit)
+int32_t QCameraParameters::commitSetBatchAux()
 {
     int32_t rc = NO_ERROR;
 
-    if (NULL == m_pParamBufAux) {
+    if (NULL == m_pParamBufAux || NULL == m_pParamBuf) {
         LOGE("Params not initialized");
         return NO_INIT;
     }
@@ -13309,13 +13320,9 @@ int32_t QCameraParameters::commitSetBatchAux(bool &needCommit)
     }
 
     setAuxParameters();
-    for(int32_t i = 0; i < CAM_INTF_PARM_MAX; i++){
-        if(m_pParamBufAux->is_valid[i]) {
-            needCommit = TRUE;
-            break;
-        }
-    }
-
+    rc = m_pCamOpsTbl->ops->set_parms(
+            get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
+            m_pParamBufAux);
     return rc;
 }
 
@@ -13334,8 +13341,6 @@ int32_t QCameraParameters::commitGetBatch()
 {
     int32_t rc = NO_ERROR;
     int32_t i = 0;
-    uint32_t handle = 0;
-    bool needCommit = 0;
 
     if (NULL == m_pParamBuf) {
         LOGE("Params not initialized");
@@ -13344,10 +13349,8 @@ int32_t QCameraParameters::commitGetBatch()
 
     /* Loop to check if atleast one entry is valid */
     for(i = 0; i < CAM_INTF_PARM_MAX; i++){
-        if (m_pParamBuf->is_valid[i]) {
-            needCommit = TRUE;
+        if(m_pParamBuf->is_valid[i])
             break;
-        }
     }
 
     if (NULL == m_pCamOpsTbl) {
@@ -13355,24 +13358,19 @@ int32_t QCameraParameters::commitGetBatch()
         return NO_INIT;
     }
 
-    if (needCommit) {
-        handle = get_main_camera_handle(m_pCamOpsTbl->camera_handle);
+    if (i < CAM_INTF_PARM_MAX) {
+        rc = m_pCamOpsTbl->ops->get_parms(m_pCamOpsTbl->camera_handle, m_pParamBuf);
+    } else {
+        return NO_ERROR;
     }
 
-    if (isDualCamera()) {
-        needCommit = FALSE;
-        rc = commitGetBatchAux(needCommit);
+    if (i < CAM_INTF_PARM_MAX &&
+        is_dual_camera_by_handle(m_pCamOpsTbl->camera_handle)) {
+        rc = commitGetBatchAux();
         if (rc != NO_ERROR) {
             LOGE("Failed to get parma for Aux camera");
             return rc;
         }
-        if (needCommit) {
-            handle |= get_aux_camera_handle(m_pCamOpsTbl->camera_handle);
-        }
-    }
-
-    if (handle) {
-        rc = m_pCamOpsTbl->ops->get_parms(m_pCamOpsTbl->camera_handle, m_pParamBuf);
     }
     return rc;
 }
@@ -13383,14 +13381,12 @@ int32_t QCameraParameters::commitGetBatch()
  * DESCRIPTION: commit all Aux get parameters in the batch work to backend
  *
  * PARAMETERS : none
- *         needCommit: TRUE to commit
- *                      FALSE to not commit
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::commitGetBatchAux(bool &needCommit)
+int32_t QCameraParameters::commitGetBatchAux()
 {
     int32_t rc = NO_ERROR;
     int32_t i = 0;
@@ -13400,19 +13396,24 @@ int32_t QCameraParameters::commitGetBatchAux(bool &needCommit)
         return NO_INIT;
     }
 
+    /* Loop to check if atleast one entry is valid */
+    for(i = 0; i < CAM_INTF_PARM_MAX; i++){
+        if(m_pParamBufAux->is_valid[i])
+            break;
+    }
+
     if (NULL == m_pCamOpsTbl->ops) {
         LOGE("Ops not initialized");
         return NO_INIT;
     }
 
-    /* Loop to check if atleast one entry is valid */
-    for(i = 0; i < CAM_INTF_PARM_MAX; i++){
-        if (m_pParamBufAux->is_valid[i]) {
-            needCommit = TRUE;
-            break;
-        }
+    if (i < CAM_INTF_PARM_MAX) {
+        return m_pCamOpsTbl->ops->get_parms(
+                get_aux_camera_handle(m_pCamOpsTbl->camera_handle),
+                m_pParamBufAux);
+    } else {
+        return NO_ERROR;
     }
-
     return rc;
 }
 
@@ -14180,8 +14181,7 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
     cam_dimension_t sensor_dim_main = {0,0};
     cam_dimension_t sensor_dim_aux  = {0,0};
 
-    if (isDualCamera() &&
-            (stream_config_info.num_streams)) {
+    if (isDualCamera()) {
         // Get the sensor output dimensions for main and aux cameras.
         cam_dimension_t max_dim = {0,0};
         for (uint32_t i = 0; i < stream_config_info.num_streams; i++) {
@@ -14214,7 +14214,7 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
         return rc;
     }
 
-    if (isDualCamera() && (stream_config_info.num_streams)) {
+    if (isDualCamera()) {
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
                 CAM_INTF_PARM_RAW_DIMENSION, sensor_dim_main) ||
                 ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBufAux,
@@ -14233,10 +14233,6 @@ bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_conf
             LOGE("Failed to update FOV-control config settings");
             return rc;
         }
-
-        CLEAR_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_META_STREAM_INFO);
-        CLEAR_PARAM_ENTRY_TO_BATCH(m_pParamBufAux, CAM_INTF_META_STREAM_INFO);
-
         rc = commitSetBatch();
         if (rc != NO_ERROR) {
             LOGE("Failed to set stream info parm");
@@ -16394,8 +16390,7 @@ bool QCameraParameters::needSnapshotPP()
     // Disable Snapshot Postprocessing if any of the below features are enabled
     if ((!maxPicSize  &&  (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) ||
             m_bLongshotEnabled || m_bRecordingHint ||
-            m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()
-            || !isDCHWSyncEnabled()) {
+            m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()) {
         return false;
     } else {
         return true;
@@ -16769,25 +16764,5 @@ bool QCameraParameters::isNoDisplayMode(uint32_t cam_type)
     LOGH("bNoDisplayMode: %d cam_type: %d", bNoDisplayMode, cam_type);
     return bNoDisplayMode;
 }
-
-/*===========================================================================
- * FUNCTION   : isDCHWSyncEnabled
- *
- * DESCRIPTION: Function to check if HW sync enabled
- *
- * PARAMETERS :
- *
- * RETURN     : TRUE : If h/w sync supported
-                      FALSE : If h/w sync not supported
- *==========================================================================*/
-bool QCameraParameters::isDCHWSyncEnabled()
-{
-    if (isDualCamera() && (DUALCAM_SYNC_MECHANISM != CAM_SYNC_NO_SYNC)) {
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
-
 
 }; // namespace qcamera

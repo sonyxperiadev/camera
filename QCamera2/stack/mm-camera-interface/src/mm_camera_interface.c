@@ -293,7 +293,7 @@ static int32_t mm_camera_intf_query_capability(uint32_t camera_handle)
 static int32_t mm_camera_intf_set_parms(uint32_t camera_handle,
                                         parm_buffer_t *parms)
 {
-    int32_t rc = 0;
+    int32_t rc = -1;
     mm_camera_obj_t * my_obj = NULL;
 
     uint32_t handle = get_main_camera_handle(camera_handle);
@@ -305,21 +305,8 @@ static int32_t mm_camera_intf_set_parms(uint32_t camera_handle,
         if (my_obj) {
             pthread_mutex_lock(&my_obj->muxer_lock);
             pthread_mutex_unlock(&g_intf_lock);
-
-            if (my_obj->defer_thread.is_active) {
-                mm_camera_intf_defer_set_param_t set_params;
-                memset(&set_params, 0, sizeof(mm_camera_intf_defer_set_param_t));
-                set_params.aux_handle = aux_handle;
-                set_params.parm_buffer = parms;
-                mm_camera_defer_cmd_t defer_cmd;
-                memset(&defer_cmd, 0, sizeof(mm_camera_defer_cmd_t));
-                defer_cmd.defer_cmd_type = MM_CAMERA_DEFER_SET_PARAM;
-                defer_cmd.data = &set_params;
-                mm_camera_defer_enqueue_evt(my_obj, &defer_cmd);
-            } else {
-                rc = mm_camera_muxer_set_parms(aux_handle,
-                        parms, my_obj);
-            }
+            rc = mm_camera_muxer_set_parms(aux_handle,
+                    parms, my_obj);
         } else {
             pthread_mutex_unlock(&g_intf_lock);
         }
@@ -336,11 +323,6 @@ static int32_t mm_camera_intf_set_parms(uint32_t camera_handle,
         } else {
             pthread_mutex_unlock(&g_intf_lock);
         }
-    }
-    if (aux_handle && my_obj->defer_thread.is_active) {
-       my_obj = mm_camera_util_get_camera_head(aux_handle);
-       cam_sem_wait(&my_obj->defer_thread.sync_sem);
-       rc |= my_obj->defer_status;
     }
     return rc;
 }
@@ -655,9 +637,6 @@ static int32_t mm_camera_intf_close(uint32_t camera_handle)
                 pthread_mutex_lock(&my_obj->cam_lock);
                 pthread_mutex_unlock(&g_intf_lock);
                 rc = mm_camera_close(my_obj);
-                if (my_obj->defer_thread.is_active) {
-                    mm_camera_cmd_thread_release(&my_obj->defer_thread);
-                }
                 pthread_mutex_destroy(&my_obj->cam_lock);
                 pthread_mutex_destroy(&my_obj->muxer_lock);
                 free(my_obj);
@@ -3189,83 +3168,59 @@ int32_t camera_open(uint8_t camera_idx, mm_camera_vtbl_t **camera_vtbl)
     cam_obj->vtbl.ops = &mm_camera_ops;
     pthread_mutex_init(&cam_obj->cam_lock, NULL);
     pthread_mutex_init(&cam_obj->muxer_lock, NULL);
+    /* unlock global interface lock, if not, in dual camera use case,
+      * current open will block operation of another opened camera obj*/
+    pthread_mutex_lock(&cam_obj->cam_lock);
+    pthread_mutex_unlock(&g_intf_lock);
+
+    rc = mm_camera_open(cam_obj);
+    if (rc != 0) {
+        LOGE("mm_camera_open err = %d", rc);
+        pthread_mutex_destroy(&cam_obj->cam_lock);
+        pthread_mutex_lock(&g_intf_lock);
+        g_cam_ctrl.cam_obj[cam_idx] = NULL;
+        free(cam_obj);
+        cam_obj = NULL;
+        pthread_mutex_unlock(&g_intf_lock);
+        *camera_vtbl = NULL;
+        return rc;
+    }
 
     if (is_multi_camera) {
-        snprintf(cam_obj->defer_thread.threadName, THREAD_NAME_SIZE, "CAM_Defer");
-        mm_camera_cmd_thread_launch(&cam_obj->defer_thread,
-                mm_muxer_defer_thread, (void *)cam_obj);
-
+        /*Open Aux camer's*/
+        pthread_mutex_lock(&g_intf_lock);
         if(NULL != g_cam_ctrl.cam_obj[aux_idx] &&
                 g_cam_ctrl.cam_obj[aux_idx]->ref_count != 0) {
             pthread_mutex_unlock(&g_intf_lock);
             LOGE("Camera %d is already open", aux_idx);
-            goto error;
+            rc = -EBUSY;
         } else {
             pthread_mutex_lock(&cam_obj->muxer_lock);
             pthread_mutex_unlock(&g_intf_lock);
-            if (cam_obj->defer_thread.is_active) {
-                mm_camera_defer_cmd_t defer_cmd;
-                memset(&defer_cmd, 0, sizeof(mm_camera_defer_cmd_t));
-                defer_cmd.defer_cmd_type = MM_CAMERA_DEFER_CAMERA_OPEN;
-                defer_cmd.data = &aux_idx;
-                mm_camera_defer_enqueue_evt(cam_obj, &defer_cmd);
-            } else {
-                rc = mm_camera_muxer_camera_open(aux_idx, cam_obj);
-                if (rc != 0) {
-                    goto error;
-                }
-            }
-            pthread_mutex_lock(&g_intf_lock);
+            rc = mm_camera_muxer_camera_open(aux_idx, cam_obj);
         }
-    }
-
-    pthread_mutex_lock(&cam_obj->cam_lock);
-    pthread_mutex_unlock(&g_intf_lock);
-    rc = mm_camera_open(cam_obj);
-
-    if (cam_obj->defer_thread.is_active) {
-        cam_sem_wait (&cam_obj->defer_thread.sync_sem);
-        if (cam_obj->defer_status != 0) {
+        if (rc != 0) {
+            int32_t temp_rc = 0;
             LOGE("muxer open err = %d", rc);
-            if (rc == 0) {
-                //Close main camera
-                pthread_mutex_lock(&cam_obj->cam_lock);
-                mm_camera_close(cam_obj);
-                rc = cam_obj->defer_status;
-            }
-            goto error;
+            pthread_mutex_lock(&g_intf_lock);
+            g_cam_ctrl.cam_obj[cam_idx] = NULL;
+            pthread_mutex_lock(&cam_obj->cam_lock);
+            pthread_mutex_unlock(&g_intf_lock);
+            temp_rc = mm_camera_close(cam_obj);
+            pthread_mutex_destroy(&cam_obj->cam_lock);
+            pthread_mutex_destroy(&cam_obj->muxer_lock);
+            free(cam_obj);
+            cam_obj = NULL;
+            *camera_vtbl = NULL;
+            // Propagate the original error to caller
+            return rc;
         }
-    }
-    if (rc != 0) {
-        if (is_multi_camera) {
-            //close aux camera
-            pthread_mutex_lock(&cam_obj->muxer_lock);
-            mm_camera_muxer_close_camera(
-                    get_aux_camera_handle(cam_obj->vtbl.camera_handle),
-                    cam_obj);
-        }
-        goto error;
     }
 
     LOGH("Open succeded: handle = %d", cam_obj->vtbl.camera_handle);
     g_cam_ctrl.cam_obj[cam_idx] = cam_obj;
     *camera_vtbl = &cam_obj->vtbl;
     return 0;
-
-error:
-    LOGE("mm_camera_open err = %d", rc);
-    pthread_mutex_destroy(&cam_obj->cam_lock);
-    pthread_mutex_destroy(&cam_obj->muxer_lock);
-    if (cam_obj->defer_thread.is_active) {
-        mm_camera_cmd_thread_release(&cam_obj->defer_thread);
-    }
-    pthread_mutex_lock(&g_intf_lock);
-    g_cam_ctrl.cam_obj[cam_idx] = NULL;
-    free(cam_obj);
-    cam_obj = NULL;
-    pthread_mutex_unlock(&g_intf_lock);
-    *camera_vtbl = NULL;
-    return rc;
 }
 
 /*===========================================================================

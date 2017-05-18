@@ -889,13 +889,6 @@ typedef struct cam_stream_info {
     } \
 }
 
-#define CLEAR_PARAM_ENTRY_TO_BATCH(TABLE_PTR,META_ID) \
-    ((NULL != TABLE_PTR) ? \
-    ((TABLE_PTR->is_valid[META_ID] = 0), (0)) : \
-    ((LOGE("Unable to clear metadata TABLE_PTR:%p META_ID:%d", \
-            TABLE_PTR, META_ID)), (-1))) \
-
-
 /************************************
 * Custom parameter data definition
 *************************************/
