@@ -1282,13 +1282,18 @@ void QCameraFOVControl::generateFovControlResult()
                  2. Force cameras to wakeup (Bundled snapshot / autofocus)
                  3. Zoom is above threshold with user zooming in
                  4. No low light / macro scene fallback triggered
+                 5. Spatial alignment disabling LPM on both if FOVControl fallback is disabled
                  Lower constraint if zooming in
                  This path is taken for the normal behavior - there was no fallback to wide state
                  due to low light, macro-scene and user zooms in with zoom hitting the threshold */
                 if ((mFovControlData.forceCameraWakeup) ||
+                    (!mFovControlData.fallbackEnabled &&
+                    ((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
+                    (mFovControlData.spatialAlignResult.activeCameras == (camWide | camTele)))) ||
                     (needDualZone() &&
                     ((mFovControlData.zoomDirection == ZOOM_IN) ||
-                    (zoom >= mFovControlData.transitionParams.cutOverTeleToWide)) &&
+                    (mFovControlData.fallbackEnabled &&
+                    (zoom >= mFovControlData.transitionParams.cutOverTeleToWide))) &&
                     (mFovControlData.fallbackToWide == false))) {
                     mFovControlData.camState = STATE_TRANSITION;
                     mFovControlResult.activeCameras = (camWide | camTele);
@@ -1298,7 +1303,7 @@ void QCameraFOVControl::generateFovControlResult()
                                 " Switching to Transition state");
                     }
                 }
-                /* 5. Low light / macro scene fallback was triggered and completed
+                /* 6. Low light / macro scene fallback was triggered and completed
                  Higher constraint if not zooming in.
                  This path is taken if the state had transitioned to wide due to low light or
                  macro scene - check that using mFovControlData.fallbackToWide flag.
@@ -1419,7 +1424,11 @@ void QCameraFOVControl::generateFovControlResult()
             } else if (!needDualZone() && isMaster(camTele)) {
                 mFovControlData.camState        = STATE_TELE;
                 mFovControlResult.activeCameras = camTele;
-            } else if (isTimedOut(mFovControlData.timerConstZoom)) {
+            } else if (isTimedOut(mFovControlData.timerConstZoom) &&
+                        (mFovControlData.fallbackEnabled ||
+                        ((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
+                            (mFovControlData.spatialAlignResult.activeCameras !=
+                            (camWide | camTele))))) {
                 /* timerConstZoom will timeout if the zoom does not change for the duration
                  specified as FOVC_CONST_ZOOM_TIMEOUT_MS
                  If the zoom is stable put the non-master camera to LPM for power optimization */
@@ -1476,9 +1485,13 @@ void QCameraFOVControl::generateFovControlResult()
                         " Switching to Transition state");
                 }
             }
-            // 3. Zooming out and if the zoom value is less than the threshold
-            else if (needDualZone() &&
-                        (mFovControlData.zoomDirection == ZOOM_OUT)) {
+            /* 3. Zooming out and if the zoom value is less than the threshold
+               4. Spatial alignment disabling LPM on both if FOVControl fallback is disabled */
+            else if ((needDualZone() && (mFovControlData.zoomDirection == ZOOM_OUT)) ||
+                        (!mFovControlData.fallbackEnabled &&
+                        ((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
+                        (mFovControlData.spatialAlignResult.activeCameras ==
+                            (camWide | camTele))))) {
                 mFovControlData.camState = STATE_TRANSITION;
                 mFovControlResult.activeCameras = (camWide | camTele);
             }
@@ -1614,8 +1627,9 @@ bool QCameraFOVControl::needDualZone()
     else if (((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
             (mFovControlData.spatialAlignResult.activeCameras == (camWide | camTele))) ||
             ((zoom >= transitionLow) && (zoom <= transitionHigh)) ||
-            ((zoom >= cutoverWideToTele) && isMaster(camWide)) ||
-            ((zoom <= cutoverTeleToWide) && isMaster(camTele))) {
+            (mFovControlData.fallbackEnabled &&
+            (((zoom >= cutoverWideToTele) && isMaster(camWide)) ||
+            ((zoom <= cutoverTeleToWide) && isMaster(camTele))))) {
         ret = true;
     }
 
