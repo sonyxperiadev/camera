@@ -3013,12 +3013,17 @@ int32_t QCameraStream::setBundleInfo()
         mStreamInfo->aux_str_info->parm_buf = aux_param;
     }
 
-    if ((mStreamInfo->parm_buf.bundleInfo.num_of_streams > 1)
-            || (((mStreamInfo->aux_str_info != NULL) &&
-            (mStreamInfo->aux_str_info->parm_buf.bundleInfo.num_of_streams > 1)))) {
+    if (mStreamInfo->parm_buf.bundleInfo.num_of_streams > 1) {
         ret = mCamOps->set_stream_parms(mCamHandle,
-                mChannelHandle, mHandle,
+                get_main_camera_handle(mChannelHandle), get_main_camera_handle(mHandle),
                 &mStreamInfo->parm_buf);
+    }
+
+    if ((mStreamInfo->aux_str_info != NULL) &&
+            (mStreamInfo->aux_str_info->parm_buf.bundleInfo.num_of_streams > 1)) {
+        ret = mCamOps->set_stream_parms(mCamHandle,
+                get_aux_camera_handle(mChannelHandle), get_aux_camera_handle(mHandle),
+                &mStreamInfo->aux_str_info->parm_buf);
     }
     pthread_mutex_unlock(&mParameterLock);
     if (ret != NO_ERROR) {
