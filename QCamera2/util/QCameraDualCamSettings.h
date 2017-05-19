@@ -98,6 +98,10 @@ typedef enum {
  would override the default zoom translation logic present in the FOV-control. */
 #define FOVC_USE_EXTERNAL_ZOOM_TRANSLATOR       (0)
 
+/* This setting indicates the minimum number of frames the master switch cannot take place after
+ the camera starts streaming. */
+#define FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH  (0)
+
 
 /**********************************************************************************************
  Camera mode settings

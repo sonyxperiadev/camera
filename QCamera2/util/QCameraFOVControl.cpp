@@ -400,6 +400,8 @@ void QCameraFOVControl::resetVars()
 
     mFovControlData.wideCamStreaming = false;
     mFovControlData.teleCamStreaming = false;
+    mFovControlData.frameCountWide = 0;
+    mFovControlData.frameCountTele = 0;
 
     mFovControlData.spatialAlignResult.readyStatus = 0;
     mFovControlData.spatialAlignResult.activeCameras = 0;
@@ -413,7 +415,12 @@ void QCameraFOVControl::resetVars()
 
     // WA for now until the QTI solution is in place writing the spatial alignment ready status
     mFovControlData.spatialAlignResult.readyStatus = 1;
-}
+
+    // Inactivate the timers
+    inactivateTimer(&mFovControlData.timerLowLitMacroScene);
+    inactivateTimer(&mFovControlData.timerWellLitNonMacroScene);
+    inactivateTimer(&mFovControlData.timerConstZoom);
+ }
 
 /*===========================================================================
  * FUNCTION    : updateConfigSettings
@@ -1015,22 +1022,26 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         // Update the camera streaming status
         if (metaWide) {
             mFovControlData.wideCamStreaming = true;
+            ++mFovControlData.frameCountWide;
             IF_META_AVAILABLE(uint8_t, enableLPM, CAM_INTF_META_DC_LOW_POWER_ENABLE, metaWide) {
                 if (*enableLPM) {
                     // If LPM enabled is 1, this is probably the last metadata returned
                     // before going into LPM state
                     mFovControlData.wideCamStreaming = false;
+                    mFovControlData.frameCountWide = 0;
                 }
             }
         }
 
         if (metaTele) {
             mFovControlData.teleCamStreaming = true;
+            ++mFovControlData.frameCountTele;
             IF_META_AVAILABLE(uint8_t, enableLPM, CAM_INTF_META_DC_LOW_POWER_ENABLE, metaTele) {
                 if (*enableLPM) {
                     // If LPM enabled is 1, this is probably the last metadata returned
                     // before going into LPM state
                     mFovControlData.teleCamStreaming = false;
+                    mFovControlData.frameCountTele = 0;
                 }
             }
         }
@@ -1277,13 +1288,18 @@ void QCameraFOVControl::generateFovControlResult()
                  2. Force cameras to wakeup (Bundled snapshot / autofocus)
                  3. Zoom is above threshold with user zooming in
                  4. No low light / macro scene fallback triggered
+                 5. Spatial alignment disabling LPM on both if FOVControl fallback is disabled
                  Lower constraint if zooming in
                  This path is taken for the normal behavior - there was no fallback to wide state
                  due to low light, macro-scene and user zooms in with zoom hitting the threshold */
                 if ((mFovControlData.forceCameraWakeup) ||
+                    (!mFovControlData.fallbackEnabled &&
+                    ((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
+                    (mFovControlData.spatialAlignResult.activeCameras == (camWide | camTele)))) ||
                     (needDualZone() &&
                     ((mFovControlData.zoomDirection == ZOOM_IN) ||
-                    (zoom >= mFovControlData.transitionParams.cutOverTeleToWide)) &&
+                    (mFovControlData.fallbackEnabled &&
+                    (zoom >= mFovControlData.transitionParams.cutOverTeleToWide))) &&
                     (mFovControlData.fallbackToWide == false))) {
                     mFovControlData.camState = STATE_TRANSITION;
                     mFovControlResult.activeCameras = (camWide | camTele);
@@ -1293,7 +1309,7 @@ void QCameraFOVControl::generateFovControlResult()
                                 " Switching to Transition state");
                     }
                 }
-                /* 5. Low light / macro scene fallback was triggered and completed
+                /* 6. Low light / macro scene fallback was triggered and completed
                  Higher constraint if not zooming in.
                  This path is taken if the state had transitioned to wide due to low light or
                  macro scene - check that using mFovControlData.fallbackToWide flag.
@@ -1414,7 +1430,11 @@ void QCameraFOVControl::generateFovControlResult()
             } else if (!needDualZone() && isMaster(camTele)) {
                 mFovControlData.camState        = STATE_TELE;
                 mFovControlResult.activeCameras = camTele;
-            } else if (isTimedOut(mFovControlData.timerConstZoom)) {
+            } else if (isTimedOut(mFovControlData.timerConstZoom) &&
+                        (mFovControlData.fallbackEnabled ||
+                        ((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
+                            (mFovControlData.spatialAlignResult.activeCameras !=
+                            (camWide | camTele))))) {
                 /* timerConstZoom will timeout if the zoom does not change for the duration
                  specified as FOVC_CONST_ZOOM_TIMEOUT_MS
                  If the zoom is stable put the non-master camera to LPM for power optimization */
@@ -1471,9 +1491,13 @@ void QCameraFOVControl::generateFovControlResult()
                         " Switching to Transition state");
                 }
             }
-            // 3. Zooming out and if the zoom value is less than the threshold
-            else if (needDualZone() &&
-                        (mFovControlData.zoomDirection == ZOOM_OUT)) {
+            /* 3. Zooming out and if the zoom value is less than the threshold
+               4. Spatial alignment disabling LPM on both if FOVControl fallback is disabled */
+            else if ((needDualZone() && (mFovControlData.zoomDirection == ZOOM_OUT)) ||
+                        (!mFovControlData.fallbackEnabled &&
+                        ((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
+                        (mFovControlData.spatialAlignResult.activeCameras ==
+                            (camWide | camTele))))) {
                 mFovControlData.camState = STATE_TRANSITION;
                 mFovControlResult.activeCameras = (camWide | camTele);
             }
@@ -1609,8 +1633,9 @@ bool QCameraFOVControl::needDualZone()
     else if (((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
             (mFovControlData.spatialAlignResult.activeCameras == (camWide | camTele))) ||
             ((zoom >= transitionLow) && (zoom <= transitionHigh)) ||
-            ((zoom >= cutoverWideToTele) && isMaster(camWide)) ||
-            ((zoom <= cutoverTeleToWide) && isMaster(camTele))) {
+            (mFovControlData.fallbackEnabled &&
+            (((zoom >= cutoverWideToTele) && isMaster(camWide)) ||
+            ((zoom <= cutoverTeleToWide) && isMaster(camTele))))) {
         ret = true;
     }
 
@@ -1655,6 +1680,8 @@ bool QCameraFOVControl::canSwitchMasterTo(
     LOGD("Tele: current LuxIdx: %d, threshold LuxIdx: %d", currentLuxIdxTele, thresholdLuxIdx);
     LOGD("Tele: current focus dist: %d, threshold focus dist: %d",
             currentFocusDistTele, thresholdFocusDist);
+    LOGD("frameCountWide: %d, frameCountTele: %d",
+            mFovControlData.frameCountWide, mFovControlData.frameCountTele);
 
     if (cam == CAM_ROLE_WIDE) {
         // In case of thermal throttle, only check zoom value for master switch.
@@ -1662,7 +1689,8 @@ bool QCameraFOVControl::canSwitchMasterTo(
             if (zoom < cutOverTeleToWide) {
                 ret = true;
             }
-        } else if (mFovControlData.wideCamStreaming) {
+        } else if (mFovControlData.wideCamStreaming &&
+                        (mFovControlData.frameCountWide > FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH)) {
             if (mFovControlData.fallbackEnabled && mFovControlData.fallbackToWide) {
                 /* If the fallback is initiated, only switch the master when the spatial alignment
                  confirms the completion of the fallback. */
@@ -1691,7 +1719,8 @@ bool QCameraFOVControl::canSwitchMasterTo(
             if (zoom > cutOverWideToTele) {
                 ret = true;
             }
-        } else if (mFovControlData.teleCamStreaming) {
+        } else if (mFovControlData.teleCamStreaming &&
+                        (mFovControlData.frameCountTele > FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH)) {
             bool teleWellLitNonMacroScene = !mFovControlData.fallbackEnabled ||
                                                 ((currentLuxIdxTele <= thresholdLuxIdx) &&
                                                 (currentFocusDistTele >= thresholdFocusDist));

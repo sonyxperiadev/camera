@@ -206,7 +206,6 @@ int32_t QCameraHALPPManager::stop()
     int32_t rc = NO_ERROR;
     LOGH("E");
     if (m_bStarted) {
-        Mutex::Autolock l(mLock);
         m_pprocTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
         m_bStarted = false;
     }
@@ -551,10 +550,7 @@ void *QCameraHALPPManager::dataProcessRoutine(void *pData)
                                 LOGE("Error feeding input to HAL PP!!");
                             }
                         }
-                        {
-                            Mutex::Autolock l(pme->mLock);
-                            pme->m_pPprocModule->process();
-                        }
+                        pme->m_pPprocModule->process();
                     }
                 }
             }
