@@ -118,6 +118,8 @@ static int32_t perfLockParamsStartPreview[] = {
 };
 
 static int32_t perfLockParamsTakeSnapshot[] = {
+    // Disable power collapse
+    MPCTLV3_ALL_CPUS_PWR_CLPS_DIS,          0x1,
     #ifdef TARGET_MSM8996
     // Set little cluster and big cluster cores to 1.555 GHz
     MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0, 0x613,
@@ -359,6 +361,7 @@ QCameraPerfLock::QCameraPerfLock(
         QCameraPerfLockIntf *perfLockIntf) :
         mHandle(0),
         mRefCount(0),
+        mEnable(false),
         mTimeOut(0),
         mPerfLockType(perfLockType),
         mPerfLockIntf(perfLockIntf)
@@ -543,10 +546,12 @@ void QCameraPerfLock::powerHintInternal(
         bool         enable)
 {
 #ifdef HAS_MULTIMEDIA_HINTS
-        if (enable == true) {
+        if ((enable == true) && !(mEnable)) {
+            mEnable = true;
             mPerfLockIntf->powerHintIntf()->powerHint(mPerfLockIntf->powerHintIntf(),
                                                     powerHint, (void *)"state=1");
-        } else {
+        } else if ((enable == false) && (mEnable)) {
+            mEnable = false;
             mPerfLockIntf->powerHintIntf()->powerHint(mPerfLockIntf->powerHintIntf(),
                                                     powerHint, (void *)"state=0");
         }

@@ -881,10 +881,12 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
        if(hal_obj->mStreamConfig == true) {
           switch (stream->getMyType()) {
               case CAM_STREAM_TYPE_PREVIEW:
-                  LOGH("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
+                  LOGI("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME camera id %d",
+                        hal_obj->getCameraID());
                   break;
               case CAM_STREAM_TYPE_VIDEO:
-                  LOGH("[KPI Perf] : PROFILE_FIRST_VIDEO_FRAME");
+                  LOGI("[KPI Perf] : PROFILE_FIRST_VIDEO_FRAME camera id %d ",
+                        hal_obj->getCameraID());
                   break;
               default:
                   break;
@@ -1519,6 +1521,10 @@ int32_t QCamera3ProcessingChannel::translateStreamTypeAndFormat(camera3_stream_t
             streamType = CAM_STREAM_TYPE_RAW;
             streamFormat = CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG;
             break;
+        case HAL_PIXEL_FORMAT_RAW8:
+            streamType = CAM_STREAM_TYPE_RAW;
+            streamFormat = CAM_FORMAT_BAYER_MIPI_RAW_8BPP_GBRG;
+            break;
         default:
             return -EINVAL;
     }
@@ -1697,6 +1703,14 @@ void QCamera3ProcessingChannel::issueChannelCb(buffer_handle_t *resultBuffer,
  *==========================================================================*/
 void QCamera3ProcessingChannel::showDebugFPS(int32_t streamType)
 {
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    int cameraId = -1;
+    if (hal_obj != NULL) {
+        cameraId = hal_obj->getCameraId();
+    } else {
+        LOGE("Failed to get hal obj for cameraId");
+    }
+
     double fps = 0;
     mFrameCount++;
     nsecs_t now = systemTime();
@@ -1706,20 +1720,20 @@ void QCamera3ProcessingChannel::showDebugFPS(int32_t streamType)
                 (double)(s2ns(1))) / (double)diff;
         switch(streamType) {
             case CAM_STREAM_TYPE_PREVIEW:
-                LOGH("PROFILE_PREVIEW_FRAMES_PER_SECOND : %.4f: mFrameCount=%d",
-                         fps, mFrameCount);
+                LOGH("PROFILE_PREVIEW_FRAMES_PER_SECOND CAMERA %d: %.4f: mFrameCount=%d",
+                         cameraId, fps, mFrameCount);
                 break;
             case CAM_STREAM_TYPE_VIDEO:
-                LOGH("PROFILE_VIDEO_FRAMES_PER_SECOND : %.4f",
-                         fps);
+                LOGH("PROFILE_VIDEO_FRAMES_PER_SECOND CAMERA %d: %.4f",
+                         cameraId, fps);
                 break;
             case CAM_STREAM_TYPE_CALLBACK:
-                LOGH("PROFILE_CALLBACK_FRAMES_PER_SECOND : %.4f",
-                         fps);
+                LOGH("PROFILE_CALLBACK_FRAMES_PER_SECOND CAMERA %d: %.4f",
+                         cameraId, fps);
                 break;
             case CAM_STREAM_TYPE_RAW:
-                LOGH("PROFILE_RAW_FRAMES_PER_SECOND : %.4f",
-                         fps);
+                LOGH("PROFILE_RAW_FRAMES_PER_SECOND CAMERA %d: %.4f",
+                         cameraId, fps);
                 break;
             default:
                 LOGH("logging not supported for the stream");
@@ -5001,7 +5015,6 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
                     cam_stream_type_t streamType,
                     cam_dimension_t *dim,
                     cam_format_t streamFormat,
-                    uint8_t hw_analysis_supported,
                     cam_color_filter_arrangement_t color_arrangement,
                     void *userData, uint32_t numBuffers) :
                         QCamera3Channel(cam_handle, channel_handle, cam_ops,
@@ -5013,8 +5026,9 @@ QCamera3SupportChannel::QCamera3SupportChannel(uint32_t cam_handle,
     mStreamType = streamType;
     mStreamFormat = streamFormat;
    // Make Analysis same as Preview format
-   if (!hw_analysis_supported && mStreamType == CAM_STREAM_TYPE_ANALYSIS &&
-           color_arrangement != CAM_FILTER_ARRANGEMENT_Y) {
+   if ((mStreamFormat != CAM_FORMAT_Y_ONLY) &&
+           (mStreamType == CAM_STREAM_TYPE_ANALYSIS) &&
+           (color_arrangement != CAM_FILTER_ARRANGEMENT_Y)) {
         mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_PREVIEW,
                 dim->width, dim->height);
    }

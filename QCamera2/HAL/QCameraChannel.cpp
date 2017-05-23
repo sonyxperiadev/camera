@@ -150,7 +150,10 @@ int32_t QCameraChannel::setStreamSyncCB (cam_stream_type_t stream_type,
 {
     int32_t rc = UNKNOWN_ERROR;
     for (size_t i = 0; i < mStreams.size(); i++) {
-        if ((mStreams[i] != NULL) && (stream_type == mStreams[i]->getMyType())) {
+        if ((mStreams[i] != NULL) &&
+                (stream_type == mStreams[i]->getMyType()) &&
+                mStreams[i]->isStreamSyncCbNeeded()) {
+            LOGH("Setting Stream Cb Sync on mStreams[%d]", i );
             rc = mStreams[i]->setSyncDataCB(stream_cb);
             break;
         }
@@ -687,6 +690,35 @@ int32_t QCameraChannel::UpdateStreamBasedParameters(QCameraParametersIntf &param
 }
 
 /*===========================================================================
+ * FUNCTION   : initDCSettings
+ *
+ * DESCRIPTION: initialize dual camera settings
+ *
+ * PARAMETERS :
+ *    @state            : Flag with camera bit field set in case of dual camera
+ *    @camMaster        : Master camera
+ *    @bundleSnapshot   : Flag to update bundle snapshot info
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraChannel::initDCSettings(int32_t camState, uint32_t camMaster,
+        bool bundledSnapshot)
+{
+    if (!isDualChannel()) {
+        return;
+    }
+
+    for (size_t i = 0; i < mStreams.size(); i++) {
+        if (mStreams[i] != NULL && mStreams[i]->isDualStream()) {
+            mStreams[i]->initDCSettings(camState, camMaster);
+        }
+    }
+    mActiveCameras = camState;
+    mMasterCamera = camMaster;
+    mBundledSnapshot = bundledSnapshot;
+}
+
+/*===========================================================================
  * FUNCTION   : processCameraControl
  *
  * DESCRIPTION:  Suspend and resume camera
@@ -734,9 +766,10 @@ int32_t QCameraChannel::processCameraControl(
 int32_t QCameraChannel::switchChannelCb(uint32_t camMaster)
 {
     int32_t ret = NO_ERROR;
-
+    LOGD("mMasterCamera %d    camMaster  %d", mMasterCamera, camMaster);
     for (size_t i = 0; i < mStreams.size(); i++) {
         if (mStreams[i] != NULL && mStreams[i]->isDualStream()) {
+            LOGD("Calling stream cb");
             ret = mStreams[i]->switchStreamCb(camMaster);
             if (ret != NO_ERROR) {
                 LOGE("Stream Switch Failed");
@@ -745,6 +778,7 @@ int32_t QCameraChannel::switchChannelCb(uint32_t camMaster)
         }
     }
 
+    LOGD("Updating mMasterCamera from %d to %d", mMasterCamera, camMaster);
     // Update master camera
     mMasterCamera = camMaster;
     return ret;
@@ -767,9 +801,11 @@ uint32_t QCameraChannel::getSnapshotHandle()
 
     if ((mActiveCameras == MM_CAMERA_DUAL_CAM) && mBundledSnapshot) {
         snapshotHandle = m_handle;
+        LOGD("snapshot handle: composite");
     } else {
         snapshotHandle = (mMasterCamera == MM_CAMERA_TYPE_MAIN) ?
                 get_main_camera_handle(m_handle) : get_aux_camera_handle(m_handle);
+        LOGD("snapshot handle: %s", (mMasterCamera == MM_CAMERA_TYPE_MAIN ? "main" : "aux"));
     }
 
     return snapshotHandle;
@@ -905,15 +941,27 @@ int32_t QCameraPicChannel::startAdvancedCapture(mm_camera_advanced_capture_t typ
  * DESCRIPTION: flush the all superbuffer frames.
  *
  * PARAMETERS :
+ *   @cam       : Camera for which the super buffer needs to be flushed
  *   @frame_idx : frame index of focused frame
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraPicChannel::flushSuperbuffer(uint32_t frame_idx)
+int32_t QCameraPicChannel::flushSuperbuffer(uint32_t cam, uint32_t frame_idx)
 {
-    int32_t rc = m_camOps->flush_super_buf_queue(m_camHandle, m_handle, frame_idx);
+    uint32_t channelHandle = m_handle;
+    if (cam == MM_CAMERA_TYPE_MAIN) {
+        channelHandle = get_main_camera_handle(m_handle);
+        LOGD("Flushing zsl buffer queue for main cam");
+    } else if (cam == MM_CAMERA_TYPE_AUX) {
+        channelHandle = get_aux_camera_handle(m_handle);
+        LOGD("Flushing zsl buffer queue for aux cam");
+    } else {
+        LOGD("Flushing zsl buffer queue for composite cam");
+    }
+
+    int32_t rc = m_camOps->flush_super_buf_queue(m_camHandle, channelHandle, frame_idx);
     return rc;
 }
 
@@ -1234,7 +1282,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
                     pStream->getFrameDimension(streamInfo->dim);
                 }
             } else {
-                if ((param.isPostProcScaling() || param.isDCmAsymmetricSnapMode()) &&
+                if ((param.isPostProcScaling() || (param.isDCmAsymmetricSnapMode() &&
+                        (param.getHalPPType() != CAM_HAL_PP_TYPE_BOKEH))) &&
                         (pp_featuremask.feature_mask & CAM_QCOM_FEATURE_SCALE)) {
                     rc = param.getStreamDimension(CAM_STREAM_TYPE_OFFLINE_PROC,
                             streamInfo->dim);
@@ -1651,8 +1700,14 @@ int32_t QCameraReprocessChannel::doReprocessOffline(mm_camera_super_buf_t *frame
                                             crop->crop_info[j].crop;
                                     crop->crop_info[crop->num_of_streams].roi_map =
                                             crop->crop_info[j].roi_map;
+                                    crop->crop_info[crop->num_of_streams].user_zoom =
+                                            crop->crop_info[j].user_zoom;
+                                    crop->crop_info[crop->num_of_streams].stream_zoom =
+                                            crop->crop_info[j].stream_zoom;
+                                    crop->crop_info[crop->num_of_streams].scale_ratio =
+                                            crop->crop_info[j].scale_ratio;
                                     for (uint8_t k = 0; k < mStreams.size(); k++) {
-                                        if (srcStream->getMyType() ==
+                                        if (srcStream->getMyOriginalType() ==
                                                 mStreams[k]->getMyOriginalType()) {
                                             crop->crop_info[crop->num_of_streams].stream_id =
                                                     mStreams[k]->getMyServerID();

@@ -39,8 +39,8 @@
 #include "QCamera2HWI.h"
 #include "QCameraPostProc.h"
 #include "QCameraTrace.h"
-#include "QCameraHALPP.h"
-#include "QCameraDualFOVPP.h"
+#include "QCameraPprocManager.h"
+
 extern "C" {
 #include "mm_camera_dbg.h"
 }
@@ -95,8 +95,7 @@ QCameraPostProcessor::QCameraPostProcessor(QCamera2HardwareInterface *cam_ctrl)
       mNewJpegSessionNeededHalPP(true),
       m_bufCountPPQ(0),
       m_PPindex(0),
-      m_halPPType(QCAMERA_HAL_PP_TYPE_UNDEFINED),
-      m_halPP(NULL)
+      m_pHalPPManager(NULL)
 {
     memset(&mJpegHandle, 0, sizeof(mJpegHandle));
     memset(&mJpegMpoHandle, 0, sizeof(mJpegMpoHandle));
@@ -105,6 +104,7 @@ QCameraPostProcessor::QCameraPostProcessor(QCamera2HardwareInterface *cam_ctrl)
     memset(mPPChannels, 0, sizeof(mPPChannels));
     m_DataMem = NULL;
     mOfflineDataBufs = NULL;
+    createHalPPManager();
     pthread_mutex_init(&m_reprocess_lock,NULL);
 }
 
@@ -133,9 +133,9 @@ QCameraPostProcessor::~QCameraPostProcessor()
             pChannel = NULL;
         }
     }
-    if (m_halPP != NULL) {
-        delete m_halPP;
-        m_halPP = NULL;
+    if (m_pHalPPManager != NULL) {
+        delete m_pHalPPManager;
+        m_pHalPPManager = NULL;
     }
     mPPChannelCount = 0;
     pthread_mutex_destroy(&m_reprocess_lock);
@@ -196,26 +196,9 @@ int32_t QCameraPostProcessor::init(jpeg_encode_callback_t jpeg_cb, void *user_da
     m_saveProcTh.launch(dataSaveRoutine, this);
     m_parent->mParameters.setReprocCount();
 
-    /* get setting from mParameters to decie create halpp block or not,
-     * like: mParameters.getHalPPType().
-     *
-     * read from property for now.
-     */
-    char prop[PROPERTY_VALUE_MAX];
-    memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.halpp", prop, "0");
-
-    m_halPPType = (HALPPType)atoi(prop);
-    if (m_halPPType < QCAMERA_HAL_PP_TYPE_UNDEFINED ||
-        m_halPPType >= QCAMERA_HAL_PP_TYPE_MAX) {
-        m_halPPType = QCAMERA_HAL_PP_TYPE_UNDEFINED;
-    }
-    LOGH("m_halPPType:%d", m_halPPType);
-
-    if ((m_parent->isDualCamera() && m_halPPType == QCAMERA_HAL_PP_TYPE_DUAL_FOV) ||
-        (m_parent->isDualCamera() && m_halPPType == QCAMERA_HAL_PP_TYPE_BOKEH)    ||
-        (m_parent->isDualCamera() && m_halPPType == QCAMERA_HAL_PP_TYPE_CLEARSIGHT)) {
-        rc = initHALPP();
+    if (m_parent->isDualCamera()) {
+        LOGH("Check and create HAL PP manager if not present");
+        createHalPPManager();
     }
 
     m_bInited = TRUE;
@@ -238,9 +221,10 @@ int32_t QCameraPostProcessor::deinit()
     if (m_bInited == TRUE) {
         m_dataProcTh.exit();
         m_saveProcTh.exit();
-        if (m_halPP != NULL) {
-            m_halPP->deinit();
-            m_halPPType = QCAMERA_HAL_PP_TYPE_UNDEFINED;
+        // deinit HALPP manager
+        if (m_pHalPPManager != NULL) {
+            LOGH("DeInit PP Manager");
+            m_pHalPPManager->deinit();
         }
         m_bInited = FALSE;
     }
@@ -327,9 +311,22 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
         }
     }
 
-    if (m_halPP != NULL && m_parent->needHALPP()) {
-        LOGD("HALPP is need, call QCameraHALPP::start() here");
-        rc = m_halPP->start();
+    if (m_parent->isDualCamera() &&
+            (m_parent->mParameters.getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
+        // HALPP type might have changed, ensure we have right pp block
+        rc = initHalPPManager();
+        if (rc != NO_ERROR) {
+            LOGE("Initializing PP manager failed");
+            return rc;
+        }
+        if ((m_pHalPPManager != NULL) && m_parent->needHALPP()) {
+            LOGH("HALPP is need, call QCameraHALPPManager::start() here");
+            rc = m_pHalPPManager->start();
+            if (rc != NO_ERROR) {
+                LOGE("start PP manager failed");
+                return rc;
+            }
+        }
     }
 
     property_get("persist.camera.longshot.save", prop, "0");
@@ -359,6 +356,11 @@ int32_t QCameraPostProcessor::start(QCameraChannel *pSrcChannel)
 int32_t QCameraPostProcessor::stop()
 {
     if (m_bInited == TRUE) {
+        if ((m_pHalPPManager != NULL) && m_parent->needHALPP() &&
+                (m_parent->mParameters.getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
+            m_pHalPPManager->stop();
+        }
+
         m_parent->m_cbNotifier.stopSnapshots();
 
         if (m_DataMem != NULL) {
@@ -388,12 +390,6 @@ int32_t QCameraPostProcessor::stop()
         delete mOfflineDataBufs;
         mOfflineDataBufs = NULL;
     }
-
-    if (m_halPP != NULL && m_parent->needHALPP()) {
-        LOGD("HALPP is need, call QCameraHALPP::stop() here");
-        m_halPP->stop();
-    }
-
     return NO_ERROR;
 }
 
@@ -1526,7 +1522,9 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
             pp_request_job = NULL;
             triggerEvent = FALSE;
         }
-    } else if (m_halPP != NULL && needHalPP) {
+    }
+    else if ((m_pHalPPManager != NULL) && needHalPP &&
+            (m_parent->mParameters.getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
         qcamera_hal_pp_data_t *hal_pp_job =
             (qcamera_hal_pp_data_t*) malloc(sizeof(qcamera_hal_pp_data_t));
         if (hal_pp_job == NULL) {
@@ -1540,7 +1538,8 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         hal_pp_job->reproc_frame_release = job ? job->reproc_frame_release : false;
         hal_pp_job->offline_reproc_buf = job ? job->offline_reproc_buf : NULL;
         hal_pp_job->offline_buffer = job ? job->offline_buffer : false;
-        m_halPP->feedInput(hal_pp_job);
+        LOGH("Feeding input to Manager");
+        m_pHalPPManager->feedInput(hal_pp_job);
     } else {
         //Done with post processing. Send frame to Jpeg
         qcamera_jpeg_data_t *jpeg_job =
@@ -1638,7 +1637,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
             }
         }
 
-        // enqueu reprocessed frame to jpeg input queue
+        // enqueue reprocessed frame to jpeg input queue
         if (false == m_inputJpegQ.enqueue((void *)jpeg_job)) {
             LOGW("Input Jpeg Q is not active!!!");
             releaseJpegJobData(jpeg_job);
@@ -1780,6 +1779,7 @@ void QCameraPostProcessor::releaseOngoingPPData(void *data, void *user_data)
                 && (pp_job->offline_buffer)) {
             free(pp_job->offline_reproc_buf);
             pp_job->offline_buffer = false;
+            pp_job->offline_reproc_buf = NULL;
         }
         pp_job->reprocCount = 0;
     }
@@ -2400,7 +2400,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         }
     } else {
         /* we only need to care about src frame here for HAL PP output data */
-        LOGD("channle id:%d, stream type:%d", jpeg_job_data->src_frame->ch_id,
+        LOGD("channel id:%d, stream type:%d", jpeg_job_data->src_frame->ch_id,
             jpeg_job_data->hal_pp_bufs[0].stream_type);
 
         QCameraChannel *pChannel = getChannelByHandle(jpeg_job_data->src_frame->ch_id);
@@ -3184,9 +3184,7 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
             pme->m_inputJpegQ.init();
             pme->m_inputPPQ.init();
             pme->m_inputRawQ.init();
-            if (pme->m_halPP != NULL) {
-                pme->m_halPP->initQ();
-            }
+
             pme->m_saveProcTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC,
                                       FALSE,
                                       FALSE);
@@ -3252,10 +3250,6 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                 // flush input raw Queue
                 pme->m_inputRawQ.flush();
 
-                // flush m_halPP
-                if (pme->m_halPP != NULL) {
-                    pme->m_halPP->flushQ();
-                }
                 // signal cmd is completed
                 cam_sem_post(&cmdThread->sync_sem);
 
@@ -3306,11 +3300,6 @@ void *QCameraPostProcessor::dataProcessRoutine(void *data)
                             free(jpeg_job);
                             jpeg_job = NULL;
                         }
-                    }
-
-                    // Process HAL PP data if ready
-                    if (pme->m_halPP != NULL) {
-                        pme->m_halPP->process();
                     }
 
                     // process raw data if any
@@ -3483,14 +3472,18 @@ int32_t QCameraPostProcessor::doReprocess()
                 ret = mPPChannels[mCurChannelIdx]->doReprocessOffline(ppInputFrame,
                         meta_buf, m_parent->mParameters);
                 if (ret != NO_ERROR) {
+                    m_ongoingPPQ.dequeue(false);
                     pthread_mutex_unlock(&m_reprocess_lock);
                     goto end;
                 }
 
                 if ((ppreq_job->offline_buffer) &&
                         (ppreq_job->offline_reproc_buf)) {
-                    mPPChannels[mCurChannelIdx]->doReprocessOffline(
+                    ret = mPPChannels[mCurChannelIdx]->doReprocessOffline(
                             ppreq_job->offline_reproc_buf, meta_buf);
+                    if (ret != NO_ERROR) {
+                        m_ongoingPPQ.dequeue(false);
+                    }
                 }
                 pthread_mutex_unlock(&m_reprocess_lock);
             } else {
@@ -3535,6 +3528,9 @@ int32_t QCameraPostProcessor::doReprocess()
 
             ret = mPPChannels[mCurChannelIdx]->doReprocess(ppInputFrame,
                     m_parent->mParameters, pMetaStream, meta_buf_index);
+            if (ret != NO_ERROR) {
+                m_ongoingPPQ.dequeue(false);
+            }
         }
     } else {
         LOGE("Reprocess channel is NULL");
@@ -4041,7 +4037,7 @@ void QCameraPostProcessor::processHalPPDataCB(qcamera_hal_pp_data_t *pOutput, vo
 int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
 {
     int32_t rc = NO_ERROR;
-    LOGD("E");
+    LOGH("E");
     if (m_bInited == FALSE) {
         LOGE("postproc not initialized yet");
         return UNKNOWN_ERROR;
@@ -4115,7 +4111,7 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
 
     // wake up data proc thread
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
-    LOGD("X");
+    LOGH("X");
     return rc;
 }
 
@@ -4191,7 +4187,7 @@ void QCameraPostProcessor::getHalPPOutputBuffer(uint32_t frameIndex)
         return;
     }
     output_data->frameIndex = frameIndex;
-    m_halPP->feedOutput(output_data);
+    m_pHalPPManager->feedOutput(output_data);
 }
 
 /*===========================================================================
@@ -4218,39 +4214,49 @@ QCameraChannel *QCameraPostProcessor::getChannelByHandle(uint32_t channelHandle)
     return pChannel;
 }
 
+void QCameraPostProcessor::createHalPPManager()
+{
+    LOGH("E");
+    if (m_pHalPPManager == NULL) {
+            m_pHalPPManager = new QCameraHALPPManager(this);
+            LOGH("Created HAL PP manager");
+    }
+    LOGH("X");
+    return;
+}
+
+
 /*===========================================================================
- * FUNCTION   : initHALPP
+ * FUNCTION   : initHalPPManager
  *
- * DESCRIPTION: function to create and init HALPP block
+ * DESCRIPTION: function to create and init HALPP manager
  * RETURN     : None
  *==========================================================================*/
-int32_t QCameraPostProcessor::initHALPP()
+int32_t QCameraPostProcessor::initHalPPManager()
 {
     int32_t rc = NO_ERROR;
-    void *staticParam = NULL;
+    void *staticParam = (void*)m_parent->getCamHalCapabilities();;
 
-    LOGD("E. m_halPPType:%d", m_halPPType);
-
-    switch (m_halPPType) {
-        case QCAMERA_HAL_PP_TYPE_DUAL_FOV:
-            m_halPP = new QCameraDualFOVPP();
-            staticParam = (void*)m_parent->getCamHalCapabilities();
-            break;
-        case QCAMERA_HAL_PP_TYPE_BOKEH:
-        case QCAMERA_HAL_PP_TYPE_CLEARSIGHT:
-            break;
-        default:
-            break;
+    if (m_pHalPPManager == NULL) {
+        LOGE("failed as PP manager is NULL");
+        return BAD_VALUE;
     }
 
-    if (m_halPP != NULL) {
-        rc = m_halPP->init(QCameraPostProcessor::processHalPPDataCB,
-                QCameraPostProcessor::getHalPPOutputBufferCB, this, staticParam);
+    cam_hal_pp_type_t halPPType = m_parent->mParameters.getHalPPType();
+    LOGH("E halPPType:%d mPProcType: %d", halPPType, m_pHalPPManager->getPprocType());
+    if (m_pHalPPManager->getPprocType() != halPPType) {
+        //HAL PP block might change, deinit and re init
+        rc = m_pHalPPManager->deinit();
         if (rc != NO_ERROR) {
-            LOGE("HAL PP type %d init failed, rc = %d", m_halPPType, rc);
+            LOGE("HAL PP type %d init failed, rc = %d", halPPType, rc);
+            return rc;
+        }
+        rc = m_pHalPPManager->init(halPPType, QCameraPostProcessor::processHalPPDataCB,
+                QCameraPostProcessor::getHalPPOutputBufferCB, staticParam);
+        if (rc != NO_ERROR) {
+            LOGE("HAL PP type %d init failed, rc = %d", halPPType, rc);
         }
     }
-
     return rc;
 }
 }; // namespace qcamera

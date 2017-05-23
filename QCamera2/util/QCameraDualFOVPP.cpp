@@ -215,7 +215,7 @@ int32_t QCameraDualFOVPP::feedInput(qcamera_hal_pp_data_t *pInputData)
 
             // request output buffer only if both wide and tele input data are recieved
             if (pVector->at(0) != NULL && pVector->at(1) != NULL) {
-                m_halPPGetOutputCB(frameIndex, m_pQCameraPostProc);
+                m_halPPGetOutputCB(frameIndex, m_pHalPPMgr);
             }
         }
     } else {
@@ -242,76 +242,31 @@ int32_t QCameraDualFOVPP::feedOutput(qcamera_hal_pp_data_t *pOutputData)
 {
     int32_t rc = NO_ERROR;
     LOGD("E");
+
     if (NULL != pOutputData) {
         uint32_t frameIndex = pOutputData->frameIndex;
         std::vector<qcamera_hal_pp_data_t*> *pVector = getFrameVector(frameIndex);
-        // Get the main (Wide) input frame in order to get output buffer len,
+        // Get the Wide/Tele input frame in order to decide output buffer len,
         // and copy metadata buffer.
-        if (pVector != NULL && pVector->at(WIDE_INPUT) != NULL) {
-            qcamera_hal_pp_data_t *pInputData = pVector->at(WIDE_INPUT);
-            mm_camera_super_buf_t *pInputFrame = pInputData->frame;
-            QCameraStream* pSnapshotStream = NULL;
-            QCameraStream* pMetadataStream = NULL;
-            mm_camera_buf_def_t *pInputSnapshotBuf = getSnapshotBuf(pInputData, pSnapshotStream);
-            mm_camera_buf_def_t *pInputMetadataBuf = getMetadataBuf(pInputData, pMetadataStream);
-            mm_camera_super_buf_t *pOutputFrame = pOutputData->frame;
-            mm_camera_buf_def_t *pOutputBufDefs = pOutputData->bufs;
+        if (pVector != NULL && pVector->at(WIDE_INPUT) != NULL && pVector->at(TELE_INPUT) != NULL) {
+            qcamera_hal_pp_data_t *pInputDataWide = pVector->at(WIDE_INPUT);
+            qcamera_hal_pp_data_t *pInputDataTele = pVector->at(TELE_INPUT);
 
-            if (pInputSnapshotBuf == NULL || pInputMetadataBuf == NULL) {
-                LOGE("cannot get sanpshot or metadata buf def");
-                releaseData(pOutputData);
+            QCameraStream* pSnapshotStreamWide = NULL;
+            QCameraStream* pSnapshotStreamTele = NULL;
+            mm_camera_buf_def_t *pBufWide = getSnapshotBuf(pInputDataWide, pSnapshotStreamWide);
+            mm_camera_buf_def_t *pBufTele = getSnapshotBuf(pInputDataTele, pSnapshotStreamTele);
+            if (pBufWide == NULL || pBufTele == NULL) {
+                LOGE("%s buf is null",(pBufWide == NULL) ? "wide" : "tele");
                 return UNEXPECTED_NULL;
             }
-            if (pSnapshotStream == NULL || pMetadataStream == NULL) {
-                LOGE("cannot get sanpshot or metadata stream");
-                releaseData(pOutputData);
-                return UNEXPECTED_NULL;
+            LOGH("snapshot frame len, wide:%d, tele:%d", pBufWide->frame_len, pBufTele->frame_len);
+            qcamera_hal_pp_data_t *pInputData = pInputDataWide;
+            if (pBufTele->frame_len > pBufWide->frame_len) {
+                pInputData = pInputDataTele;
             }
 
-            // Copy main input frame info to output frame
-            pOutputFrame->camera_handle = pInputFrame->camera_handle;
-            pOutputFrame->ch_id = pInputFrame->ch_id;
-            pOutputFrame->num_bufs = HAL_PP_NUM_BUFS;//snapshot and metadata
-            pOutputFrame->bUnlockAEC = pInputFrame->bUnlockAEC;
-            pOutputFrame->bReadyForPrepareSnapshot = pInputFrame->bReadyForPrepareSnapshot;
-
-            // Reconstruction of output_frame super buffer
-            pOutputFrame->bufs[0] = &pOutputBufDefs[0];
-            pOutputFrame->bufs[1] = &pOutputBufDefs[1];
-
-            // Allocate heap buffer for output image frame
-            cam_frame_len_offset_t offset;
-            memset(&offset, 0, sizeof(cam_frame_len_offset_t));
-            LOGD("pInputSnapshotBuf->frame_len = %d", pInputSnapshotBuf->frame_len);
-            rc = pOutputData->snapshot_heap->allocate(1, pInputSnapshotBuf->frame_len);
-            if (rc < 0) {
-                LOGE("Unable to allocate heap memory for image buf");
-                releaseData(pOutputData);
-                return NO_MEMORY;
-            }
-            pSnapshotStream->getFrameOffset(offset);
-            memcpy(&pOutputBufDefs[0], pInputSnapshotBuf, sizeof(mm_camera_buf_def_t));
-            LOGD("pOutputFrame->bufs[0]->fd = %d, pOutputFrame->bufs[0]->buffer = %x",
-                    pOutputFrame->bufs[0]->fd, pOutputFrame->bufs[0]->buffer);
-            pOutputData->snapshot_heap->getBufDef(offset, pOutputBufDefs[0], 0);
-            LOGD("pOutputFrame->bufs[0]->fd = %d, pOutputFrame->bufs[0]->buffer = %x",
-                    pOutputFrame->bufs[0]->fd, pOutputFrame->bufs[0]->buffer);
-
-            // Allocate heap buffer for output metadata
-            LOGD("pInputMetadataBuf->frame_len = %d", pInputMetadataBuf->frame_len);
-            rc = pOutputData->metadata_heap->allocate(1, pInputMetadataBuf->frame_len);
-            if (rc < 0) {
-                LOGE("Unable to allocate heap memory for metadata buf");
-                releaseData(pOutputData);
-                return NO_MEMORY;
-            }
-            memset(&offset, 0, sizeof(cam_frame_len_offset_t));
-            pMetadataStream->getFrameOffset(offset);
-            memcpy(&pOutputBufDefs[1], pInputMetadataBuf, sizeof(mm_camera_buf_def_t));
-            pOutputData->metadata_heap->getBufDef(offset, pOutputBufDefs[1], 0);
-            // copy the whole metadata
-            memcpy(pOutputBufDefs[1].buffer, pInputMetadataBuf->buffer,
-                    pInputMetadataBuf->frame_len);
+            rc = getOutputBuffer(pInputData, pOutputData);
 
             // Enqueue output_data to m_outgoingQ
             if (false == m_outgoingQ.enqueue((void *)pOutputData)) {
@@ -331,7 +286,7 @@ int32_t QCameraDualFOVPP::feedOutput(qcamera_hal_pp_data_t *pOutputData)
 /*===========================================================================
  * FUNCTION   : process
  *
- * DESCRIPTION: function to start CP FOV blending process
+ * DESCRIPTION: Start FOV post process
  *
  * PARAMETERS : None
  *
@@ -430,24 +385,30 @@ int32_t QCameraDualFOVPP::process()
         }
         cam_frame_len_offset_t frm_offset;
         pMainSnapshotStream->getFrameOffset(frm_offset);
-        LOGI("Stream type:%d, stride:%d, scanline:%d, frame len:%d",
+        LOGI("<Wide> Stream type:%d, stride:%d, scanline:%d, frame len:%d",
                 pMainSnapshotStream->getMyType(),
                 frm_offset.mp[0].stride, frm_offset.mp[0].scanline,
                 frm_offset.frame_len);
-
         if (dumpimg) {
             dumpYUVtoFile((uint8_t *)main_snapshot_buf->buffer, frm_offset,
                     main_snapshot_buf->frame_idx, "wide");
+        }
+        if (pAuxSnapshotStream == NULL) {
+            LOGE("pAuxSnapshotStream is NULL");
+            return UNEXPECTED_NULL;
+        }
+        pAuxSnapshotStream->getFrameOffset(frm_offset);
+        LOGI("<Tele> Stream type:%d, stride:%d, scanline:%d, frame len:%d",
+                pAuxSnapshotStream->getMyType(),
+                frm_offset.mp[0].stride, frm_offset.mp[0].scanline,
+                frm_offset.frame_len);
+        if (dumpimg) {
             dumpYUVtoFile((uint8_t *)aux_snapshot_buf->buffer,  frm_offset,
                     aux_snapshot_buf->frame_idx,  "tele");
         }
 
         //Get input and output parameter
         dualfov_input_params_t inParams;
-        if (pAuxSnapshotStream == NULL) {
-            LOGE("pAuxSnapshotStream is NULL");
-            return UNEXPECTED_NULL;
-        }
         getInputParams(main_meta_buf, aux_meta_buf, pMainSnapshotStream, pAuxSnapshotStream,
                 inParams);
         dumpInputParams(inParams);
@@ -458,6 +419,10 @@ int32_t QCameraDualFOVPP::process()
                         (uint8_t *)output_snapshot_buf->buffer);
 
         if (dumpimg) {
+            pMainSnapshotStream->getFrameOffset(frm_offset);
+            if (aux_snapshot_buf->frame_len > main_snapshot_buf->frame_len) {
+                pAuxSnapshotStream->getFrameOffset(frm_offset);
+            }
             dumpYUVtoFile((uint8_t *)output_snapshot_buf->buffer, frm_offset,
                     main_snapshot_buf->frame_idx, "out");
         }
@@ -473,13 +438,14 @@ int32_t QCameraDualFOVPP::process()
 
 
         // Calling cb function to return output_data after processed.
-        m_halPPBufNotifyCB(pOutputData, m_pQCameraPostProc);
+        LOGH("CB for output");
+        m_halPPBufNotifyCB(pOutputData, m_pHalPPMgr);
 
         // also send input buffer to postproc.
-        m_halPPBufNotifyCB(pInputMainData, m_pQCameraPostProc);
-        m_halPPBufNotifyCB(pInputAuxData, m_pQCameraPostProc);
-        //releaseData(pInputMainData);
-        //releaseData(pInputAuxData);
+        LOGH("CB for wide input");
+        m_halPPBufNotifyCB(pInputMainData, m_pHalPPMgr);
+        LOGH("CB for tele input");
+        m_halPPBufNotifyCB(pInputAuxData, m_pHalPPMgr);
 
         // Release internal resource
         m_frameMap.erase(frameIndex);
@@ -491,102 +457,10 @@ int32_t QCameraDualFOVPP::process()
 }
 
 /*===========================================================================
- * FUNCTION   : getSnapshotBuf
- *
- * DESCRIPTION: function to get snapshot buf def and the stream from frame
- * PARAMETERS :
- *   @pData           : input frame super buffer
- *   @pSnapshotStream : stream of snapshot that found
- * RETURN             : snapshot buf def
- *==========================================================================*/
-mm_camera_buf_def_t* QCameraDualFOVPP::getSnapshotBuf(qcamera_hal_pp_data_t* pData,
-        QCameraStream* &pSnapshotStream)
-{
-    mm_camera_buf_def_t *pBufDef = NULL;
-    if (pData == NULL) {
-        LOGE("Cannot find input frame super buffer");
-        return pBufDef;
-    }
-    mm_camera_super_buf_t *pFrame = pData->frame;
-    QCameraChannel *pChannel = m_pQCameraPostProc->getChannelByHandle(pFrame->ch_id);
-    if (pChannel == NULL) {
-        LOGE("Cannot find channel");
-        return pBufDef;
-    }
-    // Search for input snapshot frame buf
-    for (uint32_t i = 0; i < pFrame->num_bufs; i++) {
-        pSnapshotStream = pChannel->getStreamByHandle(pFrame->bufs[i]->stream_id);
-        if (pSnapshotStream != NULL) {
-            if (pSnapshotStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
-                pSnapshotStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
-                    pBufDef = pFrame->bufs[i];
-                    break;
-            }
-        }
-    }
-    return pBufDef;
-}
-
-/*===========================================================================
- * FUNCTION   : getMetadataBuf
- *
- * DESCRIPTION: function to get metadata buf def and the stream from frame
- * PARAMETERS :
- *   @pData     : input frame super buffer
- *   @pMetadataStream : stream of metadata that found
- * RETURN     : metadata buf def
- *==========================================================================*/
-mm_camera_buf_def_t* QCameraDualFOVPP::getMetadataBuf(qcamera_hal_pp_data_t *pData,
-        QCameraStream* &pMetadataStream)
-{
-    mm_camera_buf_def_t *pBufDef = NULL;
-    if (pData == NULL) {
-        LOGE("Cannot find input frame super buffer");
-        return pBufDef;
-    }
-    mm_camera_super_buf_t* pFrame = pData->frame;
-    QCameraChannel *pChannel =
-            m_pQCameraPostProc->getChannelByHandle(pData->src_reproc_frame->ch_id);
-    LOGD("src_reproc_frame num_bufs = %d", pFrame->num_bufs);
-    if (pChannel == NULL) {
-            LOGE("Cannot find src_reproc_frame channel");
-            return pBufDef;
-    }
-    for (uint32_t i = 0;
-            (i < pData->src_reproc_frame->num_bufs); i++) {
-        pMetadataStream = pChannel->getStreamByHandle(pData->src_reproc_frame->bufs[i]->stream_id);
-        if (pData->src_reproc_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
-            pBufDef = pData->src_reproc_frame->bufs[i];
-            LOGD("find metadata stream and buf from src_reproc_frame");
-            break;
-        }
-    }
-    if (pBufDef == NULL) {
-        LOGD("frame num_bufs = %d", pFrame->num_bufs);
-        pChannel = m_pQCameraPostProc->getChannelByHandle(pFrame->ch_id);
-        if (pChannel == NULL) {
-            LOGE("Cannot find frame channel");
-            return pBufDef;
-        }
-        for (uint32_t i = 0; i < pFrame->num_bufs; i++) {
-            pMetadataStream = pChannel->getStreamByHandle(pFrame->bufs[i]->stream_id);
-            if (pMetadataStream != NULL) {
-                LOGD("bufs[%d] stream_type = %d", i, pFrame->bufs[i]->stream_type);
-                if (pFrame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
-                    pBufDef = pFrame->bufs[i];
-                    break;
-                }
-            }
-        }
-    }
-    return pBufDef;
-}
-
-/*===========================================================================
  * FUNCTION   : canProcess
  *
  * DESCRIPTION: function to release internal resources
- * RETURN     : If CP FOV can start blending process
+ * RETURN     : true if Dual FOV is ready to process
  *==========================================================================*/
 bool QCameraDualFOVPP::canProcess()
 {
@@ -632,15 +506,27 @@ void QCameraDualFOVPP::getInputParams(mm_camera_buf_def_t *pMainMetaBuf,
 
     // user_zoom
     int32_t zoom_level = -1; // 0 means zoom 1x.
-    IF_META_AVAILABLE(int32_t, userZoom, CAM_INTF_PARM_ZOOM, pMainMeta) {
-        zoom_level = *userZoom;
+    IF_META_AVAILABLE(cam_zoom_info_t, zoomInfoMain, CAM_INTF_PARM_USERZOOM, pMainMeta) {
+        // Get main camera zoom value
+        for (uint32_t i = 0; i < zoomInfoMain->num_streams; ++i) {
+            if (zoomInfoMain->stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+                zoom_level = zoomInfoMain->stream_zoom_info[i].stream_zoom;
+            }
+        }
         LOGD("zoom level in main meta:%d", zoom_level);
     }
     inParams.user_zoom= getUserZoomRatio(zoom_level);
     LOGI("dual fov total zoom ratio: %d", inParams.user_zoom);
 
-    IF_META_AVAILABLE(int32_t, auxUserZoom, CAM_INTF_PARM_ZOOM, pAuxMeta) {
-        LOGD("zoom level in aux meta:%d", *auxUserZoom);
+    IF_META_AVAILABLE(cam_zoom_info_t, zoomInfoAux, CAM_INTF_PARM_USERZOOM, pAuxMeta) {
+        zoom_level = -1;
+        // Get aux camera zoom value
+        for (uint32_t i = 0; i < zoomInfoAux->num_streams; ++i) {
+            if (zoomInfoAux->stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+                zoom_level = zoomInfoAux->stream_zoom_info[i].stream_zoom;
+            }
+        }
+        LOGD("zoom level in aux meta:%d", zoom_level);
     }
 
     IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, pMainMeta) {
@@ -686,22 +572,43 @@ int32_t QCameraDualFOVPP::doDualFovPPProcess(const uint8_t* pWide, const uint8_t
 
     // trace begin
 
-    // half image from main, and half image from tele
+    if (inParams.tele.frame_len == inParams.wide.frame_len) {
+        LOGD("copy to output, half from wide, half from tele..");
 
-    // Y
-    memcpy(pOut, pWide, inParams.wide.stride * inParams.wide.scanline / 2);
-    memcpy(pOut  + inParams.wide.stride * inParams.wide.scanline / 2,
-           pTele + inParams.wide.stride * inParams.wide.scanline / 2,
-           inParams.wide.stride * inParams.wide.scanline / 2);
+        // half image from main, and half image from tele
 
-    // UV
-    uint32_t uv_offset = inParams.wide.stride * inParams.wide.scanline;
-    memcpy(pOut  + uv_offset,
-           pWide + uv_offset,
-           inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
-    memcpy(pOut  + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
-           pTele + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
-           inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
+        // Y
+        memcpy(pOut, pWide, inParams.wide.stride * inParams.wide.scanline / 2);
+        memcpy(pOut  + inParams.wide.stride * inParams.wide.scanline / 2,
+               pTele + inParams.wide.stride * inParams.wide.scanline / 2,
+               inParams.wide.stride * inParams.wide.scanline / 2);
+
+        // UV
+        uint32_t uv_offset = inParams.wide.stride * inParams.wide.scanline;
+        memcpy(pOut  + uv_offset,
+               pWide + uv_offset,
+               inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
+        memcpy(pOut  + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
+               pTele + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
+               inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
+
+    } else {
+        // copy the larger input buffer to output
+        const uint8_t* pIn = pWide;
+        uint32_t len = inParams.wide.frame_len;
+
+        if (inParams.tele.frame_len > inParams.wide.frame_len) {
+            LOGD("copy tele to output");
+            pIn = pTele;
+            len = inParams.tele.frame_len;
+        } else {
+            LOGD("copy wide to output");
+            pIn = pWide;
+            len = inParams.wide.frame_len;
+        }
+
+        memcpy(pOut, pIn, len);
+    }
 
     // trace end
 
