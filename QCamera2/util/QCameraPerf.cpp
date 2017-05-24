@@ -40,6 +40,7 @@
 // Camera dependencies
 #include "QCameraPerf.h"
 #include "QCameraTrace.h"
+#include "QCameraCommon.h"
 
 extern "C" {
 #include "mm_camera_dbg.h"
@@ -73,7 +74,6 @@ typedef enum {
 
     MPCTLV3_ALL_CPUS_PWR_CLPS_DIS           = 0x40400000
 } perf_lock_params;
-
 
 static int32_t perfLockParamsOpenCamera[] = {
     #ifndef TARGET_MSM8996
@@ -143,6 +143,18 @@ static int32_t perfLockParamsTakeSnapshot[] = {
     // Set big cluster offline
     MPCTLV3_MAX_ONLINE_CPU_CLUSTER_BIG,     0x0
     #endif
+};
+
+static int32_t perfLockParamsTakeSnapshotsdm630[] = {
+    MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0, 0x613,
+    MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_1, 0x613,
+    MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_2, 0x613,
+    MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_3, 0x613,
+    MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0, 0x613,
+    MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_1, 0x613,
+    MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_2, 0x613,
+    MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_3, 0x613,
+    MPCTLV3_MAX_ONLINE_CPU_CLUSTER_LITTLE,     0x0
 };
 
 PerfLockInfo QCameraPerfLock::mPerfLockInfo[] = {
@@ -340,6 +352,12 @@ QCameraPerfLock* QCameraPerfLock::create(
         QCameraPerfLockIntf *perfLockIntf = QCameraPerfLockIntf::createSingleton();
         if (perfLockIntf) {
             perfLock = new QCameraPerfLock(perfLockType, perfLockIntf);
+            if ((perfLockType == PERF_LOCK_TAKE_SNAPSHOT) && (QCameraCommon::is_target_SDM630())) {
+                memcpy (perfLockParamsTakeSnapshot,perfLockParamsTakeSnapshotsdm630,
+                        sizeof(perfLockParamsTakeSnapshotsdm630));
+                mPerfLockInfo[perfLockType].perfLockParamsCount =
+                sizeof(perfLockParamsTakeSnapshotsdm630)/sizeof(int32_t);
+            }
         }
     }
     return perfLock;
