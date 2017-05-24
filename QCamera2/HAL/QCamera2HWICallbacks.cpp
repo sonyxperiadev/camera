@@ -1658,19 +1658,26 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
             stream->mStreamMetaMemory[stream->mCurMetaIndex].numBuffers++;
             stream->mStreamMetaMemory[stream->mCurMetaIndex].consumerOwned
                     = TRUE;
-
-            //Fill video metadata.
-            videoMemObj->updateNativeHandle(nh, index,         //native_handle
-                     (int)videoMemObj->getFd(frame->buf_idx),  //FD
-                     (int)videoMemObj->getSize(frame->buf_idx),//Size
-                     (int)(frame_ts - stream->mFirstTimeStamp));
-
+            /*
+            * data[0] => FD
+            * data[mNumFDs + 1] => OFFSET
+            * data[mNumFDs + 2] => SIZE
+            * data[mNumFDs + 3] => Usage Flag (Color format/Compression)
+            * data[mNumFDs + 4] => TIMESTAMP
+            * data[mNumFDs + 5] => FORMAT
+            */
+            nh->data[index] = videoMemObj->getFd(frame->buf_idx);
+            nh->data[index + fd_cnt] = 0;
+            nh->data[index + (fd_cnt * 2)] = (int)videoMemObj->getSize(frame->buf_idx);
+            nh->data[index + (fd_cnt * 3)] = videoMemObj->getUsage();
+            nh->data[index + (fd_cnt * 4)] = (int)(frame_ts - stream->mFirstTimeStamp);
+            nh->data[index + (fd_cnt * 5)] = videoMemObj->getFormat();
             stream->mCurBufIndex++;
             if (stream->mCurBufIndex == fd_cnt) {
                 timeStamp = stream->mFirstTimeStamp;
                 LOGH("Video frame to encoder TimeStamp : %lld batch = %d Buffer idx = %d",
                         timeStamp, fd_cnt,
-                        stream->mCurMetaIndex);
+                        nh->data[nh->numFds + nh->numInts - VIDEO_METADATA_NUM_COMMON_INTS]);
                 stream->mCurBufIndex = -1;
                 stream->mCurMetaIndex = -1;
                 stream->mCurMetaMemory = NULL;
@@ -1699,14 +1706,23 @@ void QCamera2HardwareInterface::video_stream_cb_routine(mm_camera_super_buf_t *s
                             &frame->user_buf.plane_buf[frame->user_buf.buf_idx[i]];
                     QCameraVideoMemory *frameobj =
                             (QCameraVideoMemory *)plane_frame->mem_info;
+                    int usage = frameobj->getUsage();
                     nsecs_t frame_ts = nsecs_t(plane_frame->ts.tv_sec) * 1000000000LL
                             + plane_frame->ts.tv_nsec;
-                     //Fill video metadata.
-                     videoMemObj->updateNativeHandle(nh, i,
-                             (int)frameobj->getFd(plane_frame->buf_idx),
-                             (int)frameobj->getSize(plane_frame->buf_idx),
-                             (int)(frame_ts - timeStamp));
-
+                    /*
+                       data[0] => FD
+                       data[mNumFDs + 1] => OFFSET
+                       data[mNumFDs + 2] => SIZE
+                       data[mNumFDs + 3] => Usage Flag (Color format/Compression)
+                       data[mNumFDs + 4] => TIMESTAMP
+                       data[mNumFDs + 5] => FORMAT
+                    */
+                    nh->data[i] = frameobj->getFd(plane_frame->buf_idx);
+                    nh->data[fd_cnt + i] = 0;
+                    nh->data[(2 * fd_cnt) + i] = (int)frameobj->getSize(plane_frame->buf_idx);
+                    nh->data[(3 * fd_cnt) + i] = usage;
+                    nh->data[(4 * fd_cnt) + i] = (int)(frame_ts - timeStamp);
+                    nh->data[(5 * fd_cnt) + i] = frameobj->getFormat();
                     LOGD("Send Video frames to services/encoder delta : %lld FD = %d index = %d",
                             (frame_ts - timeStamp), plane_frame->fd, plane_frame->buf_idx);
                     pme->dumpFrameToFile(stream, plane_frame, QCAMERA_DUMP_FRM_VIDEO);
