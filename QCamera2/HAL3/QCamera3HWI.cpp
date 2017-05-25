@@ -130,6 +130,9 @@ namespace qcamera {
 #define MOUTH_Y                5
 #define TOTAL_LANDMARK_INDICES 6
 
+// Whether to check for the GPU stride padding, or use the default
+//#define CHECK_GPU_PIXEL_ALIGNMENT
+
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
 extern pthread_mutex_t gCamLock;
@@ -558,7 +561,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     //Load and read GPU library.
     lib_surface_utils = NULL;
     LINK_get_surface_pixel_alignment = NULL;
-    mSurfaceStridePadding = CAM_PAD_TO_32;
+    mSurfaceStridePadding = CAM_PAD_TO_64;
+#ifdef CHECK_GPU_PIXEL_ALIGNMENT
     lib_surface_utils = dlopen("libadreno_utils.so", RTLD_NOW);
     if (lib_surface_utils) {
         *(void **)&LINK_get_surface_pixel_alignment =
@@ -568,6 +572,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
          }
          dlclose(lib_surface_utils);
     }
+#endif
 
     if (gCamCapability[cameraId]->is_quadracfa_sensor) {
         LOGI("Sensor support Quadra CFA mode");
