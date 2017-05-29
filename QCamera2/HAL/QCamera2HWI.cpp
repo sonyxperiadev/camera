@@ -4027,6 +4027,10 @@ int QCamera2HardwareInterface::stopPreview()
     mNumPreviewFaces = -1;
     mActiveAF = false;
 
+    if (mLiveSnapshotThread != 0) {
+        pthread_join(mLiveSnapshotThread,NULL);
+        mLiveSnapshotThread = 0;
+    }
     // Wake up both sensors before stopping preview
     if (isDualCamera()) {
         mParameters.setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
