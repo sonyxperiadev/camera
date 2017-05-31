@@ -43,10 +43,6 @@ extern "C" {
 #include "mm_jpeg_interface.h"
 }
 
-enum halPPInputType {
-    WIDE_INPUT = 0,
-    TELE_INPUT = 1
-};
 typedef struct _cam_frame_size_t {
     uint32_t width;
     uint32_t height;
@@ -91,7 +87,7 @@ protected:
             QCameraStream* &pMetadataStream);
 
 protected:
-    QCameraQueue m_iuputQ;
+    QCameraQueue m_inputQ;
     QCameraQueue m_outgoingQ;
 
     // hash map with frame index as key, and vecotr of input frames as value

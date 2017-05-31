@@ -1029,7 +1029,8 @@ QCameraParameters::QCameraParameters()
       mbundledSnapshot(false),
       mFallback(CAM_NO_FALLBACK),
       mAsymmetricSnapMode(false),
-      mAsymmetricPreviewMode(false)
+      mAsymmetricPreviewMode(false),
+      mDualCamType(DUAL_CAM_WIDE_TELE)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1182,7 +1183,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mbundledSnapshot(false),
     mFallback(CAM_NO_FALLBACK),
     mAsymmetricSnapMode(false),
-    mAsymmetricPreviewMode(false)
+    mAsymmetricPreviewMode(false),
+    mDualCamType(DUAL_CAM_WIDE_TELE)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -4581,8 +4583,13 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
     LOGD("str_val: %s, prev_str: %s", str_val, prev_str);
 
     if (m_halPPType == CAM_HAL_PP_TYPE_BOKEH) {
-        m_bNoDisplayModeMain = true;
-        m_bNoDisplayModeAux = false;
+        if (isBayerMono()) {
+            m_bNoDisplayModeMain = false;
+            m_bNoDisplayModeAux = true;
+        } else {
+            m_bNoDisplayModeMain = true;
+            m_bNoDisplayModeAux = false;
+        }
         LOGH("Bokeh m_bNoDisplayModeMain = %d      m_bNoDisplayModeAux = %d",
                 m_bNoDisplayModeMain, m_bNoDisplayModeAux);
         return NO_ERROR;
@@ -6780,10 +6787,21 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t
     rc = m_pCamOpsTbl->ops->get_session_id(m_pCamOpsTbl->camera_handle,
             &sessionId[m_pCapability->camera_index]);
 
+    if (m_pFovControl) {
+        mDualCamType = (uint8_t)getDualCameraConfig(
+                m_pCapability->main_cam_cap, m_pCapability->aux_cam_cap);
+        m_pFovControl->setDualCameraConfig(mDualCamType);
+
+        if (isBayerMono()) {
+            m_defaultHalPPType = CAM_HAL_PP_TYPE_CLEARSIGHT;
+        }
+    }
+
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.halpp", prop, "0");
-    m_defaultHalPPType = (cam_hal_pp_type_t)atoi(prop);
+    property_get("persist.camera.halpp", prop, "");
+    if (strlen(prop) > 0)
+        m_defaultHalPPType = (cam_hal_pp_type_t)atoi(prop);
 
     if (m_defaultHalPPType < CAM_HAL_PP_TYPE_NONE ||
             m_defaultHalPPType >= CAM_HAL_PP_TYPE_MAX) {
@@ -12813,7 +12831,10 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
         bundle_info[num_cam].sync_control = syncControl;
         bundle_info[num_cam].type = CAM_TYPE_MAIN;
         bundle_info[num_cam].mode = CAM_MODE_PRIMARY;
-        bundle_info[num_cam].cam_role = CAM_ROLE_WIDE;
+        if (isBayerMono())
+            bundle_info[num_cam].cam_role = CAM_ROLE_BAYER;
+        else
+            bundle_info[num_cam].cam_role = CAM_ROLE_WIDE;
         bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
         m_pCamOpsTbl->ops->get_session_id(
                 get_aux_camera_handle(m_pCamOpsTbl->camera_handle), &sessionID);
@@ -12825,7 +12846,10 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
         bundle_info[num_cam].sync_control = syncControl;
         bundle_info[num_cam].type = CAM_TYPE_AUX;
         bundle_info[num_cam].mode = CAM_MODE_SECONDARY;
-        bundle_info[num_cam].cam_role = CAM_ROLE_TELE;
+        if (isBayerMono())
+            bundle_info[num_cam].cam_role = CAM_ROLE_MONO;
+        else
+            bundle_info[num_cam].cam_role = CAM_ROLE_TELE;
         bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
         m_pCamOpsTbl->ops->get_session_id(
                 get_main_camera_handle(m_pCamOpsTbl->camera_handle), &sessionID);
@@ -15120,27 +15144,34 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
     // callback, preview, or video streams
     cam_color_filter_arrangement_t filter_arrangement;
     filter_arrangement = m_pCapability->color_arrangement;
+    bool needPAAF = false;
     switch (filter_arrangement) {
     case CAM_FILTER_ARRANGEMENT_RGGB:
     case CAM_FILTER_ARRANGEMENT_GRBG:
     case CAM_FILTER_ARRANGEMENT_GBRG:
     case CAM_FILTER_ARRANGEMENT_BGGR:
         if ((stream_type == CAM_STREAM_TYPE_CALLBACK) ||
-            (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
-            feature_mask |= CAM_QCOM_FEATURE_PAAF;
+                (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
+            needPAAF = true;
         } else if (stream_type == CAM_STREAM_TYPE_VIDEO) {
-            if (getVideoISType() != IS_TYPE_EIS_3_0)
-                feature_mask |= CAM_QCOM_FEATURE_PAAF;
+            if (getVideoISType() != IS_TYPE_EIS_3_0) {
+                needPAAF = true;
+            }
         }
         break;
     case CAM_FILTER_ARRANGEMENT_Y:
         if (stream_type == CAM_STREAM_TYPE_ANALYSIS) {
-            feature_mask |= CAM_QCOM_FEATURE_PAAF;
-            LOGH("add PAAF mask to feature_mask for mono device");
+            needPAAF = true;
         }
         break;
     default:
         break;
+    }
+
+    if (needPAAF && (m_pCapability->qcom_supported_feature_mask
+            & CAM_QCOM_FEATURE_PAAF)) {
+        feature_mask |= CAM_QCOM_FEATURE_PAAF;
+        LOGH("add PAAF mask to feature_mask");
     }
 
     // Enable PPEISCORE for EIS 3.0
@@ -15160,7 +15191,8 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         satEnabledFlag = atoi(prop);
 
         if (satEnabledFlag &&
-                (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) {
+                (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH) &&
+                (getHalPPType() != CAM_HAL_PP_TYPE_CLEARSIGHT)) {
             LOGH("SAT flag enabled");
             if (stream_type == CAM_STREAM_TYPE_VIDEO &&
                 !is4k2kVideoResolution()) {
@@ -15178,7 +15210,8 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
         sacEnabledFlag = atoi(prop);
 
         if (sacEnabledFlag  &&
-                (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) {
+                (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH) &&
+                (getHalPPType() != CAM_HAL_PP_TYPE_CLEARSIGHT)) {
             LOGH("SAC flag enabled");
             if ((stream_type == CAM_STREAM_TYPE_ANALYSIS) ||
                 (stream_type == CAM_STREAM_TYPE_VIDEO) ||
@@ -16726,7 +16759,8 @@ void QCameraParameters::setAsymmetricSnapMode()
         return;
     }
 
-    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH ||
+            (getHalPPType() == CAM_HAL_PP_TYPE_CLEARSIGHT)) {
         mAsymmetricSnapMode = true;
         return;
     }
@@ -16763,6 +16797,56 @@ bool QCameraParameters::isNoDisplayMode(uint32_t cam_type)
     }
     LOGH("bNoDisplayMode: %d cam_type: %d", bNoDisplayMode, cam_type);
     return bNoDisplayMode;
+}
+
+/*==========================================================================
+* FUNCTION   : isBayer
+*
+* DESCRIPTION: check whether sensor is bayer type or not
+*
+* PARAMETERS : cam_capability_t
+*
+* RETURN    : true or false
+*==========================================================================*/
+bool QCameraParameters::isBayer(cam_capability_t *caps)
+{
+    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_RGGB ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GRBG ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GBRG ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_BGGR));
+}
+
+/*===========================================================================
+* FUNCTION   : isMono
+*
+* DESCRIPTION: check whether sensor is mono or not
+*
+* PARAMETERS : cam_capability_t
+*
+* RETURN    : true or false
+*==========================================================================*/
+bool QCameraParameters::isMono(cam_capability_t *caps)
+{
+    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_Y));
+}
+
+/*===========================================================================
+* FUNCTION   : getDualCameraConfig
+*
+* DESCRIPTION: get dual camera configuration whether B+M/W+T
+*
+* PARAMETERS : capabilities of main and aux cams
+*
+* RETURN    : dual_cam_type
+*==========================================================================*/
+dual_cam_type QCameraParameters::getDualCameraConfig(cam_capability_t *capsMainCam,
+        cam_capability_t *capsAuxCam)
+{
+    dual_cam_type type = DUAL_CAM_WIDE_TELE;
+    if (isBayer(capsMainCam) && isMono(capsAuxCam)) {
+        type = DUAL_CAM_BAYER_MONO;
+    }
+    return type;
 }
 
 }; // namespace qcamera

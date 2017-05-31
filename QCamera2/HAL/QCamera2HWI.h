@@ -111,6 +111,9 @@ typedef struct {
 
 #define EXIF_ASCII_PREFIX_SIZE           8   //(sizeof(ExifAsciiPrefix))
 
+//Min buffer requirement for B+M Clearsight fusion
+#define MIN_CLEARSIGHT_BUFS 3
+
 typedef enum {
     QCAMERA_NOTIFY_CALLBACK,
     QCAMERA_DATA_CALLBACK,

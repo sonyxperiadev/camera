@@ -2885,6 +2885,9 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
             if (mLongshotEnabled) {
                 bufferCnt = mParameters.getLongshotStages();
             }
+            if(isDualCamera() && (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_CLEARSIGHT)) {
+                bufferCnt = MIN_CLEARSIGHT_BUFS;
+            }
         }
         break;
     case CAM_STREAM_TYPE_CALLBACK:
@@ -5044,6 +5047,10 @@ int QCamera2HardwareInterface::takePicture()
             dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
             LOGD("dualfov_snap_num:%d", dualfov_snap_num);
             numSnapshots /= dualfov_snap_num;
+
+            if(mParameters.getHalPPType() == CAM_HAL_PP_TYPE_CLEARSIGHT) {
+                numSnapshots *= MIN_CLEARSIGHT_BUFS;
+            }
         }
     }
 
@@ -7820,7 +7827,8 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
             needAuxStream = TRUE;
             LOGH("Asymm Mode : cam_type: 0x%x stream_type: %d",
                     cam_type, streamType);
-        } else {
+        } else if ((mParameters.getHalPPType() != CAM_HAL_PP_TYPE_CLEARSIGHT) ||
+                (streamType != CAM_STREAM_TYPE_PREVIEW)) {
             cam_type |= MM_CAMERA_TYPE_AUX;
         }
         if ((streamType == CAM_STREAM_TYPE_PREVIEW) &&
