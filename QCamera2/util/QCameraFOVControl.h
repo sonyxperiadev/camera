@@ -170,6 +170,8 @@ typedef struct {
     bool                         updateResultState;
     uint8_t                      oisSetting;
     cam_stream_size_info_t       camStreamInfo;
+    uint32_t                     frameCountWide;
+    uint32_t                     frameCountTele;
 } fov_control_data_t;
 
 typedef struct {
