@@ -4487,6 +4487,7 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
                 }
                 rotation_info.streamId = mStreams[0]->getMyServerID();
                 ADD_SET_PARAM_ENTRY_TO_BATCH(meta, CAM_INTF_PARM_ROTATION, rotation_info);
+                LOGD("rotation_info.rotation: %d", rotation_info.rotation);
             }
 
             // Find and insert crop info for reprocess stream
