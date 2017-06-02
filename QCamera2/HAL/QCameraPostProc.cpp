@@ -2712,12 +2712,13 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             jpg_job.encode_job.thumb_dim.dst_dim.height);
     }
 
-    LOGI("Main image idx = %d src w/h (%dx%d), dst w/h (%dx%d)",
+    LOGI("Main image idx = %d src w/h (%dx%d), dst w/h (%dx%d) rot = %d",
             jpg_job.encode_job.src_index,
             jpg_job.encode_job.main_dim.src_dim.width,
             jpg_job.encode_job.main_dim.src_dim.height,
             jpg_job.encode_job.main_dim.dst_dim.width,
-            jpg_job.encode_job.main_dim.dst_dim.height);
+            jpg_job.encode_job.main_dim.dst_dim.height,
+            jpg_job.encode_job.rotation);
 
     if (thumb_frame != NULL) {
         // dump thumbnail frame if enabled
