@@ -52,9 +52,6 @@ namespace qcamera {
 
 class QCameraMemoryPool;
 
-//OFFSET, SIZE, USAGE, TIMESTAMP, FORMAT
-#define VIDEO_METADATA_NUM_INTS          5
-
 //Buffer identity
 //Note that this macro might have already been
 //defined in OMX_QCOMExtns.h, in which case
@@ -68,6 +65,18 @@ enum QCameraMemType {
     QCAMERA_MEM_TYPE_SECURE       = 1,
     QCAMERA_MEM_TYPE_BATCH        = (1 << 1),
     QCAMERA_MEM_TYPE_COMPRESSED   = (1 << 2),
+};
+
+enum QCameraVideoMetaBufInts {
+    VIDEO_META_OFFSET      = MetaBufferUtil::INT_OFFSET,
+    VIDEO_META_SIZE        = MetaBufferUtil::INT_SIZE,
+    VIDEO_META_USAGE       = MetaBufferUtil::INT_USAGE,
+    VIDEO_META_TIMESTAMP   = MetaBufferUtil::INT_TIMESTAMP,
+    VIDEO_META_FORMAT      = MetaBufferUtil::INT_COLORFORMAT,
+    VIDEO_META_BUFIDX      = MetaBufferUtil::INT_BUFINDEX,
+    VIDEO_META_EVENT       = MetaBufferUtil::INT_BUFEVENT,
+    //Add per frame Ints before this
+    VIDEO_METADATA_NUM_INTS = MetaBufferUtil::INT_TOTAL,
 };
 
 typedef enum {
@@ -240,7 +249,7 @@ public:
     virtual void deallocate();
     virtual camera_memory_t *getMemory(uint32_t index, bool metadata) const;
     virtual int getMatchBufIndex(const void *opaque, bool metadata) const;
-    int allocateMeta(uint8_t buf_cnt, int numFDs, int numInts);
+    int allocateMeta(uint8_t buf_cnt, int numFDs);
     void deallocateMeta();
     void setVideoInfo(int usage, cam_format_t format);
     int getUsage(){return mUsage;};
@@ -249,6 +258,9 @@ public:
     int closeNativeHandle(const void *data, bool metadata = true);
     native_handle_t *getNativeHandle(uint32_t index, bool metadata = true);
     static int closeNativeHandle(const void *data);
+    int32_t updateNativeHandle(native_handle_t *nh,
+            int batch_idx, int fd, int size, int ts = 0);
+    bool needPerfEvent(const void *data, bool metadata = true);
 private:
     camera_memory_t *mMetadata[MM_CAMERA_MAX_NUM_FRAMES];
     uint8_t mMetaBufCount;
