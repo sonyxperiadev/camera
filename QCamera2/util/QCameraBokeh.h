@@ -35,8 +35,15 @@
 #include "QCameraPostProc.h"
 
 typedef struct  {
-    cam_frame_size_t wide;
-    cam_frame_size_t tele;
+    cam_frame_size_t main;
+    cam_frame_size_t aux;
+    cam_frame_size_t depth;
+    String8 sMainReprocessInfo;
+    String8 sAuxReprocessInfo;
+    String8 sCalibData;
+    float blurLevel;
+    cam_rect_t afROI;
+    cam_rect_t afROIMap;
 } bokeh_input_params_t;
 
 typedef struct  {
@@ -48,9 +55,9 @@ typedef struct  {
 namespace qcamera {
 
 typedef struct  {
-    qcamera_hal_pp_data_t* wide_input;
-    qcamera_hal_pp_data_t* tele_input;
-    qcamera_hal_pp_data_t* tele_output;
+    qcamera_hal_pp_data_t* main_input;
+    qcamera_hal_pp_data_t* aux_input;
+    qcamera_hal_pp_data_t* bokeh_output;
 } bokeh_data_t;
 
 class QCameraBokeh : public QCameraHALPP
@@ -75,21 +82,25 @@ private:
     void getInputParams(bokeh_input_params_t& inParams);
     int32_t doBokehInit();
     int32_t doBokehProcess(
-            const uint8_t* pWide,
-            const uint8_t* pTele,
-            bokeh_input_params_t inParams,
+            const uint8_t* pMain,
+            const uint8_t* pAux,
+            bokeh_input_params_t &inParams,
             uint8_t* pOut);
     void dumpYUVtoFile(
             const uint8_t* pBuf,
             cam_frame_len_offset_t offset,
             uint32_t idx,
             const char* name_prefix);
-    void dumpInputParams(const bokeh_input_params_t& p);
+    const char* buildCommaSeparatedString(float array[], size_t length);
+    String8 flattenCropInfo(cam_stream_crop_info_t* crop, uint8_t index);
+    String8 extractReprocessInfo(metadata_buffer_t *metadata);
+    String8 extractCalibrationData();
 
 private:
     void *m_dlHandle;
     const cam_capability_t *m_pCaps;
     bokeh_data_t mBokehData;
+    bool bNeedCamSwap;
 }; // QCameraBokeh class
 }; // namespace qcamera
 
