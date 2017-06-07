@@ -462,7 +462,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       m_pDualCamCmdHeap(NULL),
       m_pDualCamCmdPtr(NULL),
       m_bSensorHDREnabled(false),
-      mCurrentSceneMode(0)
+      mCurrentSceneMode(0),
+      m_bOfflineIsp(false)
 {
     getLogLevel();
     mCommon.init(gCamCapability[cameraId]);
@@ -532,6 +533,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     property_get("persist.camera.cacmode.disable", prop, "0");
     m_cacModeDisabled = (uint8_t)atoi(prop);
 
+    mRdiModeFmt = gCamCapability[mCameraId]->rdi_mode_stream_fmt;
     //Load and read GPU library.
     lib_surface_utils = NULL;
     LINK_get_surface_pixel_alignment = NULL;
@@ -4805,6 +4807,21 @@ no_error:
 
         if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
             isVidBufRequested = true;
+        }
+        if (((output.stream->format) == HAL_PIXEL_FORMAT_YCbCr_420_888) ||
+                ((output.stream->format) == HAL_PIXEL_FORMAT_BLOB)) {
+            if(request->input_buffer != NULL) {
+                camera3_stream_buffer_t *inputbuf;
+                inputbuf = request->input_buffer;
+                if((inputbuf->stream->format == HAL_PIXEL_FORMAT_RAW_OPAQUE) ||
+                        (inputbuf->stream->format == HAL_PIXEL_FORMAT_RAW16) ||
+                        (inputbuf->stream->format == HAL_PIXEL_FORMAT_RAW10)) {
+                    LOGH("Use offline ISP for input RAW format: %d", inputbuf->stream->format);
+                    m_bOfflineIsp = true;
+                } else {
+                    m_bOfflineIsp = false;
+                }
+            }
         }
     }
 
@@ -12162,6 +12179,11 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
         pp_config.hdr_param.hdr_enable = 1;
         pp_config.hdr_param.hdr_need_1x = 0;
         pp_config.hdr_param.hdr_mode = CAM_HDR_MODE_MULTIFRAME;
+    }
+
+    if (m_bOfflineIsp) {
+        LOGH("offline isp flag is set, add feature mask CAM_QCOM_FEATURE_RAW_PROCESSING");
+        pp_config.feature_mask |= CAM_QCOM_FEATURE_RAW_PROCESSING;
     }
 
     rc = pChannel->addReprocStreamsFromSource(pp_config,
