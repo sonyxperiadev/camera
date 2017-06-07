@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,46 +27,38 @@
  *
  */
 
-#ifndef __QCAMERA_DUAL_FOV_PP_H__
-#define __QCAMERA_DUAL_FOV_PP_H__
+#ifndef __QCAMERA_CLEAR_SIGHT_H__
+#define __QCAMERA_CLEAR_SIGHT_H__
 
 // Camera dependencies
 #include "QCameraHALPP.h"
 
-#define WIDE_TELE_CAMERA_NUMBER 2
+#define NUM_CAM 2
 
-enum halPPInputType {
-    WIDE_INPUT = 0,
-    TELE_INPUT = 1
+enum halInputType {
+    BAYER_INPUT = 0,
+    MONO_INPUT = 1
 };
 
-enum dualfov_af_status_t {
-    AF_STATUS_VALID,
-    AF_STATUS_INVALID
-};
+typedef struct _clearsight_input_params_t {
+    cam_frame_size_t bayer;
+    cam_frame_size_t mono;
+    uint32_t frame_idx;
+} clearsight_input_params_t;
 
-typedef struct _dualfov_input_params_t {
-    cam_frame_size_t wide;
-    cam_frame_size_t tele;
-
-    uint32_t user_zoom;
-
-    dualfov_af_status_t af_status;
-} dualfov_input_params_t;
-
-typedef struct _dualfov_output_params_t {
+typedef struct _clearsight_output_params_t {
     cam_frame_size_t out;
     uint32_t result;
-} dualfov_output_params_t;
+} clearsight_output_params_t;
 
 
 namespace qcamera {
 
-class QCameraDualFOVPP : public QCameraHALPP
+class QCameraClearSight : public QCameraHALPP
 {
 public:
-    QCameraDualFOVPP();
-    ~QCameraDualFOVPP();
+    QCameraClearSight();
+    ~QCameraClearSight();
     int32_t init(halPPBufNotify bufNotifyCb, halPPGetOutput getOutputCb, void *pUserData,
             void *pStaticParam);
     int32_t deinit();
@@ -79,24 +71,21 @@ protected:
 private:
     void getInputParams(mm_camera_buf_def_t *pMainMetaBuf, mm_camera_buf_def_t *pAuxMetaBuf,
             QCameraStream* pMainSnapshotStream, QCameraStream* pAuxSnapshotStream,
-            dualfov_input_params_t& inParams);
-    int32_t doDualFovPPInit();
-    int32_t doDualFovPPProcess(const uint8_t* pWide, const uint8_t* pTele,
-            dualfov_input_params_t inParams, uint8_t* pOut);
-    uint32_t getUserZoomRatio(int32_t zoom_level);
+            clearsight_input_params_t& inParams);
+    int32_t doClearSightInit();
+    int32_t doClearSightProcess(const uint8_t* pWide, const uint8_t* pTele,
+            clearsight_input_params_t inParams, uint8_t* pOut);
     void dumpYUVtoFile(const uint8_t* pBuf, cam_frame_len_offset_t offset, uint32_t idx,
             const char* name_prefix);
-    void dumpInputParams(const dualfov_input_params_t& p);
-    void dumpOISData(metadata_buffer_t*  pMetadata);
-
+    void dumpInputParams(const clearsight_input_params_t& p);
 
 private:
     void *m_dlHandle;
     const cam_capability_t *m_pCaps;
-}; // QCameraDualFOVPP class
+}; // QCameraClearSight class
 }; // namespace qcamera
 
-#endif /* __QCAMERA_DUAL_FOV_PP_H__ */
+#endif /* __QCAMERA_CLEAR_SIGHT_H__ */
 
 
 

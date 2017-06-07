@@ -244,6 +244,8 @@ private:
     static const char KEY_QC_CURRENT_EXPOSURE_TIME[];
     static const char KEY_QC_CURRENT_ISO[];
     static const char KEY_QC_CACHE_VIDEO_BUFFERS[];
+    static const char KEY_QC_AF_FINETUNE[];
+    static const char KEY_QC_SUPPORTED_FINETUNE_MODES[];
 
     // DENOISE
     static const char KEY_QC_DENOISE[];
@@ -1037,6 +1039,7 @@ private:
     int32_t setCacheVideoBuffers(const QCameraParameters& params);
     int32_t setCustomParams(const QCameraParameters& params);
     int32_t setBokehMode(const QCameraParameters& params);
+    int32_t setAfFineTune(const QCameraParameters& );
     int32_t setAutoExposure(const char *autoExp);
     int32_t setPreviewFpsRange(int min_fps,int max_fps,
             int vid_min_fps,int vid_max_fps);
@@ -1145,6 +1148,7 @@ private:
     int32_t setDualLedCalibration(const QCameraParameters& params);
     int32_t setDualLedCalibration(const char *str);
     int32_t setAdvancedCaptureMode();
+    int32_t setAfFineTune(const char *FineTuneStr);
 
     // ops for batch set/get params with server
     int32_t initBatchUpdate();
@@ -1164,6 +1168,12 @@ private:
     int32_t SyncDCParams();
     void setSyncDCParams();
     void setAsymmetricSnapMode();
+
+    dual_cam_type getDualCameraConfig(cam_capability_t *capsMainCam,
+            cam_capability_t *capsAuxCam);
+    bool isBayer(cam_capability_t *caps);
+    bool isMono(cam_capability_t *caps);
+    inline bool isBayerMono() { return (mDualCamType == DUAL_CAM_BAYER_MONO); };
 
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
@@ -1351,6 +1361,7 @@ private:
     uint32_t m_bBokehMode;
     uint32_t m_bBokehBlurLevel;
     uint32_t m_bBokehMpoEnabled;
+    uint8_t  mDualCamType;
 };
 
 }; // namespace qcamera
