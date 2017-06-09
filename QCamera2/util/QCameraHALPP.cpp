@@ -49,7 +49,7 @@ namespace qcamera {
  * RETURN     : None
  *==========================================================================*/
 QCameraHALPP::QCameraHALPP()
-    : m_iuputQ(releaseInputDataCb, this),
+    : m_inputQ(releaseInputDataCb, this),
       m_outgoingQ(releaseOngoingDataCb, this),
       m_halPPBufNotifyCB(NULL),
       m_halPPGetOutputCB(NULL),
@@ -159,7 +159,7 @@ int32_t QCameraHALPP::stop()
 /*===========================================================================
  * FUNCTION   : flushQ
  *
- * DESCRIPTION: flush m_iuputQ and m_outgoingQ.
+ * DESCRIPTION: flush m_inputQ and m_outgoingQ.
  *
  * PARAMETERS : None
  *
@@ -168,7 +168,7 @@ int32_t QCameraHALPP::stop()
 int32_t QCameraHALPP::flushQ()
 {
     int32_t rc = NO_ERROR;
-    m_iuputQ.flush();
+    m_inputQ.flush();
     m_outgoingQ.flush();
     return rc;
 }
@@ -176,7 +176,7 @@ int32_t QCameraHALPP::flushQ()
 /*===========================================================================
  * FUNCTION   : initQ
  *
- * DESCRIPTION: init m_iuputQ and m_outgoingQ.
+ * DESCRIPTION: init m_inputQ and m_outgoingQ.
  *
  * PARAMETERS : None
  *
@@ -185,7 +185,7 @@ int32_t QCameraHALPP::flushQ()
 int32_t QCameraHALPP::initQ()
 {
     int32_t rc = NO_ERROR;
-    m_iuputQ.init();
+    m_inputQ.init();
     m_outgoingQ.init();
     return rc;
 }

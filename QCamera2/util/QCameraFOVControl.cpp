@@ -39,6 +39,7 @@
 
 extern "C" {
 #include "mm_camera_dbg.h"
+#include "mm_camera_interface.h"
 }
 
 namespace qcamera {
@@ -54,15 +55,16 @@ namespace qcamera {
  *
  *==========================================================================*/
 QCameraFOVControl::QCameraFOVControl()
+    :mZoomTranslator(NULL),
+     mHalPPType(CAM_HAL_PP_TYPE_NONE),
+     mDualCamType(DUAL_CAM_WIDE_TELE)
 {
-    mZoomTranslator = NULL;
     memset(&mDualCamParams,    0, sizeof(dual_cam_params_t));
     memset(&mFovControlConfig, 0, sizeof(fov_control_config_t));
     memset(&mFovControlData,   0, sizeof(fov_control_data_t));
     memset(&mFovControlResult, 0, sizeof(fov_control_result_t));
     memset(&mFovControlParm,   0, sizeof(mFovControlParm));
     memset(&mFovControlResultCachedCopy, 0, sizeof(fov_control_result_t));
-    mHalPPType = CAM_HAL_PP_TYPE_NONE;
 }
 
 
@@ -113,6 +115,7 @@ QCameraFOVControl* QCameraFOVControl::create(
         if (pFovControl) {
             bool  success = false;
             if (pFovControl->validateAndExtractParameters(capsMainCam, capsAuxCam)) {
+
                 // Based on focal lengths, map main and aux camera to wide and tele
                 if (pFovControl->mDualCamParams.paramsMain.focalLengthMm <
                     pFovControl->mDualCamParams.paramsAux.focalLengthMm) {
@@ -519,6 +522,20 @@ int32_t QCameraFOVControl::updateConfigSettings(
         // Reset the internal variables
         resetVars();
 
+        if (isBayerMono()) {
+            // Bayer is primary camera
+            mFovControlResult.isValid = true;
+            mFovControlResult.camMasterPreview  = CAM_TYPE_MAIN;
+            mFovControlResult.camMaster3A  = CAM_TYPE_MAIN;
+            mFovControlResult.activeCameras = MM_CAMERA_DUAL_CAM;
+            mFovControlData.configCompleted = true;
+            mFovControlResult.snapshotPostProcess = true;
+            memcpy(&mFovControlResultCachedCopy, &mFovControlResult,
+                    sizeof(fov_control_result_t));
+            LOGH("Configure FOVC for Bayer+Mono");
+            return NO_ERROR;
+        }
+
         // Recalculate the transition parameters
         if (calculateBasicFovRatio() && combineFovAdjustment()) {
 
@@ -652,6 +669,11 @@ int32_t QCameraFOVControl::translateInputParams(
     if (paramsMainCam && paramsAuxCam) {
         // First copy all the parameters from main to aux and then translate the subset
         memcpy(paramsAuxCam, paramsMainCam, sizeof(parm_buffer_t));
+
+        if (isBayerMono()) {
+            //skip translation for B+M
+            return NO_ERROR;
+        }
 
         if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
             // Only translate AF and AEC ROIs in case of Bokeh
@@ -1177,7 +1199,16 @@ void QCameraFOVControl::generateFovControlResult()
 {
     Mutex::Autolock lock(mMutex);
 
-    if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
+    if (isBayerMono()) {
+        // Bayer is primary camera
+        mFovControlResult.camMasterPreview  = CAM_TYPE_MAIN;
+        mFovControlResult.camMaster3A  = CAM_TYPE_MAIN;
+        mFovControlResult.activeCameras = MM_CAMERA_DUAL_CAM;
+        mFovControlData.configCompleted = true;
+        mFovControlResult.snapshotPostProcess = true;
+        mFovControlResult.isValid = true;
+        return;
+     } else if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
         // Tele is primary camera
         mFovControlResult.camMasterPreview  = mFovControlData.camTele;
         mFovControlResult.camMaster3A  = mFovControlData.camTele;
@@ -1722,8 +1753,7 @@ bool QCameraFOVControl::canSwitchMasterTo(
         } else if (mFovControlData.teleCamStreaming &&
                         (mFovControlData.frameCountTele > FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH)) {
             bool teleWellLitNonMacroScene = !mFovControlData.fallbackEnabled ||
-                                                ((currentLuxIdxTele <= thresholdLuxIdx) &&
-                                                (currentFocusDistTele >= thresholdFocusDist));
+                                                (currentLuxIdxTele <= thresholdLuxIdx);
             if (mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) {
                 // In case of OEM Spatial alignment solution, check the spatial alignment ready
                 if (isSpatialAlignmentReady() &&
@@ -2567,7 +2597,6 @@ void QCameraFOVControl::setHalPPType(cam_hal_pp_type_t halPPType)
     return;
 }
 
-
 /*===========================================================================
  * FUNCTION      : UpdateFlag
  *
@@ -2621,4 +2650,19 @@ void QCameraFOVControl::UpdateFlag(
         generateFovControlResult();
     }
 }
+
+/*===========================================================================
+* FUNCTION   : setDualCameraConfig
+*
+* DESCRIPTION: set dual camera configuration whether B+M/W+T
+*
+* PARAMETERS : input of type dual_cam_type
+*
+* RETURN    : none
+*==========================================================================*/
+void QCameraFOVControl::setDualCameraConfig(uint8_t type)
+{
+    mDualCamType = type;
+}
+
 }; // namespace qcamera
