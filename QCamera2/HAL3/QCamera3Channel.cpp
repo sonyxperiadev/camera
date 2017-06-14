@@ -1033,7 +1033,26 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
            if (mOutOfSequenceBuffers.empty()) {
               stream->cancelBuffer(oldestBufIndex);
            }
-           mOutOfSequenceBuffers.push_back(super_frame);
+
+           //push in order!
+           auto itr = mOutOfSequenceBuffers.begin();
+           for (; itr != mOutOfSequenceBuffers.end(); itr++) {
+               mm_camera_super_buf_t *super_buf = *itr;
+               uint32_t buf_idx = super_buf->bufs[0]->buf_idx;
+               int32_t frame_num = mMemory.getFrameNumber(buf_idx);
+               if (resultFrameNumber < frame_num) {
+                   LOGE("Out of order frame!! set buffer status error flag!");
+                   mOutOfSequenceBuffers.insert(itr, super_frame);
+                   super_buf->bufs[0]->flags |= V4L2_BUF_FLAG_ERROR;
+                   break;
+               }
+           }
+
+           if (itr == mOutOfSequenceBuffers.end()) {
+               LOGE("Add the frame to the end of mOutOfSequenceBuffers");
+               // add the buffer
+               mOutOfSequenceBuffers.push_back(super_frame);
+           }
            return;
        }
 
