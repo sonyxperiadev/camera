@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,34 +27,34 @@
  *
  */
 
-#define LOG_TAG "DualFOVPP"
+#define LOG_TAG "ClearSight"
 // System dependencies
 #include <dlfcn.h>
 #include <utils/Errors.h>
 #include <stdio.h>
 #include <stdlib.h>
 // Camera dependencies
-#include "QCameraDualFOVPP.h"
+#include "QCameraClearSight.h"
 #include "QCameraTrace.h"
 #include "cam_intf.h"
 extern "C" {
 #include "mm_camera_dbg.h"
 }
 
-#define LIB_PATH_LENGTH 100
+#define NUM_CLEARSIGHT_BUFS 3
 
 namespace qcamera {
 
 /*===========================================================================
- * FUNCTION   : QCameraDualFOVPP
+ * FUNCTION   : QCameraClearSight
  *
- * DESCRIPTION: constructor of QCameraDualFOVPP.
+ * DESCRIPTION: constructor of QCameraClearSight.
  *
  * PARAMETERS : None
  *
  * RETURN     : None
  *==========================================================================*/
-QCameraDualFOVPP::QCameraDualFOVPP()
+QCameraClearSight::QCameraClearSight()
     : QCameraHALPP()
 {
     m_dlHandle = NULL;
@@ -62,22 +62,22 @@ QCameraDualFOVPP::QCameraDualFOVPP()
 }
 
 /*===========================================================================
- * FUNCTION   : ~QCameraDualFOVPP
+ * FUNCTION   : ~QCameraClearSight
  *
- * DESCRIPTION: destructor of QCameraDualFOVPP.
+ * DESCRIPTION: destructor of QCameraClearSight.
  *
  * PARAMETERS : None
  *
  * RETURN     : None
  *==========================================================================*/
-QCameraDualFOVPP::~QCameraDualFOVPP()
+QCameraClearSight::~QCameraClearSight()
 {
 }
 
 /*===========================================================================
  * FUNCTION   : init
  *
- * DESCRIPTION: initialization of QCameraDualFOVPP
+ * DESCRIPTION: initialization of QCameraClearSight
  *
  * PARAMETERS :
  *   @bufNotifyCb      : call back function after HALPP process
@@ -88,9 +88,9 @@ QCameraDualFOVPP::~QCameraDualFOVPP()
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
- *              none-zero failure code
+ *              non-zero failure code
  *==========================================================================*/
-int32_t QCameraDualFOVPP::init(halPPBufNotify bufNotifyCb, halPPGetOutput getOutputCb,
+int32_t QCameraClearSight::init(halPPBufNotify bufNotifyCb, halPPGetOutput getOutputCb,
         void *pUserData, void *pStaticParam)
 {
     LOGD("E");
@@ -99,8 +99,7 @@ int32_t QCameraDualFOVPP::init(halPPBufNotify bufNotifyCb, halPPGetOutput getOut
 
     m_pCaps = (cam_capability_t *)pStaticParam;
 
-    /* we should load 3rd libs here, with dlopen/dlsym */
-    doDualFovPPInit();
+    doClearSightInit();
 
     LOGD("X");
     return rc;
@@ -109,7 +108,7 @@ int32_t QCameraDualFOVPP::init(halPPBufNotify bufNotifyCb, halPPGetOutput getOut
 /*===========================================================================
  * FUNCTION   : deinit
  *
- * DESCRIPTION: de initialization of QCameraDualFOVPP
+ * DESCRIPTION: de initialization of QCameraClearSight
  *
  * PARAMETERS : None
  *
@@ -117,7 +116,7 @@ int32_t QCameraDualFOVPP::init(halPPBufNotify bufNotifyCb, halPPGetOutput getOut
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraDualFOVPP::deinit()
+int32_t QCameraClearSight::deinit()
 {
     int32_t rc = NO_ERROR;
     LOGD("E");
@@ -132,7 +131,7 @@ int32_t QCameraDualFOVPP::deinit()
 /*===========================================================================
  * FUNCTION   : start
  *
- * DESCRIPTION: starting QCameraDualFOVPP
+ * DESCRIPTION: starting QCameraClearSight
  *
  * PARAMETERS :
  *
@@ -140,7 +139,7 @@ int32_t QCameraDualFOVPP::deinit()
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraDualFOVPP::start()
+int32_t QCameraClearSight::start()
 {
     int32_t rc = NO_ERROR;
     LOGD("E");
@@ -166,7 +165,7 @@ int32_t QCameraDualFOVPP::start()
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraDualFOVPP::feedInput(qcamera_hal_pp_data_t *pInputData)
+int32_t QCameraClearSight::feedInput(qcamera_hal_pp_data_t *pInputData)
 {
     int32_t rc = NO_ERROR;
     LOGD("E");
@@ -178,14 +177,13 @@ int32_t QCameraDualFOVPP::feedInput(qcamera_hal_pp_data_t *pInputData)
             std::vector<qcamera_hal_pp_data_t*> *pVector = getFrameVector(frameIndex);
             if(pVector == NULL) {
                 LOGD("insert new frame index = %d", frameIndex);
-                uint32_t *pFrameIndex = new uint32_t;
-                *pFrameIndex = frameIndex;
                 // new the vector first
-                pVector = new std::vector<qcamera_hal_pp_data_t*>(WIDE_TELE_CAMERA_NUMBER);
-                pVector->at(WIDE_INPUT) = NULL;
-                pVector->at(TELE_INPUT) = NULL;
+                pVector = new std::vector<qcamera_hal_pp_data_t*>(MM_CAMERA_MAX_CAM_CNT);
                 // Add vector to the hash map
                 m_frameMap[frameIndex] = pVector;
+            } else {
+                uint32_t *pFrameIndex = new uint32_t;
+                *pFrameIndex = frameIndex;
                 // Enqueue the frame index (i.e. key of vector) to queue
                 if (false == m_inputQ.enqueue((void*)pFrameIndex)) {
                     LOGE("Input Q is not active!!!");
@@ -196,9 +194,12 @@ int32_t QCameraDualFOVPP::feedInput(qcamera_hal_pp_data_t *pInputData)
                     rc = INVALID_OPERATION;
                     return rc;
                 }
+                if (m_inputQ.getCurrentSize() == MIN_CLEARSIGHT_BUFS) {
+                    m_halPPGetOutputCB(frameIndex, m_pHalPPMgr);
+                }
             }
             pInputData->frameIndex = frameIndex;
-            // Check if frame is from main wide camera
+            // Check if frame is from main camera
             bool bIsMain = true;
             uint32_t mainHandle = get_main_camera_handle(
                     pInputData->src_reproc_frame->camera_handle);
@@ -208,14 +209,9 @@ int32_t QCameraDualFOVPP::feedInput(qcamera_hal_pp_data_t *pInputData)
             LOGD("mainHandle = %d, is main frame = %d", mainHandle, bIsMain);
             // Add input data to vector
             if (bIsMain) {
-                pVector->at(WIDE_INPUT) = pInputData;
+                pVector->at(BAYER_INPUT) = pInputData;
             } else {
-                pVector->at(TELE_INPUT) = pInputData;
-            }
-
-            // request output buffer only if both wide and tele input data are recieved
-            if (pVector->at(0) != NULL && pVector->at(1) != NULL) {
-                m_halPPGetOutputCB(frameIndex, m_pHalPPMgr);
+                pVector->at(MONO_INPUT) = pInputData;
             }
         }
     } else {
@@ -238,36 +234,18 @@ int32_t QCameraDualFOVPP::feedInput(qcamera_hal_pp_data_t *pInputData)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraDualFOVPP::feedOutput(qcamera_hal_pp_data_t *pOutputData)
+int32_t QCameraClearSight::feedOutput(qcamera_hal_pp_data_t *pOutputData)
 {
     int32_t rc = NO_ERROR;
     LOGD("E");
-
     if (NULL != pOutputData) {
         uint32_t frameIndex = pOutputData->frameIndex;
         std::vector<qcamera_hal_pp_data_t*> *pVector = getFrameVector(frameIndex);
-        // Get the Wide/Tele input frame in order to decide output buffer len,
+        // Get the main input frame in order to get output buffer len,
         // and copy metadata buffer.
-        if (pVector != NULL && pVector->at(WIDE_INPUT) != NULL && pVector->at(TELE_INPUT) != NULL) {
-            qcamera_hal_pp_data_t *pInputDataWide = pVector->at(WIDE_INPUT);
-            qcamera_hal_pp_data_t *pInputDataTele = pVector->at(TELE_INPUT);
-
-            QCameraStream* pSnapshotStreamWide = NULL;
-            QCameraStream* pSnapshotStreamTele = NULL;
-            mm_camera_buf_def_t *pBufWide = getSnapshotBuf(pInputDataWide, pSnapshotStreamWide);
-            mm_camera_buf_def_t *pBufTele = getSnapshotBuf(pInputDataTele, pSnapshotStreamTele);
-            if (pBufWide == NULL || pBufTele == NULL) {
-                LOGE("%s buf is null",(pBufWide == NULL) ? "wide" : "tele");
-                return UNEXPECTED_NULL;
-            }
-            LOGH("snapshot frame len, wide:%d, tele:%d", pBufWide->frame_len, pBufTele->frame_len);
-            qcamera_hal_pp_data_t *pInputData = pInputDataWide;
-            if (pBufTele->frame_len > pBufWide->frame_len) {
-                pInputData = pInputDataTele;
-            }
-
+        if (pVector != NULL && pVector->at(BAYER_INPUT) != NULL) {
+            qcamera_hal_pp_data_t *pInputData = pVector->at(BAYER_INPUT);
             rc = getOutputBuffer(pInputData, pOutputData);
-
             // Enqueue output_data to m_outgoingQ
             if (false == m_outgoingQ.enqueue((void *)pOutputData)) {
                 LOGE("outgoing Q is not active!!!");
@@ -286,7 +264,7 @@ int32_t QCameraDualFOVPP::feedOutput(qcamera_hal_pp_data_t *pOutputData)
 /*===========================================================================
  * FUNCTION   : process
  *
- * DESCRIPTION: Start FOV post process
+ * DESCRIPTION: function to start ClearSight blending process
  *
  * PARAMETERS : None
  *
@@ -294,7 +272,7 @@ int32_t QCameraDualFOVPP::feedOutput(qcamera_hal_pp_data_t *pOutputData)
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraDualFOVPP::process()
+int32_t QCameraClearSight::process()
 {
     int32_t rc = NO_ERROR;
 
@@ -306,15 +284,17 @@ int32_t QCameraDualFOVPP::process()
 
     LOGD("E");
 
+    if (!canProcess()) {
+        LOGD("Yet to receive all input/output bufs");
+        return NO_ERROR;
+    }
+
+    LOGI("start clearsight process");
+
     // TODO: dequeue from m_inputQ and start process logic
     // Start the blending process when it is ready
-    if (canProcess()) {
-        LOGI("start Dual FOV process");
+    while (!m_inputQ.isEmpty()) {
         uint32_t *pFrameIndex = (uint32_t *)m_inputQ.dequeue();
-        if (pFrameIndex == NULL) {
-            LOGE("frame index is null");
-            return UNEXPECTED_NULL;
-        }
         uint32_t frameIndex = *pFrameIndex;
         std::vector<qcamera_hal_pp_data_t*> *pVector = getFrameVector(frameIndex);
         // Search vector of input frames in frame map
@@ -324,7 +304,7 @@ int32_t QCameraDualFOVPP::process()
         }
         // Get input and output frame buffer
         qcamera_hal_pp_data_t *pInputMainData =
-                (qcamera_hal_pp_data_t *)pVector->at(WIDE_INPUT);
+                (qcamera_hal_pp_data_t *)pVector->at(BAYER_INPUT);
         if (pInputMainData == NULL) {
             LOGE("Cannot find input main data");
             return UNEXPECTED_NULL;
@@ -334,17 +314,9 @@ int32_t QCameraDualFOVPP::process()
         }
         //mm_camera_super_buf_t *input_main_frame = input_main_data->frame;
         qcamera_hal_pp_data_t *pInputAuxData =
-                (qcamera_hal_pp_data_t *)pVector->at(TELE_INPUT);
+                (qcamera_hal_pp_data_t *)pVector->at(MONO_INPUT);
         if (pInputAuxData == NULL) {
             LOGE("Cannot find input aux data");
-            return UNEXPECTED_NULL;
-        }
-
-        //mm_camera_super_buf_t *input_aux_frame = input_aux_data->frame;
-        qcamera_hal_pp_data_t *pOutputData =
-                (qcamera_hal_pp_data_t*)m_outgoingQ.dequeue();
-        if (pOutputData == NULL) {
-            LOGE("Cannot find output data");
             return UNEXPECTED_NULL;
         }
 
@@ -375,9 +347,6 @@ int32_t QCameraDualFOVPP::process()
             return UNEXPECTED_NULL;
         }
 
-        mm_camera_super_buf_t *output_frame = pOutputData->frame;
-        mm_camera_buf_def_t *output_snapshot_buf = output_frame->bufs[0];
-
         // Use offset info from reproc stream
         if (pMainSnapshotStream == NULL) {
             LOGE("pMainSnapshotStream is NULL");
@@ -385,50 +354,54 @@ int32_t QCameraDualFOVPP::process()
         }
         cam_frame_len_offset_t frm_offset;
         pMainSnapshotStream->getFrameOffset(frm_offset);
-        LOGI("<Wide> Stream type:%d, stride:%d, scanline:%d, frame len:%d",
+        LOGI("Stream type:%d, stride:%d, scanline:%d, frame len:%d",
                 pMainSnapshotStream->getMyType(),
                 frm_offset.mp[0].stride, frm_offset.mp[0].scanline,
                 frm_offset.frame_len);
+
         if (dumpimg) {
             dumpYUVtoFile((uint8_t *)main_snapshot_buf->buffer, frm_offset,
-                    main_snapshot_buf->frame_idx, "wide");
+                    main_snapshot_buf->frame_idx, "bayer");
+            dumpYUVtoFile((uint8_t *)aux_snapshot_buf->buffer,  frm_offset,
+                    aux_snapshot_buf->frame_idx,  "mono");
         }
+
+        //Get input and output parameter
+        clearsight_input_params_t inParams;
         if (pAuxSnapshotStream == NULL) {
             LOGE("pAuxSnapshotStream is NULL");
             return UNEXPECTED_NULL;
         }
-        pAuxSnapshotStream->getFrameOffset(frm_offset);
-        LOGI("<Tele> Stream type:%d, stride:%d, scanline:%d, frame len:%d",
-                pAuxSnapshotStream->getMyType(),
-                frm_offset.mp[0].stride, frm_offset.mp[0].scanline,
-                frm_offset.frame_len);
-        if (dumpimg) {
-            dumpYUVtoFile((uint8_t *)aux_snapshot_buf->buffer,  frm_offset,
-                    aux_snapshot_buf->frame_idx,  "tele");
-        }
-
-        //Get input and output parameter
-        dualfov_input_params_t inParams;
         getInputParams(main_meta_buf, aux_meta_buf, pMainSnapshotStream, pAuxSnapshotStream,
                 inParams);
+
+        if (main_snapshot_buf->frame_idx == aux_snapshot_buf->frame_idx)
+            inParams.frame_idx = main_snapshot_buf->frame_idx;
+        else {
+            LOGE("something wrong !!!");
+        }
         dumpInputParams(inParams);
 
-        doDualFovPPProcess((const uint8_t *)main_snapshot_buf->buffer,
-                        (const uint8_t *)aux_snapshot_buf->buffer,
-                        inParams,
-                        (uint8_t *)output_snapshot_buf->buffer);
+        qcamera_hal_pp_data_t *pOutputData = NULL;
+        if (m_inputQ.isEmpty()) {
+            pOutputData = (qcamera_hal_pp_data_t*)m_outgoingQ.dequeue();
 
-        if (dumpimg) {
-            pMainSnapshotStream->getFrameOffset(frm_offset);
-            if (aux_snapshot_buf->frame_len > main_snapshot_buf->frame_len) {
-                pAuxSnapshotStream->getFrameOffset(frm_offset);
+            mm_camera_super_buf_t *output_frame = pOutputData->frame;
+            mm_camera_buf_def_t *output_snapshot_buf = output_frame->bufs[0];
+
+            doClearSightProcess((const uint8_t *)main_snapshot_buf->buffer,
+                            (const uint8_t *)aux_snapshot_buf->buffer,
+                            inParams,
+                            (uint8_t *)output_snapshot_buf->buffer);
+
+            if (dumpimg) {
+                dumpYUVtoFile((uint8_t *)output_snapshot_buf->buffer, frm_offset,
+                        main_snapshot_buf->frame_idx, "out");
             }
-            dumpYUVtoFile((uint8_t *)output_snapshot_buf->buffer, frm_offset,
-                    main_snapshot_buf->frame_idx, "out");
-        }
 
-        /* clean and invalidate caches, for input and output buffers*/
-        pOutputData->snapshot_heap->cleanInvalidateCache(0);
+            /* clean and invalidate caches, for input and output buffers*/
+            pOutputData->snapshot_heap->cleanInvalidateCache(0);
+        }
 
         QCameraMemory *pMem = (QCameraMemory *)main_snapshot_buf->mem_info;
         pMem->invalidateCache(main_snapshot_buf->buf_idx);
@@ -438,14 +411,14 @@ int32_t QCameraDualFOVPP::process()
 
 
         // Calling cb function to return output_data after processed.
-        LOGH("CB for output");
-        m_halPPBufNotifyCB(pOutputData, m_pHalPPMgr);
+        if (pOutputData)
+            m_halPPBufNotifyCB(pOutputData, m_pHalPPMgr);
 
         // also send input buffer to postproc.
-        LOGH("CB for wide input");
         m_halPPBufNotifyCB(pInputMainData, m_pHalPPMgr);
-        LOGH("CB for tele input");
         m_halPPBufNotifyCB(pInputAuxData, m_pHalPPMgr);
+        //releaseData(pInputMainData);
+        //releaseData(pInputAuxData);
 
         // Release internal resource
         m_frameMap.erase(frameIndex);
@@ -460,16 +433,16 @@ int32_t QCameraDualFOVPP::process()
  * FUNCTION   : canProcess
  *
  * DESCRIPTION: function to release internal resources
- * RETURN     : true if Dual FOV is ready to process
+ * RETURN     : If ClearSight module can start blending process
  *==========================================================================*/
-bool QCameraDualFOVPP::canProcess()
+bool QCameraClearSight::canProcess()
 {
     LOGD("E");
     bool ready = false;
     if(!m_inputQ.isEmpty() && !m_outgoingQ.isEmpty()) {
         ready = true;
     }
-    LOGD("X");
+    LOGD("X: ready = %d", ready);
     return ready;
 }
 
@@ -478,84 +451,42 @@ bool QCameraDualFOVPP::canProcess()
  *
  * DESCRIPTION: Helper function to get input params from input metadata
  *==========================================================================*/
-void QCameraDualFOVPP::getInputParams(mm_camera_buf_def_t *pMainMetaBuf,
-        mm_camera_buf_def_t *pAuxMetaBuf, QCameraStream* pMainSnapshotStream,
-        QCameraStream* pAuxSnapshotStream, dualfov_input_params_t& inParams)
+void QCameraClearSight::getInputParams(__unused mm_camera_buf_def_t *pMainMetaBuf,
+        __unused mm_camera_buf_def_t *pAuxMetaBuf, QCameraStream* pMainSnapshotStream,
+        QCameraStream* pAuxSnapshotStream, clearsight_input_params_t& inParams)
 {
     LOGD("E");
-    memset(&inParams, 0, sizeof(dualfov_input_params_t));
-    metadata_buffer_t *pMainMeta = (metadata_buffer_t *)pMainMetaBuf->buffer;
-    metadata_buffer_t *pAuxMeta = (metadata_buffer_t *)pAuxMetaBuf->buffer;
+    memset(&inParams, 0, sizeof(clearsight_input_params_t));
 
-    // Wide frame size
+    // bayer frame size
     cam_frame_len_offset_t offset;
     pMainSnapshotStream->getFrameOffset(offset);
-    inParams.wide.width     = offset.mp[0].width;
-    inParams.wide.height    = offset.mp[0].height;
-    inParams.wide.stride    = offset.mp[0].stride;
-    inParams.wide.scanline  = offset.mp[0].scanline;
-    inParams.wide.frame_len = offset.frame_len;
+    inParams.bayer.width     = offset.mp[0].width;
+    inParams.bayer.height    = offset.mp[0].height;
+    inParams.bayer.stride    = offset.mp[0].stride;
+    inParams.bayer.scanline  = offset.mp[0].scanline;
+    inParams.bayer.frame_len = offset.frame_len;
 
-    // Tele frame size
+    // mono frame size
     pAuxSnapshotStream->getFrameOffset(offset);
-    inParams.tele.width     = offset.mp[0].width;
-    inParams.tele.height    = offset.mp[0].height;
-    inParams.tele.stride    = offset.mp[0].stride;
-    inParams.tele.scanline  = offset.mp[0].scanline;
-    inParams.tele.frame_len = offset.frame_len;
-
-    // user_zoom
-    int32_t zoom_level = -1; // 0 means zoom 1x.
-    IF_META_AVAILABLE(cam_zoom_info_t, zoomInfoMain, CAM_INTF_PARM_USERZOOM, pMainMeta) {
-        // Get main camera zoom value
-        for (uint32_t i = 0; i < zoomInfoMain->num_streams; ++i) {
-            if (zoomInfoMain->stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
-                zoom_level = zoomInfoMain->stream_zoom_info[i].stream_zoom;
-            }
-        }
-        LOGD("zoom level in main meta:%d", zoom_level);
-    }
-    inParams.user_zoom= getUserZoomRatio(zoom_level);
-    LOGI("dual fov total zoom ratio: %d", inParams.user_zoom);
-
-    IF_META_AVAILABLE(cam_zoom_info_t, zoomInfoAux, CAM_INTF_PARM_USERZOOM, pAuxMeta) {
-        zoom_level = -1;
-        // Get aux camera zoom value
-        for (uint32_t i = 0; i < zoomInfoAux->num_streams; ++i) {
-            if (zoomInfoAux->stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
-                zoom_level = zoomInfoAux->stream_zoom_info[i].stream_zoom;
-            }
-        }
-        LOGD("zoom level in aux meta:%d", zoom_level);
-    }
-
-    IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, pMainMeta) {
-        if (((*afState) == CAM_AF_STATE_FOCUSED_LOCKED) ||
-            ((*afState) == CAM_AF_STATE_PASSIVE_FOCUSED)) {
-            inParams.af_status = AF_STATUS_VALID;
-        } else {
-            inParams.af_status = AF_STATUS_INVALID;
-        }
-        LOGD("af state:%d, output af status:%d", *afState, inParams.af_status);
-    }
-
-    IF_META_AVAILABLE(uint32_t, auxAfState, CAM_INTF_META_AF_STATE, pAuxMeta) {
-        int aux_af_status = 0;
-        if (((*auxAfState) == CAM_AF_STATE_FOCUSED_LOCKED) ||
-            ((*auxAfState) == CAM_AF_STATE_PASSIVE_FOCUSED)) {
-            aux_af_status = AF_STATUS_VALID;
-        } else {
-            aux_af_status = AF_STATUS_INVALID;
-        }
-        LOGD("aux af state:%d, output af status:%d", *auxAfState, aux_af_status);
-    }
-
+    inParams.mono.width     = offset.mp[0].width;
+    inParams.mono.height    = offset.mp[0].height;
+    inParams.mono.stride    = offset.mp[0].stride;
+    inParams.mono.scanline  = offset.mp[0].scanline;
+    inParams.mono.frame_len = offset.frame_len;
 
     LOGD("X");
 }
 
-
-int32_t QCameraDualFOVPP::doDualFovPPInit()
+/*===========================================================================
+ * FUNCTION   : doClearSightInit
+ *
+ * DESCRIPTION: function to do required initialization for clearsight processing.
+ * RETURN     :  int32_t type of status
+ *                   NO_ERROR  -- success
+ *                   non-zero -- failure code
+ *==========================================================================*/
+int32_t QCameraClearSight::doClearSightInit()
 {
     LOGD("E");
     int rc = NO_ERROR;
@@ -564,51 +495,38 @@ int32_t QCameraDualFOVPP::doDualFovPPInit()
     return rc;
 }
 
-int32_t QCameraDualFOVPP::doDualFovPPProcess(const uint8_t* pWide, const uint8_t* pTele,
-                                                    dualfov_input_params_t inParams,
-                                                    uint8_t* pOut)
+/*===========================================================================
+ * FUNCTION   : doClearSightProcess
+ *
+ * DESCRIPTION: clearsight processing routine
+ * RETURN     :  int32_t type of status
+ *                   NO_ERROR  -- success
+ *                   non-zero -- failure code
+ *==========================================================================*/
+
+int32_t QCameraClearSight::doClearSightProcess(const uint8_t* pBayer, const uint8_t* pMono,
+        clearsight_input_params_t inParams, uint8_t* pOut)
 {
-    LOGW("E.");
+    LOGD("E");
 
     // trace begin
 
-    if (inParams.tele.frame_len == inParams.wide.frame_len) {
-        LOGD("copy to output, half from wide, half from tele..");
+    // half image from bayer, and half image from mono
 
-        // half image from main, and half image from tele
+    // Y
+    memcpy(pOut, pBayer, inParams.bayer.stride * inParams.bayer.scanline / 2);
+    memcpy(pOut  + inParams.bayer.stride * inParams.bayer.scanline / 2,
+           pMono + inParams.bayer.stride * inParams.bayer.scanline / 2,
+           inParams.bayer.stride * inParams.bayer.scanline / 2);
 
-        // Y
-        memcpy(pOut, pWide, inParams.wide.stride * inParams.wide.scanline / 2);
-        memcpy(pOut  + inParams.wide.stride * inParams.wide.scanline / 2,
-               pTele + inParams.wide.stride * inParams.wide.scanline / 2,
-               inParams.wide.stride * inParams.wide.scanline / 2);
-
-        // UV
-        uint32_t uv_offset = inParams.wide.stride * inParams.wide.scanline;
-        memcpy(pOut  + uv_offset,
-               pWide + uv_offset,
-               inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
-        memcpy(pOut  + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
-               pTele + uv_offset + inParams.wide.stride * (inParams.wide.scanline / 2) / 2,
-               inParams.wide.stride * (inParams.wide.scanline / 2) / 2);
-
-    } else {
-        // copy the larger input buffer to output
-        const uint8_t* pIn = pWide;
-        uint32_t len = inParams.wide.frame_len;
-
-        if (inParams.tele.frame_len > inParams.wide.frame_len) {
-            LOGD("copy tele to output");
-            pIn = pTele;
-            len = inParams.tele.frame_len;
-        } else {
-            LOGD("copy wide to output");
-            pIn = pWide;
-            len = inParams.wide.frame_len;
-        }
-
-        memcpy(pOut, pIn, len);
-    }
+    // UV
+    uint32_t uv_offset = inParams.bayer.stride * inParams.bayer.scanline;
+    memcpy(pOut  + uv_offset,
+           pBayer + uv_offset,
+           inParams.bayer.stride * (inParams.bayer.scanline / 2) / 2);
+    memcpy(pOut  + uv_offset + inParams.bayer.stride * (inParams.bayer.scanline / 2) / 2,
+           pMono + uv_offset + inParams.bayer.stride * (inParams.bayer.scanline / 2) / 2,
+           inParams.bayer.stride * (inParams.bayer.scanline / 2) / 2);
 
     // trace end
 
@@ -616,30 +534,14 @@ int32_t QCameraDualFOVPP::doDualFovPPProcess(const uint8_t* pWide, const uint8_t
     return NO_ERROR;
 }
 
-uint32_t QCameraDualFOVPP::getUserZoomRatio(int32_t zoom_level)
-{
-    uint32_t zoom_ratio = 4096;
-
-    LOGD("E. input zoom level:%d", zoom_level);
-
-    if (zoom_level < 0) {
-        LOGW("invalid zoom evel!");
-        /* got the zoom value from QCamera2HWI Parameters */
-        zoom_level = 0;
-    }
-
-    // user_zoom_ratio = qcom_zoom_ratio * 4096 / 100
-    if (m_pCaps != NULL) {
-        zoom_ratio *= m_pCaps->zoom_ratio_tbl[zoom_level];
-        zoom_ratio /= 100;
-        LOGD("converted zoom ratio:%d", zoom_ratio);
-    }
-
-    LOGD("X. zoom_ratio:%d", zoom_ratio);
-    return zoom_ratio;
-}
-
-void QCameraDualFOVPP::dumpYUVtoFile(const uint8_t* pBuf, cam_frame_len_offset_t offset, uint32_t idx, const char* name_prefix)
+/*===========================================================================
+ * FUNCTION   : dumpYUVtoFile
+ *
+ * DESCRIPTION: dumps yuv for debug purpose
+ * RETURN     :  None
+ *==========================================================================*/
+void QCameraClearSight::dumpYUVtoFile(const uint8_t* pBuf, cam_frame_len_offset_t offset,
+        uint32_t idx, const char* name_prefix)
 {
     LOGD("E.");
     char filename[256];
@@ -652,53 +554,27 @@ void QCameraDualFOVPP::dumpYUVtoFile(const uint8_t* pBuf, cam_frame_len_offset_t
     LOGD("X.");
 }
 
-void QCameraDualFOVPP::dumpInputParams(const dualfov_input_params_t& p)
+/*===========================================================================
+ * FUNCTION   : dumpInputParams
+ *
+ * DESCRIPTION: dumps input params for debug purpose
+ * RETURN     :  None
+ *==========================================================================*/
+void QCameraClearSight::dumpInputParams(const clearsight_input_params_t& p)
 {
-    LOGD("E");
+    LOGD("E : frame idx %d", p.frame_idx);
 
     const cam_frame_size_t* s = NULL;
 
-    s = &p.wide;
-    LOGD("wide frame size: %d, %d, stride:%d, scanline:%d",
+    s = &p.bayer;
+    LOGD("bayer frame size: %d, %d, stride:%d, scanline:%d",
             s->width, s->height, s->stride, s->scanline);
 
-    s = &p.tele;
-    LOGD("wide frame size: %d, %d, stride:%d, scanline:%d",
+    s = &p.mono;
+    LOGD("bayer frame size: %d, %d, stride:%d, scanline:%d",
             s->width, s->height, s->stride, s->scanline);
 
-    LOGD("zoom ratio: %f", p.user_zoom / 4096.0);
     LOGD("X");
 }
-
-
-/*===========================================================================
- * FUNCTION   : dumpOISData
- *
- * DESCRIPTION: Read Sensor OIS data from metadata and dump it
- *
- * PARAMETERS :
- * @pMetadata : Frame metadata
- *
- * RETURN     : None
- *
- *==========================================================================*/
-void QCameraDualFOVPP::dumpOISData(metadata_buffer_t*  pMetadata)
-{
-    if (!pMetadata) {
-        LOGD("OIS data not available");
-        return;
-    }
-
-    IF_META_AVAILABLE(cam_ois_data_t, pOisData, CAM_INTF_META_OIS_READ_DATA, pMetadata) {
-        LOGD("Ois Data: data size: %d", pOisData->size);
-        uint8_t *data = pOisData->data;
-        if (pOisData->size == 8) {
-            LOGD("Ois Data Buffer : %d %d %d %d %d %d %d %d ",
-                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
-        }
-    }
-    return;
-}
-
 
 } // namespace qcamera

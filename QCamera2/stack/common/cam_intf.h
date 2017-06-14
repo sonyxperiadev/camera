@@ -1103,7 +1103,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_RAW,                          cam_dimension_t,             1);
     INCLUDE(CAM_INTF_META_STREAM_INFO_FOR_PIC_RES,      cam_stream_size_info_t,      1);
     INCLUDE(CAM_INTF_PARM_VFE1_RESERVED_RDI,            int32_t,                     1);
-
+    INCLUDE(CAM_INTF_PARM_SKIP_FINE_SCAN,               int32_t,                     1);
 
     /* HAL3 specific */
     INCLUDE(CAM_INTF_META_STREAM_INFO,                  cam_stream_size_info_t,      1);

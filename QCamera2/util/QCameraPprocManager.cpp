@@ -32,6 +32,7 @@
 #include "QCameraHALPP.h"
 #include "QCameraDualFOVPP.h"
 #include "QCameraBokeh.h"
+#include "QCameraClearSight.h"
 
 using namespace android;
 
@@ -106,6 +107,7 @@ int32_t QCameraHALPPManager::init(
             m_pPprocModule = new QCameraBokeh();
             break;
         case CAM_HAL_PP_TYPE_CLEARSIGHT:
+            m_pPprocModule = new QCameraClearSight();
             break;
         default:
             break;

@@ -65,7 +65,6 @@ typedef enum {
     ZOOM_OUT
 } dual_cam_zoom_dir;
 
-
 typedef enum {
     FOVCONTROL_FLAG_FORCE_CAMERA_WAKEUP = 0,
     FOVCONTROL_FLAG_THERMAL_THROTTLE,
@@ -73,6 +72,11 @@ typedef enum {
     FOVCONTROL_FLAG_COUNT
 } fov_control_flag;
 
+typedef enum {
+    DUAL_CAM_WIDE_TELE,
+    DUAL_CAM_BAYER_MONO,
+    DUAL_CAM_MAX
+} dual_cam_type;
 
 typedef struct {
     ae_status status;
@@ -237,6 +241,8 @@ public:
     cam_frame_margins_t getFrameMargins(int8_t masterCamera);
     void setHalPPType(cam_hal_pp_type_t halPPtype);
     void UpdateFlag(fov_control_flag flag, void *value);
+    inline bool isBayerMono() { return (mDualCamType == DUAL_CAM_BAYER_MONO); };
+    void setDualCameraConfig(uint8_t type);
 
 private:
     QCameraFOVControl();
@@ -274,6 +280,7 @@ private:
     QCameraExtZoomTranslator       *mZoomTranslator;
     cam_hal_pp_type_t               mHalPPType;
     fov_control_parm_t              mFovControlParm;
+    uint8_t                         mDualCamType;
 };
 
 }; // namespace qcamera
