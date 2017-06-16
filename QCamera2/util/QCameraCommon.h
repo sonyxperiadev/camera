@@ -56,6 +56,7 @@ public:
     bool isVideoUBWCEnabled();
     static bool is_target_SDM630();
     static bool skipAnalysisBundling();
+    bool needAnalysisStream();
 
 private:
     cam_capability_t *m_pCapability;
