@@ -612,7 +612,9 @@ bool QCamera2Factory::isDualCamAvailable(int hal3Enabled)
 {
     bool rc = false;
     int i = 0;
+#ifdef QCAMERA_HAL1_SUPPORT
     camera_info info;
+#endif
     cam_sync_type_t cam_type = CAM_TYPE_MAIN;
 
     for (i = 0; i < mNumOfCameras; i++) {
