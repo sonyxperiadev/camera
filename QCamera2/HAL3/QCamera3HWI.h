@@ -548,6 +548,7 @@ public:
     uint32_t mOpMode;
     bool mStreamConfig;
     QCameraCommon   mCommon;
+    cam_format_t mRdiModeFmt;
 private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
@@ -635,6 +636,7 @@ private:
     bool m_bSensorHDREnabled;
 
     uint8_t mCurrentSceneMode;
+    bool m_bOfflineIsp;
 };
 
 }; // namespace qcamera

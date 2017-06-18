@@ -84,6 +84,7 @@ class QCamera3ProcessingChannel;
     typedef struct {
         cam_stream_type_t stream_type;
         cam_format_t stream_format;
+        cam_format_t output_stream_format;
         cam_dimension_t input_stream_dim;
         cam_stream_buf_plane_info_t input_stream_plane_info;
         cam_dimension_t output_stream_dim;
