@@ -352,5 +352,26 @@ bool QCameraCommon::skipAnalysisBundling()
     return !needBundling;
 }
 
+/*===========================================================================
+ * FUNCTION   : needAnalysisStream
+ *
+ * DESCRIPTION: Function to check whether analysis stream is needed or not
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : TRUE /FALSE
+ *==========================================================================*/
+bool QCameraCommon::needAnalysisStream()
+{
+    bool needAnalysisStream = true;
+    cam_capability_t *caps = (m_pCapability->aux_cam_cap != NULL) ?
+            m_pCapability->aux_cam_cap : m_pCapability;
+    if ((caps->color_arrangement == CAM_FILTER_ARRANGEMENT_Y) &&
+            caps->is_mono_stats_suport) {
+        needAnalysisStream = false;
+    }
+
+    return needAnalysisStream;
+}
 
 }; // namespace qcamera

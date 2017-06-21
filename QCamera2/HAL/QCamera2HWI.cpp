@@ -2715,6 +2715,12 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
             // Add the display minUndequeCount count on top of camera requirement
             bufferCnt += minUndequeCount;
 
+            // Make preview buffer cnt to zero for the slavesession in Bokeh
+            if ((mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
+                     isNoDisplayMode(cam_type)) {
+                bufferCnt = 0;
+            }
+
             property_get("persist.camera.preview_yuv", value, "0");
             persist_cnt = atoi(value);
             if ((persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM)
@@ -7858,6 +7864,15 @@ int32_t QCamera2HardwareInterface::addStreamToChannel(QCameraChannel *pChannel,
         }
     }
 
+    if ((streamType == CAM_STREAM_TYPE_ANALYSIS) &&
+            !mParameters.needAnalysisStream()) {
+        if (isDualCamera()) {
+            cam_type = MM_CAMERA_TYPE_MAIN;
+        } else {
+            return NO_ERROR;
+        }
+    }
+
     pStreamInfo = allocateStreamInfoBuf(streamType,
             getStreamRefCount(streamType, cam_type), cam_type);
     if (pStreamInfo == NULL) {
@@ -8963,7 +8978,8 @@ QCameraReprocessChannel *QCamera2HardwareInterface::addReprocChannel(
         pChannel->setReprocCount(1);
     }
 
-    if (isDualCamera() && mBundledSnapshot) {
+    if (isDualCamera() && mBundledSnapshot && !mParameters.isDCmAsymmetricSnapMode()) {
+        // Add extra buffer only if snapshot resolution is symmetric
         minStreamBufNum += 1;
     }
 

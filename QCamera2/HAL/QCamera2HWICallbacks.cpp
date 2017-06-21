@@ -3188,18 +3188,19 @@ void QCamera2HardwareInterface::dumpFrameToFile(QCameraStream *stream,
                                 index += offset.mp[i-1].len;
                             }
 
+                            /* In UBWC cases the entire frame, whose end is @ offset of "len",
+                               needs to be dumped, which includes the meta_len also */
                             if (offset.mp[i].meta_len != 0) {
                                 data = (void *)((uint8_t *)frame->buffer + index);
                                 written_len += write(file_fd, data,
-                                        (size_t)offset.mp[i].meta_len);
-                                index += (uint32_t)offset.mp[i].meta_len;
-                            }
-
-                            for (int j = 0; j < offset.mp[i].height; j++) {
-                                data = (void *)((uint8_t *)frame->buffer + index);
-                                written_len += write(file_fd, data,
-                                        (size_t)offset.mp[i].width);
-                                index += (uint32_t)offset.mp[i].stride;
+                                    (size_t)offset.mp[i].len);
+                            } else {
+                                for (int j = 0; j < offset.mp[i].height; j++) {
+                                    data = (void *)((uint8_t *)frame->buffer + index);
+                                    written_len += write(file_fd, data,
+                                            (size_t)offset.mp[i].width);
+                                    index += (uint32_t)offset.mp[i].stride;
+                                }
                             }
                         }
 
