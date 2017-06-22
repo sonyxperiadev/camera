@@ -757,7 +757,8 @@ int32_t QCamera3PostProcessor::processJpegSettingData(
  *
  * NOTE       : The frame after reprocess need to send to jpeg encoding.
  *==========================================================================*/
-int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame)
+int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
+        const metadata_buffer_t *p_metadata)
 {
     qcamera_hal3_pp_data_t *job = (qcamera_hal3_pp_data_t *)m_ongoingPPQ.dequeue();
     ATRACE_INT("Camera:Reprocess", 0);
@@ -787,6 +788,10 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame)
         jpeg_job->metadata =
                 (metadata_buffer_t *) job->fwk_src_frame->metadata_buffer.buffer;
         jpeg_job->fwk_src_buffer = job->fwk_src_frame;
+    }
+    if (p_metadata != NULL) {
+        // update metadata content with input buffer
+        memcpy(jpeg_job->metadata, p_metadata, sizeof(metadata_buffer_t));
     }
     jpeg_job->src_metadata = job->src_metadata;
     jpeg_job->jpeg_settings = job->jpeg_settings;

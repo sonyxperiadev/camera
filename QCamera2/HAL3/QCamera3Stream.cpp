@@ -924,7 +924,13 @@ int32_t QCamera3Stream::getBufs(cam_frame_len_offset_t *offset,
        LOGE("Failed getBufs being called twice in a row without a putBufs call");
        return INVALID_OPERATION;
     }
-    mStreamBufs = mChannel->getStreamBufs(mFrameLenOffset.frame_len);
+
+    if (mStreamInfo->reprocess_config.offline.input_type == CAM_STREAM_TYPE_METADATA) {
+        mStreamBufs = ((QCamera3ReprocessChannel*)mChannel)->getMetaStreamBufs(
+                mFrameLenOffset.frame_len);
+    } else {
+        mStreamBufs = mChannel->getStreamBufs(mFrameLenOffset.frame_len);
+    }
     if (!mStreamBufs) {
         LOGE("Failed to allocate stream buffers");
         return NO_MEMORY;
@@ -1045,7 +1051,11 @@ int32_t QCamera3Stream::putBufs(mm_camera_map_unmap_ops_tbl_t *ops_tbl)
         LOGE("getBuf failed previously, or calling putBufs twice");
     }
 
-    mChannel->putStreamBufs();
+    if (mStreamInfo->reprocess_config.offline.input_type == CAM_STREAM_TYPE_METADATA) {
+        ((QCamera3ReprocessChannel*)mChannel)->putMetaStreamBufs();
+    } else {
+        mChannel->putStreamBufs();
+    }
 
     //need to set mStreamBufs to null because putStreamBufs deletes that memory
     mStreamBufs = NULL;

@@ -90,6 +90,13 @@ typedef enum {
     SET_STATUS,
 } optype_t;
 
+typedef enum {
+    QCFA_INACTIVE,
+    QCFA_RAW_OUTPUT,
+    QCFA_RAW_REPROCESS
+} quadra_cfa_state_t;
+
+
 #define MODULE_ALL 0
 
 extern volatile uint32_t gCamHal3LogLevel;
@@ -643,6 +650,10 @@ private:
 
     uint8_t mCurrentSceneMode;
     bool m_bOfflineIsp;
+
+    // for quad cfa
+    bool m_bQuadraCfaSensor;
+    uint8_t mQuadraCfaStage;
 };
 
 }; // namespace qcamera
