@@ -426,6 +426,10 @@ typedef struct mm_jpeg_obj_t {
 
   // dummy OMX handle
   OMX_HANDLETYPE dummy_handle;
+
+  /* lib2d handle*/
+  void *static_lib2d_handle;
+
 } mm_jpeg_obj;
 
 /** mm_jpeg_pending_func_t:
