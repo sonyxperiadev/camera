@@ -1836,11 +1836,11 @@ int QCameraVideoMemory::convCamtoOMXFormat(cam_format_t format)
 bool QCameraVideoMemory::needPerfEvent(const void *opaque, bool metadata)
 {
     bool isPerf = FALSE;
+    native_handle_t *nh = NULL;
     if (metadata) {
 #ifdef USE_MEDIA_EXTENSIONS
         const media_metadata_buffer *packet =
                 (const media_metadata_buffer *)opaque;
-        native_handle_t *nh = NULL;
         if ((packet != NULL) && (packet->eType ==
                 kMetadataBufferTypeNativeHandleSource)
                 && (packet->pHandle)) {
