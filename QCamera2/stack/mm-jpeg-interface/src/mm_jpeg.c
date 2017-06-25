@@ -2400,6 +2400,21 @@ int32_t mm_jpeg_init(mm_jpeg_obj *my_obj)
   // create dummy OMX handle to avoid dlopen latency
   OMX_GetHandle(&my_obj->dummy_handle, mm_jpeg_get_comp_name(), NULL, NULL);
 
+#ifdef LIB2D_ROTATION_ENABLE
+  cam_format_t lib2d_format;
+  LOGD("Enable lib2d rotation");
+  lib2d_error lib2d_err = MM_LIB2D_SUCCESS;
+  lib2d_format =
+    mm_jpeg_get_imgfmt_from_colorfmt(MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2);
+  lib2d_err = mm_lib2d_init(MM_LIB2D_SYNC_MODE, lib2d_format,
+  lib2d_format, &my_obj->static_lib2d_handle);
+  if (lib2d_err != MM_LIB2D_SUCCESS) {
+    LOGE("lib2d init for rotation failed\n");
+    my_obj->static_lib2d_handle = NULL;
+  }
+#endif
+
+
   return rc;
 }
 
@@ -2419,6 +2434,14 @@ int32_t mm_jpeg_deinit(mm_jpeg_obj *my_obj)
 {
   int32_t rc = 0;
   uint32_t i = 0;
+
+#ifdef LIB2D_ROTATION_ENABLE
+  lib2d_error lib2d_err = MM_LIB2D_SUCCESS;
+  lib2d_err = mm_lib2d_deinit(my_obj->static_lib2d_handle);
+  if (lib2d_err != MM_LIB2D_SUCCESS) {
+    LOGE("Error in mm_lib2d_deinit \n");
+  }
+#endif
 
   /* release jobmgr thread */
   rc = mm_jpeg_jobmgr_thread_release(my_obj);
@@ -2743,7 +2766,6 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
   uint32_t work_buf_size;
 
   *job_id = 0;
-
   if (!job) {
     LOGE("invalid job !!!");
     return rc;
@@ -2826,10 +2848,10 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
 
   memset(node, 0, sizeof(mm_jpeg_job_q_node_t));
   node->enc_info.encode_job = job->encode_job;
-
 #ifdef LIB2D_ROTATION_ENABLE
   if (p_session->lib2d_rotation_flag) {
     rc = mm_jpeg_lib2d_rotation(p_session, node, job, job_id);
+    LOGH("Lib2d rotation done %d", rc);
     if (rc < 0) {
       LOGE("Lib2d rotation failed");
       return rc;
@@ -3110,27 +3132,23 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
       p_session->params.thumb_dim.src_dim = p_session->params.main_dim.src_dim;
       p_session->params.thumb_dim.crop = p_session->params.main_dim.crop;
     }
+
 #ifdef LIB2D_ROTATION_ENABLE
     if (p_session->params.rotation) {
-      LOGD("Enable lib2d rotation");
-      p_session->lib2d_rotation_flag = 1;
-
-      cam_format_t lib2d_format;
-      lib2d_error lib2d_err = MM_LIB2D_SUCCESS;
-      lib2d_format =
-        mm_jpeg_get_imgfmt_from_colorfmt(p_session->params.color_format);
-      lib2d_err = mm_lib2d_init(MM_LIB2D_SYNC_MODE, lib2d_format,
-      lib2d_format, &p_session->lib2d_handle);
-      if (lib2d_err != MM_LIB2D_SUCCESS) {
+      if (my_obj->static_lib2d_handle == NULL) {
         LOGE("lib2d init for rotation failed\n");
         rc = -1;
         p_session->lib2d_rotation_flag = 0;
         goto error2;
+      } else {
+        p_session->lib2d_handle = my_obj->static_lib2d_handle;
+        p_session->lib2d_rotation_flag = 1;
       }
     } else {
-      LOGD("Disable lib2d rotation");
       p_session->lib2d_rotation_flag = 0;
     }
+    LOGH("lib2d rotation flag %d", p_session->lib2d_rotation_flag);
+
 #else
     p_session->lib2d_rotation_flag = 0;
 #endif
@@ -3349,16 +3367,6 @@ int32_t mm_jpeg_destroy_session(mm_jpeg_obj *my_obj,
 
   /* abort the current session */
   mm_jpeg_session_abort(p_session);
-
-#ifdef LIB2D_ROTATION_ENABLE
-  lib2d_error lib2d_err = MM_LIB2D_SUCCESS;
-  if (p_session->lib2d_rotation_flag) {
-    lib2d_err = mm_lib2d_deinit(p_session->lib2d_handle);
-    if (lib2d_err != MM_LIB2D_SUCCESS) {
-      LOGE("Error in mm_lib2d_deinit \n");
-    }
-  }
-#endif
 
   mm_jpeg_session_destroy(p_session);
 
