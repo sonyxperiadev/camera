@@ -361,6 +361,7 @@ QCameraPerfLock::QCameraPerfLock(
         QCameraPerfLockIntf *perfLockIntf) :
         mHandle(0),
         mRefCount(0),
+        mEnable(false),
         mTimeOut(0),
         mPerfLockType(perfLockType),
         mPerfLockIntf(perfLockIntf)
@@ -545,10 +546,12 @@ void QCameraPerfLock::powerHintInternal(
         bool         enable)
 {
 #ifdef HAS_MULTIMEDIA_HINTS
-        if (enable == true) {
+        if ((enable == true) && !(mEnable)) {
+            mEnable = true;
             mPerfLockIntf->powerHintIntf()->powerHint(mPerfLockIntf->powerHintIntf(),
                                                     powerHint, (void *)"state=1");
-        } else {
+        } else if ((enable == false) && (mEnable)) {
+            mEnable = false;
             mPerfLockIntf->powerHintIntf()->powerHint(mPerfLockIntf->powerHintIntf(),
                                                     powerHint, (void *)"state=0");
         }
