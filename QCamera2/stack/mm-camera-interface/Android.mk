@@ -70,6 +70,7 @@ include $(SDCLANG_COMMON_DEFS)
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog \
                           libhal_dbg libutils
 
+LOCAL_HEADER_LIBRARIES := libhardware_headers
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_PATH_32 := $(TARGET_OUT_VENDOR)/lib
 
