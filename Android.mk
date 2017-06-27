@@ -1,3 +1,5 @@
+ifneq ($(filter loire tone yoshino,$(PRODUCT_PLATFORM)),)
+
 MM_V4L2_DRIVER_LIST += msm8960
 MM_V4L2_DRIVER_LIST += msm8974
 MM_V4L2_DRIVER_LIST += msm8916
@@ -25,4 +27,6 @@ ifneq (,$(filter $(MM_V4L2_DRIVER_LIST),$(TARGET_BOARD_PLATFORM)))
       include $(call all-subdir-makefiles)
     endif
   endif
+endif
+
 endif
