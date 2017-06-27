@@ -146,3 +146,6 @@ include $(BUILD_SHARED_LIBRARY)
 
 include $(call first-makefiles-under,$(LOCAL_PATH))
 endif
+
+# Clear SDCLANG_FLAG_DEFS after use
+SDCLANG_FLAG_DEFS :=
