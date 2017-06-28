@@ -125,7 +125,7 @@ ifneq (,$(filter msm8996 sdm660 msm8998,$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DUBWC_PRESENT
 endif
 
-ifneq (,$(filter msm8996,$(TARGET_BOARD_PLATFORM)))
+ifneq (,$(filter msm8996 msm8998,$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS += -DTARGET_MSM8996
 endif
 
