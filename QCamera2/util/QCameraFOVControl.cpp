@@ -2641,12 +2641,13 @@ void QCameraFOVControl::UpdateFlag(
                                 sizeof(fov_control_result_t));
                     }
                 }
+                break;
             default:
                 LOGE("Invalid event to process");
                 break;
         }
         mMutex.unlock();
-        LOGD("FOV-Control received flag %d with value %d", flag, *(bool*)value);
+        LOGH("FOV-Control received flag %d with value %d", flag, *(bool*)value);
         generateFovControlResult();
     }
 }

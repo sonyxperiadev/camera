@@ -245,6 +245,7 @@ public:
             QCamera3ProcessingChannel *inputChHandle);
     bool needRotationReprocess();
     bool needJpegExifRotation();
+    bool useExifRotation();
     bool needReprocess(cam_feature_mask_t postprocess_mask);
     bool needJpegRotation();
     cam_denoise_process_type_t getWaveletDenoiseProcessPlate();
