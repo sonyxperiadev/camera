@@ -575,6 +575,7 @@ int32_t QCameraBokeh::doBokehProcess(
     int32_t rc = NO_ERROR;
     QCameraStream* pStream = NULL;
     uint32_t focusX,focusY;
+    qrcp::DualCameraDDMEffects *effectObj = NULL;
     qrcp::DualCameraDDMEffects::EffectType type = qrcp::DualCameraDDMEffects::REFOCUS_CIRCLE;
 
     //1. get depth map size from lib
@@ -650,14 +651,13 @@ int32_t QCameraBokeh::doBokehProcess(
         focusY = goodRoi.height / 2;
     }
     LOGI("Rendering blur centered at (%d, %d)", focusX,focusY);
-    qrcp::DualCameraDDMEffects *dualCameraObject;
-    dualCameraObject = new qrcp::DualCameraDDMEffects(
+    effectObj = new qrcp::DualCameraDDMEffects(
         primaryY, primaryVU, primaryWidth, primaryHeight, primaryStrideY, primaryStrideVU,
         depthMap, dmSize.width, dmSize.height, depthStride,
         goodRoi.left, goodRoi.top, goodRoi.width,goodRoi.height,
         goodRoi.width, goodRoi.height);
-    if (dualCameraObject) {
-        qrcp::DDMWrapperStatus status = dualCameraObject->renderEffect(
+    if (effectObj) {
+        qrcp::DDMWrapperStatus status = effectObj->renderEffect(
             type, focusX, focusY, inParams.blurLevel,
             pOut, pOut + main_uv_offset, primaryStrideY, primaryStrideVU);
         if (!status.ok()) {
@@ -682,6 +682,9 @@ int32_t QCameraBokeh::doBokehProcess(
     }
 
 done:
+    if (effectObj) {
+        delete effectObj;
+    }
     LOGD("X");
     return rc;
 }
