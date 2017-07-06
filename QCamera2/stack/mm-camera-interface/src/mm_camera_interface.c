@@ -2520,7 +2520,7 @@ void sort_camera_info(int num_cam)
             (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX)
             && expose_aux) {
             temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = CAM_TYPE_MAIN;
+            temp_type[idx] = CAM_TYPE_AUX;
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
@@ -2537,7 +2537,7 @@ void sort_camera_info(int num_cam)
             (g_cam_ctrl.cam_type[i] & CAM_TYPE_AUX)
             && expose_aux) {
             temp_info[idx] = g_cam_ctrl.info[i];
-            temp_type[idx] = CAM_TYPE_MAIN;
+            temp_type[idx] = CAM_TYPE_AUX;
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
