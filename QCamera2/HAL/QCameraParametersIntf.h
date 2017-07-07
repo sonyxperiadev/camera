@@ -331,6 +331,7 @@ public:
         bool bundleSnapshot, cam_fallback_mode_t fallbackMode);
     bool needAnalysisStream();
     uint32_t getBlurLevel();
+    void setBokehSnaphot(bool enable);
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;
