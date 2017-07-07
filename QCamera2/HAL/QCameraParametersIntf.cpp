@@ -1588,6 +1588,13 @@ bool QCameraParametersIntf::needAnalysisStream()
     return mImpl->needAnalysisStream();
 }
 
+void QCameraParametersIntf::setLowPower(bool value)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    mImpl->setLowPower(value);
+}
+
 uint32_t QCameraParametersIntf::getBlurLevel()
 {
     Mutex::Autolock lock(mLock);
