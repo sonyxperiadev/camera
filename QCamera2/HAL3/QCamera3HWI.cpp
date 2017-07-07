@@ -717,7 +717,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
             stream_config_info.buffer_info.min_buffers = MIN_INFLIGHT_REQUESTS;
             stream_config_info.buffer_info.max_buffers =
                     m_bIs4KVideo ? 0 :
-                    m_bEis3PropertyEnabled ? MAX_VIDEO_BUFFERS : MAX_INFLIGHT_REQUESTS;
+                    m_bEis3PropertyEnabled && m_bIsVideo ? MAX_VIDEO_BUFFERS : MAX_INFLIGHT_REQUESTS;
             clear_metadata_buffer(mParameters);
             ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STREAM_INFO,
                     stream_config_info);
@@ -2796,7 +2796,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     mStreamConfigInfo.buffer_info.min_buffers = MIN_INFLIGHT_REQUESTS;
     mStreamConfigInfo.buffer_info.max_buffers =
             m_bIs4KVideo ? 0 :
-            m_bEis3PropertyEnabled ? MAX_VIDEO_BUFFERS : MAX_INFLIGHT_REQUESTS;
+            m_bEis3PropertyEnabled && m_bIsVideo ? MAX_VIDEO_BUFFERS : MAX_INFLIGHT_REQUESTS;
 
     /* Initialize mPendingRequestInfo and mPendingBuffersMap */
     for (pendingRequestIterator i = mPendingRequestsList.begin();
@@ -4741,7 +4741,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     MIN_INFLIGHT_REQUESTS;
             stream_config_info.buffer_info.max_buffers =
                     m_bIs4KVideo ? 0 :
-                    m_bEis3PropertyEnabled ? MAX_VIDEO_BUFFERS : MAX_INFLIGHT_REQUESTS;
+                    m_bEis3PropertyEnabled && m_bIsVideo ? MAX_VIDEO_BUFFERS : MAX_INFLIGHT_REQUESTS;
             clear_metadata_buffer(mParameters);
             ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                     CAM_INTF_PARM_HAL_VERSION, hal_version);
