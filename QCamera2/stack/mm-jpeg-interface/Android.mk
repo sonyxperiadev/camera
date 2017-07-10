@@ -78,7 +78,7 @@ ifeq ($(strip $(LIB2D_ROTATION)),true)
     LOCAL_SHARED_LIBRARIES += libmmlib2d_interface
 endif
 LOCAL_MODULE_TAGS := optional
-LOCAL_PROPRIETARY_MODULE := true
+LOCAL_VENDOR_MODULE := true
 
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 include $(BUILD_SHARED_LIBRARY)
