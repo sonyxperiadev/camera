@@ -52,6 +52,7 @@ LOCAL_SRC_FILES += \
         HAL/QCameraPostProc.cpp \
         HAL/QCamera2HWICallbacks.cpp \
         HAL/QCameraParameters.cpp \
+	HAL/CameraParameters.cpp \
         HAL/QCameraParametersIntf.cpp \
         HAL/QCameraThermalAdapter.cpp \
         util/QCameraFOVControl.cpp \
@@ -128,13 +129,16 @@ LOCAL_C_INCLUDES += \
         $(TARGET_OUT_HEADERS)/qcom/display
 LOCAL_C_INCLUDES += \
         hardware/qcom/display/libqservice
-LOCAL_SHARED_LIBRARIES := libcamera_client liblog libhardware libutils libcutils libdl libsync
+LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 LOCAL_SHARED_LIBRARIES += libcutils libdl
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_SHARED_LIBRARIES += libts_face_beautify_hal libts_detected_face_hal
 endif
+
+LOCAL_STATIC_LIBRARIES := android.hardware.camera.common@1.0-helper
+
 
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_MODULE := camera.$(TARGET_BOARD_PLATFORM)
@@ -146,3 +150,6 @@ include $(BUILD_SHARED_LIBRARY)
 
 include $(call first-makefiles-under,$(LOCAL_PATH))
 endif
+
+# Clear SDCLANG_FLAG_DEFS after use
+SDCLANG_FLAG_DEFS :=

@@ -871,7 +871,7 @@ QCameraPicChannel::~QCameraPicChannel()
 int32_t QCameraPicChannel::takePicture (mm_camera_req_buf_t *buf)
 {
     uint32_t snapshotHandle = getSnapshotHandle();
-    LOGD("mSnapshotHandle = 0x%x", snapshotHandle);
+    LOGH("mSnapshotHandle = 0x%x", snapshotHandle);
     int32_t rc = m_camOps->request_super_buf(m_camHandle, snapshotHandle, buf);
     return rc;
 }
@@ -1023,7 +1023,7 @@ QCameraVideoChannel::~QCameraVideoChannel()
 int32_t QCameraVideoChannel::takePicture(mm_camera_req_buf_t *buf)
 {
     uint32_t snapshotHandle = getSnapshotHandle();
-    LOGD("mSnapshotHandle = 0x%x", snapshotHandle);
+    LOGH("mSnapshotHandle = 0x%x", snapshotHandle);
     int32_t rc = m_camOps->request_super_buf(m_camHandle, snapshotHandle, buf);
     return rc;
 }

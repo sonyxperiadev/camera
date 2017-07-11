@@ -664,6 +664,7 @@ private:
     bool m_bPreviewStarted;             //flag indicates first preview frame callback is received
     bool m_bFirstPreviewFrameReceived;
     bool m_bRecordStarted;             //flag indicates Recording is started for first time
+    bool m_bPreparingHardware;         //flag indicates take picture initiated
 
     // Signifies if ZSL Retro Snapshots are enabled
     bool bRetroPicture;

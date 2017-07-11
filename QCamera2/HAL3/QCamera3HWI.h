@@ -31,11 +31,12 @@
 #define __QCAMERA3HARDWAREINTERFACE_H__
 
 // System dependencies
-#include <camera/CameraMetadata.h>
 #include <pthread.h>
 #include <utils/KeyedVector.h>
 #include <utils/List.h>
 #include <map>
+#include "CameraMetadata.h"
+
 // Camera dependencies
 #include "hardware/camera3.h"
 #include "QCamera3Channel.h"
@@ -54,7 +55,10 @@ extern "C" {
 
 using namespace android;
 
+
 namespace qcamera {
+
+using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 
 #ifndef TRUE
 #define TRUE 1
@@ -245,6 +249,7 @@ public:
             QCamera3ProcessingChannel *inputChHandle);
     bool needRotationReprocess();
     bool needJpegExifRotation();
+    bool useExifRotation();
     bool needReprocess(cam_feature_mask_t postprocess_mask);
     bool needJpegRotation();
     cam_denoise_process_type_t getWaveletDenoiseProcessPlate();

@@ -2204,6 +2204,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         if (!m_bIsVideo && (streamList->operation_mode ==
                                 CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)) {
                             mDummyBatchStream = *newStream;
+                            mDummyBatchStream.usage |= GRALLOC_USAGE_HW_VIDEO_ENCODER;
                         }
                         int bufferCount = MAX_INFLIGHT_REQUESTS;
                         if (mStreamConfigInfo.type[mStreamConfigInfo.num_streams] ==
@@ -7422,14 +7423,17 @@ void QCamera3HardwareInterface::extractJpegMetadata(
         if (frame_settings.exists(ANDROID_JPEG_ORIENTATION)) {
             int32_t orientation =
                   frame_settings.find(ANDROID_JPEG_ORIENTATION).data.i32[0];
-            if ((!needJpegExifRotation()) && ((orientation == 90) || (orientation == 270))) {
-               //swap thumbnail dimensions for rotations 90 and 270 in jpeg metadata.
+            if ((!needJpegExifRotation() || (needJpegExifRotation() && !useExifRotation()))
+                    && ((orientation == 90) || (orientation == 270))) {
+               //swap thumbnail dimensions for rotations 90 and 270 in jpeg metadata if CPP
+               //or JPEG is doing the rotation
                int32_t temp;
                temp = thumbnail_size[0];
                thumbnail_size[0] = thumbnail_size[1];
                thumbnail_size[1] = temp;
             }
          }
+         LOGD("Thumbnail wxh %dx%d", thumbnail_size[0], thumbnail_size[1]);
          jpegMetadata.update(ANDROID_JPEG_THUMBNAIL_SIZE,
                 thumbnail_size,
                 frame_settings.find(ANDROID_JPEG_THUMBNAIL_SIZE).count);
@@ -12118,6 +12122,33 @@ bool QCamera3HardwareInterface::needJpegExifRotation()
        return true;
     }
     return false;
+}
+
+/*===========================================================================
+ * FUNCTION   : useExifRotation
+ *
+ * DESCRIPTION: Check if jpeg exif rotation need to be used
+ *
+ * PARAMETERS : none
+ *
+ * RETURN     : true: if jpeg exif rotation need to be used
+ *                    false: no need
+ *==========================================================================*/
+bool QCamera3HardwareInterface::useExifRotation() {
+    char exifRotation[PROPERTY_VALUE_MAX];
+
+    property_get("persist.camera.exif.rotation", exifRotation, "off");
+
+    if (!strcmp(exifRotation, "on")) {
+        return true;
+    }
+
+    property_get("persist.camera.lib2d.rotation", exifRotation, "off");
+    if (!strcmp(exifRotation, "on")) {
+        return false;
+    }
+
+    return true;
 }
 
 /*===========================================================================
