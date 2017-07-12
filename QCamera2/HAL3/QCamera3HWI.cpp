@@ -9259,7 +9259,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     }
 
     int64_t available_exp_time_range[EXPOSURE_TIME_RANGE_CNT];
-    for (size_t i = 0; i < count; i++)
+    for (size_t i = 0; i < EXPOSURE_TIME_RANGE_CNT; i++)
         available_exp_time_range[i] = gCamCapability[cameraId]->exposure_time_range[i];
     staticInfo.update(QCAMERA3_EXP_TIME_RANGE,
             available_exp_time_range, EXPOSURE_TIME_RANGE_CNT);
