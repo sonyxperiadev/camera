@@ -95,12 +95,15 @@ private:
     String8 flattenCropInfo(cam_stream_crop_info_t* crop, uint8_t index);
     String8 extractReprocessInfo(metadata_buffer_t *metadata);
     String8 extractCalibrationData();
+    void dumpInputParams(uint32_t idx);
 
 private:
     void *m_dlHandle;
     const cam_capability_t *m_pCaps;
     bokeh_data_t mBokehData;
     bool bNeedCamSwap;
+    String8 mDebugData;
+    bool m_bDebug;
 }; // QCameraBokeh class
 }; // namespace qcamera
 
