@@ -29,8 +29,7 @@ LOCAL_SRC_FILES := \
     src/mm_lib2d.c
 
 LOCAL_MODULE           := libmmlib2d_interface
-LOCAL_SDCLANG := $(SDCLANGSAVE)
-LOCAL_SDCLANG_LTO := $(SDCLANGSAVE)
+include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog libmmcamera_interface
 LOCAL_MODULE_TAGS := optional
