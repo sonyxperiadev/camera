@@ -98,7 +98,7 @@ namespace qcamera {
 #define REGIONS_TUPLE_COUNT    5
 #define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
 // Set a threshold for detection of missing buffers //seconds
-#define MISSING_REQUEST_BUF_TIMEOUT 3
+#define MISSING_REQUEST_BUF_TIMEOUT 10
 #define MISSING_BOKEH_REQUEST_BUF_TIMEOUT 5
 #define FLUSH_TIMEOUT 3
 #define METADATA_MAP_SIZE(MAP) (sizeof(MAP)/sizeof(MAP[0]))

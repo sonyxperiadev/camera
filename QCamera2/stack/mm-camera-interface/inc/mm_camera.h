@@ -57,7 +57,7 @@
 /* Future frame idx, large enough to make sure capture
 * settings can be applied and small enough to still capture an image */
 #define MM_CAMERA_MAX_FUTURE_FRAME_WAIT 100
-#define WAIT_TIMEOUT 5
+#define WAIT_TIMEOUT 10
 
 /*For frame sync */
 #define MAX_OBJS_FOR_FRAME_SYNC   4
