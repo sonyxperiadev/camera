@@ -1542,6 +1542,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         hal_pp_job->offline_buffer = job ? job->offline_buffer : false;
         LOGH("Feeding input to Manager");
         m_pHalPPManager->feedInput(hal_pp_job);
+        free(job);
     } else {
         //Done with post processing. Send frame to Jpeg
         qcamera_jpeg_data_t *jpeg_job =
@@ -4101,6 +4102,7 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
             releaseJpegJobData(jpeg_job);
             free(jpeg_job);
             jpeg_job = NULL;
+            free(pData);
             return NO_ERROR;
         }
     }
@@ -4128,6 +4130,8 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
 
     // wake up data proc thread
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+
+    free(pData);
     LOGH("X");
     return rc;
 }
