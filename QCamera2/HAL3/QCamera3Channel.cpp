@@ -1527,6 +1527,24 @@ int32_t QCamera3ProcessingChannel::translateStreamTypeAndFormat(camera3_stream_t
             streamType = CAM_STREAM_TYPE_RAW;
             streamFormat = CAM_FORMAT_BAYER_MIPI_RAW_8BPP_GBRG;
             break;
+        case HAL_PIXEL_FORMAT_BLOB:
+            if (stream->data_space == HAL_DATASPACE_DEPTH) {
+                streamType = CAM_STREAM_TYPE_DEPTH;
+                streamFormat = CAM_FORMAT_DEPTH_POINT_CLOUD;
+            }
+            break;
+        case HAL_PIXEL_FORMAT_Y16:
+            if (stream->data_space == HAL_DATASPACE_DEPTH) {
+                streamType = CAM_STREAM_TYPE_DEPTH;
+                streamFormat = CAM_FORMAT_DEPTH16;
+            }
+            break;
+        case HAL_PIXEL_FORMAT_Y8:
+            if (stream->data_space == HAL_DATASPACE_DEPTH) {
+                streamType = CAM_STREAM_TYPE_DEPTH;
+                streamFormat = CAM_FORMAT_DEPTH8;
+            }
+            break;
         default:
             return -EINVAL;
     }
@@ -1924,10 +1942,8 @@ int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
                 mStreamType);
         return -EINVAL;
     }
-
     streamDim.width = mCamera3Stream->width;
     streamDim.height = mCamera3Stream->height;
-
     LOGD("batch size is %d", mBatchSize);
     rc = QCamera3Channel::addStream(mStreamType,
             mStreamFormat,
@@ -2200,6 +2216,76 @@ void QCamera3MetadataChannel::putStreamBufs()
     delete mMemory;
     mMemory = NULL;
 }
+
+/*************************************************************************************/
+// DEPTH Channel related functions
+QCamera3DepthChannel::QCamera3DepthChannel(uint32_t cam_handle,
+                    uint32_t channel_handle,
+                    mm_camera_ops_t *cam_ops,
+                    channel_cb_routine cb_routine,
+                    channel_cb_buffer_err cb_buffer_err,
+                    cam_padding_info_t *paddingInfo,
+                    void *userData,
+                    camera3_stream_t *stream,
+                    cam_feature_mask_t postprocess_mask,
+                    QCamera3Channel *metadataChannel,
+                    int32_t numDepthPoints, uint32_t numBuffers) :
+                        QCamera3RegularChannel(cam_handle, channel_handle, cam_ops,
+                                cb_routine, cb_buffer_err, paddingInfo, userData, stream,
+                                CAM_STREAM_TYPE_DEPTH, postprocess_mask,
+                                metadataChannel, numBuffers)
+{
+    mNumDepthPoints = numDepthPoints;
+}
+
+QCamera3DepthChannel::~QCamera3DepthChannel()
+{
+}
+
+/*===========================================================================
+ * FUNCTION   : initialize
+ *
+ * DESCRIPTION: Initialize and add camera channel & stream
+ *
+ * PARAMETERS :
+ * @isType    : image stabilization type on the stream
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+
+int32_t QCamera3DepthChannel::initialize(cam_is_type_t isType)
+{
+    return QCamera3RegularChannel::initialize(isType);
+}
+
+void QCamera3DepthChannel::streamCbRoutine(
+                        mm_camera_super_buf_t *super_frame,
+                        QCamera3Stream * stream)
+{
+    ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_RAW_CH_STRM_CB);
+    //Make sure cache coherence because extra processing is done
+    mMemory.cleanInvalidateCache(super_frame->bufs[0]->buf_idx);
+
+    QCamera3RegularChannel::streamCbRoutine(super_frame, stream);
+    return;
+}
+
+/*===========================================================================
+ * FUNCTION   : getReprocessType
+ *
+ * DESCRIPTION: get the type of reprocess output supported by this channel
+ *
+ * PARAMETERS : NONE
+ *
+ * RETURN     : reprocess_type_t : type of reprocess
+ *==========================================================================*/
+reprocess_type_t QCamera3DepthChannel::getReprocessType()
+{
+    return REPROCESS_TYPE_NONE;
+}
+
 /*************************************************************************************/
 // RAW Channel related functions
 QCamera3RawChannel::QCamera3RawChannel(uint32_t cam_handle,

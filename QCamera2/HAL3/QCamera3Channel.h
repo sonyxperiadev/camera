@@ -308,6 +308,7 @@ public:
     virtual int32_t request(buffer_handle_t *buffer, uint32_t frameNumber,
                     int &indexUsed);
     virtual reprocess_type_t getReprocessType();
+    int32_t mNumDepthPoints;
 
 private:
     int32_t initialize(struct private_handle_t *priv_handle);
@@ -346,6 +347,35 @@ public:
 
 private:
     QCamera3StreamMem *mMemory;
+};
+
+/* QCamera3DepthChannel is for depth stream containing
+ * depth data from a depth sensor */
+class QCamera3DepthChannel : public QCamera3RegularChannel
+{
+public:
+    QCamera3DepthChannel(uint32_t cam_handle,
+                    uint32_t channel_handle,
+                    mm_camera_ops_t *cam_ops,
+                    channel_cb_routine cb_routine,
+                    channel_cb_buffer_err cb_buffer_err,
+                    cam_padding_info_t *paddingInfo,
+                    void *userData,
+                    camera3_stream_t *stream,
+                    cam_feature_mask_t postprocess_mask,
+                    QCamera3Channel *metadataChannel,
+                    int32_t depthPoints,
+                    uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
+
+    virtual ~QCamera3DepthChannel();
+
+    virtual int32_t initialize(cam_is_type_t isType);
+
+    virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
+                            QCamera3Stream *stream);
+
+    virtual reprocess_type_t getReprocessType();
+
 };
 
 /* QCamera3RawChannel is for opaqueu/cross-platform raw stream containing
