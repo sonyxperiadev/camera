@@ -295,6 +295,10 @@ int32_t QCameraClearSight::process()
     // Start the blending process when it is ready
     while (!m_inputQ.isEmpty()) {
         uint32_t *pFrameIndex = (uint32_t *)m_inputQ.dequeue();
+        if (pFrameIndex == NULL) {
+            LOGE("frame index is null");
+            return UNEXPECTED_NULL;
+        }
         uint32_t frameIndex = *pFrameIndex;
         std::vector<qcamera_hal_pp_data_t*> *pVector = getFrameVector(frameIndex);
         // Search vector of input frames in frame map
@@ -385,7 +389,10 @@ int32_t QCameraClearSight::process()
         qcamera_hal_pp_data_t *pOutputData = NULL;
         if (m_inputQ.isEmpty()) {
             pOutputData = (qcamera_hal_pp_data_t*)m_outgoingQ.dequeue();
-
+            if (pOutputData == NULL) {
+                LOGE("Cannot find output data");
+                return UNEXPECTED_NULL;
+            }
             mm_camera_super_buf_t *output_frame = pOutputData->frame;
             mm_camera_buf_def_t *output_snapshot_buf = output_frame->bufs[0];
 

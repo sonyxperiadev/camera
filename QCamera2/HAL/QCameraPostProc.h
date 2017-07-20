@@ -105,6 +105,8 @@ typedef struct {
                                             //returned back to kernel after done)
     uint8_t offline_buffer;
     mm_camera_buf_def_t *offline_reproc_buf; //HAL processed buffer
+    mm_camera_buf_def_t *misc_buf; //misc buffer
+    bool needEncode;
 } qcamera_hal_pp_data_t;
 
 typedef struct {
