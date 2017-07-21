@@ -2201,6 +2201,13 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
         }
     }
 
+    cam_rtb_blur_info_t blurInfo;
+    memset(&blurInfo, 0, sizeof(blurInfo));
+    blurInfo.blur_level = mParameters.getBlurLevel();
+    blurInfo.blur_min_value = MIN_BLUR;
+    blurInfo.blur_max_value = MAX_BLUR;
+    ADD_SET_PARAM_ENTRY_TO_BATCH(pMetaData, CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, blurInfo);
+
     return rc;
 }
 

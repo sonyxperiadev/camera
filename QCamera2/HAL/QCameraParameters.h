@@ -58,6 +58,11 @@ static const char ExifUndefinedPrefix[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 #define QCAMERA_MAX_EXP_TIME_LEVEL3      1000
 #define QCAMERA_MAX_EXP_TIME_LEVEL4      10000
 
+//blur range
+#define MIN_BLUR 0
+#define MAX_BLUR 100
+#define BLUR_STEP 1
+
 class QCameraParameters: private CameraParameters
 {
 
@@ -638,6 +643,9 @@ private:
     //Key to enable dual LED calibration
     static const char KEY_QC_LED_CALIBRATION[];
 
+    //Key to get depth map size
+    static const char KEY_QC_DEPTH_MAP_SIZE[];
+
     enum {
         CAMERA_ORIENTATION_UNKNOWN = 0,
         CAMERA_ORIENTATION_PORTRAIT = 1,
@@ -951,6 +959,8 @@ public:
     void initDCSettings(int32_t state, uint32_t camMaster,
             bool bundleSnapshot, cam_fallback_mode_t fallback);
     bool needAnalysisStream();
+    inline uint32_t getBlurLevel() {return m_bBokehBlurLevel;};
+    void setBokehSnaphot(bool enable);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1177,6 +1187,8 @@ private:
     bool isBayer(cam_capability_t *caps);
     bool isMono(cam_capability_t *caps);
     inline bool isBayerMono() { return (mDualCamType == DUAL_CAM_BAYER_MONO); };
+    void getDepthMapSize(int &width, int &height);
+    bool isDualCamAvailable();
 
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
@@ -1365,6 +1377,7 @@ private:
     uint32_t m_bBokehBlurLevel;
     uint32_t m_bBokehMpoEnabled;
     uint8_t  mDualCamType;
+    bool m_bBokehSnapEnabled;
 };
 
 }; // namespace qcamera

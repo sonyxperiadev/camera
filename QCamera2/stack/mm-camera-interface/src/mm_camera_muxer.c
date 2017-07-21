@@ -2013,11 +2013,13 @@ int32_t mm_camera_muxer_do_frame_sync(
                     }
                 }
                 queue->que.size--;
+                last_buf = last_buf->next;
                 cam_list_del_node(&node->list);
                 free(node);
                 free(super_obj);
+            } else {
+                last_buf = last_buf->next;
             }
-            last_buf = last_buf->next;
         }
     } else {
         if ((queue->attr.max_unmatched_frames < unmatched_bundles)
