@@ -71,16 +71,13 @@ typedef enum {
     MPCTLV3_MAX_ONLINE_CPU_CLUSTER_BIG      = 0x41004000,
     MPCTLV3_MAX_ONLINE_CPU_CLUSTER_LITTLE   = 0x41004100,
 
-    MPCTLV3_ALL_CPUS_PWR_CLPS_DIS           = 0x40400000
+    MPCTLV3_ALL_CPUS_PWR_CLPS_DIS           = 0x40400000,
+    MPCTLV3_CPUBW_HWMON_MIN_FREQ            = 0x41800000,
+    MPCTLV3_CPUBW_HWMON_HYST_OPT            = 0x4180C000
 } perf_lock_params;
 
 
 static int32_t perfLockParamsOpenCamera[] = {
-    #ifndef TARGET_MSM8996
-    // Make sure big cluster is online
-    MPCTLV3_MIN_ONLINE_CPU_CLUSTER_BIG,     0x4,
-    MPCTLV3_MAX_ONLINE_CPU_CLUSTER_BIG,     0x4,
-    #endif
     // Disable power collapse and set CPU cloks to turbo
     MPCTLV3_ALL_CPUS_PWR_CLPS_DIS,          0x1,
     MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0,    0xFFF,
@@ -90,11 +87,6 @@ static int32_t perfLockParamsOpenCamera[] = {
 };
 
 static int32_t perfLockParamsCloseCamera[] = {
-    #ifndef TARGET_MSM8996
-    // Make sure big cluster is online
-    MPCTLV3_MIN_ONLINE_CPU_CLUSTER_BIG,     0x4,
-    MPCTLV3_MAX_ONLINE_CPU_CLUSTER_BIG,     0x4,
-    #endif
     // Disable power collapse and set CPU cloks to turbo
     MPCTLV3_ALL_CPUS_PWR_CLPS_DIS,          0x1,
     MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0,    0xFFF,
@@ -104,11 +96,6 @@ static int32_t perfLockParamsCloseCamera[] = {
 };
 
 static int32_t perfLockParamsStartPreview[] = {
-    #ifndef TARGET_MSM8996
-    // Make sure big cluster is online
-    MPCTLV3_MIN_ONLINE_CPU_CLUSTER_BIG,     0x4,
-    MPCTLV3_MAX_ONLINE_CPU_CLUSTER_BIG,     0x4,
-    #endif
     // Disable power collapse and set CPU cloks to turbo
     MPCTLV3_ALL_CPUS_PWR_CLPS_DIS,          0x1,
     MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0,    0xFFF,
@@ -118,31 +105,14 @@ static int32_t perfLockParamsStartPreview[] = {
 };
 
 static int32_t perfLockParamsTakeSnapshot[] = {
-    // Disable power collapse
+    // Disable power collapse and set CPU cloks to turbo
     MPCTLV3_ALL_CPUS_PWR_CLPS_DIS,          0x1,
-    #ifdef TARGET_MSM8996
-    // Set little cluster and big cluster cores to 1.555 GHz
-    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0, 0x613,
-    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_1, 0x613,
-    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0, 0x613,
-    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_1, 0x613,
-    MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0,    0x613,
-    MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_1,    0x613,
-    MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0,    0x613,
-    MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_1,    0x613
-    #else
-    // Set little cluster cores to 1.555 GHz
-    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0, 0x613,
-    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_1, 0x613,
-    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_2, 0x613,
-    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_3, 0x613,
-    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0, 0x613,
-    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_1, 0x613,
-    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_2, 0x613,
-    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_3, 0x613,
-    // Set big cluster offline
-    MPCTLV3_MAX_ONLINE_CPU_CLUSTER_BIG,     0x0
-    #endif
+    MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0,    0xFFF,
+    MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0,    0xFFF,
+    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0, 0xFFF,
+    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0, 0xFFF,
+    MPCTLV3_CPUBW_HWMON_HYST_OPT,           0x0,
+    MPCTLV3_CPUBW_HWMON_MIN_FREQ,           0x8C
 };
 
 PerfLockInfo QCameraPerfLock::mPerfLockInfo[] = {
