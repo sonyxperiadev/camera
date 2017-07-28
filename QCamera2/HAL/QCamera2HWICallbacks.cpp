@@ -753,7 +753,7 @@ void QCamera2HardwareInterface::synchronous_stream_cb_routine(
     if (pme->needDebugFps()) {
         pme->debugShowPreviewFPS();
     }
-
+    memory->setBufferStatus(frame->buf_idx, STATUS_ACTIVE);
     frameTime = nsecs_t(frame->ts.tv_sec) * 1000000000LL + frame->ts.tv_nsec;
     // Convert Boottime from camera to Monotime for display if needed.
     // Otherwise, mBootToMonoTimestampOffset value will be 0.
@@ -813,7 +813,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
     QCamera2HardwareInterface *pme = (QCamera2HardwareInterface *)userdata;
     QCameraGrallocMemory *memory = (QCameraGrallocMemory *)super_frame->bufs[0]->mem_info;
     uint8_t dequeueCnt = 0;
-
+    mm_camera_buf_def_t *dumpBuffer = NULL;
     if (pme == NULL) {
         LOGE("Invalid hardware object");
         free(super_frame);
@@ -862,8 +862,6 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
 
     uint32_t idx = frame->buf_idx;
 
-    pme->dumpFrameToFile(stream, frame, QCAMERA_DUMP_FRM_PREVIEW);
-
     if(pme->m_bPreviewStarted) {
         LOGI("[KPI Perf] : PROFILE_FIRST_PREVIEW_FRAME");
 
@@ -881,7 +879,7 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         if (pme->needDebugFps()) {
             pme->debugShowPreviewFPS();
         }
-
+        memory->setBufferStatus(frame->buf_idx, STATUS_ACTIVE);
         LOGD("Enqueue Buffer to display %d", idx);
 #ifdef TARGET_TS_MAKEUP
         pme->TsMakeupProcess_Preview(frame,stream);
@@ -935,27 +933,32 @@ void QCamera2HardwareInterface::preview_stream_cb_routine(mm_camera_super_buf_t 
         if (err < 0) {
             LOGE("buffer mapping failed %d", err);
         } else {
+            // Dump preview frames
+            if (memory->isBufActive(dequeuedIdx)) {
+                dumpBuffer = stream->getBuffer(dequeuedIdx);
+                pme->dumpFrameToFile(stream, dumpBuffer, QCAMERA_DUMP_FRM_PREVIEW);
+            }
+            // Handle preview data callback
+            if (pme->m_channels[QCAMERA_CH_TYPE_CALLBACK] == NULL) {
+                if (pme->needSendPreviewCallback() &&
+                        memory->isBufActive(dequeuedIdx) &&
+                        (!pme->mParameters.isSceneSelectionEnabled())) {
+                   frame->cache_flags |= CPU_HAS_READ;
+                   int32_t rc = pme->sendPreviewCallback(stream, memory, dequeuedIdx);
+                   if (NO_ERROR != rc) {
+                      LOGW("Preview callback was not sent succesfully");
+                   }
+                }
+            }
             // Return dequeued buffer back to driver
             err = stream->bufDone((uint32_t)dequeuedIdx);
             if ( err < 0) {
                 LOGW("stream bufDone failed %d", err);
                 err = NO_ERROR;
             }
-        }
+            memory->setBufferStatus(dequeuedIdx, STATUS_IDLE);
+       }
     }
-
-    // Handle preview data callback
-    if (pme->m_channels[QCAMERA_CH_TYPE_CALLBACK] == NULL) {
-        if (pme->needSendPreviewCallback() && !discardFrame &&
-                (!pme->mParameters.isSceneSelectionEnabled())) {
-            frame->cache_flags |= CPU_HAS_READ;
-            int32_t rc = pme->sendPreviewCallback(stream, memory, idx);
-            if (NO_ERROR != rc) {
-                LOGW("Preview callback was not sent succesfully");
-            }
-        }
-    }
-
     free(super_frame);
     LOGH("[KPI Perf] : END");
     return;

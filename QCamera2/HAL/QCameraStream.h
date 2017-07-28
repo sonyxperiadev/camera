@@ -123,7 +123,7 @@ public:
     uint8_t getBufferCount() { return mNumBufs; }
     uint32_t getChannelHandle() { return mChannelHandle; }
     int32_t getNumQueuedBuf();
-
+    mm_camera_buf_def_t *getBuffer(int32_t index);
     uint32_t mDumpFrame;
     uint32_t mDumpMetaFrame;
     uint32_t mDumpSkipCnt;
