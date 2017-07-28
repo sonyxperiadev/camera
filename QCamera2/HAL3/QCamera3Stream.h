@@ -87,6 +87,8 @@ public:
     int32_t getFrameOffset(cam_frame_len_offset_t &offset);
     int32_t getFrameDimension(cam_dimension_t &dim);
     int32_t getFormat(cam_format_t &fmt);
+    int32_t setCropInfo(cam_rect_t crop);
+    int32_t getParameter(cam_stream_parm_buffer_t &param);
     QCamera3StreamMem *getStreamBufs() {return mStreamBufs;};
     uint32_t getMyServerID();
 
@@ -122,6 +124,7 @@ private:
     QCamera3StreamMem *mStreamBufs;
     mm_camera_buf_def_t *mBufDefs;
     cam_frame_len_offset_t mFrameLenOffset;
+    cam_rect_t mCropInfo;
     cam_padding_info_t mPaddingInfo;
     QCamera3Channel *mChannel;
     Mutex mLock;    //Lock controlling access to 'mBufDefs'

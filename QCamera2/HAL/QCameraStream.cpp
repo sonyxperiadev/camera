@@ -1326,6 +1326,19 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
 
     return rc;
 }
+/*===========================================================================
+ * FUNCTION   : getBuffer
+ *
+ * DESCRIPTION: get buffer from buffer index
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : buffer address
+ *==========================================================================*/
+mm_camera_buf_def_t *QCameraStream::getBuffer(int32_t index)
+{
+    return &mBufDefs[index];
+}
 
 /*===========================================================================
  * FUNCTION   : getNumQueuedBuf

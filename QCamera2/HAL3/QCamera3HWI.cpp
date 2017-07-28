@@ -3962,7 +3962,24 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         LOGD("Framework requested:%d buffers in HDR snapshot", request->num_output_buffers);
         uint32_t internalFrameNumber;
         CameraMetadata modified_meta;
+        int8_t hdr_exp_values;
+        cam_hdr_bracketing_info_t& hdrBracketingSetting =
+                    gCamCapability[mCameraId]->hdr_bracketing_setting;
+        uint32_t hdrFrameCount =
+                hdrBracketingSetting.num_frames;
+        LOGD("HDR values %d, %d frame count: %u",
+              (int8_t) hdrBracketingSetting.exp_val.values[0],
+              (int8_t) hdrBracketingSetting.exp_val.values[1],
+              hdrFrameCount);
 
+        cam_exp_bracketing_t aeBracket;
+        memset(&aeBracket, 0, sizeof(cam_exp_bracketing_t));
+        aeBracket.mode =
+            hdrBracketingSetting.exp_val.mode;
+
+        if (aeBracket.mode == CAM_EXP_BRACKETING_OFF) {
+            LOGD(" Bracketing is Off");
+        }
 
         /* Add Blob channel to list of internally requested streams */
         for (uint32_t i = 0; i < request->num_output_buffers; i++) {
@@ -3980,7 +3997,8 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
 
         /* Modify setting to set compensation */
         modified_meta = request->settings;
-        int32_t expCompensation = GB_HDR_HALF_STEP_EV;
+        hdr_exp_values = hdrBracketingSetting.exp_val.values[0];
+        int32_t expCompensation = hdr_exp_values;
         uint8_t aeLock = 1;
         modified_meta.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, &expCompensation, 1);
         modified_meta.update(ANDROID_CONTROL_AE_LOCK, &aeLock, 1);
@@ -3999,7 +4017,8 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         request->num_output_buffers = 0;
 
         modified_meta = modified_settings;
-        expCompensation = 0;
+        hdr_exp_values = hdrBracketingSetting.exp_val.values[1];
+        expCompensation = hdr_exp_values;
         aeLock = 1;
         modified_meta.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, &expCompensation, 1);
         modified_meta.update(ANDROID_CONTROL_AE_LOCK, &aeLock, 1);
@@ -4036,7 +4055,8 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
 
         /* Capture 2X frame*/
         modified_meta = modified_settings;
-        expCompensation = GB_HDR_2X_STEP_EV;
+        hdr_exp_values = hdrBracketingSetting.exp_val.values[2];
+        expCompensation = hdr_exp_values;
         aeLock = 1;
         modified_meta.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, &expCompensation, 1);
         modified_meta.update(ANDROID_CONTROL_AE_LOCK, &aeLock, 1);
@@ -4448,6 +4468,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
 
+        // This DC info is required for setting the actual sync type instead of value
+        // set in confgure streams
+        if (meta.exists(QCAMERA3_DUALCAM_LINK_ENABLE)) {
+            mIsDeviceLinked = meta.find(QCAMERA3_DUALCAM_LINK_ENABLE).data.u8[0];
+            if (mIsDeviceLinked) {
+                mStreamConfigInfo.sync_type = get_cam_type(mCameraId);
+            }
+        }
+
         ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_META_STREAM_INFO, mStreamConfigInfo);
 
@@ -4550,13 +4579,14 @@ int QCamera3HardwareInterface::processCaptureRequest(
         LOGD("set_parms META_STREAM_INFO " );
         for (uint32_t i = 0; i < mStreamConfigInfo.num_streams; i++) {
             LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%" PRIx64
-                    ", Format:%d is_type: %d",
+                    ", Format:%d is_type: %d sync_type %d",
                     mStreamConfigInfo.type[i],
                     mStreamConfigInfo.stream_sizes[i].width,
                     mStreamConfigInfo.stream_sizes[i].height,
                     mStreamConfigInfo.postprocess_mask[i],
                     mStreamConfigInfo.format[i],
-                    mStreamConfigInfo.is_type[i]);
+                    mStreamConfigInfo.is_type[i],
+                    mStreamConfigInfo.sync_type);
         }
 
         rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
@@ -5042,11 +5072,27 @@ no_error:
                 meta.find(ANDROID_COLOR_CORRECTION_ABERRATION_MODE).data.u8[0];
     }
     pendingRequest.fwkCacMode = mCacMode;
-
     PendingBuffersInRequest bufsForCurRequest;
     bufsForCurRequest.frame_number = frameNumber;
     // Mark current timestamp for the new request
-    bufsForCurRequest.timestamp = systemTime(CLOCK_MONOTONIC);
+    List<PendingBuffersInRequest>::iterator bufsForPrevRequest;
+    if ( mPendingBuffersMap.mPendingBuffersInRequest.size() > 0 ) {
+        bufsForPrevRequest = mPendingBuffersMap.mPendingBuffersInRequest.end();
+        bufsForPrevRequest --;
+        if ( systemTime(CLOCK_MONOTONIC) > bufsForPrevRequest->timestamp ) {
+           bufsForCurRequest.timestamp = systemTime(CLOCK_MONOTONIC);
+        } else {
+           bufsForCurRequest.timestamp = bufsForPrevRequest->timestamp;
+        }
+     } else {
+        bufsForCurRequest.timestamp = systemTime(CLOCK_MONOTONIC);
+    }
+
+    if (meta.exists(ANDROID_SENSOR_EXPOSURE_TIME)) {
+        int64_t sensorExpTime =
+               meta.find(ANDROID_SENSOR_EXPOSURE_TIME).data.i64[0];
+        bufsForCurRequest.timestamp += sensorExpTime;
+    }
 
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         RequestedBufferInfo requestedBuf;
@@ -5384,6 +5430,7 @@ no_error:
       // Make timeout as 5 sec for request to be honored
       ts.tv_sec += 5;
     }
+      ts.tv_sec += ((bufsForCurRequest.timestamp - systemTime(CLOCK_MONOTONIC))/1000000000);
     //Block on conditional variable
     while ((mPendingLiveRequest >= mMinInFlightRequests) && !pInputBuffer &&
             (mState != ERROR) && (mState != DEINIT)) {
@@ -6750,6 +6797,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
 
     IF_META_AVAILABLE(uint32_t, hal_ab_mode, CAM_INTF_PARM_ANTIBANDING, metadata) {
+        if (*hal_ab_mode == CAM_ANTIBANDING_MODE_AUTO_50HZ ||
+              *hal_ab_mode == CAM_ANTIBANDING_MODE_AUTO_60HZ){
+             //CAM_ANTIBANDING_MODE_AUTO_50HZ/CAM_ANTIBANDING_MODE_AUTO_60HZ
+             *hal_ab_mode = CAM_ANTIBANDING_MODE_AUTO;
+        }
         int val = lookupFwkName(ANTIBANDING_MODES_MAP, METADATA_MAP_SIZE(ANTIBANDING_MODES_MAP),
                 *hal_ab_mode);
         if (NAME_NOT_FOUND != val) {
@@ -10841,6 +10893,13 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 METADATA_MAP_SIZE(ANTIBANDING_MODES_MAP), fwk_antibandingMode);
         if (NAME_NOT_FOUND != val) {
             uint32_t hal_antibandingMode = (uint32_t)val;
+            if (hal_antibandingMode == CAM_ANTIBANDING_MODE_AUTO) {
+                char prop[PROPERTY_VALUE_MAX];
+                memset(prop, 0, sizeof(prop));
+                //4 : CAM_ANTIBANDING_MODE_AUTO_50HZ , 5 : CAM_ANTIBANDING_MODE_AUTO_60HZ
+                property_get("persist.camera.set.afd", prop, "5");
+                hal_antibandingMode = (uint32_t)atoi(prop);
+            }
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ANTIBANDING,
                     hal_antibandingMode)) {
                 rc = BAD_VALUE;

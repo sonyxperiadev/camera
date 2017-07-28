@@ -38,6 +38,7 @@ typedef struct  {
     cam_frame_size_t main;
     cam_frame_size_t aux;
     cam_frame_size_t depth;
+    cam_frame_size_t bokehOut;
     String8 sMainReprocessInfo;
     String8 sAuxReprocessInfo;
     String8 sCalibData;
@@ -95,12 +96,15 @@ private:
     String8 flattenCropInfo(cam_stream_crop_info_t* crop, uint8_t index);
     String8 extractReprocessInfo(metadata_buffer_t *metadata);
     String8 extractCalibrationData();
+    void dumpInputParams(const char* filename, String8 str, uint32_t idx);
 
 private:
     void *m_dlHandle;
     const cam_capability_t *m_pCaps;
     bokeh_data_t mBokehData;
     bool bNeedCamSwap;
+    String8 mDebugData;
+    bool m_bDebug;
 }; // QCameraBokeh class
 }; // namespace qcamera
 
