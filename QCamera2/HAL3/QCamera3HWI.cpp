@@ -4448,6 +4448,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
 
+        // This DC info is required for setting the actual sync type instead of value
+        // set in confgure streams
+        if (meta.exists(QCAMERA3_DUALCAM_LINK_ENABLE)) {
+            mIsDeviceLinked = meta.find(QCAMERA3_DUALCAM_LINK_ENABLE).data.u8[0];
+            if (mIsDeviceLinked) {
+                mStreamConfigInfo.sync_type = get_cam_type(mCameraId);
+            }
+        }
+
         ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_META_STREAM_INFO, mStreamConfigInfo);
 
@@ -4550,13 +4559,14 @@ int QCamera3HardwareInterface::processCaptureRequest(
         LOGD("set_parms META_STREAM_INFO " );
         for (uint32_t i = 0; i < mStreamConfigInfo.num_streams; i++) {
             LOGI("STREAM INFO : type %d, wxh: %d x %d, pp_mask: 0x%" PRIx64
-                    ", Format:%d is_type: %d",
+                    ", Format:%d is_type: %d sync_type %d",
                     mStreamConfigInfo.type[i],
                     mStreamConfigInfo.stream_sizes[i].width,
                     mStreamConfigInfo.stream_sizes[i].height,
                     mStreamConfigInfo.postprocess_mask[i],
                     mStreamConfigInfo.format[i],
-                    mStreamConfigInfo.is_type[i]);
+                    mStreamConfigInfo.is_type[i],
+                    mStreamConfigInfo.sync_type);
         }
 
         rc = mCameraHandle->ops->set_parms(mCameraHandle->camera_handle,
