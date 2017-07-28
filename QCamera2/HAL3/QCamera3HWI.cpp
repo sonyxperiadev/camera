@@ -6797,6 +6797,11 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     }
 
     IF_META_AVAILABLE(uint32_t, hal_ab_mode, CAM_INTF_PARM_ANTIBANDING, metadata) {
+        if (*hal_ab_mode == CAM_ANTIBANDING_MODE_AUTO_50HZ ||
+              *hal_ab_mode == CAM_ANTIBANDING_MODE_AUTO_60HZ){
+             //CAM_ANTIBANDING_MODE_AUTO_50HZ/CAM_ANTIBANDING_MODE_AUTO_60HZ
+             *hal_ab_mode = CAM_ANTIBANDING_MODE_AUTO;
+        }
         int val = lookupFwkName(ANTIBANDING_MODES_MAP, METADATA_MAP_SIZE(ANTIBANDING_MODES_MAP),
                 *hal_ab_mode);
         if (NAME_NOT_FOUND != val) {
@@ -10888,6 +10893,13 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 METADATA_MAP_SIZE(ANTIBANDING_MODES_MAP), fwk_antibandingMode);
         if (NAME_NOT_FOUND != val) {
             uint32_t hal_antibandingMode = (uint32_t)val;
+            if (hal_antibandingMode == CAM_ANTIBANDING_MODE_AUTO) {
+                char prop[PROPERTY_VALUE_MAX];
+                memset(prop, 0, sizeof(prop));
+                //4 : CAM_ANTIBANDING_MODE_AUTO_50HZ , 5 : CAM_ANTIBANDING_MODE_AUTO_60HZ
+                property_get("persist.camera.set.afd", prop, "5");
+                hal_antibandingMode = (uint32_t)atoi(prop);
+            }
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ANTIBANDING,
                     hal_antibandingMode)) {
                 rc = BAD_VALUE;
