@@ -551,6 +551,10 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_cacModeDisabled = (uint8_t)atoi(prop);
 
     mRdiModeFmt = gCamCapability[mCameraId]->rdi_mode_stream_fmt;
+
+    m_bForceInfinityAf = property_get_bool("persist.camera.af.infinity", 0);
+    m_MobicatMask = property_get_bool("persist.camera.mobicat", 0);
+
     //Load and read GPU library.
     lib_surface_utils = NULL;
     LINK_get_surface_pixel_alignment = NULL;
@@ -11538,9 +11542,6 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
-    char af_value[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.af.infinity", af_value, "0");
-
     uint8_t fwk_focusMode = 0;
     bool use_tof = false;
 #ifdef TARGET_HAS_CASH
@@ -11569,7 +11570,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 #endif
-    if (atoi(af_value) == 0 && !use_tof) {
+    if ((m_bForceInfinityAf == 0) && !use_tof){
         if (frame_settings.exists(ANDROID_CONTROL_AF_MODE)) {
             fwk_focusMode = frame_settings.find(ANDROID_CONTROL_AF_MODE).data.u8[0];
             int val = lookupHalName(FOCUS_MODES_MAP, METADATA_MAP_SIZE(FOCUS_MODES_MAP),
@@ -13243,12 +13244,9 @@ uint8_t QCamera3HardwareInterface::getMobicatMask()
  *==========================================================================*/
 int32_t QCamera3HardwareInterface::setMobicat()
 {
-    char value [PROPERTY_VALUE_MAX];
-    property_get("persist.camera.mobicat", value, "0");
     int32_t ret = NO_ERROR;
-    uint8_t enableMobi = (uint8_t)atoi(value);
 
-    if (enableMobi) {
+    if (m_MobicatMask) {
         tune_cmd_t tune_cmd;
         tune_cmd.type = SET_RELOAD_CHROMATIX;
         tune_cmd.module = MODULE_ALL;
@@ -13261,7 +13259,6 @@ int32_t QCamera3HardwareInterface::setMobicat()
                 CAM_INTF_PARM_SET_PP_COMMAND,
                 tune_cmd);
     }
-    m_MobicatMask = enableMobi;
 
     return ret;
 }
