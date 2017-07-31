@@ -616,6 +616,7 @@ private:
     uint32_t getSnapshotHandle();
     void initDCSettings();
     void updateDCSettings();
+    void configureSnapshotSkip(bool skip);
 private:
     camera_device_t   mCameraDevice;
     uint32_t          mCameraId;
