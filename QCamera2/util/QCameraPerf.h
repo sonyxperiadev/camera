@@ -41,6 +41,7 @@ using namespace android;
 namespace qcamera {
 
 #define DEFAULT_PERF_LOCK_TIMEOUT_MS 1000
+#define PERF_LOCK_BOKEH_SNAP_TIMEOUT_MS 5000
 
 typedef int32_t (*perfLockAcquire)(int, int, int[], int);
 typedef int32_t (*perfLockRelease)(int);
@@ -56,6 +57,7 @@ typedef enum {
     PERF_LOCK_OFFLINE_REPROC  = PERF_LOCK_TAKE_SNAPSHOT,
     PERF_LOCK_POWERHINT_PREVIEW,
     PERF_LOCK_POWERHINT_ENCODE,
+    PERF_LOCK_BOKEH_SNAPSHOT,
     PERF_LOCK_COUNT
 } PerfLockEnum;
 

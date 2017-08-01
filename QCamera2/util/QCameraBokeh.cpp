@@ -600,6 +600,7 @@ int32_t QCameraBokeh::doBokehProcess(
         uint8_t* pDepthMap)
 {
     LOGD(":E");
+    ATRACE_BEGIN("doBokehProcess");
     int32_t rc = NO_ERROR;
     QCameraStream* pStream = NULL;
     uint32_t focusX,focusY;
@@ -725,6 +726,7 @@ done:
     if (effectObj) {
         delete effectObj;
     }
+    ATRACE_END();
     LOGD("X");
     return rc;
 }
