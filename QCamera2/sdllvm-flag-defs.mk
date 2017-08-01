@@ -1,10 +1,9 @@
-SDCLANG_FLAGS := -Ofast -ffp-contract=fast -mcpu=cortex-a53 -mfpu=crypto-neon-fp-armv8 -fno-fast-math
-SDCLANG_LTO   := -flto
+SDCLANG_FLAGS := -Ofast -ffp-contract=fast -mcpu=cortex-a53 -mfpu=crypto-neon-fp-armv8 -fno-fast-math -Wl,--no-fatal-warnings
 SDCLANG_LINK  := -fuse-ld=qcld
 
-# Turn off LTO for libs which do not build with LTO.
-ifeq ($(LOCAL_SDCLANG_LTO),)
-SDCLANG_LTO :=
+# Turn on LTO for libs which set LOCAL_SDCLANG_LTO := true.
+ifeq ($(LOCAL_SDCLANG_LTO),true)
+  SDCLANG_LTO   := -flto
 endif
 
 # Note: LOCAL_SDCLANG_EXTRA_FLAGS can be set in the individual module's .mk

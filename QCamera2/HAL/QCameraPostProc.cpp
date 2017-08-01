@@ -1356,9 +1356,11 @@ end:
         }
 
         /* check whether to send callback for depth map */
-        if (m_parent->mParameters.isUbiRefocus() &&
+        if ((m_parent->mParameters.isUbiRefocus() &&
                 (m_parent->getOutputImageCount() + 1 ==
-                        m_parent->mParameters.getRefocusOutputCount())) {
+                        m_parent->mParameters.getRefocusOutputCount())) ||
+                ((m_parent->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
+                (m_parent->getOutputImageCount() + 1 == NUM_BOKEH_OUTPUT))){
             m_parent->setOutputImageCount(m_parent->getOutputImageCount() + 1);
 
             jpeg_mem = m_DataMem;
@@ -1540,6 +1542,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         hal_pp_job->offline_buffer = job ? job->offline_buffer : false;
         LOGH("Feeding input to Manager");
         m_pHalPPManager->feedInput(hal_pp_job);
+        free(job);
     } else {
         //Done with post processing. Send frame to Jpeg
         qcamera_jpeg_data_t *jpeg_job =
@@ -2612,6 +2615,8 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
 
         CAM_DUMP_TO_FILE(QCAMERA_DUMP_FRM_LOCATION"tp", "bm", -1, "y",
                 &tpResult->data, tpMetaSize);
+    } else if (is_halpp_output_buf) {
+        main_stream->getCropInfo(crop);
     }
 
     cam_dimension_t dst_dim;
@@ -4074,7 +4079,19 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
     LOGD("halPPAllocatedBuf = %d", pData->halPPAllocatedBuf);
     LOGD("src_reproc_frame:%p", jpeg_job->src_reproc_frame);
 
-    if (!jpeg_job->halPPAllocatedBuf) {
+    if (pData->misc_buf != NULL) {
+        if (m_DataMem == NULL) {
+            LOGH("Allocating depthmap ashmem");
+            m_DataMem = m_parent->mGetMemory(-1, pData->misc_buf->frame_len,
+                    1, m_parent->mCallbackCookie);
+        }
+        LOGH("Copying to depthmap ashmem");
+        memcpy(m_DataMem->data, pData->misc_buf->buffer, pData->misc_buf->frame_len);
+        free(pData->misc_buf->buffer);
+        free(pData->misc_buf);
+    }
+
+    if (!jpeg_job->halPPAllocatedBuf && !pData->needEncode) {
         // check if to encode hal pp input buffer
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
@@ -4085,6 +4102,7 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
             releaseJpegJobData(jpeg_job);
             free(jpeg_job);
             jpeg_job = NULL;
+            free(pData);
             return NO_ERROR;
         }
     }
@@ -4112,6 +4130,8 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
 
     // wake up data proc thread
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
+
+    free(pData);
     LOGH("X");
     return rc;
 }

@@ -4,8 +4,7 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_SDCLANG := $(SDCLANGSAVE)
-LOCAL_SDCLANG_LTO := $(SDCLANGSAVE)
+SDCLANG_COMMON_DEFS := $(LOCAL_PATH)/sdllvm-common-defs.mk
 SDCLANG_FLAG_DEFS := $(LOCAL_PATH)/sdllvm-flag-defs.mk
 
 LOCAL_COPY_HEADERS_TO := qcom/camera
@@ -96,7 +95,8 @@ LOCAL_C_INCLUDES := \
         hardware/qcom/media/mm-core/inc \
         system/core/include/cutils \
         system/core/include/system \
-        system/media/camera/include/system
+        system/media/camera/include/system \
+        $(TARGET_OUT_HEADERS)/mm-camera-lib/cp/prebuilt
 
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \
@@ -132,7 +132,7 @@ LOCAL_C_INCLUDES += \
 LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
-LOCAL_SHARED_LIBRARIES += libcutils libdl
+LOCAL_SHARED_LIBRARIES += libcutils libdl libdualcameraddm
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_SHARED_LIBRARIES += libts_face_beautify_hal libts_detected_face_hal
 endif

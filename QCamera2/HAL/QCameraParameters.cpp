@@ -48,6 +48,8 @@
 #include "QCameraParameters.h"
 #include "QCameraTrace.h"
 
+#include "dualcameraddm_wrapper.h"
+
 extern "C" {
 #include "mm_camera_dbg.h"
 }
@@ -516,6 +518,8 @@ const char QCameraParameters::KEY_QC_LED_CALIBRATION[] = "led-calibration";
 // AF fine tune values
 const char QCameraParameters::KEY_QC_AF_FINETUNE[] = "finetune";
 const char QCameraParameters::KEY_QC_SUPPORTED_FINETUNE_MODES[] = "finetune-values";
+
+const char QCameraParameters::KEY_QC_DEPTH_MAP_SIZE[] = "depthmap-size";
 
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
@@ -1033,7 +1037,8 @@ QCameraParameters::QCameraParameters()
       mFallback(CAM_NO_FALLBACK),
       mAsymmetricSnapMode(false),
       mAsymmetricPreviewMode(false),
-      mDualCamType(DUAL_CAM_WIDE_TELE)
+      mDualCamType(DUAL_CAM_WIDE_TELE),
+      m_bBokehSnapEnabled(true)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1187,7 +1192,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mFallback(CAM_NO_FALLBACK),
     mAsymmetricSnapMode(false),
     mAsymmetricPreviewMode(false),
-    mDualCamType(DUAL_CAM_WIDE_TELE)
+    mDualCamType(DUAL_CAM_WIDE_TELE),
+    m_bBokehSnapEnabled(true)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -3227,6 +3233,13 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
     if (bRequestedBokehMode != m_bBokehMode) {
          m_bBokehMode = bRequestedBokehMode;
          m_bNeedRestart = true;
+         if (m_bBokehMode) {
+            char val[32];
+            int depthW, depthH;
+            getDepthMapSize(depthW, depthH);
+            snprintf(val, sizeof(val), "%dx%d", depthW, depthH);
+            updateParamEntry(KEY_QC_DEPTH_MAP_SIZE, val);
+         }
     }
     if (m_bBokehMode) {
         //Bokeh Mode set, set halpp type
@@ -3234,15 +3247,15 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
         mAsymmetricPreviewMode = true;
         m_bBokehMpoEnabled = params.getInt(KEY_QC_BOKEH_MPO_MODE);
         uint32_t requestedBlurLevel = params.getInt(KEY_QC_BOKEH_BLUR_VALUE);
-        if (requestedBlurLevel > 100) {
-            requestedBlurLevel = 100;
+        if (requestedBlurLevel > MAX_BLUR) {
+            requestedBlurLevel = MAX_BLUR;
         }
         if (m_bBokehBlurLevel != requestedBlurLevel) {
             cam_rtb_blur_info_t info;
             memset(&info, 0, sizeof(info));
             info.blur_level = requestedBlurLevel;
-            info.blur_min_value = 0;
-            info.blur_max_value = 100;
+            info.blur_min_value = MIN_BLUR;
+            info.blur_max_value = MAX_BLUR;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
                     CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, info)) {
                 LOGE("Failed to update table");
@@ -4507,6 +4520,9 @@ int32_t QCameraParameters::setNumOfSnapshot()
 
         if(getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
             dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
+        }
+        if(getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+            dualfov_snap_num = NUM_BOKEH_OUTPUT;
         }
         dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
 
@@ -6594,8 +6610,8 @@ int32_t QCameraParameters::initDefaultParameters()
 
     // Change to enable App team to test Bokeh mode
     // Set min max values for Blur values (min: 0, max: 100, step: 1)
-    if (isDualCamera()) {
-        String8 minMaxValues = createMinMaxValuesString(0, 100, 1);
+    if (isDualCamAvailable()) {
+        String8 minMaxValues = createMinMaxValuesString(MIN_BLUR, MAX_BLUR, BLUR_STEP);
         set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
         set(KEY_QC_IS_BOKEH_MODE_SUPPORTED, 1);
         set(KEY_QC_IS_BOKEH_MPO_SUPPORTED, 1);
@@ -6825,10 +6841,6 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t
         mDualCamType = (uint8_t)getDualCameraConfig(
                 m_pCapability->main_cam_cap, m_pCapability->aux_cam_cap);
         m_pFovControl->setDualCameraConfig(mDualCamType);
-
-        if (isBayerMono()) {
-            m_defaultHalPPType = CAM_HAL_PP_TYPE_CLEARSIGHT;
-        }
     }
 
     char prop[PROPERTY_VALUE_MAX];
@@ -10726,8 +10738,11 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             cam_dimension_t video;
             getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
             getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
-            /* Disable UBWC for preview, though supported, to take advantage of CPP duplication*/
-            if (getRecordingHintValue() == true && (!mCommon.isVideoUBWCEnabled()) &&
+            // Disable UBWC for preview, 
+            // 1.Though supported for preview, to take advantage of CPP duplication
+            // 2.When Lowpower mode and Video UBWC set, since CPP supports only NV21/NV21_venus
+            if (getRecordingHintValue() == true && (!mCommon.isVideoUBWCEnabled()||
+                (isLowPowerMode() && mCommon.isVideoUBWCEnabled())) &&
                 (video.width == preview.width) &&
                 (video.height == preview.height)) {
 #if VENUS_PRESENT
@@ -10781,7 +10796,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
-        if (isUBWCEnabled()) {
+        if (isUBWCEnabled() && !isLowPowerMode()) {
             if (mCommon.isVideoUBWCEnabled()) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
@@ -16462,7 +16477,9 @@ bool QCameraParameters::needSnapshotPP()
     // Disable Snapshot Postprocessing if any of the below features are enabled
     if ((!maxPicSize  &&  (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) ||
             m_bLongshotEnabled || m_bRecordingHint ||
-            m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()) {
+            m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()
+            || (isBayerMono() && (getHalPPType() == CAM_HAL_PP_TYPE_NONE))
+            || ((getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && !m_bBokehSnapEnabled)) {
         return false;
     } else {
         return true;
@@ -16922,6 +16939,41 @@ int32_t QCameraParameters::setAfFineTune(const char *FineTuneStr)
 bool QCameraParameters::needAnalysisStream()
 {
     return mCommon.needAnalysisStream();
+}
+
+/*===========================================================================
+ * FUNCTION   : getDepthMapSize
+ *
+ * DESCRIPTION: get depth map size from lib. Currently using hardcoded width/height to compute.
+ *                     If needed, can be extended easily for other pic sizes.
+ * PARAMETERS :
+ *   @width : (output) Depth map width
+ *   @height : (output) Depth map height
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::getDepthMapSize(int &width, int &height)
+{
+    qrcp::getDepthMapSize(CAM_BOKEH_TELE_WIDTH, CAM_BOKEH_TELE_HEIGHT, width, height);
+}
+
+void QCameraParameters::setBokehSnaphot(bool enable)
+{
+    if (m_bBokehSnapEnabled != enable) {
+        LOGD("%s bokeh snapshot", enable?"enabling":"disabling");
+        m_bBokehSnapEnabled = enable;
+    }
+}
+
+bool QCameraParameters::isDualCamAvailable()
+{
+    bool available = false;
+    for (uint8_t cameraId = 0; cameraId < get_num_of_cameras_to_expose(); cameraId++) {
+        if(is_dual_camera_by_idx(cameraId)) {
+            available = true;
+            break;
+        }
+    }
+    return available;
 }
 
 }; // namespace qcamera

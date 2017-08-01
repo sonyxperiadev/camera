@@ -1326,6 +1326,19 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
 
     return rc;
 }
+/*===========================================================================
+ * FUNCTION   : getBuffer
+ *
+ * DESCRIPTION: get buffer from buffer index
+ *
+ * PARAMETERS :
+ *
+ * RETURN     : buffer address
+ *==========================================================================*/
+mm_camera_buf_def_t *QCameraStream::getBuffer(int32_t index)
+{
+    return &mBufDefs[index];
+}
 
 /*===========================================================================
  * FUNCTION   : getNumQueuedBuf
@@ -2988,6 +3001,9 @@ int32_t QCameraStream::setBundleInfo()
 
     cam_stream_parm_buffer_t param, aux_param;
     uint32_t active_handle = get_main_camera_handle(mChannelHandle);
+    if (mCamType == CAM_TYPE_AUX) {
+        active_handle = get_aux_camera_handle(mChannelHandle);
+    }
     memset(&bundleInfo, 0, sizeof(bundleInfo));
     if (active_handle) {
         ret = mCamOps->get_bundle_info(mCamHandle, active_handle,
@@ -3014,8 +3030,13 @@ int32_t QCameraStream::setBundleInfo()
     }
 
     if (mStreamInfo->parm_buf.bundleInfo.num_of_streams > 1) {
-        ret = mCamOps->set_stream_parms(mCamHandle,
-                get_main_camera_handle(mChannelHandle), get_main_camera_handle(mHandle),
+        uint32_t channelHdl = get_main_camera_handle(mChannelHandle);
+        uint32_t streamHdl = get_main_camera_handle(mHandle);
+        if (mCamType == CAM_TYPE_AUX) {
+            channelHdl = mChannelHandle;
+            streamHdl = mHandle;
+        }
+        ret = mCamOps->set_stream_parms(mCamHandle, channelHdl, streamHdl,
                 &mStreamInfo->parm_buf);
     }
 
