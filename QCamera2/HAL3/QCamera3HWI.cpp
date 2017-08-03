@@ -7953,6 +7953,10 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
                 sizeof(cam_capability_t));
     }
 
+    if (gCamCapability[cameraId]->is_remosaic_lib_present) {
+        gCamCapability[cameraId]->is_quadracfa_sensor = TRUE;
+    }
+
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
     property_get("persist.camera.quadcfa.id", prop, "");
@@ -7961,6 +7965,53 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
         if (camId == cameraId) {
             gCamCapability[cameraId]->is_quadracfa_sensor = TRUE;
         }
+    }
+
+    if (gCamCapability[cameraId]->is_quadracfa_sensor) {
+        LOGI("camera id:%d, quadra cfa sensor.", cameraId);
+        property_get("persist.camera.quadcfa.pic_size", prop, "quarter");
+        if (strlen(prop) > 0 && !strcmp(prop, "quarter")) {
+            // overide supported picture size, min_duration, and stall_duration,
+            // move to filter_supported_snapshot_dimesion()
+            cam_dimension_t temp_tbl[MAX_SIZES_CNT];
+            int64_t min_duration[MAX_SIZES_CNT];
+            int64_t stall_durations[MAX_SIZES_CNT];
+            size_t tbl_cnt = 0;
+
+            memset(temp_tbl, 0, sizeof(temp_tbl));
+            memset(min_duration, 0, sizeof(min_duration));
+            memset(stall_durations, 0, sizeof(stall_durations));
+            for (size_t i = 0; i < gCamCapability[cameraId]->picture_sizes_tbl_cnt; i++) {
+                cam_dimension_t dim = gCamCapability[cameraId]->picture_sizes_tbl[i];
+                if (dim.width  <= gCamCapability[cameraId]->raw_dim[0].width &&
+                    dim.height <= gCamCapability[cameraId]->raw_dim[0].height) {
+                    temp_tbl[tbl_cnt] = dim;
+                    min_duration[tbl_cnt]    = gCamCapability[cameraId]->picture_min_duration[i];
+                    stall_durations[tbl_cnt] = gCamCapability[cameraId]->jpeg_stall_durations[i];
+                    tbl_cnt++;
+                }
+            }
+            gCamCapability[cameraId]->picture_sizes_tbl_cnt = tbl_cnt;
+            memcpy(gCamCapability[cameraId]->picture_sizes_tbl, temp_tbl, sizeof(temp_tbl));
+            memcpy(gCamCapability[cameraId]->picture_min_duration,
+                    min_duration, sizeof(min_duration));
+            memcpy(gCamCapability[cameraId]->jpeg_stall_durations,
+                    stall_durations, sizeof(stall_durations));
+            LOGD("raw_dim[0]:%dx%d, pic dim[0]:%dx%d", gCamCapability[cameraId]->raw_dim[0].width,
+                gCamCapability[cameraId]->raw_dim[0].height,
+                gCamCapability[cameraId]->picture_sizes_tbl[0].width,
+                gCamCapability[cameraId]->picture_sizes_tbl[0].height);
+        }
+
+        cam_dimension_t raw_dim = gCamCapability[cameraId]->raw_dim[0];
+        gCamCapability[cameraId]->pixel_array_size = raw_dim;
+
+        gCamCapability[cameraId]->active_array_size.left   = 0;
+        gCamCapability[cameraId]->active_array_size.top    = 0;
+        gCamCapability[cameraId]->active_array_size.width  = raw_dim.width;
+        gCamCapability[cameraId]->active_array_size.height = raw_dim.height;
+
+        LOGD("override active array size to (%d, %d).", raw_dim.width, raw_dim.height);
     }
 
 failed_op:
@@ -11270,9 +11321,22 @@ int QCamera3HardwareInterface::translateToHalMetadata
         scalerCropRegion.width = frame_settings.find(ANDROID_SCALER_CROP_REGION).data.i32[2];
         scalerCropRegion.height = frame_settings.find(ANDROID_SCALER_CROP_REGION).data.i32[3];
 
-        // Map coordinate system from active array to sensor output.
-        mCropRegionMapper.toSensor(scalerCropRegion.left, scalerCropRegion.top,
+        if (mQuadraCfaStage == QCFA_RAW_OUTPUT) {
+            LOGI("map coordinate to quadra cfa sensor output");
+            int32_t sensorW = gCamCapability[mCameraId]->quadra_cfa_dim[0].width;
+            int32_t sensorH = gCamCapability[mCameraId]->quadra_cfa_dim[0].height;
+            int32_t activeArrayW = gCamCapability[mCameraId]->active_array_size.width;
+            int32_t activeArrayH = gCamCapability[mCameraId]->active_array_size.height;
+
+            scalerCropRegion.left   = scalerCropRegion.left   * sensorW / activeArrayW;
+            scalerCropRegion.top    = scalerCropRegion.top    * sensorH / activeArrayH;
+            scalerCropRegion.width  = scalerCropRegion.width  * sensorW / activeArrayW;
+            scalerCropRegion.height = scalerCropRegion.height * sensorH / activeArrayH;
+        } else {
+            // Map coordinate system from active array to sensor output.
+            mCropRegionMapper.toSensor(scalerCropRegion.left, scalerCropRegion.top,
                 scalerCropRegion.width, scalerCropRegion.height);
+        }
 
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SCALER_CROP_REGION,
                 scalerCropRegion)) {
