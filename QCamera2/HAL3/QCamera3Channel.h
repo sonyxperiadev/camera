@@ -123,6 +123,7 @@ public:
     uint32_t getNumOfStreams() const {return m_numStreams;};
     uint32_t getNumBuffers() const {return mNumBuffers;};
     QCamera3Stream *getStreamByIndex(uint32_t index);
+    cam_padding_info_t* getPaddingInfo();
 
     static void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                 QCamera3Stream *stream, void *userdata);
@@ -594,6 +595,7 @@ public:
     // offline reprocess
     virtual int32_t start();
     virtual int32_t stop();
+    int32_t doMetaReprocessOffline(qcamera_fwk_input_pp_data_t *frame);
     int32_t doReprocessOffline(qcamera_fwk_input_pp_data_t *frame,
             bool isPriorityFrame = false);
     int32_t doReprocess(int buf_fd,void *buffer, size_t buf_length, int32_t &ret_val,
@@ -603,8 +605,10 @@ public:
             jpeg_settings_t *jpeg_settings,
             qcamera_fwk_input_pp_data_t &fwk_frame);
     int32_t overrideFwkMetadata(qcamera_fwk_input_pp_data_t *frame);
+    QCamera3StreamMem* getMetaStreamBufs(uint32_t len);
     virtual QCamera3StreamMem *getStreamBufs(uint32_t len);
     virtual void putStreamBufs();
+    void putMetaStreamBufs();
     virtual int32_t initialize(cam_is_type_t isType);
     int32_t unmapOfflineBuffers(bool all);
     int32_t bufDone(mm_camera_super_buf_t *recvd_frame);
@@ -616,10 +620,12 @@ public:
            const reprocess_config_t &src_config,
            cam_is_type_t is_type,
            QCamera3Channel *pMetaChannel);
+    int32_t addMetaReprocStream(QCamera3Channel *pMetaChannel);
     QCamera3Stream *getStreamBySrcHandle(uint32_t srcHandle);
     QCamera3Stream *getSrcStreamBySrcHandle(uint32_t srcHandle);
     virtual int32_t registerBuffer(buffer_handle_t * buffer, cam_is_type_t isType);
     virtual int32_t timeoutFrame(__unused uint32_t frameNumber) {return NO_ERROR;};
+    bool isMetaReprocStream(QCamera3Stream* stream);
 
 public:
     void *inputChHandle;
@@ -639,17 +645,22 @@ private:
     int32_t mOfflineBuffersIndex;
     int32_t mOfflineMetaIndex;
     uint32_t mFrameLen;
+    uint32_t mFrameLenMeta;
     Mutex mFreeBuffersLock; // Lock for free heap buffers
     List<int32_t> mFreeBufferList; // Free heap buffers list
+    List<int32_t> mFreeBufferListMeta;
     reprocess_type_t mReprocessType;
     uint32_t mSrcStreamHandles[MAX_STREAM_NUM_IN_BUNDLE];
     QCamera3ProcessingChannel *m_pSrcChannel; // ptr to source channel for reprocess
     QCamera3Channel *m_pMetaChannel;
     QCamera3StreamMem *mMemory;
+    QCamera3StreamMem *mMemoryMeta;
     QCamera3StreamMem mGrallocMemory;
     Vector<uint32_t> mPriorityFrames;
     Mutex            mPriorityFramesLock;
     bool             mReprocessPerfMode;
+    bool             m_bOfflineIsp;
+    mm_camera_buf_def_t m_processedMetaBuf;
 };
 
 

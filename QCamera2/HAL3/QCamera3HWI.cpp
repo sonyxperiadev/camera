@@ -463,7 +463,9 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       m_pDualCamCmdPtr(NULL),
       m_bSensorHDREnabled(false),
       mCurrentSceneMode(0),
-      m_bOfflineIsp(false)
+      m_bOfflineIsp(false),
+      m_bQuadraCfaSensor(false),
+      mQuadraCfaStage(QCFA_INACTIVE)
 {
     getLogLevel();
     mCommon.init(gCamCapability[cameraId]);
@@ -546,6 +548,11 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
              mSurfaceStridePadding = LINK_get_surface_pixel_alignment();
          }
          dlclose(lib_surface_utils);
+    }
+
+    if (gCamCapability[cameraId]->is_quadracfa_sensor) {
+        LOGI("Sensor support Quadra CFA mode");
+        m_bQuadraCfaSensor = true;
     }
 }
 
@@ -1120,6 +1127,17 @@ int QCamera3HardwareInterface::validateStreamDimensions(
                     break;
                 }
             }
+            if (m_bQuadraCfaSensor && !sizeFound) {
+                if ((int32_t)rotatedWidth  <= gCamCapability[mCameraId]->quadra_cfa_dim[0].width &&
+                    (int32_t)rotatedHeight <= gCamCapability[mCameraId]->quadra_cfa_dim[0].height) {
+                    sizeFound = true;
+                    if (newStream->stream_type == CAMERA3_STREAM_INPUT) {
+                        mQuadraCfaStage = QCFA_RAW_REPROCESS;
+                    } else if (newStream->stream_type == CAMERA3_STREAM_OUTPUT) {
+                        mQuadraCfaStage = QCFA_RAW_OUTPUT;
+                    }
+                }
+            }
             break;
         case HAL_PIXEL_FORMAT_BLOB:
             if (newStream->data_space !=  HAL_DATASPACE_DEPTH) {
@@ -1136,6 +1154,12 @@ int QCamera3HardwareInterface::validateStreamDimensions(
                 }
             } else {
                 sizeFound = true;
+            }
+            if (m_bQuadraCfaSensor && !sizeFound) {
+                if ((int32_t)rotatedWidth  <= gCamCapability[mCameraId]->quadra_cfa_dim[0].width &&
+                    (int32_t)rotatedHeight <= gCamCapability[mCameraId]->quadra_cfa_dim[0].height) {
+                    sizeFound = true;
+                }
             }
             break;
         case HAL_PIXEL_FORMAT_Y16:
@@ -1523,6 +1547,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     LOGD("mOpMode: %d", mOpMode);
 
     mCurrentSceneMode = 0;
+    mQuadraCfaStage = QCFA_INACTIVE;
 
     /* first invalidate all the steams in the mStreamList
      * if they appear again, they will be validated */
@@ -2123,9 +2148,18 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                                     zsl_ppmask;
                         } else {
-                            LOGE("Error, No ZSL stream identified");
-                            pthread_mutex_unlock(&mMutex);
-                            return -EINVAL;
+                            if (mQuadraCfaStage != QCFA_INACTIVE) {
+                                mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width
+                                    = gCamCapability[mCameraId]->picture_sizes_tbl[0].width;
+                                mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height
+                                    = gCamCapability[mCameraId]->picture_sizes_tbl[0].height;
+                                mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
+                                    CAM_QCOM_FEATURE_NONE;
+                            } else {
+                                LOGE("Error, No ZSL stream identified");
+                                pthread_mutex_unlock(&mMutex);
+                                return -EINVAL;
+                            }
                         }
                     } else if (m_bIs4KVideo) {
                         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
@@ -2313,6 +2347,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             this, newStream,
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                             mMetadataChannel,
+                            (mQuadraCfaStage == QCFA_INACTIVE) &&
                             (newStream->format == HAL_PIXEL_FORMAT_RAW16));
                     if (mRawChannel == NULL) {
                         LOGE("allocation of raw channel failed");
@@ -4443,6 +4478,14 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (gCamCapability[mCameraId]->supported_is_types[i] == IS_TYPE_EIS_3_0) {
                 eis3Supported = true;
                 break;
+            }
+        }
+
+        if (mQuadraCfaStage != QCFA_INACTIVE) {
+            bool enable = (mQuadraCfaStage == QCFA_RAW_OUTPUT);
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_QUADRA_CFA, enable)) {
+                LOGE("Failed to update Quadra CFA mode");
+                rc = BAD_VALUE;
             }
         }
 
@@ -7895,6 +7938,17 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
         memcpy(gCamCapability[cameraId]->main_cam_cap, gCamCapability[cameraId],
                 sizeof(cam_capability_t));
     }
+
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.quadcfa.id", prop, "");
+    if (strlen(prop) > 0) {
+        uint8_t camId = atoi(prop);
+        if (camId == cameraId) {
+            gCamCapability[cameraId]->is_quadracfa_sensor = TRUE;
+        }
+    }
+
 failed_op:
     cameraHandle->ops->close_camera(cameraHandle->camera_handle);
     cameraHandle = NULL;
@@ -8071,6 +8125,17 @@ cam_dimension_t QCamera3HardwareInterface::calcMaxJpegDim()
             max_jpeg_dim.height = curr_jpeg_dim.height;
         }
     }
+
+    // adjust for quadra cfa
+    if ((mQuadraCfaStage == QCFA_RAW_REPROCESS) &&
+            gCamCapability[mCameraId]->supported_quadra_cfa_dim_cnt > 0) {
+        curr_jpeg_dim = gCamCapability[mCameraId]->quadra_cfa_dim[0];
+        if (curr_jpeg_dim.width * curr_jpeg_dim.height >
+            max_jpeg_dim.width * max_jpeg_dim.height ) {
+            max_jpeg_dim = curr_jpeg_dim;
+        }
+    }
+
     return max_jpeg_dim;
 }
 
@@ -8481,6 +8546,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         if (token != NULL) {
             minInputSize.height = atoi(token);
         }
+    }
+
+    if (minInputSize.width > gCamCapability[cameraId]->picture_sizes_tbl[0].width ||
+        minInputSize.height > gCamCapability[cameraId]->picture_sizes_tbl[0].height) {
+        minInputSize = gCamCapability[cameraId]->picture_sizes_tbl[0];
     }
 
     /* Add input/output stream configurations for each scalar formats*/
