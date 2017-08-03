@@ -91,7 +91,6 @@ namespace qcamera {
 #define TEMPLATE_MAX_PREVIEW_FPS (30.0)
 #define MAX_HFR_BATCH_SIZE     (8)
 #define REGIONS_TUPLE_COUNT    5
-#define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
 // Set a threshold for detection of missing buffers //seconds
 #define MISSING_REQUEST_BUF_TIMEOUT 3
 #define FLUSH_TIMEOUT 3
@@ -3776,7 +3775,8 @@ void QCamera3HardwareInterface::hdrPlusPerfLock(
         return;
     }
 
-    //acquire perf lock for 5 sec after the last HDR frame is captured
+    //acquire perf lock for 2 secs after the last HDR frame is captured
+    constexpr uint32_t HDR_PLUS_PERF_TIME_OUT = 2000;
     if ((p_frame_number_valid != NULL) && *p_frame_number_valid) {
         if ((p_frame_number != NULL) &&
                 (mLastCustIntentFrmNum == (int32_t)*p_frame_number)) {
