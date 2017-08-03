@@ -522,7 +522,7 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
   }
 
   lib2d_job_private_info *p_job_info = malloc(sizeof(lib2d_job_private_info));
-  if (p_out_frame == NULL) {
+  if (p_job_info == NULL) {
     free(p_in_frame);
     free(p_out_frame);
     free(p_meta);
@@ -533,7 +533,6 @@ lib2d_error mm_lib2d_start_job(void *lib2d_obj_handle,
   memset(p_out_frame, 0x0, sizeof(img_frame_t));
   memset(p_meta, 0x0, sizeof(img_meta_t));
   memset(p_job_info,  0x0, sizeof(lib2d_job_private_info));
-
   // Fill up job info private data structure that can be used in callback to
   // inform back to the client.
   p_job_info->jobid           = jobid;
