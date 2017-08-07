@@ -2415,10 +2415,10 @@ void QCamera3RawChannel::streamCbRoutine(
             convertMipiToRaw16(super_frame->bufs[0]);
         else
             convertLegacyToRaw16(super_frame->bufs[0]);
-    }
 
-    //Make sure cache coherence because extra processing is done
-    mMemory.cleanInvalidateCache(super_frame->bufs[0]->buf_idx);
+        //Make sure cache coherence because extra processing is done
+        mMemory.cleanCache(super_frame->bufs[0]->buf_idx);
+    }
 
     QCamera3RegularChannel::streamCbRoutine(super_frame, stream);
     return;
