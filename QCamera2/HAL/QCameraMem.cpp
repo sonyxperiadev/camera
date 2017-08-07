@@ -2466,8 +2466,8 @@ void QCameraGrallocMemory::deallocate()
                 mWindow->cancel_buffer(mWindow, mBufferHandle[cnt]);
                 mBufferHandle[cnt]= NULL;
             } else {
-                LOGE("Cannot cancel buffer: hdl =%p window = %p local ptr = %p",
-                      (*mBufferHandle[cnt]), mWindow, mBufferHandle[cnt]);
+                LOGE("Cannot cancel buffer: window = %p local ptr = %p",
+                      mWindow, mBufferHandle[cnt]);
             }
         }
         mLocalFlag[cnt] = BUFFER_NOT_OWNED;

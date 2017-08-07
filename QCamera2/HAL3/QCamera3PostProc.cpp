@@ -2708,6 +2708,7 @@ QCamera3Exif *QCamera3PostProcessor::getExifData(metadata_buffer_t *metadata,
         hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
     } else {
         LOGE("m_parent is NULL, Error");
+        delete exif;
         return NULL;
     }
 

@@ -9473,6 +9473,10 @@ int32_t QCamera2HardwareInterface::processFaceDetectionResult(cam_faces_data_t *
     }
 
     qcamera_face_detect_type_t fd_type = faces_data->detection_data.fd_type;
+    if ((fd_type != QCAMERA_FD_PREVIEW) && (fd_type != QCAMERA_FD_SNAPSHOT)) {
+        LOGE("Unknown fd type");
+        return UNKNOWN_ERROR;
+    }
     cam_face_detection_data_t *detect_data = &(faces_data->detection_data);
     if ((NULL == mDataCb) ||
         (fd_type == QCAMERA_FD_PREVIEW && !msgTypeEnabled(CAMERA_MSG_PREVIEW_METADATA)) ||
