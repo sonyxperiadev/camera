@@ -8636,6 +8636,7 @@ no_error:
             /* Update stream id of all the requested buffers */
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STREAM_ID, streamsArray)) {
                 LOGE("Failed to set stream type mask in the parameters");
+                pthread_mutex_unlock(&mMutex);
                 return BAD_VALUE;
             }
 
