@@ -553,7 +553,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     mRdiModeFmt = gCamCapability[mCameraId]->rdi_mode_stream_fmt;
 
     m_bForceInfinityAf = property_get_bool("persist.camera.af.infinity", 0);
-    m_MobicatMask = property_get_bool("persist.camera.mobicat", 0);
+    m_MobicatMask = (uint8_t)property_get_int32("persist.camera.mobicat", 0);
 
     //Load and read GPU library.
     lib_surface_utils = NULL;
