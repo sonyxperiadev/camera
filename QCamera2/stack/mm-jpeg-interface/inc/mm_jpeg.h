@@ -429,6 +429,7 @@ typedef struct mm_jpeg_obj_t {
 
   /* lib2d handle*/
   void *static_lib2d_handle;
+  uint32_t is_lib2d_enable;
 
 } mm_jpeg_obj;
 
