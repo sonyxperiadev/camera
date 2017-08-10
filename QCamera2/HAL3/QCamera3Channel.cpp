@@ -3306,6 +3306,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
     buffer_handle_t *resultBuffer = NULL;
     buffer_handle_t *jpegBufferHandle = NULL;
     int resultStatus = CAMERA3_BUFFER_STATUS_OK;
+    bool isHDR = false;
     camera3_stream_buffer_t result;
     camera3_jpeg_blob_t jpegHeader;
 
@@ -3323,8 +3324,8 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
 
         if (NULL != job) {
             uint32_t bufIdx = (uint32_t)job->jpeg_settings->out_buf_index;
-            LOGD("jpeg out_buf_index: %d", bufIdx);
-
+            LOGD("jpeg out_buf_index: %d and if HDR :%d", bufIdx, job->jpeg_settings->hdr_snapshot);
+            isHDR = job->jpeg_settings->hdr_snapshot;
             //Construct jpeg transient header of type camera3_jpeg_blob_t
             //Append at the end of jpeg image of buf_filled_len size
 
@@ -3420,15 +3421,19 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             } else {
                 LOGE("Snapshot buffer not found!");
             }
-
-            LOGI("Issue Jpeg Callback frameNumber = %d status = %d",
-                    resultFrameNumber, resultStatus);
-            if (obj->mChannelCB) {
-                obj->mChannelCB(NULL,
-                        &result,
-                        (uint32_t)resultFrameNumber,
-                        false,
-                        obj->mUserData);
+            if(isHDR) {
+               obj->mPostProcStarted = false;
+               obj->m_postprocessor.mChannelStop = false;
+            } else {
+                LOGI("Issue Jpeg Callback frameNumber = %d status = %d and %d",
+                        resultFrameNumber, resultStatus, isHDR);
+                if (obj->mChannelCB) {
+                    obj->mChannelCB(NULL,
+                            &result,
+                            (uint32_t)resultFrameNumber,
+                            false,
+                            obj->mUserData);
+                }
             }
 
             // release internal data for jpeg job
@@ -3461,6 +3466,17 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             obj->m_postprocessor.releaseOfflineBuffers(false);
             obj->m_postprocessor.releaseJpegJobData(job);
             free(job);
+            if(isHDR) {
+               LOGD("Calling PostProc Stopped sending ");
+               if (obj->mChannelCB) {
+                   obj->mChannelCB(NULL,
+                           &result,
+                           (uint32_t)resultFrameNumber,
+                           false,
+                           obj->mUserData);
+               }
+               obj->m_postprocessor.stop(true);
+            }
         }
 
         return;
@@ -3643,6 +3659,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     }
 
     // Start postprocessor
+    LOGD(" Starting Postproc Channel");
     startPostProc(reproc_cfg);
 
     if (!internalRequest) {
@@ -3762,6 +3779,13 @@ void QCamera3PicChannel::dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
     return;
 }
 
+void QCamera3PicChannel::freeBufferForFrame(mm_camera_super_buf_t *frame)
+{
+    Mutex::Autolock lock(mFreeBuffersLock);
+    LOGD(" Freeing the Buffer");
+    mFreeBufferList.push_back(frame->bufs[0]->buf_idx);
+}
+
 /*===========================================================================
  * FUNCTION   : streamCbRoutine
  *
@@ -3812,6 +3836,7 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
         LOGD("Internal Request recycle frame");
         Mutex::Autolock lock(mFreeBuffersLock);
         mFreeBufferList.push_back(frameIndex);
+        free(super_frame);
         return;
     }
 
@@ -4432,7 +4457,6 @@ int32_t QCamera3ReprocessChannel::stop()
 {
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_REPROC_CH_STOP);
     int32_t rc = NO_ERROR;
-
     rc = QCamera3Channel::stop();
     rc |= m_camOps->stop_channel(m_camHandle, m_handle);
     // Unmapping the buffers

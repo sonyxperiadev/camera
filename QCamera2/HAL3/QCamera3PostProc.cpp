@@ -84,11 +84,14 @@ QCamera3PostProcessor::QCamera3PostProcessor(QCamera3ProcessingChannel* ch_ctrl)
       m_inputJpegQ(releaseJpegData, this),
       m_ongoingJpegQ(releaseJpegData, this),
       m_inputMetaQ(releaseMetadata, this),
-      m_jpegSettingsQ(NULL, this)
+      m_jpegSettingsQ(NULL, this),
+      mChannelStop(TRUE)
 {
     memset(&mJpegHandle, 0, sizeof(mJpegHandle));
     memset(&mJpegMetadata, 0, sizeof(mJpegMetadata));
     pthread_mutex_init(&mReprocJobLock, NULL);
+    pthread_mutex_init(&mHDRJobLock, NULL);
+    pthread_cond_init(&mProcChStopCond, NULL);
 }
 
 /*===========================================================================
@@ -103,6 +106,8 @@ QCamera3PostProcessor::QCamera3PostProcessor(QCamera3ProcessingChannel* ch_ctrl)
 QCamera3PostProcessor::~QCamera3PostProcessor()
 {
     pthread_mutex_destroy(&mReprocJobLock);
+    pthread_mutex_destroy(&mHDRJobLock);
+    pthread_cond_destroy(&mProcChStopCond);
 }
 
 /*===========================================================================
@@ -229,8 +234,11 @@ int32_t QCamera3PostProcessor::initJpeg(jpeg_encode_callback_t jpeg_cb,
 int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
 {
     int32_t rc = NO_ERROR;
+    pthread_mutex_lock(&mHDRJobLock);
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
-
+    if(mChannelStop == false)
+        pthread_cond_wait(&mProcChStopCond, &mHDRJobLock);
+    pthread_mutex_unlock(&mHDRJobLock);
     if (config.reprocess_type != REPROCESS_TYPE_NONE) {
         if (m_pReprocChannel != NULL) {
             m_pReprocChannel->stop();
@@ -258,7 +266,6 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
         }
     }
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, TRUE, FALSE);
-
     return rc;
 }
 
@@ -303,9 +310,12 @@ int32_t QCamera3PostProcessor::flush()
  *
  * NOTE       : reprocess channel will be stopped and deleted if there is any
  *==========================================================================*/
-int32_t QCamera3PostProcessor::stop()
+int32_t QCamera3PostProcessor::stop(bool isHDR)
 {
-    m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
+    if(isHDR == true)
+        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, FALSE, TRUE);
+    else
+        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
 
     if (m_pReprocChannel != NULL) {
         m_pReprocChannel->stop();
@@ -761,14 +771,26 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
         const metadata_buffer_t *p_metadata)
 {
     qcamera_hal3_pp_data_t *job = (qcamera_hal3_pp_data_t *)m_ongoingPPQ.dequeue();
+    qcamera_hal3_pp_data_t *pending_job;
     ATRACE_INT("Camera:Reprocess", 0);
     if (job == NULL || ((NULL == job->src_frame) && (NULL == job->fwk_src_frame))) {
         LOGE("Cannot find reprocess job");
         return BAD_VALUE;
     }
+    LOGD("jpeg settings is :%p and %d",job->jpeg_settings, m_ongoingPPQ.getCurrentSize());
     if (job->jpeg_settings == NULL) {
         LOGE("Cannot find jpeg settings");
         return BAD_VALUE;
+    }
+
+    while((job->jpeg_settings->hdr_snapshot == 1) && (!m_ongoingPPQ.isEmpty()) ) {
+        LOGD(" Checking if empty");
+        pending_job = (qcamera_hal3_pp_data_t *)m_ongoingPPQ.dequeue();
+        if ((pending_job != NULL)) {
+            LOGD("free reprocessed buffer");
+            m_parent->freeBufferForFrame(pending_job->src_frame);
+            m_parent->metadataBufDone(pending_job->src_metadata);
+        }
     }
 
     qcamera_hal3_jpeg_data_t *jpeg_job =
@@ -2089,7 +2111,6 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
             {
                 LOGH("stop data proc");
                 is_active = FALSE;
-
                 // cancel all ongoing jpeg jobs
                 qcamera_hal3_jpeg_data_t *jpeg_job =
                     (qcamera_hal3_jpeg_data_t *)pme->m_ongoingJpegQ.dequeue();
@@ -2127,6 +2148,10 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
 
                 // signal cmd is completed
                 cam_sem_post(&cmdThread->sync_sem);
+                pthread_mutex_lock(&pme->mHDRJobLock);
+                pme->mChannelStop = true;
+                pthread_cond_signal(&pme->mProcChStopCond);
+                pthread_mutex_unlock(&pme->mHDRJobLock);
             }
             break;
         case CAMERA_CMD_TYPE_DO_NEXT_JOB:
