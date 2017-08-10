@@ -4077,18 +4077,10 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
     jpeg_job->offline_reproc_buf = pData->offline_reproc_buf;
     jpeg_job->offline_buffer = pData->offline_buffer;
     LOGD("halPPAllocatedBuf = %d", pData->halPPAllocatedBuf);
-    LOGD("src_reproc_frame:%p", jpeg_job->src_reproc_frame);
 
     if (pData->misc_buf != NULL) {
-        if (m_DataMem == NULL) {
-            LOGH("Allocating depthmap ashmem");
-            m_DataMem = m_parent->mGetMemory(-1, pData->misc_buf->frame_len,
-                    1, m_parent->mCallbackCookie);
-        }
-        LOGH("Copying to depthmap ashmem");
-        memcpy(m_DataMem->data, pData->misc_buf->buffer, pData->misc_buf->frame_len);
-        free(pData->misc_buf->buffer);
         free(pData->misc_buf);
+        pData->misc_buf = NULL;
     }
 
     if (!jpeg_job->halPPAllocatedBuf && !pData->needEncode) {
@@ -4098,7 +4090,7 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
         property_get("persist.camera.dualfov.jpegnum", prop, "1");
         int dualfov_snap_num = atoi(prop);
         if (dualfov_snap_num == 1) {
-            LOGE("No need to encode input buffer, just release it.");
+            LOGH("No need to encode input buffer, just release it.");
             releaseJpegJobData(jpeg_job);
             free(jpeg_job);
             jpeg_job = NULL;
@@ -4129,6 +4121,7 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
     }
 
     // wake up data proc thread
+    LOGH("Send frame for jpeg encoding");
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
 
     free(pData);
@@ -4207,6 +4200,39 @@ void QCameraPostProcessor::getHalPPOutputBuffer(uint32_t frameIndex)
         free(output_data);
         return;
     }
+
+    if (m_parent->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+        //Allocate buffer for depthmap. Will be cleaned up by postproc when depth cb is issued.
+        mm_camera_buf_def_t *depthBuf = (mm_camera_buf_def_t*) malloc(sizeof(mm_camera_buf_def_t));
+        if (!depthBuf) {
+            LOGE("Error allocating depth buffer");
+            delete output_data->metadata_heap;
+            delete output_data->snapshot_heap;
+            free(output_frame);
+            free(output_data->bufs);
+            free(output_data);
+            return;
+        }
+        cam_dimension_t dmSize;
+        m_parent->mParameters.getDepthMapSize(dmSize.width, dmSize.height);
+        uint32_t depthLen = dmSize.width * dmSize.height;
+
+        m_DataMem = m_parent->mGetMemory(-1, depthLen, 1, m_parent->mCallbackCookie);
+        if (m_DataMem == NULL) {
+            LOGE("Error allocating depth buffer");
+            delete output_data->metadata_heap;
+            delete output_data->snapshot_heap;
+            free(output_frame);
+            free(output_data->bufs);
+            free(output_data);
+            return;
+        }
+
+        depthBuf->buffer = m_DataMem->data;
+        depthBuf->frame_len = depthLen;
+        output_data->misc_buf = depthBuf;
+    }
+
     output_data->frameIndex = frameIndex;
     m_pHalPPManager->feedOutput(output_data);
 }
