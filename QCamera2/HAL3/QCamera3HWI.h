@@ -444,6 +444,8 @@ private:
     bool mFlushPerf;
     bool mEnableRawDump;
     bool mForceHdrSnapshot;
+    uint32_t mHdrFrameNum;
+    bool mHdrSnapshotRunning;
     bool mShouldSetSensorHdr;
     QCamera3HeapMemory *mParamHeap;
     metadata_buffer_t* mParameters;
@@ -527,6 +529,7 @@ private:
 
     PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
+    pthread_cond_t mHdrRequestCond;
     uint32_t mPendingLiveRequest;
     bool mWokenUpByDaemon;
     int32_t mCurrentRequestId;
