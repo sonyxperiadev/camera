@@ -564,6 +564,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_bQuadraCfaRequest = false;
     m_bQuadraSizeConfigured = false;
     memset(&mStreamList, 0, sizeof(camera3_stream_configuration_t));
+    m_bLPMEnabled = false;
 }
 
 /*===========================================================================
@@ -585,6 +586,21 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     mPerfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_ENCODE);
     mPerfLockMgr.acquirePerfLock(PERF_LOCK_CLOSE_CAMERA);
 
+    if (m_bLPMEnabled) {
+         cam_dual_camera_perf_control_t perf_value[1];
+         perf_value[0].perf_mode = CAM_PERF_NONE;
+         perf_value[0].enable = 0;
+         perf_value[0].priority = 0;
+         m_pDualCamCmdPtr[0].cmd_type = CAM_DUAL_CAMERA_LOW_POWER_MODE;
+         memcpy(&m_pDualCamCmdPtr[0].value, &perf_value[0],
+                 sizeof(cam_dual_camera_perf_control_t));
+         rc =  mCameraHandle->ops->set_dual_cam_cmd(mCameraHandle->camera_handle);
+         if (rc != NO_ERROR) {
+             LOGE("LPM not reset, but still proceed to close");
+         } else {
+            m_bLPMEnabled = false;
+         }
+    }
     // unlink of dualcam during close camera
     if (mIsDeviceLinked) {
         cam_dual_camera_bundle_info_t *m_pRelCamSyncBuf =
@@ -5905,6 +5921,21 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     pthread_mutex_unlock(&mMutex);
 
     rc = stopAllChannels();
+    if (m_bLPMEnabled) {
+         cam_dual_camera_perf_control_t perf_value[1];
+         perf_value[0].perf_mode = CAM_PERF_NONE;
+         perf_value[0].enable = 0;
+         perf_value[0].priority = 0;
+         m_pDualCamCmdPtr[0].cmd_type = CAM_DUAL_CAMERA_LOW_POWER_MODE;
+         memcpy(&m_pDualCamCmdPtr[0].value, &perf_value[0],
+                 sizeof(cam_dual_camera_perf_control_t));
+         rc =  mCameraHandle->ops->set_dual_cam_cmd(mCameraHandle->camera_handle);
+         if (rc != NO_ERROR) {
+             LOGE("LPM not reset, but still process to close");
+         } else {
+            m_bLPMEnabled = false;
+         }
+    }
     // unlink of dualcam
     if (mIsDeviceLinked) {
         cam_dual_camera_bundle_info_t *m_pRelCamSyncBuf =
@@ -5934,7 +5965,6 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
             LOGE("Dualcam: Unlink failed, but still proceed to close");
         }
     }
-
     if (rc < 0) {
         LOGE("stopAllChannels failed");
         return rc;
@@ -11135,7 +11165,37 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
             settings.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
     fps_range.video_min_fps = fps_range.min_fps;
     fps_range.video_max_fps = fps_range.max_fps;
-
+    if (fps_range.min_fps == 0 && fps_range.max_fps == 0) {
+         cam_dual_camera_perf_control_t perf_value[1];
+         perf_value[0].perf_mode = CAM_PERF_SENSOR_SUSPEND;
+         perf_value[0].enable = 1;
+         perf_value[0].priority = 0;
+         m_pDualCamCmdPtr[0].cmd_type = CAM_DUAL_CAMERA_LOW_POWER_MODE;
+         memcpy(&m_pDualCamCmdPtr[0].value, &perf_value[0],
+                 sizeof(cam_dual_camera_perf_control_t));
+         rc =  mCameraHandle->ops->set_dual_cam_cmd(mCameraHandle->camera_handle);
+         if (rc != NO_ERROR) {
+             LOGE("LPM not set");
+             return rc;
+         } else {
+             m_bLPMEnabled = true;
+         }
+    } else if (m_bLPMEnabled && (fps_range.min_fps != 0 || fps_range.max_fps != 0)) {
+         cam_dual_camera_perf_control_t perf_value[1];
+         perf_value[0].perf_mode = CAM_PERF_NONE;
+         perf_value[0].enable = 0;
+         perf_value[0].priority = 0;
+         m_pDualCamCmdPtr[0].cmd_type = CAM_DUAL_CAMERA_LOW_POWER_MODE;
+         memcpy(&m_pDualCamCmdPtr[0].value, &perf_value[0],
+                 sizeof(cam_dual_camera_perf_control_t));
+         rc =  mCameraHandle->ops->set_dual_cam_cmd(mCameraHandle->camera_handle);
+         if (rc != NO_ERROR) {
+             LOGE("LPM not reset");
+             return rc;
+         } else {
+             m_bLPMEnabled = false;
+         }
+    }
     LOGD("aeTargetFpsRange fps: [%f %f]",
             fps_range.min_fps, fps_range.max_fps);
     /* In CONSTRAINED_HFR_MODE, sensor_fps is derived from aeTargetFpsRange as
