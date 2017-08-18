@@ -68,7 +68,8 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_BINNING_CORRECTION_END,
         QCAMERA3_STATS_END,
         QCAMERA3_SIMULTANEOUS_CAMERA_END,
-        QCAMERA3_QUADRA_CFA_DATA_END
+        QCAMERA3_QUADRA_CFA_DATA_END,
+        QCAMERA3_HFR_END
 };
 
 typedef struct vendor_tag_info {
@@ -103,7 +104,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.binning_correction",
     "org.codeaurora.qcamera3.stats",
     "org.codeaurora.qcamera3.simultaneous_camera",
-    "org.codeaurora.qcamera3.quadra_cfa"
+    "org.codeaurora.qcamera3.quadra_cfa",
+    "org.codeaurora.qcamera3.hfr"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -275,6 +277,10 @@ vendor_tag_info_t qcamera3_quadra_cfa[QCAMERA3_QUADRA_CFA_DATA_END -
     { "qcfa_dimension", TYPE_INT32 },
 };
 
+vendor_tag_info_t qcamera3_hfr[QCAMERA3_HFR_END -
+        QCAMERA3_HFR_START] = {
+    { "sizes", TYPE_INT32 }
+};
 
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
@@ -303,7 +309,8 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_binning_correction,
     qcamera3_stats,
     qcamera3_simultaneous_camera,
-    qcamera3_quadra_cfa
+    qcamera3_quadra_cfa,
+    qcamera3_hfr
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -418,7 +425,10 @@ uint32_t qcamera3_all_tags[] = {
 
     // QCAMERA3_QUADRA_CFA_DATA
     (uint32_t)QCAMERA3_IS_QUADRA_CFA_SENSOR,
-    (uint32_t)QCAMERA3_SUPPORT_QUADRA_CFA_DIM
+    (uint32_t)QCAMERA3_SUPPORT_QUADRA_CFA_DIM,
+
+    //QCAMERA3_HFR
+    (uint32_t)QCAMERA3_HFR_SIZES
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
