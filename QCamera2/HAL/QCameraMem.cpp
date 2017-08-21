@@ -1365,6 +1365,44 @@ int QCameraVideoMemory::allocate(uint8_t count, size_t size)
 }
 
 /*===========================================================================
+ * FUNCTION   : allocateMetaBufs
+ *
+ * DESCRIPTION: allocate requested number of buffers of certain size
+ *
+ * PARAMETERS :
+ *   @count   : number of buffers to be allocated
+ *   @size    : lenght of the buffer to be allocated
+ *   @face    : whether facebeautification is enabled or not
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int QCameraVideoMemory::allocateMetaBufs(uint8_t count, QCameraMemory *previewmem)
+{
+    int rc =0;
+    if (!(mBufType & QCAMERA_MEM_TYPE_BATCH)) {
+        rc = allocateMeta(count, 1);
+        if (rc != NO_ERROR) {
+            ATRACE_END();
+            return rc;
+        }
+        for (int i = 0; i < count; i ++) {
+            native_handle_t *nh =  mNativeHandle[i];
+            if (!nh) {
+                LOGE("Error in getting video native handle");
+                ATRACE_END();
+                return NO_MEMORY;
+            }
+            //Fill video metadata.
+            updateNativeHandle(nh, 0, previewmem->getFd(i), previewmem->getSize(i));
+        }
+    }
+    mBufferCount = count;
+    return NO_ERROR;
+}
+
+/*===========================================================================
  * FUNCTION   : allocateMore
  *
  * DESCRIPTION: allocate more requested number of buffers of certain size
@@ -1899,9 +1937,11 @@ QCameraGrallocMemory::QCameraGrallocMemory(camera_request_memory memory, void* c
         mLocalFlag[i] = BUFFER_NOT_OWNED;
         mPrivateHandle[i] = NULL;
         mBufferStatus[i] = STATUS_IDLE;
+        mRefCount[i] = 0;
         mCameraMemory[i] = NULL;
     }
     mBufType =bufType;
+    pthread_mutex_init(&mStatusLock , NULL);
 }
 
 /*===========================================================================
@@ -1915,6 +1955,7 @@ QCameraGrallocMemory::QCameraGrallocMemory(camera_request_memory memory, void* c
  *==========================================================================*/
 QCameraGrallocMemory::~QCameraGrallocMemory()
 {
+    pthread_mutex_destroy(&mStatusLock);
 }
 
 /*===========================================================================
@@ -2665,6 +2706,26 @@ void QCameraGrallocMemory::setBufferStatus(uint32_t index, BufferStatus status)
         return;
     }
     mBufferStatus[index] = status;
+}
+
+/*===========================================================================
+ * FUNCTION   : setRefCount
+ *
+ * DESCRIPTION: set ref count
+ *
+ * PARAMETERS :
+ *   @index   : index of the buffer
+ *   @status  : based on status we will do bufdone
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraGrallocMemory::setRefCount(uint32_t index, uint8_t count)
+{
+    if (index >= mBufferCount) {
+        LOGE("index out of bound");
+        return;
+    }
+    mRefCount[index] = count;
 }
 
 }; //namespace qcamera

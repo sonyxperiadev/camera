@@ -446,6 +446,40 @@ int32_t QCameraChannel::stop()
     return rc;
 }
 
+
+/*===========================================================================
+ * FUNCTION   : releaseFrame
+ *
+ * DESCRIPTION: return video frame from app
+ *
+ * PARAMETERS :
+ *   @opaque     : ptr to video frame to be returned
+ *   @isMetaData : if frame is a metadata or real frame
+ *   @videoMemory: video memory object
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraChannel::releaseFrame(const void * opaque, bool isMetaData, QCameraVideoMemory *videoMemory)
+{
+    QCameraStream *pStream = NULL;
+    for (size_t i = 0; i < mStreams.size(); i++) {
+        if (mStreams[i] != NULL && mStreams[i]->isTypeOf(CAM_STREAM_TYPE_PREVIEW)) {
+            pStream = mStreams[i];
+            break;
+        }
+    }
+
+    if (NULL == pStream) {
+        LOGE("No preview stream in the channel");
+        return BAD_VALUE;
+    }
+
+    int32_t rc = pStream->bufDone(opaque, isMetaData, videoMemory);
+    return rc;
+}
+
 /*===========================================================================
  * FUNCTION   : bufDone
  *

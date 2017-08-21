@@ -115,6 +115,14 @@ typedef struct {
 
 #define NUM_BOKEH_OUTPUT 3    //Bokeh image, main image and depth map
 
+/*For noraml recording usecase the number of video buffers
+are 9 and preivew buffers are 5. In the special case
+same buffer will be used for both preview and video, therefore
+keeping the buffer count to 15.*/
+
+#define VIDEO_FB_BUF_COUNT 15 //Number of buffers for video face beautification.
+
+
 typedef enum {
     QCAMERA_NOTIFY_CALLBACK,
     QCAMERA_DATA_CALLBACK,
@@ -668,6 +676,8 @@ private:
     bool m_bFirstPreviewFrameReceived;
     bool m_bRecordStarted;             //flag indicates Recording is started for first time
     bool m_bPreparingHardware;         //flag indicates take picture initiated
+    bool m_bNeedVideoCb;               //flag indicates video face beautifications is enabled
+    QCameraVideoMemory *videoMemFb;
 
     // Signifies if ZSL Retro Snapshots are enabled
     bool bRetroPicture;

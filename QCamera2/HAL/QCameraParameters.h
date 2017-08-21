@@ -911,6 +911,7 @@ public:
             { m_LowLightLevel = value; };
     cam_low_light_mode_t getLowLightLevel() {return m_LowLightLevel;};
     bool getLowLightCapture() { return m_LLCaptureEnabled; };
+    bool isVideoFaceBeautification() {return m_bVideoFBEnabled;};
 
     /* Dual camera specific */
     int32_t sendDualCamCmd(cam_dual_camera_cmd_type type,
@@ -1123,6 +1124,7 @@ private:
     int32_t setCDSMode(int32_t cds_mode, bool initCommit);
     int32_t setEztune();
     void setLowLightCapture();
+    void setVideoFaceBeautification();
     int setRecordingHintValue(int32_t value); // set local copy of video hint and send to server
     int32_t setVfe1ReservedRdi(const char *str);
                                               // no change in parameters value
@@ -1352,6 +1354,7 @@ private:
     uint32_t mJpegRotation;
     int8_t mVideoBatchSize;
     bool m_LLCaptureEnabled;
+    bool m_bVideoFBEnabled;
     cam_low_light_mode_t m_LowLightLevel;
     bool m_bLtmForSeeMoreEnabled;
     int64_t m_expTime;

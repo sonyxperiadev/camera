@@ -75,6 +75,7 @@ public:
     int32_t setStreamSyncCB (cam_stream_type_t stream_type,
             stream_cb_routine stream_cb);
     bool isActive() { return m_bIsActive; }
+    int32_t releaseFrame(const void *opaque, bool isMetaData, QCameraVideoMemory *videoMem);
     uint32_t getChHandleForStream(cam_stream_type_t stream_type);
     int32_t switchChannelCb(uint32_t camMaster);
     int32_t processCameraControl(uint32_t camState, bool bundledSnapshot);

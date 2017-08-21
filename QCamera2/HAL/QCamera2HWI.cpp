@@ -1675,6 +1675,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       m_bFirstPreviewFrameReceived(false),
       m_bRecordStarted(false),
       m_bPreparingHardware(false),
+      m_bNeedVideoCb(false),
       m_currentFocusState(CAM_AF_STATE_INACTIVE),
       mDumpFrmCnt(0U),
       mDumpSkipCnt(0U),
@@ -3082,7 +3083,6 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
     if (atoi(value) == 1) {
         bPoolMem = true;
     }
-
     // Allocate stream buffer memory object
     switch (stream_type) {
     case CAM_STREAM_TYPE_PREVIEW:
@@ -4194,7 +4194,7 @@ int QCamera2HardwareInterface::preStartRecording()
 int QCamera2HardwareInterface::startRecording()
 {
     int32_t rc = NO_ERROR;
-
+    bool bCachedMem = QCAMERA_ION_USE_CACHE;
     LOGI("E");
 
     m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_START_RECORDING);
@@ -4228,8 +4228,50 @@ int QCamera2HardwareInterface::startRecording()
         }
     }
 
-    if (rc == NO_ERROR) {
+    if (rc == NO_ERROR && !(mParameters.isVideoFaceBeautification()) ) {
         rc = startChannel(QCAMERA_CH_TYPE_VIDEO);
+    } else {
+        m_bNeedVideoCb = true;
+        QCameraChannel *pChannelreq = NULL;
+        QCameraStream *pStreamreq = NULL;
+        if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
+            pChannelreq = m_channels[QCAMERA_CH_TYPE_PREVIEW];
+            uint32_t streamNum = pChannelreq->getNumOfStreams();
+            QCameraStream *pStream = NULL;
+            for (uint32_t i = 0 ; i < streamNum ; i++ ) {
+                pStream = pChannelreq->getStreamByIndex(i);
+                if ((NULL != pStream) &&
+                        (CAM_STREAM_TYPE_PREVIEW == pStream->getMyType())) {
+                    pStreamreq = pStream;
+                    break;
+                }
+            }
+        }
+        QCameraMemory *previewmem = pStreamreq->getStreamBufs();
+        //Use uncached allocation by default
+        if (mParameters.isVideoBuffersCached() || mParameters.isSeeMoreEnabled() ||
+                mParameters.isHighQualityNoiseReductionMode()) {
+            bCachedMem = QCAMERA_ION_USE_CACHE;
+        } else {
+            bCachedMem = QCAMERA_ION_USE_NOCACHE;
+        }
+
+        videoMemFb = NULL;
+        int usage = 0;
+        cam_format_t fmt;
+        videoMemFb =
+                    new QCameraVideoMemory(mGetMemory, mCallbackCookie, bCachedMem);
+        if (videoMemFb == NULL) {
+            LOGE("Out of memory for video obj");
+            return NULL;
+        }
+        mParameters.getStreamFormat(CAM_STREAM_TYPE_VIDEO,fmt);
+        if (mParameters.isUBWCEnabled() &&
+             (fmt == CAM_FORMAT_YUV_420_NV12_UBWC)) {
+             usage = private_handle_t::PRIV_FLAGS_UBWC_ALIGNED;
+        }
+        videoMemFb->setVideoInfo(usage, fmt);
+        videoMemFb->allocateMetaBufs(VIDEO_FB_BUF_COUNT,previewmem);
     }
 
     if (mParameters.isTNRSnapshotEnabled() && !isLowPowerMode()) {
@@ -4306,6 +4348,9 @@ int QCamera2HardwareInterface::stopRecording()
     m_cbNotifier.flushVideoNotifications();
 
     m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_RECORDING);
+    if (mParameters.isVideoFaceBeautification()) {
+        m_bNeedVideoCb = false;
+    }
 
     LOGI("X rc = %d", rc);
     return rc;
@@ -4328,10 +4373,14 @@ int QCamera2HardwareInterface::releaseRecordingFrame(const void * opaque)
     int32_t rc = UNKNOWN_ERROR;
     QCameraVideoChannel *pChannel =
             (QCameraVideoChannel *)m_channels[QCAMERA_CH_TYPE_VIDEO];
+    QCameraChannel *pChannelfb =
+            m_channels[QCAMERA_CH_TYPE_PREVIEW];
     LOGD("opaque data = %p",opaque);
 
-    if(pChannel != NULL) {
+    if(pChannel != NULL && !(m_bNeedVideoCb)) {
         rc = pChannel->releaseFrame(opaque, mStoreMetaDataInFrame > 0);
+    } else if (pChannelfb != NULL && (m_bNeedVideoCb)) {
+        rc = pChannelfb->releaseFrame(opaque, mStoreMetaDataInFrame > 0, videoMemFb);
     }
     return rc;
 }
@@ -9376,12 +9425,13 @@ int32_t QCamera2HardwareInterface::preparePreview()
                    return rc;
                }
             }
-
-            rc = addChannel(QCAMERA_CH_TYPE_VIDEO);
-            if (rc != NO_ERROR) {
-                delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
-                LOGE("failed!! rc = %d", rc);
-                return rc;
+            if (!(m_bNeedVideoCb)) {
+                rc = addChannel(QCAMERA_CH_TYPE_VIDEO);
+                if (rc != NO_ERROR) {
+                    delChannel(QCAMERA_CH_TYPE_SNAPSHOT);
+                    LOGE("failed!! rc = %d", rc);
+                    return rc;
+                }
             }
         }
 
