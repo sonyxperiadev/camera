@@ -4346,6 +4346,18 @@ int32_t QCamera3HardwareInterface::switchStreamConfigInternal(__unused uint32_t 
     return 0;
 }
 
+int32_t QCamera3HardwareInterface::deleteQCFARawChannel()
+{
+    LOGD("E");
+
+    if (mQCFARawChannel) {
+        delete mQCFARawChannel;
+        mQCFARawChannel = NULL;
+    }
+
+    return 0;
+}
+
 cam_dimension_t QCamera3HardwareInterface::getQuadraCfaDim()
 {
     cam_dimension_t dim = {0,0};
@@ -4615,6 +4627,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
         for (size_t i = 0; i < request->num_output_buffers; i++) {
             const camera3_stream_buffer_t& output = request->output_buffers[i];
             if (request->input_buffer == NULL && output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
+                /* only one output stream is supported for quadra cfa snapshot right now */
+                if (request->num_output_buffers > 1) {
+                    LOGE("invalid num of streams requested for quadra cfa snapshot!");
+                    pthread_mutex_unlock(&mMutex);
+                    return BAD_VALUE;
+                }
+
                 LOGI("quadra cfa size request on blob stream");
                 m_bQuadraCfaRequest = true;
 
