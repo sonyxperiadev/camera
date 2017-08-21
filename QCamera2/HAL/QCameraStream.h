@@ -68,6 +68,7 @@ public:
                                     cam_crop_data_t &crop_info);
     virtual int32_t bufDone(uint32_t index);
     virtual int32_t bufDone(const void *opaque, bool isMetaData);
+    virtual int32_t bufDone(const void *opaque, bool isMetaData, QCameraVideoMemory *videoMem);
     virtual int32_t bufDone(mm_camera_super_buf_t *super_buf);
     virtual int32_t processDataNotify(mm_camera_super_buf_t *bufs);
     virtual int32_t start();

@@ -1326,6 +1326,66 @@ int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData)
 
     return rc;
 }
+
+
+/*===========================================================================
+ * FUNCTION   : bufDone
+ *
+ * DESCRIPTION: return stream buffer to kernel
+ *
+ * PARAMETERS :
+ *   @opaque    : stream frame/metadata buf to be returned
+ *   @isMetaData: flag if returned opaque is a metadatabuf or the real frame ptr
+ *   @videomem  : video memory object
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraStream::bufDone(const void *opaque, bool isMetaData, QCameraVideoMemory *videoMem)
+{
+    int32_t rc = NO_ERROR;
+    int index = -1;
+    bool needPerfEvet = FALSE;
+    QCameraGrallocMemory *memory = NULL;
+    memory = (QCameraGrallocMemory *)mStreamBufs;
+
+    //Close and delete duplicated native handle and FD's.
+    if (videoMem != NULL) {
+        index = videoMem->getMatchBufIndex(opaque, isMetaData);
+        needPerfEvet = videoMem->needPerfEvent(opaque, isMetaData);
+        rc = videoMem->closeNativeHandle(opaque, isMetaData);
+        if (rc != NO_ERROR) {
+            LOGE("Invalid video metadata");
+            return rc;
+        }
+    } else {
+        LOGE("Possible FD leak. Release recording called after stop");
+    }
+
+    if (index == -1 || index >= mNumBufs || mBufDefs == NULL) {
+        LOGE("Cannot find buf for opaque data = %p", opaque);
+        return BAD_INDEX;
+    }
+
+    LOGH("Buffer Index = %d, Frame Idx = %d", index,
+            mBufDefs[index].frame_idx);
+    pthread_mutex_lock(&memory->mStatusLock);
+    if (memory->hasPendingRef(index)) {
+        memory->setRefCount(index,0);
+        pthread_mutex_unlock(&memory->mStatusLock);
+    } else {
+        pthread_mutex_unlock(&memory->mStatusLock);
+        rc = bufDone(index);
+        if (rc < 0) {
+            LOGW("stream bufDone failed %d", rc);
+            rc = NO_ERROR;
+        }
+    }
+
+    return rc;
+}
+
 /*===========================================================================
  * FUNCTION   : getBuffer
  *

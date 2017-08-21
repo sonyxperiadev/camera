@@ -112,6 +112,7 @@ public:
     bool isTNRSnapshotEnabled();
     int32_t getCDSMode();
     bool isLTMForSeeMoreEnabled();
+    bool isVideoFaceBeautification();
     bool isHfrMode();
     void getHfrFps(cam_fps_range_t &pFpsRange);
     uint8_t getNumOfSnapshots();

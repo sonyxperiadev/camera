@@ -1018,6 +1018,7 @@ QCameraParameters::QCameraParameters()
       m_bIsLowMemoryDevice(false),
       mCds_mode(CAM_CDS_MODE_OFF),
       m_LLCaptureEnabled(FALSE),
+      m_bVideoFBEnabled(false),
       m_LowLightLevel(CAM_LOW_LIGHT_OFF),
       m_bLtmForSeeMoreEnabled(false),
       m_expTime(0),
@@ -5809,6 +5810,7 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     setVideoBatchSize();
     setLowLightCapture();
     setAsymmetricSnapMode();
+    setVideoFaceBeautification();
 
     setRawZsl(params);
     setRawZslCapture(params);
@@ -16064,6 +16066,35 @@ int32_t QCameraParameters::setCDSMode(int32_t cds_mode, bool initCommit)
     LOGH("cds mode -> %d", cds_mode);
 
     return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : setVideoFaceBeautification
+ *
+ * DESCRIPTION: Function to see whether face beautification is supported or not
+ *==========================================================================*/
+
+void QCameraParameters::setVideoFaceBeautification()
+{
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.fb.enable", prop, 0);
+
+    m_bVideoFBEnabled = (atoi(prop)>0) ? true : false;
+    cam_dimension_t video;
+    cam_dimension_t preview;
+    cam_format_t pfmt;
+    cam_format_t vfmt;
+    getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
+    getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
+    getStreamFormat(CAM_STREAM_TYPE_PREVIEW,pfmt);
+    getStreamFormat(CAM_STREAM_TYPE_VIDEO,vfmt);
+
+    //This feature only works when preview and widht dimensions and format are same.
+    if ( (pfmt != vfmt) || (video.width != preview.width) ||
+             (video.height != preview.height) ) {
+       m_bVideoFBEnabled = 0;
+    }
 }
 
 /*===========================================================================

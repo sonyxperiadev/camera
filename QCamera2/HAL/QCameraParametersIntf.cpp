@@ -1371,6 +1371,13 @@ cam_low_light_mode_t QCameraParametersIntf::getLowLightLevel()
     return mImpl->getLowLightLevel();
 }
 
+bool QCameraParametersIntf::isVideoFaceBeautification()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isVideoFaceBeautification();
+}
+
 bool QCameraParametersIntf::getLowLightCapture()
 {
     Mutex::Autolock lock(mLock);
