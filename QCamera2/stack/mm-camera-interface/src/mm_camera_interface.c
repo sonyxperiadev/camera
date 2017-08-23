@@ -54,6 +54,8 @@ static mm_camera_ctrl_t g_cam_ctrl;
 static pthread_mutex_t g_handler_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint8_t g_handler_history_count = 0; /* history count for handler */
 
+static bool g_shim_initialized = FALSE; /* Tells mct shim layer initialized or not */
+
 // 16th (starting from 0) bit tells its a BACK or FRONT camera
 #define CAM_SENSOR_FACING_MASK       (1U<<16)
 #define CAM_SENSOR_TYPE_MASK         (1U<<24)
@@ -2651,9 +2653,15 @@ uint8_t get_num_of_cameras()
 
     memset (&g_cam_ctrl, 0, sizeof (g_cam_ctrl));
 #ifndef DAEMON_PRESENT
-    if (mm_camera_load_shim_lib() < 0) {
-        LOGE ("Failed to module shim library");
-        return 0;
+    if (g_shim_initialized == FALSE) {
+        if (mm_camera_load_shim_lib() < 0) {
+            LOGE("Failed to module shim library");
+            return 0;
+        } else {
+            g_shim_initialized = TRUE;
+        }
+    } else {
+        LOGH("module shim layer already intialized");
     }
 #endif /* DAEMON_PRESENT */
 
