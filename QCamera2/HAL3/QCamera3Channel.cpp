@@ -34,6 +34,7 @@
 #include <cutils/properties.h>
 
 // System dependencies
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
