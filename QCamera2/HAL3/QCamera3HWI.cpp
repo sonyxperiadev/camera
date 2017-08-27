@@ -418,6 +418,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mFirstConfiguration(true),
       mFlush(false),
       mFlushPerf(false),
+      mHdrFrameNum(0),
+      mHdrSnapshotRunning(false),
       mShouldSetSensorHdr(false),
       mParamHeap(NULL),
       mParameters(NULL),
@@ -490,6 +492,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     pthread_cond_init(&mBuffersCond, &mCondAttr);
 
     pthread_cond_init(&mRequestCond, &mCondAttr);
+    pthread_cond_init(&mHdrRequestCond, &mCondAttr);
 
     pthread_condattr_destroy(&mCondAttr);
 
@@ -714,6 +717,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 
     pthread_cond_destroy(&mRequestCond);
     pthread_cond_destroy(&mBuffersCond);
+    pthread_cond_destroy(&mHdrRequestCond);
 
     pthread_mutex_destroy(&mMutex);
     LOGD("X");
@@ -3785,6 +3789,11 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     // If the frame number doesn't exist in the pending request list,
     // directly send the buffer to the frameworks, and update pending buffers map
     // Otherwise, book-keep the buffer.
+    if ((buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) && (frame_number == mHdrFrameNum)) {
+        mHdrFrameNum = 0;
+        mHdrSnapshotRunning = false;
+        pthread_cond_signal(&mHdrRequestCond);
+    }
     pendingRequestIterator i = mPendingRequestsList.begin();
     while (i != mPendingRequestsList.end() && i->frame_number != frame_number){
         i++;
@@ -4048,6 +4057,7 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         request->num_output_buffers = originalOutputCount;
         _orchestrationDb.allocStoreInternalFrameNumber(originalFrameNumber, internalFrameNumber);
         request->frame_number = internalFrameNumber;
+        mHdrFrameNum = internalFrameNumber;
         processCaptureRequest(request, emptyInternalList);
         request->num_output_buffers = 0;
 
@@ -4121,6 +4131,7 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
 
         _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
         request->frame_number = internalFrameNumber;
+        mHdrSnapshotRunning = true;
         processCaptureRequest(request, internallyRequestedStreams);
 
 
@@ -5459,8 +5470,11 @@ no_error:
     }
 
     LOGD("mPendingLiveRequest = %d", mPendingLiveRequest);
-
     mState = STARTED;
+    if(mHdrSnapshotRunning) {
+        pthread_cond_wait(&mHdrRequestCond, &mMutex);
+        mHdrSnapshotRunning = false;
+    }
     // Added a timed condition wait
     struct timespec ts;
     uint8_t isValidTimeout = 1;
@@ -9544,6 +9558,17 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         uint8_t isDepthOnly = ANDROID_DEPTH_DEPTH_IS_EXCLUSIVE_TRUE;
         staticInfo.update(ANDROID_DEPTH_DEPTH_IS_EXCLUSIVE, &isDepthOnly, 1);
     }
+
+    if (gCamCapability[cameraId]->is_quadracfa_sensor) {
+        uint8_t is_qcfa_sensor = 1;
+        int32_t dim[2];
+        dim[0] = gCamCapability[cameraId]->quadra_cfa_dim[0].width;
+        dim[1] = gCamCapability[cameraId]->quadra_cfa_dim[0].height;
+        LOGD("vendor tag for quadra cfa, dim:%dx%d", dim[0], dim[1]);
+        staticInfo.update(QCAMERA3_IS_QUADRA_CFA_SENSOR, &is_qcfa_sensor, 1);
+        staticInfo.update(QCAMERA3_SUPPORT_QUADRA_CFA_DIM, dim, 2);
+    }
+
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
 }

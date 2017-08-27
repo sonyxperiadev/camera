@@ -242,6 +242,8 @@ public:
     int32_t getStreamSize(cam_dimension_t &dim);
     virtual int32_t timeoutFrame(uint32_t frameNumber);
 
+    virtual void freeBufferForFrame(__unused mm_camera_super_buf_t *frame) {}
+
     QCamera3PostProcessor m_postprocessor; // post processor
     void showDebugFPS(int32_t streamType);
 
@@ -559,6 +561,8 @@ public:
             void *userdata);
     static void dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
             void *userdata);
+
+    void freeBufferForFrame(mm_camera_super_buf_t *frame);
 
 private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata);

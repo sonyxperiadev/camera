@@ -292,11 +292,11 @@ int32_t QCameraBokeh::feedInput(qcamera_hal_pp_data_t *pInputData)
         if (pInputSnapshotBuf != NULL) {
             // Check for main and aux handles
             uint32_t mainHandle = get_main_camera_handle(
-                    pInputData->src_reproc_frame->camera_handle);
+                    pInputData->frame->camera_handle);
             uint32_t auxHandle = get_aux_camera_handle(
-                    pInputData->src_reproc_frame->camera_handle);
-
+                    pInputData->frame->camera_handle);
             LOGH("mainHandle = 0x%x, auxHandle = 0x%x", mainHandle, auxHandle);
+
             if ((!mainHandle) && (!auxHandle)) {
                 // Both main and aux handles are not available
                 // Return from here
@@ -387,11 +387,13 @@ int32_t QCameraBokeh::process()
         mm_camera_buf_def_t *pAuxSnap = getSnapshotBuf(mBokehData.aux_input, pAuxStream);
         mm_camera_buf_def_t *pMainSnap = getSnapshotBuf(mBokehData.main_input, pMainStream);
 
-        if (!pAuxStream || !pMainStream || !pAuxSnap || !pMainSnap) {
+        if (!pAuxStream || !pMainStream || !pAuxSnap || !pMainSnap ||
+                (mBokehData.bokeh_output->misc_buf == NULL) ||
+                (mBokehData.bokeh_output->misc_buf->buffer == NULL)) {
             releaseData(mBokehData.aux_input);
             releaseData(mBokehData.main_input);
             releaseData(mBokehData.bokeh_output);
-            LOGE("Error!! Snapshot buffer/stream not available");
+            LOGE("Error!! Snapshot buffer/stream or depthmap not available");
             return BAD_VALUE;
         }
         mm_camera_super_buf_t *pOutputSuperBuf = mBokehData.bokeh_output->frame;
@@ -405,20 +407,12 @@ int32_t QCameraBokeh::process()
         //Get input and output parameter
         bokeh_input_params_t inParams;
         getInputParams(inParams);
-
-        //Allocate bufdef for depthmap. Will be cleaned up by postproc when depth cb is issued.
-        mm_camera_buf_def_t *depthBuf = (mm_camera_buf_def_t*) malloc(sizeof(mm_camera_buf_def_t));
-        if (!depthBuf) {
-            LOGE("Error allocating depth buffer");
-            return BAD_VALUE;
-        }
-        mBokehData.bokeh_output->misc_buf = depthBuf;
+        uint8_t * pDepthMap = (uint8_t *)mBokehData.bokeh_output->misc_buf->buffer;
 
         rc = doBokehProcess(
                 (const uint8_t *)pMainSnap->buffer,
                 (const uint8_t *)pAuxSnap->buffer,
-                inParams,
-                (uint8_t *)pOutputBuf->buffer);
+                inParams, (uint8_t *)pOutputBuf->buffer, pDepthMap);
 
         if (rc != NO_ERROR) {
             LOGE("Error in bokeh processing. Fallback and copy input to output");
@@ -432,7 +426,7 @@ int32_t QCameraBokeh::process()
                     pMainSnap->frame_idx,  "Main");
             dumpYUVtoFile((uint8_t *)pOutputBuf->buffer, inParams.bokehOut.offset,
                     pAuxSnap->frame_idx, "BokehOutput");
-            dumpYUVtoFile((uint8_t *)depthBuf->buffer, inParams.depth.offset,
+            dumpYUVtoFile(pDepthMap, inParams.depth.offset,
                     pAuxSnap->frame_idx, "DepthMap");
             dumpInputParams("input_params", mDebugData, pMainSnap->frame_idx);
         }
@@ -470,14 +464,14 @@ int32_t QCameraBokeh::process()
  *==========================================================================*/
 bool QCameraBokeh::canProcess()
 {
-    LOGH("E");
+    LOGD("E");
     bool ready = false;
     //Check if we have all input and output buffers
     if (mBokehData.main_input && mBokehData.aux_input && mBokehData.bokeh_output) {
         ready = true;
         LOGH("ready: %d", ready);
     }
-    LOGH("X");
+    LOGD("X");
     return ready;
 }
 
@@ -602,7 +596,8 @@ int32_t QCameraBokeh::doBokehProcess(
         const uint8_t* pMain,
         const uint8_t* pAux,
         bokeh_input_params_t &inParams,
-        uint8_t* pOut)
+        uint8_t* pOut,
+        uint8_t* pDepthMap)
 {
     LOGD(":E");
     int32_t rc = NO_ERROR;
@@ -615,6 +610,8 @@ int32_t QCameraBokeh::doBokehProcess(
     cam_dimension_t dmSize;
     qrcp::getDepthMapSize(inParams.main.width, inParams.main.height,
             dmSize.width, dmSize.height);
+    uint32_t depthLen = dmSize.width * dmSize.height;
+    unsigned int depthStride = dmSize.width;
     inParams.depth.offset.num_planes = 1;
     inParams.depth.offset.mp[0].offset = 0;
     inParams.depth.offset.mp[0].width = inParams.depth.offset.mp[0].stride =
@@ -622,7 +619,7 @@ int32_t QCameraBokeh::doBokehProcess(
     inParams.depth.offset.mp[0].height = inParams.depth.offset.mp[0].scanline =
             inParams.depth.height = inParams.depth.scanline = dmSize.height;
     inParams.depth.frame_len = inParams.depth.offset.frame_len =
-            inParams.depth.offset.mp[0].len = dmSize.width * dmSize.height;
+            inParams.depth.offset.mp[0].len = depthLen;
     DUMP("\nDepth map W %d H %d ", dmSize.width, dmSize.height);
 
     //2. generate depth map
@@ -642,13 +639,6 @@ int32_t QCameraBokeh::doBokehProcess(
     unsigned int auxiliaryStrideY = inParams.aux.stride;
     unsigned int auxiliaryStrideVU = inParams.aux.offset.mp[1].stride;
 
-    //Allocate buffer for depth map. Will be cleaned up later by Postproc during depth callback
-    uint8_t* depthMap = (uint8_t*) malloc(dmSize.width * dmSize.height);
-    unsigned int depthStride = dmSize.width;
-    mm_camera_buf_def_t *depthBuf = mBokehData.bokeh_output->misc_buf;
-    depthBuf->buffer = depthMap;
-    depthBuf->frame_len = dmSize.width * dmSize.height;
-
     cam_rect_t goodRoi = {0,0,0,0};
     const float focalLengthPrimaryCamera = m_pCaps->main_cam_cap->focal_length;
     bool isAuxMono = (m_pCaps->aux_cam_cap->color_arrangement == CAM_FILTER_ARRANGEMENT_Y);
@@ -662,7 +652,7 @@ int32_t QCameraBokeh::doBokehProcess(
             primaryStrideY, primaryStrideVU,
             auxiliaryY, auxiliaryVU, auxiliaryWidth, auxiliaryHeight,
             auxiliaryStrideY, auxiliaryStrideVU,
-            depthMap, depthStride,
+            pDepthMap, depthStride,
             goodRoi.left, goodRoi.top, goodRoi.width,goodRoi.height,
             inParams.sAuxReprocessInfo.string(), inParams.sMainReprocessInfo.string(),
             inParams.sCalibData.string(), focalLengthPrimaryCamera, isAuxMono);
@@ -696,7 +686,7 @@ int32_t QCameraBokeh::doBokehProcess(
     DUMP("\nDestination W %d H %d ", goodRoi.width,goodRoi.height);
     effectObj = new qrcp::DualCameraDDMEffects(
         primaryY, primaryVU, primaryWidth, primaryHeight, primaryStrideY, primaryStrideVU,
-        depthMap, dmSize.width, dmSize.height, depthStride,
+        pDepthMap, dmSize.width, dmSize.height, depthStride,
         goodRoi.left, goodRoi.top, goodRoi.width,goodRoi.height,
         goodRoi.width, goodRoi.height);
     if (effectObj) {
@@ -854,7 +844,6 @@ String8 QCameraBokeh::extractReprocessInfo(metadata_buffer_t *metadata)
         }
         reprocBlob.appendFormat(SCALE_CROP_ROTATION_FORMAT_STRING[index], rotation);
     }
-    LOGH("reprocess blob = %s", reprocBlob.string());
     return reprocBlob;
 }
 
@@ -910,7 +899,6 @@ String8 QCameraBokeh::extractCalibrationData()
     calibData.appendFormat(CALIB_FMT_STRINGS[22],
             calib_data.aux_cam_specific_calibration.normalized_focal_length);
 
-    LOGH("calibration data = %s", calibData.string());
     return calibData;
 }
 

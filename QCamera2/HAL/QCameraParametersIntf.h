@@ -333,6 +333,7 @@ public:
     void setLowPower(bool value);
     uint32_t getBlurLevel();
     void setBokehSnaphot(bool enable);
+    void getDepthMapSize(int &width, int &height);
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;
