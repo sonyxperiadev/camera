@@ -91,6 +91,17 @@ typedef struct {
 } qcamera_hal3_pp_buffer_t;
 
 #define MAX_HAL3_EXIF_TABLE_ENTRIES 50
+typedef struct {
+    mm_camera_super_buf_t *metabuf;
+    uint32_t metaFrameNumber;
+    bool dropFrame;
+}qcamera_hal3_meta_pp_buffer_t;
+
+typedef struct {
+    qcamera_hal3_pp_buffer_t *reprocBuf;
+    qcamera_hal3_meta_pp_buffer_t *metaBuffer;
+}ReprocessBuffer;
+
 class QCamera3Exif
 {
 public:
@@ -128,13 +139,15 @@ public:
             buffer_handle_t *output, uint32_t frameNumber);
     int32_t processData(mm_camera_super_buf_t *input);
     int32_t processPPData(mm_camera_super_buf_t *frame, const metadata_buffer_t *p_metadata = NULL);
-    int32_t processPPMetadata(mm_camera_super_buf_t *reproc_meta);
+    int32_t processPPMetadata(mm_camera_super_buf_t *reproc_meta,uint32_t framenum, bool dropFrame);
     int32_t processJpegSettingData(jpeg_settings_t *jpeg_settings);
     qcamera_hal3_pp_data_t *dequeuePPJob(uint32_t frameNumber);
     qcamera_hal3_jpeg_data_t *findJpegJobByJobId(uint32_t jobId);
     void releaseJpegJobData(qcamera_hal3_jpeg_data_t *job);
     int32_t releaseOfflineBuffers(bool all);
     void releasePPJobData(qcamera_hal3_pp_data_t *job);
+    int32_t timeoutFrame(uint32_t frameNumber);
+    bool releaseReprocMetaBuffer(uint32_t);
 
 private:
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
@@ -160,9 +173,11 @@ private:
     static void releasePPInputData(void *data, void *user_data);
     static void releaseMetadata(void *data, void *user_data);
     static void releaseOngoingPPData(void *data, void *user_data);
-
+    static bool matchMetaFrameNum(void *data, void *user_data, void *match_data);
+    static bool matchReprocessFrameNum(void *data, void *user_data, void *match_data);
     static void *dataProcessRoutine(void *data);
-
+    qcamera_hal3_meta_pp_buffer_t * isMetaMatched(uint32_t resultFrameNumber);
+    qcamera_hal3_pp_buffer_t * isFrameMatched(uint32_t resultFrameNumber);
     bool needsReprocess(qcamera_fwk_input_pp_data_t *frame);
 
 private:
@@ -178,6 +193,8 @@ private:
     QCamera3StreamMem          *mOutputMem;
     int8_t                      m_ppChannelCnt;
     QCamera3ReprocessChannel *  m_pReprocChannel[2];
+    uint32_t             mReprocessFrameNum;
+    List<ReprocessBuffer> mReprocessNode;
 
     QCameraQueue m_inputPPQ;            // input queue for postproc
     QCameraQueue m_inputFWKPPQ;         // framework input queue for postproc

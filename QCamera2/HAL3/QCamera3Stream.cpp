@@ -567,12 +567,24 @@ int32_t QCamera3Stream::stop()
 int32_t QCamera3Stream::timeoutFrame(int32_t bufIdx)
 {
     LOGD("E\n");
-    int32_t rc;
+    int32_t rc = NO_ERROR;
     {
         Mutex::Autolock lock(mTimeoutFrameQLock);
-        mTimeoutFrameQ.push_back(bufIdx);
+        auto itr = mTimeoutFrameQ.begin();
+        for (; itr != mTimeoutFrameQ.end(); itr++) {
+            int32_t itr_buf_idx = *itr;
+            if (itr_buf_idx == bufIdx) {
+                LOGD("Buffer already exists in timeout queue. So, ignore");
+                break;
+            }
+        }
+        if (itr == mTimeoutFrameQ.end()) {
+            //new buffer, push to mTimeoutFrameQ
+            mTimeoutFrameQ.push_back(bufIdx);
+            rc = mProcTh.sendCmd(CAMERA_CMD_TYPE_TIMEOUT, FALSE, FALSE);
+        }
     }
-    rc = mProcTh.sendCmd(CAMERA_CMD_TYPE_TIMEOUT, FALSE, FALSE);
+
     LOGD("X\n");
     return rc;
 }
