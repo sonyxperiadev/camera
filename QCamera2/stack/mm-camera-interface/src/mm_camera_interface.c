@@ -38,7 +38,8 @@
 #include <linux/media.h>
 #include <media/msm_cam_sensor.h>
 #include <dlfcn.h>
-
+#include "fdleak.h"
+#include "memleak.h"
 #define IOCTL_H <SYSTEM_HEADER_PREFIX/ioctl.h>
 #include IOCTL_H
 
@@ -2644,7 +2645,6 @@ uint8_t get_num_of_cameras()
 #endif
 
     LOGD("E");
-
     property_get("vold.decrypt", prop, "0");
     int decrypt = atoi(prop);
     if (decrypt == 1)

@@ -34,7 +34,8 @@ LOCAL_SRC_FILES += \
         HAL3/QCamera3StreamMem.cpp
 
 LOCAL_CFLAGS := -Wall -Wextra -Werror
-
+LOCAL_CFLAGS += -DFDLEAK_FLAG
+LOCAL_CFLAGS += -DMEMLEAK_FLAG
 #HAL 1.0 source
 
 ifeq ($(TARGET_SUPPORT_HAL1),false)
@@ -81,12 +82,14 @@ endif
 LOCAL_CFLAGS += -std=c++11 -std=gnu++0x
 #HAL 1.0 Flags
 LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3 -DQCAMERA_REDEFINE_LOG
-
+LOCAL_LDFLAGS += -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=socket -Wl,--wrap=pipe -Wl,--wrap=mmap -Wl,--wrap=__open_2
+LOCAL_LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=free -Wl,--wrap=realloc -Wl,--wrap=calloc
 LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/../mm-image-codec/qexif \
         $(LOCAL_PATH)/../mm-image-codec/qomx_core \
         $(LOCAL_PATH)/include \
         $(LOCAL_PATH)/stack/common \
+        $(LOCAL_PATH)/stack/common/leak \
         $(LOCAL_PATH)/stack/mm-camera-interface/inc \
         $(LOCAL_PATH)/util \
         $(LOCAL_PATH)/HAL3 \
@@ -132,7 +135,7 @@ LOCAL_C_INCLUDES += \
 LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
-LOCAL_SHARED_LIBRARIES += libcutils libdl libdualcameraddm
+LOCAL_SHARED_LIBRARIES += libcutils libdl libdualcameraddm libhal_dbg
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_SHARED_LIBRARIES += libts_face_beautify_hal libts_detected_face_hal
 endif
