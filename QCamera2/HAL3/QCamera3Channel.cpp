@@ -3613,7 +3613,8 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                         src_frame->bufs[0]->stream_id) {
                     snapshotIdx = (int32_t)src_frame->bufs[0]->buf_idx;
                 } else {
-                    LOGE("Snapshot stream id %d and source frame %d don't match!",
+                    LOGD("Snapshot stream id %d and framework"
+                             "source frame streamid %d don't match!",
                              obj->mStreams[0]->getMyHandle(),
                             src_frame->bufs[0]->stream_id);
                 }
@@ -3621,9 +3622,8 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             if (0 <= snapshotIdx) {
                 Mutex::Autolock lock(obj->mFreeBuffersLock);
                 obj->mFreeBufferList.push_back((uint32_t)snapshotIdx);
-            } else {
-                LOGE("Snapshot buffer not found!");
             }
+
             if(isHDR) {
                obj->mPostProcStarted = false;
                obj->m_postprocessor.mChannelStop = false;
