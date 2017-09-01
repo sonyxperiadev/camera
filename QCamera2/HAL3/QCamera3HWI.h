@@ -296,6 +296,7 @@ public:
     const cam_related_system_calibration_data_t *getRelatedCalibrationData();
     int getCameraId() {return mCameraId;}
     bool isQuadCfaSensor() {return m_bQuadraCfaSensor;}
+    int32_t deleteQCFARawChannel();
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
