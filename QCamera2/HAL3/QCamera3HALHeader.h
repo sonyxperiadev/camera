@@ -45,6 +45,7 @@ namespace qcamera {
 #define IS_USAGE_ZSL(usage)  (((usage) & (GRALLOC_USAGE_HW_CAMERA_ZSL)) \
         == (GRALLOC_USAGE_HW_CAMERA_ZSL))
 
+class QCamera3Channel;
 class QCamera3ProcessingChannel;
 
     typedef enum {
@@ -91,7 +92,7 @@ class QCamera3ProcessingChannel;
         cam_padding_info_t *padding;
         reprocess_type_t reprocess_type;
         cam_hdr_param_t hdr_param;
-        QCamera3ProcessingChannel *src_channel;
+        QCamera3Channel *src_channel;
     } reprocess_config_t;
 
 };//namespace qcamera

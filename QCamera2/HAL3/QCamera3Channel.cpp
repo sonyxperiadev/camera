@@ -722,6 +722,24 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
     case CAM_STREAM_TYPE_RAW:
         streamFormat = hal_obj->mRdiModeFmt;
         break;
+    case CAM_STREAM_TYPE_OFFLINE_PROC:
+        if (hal_obj->isQuadCfaSensor() && hal_obj->getReprocChannelCnt() > 1) {
+            if (hal_obj->mRdiModeFmt == CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GBRG) {
+                streamFormat = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_GBRG;
+            } else if (hal_obj->mRdiModeFmt == CAM_FORMAT_BAYER_MIPI_RAW_10BPP_GRBG) {
+                streamFormat = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_GRBG;
+            } else if (hal_obj->mRdiModeFmt == CAM_FORMAT_BAYER_MIPI_RAW_10BPP_RGGB) {
+                streamFormat = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_RGGB;
+            } else if (hal_obj->mRdiModeFmt == CAM_FORMAT_BAYER_MIPI_RAW_10BPP_BGGR) {
+                streamFormat = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_BGGR;
+            } else {
+                LOGW("unkown rdi format, use default one for offline proc stream");
+                streamFormat = CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_10BPP_BGGR;
+            }
+        } else {
+            streamFormat = CAM_FORMAT_YUV_420_NV21;
+        }
+        break;
     default:
         streamFormat = CAM_FORMAT_YUV_420_NV21;
         break;
@@ -2743,6 +2761,191 @@ int32_t QCamera3RawDumpChannel::initialize(cam_is_type_t isType)
     }
     return rc;
 }
+
+/*************************************************************************************/
+// Quadra CFA Raw Channel related functions
+
+QCamera3QCfaRawChannel::QCamera3QCfaRawChannel(uint32_t cam_handle,
+                    uint32_t channel_handle,
+                    mm_camera_ops_t *cam_ops,
+                    cam_dimension_t rawDumpSize,
+                    cam_padding_info_t *paddingInfo,
+                    void *userData,
+                    cam_feature_mask_t postprocess_mask, uint32_t numBuffers) :
+                        QCamera3Channel(cam_handle, channel_handle, cam_ops, NULL,
+                                NULL, paddingInfo, postprocess_mask,
+                                userData, numBuffers),
+                        mDim(rawDumpSize),
+                        mMemory(NULL),
+                        m_metaMem(NULL),
+                        m_frameNumber(0)
+{
+    svr_stream_id = 0;
+
+    raw_received = false;
+    memset(&raw_frame, 0, sizeof(mm_camera_super_buf_t));
+
+    meta_received = false;
+    memset(&meta_frame, 0, sizeof(mm_camera_super_buf_t));
+
+    cam_sem_init(&m_syncSem, 0);
+}
+
+QCamera3QCfaRawChannel::~QCamera3QCfaRawChannel()
+{
+    destroy();
+    if (mMemory != NULL) {
+        LOGD("deallocate stream buffers");
+        mMemory->deallocate();
+        delete mMemory;
+        mMemory = NULL;
+    }
+    if (m_metaMem != NULL) {
+        LOGD("deallocate local meta buffer");
+        m_metaMem->deallocate();
+        delete m_metaMem;
+        m_metaMem = NULL;
+    }
+
+    cam_sem_destroy(&m_syncSem);
+}
+
+void QCamera3QCfaRawChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
+                                                __unused QCamera3Stream *stream)
+{
+    LOGD("E");
+    if (super_frame == NULL || super_frame->num_bufs != 1) {
+        LOGE("super_frame is not valid");
+        return;
+    }
+
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    if (hal_obj->m_bQuadraCfaRequest) {
+        LOGD("store quadra cfa raw frame");
+        raw_frame = *super_frame;
+        raw_buf_def = *(super_frame->bufs[0]);
+        raw_frame.bufs[0] = &raw_buf_def;
+        raw_received = true;
+
+        if (raw_received && meta_received) {
+            notifyCaptureDone();
+        }
+    } else {
+        bufDone(super_frame);
+    }
+
+    free(super_frame);
+}
+
+QCamera3StreamMem* QCamera3QCfaRawChannel::getStreamBufs(uint32_t len)
+{
+    int rc;
+    mMemory = new QCamera3StreamMem(mNumBuffers);
+    if (!mMemory) {
+        LOGE("unable to create heap memory");
+        return NULL;
+    }
+    rc = mMemory->allocateAll((size_t)len);
+    if (rc < 0) {
+        LOGE("unable to allocate heap memory");
+        delete mMemory;
+        mMemory = NULL;
+    }
+    return mMemory;
+}
+
+void QCamera3QCfaRawChannel::putStreamBufs()
+{
+    LOGD("E. don't release the memory.");
+}
+
+int32_t QCamera3QCfaRawChannel::request(buffer_handle_t *, uint32_t frameNumber, int &)
+{
+    int32_t rc = 0;
+    if (!m_bIsActive) {
+        rc = QCamera3Channel::start();
+    }
+
+    LOGD("frame number:%d", frameNumber);
+    m_frameNumber = frameNumber;
+
+    return rc;
+}
+
+int32_t QCamera3QCfaRawChannel::initialize(cam_is_type_t isType)
+{
+    int32_t rc;
+
+    mIsType = isType;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_RAW,
+        hal_obj->mRdiModeFmt, mDim, ROTATE_0, (uint8_t)mNumBuffers,
+        mPostProcMask, mIsType);
+    if (rc < 0) {
+        LOGE("addStream failed");
+    }
+
+    svr_stream_id = mStreams[0]->getMyServerID();
+    LOGD("stream server id:%d", svr_stream_id);
+    return rc;
+}
+
+int32_t QCamera3QCfaRawChannel::queueReprocMetadata(mm_camera_super_buf_t *metadata,
+                                        cam_frame_len_offset_t &offset,  bool urgent)
+{
+    LOGD("E. urgen meta:%d", urgent);
+    metadata_buffer_t *p_metadata = (metadata_buffer_t *)(metadata->bufs[0]->buffer);
+    uint32_t *p_frame_number = POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, p_metadata);
+
+    if (urgent) {
+        uint32_t *p_urgent_frame_number =
+            POINTER_OF_META(CAM_INTF_META_URGENT_FRAME_NUMBER, p_metadata);
+        if (p_urgent_frame_number == NULL || *p_urgent_frame_number != m_frameNumber) {
+            LOGE("frame number not match!");
+            return -1;
+        }
+        memcpy(&urgent_meta, p_metadata, sizeof(metadata_buffer_t));
+    } else {
+        if (p_frame_number == NULL || *p_frame_number != m_frameNumber) {
+            return -1;
+        }
+
+        /* allocate meta buffre here and copy the content of metadata,
+         * as the original meta channel will be deleted
+         */
+        m_metaMem = new QCamera3StreamMem(1);
+        if (!m_metaMem) {
+            LOGE("unable to create memory for meta");
+            return -1;
+        }
+        m_metaMem->allocateAll((size_t)metadata->bufs[0]->frame_len);
+        m_metaMem->getBufDef(offset, meta_buf, 0);
+        memcpy(meta_buf.buffer, metadata->bufs[0]->buffer, sizeof(metadata_buffer_t));
+
+        meta_frame = *metadata;
+        meta_frame.bufs[0] = &meta_buf;
+
+        meta_received = true;
+        if (raw_received && meta_received) {
+            notifyCaptureDone();
+        }
+    }
+
+    LOGD("X");
+    return 0;
+}
+
+void QCamera3QCfaRawChannel::notifyCaptureDone()
+{
+    cam_sem_post(&m_syncSem);
+}
+
+void QCamera3QCfaRawChannel::waitCaptureDone()
+{
+    cam_sem_wait(&m_syncSem);
+}
+
+
 /*************************************************************************************/
 
 /* QCamera3YUVChannel methods */
@@ -3362,7 +3565,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
 
                 if (NULL != jpegBufferHandle) {
                     maxJpegSize = ((private_handle_t*)(*jpegBufferHandle))->width;
-                    if (maxJpegSize > obj->mMemory.getSize(bufIdx)) {
+                    if (maxJpegSize <= 0 || maxJpegSize > obj->mMemory.getSize(bufIdx)) {
                         maxJpegSize = obj->mMemory.getSize(bufIdx);
                     }
 
@@ -3641,6 +3844,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     //FIX ME: Return buffer back in case of failures below.
 
     int32_t rc = NO_ERROR;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
 
     reprocess_config_t reproc_cfg;
     cam_dimension_t dim;
@@ -3651,6 +3855,15 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     dim.height = (int32_t)mYuvHeight;
 
     setReprocConfig(reproc_cfg, pInputBuffer, metadata, mStreamFormat, dim);
+
+    if (hal_obj->m_bQuadraCfaRequest) {
+        LOGI("override reprocess input config for quadra cfa");
+        reproc_cfg.input_stream_dim = hal_obj->getQuadraCfaDim();
+        reproc_cfg.stream_format = hal_obj->mRdiModeFmt;
+        reproc_cfg.stream_type = CAM_STREAM_TYPE_RAW;
+        mm_stream_calc_offset_raw(reproc_cfg.stream_format, &reproc_cfg.input_stream_dim,
+                reproc_cfg.padding, &reproc_cfg.input_stream_plane_info);
+    }
 
     // Picture stream has already been started before any request comes in
     if (!m_bIsActive) {
@@ -3690,8 +3903,32 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         LOGD("Internal request @ Picchannel");
     }
 
+    if (pInputBuffer == NULL && hal_obj->m_bQuadraCfaRequest) {
+        LOGI("trigger reprocess for quadra cfa");
+        QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+        QCamera3QCfaRawChannel *pChannel = hal_obj->mQCFARawChannel;
+        if (pChannel == NULL || !pChannel->meta_received || !pChannel->raw_received) {
+            LOGE("request failed!");
+            return -1;
+        }
 
-    if (pInputBuffer == NULL) {
+        mm_camera_super_buf_t *super_buf =
+                (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
+        if (super_buf == NULL) {
+            LOGE("fail to allocate memory");
+            return -1;
+        }
+        memcpy(super_buf, &(pChannel->meta_frame), sizeof(mm_camera_super_buf_t));
+        m_postprocessor.processPPMetadata(super_buf);
+
+        super_buf = (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
+        if (super_buf == NULL) {
+            LOGE("fail to allocate memory");
+            return -1;
+        }
+        memcpy(super_buf, &(pChannel->raw_frame), sizeof(mm_camera_super_buf_t));
+        m_postprocessor.processData(super_buf);
+    } else if (pInputBuffer == NULL) {
         Mutex::Autolock lock(mFreeBuffersLock);
         uint32_t bufIdx;
         if (mFreeBufferList.empty()) {
@@ -3971,6 +4208,7 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
 
 void QCamera3PicChannel::overrideYuvSize(uint32_t width, uint32_t height)
 {
+   LOGH("override Yuv size to: %d x %d", width, height);
    mYuvWidth = width;
    mYuvHeight = height;
 }
@@ -4052,7 +4290,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
      * ch_hdl->getNumBuffers() + 1 */
     QCamera3Channel(cam_handle, channel_handle, cam_ops, cb_routine, cb_buf_err, paddingInfo,
                     postprocess_mask, userData,
-                    ((QCamera3ProcessingChannel *)ch_hdl)->getNumBuffers()
+                    ((QCamera3Channel *)ch_hdl)->getNumBuffers()
                               + (MAX_REPROCESS_PIPELINE_STAGES - 1)),
     inputChHandle(ch_hdl),
     mOfflineBuffersIndex(-1),
@@ -4065,7 +4303,8 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
     mMemoryMeta(NULL),
     mGrallocMemory(0),
     mReprocessPerfMode(false),
-    m_bOfflineIsp(false)
+    m_bOfflineIsp(false),
+    m_ppIndex(0)
 {
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
     mOfflineBuffersIndex = mNumBuffers -1;
@@ -4179,6 +4418,9 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
     uint8_t frameIndex;
     uint32_t resultFrameNumber;
     mm_camera_super_buf_t* frame = NULL;
+    LOGD("E. current reproc ch idx:%d", m_ppIndex);
+
+    // input channel is the pic/yuv channel (processing channel) for all reprocess channels
     QCamera3ProcessingChannel *obj = (QCamera3ProcessingChannel *)inputChHandle;
     cam_dimension_t dim;
     cam_frame_len_offset_t offset;
@@ -4227,10 +4469,11 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
         stream->getFrameDimension(dim);
         stream->getFrameOffset(offset);
         dumpYUV(frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_INPUT_JPEG);
-        /* Since reprocessing is done, send the callback to release the input buffer */
-        if (mChannelCB) {
+
+        if (mChannelCB && m_ppIndex == 0) {
             mChannelCB(NULL, NULL, resultFrameNumber, true, mUserData);
         }
+
         obj->m_postprocessor.processPPData(frame,
                 m_bOfflineIsp ? ((const metadata_buffer_t*)m_processedMetaBuf.buffer) : NULL);
     } else {
@@ -4750,6 +4993,59 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
         } else {
             LOGE("Source/Re-process streams are invalid");
             rc |= BAD_VALUE;
+        }
+    }
+
+    return rc;
+}
+
+int32_t QCamera3ReprocessChannel::overrideMetadata(metadata_buffer_t *meta_buffer,
+        jpeg_settings_t *jpeg_settings, uint32_t input_stream_svr_id)
+{
+    int32_t rc = NO_ERROR;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    if ((NULL == meta_buffer) || (NULL == hal_obj) || input_stream_svr_id == 0) {
+        return BAD_VALUE;
+    }
+
+    LOGD("E, input stream id:%d", input_stream_svr_id);
+
+    if (jpeg_settings != NULL) {
+        // Find rotation info for reprocess stream
+        cam_rotation_info_t rotation_info;
+        memset(&rotation_info, 0, sizeof(rotation_info));
+        if (jpeg_settings->jpeg_orientation == 0) {
+           rotation_info.rotation = ROTATE_0;
+        } else if (jpeg_settings->jpeg_orientation == 90) {
+           rotation_info.rotation = ROTATE_90;
+        } else if (jpeg_settings->jpeg_orientation == 180) {
+           rotation_info.rotation = ROTATE_180;
+        } else if (jpeg_settings->jpeg_orientation == 270) {
+           rotation_info.rotation = ROTATE_270;
+        }
+        if (jpeg_settings->hdr_snapshot) {
+            rotation_info.rotation = ROTATE_0;
+        }
+        rotation_info.streamId = mStreams[0]->getMyServerID();
+        LOGD("roration:%d, stream id:%d", rotation_info.rotation, rotation_info.streamId);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(meta_buffer, CAM_INTF_PARM_ROTATION, rotation_info);
+    }
+
+    IF_META_AVAILABLE(cam_cds_data_t, cdsInfo, CAM_INTF_META_CDS_DATA, meta_buffer) {
+        uint8_t cnt = cdsInfo->num_of_streams;
+        LOGD("num of streams in cdsInfo:%d", cnt);
+        if (cnt <= MAX_NUM_STREAMS) {
+            cam_stream_cds_info_t repro_cds_info;
+            memset(&repro_cds_info, 0, sizeof(repro_cds_info));
+            repro_cds_info.stream_id = mStreams[0]->getMyServerID();
+            for (size_t i = 0; i < cnt; i++) {
+                if (cdsInfo->cds_info[i].stream_id == input_stream_svr_id) {
+                    repro_cds_info.cds_enable = cdsInfo->cds_info[i].cds_enable;
+                    break;
+                }
+            }
+            cdsInfo->num_of_streams = 1;
+            cdsInfo->cds_info[0] = repro_cds_info;
         }
     }
 
@@ -5350,6 +5646,22 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
             src_config.input_stream_plane_info.plane_info;
     reprocess_config.offline.num_of_bufs = (uint8_t)mNumBuffers;
     reprocess_config.offline.input_type = src_config.stream_type;
+
+    //overwrite input/output stream foramt/type/frame_offset in multi pass reproc
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    if (hal_obj->getReprocChannelCnt() == 2) {
+        LOGI("modify input/output format for multi pass reprocess");
+        if (pp_config.feature_mask & CAM_QCOM_FEATURE_QUADRA_CFA) {
+            streamFormat = getStreamDefaultFormat(streamType, streamDim.width, streamDim.height);
+            LOGD("override output format from:%d to %d",
+                src_config.output_stream_format, streamFormat);
+        } else if (pp_config.feature_mask & CAM_QCOM_FEATURE_RAW_PROCESSING) {
+            reprocess_config.offline.input_fmt =
+                getStreamDefaultFormat(streamType, streamDim.width, streamDim.height);
+            LOGD("override input format from:%d to %d",
+                src_config.stream_format, reprocess_config.offline.input_fmt);
+        }
+    }
 
     reprocess_config.pp_feature_config = pp_config;
     QCamera3Stream *pStream = new QCamera3Stream(m_camHandle,
