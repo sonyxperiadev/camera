@@ -79,6 +79,9 @@ typedef struct {
     metadata_buffer_t *metadata;
     jpeg_settings_t *jpeg_settings;
     mm_camera_super_buf_t *src_metadata;
+    mm_camera_super_buf_t *reprocessed_src_frame; // reprocessed output, valid in multi reprocess pass case
+    int8_t pp_ch_idx;
+    uint32_t frameNumber;
 } qcamera_hal3_pp_data_t;
 
 typedef struct {
@@ -173,10 +176,12 @@ private:
 
     uint32_t                   m_bThumbnailNeeded;
     QCamera3StreamMem          *mOutputMem;
-    QCamera3ReprocessChannel *  m_pReprocChannel;
+    int8_t                      m_ppChannelCnt;
+    QCamera3ReprocessChannel *  m_pReprocChannel[2];
 
     QCameraQueue m_inputPPQ;            // input queue for postproc
     QCameraQueue m_inputFWKPPQ;         // framework input queue for postproc
+    QCameraQueue m_inputMultiReprocQ;
     QCameraQueue m_ongoingPPQ;          // ongoing postproc queue
     QCameraQueue m_inputJpegQ;          // input jpeg job queue
     QCameraQueue m_ongoingJpegQ;        // ongoing jpeg job queue

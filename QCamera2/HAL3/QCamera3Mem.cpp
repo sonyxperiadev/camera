@@ -43,6 +43,8 @@
 #include "QCamera3Mem.h"
 #include "QCameraTrace.h"
 
+#include "fdleak.h"
+
 extern "C" {
 #include "mm_camera_dbg.h"
 #include "mm_camera_interface.h"
@@ -877,6 +879,9 @@ int32_t QCamera3GrallocMemory::unregisterBufferLocked(size_t idx)
 {
     munmap(mPtr[idx], mMemInfo[idx].size);
     mPtr[idx] = NULL;
+    /*This function is called to remove the fd from wrapper.
+    This will not close the fd.*/
+    remFdCheck(mMemInfo[idx].fd);
 
     struct ion_handle_data ion_handle;
     memset(&ion_handle, 0, sizeof(ion_handle));

@@ -223,6 +223,10 @@ public:
                 camera3_stream_buffer_t *buffer, uint32_t frame_number,
                 bool isInputBuffer, void *userdata);
 
+    static void internalMetaCb(mm_camera_super_buf_t *metadata,
+                camera3_stream_buffer_t *buffer, uint32_t frame_number,
+                bool isInputBuffer, void *userdata);
+
     int initialize(const camera3_callback_ops_t *callback_ops);
     int configureStreams(camera3_stream_configuration_t *stream_list);
     int configureStreamsPerfLocked(camera3_stream_configuration_t *stream_list);
@@ -239,6 +243,7 @@ public:
             cam_stream_ID_t streamID, int blob_request, uint32_t snapshotStreamId);
     int32_t setReprocParameters(camera3_capture_request_t *request,
             metadata_buffer_t *reprocParam, uint32_t snapshotStreamId);
+    int8_t getReprocChannelCnt() {return m_ppChannelCnt;};
     int translateToHalMetadata(const camera3_capture_request_t *request,
             metadata_buffer_t *parm, uint32_t snapshotStreamId);
     camera_metadata_t* translateCbUrgentMetadataToResultMetadata (
@@ -253,7 +258,7 @@ public:
     int initParameters();
     void deinitParameters();
     QCamera3ReprocessChannel *addOfflineReprocChannel(const reprocess_config_t &config,
-            QCamera3ProcessingChannel *inputChHandle);
+            QCamera3ProcessingChannel *inputChHandle, int8_t pp_channel_idx = 0);
     bool needRotationReprocess();
     bool needJpegExifRotation();
     bool useExifRotation();
@@ -265,6 +270,8 @@ public:
     void captureResultCb(mm_camera_super_buf_t *metadata,
                 camera3_stream_buffer_t *buffer, uint32_t frame_number,
                 bool isInputBuffer);
+    void internalMetaCb(mm_camera_super_buf_t *metadata);
+    cam_dimension_t getQuadraCfaDim();
     cam_dimension_t calcMaxJpegDim();
     bool needOnlineRotation();
     uint32_t getJpegQuality();
@@ -288,6 +295,8 @@ public:
     uint32_t getSensorMountAngle();
     const cam_related_system_calibration_data_t *getRelatedCalibrationData();
     int getCameraId() {return mCameraId;}
+    bool isQuadCfaSensor() {return m_bQuadraCfaSensor;}
+    int32_t deleteQCFARawChannel();
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
@@ -415,6 +424,8 @@ private:
             cam_color_filter_arrangement_t filter_arrangement);
     int32_t setSensorHDR(metadata_buffer_t *hal_metadata, bool enable,
             bool isVideoHdrEnable = false);
+    int32_t captureQuadraCfaRawInternal(camera3_capture_request_t *request);
+    int32_t switchStreamConfigInternal(uint32_t frame_number);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -565,6 +576,8 @@ public:
     bool mStreamConfig;
     QCameraCommon   mCommon;
     cam_format_t mRdiModeFmt;
+    QCamera3QCfaRawChannel *mQCFARawChannel;
+    bool m_bQuadraCfaRequest;
 private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
@@ -657,6 +670,9 @@ private:
     // for quad cfa
     bool m_bQuadraCfaSensor;
     uint8_t mQuadraCfaStage;
+    bool m_bQuadraSizeConfigured;
+    int8_t m_ppChannelCnt;
+    camera3_stream_configuration_t mStreamList;
 };
 
 }; // namespace qcamera
