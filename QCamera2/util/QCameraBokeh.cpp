@@ -646,8 +646,24 @@ int32_t QCameraBokeh::doBokehProcess(
     qrcp::SensorConfiguration config =
             isAuxMono ? qrcp::SYMMETRIC_BAYER_MONO : qrcp::STANDARD_WIDE_BAYER_BAYER;
 
+    qrcp::DepthMapMode ddmMode = qrcp::DepthMapMode::ENHANCED_MODE;
+    if (QCameraCommon::is_target_SDM630())
+        ddmMode = qrcp::DepthMapMode::NORMAL_MODE;
+
+    char prop[PROPERTY_VALUE_MAX];
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.bokeh.ddmmode", prop, "");
+    if (strlen(prop) > 0) {
+        if (!strcmp(prop, "normal"))
+            ddmMode = qrcp::DepthMapMode::NORMAL_MODE;
+        else if (!strcmp(prop, "enhanced"))
+            ddmMode = qrcp::DepthMapMode::ENHANCED_MODE;
+    }
+
     DUMP("\nDepthStride = %d \nfocalLengthPrimaryCamera = %f \n"
             "SensorConfiguration = %d", depthStride, focalLengthPrimaryCamera, config);
+    DUMP("\nDepthmap mode = %s ", (ddmMode == qrcp::DepthMapMode::NORMAL_MODE) ?
+            "normal" : "enhanced");
 
     LOGI("[KPI Perf]: PROFILE_BOKEH_PROCESS : E");
     qrcp::DDMWrapperStatus status = qrcp::dualCameraGenerateDDM(
@@ -657,8 +673,9 @@ int32_t QCameraBokeh::doBokehProcess(
             auxiliaryStrideY, auxiliaryStrideVU,
             pDepthMap, depthStride,
             goodRoi.left, goodRoi.top, goodRoi.width,goodRoi.height,
-            inParams.sAuxReprocessInfo.string(), inParams.sMainReprocessInfo.string(),
-            inParams.sCalibData.string(), focalLengthPrimaryCamera, config);
+            inParams.sMainReprocessInfo.string(), inParams.sAuxReprocessInfo.string(),
+            inParams.sCalibData.string(), focalLengthPrimaryCamera, config, ddmMode);
+
     if (!status.ok()) {
         LOGE("depth map generation failed: %s, errorcode %d",
                 status.getErrorMessage().c_str(), status.getErrorCode());
