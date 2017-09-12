@@ -86,7 +86,6 @@ extern cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 extern pthread_mutex_t gCamLock;
 volatile uint32_t gCamHalLogLevel = 1;
 extern uint8_t gNumCameraSessions;
-uint32_t QCamera2HardwareInterface::sNextJobId = 1;
 
 camera_device_ops_t QCamera2HardwareInterface::mCameraOps = {
     .set_preview_window =        QCamera2HardwareInterface::set_preview_window,
@@ -1721,6 +1720,7 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
       mJpegClientHandle(0),
       mJpegHandleOwner(false),
       mMetadataMem(NULL),
+      mNextJobId(1),
       mCACDoneReceived(false),
       m_bNeedRestart(false),
       mBootToMonoTimestampOffset(0),
@@ -11249,16 +11249,16 @@ uint32_t QCamera2HardwareInterface::queueDeferredWork(DeferredWorkCmd cmd,
     Mutex::Autolock l(mDefLock);
     for (int32_t i = 0; i < MAX_ONGOING_JOBS; ++i) {
         if (mDefOngoingJobs[i].mDefJobId == 0) {
-            DefWork *dw = new DefWork(cmd, sNextJobId, args);
+            DefWork *dw = new DefWork(cmd, mNextJobId, args);
             if (!dw) {
                 LOGE("out of memory.");
                 return 0;
             }
             if (mCmdQueue.enqueue(dw)) {
-                mDefOngoingJobs[i].mDefJobId = sNextJobId++;
+                mDefOngoingJobs[i].mDefJobId = mNextJobId++;
                 mDefOngoingJobs[i].mDefJobStatus = 0;
-                if (sNextJobId == 0) { // handle overflow
-                    sNextJobId = 1;
+                if (mNextJobId == 0) { // handle overflow
+                    mNextJobId = 1;
                 }
                 mDeferredWorkThread.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB,
                         FALSE,

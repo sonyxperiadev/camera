@@ -818,7 +818,7 @@ private:
 #endif
     QCameraMemory *mMetadataMem;
 
-    static uint32_t sNextJobId;
+    uint32_t mNextJobId;
 
     //Gralloc memory details
     pthread_mutex_t mGrallocLock;
