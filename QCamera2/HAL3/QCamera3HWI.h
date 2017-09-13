@@ -468,6 +468,7 @@ private:
     bool m_bEisEnable;
     bool m_bEis3PropertyEnabled;
     bool m_bEisSupported;
+    bool m_bLPMEnabled;
     typedef struct {
         cam_dimension_t dim;
         int format;

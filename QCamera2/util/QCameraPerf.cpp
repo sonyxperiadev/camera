@@ -145,6 +145,25 @@ static int32_t perfLockParamsTakeSnapshot[] = {
     #endif
 };
 
+static int32_t perfLockParamsBokehSnapshot[] = {
+    #ifndef TARGET_MSM8996
+    // Make sure big cluster is online
+    MPCTLV3_MIN_ONLINE_CPU_CLUSTER_BIG,     0x4,
+    MPCTLV3_MAX_ONLINE_CPU_CLUSTER_BIG,     0x4,
+    #endif
+
+    // Disable power collapse
+    MPCTLV3_ALL_CPUS_PWR_CLPS_DIS,          0x1,
+    // Set little cluster cores to turbo
+    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0, 0xFFF,
+    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0, 0xFFF,
+
+    // Set big cluster cores to turbo
+    MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0, 0xFFF,
+    MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0, 0xFFF
+};
+
+
 static int32_t perfLockParamsTakeSnapshotsdm630[] = {
     MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0, 0x613,
     MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_1, 0x613,
@@ -173,7 +192,10 @@ PerfLockInfo QCameraPerfLock::mPerfLockInfo[] = {
     { //PERF_LOCK_POWERHINT_PREVIEW
       NULL, 0},
     { //PERF_LOCK_POWERHINT_ENCODE
-      NULL, 0}
+      NULL, 0},
+    { //PERF_LOCK_BOKEH_SNAPSHOT
+      perfLockParamsBokehSnapshot,
+      sizeof(perfLockParamsBokehSnapshot)/sizeof(int32_t) },
     };
 
 Mutex                QCameraPerfLockIntf::mMutex;
@@ -499,6 +521,7 @@ bool QCameraPerfLock::acquirePerfLock(
 
     return ret;
 }
+
 
 
 /*===========================================================================
