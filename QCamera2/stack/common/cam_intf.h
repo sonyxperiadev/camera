@@ -689,6 +689,7 @@ typedef enum {
     CAM_STREAM_PARAM_TYPE_REQUEST_FRAMES = CAM_INTF_PARM_REQUEST_FRAMES,
     CAM_STREAM_PARAM_TYPE_REQUEST_OPS_MODE = CAM_INTF_PARM_REQUEST_OPS_MODE,
     CAM_STREAM_PARAM_TYPE_FLUSH_FRAME = CAM_INTF_PARM_FLUSH_FRAMES,
+    CAM_STREAM_PARAM_TYPE_FRAME_SKIP = CAM_INTF_PARM_FRAMESKIP,
     CAM_STREAM_PARAM_TYPE_MAX
 } cam_stream_param_type_e;
 
@@ -737,6 +738,7 @@ typedef struct {
         cam_stream_img_prop_t imgProp;  /* image properties of current frame */
         cam_request_frames frameRequest; /*do TNR process*/
         cam_perf_mode_t perf_mode;       /*request operational mode*/
+        enum msm_vfe_frame_skip_pattern skipPattern;
     };
 } cam_stream_parm_buffer_t;
 

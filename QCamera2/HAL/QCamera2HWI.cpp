@@ -4054,6 +4054,10 @@ int QCamera2HardwareInterface::startPreview()
         }
     }
     m_bPreviewStarted = true;
+
+    //configure snapshot skip for dual camera usecases
+    configureSnapshotSkip(true);
+
     LOGI("X rc = %d", rc);
     return rc;
 }
@@ -4546,6 +4550,8 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
         }
     }
 
+    configureSnapshotSkip(true);
+
     return rc;
 }
 
@@ -4635,6 +4641,8 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
 
     LOGH("Stop preview temporarily for advanced captures");
     setDisplaySkip(bSkipDisplay);
+
+    configureSnapshotSkip(false);
 
     LOGH("X rc = %d", rc);
     return rc;
@@ -11861,6 +11869,39 @@ void QCamera2HardwareInterface::fillDualCameraFOVControl()
         }
     } else {
         LOGE("No memory for Dual camera fill FOV control event");
+    }
+}
+
+/*===========================================================================
+ * FUNCTION   : configureSnapshotSkip
+ *
+ * DESCRIPTION: function to configure snapshot skip in dual camera usecases.
+ *
+ * PARAMETERS : skip - whether to enable/disable snapshot skip
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera2HardwareInterface::configureSnapshotSkip(bool skip)
+{
+    if (isDualCamera() && isZSLMode() &&
+            (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+        QCameraChannel *pChannel = NULL;
+        pChannel = m_channels[QCAMERA_CH_TYPE_ZSL];
+        if (NULL != pChannel) {
+            QCameraStream *pStream = NULL;
+            for (uint32_t i = 0; i < pChannel->getNumOfStreams(); i++) {
+                pStream = pChannel->getStreamByIndex(i);
+                if (pStream != NULL) {
+                    if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
+                        cam_stream_parm_buffer_t param;
+                        memset(&param, 0, sizeof(param));
+                        param.type = CAM_STREAM_PARAM_TYPE_FRAME_SKIP;
+                        param.skipPattern = skip ? SKIP_ALL : NO_SKIP;
+                        pStream->setParameter(param);
+                    }
+                }
+            }
+        }
     }
 }
 
