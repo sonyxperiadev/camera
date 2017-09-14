@@ -2935,7 +2935,7 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
             for (int32_t xs = dim.width - 1; xs >= 0; xs--) {
                 uint32_t x = (uint32_t)xs;
                 uint8_t upper_8bit = row_start[5*(x/4)+x%4];
-                uint8_t lower_2bit = ((row_start[5*(x/4)+4] >> (x%4)) & 0x3);
+                uint8_t lower_2bit = ((row_start[5*(x/4)+4] >> ((x%4) << 1)) & 0x3);
                 uint16_t raw16_pixel =
                         (uint16_t)(((uint16_t)upper_8bit)<<2 |
                         (uint16_t)lower_2bit);
