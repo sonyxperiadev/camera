@@ -246,6 +246,8 @@ public:
 
     QCamera3PostProcessor m_postprocessor; // post processor
     void showDebugFPS(int32_t streamType);
+    bool isFwkInputBuffer(uint32_t resultFrameNumber);
+
 
 protected:
     uint8_t mDebugFPS;
