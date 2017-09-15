@@ -2518,6 +2518,8 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
 
         uint32_t raw16_stride = ((uint32_t)dim.width + 15U) & ~15U;
         uint16_t* raw16_buffer = (uint16_t *)frame->buffer;
+        uint8_t first_quintuple[5];
+        memcpy(first_quintuple, raw16_buffer, sizeof(first_quintuple));
 
         // In-place format conversion.
         // Raw16 format always occupy more memory than opaque raw10.
@@ -2540,6 +2542,12 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
                 raw16_buffer[y*raw16_stride+x] = raw16_pixel;
             }
         }
+
+        // Re-convert the first 2 pixels of the buffer because the loop above messes
+        // them up by reading the first quintuple while modifying it.
+        raw16_buffer[0] = ((uint16_t)first_quintuple[0]<<2) | (first_quintuple[4] & 0x3);
+        raw16_buffer[1] = ((uint16_t)first_quintuple[1]<<2) | ((first_quintuple[4] >> 2) & 0x3);
+
     } else {
         LOGE("Could not find stream");
     }
