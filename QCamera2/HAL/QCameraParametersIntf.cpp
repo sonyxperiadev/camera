@@ -1259,6 +1259,27 @@ int32_t QCameraParametersIntf::setQuadraCfaMode(uint32_t value, bool initCommit)
     return mImpl->setQuadraCfaMode(value, initCommit);
 }
 
+int32_t QCameraParametersIntf::setRawCaptureMode(uint32_t value)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->setRawCaptureMode(value);
+}
+
+bool QCameraParametersIntf::getRawZsl()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getRawZsl();
+}
+
+bool QCameraParametersIntf::getRawZslCapture()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getRawZslCapture();
+}
+
 int32_t QCameraParametersIntf::setToneMapMode(uint32_t value, bool initCommit)
 {
     Mutex::Autolock lock(mLock);

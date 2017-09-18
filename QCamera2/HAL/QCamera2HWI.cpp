@@ -2821,7 +2821,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
         property_get("persist.camera.raw_yuv", value, "0");
         raw_yuv = atoi(value) > 0 ? true : false;
 
-        if (isRdiMode() || raw_yuv || isSecureMode()) {
+        if (isRdiMode() || raw_yuv || isSecureMode() || mParameters.getRawZsl()) {
             bufferCnt = zslQBuffers + minCircularBufNum;
         } else if (mParameters.isZSLMode()) {
             bufferCnt = zslQBuffers + minCircularBufNum;
@@ -4500,9 +4500,10 @@ int32_t QCamera2HardwareInterface::unconfigureAdvancedCapture()
 {
     int32_t rc = NO_ERROR;
 
-    /*Disable Quadra CFA mode*/
-    LOGH("Disabling Quadra CFA mode");
+    /*Disable Quadra CFA & RAW Capture mode*/
+    LOGH("Disabling Quadra CFA & RAW ZSL Capture mode ");
     mParameters.setQuadraCfaMode(false, true);
+    mParameters.setRawCaptureMode(false);
 
     if (mAdvancedCaptureConfigured) {
 
@@ -4578,6 +4579,8 @@ int32_t QCamera2HardwareInterface::configureAdvancedCapture()
     }
     /*Enable Quadra CFA mode*/
     mParameters.setQuadraCfaMode(true, true);
+    /*Enable RAW Capture mode*/
+    mParameters.setRawCaptureMode(true);
 
     setOutputImageCount(0);
     mInputCount = 0;
@@ -5131,7 +5134,7 @@ int QCamera2HardwareInterface::takePicture()
         QCameraPicChannel *pPicChannel = (QCameraPicChannel *)pChannel;
         if (NULL != pPicChannel) {
 
-            if (mParameters.getofflineRAW()) {
+            if (mParameters.getofflineRAW() && !mParameters.getRawZsl()) {
                 startRAWChannel(pPicChannel);
                 pPicChannel = (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_RAW];
                 if (pPicChannel == NULL) {
@@ -5611,7 +5614,7 @@ int QCamera2HardwareInterface::cancelPicture()
 
     if (mParameters.isZSLMode()) {
         QCameraPicChannel *pPicChannel = NULL;
-        if (mParameters.getofflineRAW()) {
+        if (mParameters.getofflineRAW() && !mParameters.getRawZsl()) {
             pPicChannel = (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_RAW];
         } else {
             pPicChannel = (QCameraPicChannel *)m_channels[QCAMERA_CH_TYPE_ZSL];
@@ -7032,7 +7035,8 @@ int32_t QCamera2HardwareInterface::processZSLCaptureDone()
 {
     int rc = NO_ERROR;
 
-    if (++mInputCount >= mParameters.getBurstCountForAdvancedCapture()) {
+    if ((++mInputCount >= mParameters.getBurstCountForAdvancedCapture())
+            && !mParameters.getRawZsl()) {
         rc = unconfigureAdvancedCapture();
     }
 
@@ -8425,7 +8429,7 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
 
     property_get("persist.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
-    if (raw_yuv) {
+    if ((raw_yuv && !mParameters.getofflineRAW()) || mParameters.getRawZsl()) {
         rc = addStreamToChannel(pChannel,
                                 CAM_STREAM_TYPE_RAW,
                                 preview_raw_stream_cb_routine,
@@ -9328,7 +9332,8 @@ int32_t QCamera2HardwareInterface::preparePreview()
             }
         }
 
-        if (mParameters.getofflineRAW() && !mParameters.getQuadraCfa()) {
+        if (mParameters.getofflineRAW() && !mParameters.getQuadraCfa()
+                && !mParameters.getRawZsl()) {
             addChannel(QCAMERA_CH_TYPE_RAW);
         }
     } else if(isSecureMode()) {
