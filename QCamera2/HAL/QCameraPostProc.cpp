@@ -446,7 +446,8 @@ int32_t QCameraPostProcessor::createJpegSession(QCameraChannel *pSrcChannel)
             }
 
             if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
-                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW)) {
                 pSnapshotStream = pStream;
             }
 

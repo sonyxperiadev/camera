@@ -502,6 +502,12 @@ const char QCameraParameters::KEY_TS_MAKEUP_WHITEN[] = "tsmakeup_whiten";
 const char QCameraParameters::KEY_TS_MAKEUP_CLEAN[] = "tsmakeup_clean";
 #endif
 
+//KEY to set the RAW ZSL mode
+const char QCameraParameters::KEY_QC_RAW_ZSL[] = "raw-zsl";
+
+//KEY to set the RAW ZSL capture
+const char QCameraParameters::KEY_QC_RAW_ZSL_CAPTURE[] = "raw-zsl-capture";
+
 //KEY to share HFR batch size with video encoder.
 const char QCameraParameters::KEY_QC_VIDEO_BATCH_SIZE[] = "video-batch-size";
 
@@ -1087,6 +1093,8 @@ QCameraParameters::QCameraParameters()
     m_bBokehBlurLevel = 0;
     m_bBokehMpoEnabled = 0;
     lpmEnable = false;
+    m_bRawZSL = false;
+    m_bRawZSLCapture = false;
 }
 
 /*===========================================================================
@@ -1218,6 +1226,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     m_bBokehBlurLevel = 0;
     m_bBokehMpoEnabled = 0;
     lpmEnable = false;
+    m_bRawZSL = false;
+    m_bRawZSLCapture = false;
 }
 
 /*===========================================================================
@@ -4218,6 +4228,120 @@ int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
     LOGH("Quadra CFA mode = %d", m_bQuadraCfa);
     return rc;
 }
+
+/*===========================================================================
+ * FUNCTION   : setRawZsl
+ *
+ * DESCRIPTION: set RAW ZSL mode
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+ int32_t QCameraParameters::setRawZsl(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_RAW_ZSL);
+    const char *prev_str = get(KEY_QC_RAW_ZSL);
+    int32_t rc = NO_ERROR;
+    LOGH("str =%s & prev_str =%s", str, prev_str);
+    if (str != NULL) {
+        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
+            uint8_t rawZSL = lookupAttr(ENABLE_DISABLE_MODES_MAP,
+                PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), str);
+            if (rawZSL != NAME_NOT_FOUND) {
+                updateParamEntry(KEY_QC_RAW_ZSL, str);
+                m_bNeedRestart = true;
+                m_bRawZSL = rawZSL;
+                LOGH("m_bRawZSL set from UI %d", m_bRawZSL);
+            } else {
+                LOGE("Invalid argument for RAW ZSL %d",  rawZSL);
+                rc = BAD_VALUE;
+            }
+       }
+    } else {
+        char raw_zsl_prop[PROPERTY_VALUE_MAX];
+        memset(raw_zsl_prop, 0, sizeof(raw_zsl_prop));
+        property_get("persist.camera.rawzsl", raw_zsl_prop, "0");
+        uint8_t rawZSL = (uint8_t)atoi(raw_zsl_prop);
+        m_bRawZSL = rawZSL;
+        LOGH("m_bRawZSL %d", m_bRawZSL);
+    }
+    return NO_ERROR;
+
+}
+
+/*===========================================================================
+ * FUNCTION   : setRawZslCapture
+ *
+ * DESCRIPTION: set RAW ZSL Capture mode
+ *
+ * PARAMETERS :
+ *   @params  : user setting parameters
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+ int32_t QCameraParameters::setRawZslCapture(const QCameraParameters& params)
+{
+    const char *str = params.get(KEY_QC_RAW_ZSL_CAPTURE);
+    const char *prev_str = get(KEY_QC_RAW_ZSL_CAPTURE);
+    int32_t rc = NO_ERROR;
+    LOGH("str =%s & prev_str =%s", str, prev_str);
+    if (str != NULL) {
+        if (prev_str == NULL || strcmp(str, prev_str) != 0) {
+            uint8_t rawZslCapture = lookupAttr(ENABLE_DISABLE_MODES_MAP,
+                PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), str);
+            if (rawZslCapture != NAME_NOT_FOUND) {
+                updateParamEntry(KEY_QC_RAW_ZSL_CAPTURE, str);
+                m_bRawZSLCapture = rawZslCapture;
+                LOGH("m_bRawZSLCapture set from UI %d", m_bRawZSLCapture);
+            } else {
+                LOGE("Invalid argument for RAW ZSL CAPTURE %d",  rawZslCapture);
+                rc = BAD_VALUE;
+            }
+        }
+    } else {
+        char raw_capture_prop[PROPERTY_VALUE_MAX];
+        memset(raw_capture_prop, 0, sizeof(raw_capture_prop));
+        property_get("persist.camera.rawzsl.capture", raw_capture_prop, "0");
+        uint8_t rawZslCapture = (uint8_t)atoi(raw_capture_prop);
+        m_bRawZSLCapture = rawZslCapture;
+        LOGH("m_bRawZSLCapture %d", m_bRawZSLCapture);
+    }
+    return NO_ERROR;
+}
+
+/*===========================================================================
+ * FUNCTION   : setRawCaptureMode
+ *
+ * DESCRIPTION: enable or disable RAW CaptureA mode
+ *
+ * PARAMETERS :
+ *   @enable : enable: 1; disable 0
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCameraParameters::setRawCaptureMode(uint32_t enable) {
+
+   int32_t rc = NO_ERROR;
+
+    if (getRawZsl() && getRawZslCapture()) {
+        if (enable) {
+            setOfflineRAW(TRUE);
+        } else  {
+            setOfflineRAW(FALSE);
+        }
+        LOGI("RAW ZSL Capture mode %d ", enable);
+    }
+    return rc;
+}
+
 /*===========================================================================
  * FUNCTION   : setSeeMore
  *
@@ -5701,6 +5825,9 @@ int32_t QCameraParameters::updateParameters(const String8& p,
     setVideoBatchSize();
     setLowLightCapture();
     setAsymmetricSnapMode();
+
+    setRawZsl(params);
+    setRawZslCapture(params);
 
     if ((rc = updateFlash(false)))                      final_rc = rc;
 #ifdef TARGET_TS_MAKEUP
@@ -10811,7 +10938,8 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_RAW:
-        if ((isRdiMode()) || (getofflineRAW())|| (getQuadraCfa()) || (isSecureMode())) {
+        if ((isRdiMode()) || (getofflineRAW())|| (getQuadraCfa())
+                || (isSecureMode()) || getRawZsl()) {
             format = m_pCapability->rdi_mode_stream_fmt;
         } else if (mPictureFormat >= CAM_FORMAT_YUV_RAW_8BIT_YUYV) {
             format = (cam_format_t)mPictureFormat;
@@ -12370,7 +12498,7 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
     }
     // If offline raw is enabled, check the dimensions from Picture size since snapshot
     // stream is not added but final JPEG is required of snapshot size
-    if (getofflineRAW()) {
+    if (getofflineRAW() || getRawZsl()) {
         if (getQuadraCfa()) {
             max_dim.width = m_pCapability->quadra_cfa_dim[0].width;
             max_dim.height = m_pCapability->quadra_cfa_dim[0].height;
@@ -14612,7 +14740,7 @@ bool QCameraParameters::setStreamConfigure(bool isCapture,
     }
 
     if ((!raw_capture) && ((getofflineRAW() && !getRecordingHintValue())
-            || (raw_yuv))) {
+            || (raw_yuv) || getRawZsl())) {
         cam_dimension_t max_dim = {0,0};
 
         if (!getQuadraCfa()) {
@@ -14779,7 +14907,7 @@ bool QCameraParameters::needThumbnailReprocess(cam_feature_mask_t *pFeatureMask)
             isStillMoreEnabled() ||
             (isHDREnabled() && !isHDRThumbnailProcessNeeded())
             || isUBWCEnabled()|| getQuadraCfa() ||
-            isDualCamera()) {
+            isDualCamera() || getRawZslCapture()) {
         *pFeatureMask &= ~CAM_QCOM_FEATURE_CHROMA_FLASH;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_UBIFOCUS;
         *pFeatureMask &= ~CAM_QCOM_FEATURE_REFOCUS;
@@ -16650,7 +16778,7 @@ int32_t QCameraParameters::setDCDeferCamera(cam_dual_camera_defer_cmd_t type)
 
     property_get("persist.camera.raw_yuv", prop, "0");
     value = atoi(prop);
-    if (value) {
+    if (value || getRawZsl()) {
         //In RAW + YUV, we need to query for RAW size. Cannot defer camera
         return rc;
     } else {
