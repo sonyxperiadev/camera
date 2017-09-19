@@ -147,6 +147,7 @@ public:
     virtual int32_t getOldestFrameNumber(uint32_t &index);
 
     void *getBufferHandle(uint32_t index);
+    void switchMaster(uint32_t masterCam);
 protected:
     virtual void *getPtrLocked(uint32_t index);
 private:
@@ -156,6 +157,7 @@ private:
     struct private_handle_t *mPrivateHandle[MM_CAMERA_MAX_NUM_FRAMES];
 
     uint32_t mStartIdx;
+    uint32_t mMasterCam;
 };
 };
 #endif

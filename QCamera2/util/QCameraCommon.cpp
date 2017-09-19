@@ -374,4 +374,54 @@ bool QCameraCommon::needAnalysisStream()
     return needAnalysisStream;
 }
 
+/*===========================================================================
+* FUNCTION   : isBayer
+*
+* DESCRIPTION: check whether sensor is bayer type or not
+*
+* PARAMETERS : cam_capability_t
+*
+* RETURN    : true or false
+*==========================================================================*/
+bool QCameraCommon::isBayer(cam_capability_t *caps)
+{
+    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_RGGB ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GRBG ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GBRG ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_BGGR));
+}
+
+/*===========================================================================
+* FUNCTION   : isMono
+*
+* DESCRIPTION: check whether sensor is mono or not
+*
+* PARAMETERS : cam_capability_t
+*
+* RETURN    : true or false
+*==========================================================================*/
+bool QCameraCommon::isMono(cam_capability_t *caps)
+{
+    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_Y));
+}
+
+/*===========================================================================
+* FUNCTION   : getDualCameraConfig
+*
+* DESCRIPTION: get dual camera configuration whether B+M/W+T
+*
+* PARAMETERS : capabilities of main and aux cams
+*
+* RETURN    : dual_cam_type
+*==========================================================================*/
+dual_cam_type QCameraCommon::getDualCameraConfig(cam_capability_t *capsMainCam,
+        cam_capability_t *capsAuxCam)
+{
+    dual_cam_type type = DUAL_CAM_WIDE_TELE;
+    if (isBayer(capsMainCam) && isMono(capsAuxCam)) {
+        type = DUAL_CAM_BAYER_MONO;
+    }
+    return type;
+}
+
 }; // namespace qcamera

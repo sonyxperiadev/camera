@@ -298,7 +298,8 @@ QCamera3Stream::QCamera3Stream(uint32_t camHandle,
         mBatchBufDefs(NULL),
         mCurrentBatchBufDef(NULL),
         mBufsStaged(0),
-        mFreeBatchBufQ(NULL, this)
+        mFreeBatchBufQ(NULL, this),
+        mMasterCam(CAM_TYPE_MAIN)
 {
     mMemVtbl.user_data = this;
     mMemVtbl.get_bufs = get_bufs;
@@ -310,6 +311,7 @@ QCamera3Stream::QCamera3Stream(uint32_t camHandle,
     memset(&mFrameLenOffset, 0, sizeof(mFrameLenOffset));
     memset(&mCropInfo, 0, sizeof(cam_rect_t));
     memcpy(&mPaddingInfo, paddingInfo, sizeof(cam_padding_info_t));
+    mDualStream = is_dual_camera_by_handle(chId);
 }
 
 /*===========================================================================
@@ -379,6 +381,8 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     char value[PROPERTY_VALUE_MAX];
     uint32_t bOptimizeCacheOps = 0;
     mm_camera_stream_config_t stream_config;
+    cam_stream_info_t *pStreamInfo = NULL;
+    uint8_t count = 1;
     LOGD("batch size is %d", batchSize);
 
     mHandle = mCamOps->add_stream(mCamHandle, mChannelHandle);
@@ -388,8 +392,8 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
         goto done;
     }
 
-    // allocate and map stream info memory
-    mStreamInfoBuf = new QCamera3HeapMemory(1);
+    count = isDualStream()? MM_CAMERA_MAX_CAM_CNT : 1;
+    mStreamInfoBuf = new QCamera3HeapMemory(count);
     if (mStreamInfoBuf == NULL) {
         LOGE("no memory for stream info buf obj");
         rc = -ENOMEM;
@@ -405,6 +409,19 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     mStreamInfo =
         reinterpret_cast<cam_stream_info_t *>(mStreamInfoBuf->getPtr(0));
     memset(mStreamInfo, 0, sizeof(cam_stream_info_t));
+
+    /*Update StreamInfo for Aux camera*/
+    if (isDualStream()) {
+        pStreamInfo =   reinterpret_cast<cam_stream_info_t *>(mStreamInfoBuf->getPtr(1));
+        if (pStreamInfo != NULL){
+            mStreamInfo->aux_str_info = pStreamInfo;
+        }
+        //For gralloc based streams, use half of CAM_MAX_NUM_BUFS_PER_STREAM for each session.
+        if (minNumBuffers == CAM_MAX_NUM_BUFS_PER_STREAM) {
+            minNumBuffers /= 2;
+        }
+    }
+
     mStreamInfo->stream_type = streamType;
     mStreamInfo->fmt = streamFormat;
     mStreamInfo->dim = streamDim;
@@ -413,6 +430,18 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     mStreamInfo->is_type = is_type;
     mStreamInfo->pp_config.rotation = streamRotation;
     mStreamInfo->bNoBundling = false;
+
+    if (mStreamInfo->aux_str_info != NULL) {
+        mStreamInfo->aux_str_info->num_bufs = minNumBuffers;
+        mStreamInfo->aux_str_info ->stream_type = streamType;
+        mStreamInfo->aux_str_info->fmt = streamFormat;
+        mStreamInfo->aux_str_info->dim = streamDim;
+        mStreamInfo->aux_str_info->buf_cnt = minNumBuffers;
+
+        mStreamInfo->buf_cnt = minNumBuffers;
+        mStreamInfo->num_bufs += mStreamInfo->aux_str_info->num_bufs;
+    }
+
 
     if (CAM_STREAM_TYPE_ANALYSIS == streamType) {
         mStreamInfo->bNoBundling = QCameraCommon::skipAnalysisBundling();
@@ -445,7 +474,7 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
         goto err3;
     }
 
-    mNumBufs = minNumBuffers;
+    mNumBufs = mStreamInfo->num_bufs;
     if (reprocess_config != NULL) {
         mStreamInfo->reprocess_config = *reprocess_config;
         mStreamInfo->streaming_mode = CAM_STREAMING_MODE_BURST;
@@ -487,6 +516,8 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
         LOGE("Failed to config stream, rc = %d", rc);
         goto err4;
     }
+
+    initDCSettings();
 
     mDataCB = stream_cb;
     mUserData = userdata;
@@ -637,7 +668,7 @@ void QCamera3Stream::dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
     if (stream == NULL ||
         recvd_frame == NULL ||
         recvd_frame->bufs[0] == NULL ||
-        recvd_frame->bufs[0]->stream_id != stream->getMyHandle()) {
+        !validate_handle(stream->getMyHandle(), recvd_frame->bufs[0]->stream_id)) {
         LOGE("Not a valid stream to handle buf");
         return;
     }
@@ -1208,8 +1239,14 @@ int32_t QCamera3Stream::getFormat(cam_format_t &fmt)
  * RETURN     : stream ID from server
  *==========================================================================*/
 uint32_t QCamera3Stream::getMyServerID() {
-    if (mStreamInfo != NULL) {
-        return mStreamInfo->stream_svr_id;
+
+    if (mStreamInfo == NULL) return 0;
+
+    cam_stream_info_t *streamInfo = (mMasterCam == CAM_TYPE_MAIN) ?
+            mStreamInfo : mStreamInfo->aux_str_info;
+
+    if (streamInfo != NULL) {
+        return streamInfo->stream_svr_id;
     } else {
         return 0;
     }
@@ -1340,17 +1377,28 @@ int32_t QCamera3Stream::unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t pla
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3Stream::setParameter(cam_stream_parm_buffer_t &param)
+int32_t QCamera3Stream::setParameter(cam_stream_parm_buffer_t &param,  uint32_t cam_type)
 {
     int32_t rc = NO_ERROR;
     Mutex::Autolock lock(mParamLock);
-    mStreamInfo->parm_buf = param;
-    rc = mCamOps->set_stream_parms(mCamHandle,
-                                   mChannelHandle,
-                                   mHandle,
-                                   &mStreamInfo->parm_buf);
-    if (rc == NO_ERROR) {
-        param = mStreamInfo->parm_buf;
+    if (CAM_TYPE_MAIN == cam_type) {
+        mStreamInfo->parm_buf = param;
+        rc = mCamOps->set_stream_parms(get_main_camera_handle(mCamHandle),
+                                       get_main_camera_handle(mChannelHandle),
+                                       get_main_camera_handle(mHandle),
+                                       &mStreamInfo->parm_buf);
+        if (rc == NO_ERROR) {
+            param = mStreamInfo->parm_buf;
+        }
+    } else if (CAM_TYPE_AUX == cam_type) {
+        mStreamInfo->aux_str_info->parm_buf = param;
+        rc = mCamOps->set_stream_parms(get_aux_camera_handle(mCamHandle),
+                                       get_aux_camera_handle(mChannelHandle),
+                                       get_aux_camera_handle(mHandle),
+                                       &mStreamInfo->aux_str_info->parm_buf);
+        if (rc == NO_ERROR) {
+            param = mStreamInfo->aux_str_info->parm_buf;
+        }
     }
     return rc;
 }
@@ -1770,6 +1818,44 @@ void QCamera3Stream::flushFreeBatchBufQ()
         mFreeBatchBufQ.dequeue();
     }
     mFreeBatchBufQ.flush();
+}
+
+/*===========================================================================
+ * FUNCTION   : initDCSettings
+ *
+ * DESCRIPTION: initialize dual camera settings
+ *
+ * PARAMETERS :
+ *    @state     : Flag with camera bit field set in case of dual camera
+ *    @camMaster : Master camera
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera3Stream::initDCSettings()
+{
+    if (!isDualStream()) {
+        return;
+    }
+
+    mCamOps->handle_frame_sync_cb(mCamHandle, mChannelHandle,
+            mHandle, MM_CAMERA_CB_REQ_TYPE_ALL_CB);
+}
+
+/*===========================================================================
+ * FUNCTION   : switchMaster
+ *
+ * DESCRIPTION: switch master camera in all the channels
+ *
+ * PARAMETERS : master camera
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera3Stream::switchMaster(uint32_t masterCam)
+{
+    mMasterCam = masterCam;
+    if (mStreamBufs != NULL) {
+        mStreamBufs->switchMaster(masterCam);
+    }
 }
 
 }; // namespace qcamera

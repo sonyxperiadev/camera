@@ -38,6 +38,7 @@
 
 
 extern "C" {
+#define CAM_MODULE CAM_HAL_MODULE
 #include "mm_camera_dbg.h"
 #include "mm_camera_interface.h"
 }

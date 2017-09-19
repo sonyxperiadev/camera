@@ -139,6 +139,7 @@ typedef struct {
     uint32_t related_sensor_session_id;
     /*Low power mode type. Static info per device*/
     cam_dual_camera_perf_mode_t perf_mode;
+    uint8_t hal_lpm_control;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 

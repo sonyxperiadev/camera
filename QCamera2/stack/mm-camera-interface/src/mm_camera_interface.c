@@ -1301,7 +1301,7 @@ static int32_t mm_camera_intf_config_stream(uint32_t camera_handle,
 static int32_t mm_camera_intf_start_channel(uint32_t camera_handle,
                                             uint32_t ch_id)
 {
-    int32_t rc = -1;
+    int32_t rc = 0;
     mm_camera_obj_t * my_obj = NULL;
     uint32_t chid = get_main_camera_handle(ch_id);
     uint32_t aux_chid = get_aux_camera_handle(ch_id);

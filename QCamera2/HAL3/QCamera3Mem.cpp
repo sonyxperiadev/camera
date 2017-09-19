@@ -747,7 +747,7 @@ int QCamera3HeapMemory::getMatchBufIndex(void * /*object*/)
  * RETURN     : none
  *==========================================================================*/
 QCamera3GrallocMemory::QCamera3GrallocMemory(uint32_t startIdx)
-        : QCamera3Memory(), mStartIdx(startIdx)
+        : QCamera3Memory(), mStartIdx(startIdx), mMasterCam(CAM_TYPE_MAIN)
 {
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++) {
         mBufferHandle[i] = NULL;
@@ -848,6 +848,7 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
             MAP_SHARED,
             mMemInfo[idx].fd, 0);
     if (vaddr == MAP_FAILED) {
+        LOGE("mmap failed");
         /* we have to close the main_ion_fd when mmap fails*/
         close(mMemInfo[idx].main_ion_fd);
         mMemInfo[idx].main_ion_fd = -1;
@@ -1200,6 +1201,10 @@ int QCamera3GrallocMemory::getMatchBufIndex(void *object)
 int QCamera3GrallocMemory::getFreeIndexLocked()
 {
     int index = -1;
+    //Main session : 0 (infact maxHeapBuffers) to MM_CAMERA_MAX_NUM_FRAMES/2 -1
+    //Aux session  : MM_CAMERA_MAX_NUM_FRAMES/2 to MM_CAMERA_MAX_NUM_FRAMES -1
+    uint32_t startIdx =
+            (mMasterCam == CAM_TYPE_MAIN) ? mStartIdx : (mStartIdx + (MM_CAMERA_MAX_NUM_FRAMES/2));
 
     if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - 1)) {
         LOGE("Number of buffers %d greater than what's supported %d",
@@ -1207,7 +1212,7 @@ int QCamera3GrallocMemory::getFreeIndexLocked()
         return index;
     }
 
-    for (size_t i = mStartIdx; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
+    for (size_t i = startIdx; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
         if (0 == mMemInfo[i].handle) {
             index = i;
             break;
@@ -1299,4 +1304,10 @@ void *QCamera3GrallocMemory::getBufferHandle(uint32_t index)
 
     return mBufferHandle[index];
 }
+
+void QCamera3GrallocMemory::switchMaster(uint32_t masterCam)
+{
+    mMasterCam = masterCam;
+}
+
 }; //namespace qcamera

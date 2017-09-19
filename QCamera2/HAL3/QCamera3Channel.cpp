@@ -73,6 +73,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
                                cam_padding_info_t *paddingInfo,
                                cam_feature_mask_t postprocess_mask,
                                void *userData, uint32_t numBuffers)
+                               : mMasterCam(CAM_TYPE_MAIN)
 {
     m_camHandle = cam_handle;
     m_handle = channel_handle;
@@ -358,7 +359,7 @@ int32_t QCamera3Channel::bufDone(mm_camera_super_buf_t *recvd_frame)
          if (recvd_frame->bufs[i] != NULL) {
              for (uint32_t j = 0; j < m_numStreams; j++) {
                  if (mStreams[j] != NULL &&
-                     mStreams[j]->getMyHandle() == recvd_frame->bufs[i]->stream_id) {
+                     validate_handle(mStreams[j]->getMyHandle(), recvd_frame->bufs[i]->stream_id)) {
                      rc = mStreams[j]->bufDone(recvd_frame->bufs[i]->buf_idx);
                      break; // break loop j
                  }
@@ -369,7 +370,7 @@ int32_t QCamera3Channel::bufDone(mm_camera_super_buf_t *recvd_frame)
     return rc;
 }
 
-int32_t QCamera3Channel::setBundleInfo(const cam_bundle_config_t &bundleInfo)
+int32_t QCamera3Channel::setBundleInfo(const cam_bundle_config_t &bundleInfo, uint32_t cam_type)
 {
     int32_t rc = NO_ERROR;
     cam_stream_parm_buffer_t param;
@@ -377,7 +378,7 @@ int32_t QCamera3Channel::setBundleInfo(const cam_bundle_config_t &bundleInfo)
     param.type = CAM_STREAM_PARAM_TYPE_SET_BUNDLE_INFO;
     param.bundleInfo = bundleInfo;
     if (m_numStreams > 0 && mStreams[0]) {
-        rc = mStreams[0]->setParameter(param);
+        rc = mStreams[0]->setParameter(param, cam_type);
         if (rc != NO_ERROR) {
             LOGE("stream setParameter for set bundle failed");
         }
@@ -437,7 +438,7 @@ uint32_t QCamera3Channel::getStreamID(uint32_t streamMask)
 QCamera3Stream *QCamera3Channel::getStreamByHandle(uint32_t streamHandle)
 {
     for (uint32_t i = 0; i < m_numStreams; i++) {
-        if (mStreams[i] != NULL && mStreams[i]->getMyHandle() == streamHandle) {
+        if (mStreams[i] != NULL && validate_handle(mStreams[i]->getMyHandle(), streamHandle)) {
             return mStreams[i];
         }
     }
@@ -747,6 +748,30 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
     return streamFormat;
 }
 
+/*===========================================================================
+ * FUNCTION   : switchMaster
+ *
+ * DESCRIPTION: switch master camera in all the channels
+ *
+ * PARAMETERS : master camera
+ *
+ * RETURN     : none
+ *==========================================================================*/
+void QCamera3Channel::switchMaster(uint32_t masterCam)
+{
+    mMasterCam = masterCam;
+    for (uint32_t i = 0; i < m_numStreams; i++) {
+        if (mStreams[i] != NULL) {
+            mStreams[i]->switchMaster(masterCam);
+        }
+    }
+}
+
+void QCamera3Channel::overridePPConfig(cam_feature_mask_t pp_mask)
+{
+    LOGD("overriding ppmask to %d", pp_mask);
+    mPostProcMask = pp_mask;
+}
 
 /* QCamera3ProcessingChannel methods */
 
@@ -2290,7 +2315,15 @@ QCamera3StreamMem* QCamera3MetadataChannel::getStreamBufs(uint32_t len)
                 sizeof(metadata_buffer_t));
         return NULL;
     }
-    mMemory = new QCamera3StreamMem(MIN_STREAMING_BUFFER_NUM);
+
+    uint32_t numBufs = MIN_STREAMING_BUFFER_NUM;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    if (hal_obj && hal_obj->isDualCamera()) {
+        //Allocate equal no. of meta buffers for aux session
+        numBufs += MIN_STREAMING_BUFFER_NUM;
+    }
+
+    mMemory = new QCamera3StreamMem(numBufs);
     if (!mMemory) {
         LOGE("unable to create metadata memory");
         return NULL;

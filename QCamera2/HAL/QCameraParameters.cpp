@@ -6971,7 +6971,7 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t
             &sessionId[m_pCapability->camera_index]);
 
     if (m_pFovControl) {
-        mDualCamType = (uint8_t)getDualCameraConfig(
+        mDualCamType = (uint8_t)QCameraCommon::getDualCameraConfig(
                 m_pCapability->main_cam_cap, m_pCapability->aux_cam_cap);
         m_pFovControl->setDualCameraConfig(mDualCamType);
     }
@@ -13428,7 +13428,7 @@ void QCameraParameters::setAuxParameters()
             if (isDCmAsymmetricSnapMode()) {
                 for (uint32_t i = 0; i < info->num_streams; i++) {
                     if (info->type[i] == CAM_STREAM_TYPE_SNAPSHOT) {
-                        LOGH("Bokeh: Getting stream dimesion for AUX Snapshot");
+                        LOGH("Getting stream dimesion for AUX Snapshot");
                         getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
                                 info->stream_sizes[i], CAM_TYPE_AUX);
                         break;
@@ -13438,7 +13438,7 @@ void QCameraParameters::setAuxParameters()
             if (isDCAsymmetricPrevMode()) {
                 for (uint32_t i = 0; i < info->num_streams; i++) {
                     if (info->type[i] == CAM_STREAM_TYPE_PREVIEW) {
-                        LOGH("Bokeh: Getting stream dimesion for AUX preview");
+                        LOGH("Getting stream dimesion for AUX preview");
                         getStreamDimension(CAM_STREAM_TYPE_PREVIEW,
                                 info->stream_sizes[i], CAM_TYPE_AUX);
                         break;
@@ -17035,56 +17035,6 @@ bool QCameraParameters::isNoDisplayMode(uint32_t cam_type)
     }
     LOGH("bNoDisplayMode: %d cam_type: %d", bNoDisplayMode, cam_type);
     return bNoDisplayMode;
-}
-
-/*==========================================================================
-* FUNCTION   : isBayer
-*
-* DESCRIPTION: check whether sensor is bayer type or not
-*
-* PARAMETERS : cam_capability_t
-*
-* RETURN    : true or false
-*==========================================================================*/
-bool QCameraParameters::isBayer(cam_capability_t *caps)
-{
-    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_RGGB ||
-            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GRBG ||
-            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GBRG ||
-            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_BGGR));
-}
-
-/*===========================================================================
-* FUNCTION   : isMono
-*
-* DESCRIPTION: check whether sensor is mono or not
-*
-* PARAMETERS : cam_capability_t
-*
-* RETURN    : true or false
-*==========================================================================*/
-bool QCameraParameters::isMono(cam_capability_t *caps)
-{
-    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_Y));
-}
-
-/*===========================================================================
-* FUNCTION   : getDualCameraConfig
-*
-* DESCRIPTION: get dual camera configuration whether B+M/W+T
-*
-* PARAMETERS : capabilities of main and aux cams
-*
-* RETURN    : dual_cam_type
-*==========================================================================*/
-dual_cam_type QCameraParameters::getDualCameraConfig(cam_capability_t *capsMainCam,
-        cam_capability_t *capsAuxCam)
-{
-    dual_cam_type type = DUAL_CAM_WIDE_TELE;
-    if (isBayer(capsMainCam) && isMono(capsAuxCam)) {
-        type = DUAL_CAM_BAYER_MONO;
-    }
-    return type;
 }
 
 /*===========================================================================
