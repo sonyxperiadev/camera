@@ -222,7 +222,7 @@ public:
     virtual void reprocessCbRoutine(buffer_handle_t *resultBuffer,
             uint32_t resultFrameNumber);
 
-    int32_t queueReprocMetadata(mm_camera_super_buf_t *metadata);
+    int32_t queueReprocMetadata(mm_camera_super_buf_t *metadata, uint32_t framenum, bool dropframe);
     int32_t metadataBufDone(mm_camera_super_buf_t *recvd_frame);
     int32_t translateStreamTypeAndFormat(camera3_stream_t *stream,
             cam_stream_type_t &streamType,
@@ -275,7 +275,9 @@ protected:
     QCamera3StreamMem mOfflineMetaMemory; //reprocessing metadata buffer
     List<uint32_t> mFreeOfflineMetaBuffersList;
     Mutex mFreeOfflineMetaBuffersLock;
+    Mutex mDropReprocBuffersLock;
     android::List<mm_camera_super_buf_t *> mOutOfSequenceBuffers;
+    android::List<uint32_t> mReprocDropBufferList;
 
 private:
 
@@ -535,11 +537,13 @@ public:
     virtual void putStreamBufs();
     virtual void reprocessCbRoutine(buffer_handle_t *resultBuffer,
         uint32_t resultFrameNumber);
+    virtual int32_t timeoutFrame(__unused uint32_t frameNumber);
 
 private:
     typedef struct {
         uint32_t frameNumber;
         bool offlinePpFlag;
+        bool isReturnBuffer;
         buffer_handle_t *output;
         mm_camera_super_buf_t *callback_buffer;
     } PpInfo;
@@ -558,14 +562,16 @@ private:
     // Map between free number and whether the request needs to be
     // postprocessed.
     List<PpInfo> mOfflinePpInfoList;
+    uint32_t lastReturnedFrame;
     // Heap buffer index list
     List<uint32_t> mFreeHeapBufferList;
+    Mutex mYuvCbBufferLock;
 
 private:
     bool needsFramePostprocessing(metadata_buffer_t* meta);
     int32_t handleOfflinePpCallback(uint32_t resultFrameNumber,
             Vector<mm_camera_super_buf_t *>& pendingCbs);
-    mm_camera_super_buf_t* getNextPendingCbBuffer();
+    bool getNextPendingCbBuffer();
 };
 
 /* QCamera3PicChannel is for JPEG stream, which contains a YUV stream generated
@@ -682,9 +688,9 @@ public:
     QCamera3Stream *getStreamBySrcHandle(uint32_t srcHandle);
     QCamera3Stream *getSrcStreamBySrcHandle(uint32_t srcHandle);
     virtual int32_t registerBuffer(buffer_handle_t * buffer, cam_is_type_t isType);
-    virtual int32_t timeoutFrame(__unused uint32_t frameNumber) {return NO_ERROR;};
     bool isMetaReprocStream(QCamera3Stream* stream);
     void setReprocIndex(int8_t pp_idx) {m_ppIndex = pp_idx;};
+    virtual int32_t timeoutFrame(__unused uint32_t frameNumber);
 
 public:
     void *inputChHandle;
