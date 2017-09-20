@@ -845,7 +845,7 @@ public:
     inline bool generateThumbFromMain() {return isUbiFocusEnabled() ||
             isChromaFlashEnabled() || isOptiZoomEnabled() || isUbiRefocus()
             || isHDREnabled() || isStillMoreEnabled() || isTruePortraitEnabled()
-            || isDualCamera() || getRawZslCapture(); }
+            || isUBWCEnabled() || isDualCamera() || getRawZslCapture(); }
     void updateCurrentFocusPosition(cam_focus_pos_info_t &cur_pos_info);
     void updateAEInfo(cam_3a_params_t &ae_params);
     bool isAdvCamFeaturesEnabled() {return isUbiFocusEnabled() ||
