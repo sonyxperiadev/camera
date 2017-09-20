@@ -6064,6 +6064,54 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
         }
     }
 
+    // Do not link metadata stream for 4K2k resolution
+    // as CPP processing would be done on snapshot stream and not
+    // reprocess stream
+    if (!isLowPowerMode() && !mParameters.is4k2kVideoResolution()) {
+       // Find and try to link a metadata stream from preview channel
+       QCameraChannel *pMetaChannel = NULL;
+       QCameraStream *pMetaStream = NULL;
+       QCameraStream *pPreviewStream = NULL;
+
+        if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
+           pMetaChannel = m_channels[QCAMERA_CH_TYPE_PREVIEW];
+           uint32_t streamNum = pMetaChannel->getNumOfStreams();
+           QCameraStream *pStream = NULL;
+           for (uint32_t i = 0 ; i < streamNum ; i++ ) {
+               pStream = pMetaChannel->getStreamByIndex(i);
+               if (NULL != pStream) {
+                   if (CAM_STREAM_TYPE_METADATA == pStream->getMyType()) {
+                       pMetaStream = pStream;
+                   } else if ((CAM_STREAM_TYPE_PREVIEW == pStream->getMyType())
+                           && (!mParameters.isHfrMode()) && (!isDualCamera())
+                           && (mParameters.isLinkPreviewForLiveShot())) {
+                       // Do not link preview stream for
+                       // 1)HFR live snapshot,Thumbnail will not be derived from
+                       //   preview for HFR live snapshot.
+                       // 2)Dual Camera since preview & snapshot correction is different
+                       // 3)persist.camera.linkpreview is 0
+                       pPreviewStream = pStream;
+                   }
+               }
+           }
+       }
+
+       if ((NULL != pMetaChannel) && (NULL != pMetaStream)) {
+           rc = pChannel->linkStream(pMetaChannel, pMetaStream);
+           if (NO_ERROR != rc) {
+               LOGE("Metadata stream link failed %d", rc);
+           }
+       }
+       if ((NULL != pMetaChannel) && (NULL != pPreviewStream)) {
+           rc = pChannel->linkStream(pMetaChannel, pPreviewStream);
+           if (NO_ERROR != rc) {
+               LOGE("Preview stream link failed %d", rc);
+           }
+       }
+    }
+
+
+
     DeferWorkArgs args;
     memset(&args, 0, sizeof(DeferWorkArgs));
 
@@ -6143,51 +6191,6 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
 
     // start snapshot channel
     if ((rc == NO_ERROR) && (NULL != pChannel)) {
-        // Do not link metadata stream for 4K2k resolution
-        // as CPP processing would be done on snapshot stream and not
-        // reprocess stream
-        if (!mParameters.is4k2kVideoResolution()) {
-            // Find and try to link a metadata stream from preview channel
-            QCameraChannel *pMetaChannel = NULL;
-            QCameraStream *pMetaStream = NULL;
-            QCameraStream *pPreviewStream = NULL;
-
-            if (m_channels[QCAMERA_CH_TYPE_PREVIEW] != NULL) {
-                pMetaChannel = m_channels[QCAMERA_CH_TYPE_PREVIEW];
-                uint32_t streamNum = pMetaChannel->getNumOfStreams();
-                QCameraStream *pStream = NULL;
-                for (uint32_t i = 0 ; i < streamNum ; i++ ) {
-                    pStream = pMetaChannel->getStreamByIndex(i);
-                    if (NULL != pStream) {
-                        if (CAM_STREAM_TYPE_METADATA == pStream->getMyType()) {
-                            pMetaStream = pStream;
-                        } else if ((CAM_STREAM_TYPE_PREVIEW == pStream->getMyType())
-                                && (!mParameters.isHfrMode()) && (!isDualCamera())
-                                && (mParameters.isLinkPreviewForLiveShot())) {
-                            // Do not link preview stream for
-                            // 1)HFR live snapshot,Thumbnail will not be derived from
-                            //   preview for HFR live snapshot.
-                            // 2)Dual Camera since preview & snapshot correction is different
-                            // 3)persist.camera.linkpreview is 0
-                            pPreviewStream = pStream;
-                        }
-                    }
-                }
-            }
-
-            if ((NULL != pMetaChannel) && (NULL != pMetaStream)) {
-                rc = pChannel->linkStream(pMetaChannel, pMetaStream);
-                if (NO_ERROR != rc) {
-                    LOGE("Metadata stream link failed %d", rc);
-                }
-            }
-            if ((NULL != pMetaChannel) && (NULL != pPreviewStream)) {
-                rc = pChannel->linkStream(pMetaChannel, pPreviewStream);
-                if (NO_ERROR != rc) {
-                    LOGE("Preview stream link failed %d", rc);
-                }
-            }
-        }
         rc = pChannel->start();
     }
 
