@@ -10024,6 +10024,37 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         staticInfo.update(QCAMERA3_SUPPORT_QUADRA_CFA_DIM, dim, 2);
     }
 
+    //HFR configs for 60 and 90
+    Vector<int32_t> custom_hfr_configs;
+    for (size_t i = 0; i < gCamCapability[cameraId]->hfr_tbl_cnt; i++) {
+        int32_t fps = 0;
+        switch (gCamCapability[cameraId]->hfr_tbl[i].mode) {
+        case CAM_HFR_MODE_60FPS:
+            fps = 60;
+            break;
+        case CAM_HFR_MODE_90FPS:
+            fps = 90;
+            break;
+        default:
+            break;
+        }
+
+        if (fps > 0) {
+            /* (fps, max width, max height) */
+            custom_hfr_configs.add(fps);
+            custom_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim[0].width);
+            custom_hfr_configs.add(
+                    gCamCapability[cameraId]->hfr_tbl[i].dim[0].height);
+        }
+    }
+
+    if (custom_hfr_configs.size() > 0) {
+        staticInfo.update(
+            QCAMERA3_HFR_SIZES,
+            custom_hfr_configs.array(), custom_hfr_configs.size());
+    }
+
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
 }
