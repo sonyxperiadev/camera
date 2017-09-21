@@ -1637,4 +1637,11 @@ void QCameraParametersIntf::getDepthMapSize(int &width, int &height)
     mImpl->getDepthMapSize(width, height);
 }
 
+bool QCameraParametersIntf::isAutoFocusSupported(uint32_t cam_type)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isAutoFocusSupported(cam_type);
+}
+
 }; // namespace qcamera
