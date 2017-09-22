@@ -724,10 +724,10 @@ void *QCamera3Stream::dataProcRoutine(void *data)
             break;
         case CAMERA_CMD_TYPE_EXIT:
             LOGH("Exit");
+            pme->flushFreeBatchBufQ();
             /* flush data buf queue */
             pme->mDataQ.flush();
             pme->mTimeoutFrameQ.clear();
-            pme->flushFreeBatchBufQ();
             running = 0;
             break;
         default:
