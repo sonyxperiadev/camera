@@ -3826,7 +3826,24 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         LOGD("Framework requested:%d buffers in HDR snapshot", request->num_output_buffers);
         uint32_t internalFrameNumber;
         CameraMetadata modified_meta;
+        int8_t hdr_exp_values;
+        cam_hdr_bracketing_info_t& hdrBracketingSetting =
+                    gCamCapability[mCameraId]->hdr_bracketing_setting;
+        uint32_t hdrFrameCount =
+                hdrBracketingSetting.num_frames;
+        LOGD("HDR values %d, %d frame count: %u",
+              (int8_t) hdrBracketingSetting.exp_val.values[0],
+              (int8_t) hdrBracketingSetting.exp_val.values[1],
+              hdrFrameCount);
 
+        cam_exp_bracketing_t aeBracket;
+        memset(&aeBracket, 0, sizeof(cam_exp_bracketing_t));
+        aeBracket.mode =
+            hdrBracketingSetting.exp_val.mode;
+
+        if (aeBracket.mode == CAM_EXP_BRACKETING_OFF) {
+            LOGD(" Bracketing is Off");
+        }
 
         /* Add Blob channel to list of internally requested streams */
         for (uint32_t i = 0; i < request->num_output_buffers; i++) {
@@ -3844,7 +3861,8 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
 
         /* Modify setting to set compensation */
         modified_meta = request->settings;
-        int32_t expCompensation = GB_HDR_HALF_STEP_EV;
+        hdr_exp_values = hdrBracketingSetting.exp_val.values[0];
+        int32_t expCompensation = hdr_exp_values;
         uint8_t aeLock = 1;
         modified_meta.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, &expCompensation, 1);
         modified_meta.update(ANDROID_CONTROL_AE_LOCK, &aeLock, 1);
@@ -3863,7 +3881,8 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         request->num_output_buffers = 0;
 
         modified_meta = modified_settings;
-        expCompensation = 0;
+        hdr_exp_values = hdrBracketingSetting.exp_val.values[1];
+        expCompensation = hdr_exp_values;
         aeLock = 1;
         modified_meta.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, &expCompensation, 1);
         modified_meta.update(ANDROID_CONTROL_AE_LOCK, &aeLock, 1);
@@ -3900,7 +3919,8 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
 
         /* Capture 2X frame*/
         modified_meta = modified_settings;
-        expCompensation = GB_HDR_2X_STEP_EV;
+        hdr_exp_values = hdrBracketingSetting.exp_val.values[2];
+        expCompensation = hdr_exp_values;
         aeLock = 1;
         modified_meta.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, &expCompensation, 1);
         modified_meta.update(ANDROID_CONTROL_AE_LOCK, &aeLock, 1);
