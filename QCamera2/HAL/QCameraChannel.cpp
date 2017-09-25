@@ -1193,7 +1193,8 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
 
             if (((pStream->isTypeOf(CAM_STREAM_TYPE_METADATA))
                     && !((param.getManualCaptureMode() >=
-                    CAM_MANUAL_CAPTURE_TYPE_3) || (param.getQuadraCfa())))
+                    CAM_MANUAL_CAPTURE_TYPE_3) || (param.getQuadraCfa()
+                    || param.getRawZslCapture())))
                     || (pStream->isTypeOf(CAM_STREAM_TYPE_ANALYSIS))) {
                 // Skip metadata, if not manual capture or quadra cfa
                 continue;
@@ -1423,9 +1424,10 @@ int32_t QCameraReprocessChannel::addReprocStreamsFromSource(
             }
 
             LOGH("Configure Reprocessing Output: stream = %d, res = %dX%d, fmt = %d,"
-                    "type = %d buf_cnt = %d",
+                    "type = %d buf_cnt = %d feature_mask %llx",
                     pStream->getMyOriginalType(), streamInfo->dim.width,
-                    streamInfo->dim.height, streamInfo->fmt, type, minStreamBufNum);
+                    streamInfo->dim.height, streamInfo->fmt, type, minStreamBufNum,
+                    streamInfo->reprocess_config.pp_feature_config.feature_mask);
 
             // add reprocess stream
             if (streamInfo->reprocess_config.pp_feature_config.feature_mask
@@ -1786,7 +1788,8 @@ int32_t QCameraReprocessChannel::doReprocess(mm_camera_super_buf_t *frame,
             }
             if ((pStream->isOrignalTypeOf(CAM_STREAM_TYPE_METADATA)
                      && ((mParameter.getManualCaptureMode()
-                     < CAM_MANUAL_CAPTURE_TYPE_3) && (!mParameter.getQuadraCfa())))
+                     < CAM_MANUAL_CAPTURE_TYPE_3) && (!mParameter.getQuadraCfa())
+                     && (!mParameter.getRawZslCapture())))
                      || (pStream->isTypeOf(CAM_STREAM_TYPE_ANALYSIS))) {
                 // Skip metadata for reprocess now because PP module cannot handle meta data
                 // May need furthur discussion if Imaginglib need meta data

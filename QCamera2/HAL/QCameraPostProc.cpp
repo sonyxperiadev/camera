@@ -446,7 +446,8 @@ int32_t QCameraPostProcessor::createJpegSession(QCameraChannel *pSrcChannel)
             }
 
             if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
-                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
+                    pStream->isOrignalTypeOf(CAM_STREAM_TYPE_RAW)) {
                 pSnapshotStream = pStream;
             }
 
@@ -1391,7 +1392,13 @@ end:
     // if previous request is blocked due to ongoing jpeg job
     m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_DO_NEXT_JOB, FALSE, FALSE);
 
-    m_parent->m_perfLockMgr.releasePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+
+    if (m_parent->isDualCamera() &&
+            (m_parent->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+        m_parent->m_perfLockMgr.releasePerfLock(PERF_LOCK_BOKEH_SNAPSHOT);
+    } else {
+        m_parent->m_perfLockMgr.releasePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+    }
 
     return rc;
 }

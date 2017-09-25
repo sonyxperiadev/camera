@@ -600,6 +600,7 @@ int32_t QCameraBokeh::doBokehProcess(
         uint8_t* pDepthMap)
 {
     LOGD(":E");
+    ATRACE_BEGIN("doBokehProcess");
     int32_t rc = NO_ERROR;
     QCameraStream* pStream = NULL;
     uint32_t focusX,focusY;
@@ -642,9 +643,11 @@ int32_t QCameraBokeh::doBokehProcess(
     cam_rect_t goodRoi = {0,0,0,0};
     const float focalLengthPrimaryCamera = m_pCaps->main_cam_cap->focal_length;
     bool isAuxMono = (m_pCaps->aux_cam_cap->color_arrangement == CAM_FILTER_ARRANGEMENT_Y);
+    qrcp::SensorConfiguration config =
+            isAuxMono ? qrcp::SYMMETRIC_BAYER_MONO : qrcp::STANDARD_WIDE_BAYER_BAYER;
 
     DUMP("\nDepthStride = %d \nfocalLengthPrimaryCamera = %f \n"
-            "isAuxMono = %d", depthStride, focalLengthPrimaryCamera, isAuxMono);
+            "SensorConfiguration = %d", depthStride, focalLengthPrimaryCamera, config);
 
     LOGI("[KPI Perf]: PROFILE_BOKEH_PROCESS : E");
     qrcp::DDMWrapperStatus status = qrcp::dualCameraGenerateDDM(
@@ -655,7 +658,7 @@ int32_t QCameraBokeh::doBokehProcess(
             pDepthMap, depthStride,
             goodRoi.left, goodRoi.top, goodRoi.width,goodRoi.height,
             inParams.sAuxReprocessInfo.string(), inParams.sMainReprocessInfo.string(),
-            inParams.sCalibData.string(), focalLengthPrimaryCamera, isAuxMono);
+            inParams.sCalibData.string(), focalLengthPrimaryCamera, config);
     if (!status.ok()) {
         LOGE("depth map generation failed: %s, errorcode %d",
                 status.getErrorMessage().c_str(), status.getErrorCode());
@@ -725,6 +728,7 @@ done:
     if (effectObj) {
         delete effectObj;
     }
+    ATRACE_END();
     LOGD("X");
     return rc;
 }
