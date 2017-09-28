@@ -31,11 +31,17 @@
 #define __QCAMERA3HARDWAREINTERFACE_H__
 
 // System dependencies
+#ifndef OREO_UPDATES
 #include <camera/CameraMetadata.h>
+#endif
 #include <pthread.h>
 #include <utils/KeyedVector.h>
 #include <utils/List.h>
 #include <map>
+#ifdef OREO_UPDATES
+#include "CameraMetadata.h"
+#endif
+
 // Camera dependencies
 #include "hardware/camera3.h"
 #include "QCamera3Channel.h"
@@ -55,6 +61,10 @@ extern "C" {
 using namespace android;
 
 namespace qcamera {
+
+#ifdef OREO_UPDATES
+using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
+#endif
 
 #ifndef TRUE
 #define TRUE 1

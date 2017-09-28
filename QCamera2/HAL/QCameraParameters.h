@@ -24,7 +24,9 @@
 #include <cutils/properties.h>
 
 // System dependencies
+#ifndef OREO_UPDATES 
 #include <camera/CameraParameters.h>
+#endif
 #include <utils/Errors.h>
 
 // Camera dependencies
@@ -34,6 +36,9 @@
 #include "QCameraThermalAdapter.h"
 #include "QCameraCommon.h"
 #include "QCameraFOVControl.h"
+#ifdef OREO_UPDATES
+#include "CameraParameters.h"
+#endif
 
 extern "C" {
 #include "mm_jpeg_interface.h"
