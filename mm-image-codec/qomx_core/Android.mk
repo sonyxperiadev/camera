@@ -20,10 +20,8 @@ LOCAL_SRC_FILES := qomx_core.c
 
 LOCAL_MODULE           := libqomx_core
 LOCAL_SHARED_LIBRARIES := libcutils libdl liblog
-ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) >= 26 ))" )))
 LOCAL_MODULE_OWNER := qcom
 LOCAL_PROPRIETARY_MODULE := true
-endif
 
 LOCAL_32_BIT_ONLY := true
 include $(BUILD_SHARED_LIBRARY)
