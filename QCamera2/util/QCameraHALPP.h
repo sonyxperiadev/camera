@@ -37,7 +37,7 @@
 // STL dependencies
 #include <unordered_map>
 #include <vector>
-
+#include <sys/stat.h>
 extern "C" {
 #include "mm_camera_interface.h"
 #include "mm_jpeg_interface.h"
