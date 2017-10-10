@@ -1357,11 +1357,9 @@ end:
         }
 
         /* check whether to send callback for depth map */
-        if ((m_parent->mParameters.isUbiRefocus() &&
+        if (m_parent->mParameters.isUbiRefocus() &&
                 (m_parent->getOutputImageCount() + 1 ==
-                        m_parent->mParameters.getRefocusOutputCount())) ||
-                ((m_parent->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
-                (m_parent->getOutputImageCount() + 1 == NUM_BOKEH_OUTPUT))){
+                        m_parent->mParameters.getRefocusOutputCount())){
             m_parent->setOutputImageCount(m_parent->getOutputImageCount() + 1);
 
             jpeg_mem = m_DataMem;
@@ -2095,6 +2093,8 @@ mm_jpeg_color_format QCameraPostProcessor::getColorfmtFromImgFmt(cam_format_t im
         return MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V1;
     case CAM_FORMAT_YUV_422_NV16:
         return MM_JPEG_COLOR_FORMAT_YCBCRLP_H2V1;
+    case CAM_FORMAT_Y_ONLY:
+        return MM_JPEG_COLOR_FORMAT_MONOCHROME;
     default:
         return MM_JPEG_COLOR_FORMAT_YCRCBLP_H2V2;
     }
@@ -2327,7 +2327,7 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
     QCameraStream *thumb_stream = NULL;
     mm_camera_buf_def_t *thumb_frame = NULL;
     mm_camera_super_buf_t *recvd_frame = jpeg_job_data->src_frame;
-    cam_rect_t crop;
+    cam_rect_t crop, src_crop;
     cam_stream_parm_buffer_t param;
     cam_stream_img_prop_t imgProp;
     bool is_halpp_output_buf = jpeg_job_data->halPPAllocatedBuf;
@@ -2462,12 +2462,17 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         pJpegSrcStream = NULL;
         mNewJpegSessionNeeded = TRUE;
     }
-    if (needNewSess) {
+    if (needNewSess || is_halpp_output_buf) {
         // create jpeg encoding session
         if (mJpegSessionId) {
             mJpegHandle.destroy_session(mJpegSessionId);
             mJpegSessionId = 0;
         }
+        if (mJpegSessionIdHalPP) {
+            mJpegHandle.destroy_session(mJpegSessionIdHalPP);
+            mJpegSessionIdHalPP = 0;
+        }
+
         mm_jpeg_encode_params_t encodeParam;
         memset(&encodeParam, 0, sizeof(mm_jpeg_encode_params_t));
         if (!is_halpp_output_buf) {
@@ -2573,6 +2578,11 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
     crop.height = src_dim.height;
     crop.width = src_dim.width;
 
+    //Additional crop to be done during jpeg encode
+    main_stream->getCropInfo(src_crop);
+    if (src_crop.width && src_crop.height)
+        crop = src_crop;
+
     param = main_stream->getOutputCrop();
     for (int i = 0; i < param.outputCrop.num_of_streams; i++) {
        if (param.outputCrop.crop_info[i].stream_id
@@ -2622,8 +2632,6 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
 
         CAM_DUMP_TO_FILE(QCAMERA_DUMP_FRM_LOCATION"tp", "bm", -1, "y",
                 &tpResult->data, tpMetaSize);
-    } else if (is_halpp_output_buf) {
-        main_stream->getCropInfo(crop);
     }
 
     cam_dimension_t dst_dim;
@@ -4085,11 +4093,6 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
     jpeg_job->offline_buffer = pData->offline_buffer;
     LOGD("halPPAllocatedBuf = %d", pData->halPPAllocatedBuf);
 
-    if (pData->misc_buf != NULL) {
-        free(pData->misc_buf);
-        pData->misc_buf = NULL;
-    }
-
     if (!jpeg_job->halPPAllocatedBuf && !pData->needEncode) {
         // check if to encode hal pp input buffer
         char prop[PROPERTY_VALUE_MAX];
@@ -4206,38 +4209,6 @@ void QCameraPostProcessor::getHalPPOutputBuffer(uint32_t frameIndex)
         free(output_data->bufs);
         free(output_data);
         return;
-    }
-
-    if (m_parent->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
-        //Allocate buffer for depthmap. Will be cleaned up by postproc when depth cb is issued.
-        mm_camera_buf_def_t *depthBuf = (mm_camera_buf_def_t*) malloc(sizeof(mm_camera_buf_def_t));
-        if (!depthBuf) {
-            LOGE("Error allocating depth buffer");
-            delete output_data->metadata_heap;
-            delete output_data->snapshot_heap;
-            free(output_frame);
-            free(output_data->bufs);
-            free(output_data);
-            return;
-        }
-        cam_dimension_t dmSize;
-        m_parent->mParameters.getDepthMapSize(dmSize.width, dmSize.height);
-        uint32_t depthLen = dmSize.width * dmSize.height;
-
-        m_DataMem = m_parent->mGetMemory(-1, depthLen, 1, m_parent->mCallbackCookie);
-        if (m_DataMem == NULL) {
-            LOGE("Error allocating depth buffer");
-            delete output_data->metadata_heap;
-            delete output_data->snapshot_heap;
-            free(output_frame);
-            free(output_data->bufs);
-            free(output_data);
-            return;
-        }
-
-        depthBuf->buffer = m_DataMem->data;
-        depthBuf->frame_len = depthLen;
-        output_data->misc_buf = depthBuf;
     }
 
     output_data->frameIndex = frameIndex;
