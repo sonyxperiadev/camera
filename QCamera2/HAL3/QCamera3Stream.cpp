@@ -567,12 +567,24 @@ int32_t QCamera3Stream::stop()
 int32_t QCamera3Stream::timeoutFrame(int32_t bufIdx)
 {
     LOGD("E\n");
-    int32_t rc;
+    int32_t rc = NO_ERROR;
     {
         Mutex::Autolock lock(mTimeoutFrameQLock);
-        mTimeoutFrameQ.push_back(bufIdx);
+        auto itr = mTimeoutFrameQ.begin();
+        for (; itr != mTimeoutFrameQ.end(); itr++) {
+            int32_t itr_buf_idx = *itr;
+            if (itr_buf_idx == bufIdx) {
+                LOGD("Buffer already exists in timeout queue. So, ignore");
+                break;
+            }
+        }
+        if (itr == mTimeoutFrameQ.end()) {
+            //new buffer, push to mTimeoutFrameQ
+            mTimeoutFrameQ.push_back(bufIdx);
+            rc = mProcTh.sendCmd(CAMERA_CMD_TYPE_TIMEOUT, FALSE, FALSE);
+        }
     }
-    rc = mProcTh.sendCmd(CAMERA_CMD_TYPE_TIMEOUT, FALSE, FALSE);
+
     LOGD("X\n");
     return rc;
 }
@@ -1238,6 +1250,7 @@ int32_t QCamera3Stream::setCropInfo(cam_rect_t crop)
 int32_t QCamera3Stream::getParameter(cam_stream_parm_buffer_t &param)
 {
     int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mParamLock);
     mStreamInfo->parm_buf = param;
     rc = mCamOps->get_stream_parms(mCamHandle,
                                    mChannelHandle,
@@ -1330,6 +1343,7 @@ int32_t QCamera3Stream::unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t pla
 int32_t QCamera3Stream::setParameter(cam_stream_parm_buffer_t &param)
 {
     int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mParamLock);
     mStreamInfo->parm_buf = param;
     rc = mCamOps->set_stream_parms(mCamHandle,
                                    mChannelHandle,
