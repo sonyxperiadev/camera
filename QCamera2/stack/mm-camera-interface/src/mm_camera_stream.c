@@ -3924,8 +3924,12 @@ int32_t mm_stream_calc_offset_raw(cam_format_t fmt,
     case CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_14BPP_GRBG:
     case CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_14BPP_RGGB:
     case CAM_FORMAT_BAYER_IDEAL_RAW_PLAIN16_14BPP_BGGR:
-        /* Every 8 pixels occupy 16 bytes */
-        stride = PAD_TO_SIZE(dim->width, CAM_PAD_TO_8);
+    case CAM_FORMAT_BAYER_RAW_PLAIN16_10BPP_GBRG:
+    case CAM_FORMAT_BAYER_RAW_PLAIN16_10BPP_GRBG:
+    case CAM_FORMAT_BAYER_RAW_PLAIN16_10BPP_RGGB:
+    case CAM_FORMAT_BAYER_RAW_PLAIN16_10BPP_BGGR:
+        /* Every 16 pixels occupy 32 bytes */
+        stride = PAD_TO_SIZE(dim->width, CAM_PAD_TO_16);
         stride_in_bytes = stride * 2;
         buf_planes->plane_info.num_planes = 1;
         buf_planes->plane_info.mp[0].offset = 0;
