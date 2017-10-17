@@ -122,8 +122,8 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/stack/mm-camera-interface/inc \
         $(LOCAL_PATH)/util \
         $(LOCAL_PATH)/HAL3 \
-        hardware/qcom/media/libstagefrighthw \
-        hardware/qcom/media/mm-core/inc \
+        $(QCOM_MEDIA_ROOT)/libstagefrighthw \
+        $(QCOM_MEDIA_ROOT)/mm-core/inc \
         $(TARGET_OUT_HEADERS)/mm-camera-lib/cp/prebuilt
 
 ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
