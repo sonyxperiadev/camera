@@ -845,9 +845,11 @@ int32_t QCamera3PostProcessor::processPPMetadata(mm_camera_super_buf_t *reproc_m
         (qcamera_hal3_meta_pp_buffer_t *)malloc(sizeof(qcamera_hal3_meta_pp_buffer_t));
 
     // enqueue to metadata input queue
-    ppMetaBuf->metabuf = reproc_meta;
-    ppMetaBuf->metaFrameNumber = framenum;
-    ppMetaBuf->dropFrame = dropFrame;
+    if (ppMetaBuf) {
+        ppMetaBuf->metabuf = reproc_meta;
+        ppMetaBuf->metaFrameNumber = framenum;
+        ppMetaBuf->dropFrame = dropFrame;
+    }
     /* Need to send notifyError before meta for Error Buffer */
     if (!(m_inputPPQ.isEmpty())) {
         qcamera_hal3_pp_buffer_t *reproc_job = isFrameMatched(framenum);
