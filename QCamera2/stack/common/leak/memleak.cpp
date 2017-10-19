@@ -102,7 +102,7 @@ void print_backtrace(struct map_info_holder *p_map_info, uintptr_t* frames, int 
 {
   int i;
   struct map_info_holder *p_map_find;
-  uintptr_t offset, rel_pc;
+  uintptr_t offset, rel_pc = 0;
 
   for (i = 0 ; i < frame_count; ++i) {
     const char* symbol = NULL;
