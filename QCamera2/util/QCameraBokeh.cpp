@@ -641,7 +641,8 @@ int32_t QCameraBokeh::doBokehProcess(
     unsigned int auxiliaryStrideVU = inParams.aux.offset.mp[1].stride;
 
     cam_rect_t goodRoi = {0,0,0,0};
-    const float focalLengthPrimaryCamera = m_pCaps->main_cam_cap->focal_length;
+    const float focalLengthPrimaryCamera =
+        MAX(m_pCaps->main_cam_cap->focal_length, m_pCaps->aux_cam_cap->focal_length);
     bool isAuxMono = (m_pCaps->aux_cam_cap->color_arrangement == CAM_FILTER_ARRANGEMENT_Y);
     qrcp::SensorConfiguration config =
             isAuxMono ? qrcp::SYMMETRIC_BAYER_MONO : qrcp::STANDARD_WIDE_BAYER_BAYER;

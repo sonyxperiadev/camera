@@ -1622,7 +1622,7 @@ void QCameraFOVControl::generateFovControlResult()
  * false       : If main cam FOV is narrower than tele
  *
  *==========================================================================*/
-inline bool QCameraFOVControl::isMainCamFovWider()
+bool QCameraFOVControl::isMainCamFovWider()
 {
     if (mDualCamParams.paramsMain.focalLengthMm <
             mDualCamParams.paramsAux.focalLengthMm) {
