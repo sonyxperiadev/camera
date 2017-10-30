@@ -7074,10 +7074,9 @@ int32_t QCamera2HardwareInterface::processHDRData(
 int32_t QCamera2HardwareInterface::processLEDCalibration(int32_t value)
 {
     int32_t rc = NO_ERROR;
-
+#ifndef VANILLA_HAL
     if (mParameters.getDualLedCalibration()) {
         LOGH("Dual LED calibration value = %d", value);
-#ifndef VANILLA_HAL
         int32_t data_len = sizeof(value);
         int32_t buffer_len = sizeof(int)       //meta type
                 + sizeof(int)                  //data len
@@ -7113,8 +7112,10 @@ int32_t QCamera2HardwareInterface::processLEDCalibration(int32_t value)
             LOGE("fail sending notification");
             buffer->release(buffer);
         }
-#endif
     }
+#else
+    (void)value;  // unused
+#endif
     return rc;
 }
 
@@ -7137,7 +7138,6 @@ int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
     //Check if we are in real time bokeh mode
     if (isDualCamera() && (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
         LOGH("DC RTB metadata: msgType: %d",rtbData);
-#ifndef VANILLA_HAL
         int32_t data_len = sizeof(rtbData);
         int32_t buffer_len = sizeof(rtbData)       //meta type
                 + sizeof(int)                  //data len
@@ -7163,7 +7163,9 @@ int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
         qcamera_callback_argm_t cbArg;
         memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
         cbArg.cb_type = QCAMERA_DATA_CALLBACK;
+#ifndef VANILLA_HAL
         cbArg.msg_type = CAMERA_MSG_META_DATA;
+#endif
         cbArg.data = buffer;
         cbArg.user_data = buffer;
         cbArg.cookie = this;
@@ -7173,7 +7175,6 @@ int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
             LOGE("fail sending notification");
             buffer->release(buffer);
         }
-#endif
     }
     return rc;
 }
