@@ -4144,7 +4144,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
             return -1;
         }
         memcpy(super_buf, &(pChannel->raw_frame), sizeof(mm_camera_super_buf_t));
-        m_postprocessor.processData(super_buf);
+        m_postprocessor.processData(super_buf, NULL, frameNumber);
     } else if (pInputBuffer == NULL) {
         Mutex::Autolock lock(mFreeBuffersLock);
         uint32_t bufIdx;

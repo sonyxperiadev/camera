@@ -710,6 +710,7 @@ bool QCamera3PostProcessor::matchMetaFrameNum(void *data, void *, void *match_da
 {
     qcamera_hal3_meta_pp_buffer_t *job = (qcamera_hal3_meta_pp_buffer_t *) data;
     uint32_t frame_num = *((uint32_t *) match_data);
+    LOGD(" Matching MetaFrameNum :%d and %d", frame_num, job->metaFrameNumber);
     return job->metaFrameNumber == frame_num;
 }
 
