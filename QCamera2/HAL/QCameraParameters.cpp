@@ -3243,13 +3243,17 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
     if (bRequestedBokehMode != m_bBokehMode) {
          m_bBokehMode = bRequestedBokehMode;
          m_bNeedRestart = true;
-         if (m_bBokehMode) {
-            char val[32];
-            int depthW, depthH;
-            getDepthMapSize(depthW, depthH);
-            snprintf(val, sizeof(val), "%dx%d", depthW, depthH);
-            updateParamEntry(KEY_QC_DEPTH_MAP_SIZE, val);
-         }
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH
+                (m_pParamBuf, CAM_INTF_PARM_BOKEH_MODE, m_bBokehMode)) {
+            return BAD_VALUE;
+        }
+        if (m_bBokehMode) {
+           char val[32];
+           int depthW, depthH;
+           getDepthMapSize(depthW, depthH);
+           snprintf(val, sizeof(val), "%dx%d", depthW, depthH);
+           updateParamEntry(KEY_QC_DEPTH_MAP_SIZE, val);
+        }
     }
     if (m_bBokehMode) {
         //Bokeh Mode set, set halpp type
