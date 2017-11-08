@@ -16820,11 +16820,7 @@ int32_t QCameraParameters::setDCDeferCamera(cam_dual_camera_defer_cmd_t type)
             return rc;
         }
 
-        // Fix me: Do not defer camera for Bokeh Mode
-        if (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH) {
-            sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO, MM_CAMERA_MAX_CAM_CNT,
-                    &defer_val[0]);
-        }
+        sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO, MM_CAMERA_MAX_CAM_CNT, &defer_val[0]);
     }
     return rc;
 }
