@@ -31,6 +31,7 @@
 #define __QCAMERADUALCAMSETTINGS_H__
 
 #include <cam_intf.h>
+#include "dualcameraddm_wrapper.h"
 
 typedef enum {
     OIS_HOLD,
@@ -175,5 +176,10 @@ typedef enum {
 /* This setting indicates if tele should be put in LPM if low light / macro scene fallback is
  initiated in the transition zone. */
 #define FOVC_TELE_LPM_IN_TRANSITION_WITH_FALLBACK    (0)
+
+/* This setting indicates the dual camera sensor configuration used whether W+T or
+ Bayer + Wide Bayer, etc. Value to be set based on the SensorConfiguration enum
+ in dualcameraddm_wrapper.h */
+#define DUAL_CAM_CONFIG qrcp::SYMMETRIC_BAYER_MONO
 
 #endif /* __QCAMERADUALCAM_H__ */

@@ -4489,6 +4489,11 @@ int32_t QCamera3HardwareInterface::captureQuadraCfaRawInternal(camera3_capture_r
     delete mMetadataChannel;
     mMetadataChannel = NULL;
 
+    LOGD("reset quadra cfa mode after capture done.");
+    bool enable = false;
+    ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_QUADRA_CFA, enable);
+    mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
+
     mStreamInfo.clear();
     pthread_mutex_unlock(&mMutex);
     configureStreamsPerfLocked(&mStreamList);
@@ -6316,6 +6321,10 @@ int32_t QCamera3HardwareInterface::getReprocessibleOutputStreamId(uint32_t &id)
                 LOGD("Found reprocessible output stream! %p", *it);
                 LOGD("input stream usage 0x%x, current stream usage 0x%x",
                          stream->usage, mInputStreamInfo.usage);
+                if (stream->usage & (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER)) {
+                    LOGD("stream with HW_TEXTURE/HW_COMPOSER usage (preview stream), skip it.");
+                    continue;
+                }
 
                 QCamera3Channel *channel = (QCamera3Channel *)stream->priv;
                 if (channel != NULL && channel->mStreams[0]) {
