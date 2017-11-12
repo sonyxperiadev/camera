@@ -158,6 +158,9 @@ public:
     } MetaMemory;
     MetaMemory mStreamMetaMemory[CAMERA_MIN_VIDEO_BATCH_BUFFERS];
     int32_t handleCacheOps(mm_camera_buf_def_t* buf);
+    void setFrameDimension(cam_dimension_t dim) {mStreamInfo->dim = dim;}
+    void setFrameOffset(cam_frame_len_offset_t offset) {mFrameLenOffset = offset;}
+    void setFormat(cam_format_t fmt) {mStreamInfo->fmt = fmt;}
 
 private:
     uint32_t mCamHandle;

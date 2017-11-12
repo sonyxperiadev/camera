@@ -45,6 +45,7 @@ typedef struct  {
     float blurLevel;
     cam_rect_t afROI;
     cam_rect_t afROIMap;
+    cam_rect_t zoomROI;
 } bokeh_input_params_t;
 
 typedef struct  {
@@ -59,6 +60,7 @@ typedef struct  {
     qcamera_hal_pp_data_t* main_input;
     qcamera_hal_pp_data_t* aux_input;
     qcamera_hal_pp_data_t* bokeh_output;
+    qcamera_hal_pp_data_t* depth_output;
 } bokeh_data_t;
 
 class QCameraBokeh : public QCameraHALPP
@@ -86,8 +88,7 @@ private:
             const uint8_t* pMain,
             const uint8_t* pAux,
             bokeh_input_params_t &inParams,
-            uint8_t* pOut,
-            uint8_t* pDepthMap);
+            uint8_t* pOut);
     void dumpYUVtoFile(
             const uint8_t* pBuf,
             cam_frame_len_offset_t offset,
@@ -98,6 +99,7 @@ private:
     String8 extractReprocessInfo(metadata_buffer_t *metadata);
     String8 extractCalibrationData();
     void dumpInputParams(const char* filename, String8 str, uint32_t idx);
+    int32_t allocateDepthBuf(cam_frame_size_t depthSize);
 
 private:
     void *m_dlHandle;
