@@ -673,6 +673,9 @@ typedef struct cam_capability{
 
     /* sensor rotation */
     int32_t sensor_rotation;
+
+    /* Whether camera timestamp is calibrated with sensor */
+    uint8_t timestamp_calibrated;
 } cam_capability_t;
 
 typedef enum {
