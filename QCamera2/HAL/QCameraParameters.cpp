@@ -5602,7 +5602,6 @@ int32_t QCameraParameters::setLongshotParam(const QCameraParameters& params)
 
     if (str != NULL) {
         if (prev_str == NULL || strcmp(str, prev_str) != 0) {
-            set(KEY_QC_LONG_SHOT, str);
             if (prev_str && !strcmp(str, "off") && !strcmp(prev_str, "on")) {
                 // We restart here, to reset the FPS and no
                 // of buffers as per the requirement of single snapshot usecase.
@@ -5611,6 +5610,7 @@ int32_t QCameraParameters::setLongshotParam(const QCameraParameters& params)
                 // longshot command is triggered through sendCommand.
                 m_bNeedRestart = true;
             }
+            set(KEY_QC_LONG_SHOT, str);
         }
     }
 
