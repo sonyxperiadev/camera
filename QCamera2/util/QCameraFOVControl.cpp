@@ -345,6 +345,13 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
         }
         capsConsolidated.supported_picture_fmt_cnt = supportedPictureFmtCntFinal;
 
+        //consolidate focus modes, to handle FF + AF case
+        if (capsMainCam->supported_focus_modes_cnt <= 1) {
+            capsConsolidated.supported_focus_modes_cnt = capsAuxCam->supported_focus_modes_cnt;
+            memcpy(capsConsolidated.supported_focus_modes, capsAuxCam->supported_focus_modes,
+                    (capsAuxCam->supported_focus_modes_cnt * sizeof(cam_focus_mode_type)));
+        }
+
         if (mZoomTranslator) {
             // Copy the opaque calibration data pointer and size
             mFovControlData.zoomTransInitData.calibData =
@@ -1144,6 +1151,10 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         if (snapshotPostProcess &&
                 (camState == (CAM_TYPE_MAIN | CAM_TYPE_AUX)) &&
                 metaResult) {
+            if (!mDualCamParams.paramsMain.isAFSupported)
+                mFovControlData.afStatusMain = mFovControlData.afStatusAux;
+            else if (!mDualCamParams.paramsAux.isAFSupported)
+                mFovControlData.afStatusAux = mFovControlData.afStatusMain;
             if (((mFovControlData.afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) ||
                     (mFovControlData.afStatusMain == CAM_AF_STATE_NOT_FOCUSED_LOCKED)) &&
                     ((mFovControlData.afStatusAux == CAM_AF_STATE_FOCUSED_LOCKED) ||
@@ -1947,6 +1958,11 @@ bool QCameraFOVControl::validateAndExtractParameters(
 
         mDualCamParams.paramsMain.pixelPitchUm = capsMainCam->pixel_pitch_um;
         mDualCamParams.paramsAux.pixelPitchUm  = capsAuxCam->pixel_pitch_um;
+
+        if (capsMainCam->supported_focus_modes_cnt > 1)
+            mDualCamParams.paramsMain.isAFSupported = true;
+        if (capsAuxCam->supported_focus_modes_cnt > 1)
+            mDualCamParams.paramsAux.isAFSupported = true;
 
         if (((capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_QTI) && atoi(propSAC)) ||
                 ((capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_OEM) &&

@@ -613,13 +613,15 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         if (mIsMainCamera == 1) {
             m_pRelCamSyncBuf->mode = CAM_MODE_PRIMARY;
             m_pRelCamSyncBuf->type = CAM_TYPE_MAIN;
-            m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+            m_pRelCamSyncBuf->sync_3a_config =
+                    {CAM_3A_SYNC_FOLLOW, CAM_3A_SYNC_FOLLOW};
             // related session id should be session id of linked session
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         } else {
             m_pRelCamSyncBuf->mode = CAM_MODE_SECONDARY;
             m_pRelCamSyncBuf->type = CAM_TYPE_AUX;
-            m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+            m_pRelCamSyncBuf->sync_3a_config =
+                    {CAM_3A_SYNC_FOLLOW, CAM_3A_SYNC_FOLLOW};
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         }
         pthread_mutex_unlock(&gCamLock);
@@ -5112,14 +5114,16 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (mIsMainCamera == 1) {
                 m_pRelCamSyncBuf->mode = CAM_MODE_PRIMARY;
                 m_pRelCamSyncBuf->type = CAM_TYPE_MAIN;
-                m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+                m_pRelCamSyncBuf->sync_3a_config =
+                        {CAM_3A_SYNC_FOLLOW, CAM_3A_SYNC_FOLLOW};
                 m_pRelCamSyncBuf->cam_role = CAM_ROLE_BAYER;
                 // related session id should be session id of linked session
                 m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
             } else {
                 m_pRelCamSyncBuf->mode = CAM_MODE_SECONDARY;
                 m_pRelCamSyncBuf->type = CAM_TYPE_AUX;
-                m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+                m_pRelCamSyncBuf->sync_3a_config =
+                        {CAM_3A_SYNC_FOLLOW, CAM_3A_SYNC_FOLLOW};
                 m_pRelCamSyncBuf->cam_role = CAM_ROLE_MONO;
                 m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
             }
@@ -5976,13 +5980,15 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
         if (mIsMainCamera == 1) {
             m_pRelCamSyncBuf->mode = CAM_MODE_PRIMARY;
             m_pRelCamSyncBuf->type = CAM_TYPE_MAIN;
-            m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+            m_pRelCamSyncBuf->sync_3a_config =
+                        {CAM_3A_SYNC_FOLLOW, CAM_3A_SYNC_FOLLOW};
             // related session id should be session id of linked session
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         } else {
             m_pRelCamSyncBuf->mode = CAM_MODE_SECONDARY;
             m_pRelCamSyncBuf->type = CAM_TYPE_AUX;
-            m_pRelCamSyncBuf->sync_3a_mode = CAM_3A_SYNC_FOLLOW;
+            m_pRelCamSyncBuf->sync_3a_config =
+                        {CAM_3A_SYNC_FOLLOW, CAM_3A_SYNC_FOLLOW};
             m_pRelCamSyncBuf->related_sensor_session_id = sessionId[mLinkedCameraId];
         }
         pthread_mutex_unlock(&gCamLock);

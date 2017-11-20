@@ -337,6 +337,7 @@ public:
     uint32_t getBlurLevel();
     void setBokehSnaphot(bool enable);
     void getDepthMapSize(int &width, int &height);
+    bool isAutoFocusSupported(uint32_t cam_type);
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;
