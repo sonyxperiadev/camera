@@ -208,6 +208,7 @@ typedef struct{
     uint32_t sensorStreamHeight;
     float    focalLengthMm;
     float    pixelPitchUm;
+    bool     isAFSupported;
 } intrinsic_cam_params_t;
 
 typedef struct {

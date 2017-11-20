@@ -922,10 +922,6 @@ String8 QCameraBokeh::extractCalibrationData()
     String8 calibData;
     cam_related_system_calibration_data_t calib_data = m_pCaps->related_cam_calibration;
 
-    if (bNeedCamSwap) {
-        SWAP(calib_data.main_cam_specific_calibration, calib_data.aux_cam_specific_calibration);
-        SWAP(calib_data.main_sensor_mirror_flip_setting, calib_data.aux_sensor_mirror_flip_setting);
-    }
     calibData.appendFormat(CALIB_FMT_STRINGS[0], calib_data.calibration_format_version);
     calibData.appendFormat(CALIB_FMT_STRINGS[1],
             calib_data.main_cam_specific_calibration.native_sensor_resolution_width);

@@ -131,7 +131,7 @@ typedef struct {
     cam_sync_mechanism_t sync_mechanism;
     cam_sync_type_t type;
     cam_sync_mode_t mode;
-    cam_3a_sync_mode_t sync_3a_mode;
+    cam_3a_sync_config_t sync_3a_config;
     cam_dual_camera_role_t cam_role;
     /* session Id of the other camera session
        Linking will be done with this session in the
