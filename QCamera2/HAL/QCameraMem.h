@@ -248,6 +248,7 @@ public:
     virtual ~QCameraVideoMemory();
 
     virtual int allocate(uint8_t count, size_t size);
+    virtual int allocateMetaBufs(uint8_t count, QCameraMemory *previewmem);
     virtual int allocateMore(uint8_t count, size_t size);
     virtual void deallocate();
     virtual camera_memory_t *getMemory(uint32_t index, bool metadata) const;
@@ -308,11 +309,15 @@ public:
     int32_t dequeueBuffer();
     inline bool isBufActive(uint32_t index){return (mBufferStatus[index] == STATUS_ACTIVE);};
     inline bool isBufSkipped(uint32_t index){return (mBufferStatus[index] == STATUS_SKIPPED);};
+    inline bool hasPendingRef(uint32_t index){return (mRefCount[index]);};
     void setBufferStatus(uint32_t index, BufferStatus status);
+    void setRefCount(uint32_t index,uint8_t count);
+    pthread_mutex_t mStatusLock;
 private:
     buffer_handle_t *mBufferHandle[MM_CAMERA_MAX_NUM_FRAMES];
     int mLocalFlag[MM_CAMERA_MAX_NUM_FRAMES];
     int mBufferStatus[MM_CAMERA_MAX_NUM_FRAMES];
+    uint8_t mRefCount[MM_CAMERA_MAX_NUM_FRAMES];
     struct private_handle_t *mPrivateHandle[MM_CAMERA_MAX_NUM_FRAMES];
     preview_stream_ops_t *mWindow;
     int mWidth, mHeight, mFormat, mStride, mScanline, mUsage;
