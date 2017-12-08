@@ -98,7 +98,7 @@ static OMX_ERRORTYPE mm_jpeg_session_configure(mm_jpeg_job_session_t *p_session)
  *       Get the name of omx component to be used for jpeg encoding
  *
  **/
-inline char* mm_jpeg_get_comp_name()
+static inline char* mm_jpeg_get_comp_name()
 {
 #ifdef MM_JPEG_USE_PIPELINE
   return "OMX.qcom.image.jpeg.encoder_pipeline";
