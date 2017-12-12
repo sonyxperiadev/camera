@@ -4271,6 +4271,11 @@ int QCamera2HardwareInterface::startRecording()
                 }
             }
         }
+        if(pStreamreq == NULL)
+        {
+            LOGE("Error:Stream not found! ret %d",INVALID_OPERATION);
+            return INVALID_OPERATION;
+        }
         QCameraMemory *previewmem = pStreamreq->getStreamBufs();
         //Use uncached allocation by default
         if (mParameters.isVideoBuffersCached() || mParameters.isSeeMoreEnabled() ||
