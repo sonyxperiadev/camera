@@ -29,6 +29,7 @@
 
 // Camera dependencies
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 
 #include "QCameraTrace.h"
