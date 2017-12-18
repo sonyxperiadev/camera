@@ -738,9 +738,6 @@ private:
         CMD_DEF_PARAM_ALLOC,
         CMD_DEF_PARAM_INIT,
         CMD_DEF_GENERIC,
-#ifdef USE_DISPLAY_SERVICE
-        CMD_DEF_DISPLAY_INIT,
-#endif //USE_DISPLAY_SERVICE
         CMD_DEF_MAX
     };
 
