@@ -644,7 +644,13 @@ int32_t QCameraBokeh::doBokehProcess(
             inParams.depth.height = inParams.depth.scanline = dmSize.height;
     inParams.depth.frame_len = inParams.depth.offset.frame_len =
             inParams.depth.offset.mp[0].len = depthLen;
-    allocateDepthBuf(inParams.depth);
+    rc = allocateDepthBuf(inParams.depth);
+    if(rc != NO_ERROR)
+    {
+        ATRACE_END();
+        LOGE("ERROR: Failed to allocate depth buffer, error no:%d X",rc);
+        return rc;
+    }
     uint8_t * pDepthMap = (uint8_t *)mBokehData.depth_output->frame->bufs[0]->buffer;
 
     DUMP("\nDepth map W %d H %d ", dmSize.width, dmSize.height);
@@ -988,6 +994,13 @@ int32_t QCameraBokeh::allocateDepthBuf(cam_frame_size_t depthSize)
     QCameraStream* pSnapshotStream = NULL;
     mm_camera_super_buf_t *pInputFrame = mBokehData.aux_input->frame;
     mm_camera_buf_def_t *pInputSnapshotBuf = getSnapshotBuf(mBokehData.aux_input, pSnapshotStream);
+
+    if(!pInputSnapshotBuf || !pSnapshotStream)
+    {
+        releaseData(mBokehData.aux_input);
+        LOGE("Error!! Snapshot buffer/stream or depthmap not available");
+        return BAD_VALUE;
+    }
 
     qcamera_hal_pp_data_t *output_data =
             (qcamera_hal_pp_data_t*) malloc(sizeof(qcamera_hal_pp_data_t));
