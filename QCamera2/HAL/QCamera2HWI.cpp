@@ -7260,7 +7260,9 @@ int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
         qcamera_callback_argm_t cbArg;
         memset(&cbArg, 0, sizeof(qcamera_callback_argm_t));
         cbArg.cb_type = QCAMERA_DATA_CALLBACK;
+#ifndef VANILLA_HAL
         cbArg.msg_type = CAMERA_MSG_META_DATA;
+#endif
         cbArg.data = buffer;
         cbArg.user_data = buffer;
         cbArg.cookie = this;
