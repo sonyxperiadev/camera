@@ -4251,7 +4251,7 @@ int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
         if (prev_str == NULL || strcmp(str, prev_str) != 0) {
             uint8_t rawZSL = lookupAttr(ENABLE_DISABLE_MODES_MAP,
                 PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), str);
-            if (rawZSL != NAME_NOT_FOUND) {
+            if ((int)rawZSL != NAME_NOT_FOUND) {
                 updateParamEntry(KEY_QC_RAW_ZSL, str);
                 m_bNeedRestart = true;
                 m_bRawZSL = rawZSL;
@@ -4295,7 +4295,7 @@ int32_t QCameraParameters::setQuadraCfa(const QCameraParameters& params)
         if (prev_str == NULL || strcmp(str, prev_str) != 0) {
             uint8_t rawZslCapture = lookupAttr(ENABLE_DISABLE_MODES_MAP,
                 PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), str);
-            if (rawZslCapture != NAME_NOT_FOUND) {
+            if ((int)rawZslCapture != NAME_NOT_FOUND) {
                 updateParamEntry(KEY_QC_RAW_ZSL_CAPTURE, str);
                 m_bRawZSLCapture = rawZslCapture;
                 LOGH("m_bRawZSLCapture set from UI %d", m_bRawZSLCapture);
