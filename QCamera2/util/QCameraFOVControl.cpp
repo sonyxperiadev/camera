@@ -708,6 +708,32 @@ int32_t QCameraFOVControl::translateInputParams(
             return NO_ERROR;
         }
 
+        //Translate zoom in HAL3 Bokeh mode
+        if (paramsMainCam->is_valid[CAM_INTF_META_SCALER_CROP_REGION] &&
+                (mHalPPType == CAM_HAL_PP_TYPE_BOKEH)) {
+            cam_crop_region_t scalerCropRegion;
+            READ_PARAM_ENTRY(paramsMainCam,
+                    CAM_INTF_META_SCALER_CROP_REGION, scalerCropRegion);
+
+            // Adjust crop region from main sensor output coordinate system to aux
+            // array coordinate system.
+            scalerCropRegion.left =
+                    (scalerCropRegion.left * mDualCamParams.paramsAux.sensorStreamWidth) /
+                    (mDualCamParams.paramsMain.sensorStreamWidth);
+            scalerCropRegion.top =
+                    (scalerCropRegion.top * mDualCamParams.paramsAux.sensorStreamHeight) /
+                    (mDualCamParams.paramsMain.sensorStreamHeight);
+            scalerCropRegion.width =
+                    (scalerCropRegion.width * mDualCamParams.paramsAux.sensorStreamWidth) /
+                    (mDualCamParams.paramsMain.sensorStreamWidth);
+            scalerCropRegion.height =
+                    (scalerCropRegion.height* mDualCamParams.paramsAux.sensorStreamHeight) /
+                    (mDualCamParams.paramsMain.sensorStreamHeight);
+
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_META_SCALER_CROP_REGION,
+                scalerCropRegion);
+        }
+
         // Translate zoom
         if (paramsMainCam->is_valid[CAM_INTF_PARM_USERZOOM]) {
             //Cache user zoom
