@@ -930,12 +930,7 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
 
     // Acquire the perf lock for JPEG snapshot only
     if (hw->mParameters.isJpegPictureFormat()) {
-        if (hw->isDualCamera() && (hw->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
-            hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_BOKEH_SNAPSHOT,
-                    PERF_LOCK_BOKEH_SNAP_TIMEOUT_MS);
-        } else {
-            hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
-        }
+        hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
     }
 
     qcamera_api_result_t apiResult;
