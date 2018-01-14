@@ -335,7 +335,6 @@ public:
     bool needAnalysisStream();
     void setLowPower(bool value);
     uint32_t getBlurLevel();
-    void setBokehSnaphot(bool enable);
 private:
     QCameraParameters *mImpl;
     mutable Mutex mLock;

@@ -1623,11 +1623,4 @@ uint32_t QCameraParametersIntf::getBlurLevel()
     return mImpl->getBlurLevel();
 }
 
-void QCameraParametersIntf::setBokehSnaphot(bool enable)
-{
-    Mutex::Autolock lock(mLock);
-    CHECK_PARAM_INTF(mImpl);
-    mImpl->setBokehSnaphot(enable);
-}
-
 }; // namespace qcamera
