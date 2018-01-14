@@ -108,14 +108,6 @@ const char* CALIB_FMT_STRINGS[] = {
 
 #define SWAP(a, b) do { typeof(a) temp = a; a = b; b = temp; } while (0)
 
-#define DUMP(fmt, args...)                           \
-{                                                    \
-    if (m_bDebug) {                                  \
-        mDebugData.appendFormat(fmt, ##args);        \
-    }                                                \
-}
-
-
 namespace qcamera {
 
 /*===========================================================================
@@ -133,7 +125,6 @@ QCameraBokeh::QCameraBokeh() : QCameraHALPP()
     m_pCaps = NULL;
     memset(&mBokehData, 0, sizeof(mBokehData));
     bNeedCamSwap = false;
-    m_bDebug = false;
 }
 
 /*===========================================================================
@@ -180,12 +171,6 @@ int32_t QCameraBokeh::init(
 
     /* we should load 3rd libs here, with dlopen/dlsym */
     doBokehInit();
-
-    /* To dump debug data */
-    char prop[PROPERTY_VALUE_MAX];
-    memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.bokeh.debug", prop, "0");
-    m_bDebug = atoi(prop);
 
     LOGH("X");
     return rc;
@@ -253,7 +238,6 @@ int32_t QCameraBokeh::stop()
     LOGH("E");
 
     rc = QCameraHALPP::stop();
-    mDebugData.clear();
 
     LOGH("X");
     return rc;
@@ -418,7 +402,13 @@ int32_t QCameraBokeh::process()
             memcpy(pOutputBuf->buffer, pMainSnap->buffer, frm_offset.frame_len);
         }
 
-        if (m_bDebug) {
+        /* dump in/out frames */
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.camera.bokeh.dumpimg", prop, "0");
+        int dumpimg = atoi(prop);
+
+        if (dumpimg) {
             dumpYUVtoFile((uint8_t *)pAuxSnap->buffer, frm_offset,
                     pAuxSnap->frame_idx, "Aux");
             dumpYUVtoFile((uint8_t *)pMainSnap->buffer,  frm_offset,
@@ -427,7 +417,6 @@ int32_t QCameraBokeh::process()
                     pAuxSnap->frame_idx, "BokehOutput");
             dumpYUVtoFile((uint8_t *)depthBuf->buffer, inParams.depth.offset,
                     pAuxSnap->frame_idx, "DepthMap");
-            dumpInputParams(pMainSnap->frame_idx);
         }
 
         // Invalidate input buffer
@@ -515,11 +504,9 @@ void QCameraBokeh::getInputParams(bokeh_input_params_t& inParams)
     inParams.main.scanline  = offset.mp[0].scanline;
     inParams.main.frame_len = offset.frame_len;
     inParams.main.offset = offset;
-    DUMP("Primary width: %d height: %d stride[0]:%d scanline[0]:%d "
-            "stride[1]:%d, scanline[1]:%d frame_len: %d",
+    LOGH("main width: %d height: %d stride:%d, scanline:%d frame_len: %d",
             inParams.main.width, inParams.main.height,
-            offset.mp[0].stride, offset.mp[0].scanline,
-            offset.mp[1].stride, offset.mp[1].scanline,
+            inParams.main.stride, inParams.main.scanline,
             inParams.main.frame_len);
 
     // aux frame size
@@ -531,39 +518,30 @@ void QCameraBokeh::getInputParams(bokeh_input_params_t& inParams)
     inParams.aux.frame_len = offset.frame_len;
     inParams.aux.offset = offset;
 
-    DUMP("\nAuxiliary width: %d height: %d stride[0]:%d scanline[0]:%d "
-            "stride[1]:%d, scanline[1]:%d frame_len: %d\n",
+    LOGH("aux width: %d height: %d stride:%d, scanline:%d frame_len: %d",
             inParams.aux.width, inParams.aux.height,
-            offset.mp[0].stride, offset.mp[0].scanline,
-            offset.mp[1].stride, offset.mp[1].scanline,
+            inParams.aux.stride, inParams.aux.scanline,
             inParams.aux.frame_len);
 
     inParams.sAuxReprocessInfo = extractReprocessInfo(pAuxMetaBuf);
     inParams.sMainReprocessInfo = extractReprocessInfo(pMainMetaBuf);
 
-    DUMP("\nPrimary Crop info:\n%s", inParams.sMainReprocessInfo.string());
-    DUMP("\nAuxiliary Crop info:\n%s", inParams.sAuxReprocessInfo.string());
-
     inParams.sCalibData = extractCalibrationData();
-    DUMP("\nCalibration Data:\n%s \n", inParams.sCalibData.string());
-
 
     IF_META_AVAILABLE(cam_rtb_blur_info_t, blurInfo,
             CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, pMainMetaBuf) {
         inParams.blurLevel = (float) blurInfo->blur_level / blurInfo->blur_max_value;
-        DUMP("\nBlurLevel = %f", inParams.blurLevel);
+        LOGH("blurLevel %f", inParams.blurLevel);
     }
     IF_META_AVAILABLE(cam_rect_t, hAfRegions, CAM_INTF_META_AF_DEFAULT_ROI, pMainMetaBuf) {
         inParams.afROI = *hAfRegions;
-        DUMP("\nAF ROI : (%d, %d, %d, %d)",
-                inParams.afROI.left, inParams.afROI.top,
+        LOGH("AF ROI : (%d, %d, %d, %d)", inParams.afROI.left, inParams.afROI.top,
                 inParams.afROI.width, inParams.afROI.height);
     }
     IF_META_AVAILABLE(cam_stream_crop_info_t, ispCropInfo,
             CAM_INTF_META_SNAP_CROP_INFO_ISP, pMainMetaBuf) {
         inParams.afROIMap = ispCropInfo->roi_map;
-        DUMP("\nAF ROI map: (%d, %d, %d, %d)",
-                inParams.afROIMap.left, inParams.afROIMap.top,
+        LOGH("ROI map: (%d, %d, %d, %d)", inParams.afROIMap.left, inParams.afROIMap.top,
                 inParams.afROIMap.width, inParams.afROIMap.height);
     }
 
@@ -609,7 +587,7 @@ int32_t QCameraBokeh::doBokehProcess(
     inParams.depth.height = inParams.depth.scanline =
             inParams.depth.offset.mp[0].scanline = dmSize.height;
     inParams.depth.frame_len = inParams.depth.offset.frame_len = dmSize.width * dmSize.height;
-    DUMP("\nDepth map W %d H %d ", dmSize.width, dmSize.height);
+    LOGI("depth map w %d h %d ", dmSize.width, dmSize.height);
 
     //2. generate depth map
     const uint8_t* primaryY = pMain;
@@ -639,9 +617,6 @@ int32_t QCameraBokeh::doBokehProcess(
     const float focalLengthPrimaryCamera = m_pCaps->main_cam_cap->focal_length;
     bool isAuxMono = (m_pCaps->aux_cam_cap->color_arrangement == CAM_FILTER_ARRANGEMENT_Y);
 
-    DUMP("\nDepthStride = %d \nfocalLengthPrimaryCamera = %f \n"
-            "isAuxMono = %d", depthStride, focalLengthPrimaryCamera, isAuxMono);
-
     LOGI("[KPI Perf]: PROFILE_BOKEH_PROCESS : E");
     qrcp::DDMWrapperStatus status = qrcp::dualCameraGenerateDDM(
             primaryY, primaryVU, primaryWidth, primaryHeight,
@@ -659,8 +634,7 @@ int32_t QCameraBokeh::doBokehProcess(
         goto done;
     }
 
-    LOGH("Depth map generated successfully");
-    DUMP("\nGood ROI : (%d, %d, %d, %d)",
+    LOGI("Depth map generation successful. Good ROI : (%d, %d, %d, %d)",
             goodRoi.left, goodRoi.top, goodRoi.width,goodRoi.height);
 
     //3. Bokeh processing using above depth map
@@ -668,18 +642,15 @@ int32_t QCameraBokeh::doBokehProcess(
             (inParams.afROIMap.height != 0) && (inParams.afROI.height != 0)) {
         //get center of AF ROI and scale it from sensor coordinates (ROImap) to goodROI.
         focusX = inParams.afROI.left + inParams.afROI.width/2;
-        focusX = focusX * primaryWidth / inParams.afROIMap.width;
-        focusX = (focusX - goodRoi.left) * goodRoi.width / primaryWidth;
+        focusX = focusX * goodRoi.width / inParams.afROIMap.width;
         focusY = inParams.afROI.top + inParams.afROI.height/2;
-        focusY = focusY * primaryHeight / inParams.afROIMap.height;
-        focusY = (focusY - goodRoi.top) * goodRoi.height / primaryHeight;
+        focusY = focusY * goodRoi.height / inParams.afROIMap.height;
     } else {
         LOGE("Error in getting ROI information from meta, default to center ROI");
         focusX = goodRoi.width / 2;
         focusY = goodRoi.height / 2;
     }
-    DUMP("\nFocusPoint = (%d, %d)", focusX,focusY);
-    DUMP("\nDestination W %d H %d ", goodRoi.width,goodRoi.height);
+    LOGI("Rendering blur centered at (%d, %d)", focusX,focusY);
     effectObj = new qrcp::DualCameraDDMEffects(
         primaryY, primaryVU, primaryWidth, primaryHeight, primaryStrideY, primaryStrideVU,
         depthMap, dmSize.width, dmSize.height, depthStride,
@@ -694,7 +665,6 @@ int32_t QCameraBokeh::doBokehProcess(
             rc = BAD_VALUE;
             goto done;
         }
-        LOGH("Blur rendering successful");
     }
 
     LOGI("[KPI Perf]: PROFILE_BOKEH_PROCESS : X");
@@ -874,17 +844,4 @@ String8 QCameraBokeh::extractCalibrationData()
     return calibData;
 }
 
-void QCameraBokeh::dumpInputParams(uint32_t idx)
-{
-    char filename[256];
-    snprintf(filename, sizeof(filename),
-            QCAMERA_DUMP_FRM_LOCATION"input_params_%d.txt", idx);
-
-    int file_fd = open(filename, O_RDWR | O_CREAT, 0777);
-    if (file_fd > 0) {
-        fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-        write(file_fd, mDebugData.string(), mDebugData.size());
-        close(file_fd);
-    }
-}
 } // namespace qcamera
