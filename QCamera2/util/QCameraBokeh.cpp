@@ -115,13 +115,6 @@ const char* CALIB_FMT_STRINGS[] = {
     }                                                \
 }
 
-#define FDUMP(file, string, idx)                     \
-{                                                    \
-    if (m_bDebug) {                                  \
-        dumpInputParams(file, string, idx);          \
-    }                                                \
-}
-
 
 namespace qcamera {
 
@@ -398,9 +391,9 @@ int32_t QCameraBokeh::process()
         mm_camera_buf_def_t *pOutputBuf = pOutputSuperBuf->bufs[0];
 
         // Get offset info from reproc stream
-        cam_frame_len_offset_t offset;
-        memset(&offset, 0, sizeof(offset));
-        pMainStream->getFrameOffset(offset);
+        cam_frame_len_offset_t frm_offset;
+        memset(&frm_offset, 0, sizeof(frm_offset));
+        pMainStream->getFrameOffset(frm_offset);
 
         //Get input and output parameter
         bokeh_input_params_t inParams;
@@ -422,19 +415,19 @@ int32_t QCameraBokeh::process()
 
         if (rc != NO_ERROR) {
             LOGE("Error in bokeh processing. Fallback and copy input to output");
-            memcpy(pOutputBuf->buffer, pMainSnap->buffer, offset.frame_len);
+            memcpy(pOutputBuf->buffer, pMainSnap->buffer, frm_offset.frame_len);
         }
 
         if (m_bDebug) {
-            dumpYUVtoFile((uint8_t *)pAuxSnap->buffer, inParams.aux.offset,
+            dumpYUVtoFile((uint8_t *)pAuxSnap->buffer, frm_offset,
                     pAuxSnap->frame_idx, "Aux");
-            dumpYUVtoFile((uint8_t *)pMainSnap->buffer, inParams.main.offset,
+            dumpYUVtoFile((uint8_t *)pMainSnap->buffer,  frm_offset,
                     pMainSnap->frame_idx,  "Main");
-            dumpYUVtoFile((uint8_t *)pOutputBuf->buffer, inParams.bokehOut.offset,
+            dumpYUVtoFile((uint8_t *)pOutputBuf->buffer, frm_offset,
                     pAuxSnap->frame_idx, "BokehOutput");
             dumpYUVtoFile((uint8_t *)depthBuf->buffer, inParams.depth.offset,
                     pAuxSnap->frame_idx, "DepthMap");
-            dumpInputParams("input_params", mDebugData, pMainSnap->frame_idx);
+            dumpInputParams(pMainSnap->frame_idx);
         }
 
         // Invalidate input buffer
@@ -545,18 +538,14 @@ void QCameraBokeh::getInputParams(bokeh_input_params_t& inParams)
             offset.mp[1].stride, offset.mp[1].scanline,
             inParams.aux.frame_len);
 
-    inParams.bokehOut = inParams.main;
-    //will be filled up in doBokehProcess
-    memset(&inParams.depth, 0, sizeof(inParams.depth));
-
     inParams.sAuxReprocessInfo = extractReprocessInfo(pAuxMetaBuf);
     inParams.sMainReprocessInfo = extractReprocessInfo(pMainMetaBuf);
 
-    FDUMP("primary", inParams.sMainReprocessInfo, pMainSnap->frame_idx);
-    FDUMP("auxiliary", inParams.sAuxReprocessInfo, pMainSnap->frame_idx);
+    DUMP("\nPrimary Crop info:\n%s", inParams.sMainReprocessInfo.string());
+    DUMP("\nAuxiliary Crop info:\n%s", inParams.sAuxReprocessInfo.string());
 
     inParams.sCalibData = extractCalibrationData();
-    FDUMP("otp", inParams.sCalibData, pMainSnap->frame_idx);
+    DUMP("\nCalibration Data:\n%s \n", inParams.sCalibData.string());
 
 
     IF_META_AVAILABLE(cam_rtb_blur_info_t, blurInfo,
@@ -615,14 +604,11 @@ int32_t QCameraBokeh::doBokehProcess(
     cam_dimension_t dmSize;
     qrcp::getDepthMapSize(inParams.main.width, inParams.main.height,
             dmSize.width, dmSize.height);
-    inParams.depth.offset.num_planes = 1;
-    inParams.depth.offset.mp[0].offset = 0;
-    inParams.depth.offset.mp[0].width = inParams.depth.offset.mp[0].stride =
-            inParams.depth.width = inParams.depth.stride = dmSize.width;
-    inParams.depth.offset.mp[0].height = inParams.depth.offset.mp[0].scanline =
-            inParams.depth.height = inParams.depth.scanline = dmSize.height;
-    inParams.depth.frame_len = inParams.depth.offset.frame_len =
-            inParams.depth.offset.mp[0].len = dmSize.width * dmSize.height;
+    inParams.depth.width = inParams.depth.stride =
+            inParams.depth.offset.mp[0].stride = dmSize.width;
+    inParams.depth.height = inParams.depth.scanline =
+            inParams.depth.offset.mp[0].scanline = dmSize.height;
+    inParams.depth.frame_len = inParams.depth.offset.frame_len = dmSize.width * dmSize.height;
     DUMP("\nDepth map W %d H %d ", dmSize.width, dmSize.height);
 
     //2. generate depth map
@@ -725,12 +711,6 @@ int32_t QCameraBokeh::doBokehProcess(
         pStream->setCropInfo(bokeh_out_dim);
     }
 
-    //modify bokeh offset
-    inParams.bokehOut.width = inParams.bokehOut.offset.mp[0].width = goodRoi.width;
-    inParams.bokehOut.height = inParams.bokehOut.offset.mp[0].height = goodRoi.height;
-    inParams.bokehOut.offset.mp[1].width = goodRoi.width;
-    inParams.bokehOut.offset.mp[1].height = goodRoi.height/2;
-
 done:
     if (effectObj) {
         delete effectObj;
@@ -747,29 +727,9 @@ void QCameraBokeh::dumpYUVtoFile(
 {
     char filename[256];
     snprintf(filename, sizeof(filename), QCAMERA_DUMP_FRM_LOCATION"%s_%dx%d_%d.yuv",
-                name_prefix, offset.mp[0].width, offset.mp[0].height, idx);
+                name_prefix, offset.mp[0].stride, offset.mp[0].scanline, idx);
 
-    int file_fd = open(filename, O_RDWR | O_CREAT, 0777);
-    ssize_t written_len = 0;
-    if (file_fd >= 0) {
-        void *data = NULL;
-
-        fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-        for (uint32_t i = 0; i < offset.num_planes; i++) {
-            uint32_t index = offset.mp[i].offset;
-            if (i > 0) {
-                index += offset.mp[i-1].len;
-            }
-            for (int j = 0; j < offset.mp[i].height; j++) {
-                data = (void *)(pBuf + index);
-                written_len += write(file_fd, data,
-                        (size_t)offset.mp[i].width);
-                index += (uint32_t)offset.mp[i].stride;
-            }
-        }
-        close(file_fd);
-    }
-
+    QCameraHALPP::dumpYUVtoFile(pBuf,(const char*)filename, offset.frame_len);
 }
 
 const char* QCameraBokeh::buildCommaSeparatedString(float array[], size_t length) {
@@ -914,16 +874,16 @@ String8 QCameraBokeh::extractCalibrationData()
     return calibData;
 }
 
-void QCameraBokeh::dumpInputParams(const char* file, String8 str, uint32_t idx)
+void QCameraBokeh::dumpInputParams(uint32_t idx)
 {
     char filename[256];
     snprintf(filename, sizeof(filename),
-            QCAMERA_DUMP_FRM_LOCATION"%s_%d.txt",file, idx);
+            QCAMERA_DUMP_FRM_LOCATION"input_params_%d.txt", idx);
 
     int file_fd = open(filename, O_RDWR | O_CREAT, 0777);
     if (file_fd > 0) {
         fchmod(file_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-        write(file_fd, str.string(), str.size());
+        write(file_fd, mDebugData.string(), mDebugData.size());
         close(file_fd);
     }
 }
