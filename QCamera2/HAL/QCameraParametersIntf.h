@@ -333,7 +333,6 @@ public:
     void initDCSettings(int32_t state, uint32_t camMaster,
         bool bundleSnapshot, cam_fallback_mode_t fallbackMode);
     bool needAnalysisStream();
-    void setLowPower(bool value);
     uint32_t getBlurLevel();
 private:
     QCameraParameters *mImpl;

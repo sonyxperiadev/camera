@@ -11816,7 +11816,6 @@ bool QCamera2HardwareInterface::isLowPowerMode()
     bool isLowpower = mParameters.getRecordingHintValue() && enable
             && ((dim.width * dim.height) >= (2048 * 1080));
     isLowpower = isLowpower || (mParameters.isHfrMode() && !mParameters.getBufBatchCount());
-    mParameters.setLowPower(isLowpower);
     LOGD("low power mode %d",isLowpower);
     return isLowpower;
 }

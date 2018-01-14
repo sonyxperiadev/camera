@@ -10867,11 +10867,8 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             cam_dimension_t video;
             getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
             getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
-            // Disable UBWC for preview, 
-            // 1.Though supported for preview, to take advantage of CPP duplication
-            // 2.When Lowpower mode and Video UBWC set, since CPP supports only NV21/NV21_venus
-            if (getRecordingHintValue() == true && (!mCommon.isVideoUBWCEnabled()||
-                (isLowPowerMode() && mCommon.isVideoUBWCEnabled())) &&
+            /* Disable UBWC for preview, though supported, to take advantage of CPP duplication*/
+            if (getRecordingHintValue() == true && (!mCommon.isVideoUBWCEnabled()) &&
                 (video.width == preview.width) &&
                 (video.height == preview.height)) {
 #if VENUS_PRESENT
@@ -10925,7 +10922,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
-        if (isUBWCEnabled() && !isLowPowerMode()) {
+        if (isUBWCEnabled()) {
             if (mCommon.isVideoUBWCEnabled()) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {

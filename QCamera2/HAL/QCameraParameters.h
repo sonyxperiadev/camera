@@ -966,8 +966,6 @@ public:
     void initDCSettings(int32_t state, uint32_t camMaster,
             bool bundleSnapshot, cam_fallback_mode_t fallback);
     bool needAnalysisStream();
-    bool isLowPowerMode() {return m_bisLowPower;};
-    void setLowPower(bool lowPowerMode) {m_bisLowPower = lowPowerMode;};
     inline uint32_t getBlurLevel() {return m_bBokehBlurLevel;};
 private:
     int32_t setPreviewSize(const QCameraParameters& );
@@ -1382,7 +1380,6 @@ private:
     cam_fallback_mode_t mFallback;
     bool mAsymmetricSnapMode;
     bool mAsymmetricPreviewMode;
-    bool m_bisLowPower;
     cam_hal_pp_type_t m_halPPType;
     cam_hal_pp_type_t m_defaultHalPPType;
     uint32_t m_bBokehMode;
