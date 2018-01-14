@@ -18,7 +18,7 @@ LOCAL_C_INCLUDES += \
     $(IMGLIB_HEADER_PATH) \
     $(LOCAL_PATH)/inc \
     $(LOCAL_PATH)/../common \
-    $(LOCAL_PATH)/../mm-camera-interface/inc \
+    $(LOCAL_PATH)/../mm-camera-interface/inc
 
 ifeq ($(strip $(TARGET_USES_ION)),true)
     LOCAL_CFLAGS += -DUSE_ION
@@ -31,7 +31,7 @@ LOCAL_SRC_FILES := \
 LOCAL_MODULE           := libmmlib2d_interface
 include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
-LOCAL_SHARED_LIBRARIES := libdl libcutils liblog libmmcamera_interface
+LOCAL_SHARED_LIBRARIES := libdl libcutils liblog
 LOCAL_MODULE_TAGS := optional
 LOCAL_VENDOR_MODULE := true
 
