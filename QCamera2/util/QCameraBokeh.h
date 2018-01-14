@@ -86,8 +86,7 @@ private:
             const uint8_t* pMain,
             const uint8_t* pAux,
             bokeh_input_params_t &inParams,
-            uint8_t* pOut,
-            uint8_t* pDepthMap);
+            uint8_t* pOut);
     void dumpYUVtoFile(
             const uint8_t* pBuf,
             cam_frame_len_offset_t offset,

@@ -1630,11 +1630,4 @@ void QCameraParametersIntf::setBokehSnaphot(bool enable)
     mImpl->setBokehSnaphot(enable);
 }
 
-void QCameraParametersIntf::getDepthMapSize(int &width, int &height)
-{
-    Mutex::Autolock lock(mLock);
-    CHECK_PARAM_INTF(mImpl);
-    mImpl->getDepthMapSize(width, height);
-}
-
 }; // namespace qcamera
