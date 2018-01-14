@@ -48,8 +48,6 @@
 #include "QCameraParameters.h"
 #include "QCameraTrace.h"
 
-#include "dualcameraddm_wrapper.h"
-
 extern "C" {
 #include "mm_camera_dbg.h"
 }
@@ -524,8 +522,6 @@ const char QCameraParameters::KEY_QC_LED_CALIBRATION[] = "led-calibration";
 // AF fine tune values
 const char QCameraParameters::KEY_QC_AF_FINETUNE[] = "finetune";
 const char QCameraParameters::KEY_QC_SUPPORTED_FINETUNE_MODES[] = "finetune-values";
-
-const char QCameraParameters::KEY_QC_DEPTH_MAP_SIZE[] = "depthmap-size";
 
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
@@ -3241,13 +3237,6 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
     if (bRequestedBokehMode != m_bBokehMode) {
          m_bBokehMode = bRequestedBokehMode;
          m_bNeedRestart = true;
-         if (m_bBokehMode) {
-            char val[32];
-            int depthW, depthH;
-            getDepthMapSize(depthW, depthH);
-            snprintf(val, sizeof(val), "%dx%d", depthW, depthH);
-            updateParamEntry(KEY_QC_DEPTH_MAP_SIZE, val);
-         }
     }
     if (m_bBokehMode) {
         //Bokeh Mode set, set halpp type
@@ -3255,15 +3244,15 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
         mAsymmetricPreviewMode = true;
         m_bBokehMpoEnabled = params.getInt(KEY_QC_BOKEH_MPO_MODE);
         uint32_t requestedBlurLevel = params.getInt(KEY_QC_BOKEH_BLUR_VALUE);
-        if (requestedBlurLevel > MAX_BLUR) {
-            requestedBlurLevel = MAX_BLUR;
+        if (requestedBlurLevel > 100) {
+            requestedBlurLevel = 100;
         }
         if (m_bBokehBlurLevel != requestedBlurLevel) {
             cam_rtb_blur_info_t info;
             memset(&info, 0, sizeof(info));
             info.blur_level = requestedBlurLevel;
-            info.blur_min_value = MIN_BLUR;
-            info.blur_max_value = MAX_BLUR;
+            info.blur_min_value = 0;
+            info.blur_max_value = 100;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
                     CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, info)) {
                 LOGE("Failed to update table");
@@ -4642,9 +4631,6 @@ int32_t QCameraParameters::setNumOfSnapshot()
 
         if(getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
             dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
-        }
-        if(getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
-            dualfov_snap_num = NUM_BOKEH_OUTPUT;
         }
         dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
 
@@ -6736,7 +6722,7 @@ int32_t QCameraParameters::initDefaultParameters()
     // Change to enable App team to test Bokeh mode
     // Set min max values for Blur values (min: 0, max: 100, step: 1)
     if (isDualCamera()) {
-        String8 minMaxValues = createMinMaxValuesString(MIN_BLUR, MAX_BLUR, BLUR_STEP);
+        String8 minMaxValues = createMinMaxValuesString(0, 100, 1);
         set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
         set(KEY_QC_IS_BOKEH_MODE_SUPPORTED, 1);
         set(KEY_QC_IS_BOKEH_MPO_SUPPORTED, 1);
@@ -17077,21 +17063,6 @@ int32_t QCameraParameters::setAfFineTune(const char *FineTuneStr)
 bool QCameraParameters::needAnalysisStream()
 {
     return mCommon.needAnalysisStream();
-}
-
-/*===========================================================================
- * FUNCTION   : getDepthMapSize
- *
- * DESCRIPTION: get depth map size from lib. Currently using hardcoded width/height to compute.
- *                     If needed, can be extended easily for other pic sizes.
- * PARAMETERS :
- *   @width : (output) Depth map width
- *   @height : (output) Depth map height
- * RETURN     : none
- *==========================================================================*/
-void QCameraParameters::getDepthMapSize(int &width, int &height)
-{
-    qrcp::getDepthMapSize(CAM_BOKEH_TELE_WIDTH, CAM_BOKEH_TELE_HEIGHT, width, height);
 }
 
 }; // namespace qcamera

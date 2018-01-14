@@ -113,8 +113,6 @@ typedef struct {
 //Min buffer requirement for B+M Clearsight fusion
 #define MIN_CLEARSIGHT_BUFS 3
 
-#define NUM_BOKEH_OUTPUT 3    //Bokeh image, main image and depth map
-
 typedef enum {
     QCAMERA_NOTIFY_CALLBACK,
     QCAMERA_DATA_CALLBACK,

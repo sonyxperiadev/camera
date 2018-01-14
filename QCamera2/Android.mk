@@ -101,8 +101,7 @@ LOCAL_C_INCLUDES := \
         $(QCOM_MEDIA_ROOT)/mm-core/inc \
         system/core/include/cutils \
         system/core/include/system \
-        system/media/camera/include/system \
-        $(TARGET_OUT_HEADERS)/mm-camera-lib/cp/prebuilt
+        system/media/camera/include/system
 
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \
@@ -137,7 +136,7 @@ LOCAL_C_INCLUDES += \
 LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
-LOCAL_SHARED_LIBRARIES += libcutils libdl libdualcameraddm libhal_dbg
+LOCAL_SHARED_LIBRARIES += libcutils libdl libhal_dbg
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_SHARED_LIBRARIES += libts_face_beautify_hal libts_detected_face_hal
 endif

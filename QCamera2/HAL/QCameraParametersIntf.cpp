@@ -1609,11 +1609,4 @@ bool QCameraParametersIntf::needAnalysisStream()
     return mImpl->needAnalysisStream();
 }
 
-uint32_t QCameraParametersIntf::getBlurLevel()
-{
-    Mutex::Autolock lock(mLock);
-    CHECK_PARAM_INTF(mImpl);
-    return mImpl->getBlurLevel();
-}
-
 }; // namespace qcamera

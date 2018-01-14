@@ -5112,8 +5112,6 @@ int QCamera2HardwareInterface::takePicture()
 
             if(mParameters.getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
                 dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
-            } else if (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
-                dualfov_snap_num = NUM_BOKEH_OUTPUT;
             }
 
             dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
