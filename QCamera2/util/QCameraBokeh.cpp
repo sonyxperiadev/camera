@@ -643,11 +643,9 @@ int32_t QCameraBokeh::doBokehProcess(
     cam_rect_t goodRoi = {0,0,0,0};
     const float focalLengthPrimaryCamera = m_pCaps->main_cam_cap->focal_length;
     bool isAuxMono = (m_pCaps->aux_cam_cap->color_arrangement == CAM_FILTER_ARRANGEMENT_Y);
-    qrcp::SensorConfiguration config =
-            isAuxMono ? qrcp::SYMMETRIC_BAYER_MONO : qrcp::STANDARD_WIDE_BAYER_BAYER;
 
     DUMP("\nDepthStride = %d \nfocalLengthPrimaryCamera = %f \n"
-            "SensorConfiguration = %d", depthStride, focalLengthPrimaryCamera, config);
+            "isAuxMono = %d", depthStride, focalLengthPrimaryCamera, isAuxMono);
 
     LOGI("[KPI Perf]: PROFILE_BOKEH_PROCESS : E");
     qrcp::DDMWrapperStatus status = qrcp::dualCameraGenerateDDM(
@@ -658,7 +656,7 @@ int32_t QCameraBokeh::doBokehProcess(
             pDepthMap, depthStride,
             goodRoi.left, goodRoi.top, goodRoi.width,goodRoi.height,
             inParams.sAuxReprocessInfo.string(), inParams.sMainReprocessInfo.string(),
-            inParams.sCalibData.string(), focalLengthPrimaryCamera, config);
+            inParams.sCalibData.string(), focalLengthPrimaryCamera, isAuxMono);
     if (!status.ok()) {
         LOGE("depth map generation failed: %s, errorcode %d",
                 status.getErrorMessage().c_str(), status.getErrorCode());
