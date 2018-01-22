@@ -1,4 +1,4 @@
-ifneq ($(filter loire tone yoshino,$(PRODUCT_PLATFORM)),)
+ifeq ($(PRODUCT_PLATFORM_SOD),true)
 
 MM_V4L2_DRIVER_LIST += msm8960
 MM_V4L2_DRIVER_LIST += msm8974
