@@ -3114,4 +3114,14 @@ typedef enum {
     CAM_HAL_PP_TYPE_MAX
 } cam_hal_pp_type_t;
 
+typedef enum {
+    CAM_HAL3_JPEG_TYPE_NONE = 0,        // default undefined type
+    CAM_HAL3_JPEG_TYPE_MAIN,            // MAIN image
+    CAM_HAL3_JPEG_TYPE_BOKEH,           // BOKEH image
+    CAM_HAL3_JPEG_TYPE_AUX,             // AUX image
+    CAM_HAL3_JPEG_TYPE_DEPTH,           // DEPTH image
+    CAM_HAL3_JPEG_TYPE_MAX
+} cam_hal3_JPEG_type_t;
+
+
 #endif /* __QCAMERA_TYPES_H__ */
