@@ -58,6 +58,9 @@ LOCAL_CFLAGS += -include bionic/libc/kernel/common/linux/un.h
 endif
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
+ifeq ($(TARGET_KERNEL_VERSION), 4.9)
+LOCAL_CFLAGS += -DUSE_4_9_DEFS
+endif
 
 LOCAL_SRC_FILES := $(MM_CAM_FILES)
 

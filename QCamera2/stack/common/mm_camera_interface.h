@@ -32,6 +32,8 @@
 
 // System dependencies
 #include <media/msmb_camera.h>
+#include <linux/media.h>
+
 
 // Camera dependencies
 #include "cam_intf.h"
@@ -1019,4 +1021,8 @@ uint32_t get_aux_camera_handle(uint32_t handle);
 
 /*Validate 2 handle if it is belong to same instance of camera/channel/stream*/
 uint8_t validate_handle(uint32_t src_handle, uint32_t handle);
+
+int mm_camera_util_match_subdev_type(struct media_entity_desc entity,
+     uint32_t gid, uint32_t type);
+
 #endif /*__MM_CAMERA_INTERFACE_H__*/
