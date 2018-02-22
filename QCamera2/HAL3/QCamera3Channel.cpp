@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -627,7 +627,7 @@ bool QCamera3Channel::isUBWCEnabled()
     //Disable UBWC if Eztune is enabled
     //EzTune process CPP output frame and cannot understand UBWC.
     memset(value, 0, sizeof(value));
-    property_get("persist.camera.eztune.enable", value, "0");
+    property_get("persist.vendor.camera.eztune.enable", value, "0");
     prop_value = atoi(value);
     if (prop_value) {
         return FALSE;
@@ -675,7 +675,7 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
             char prop[PROPERTY_VALUE_MAX];
             int pFormat;
             memset(prop, 0, sizeof(prop));
-            property_get("persist.camera.preview.ubwc", prop, "1");
+            property_get("persist.vendor.camera.preview.ubwc", prop, "1");
             pFormat = atoi(prop);
             if (pFormat == 1 && (m_bUBWCenable)) {
                 streamFormat = CAM_FORMAT_YUV_420_NV12_UBWC;
@@ -798,7 +798,7 @@ QCamera3ProcessingChannel::QCamera3ProcessingChannel(uint32_t cam_handle,
                     false)
 {
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.debug.sf.showfps", prop, "0");
+    property_get("persist.vendor.debug.sf.showfps", prop, "0");
     mDebugFPS = (uint8_t) atoi(prop);
 
     int32_t rc = m_postprocessor.init(&mMemory);
@@ -2403,7 +2403,7 @@ QCamera3RawChannel::QCamera3RawChannel(uint32_t cam_handle,
                         mIsRaw16(raw_16)
 {
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.raw.debug.dump", prop, "0");
+    property_get("persist.vendor.camera.raw.debug.dump", prop, "0");
     mRawDump = atoi(prop);
 }
 
@@ -2633,7 +2633,7 @@ QCamera3RawDumpChannel::QCamera3RawDumpChannel(uint32_t cam_handle,
                         mMemory(NULL)
 {
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.raw.dump", prop, "0");
+    property_get("persist.vendor.camera.raw.dump", prop, "0");
     mRawDump = atoi(prop);
 }
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -279,7 +279,7 @@ int32_t QCameraClearSight::process()
     /* dump in/out frames */
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.dualfov.dumpimg", prop, "0");
+    property_get("persist.vendor.camera.dualfov.dumpimg", prop, "0");
     int dumpimg = atoi(prop);
 
     LOGD("E");

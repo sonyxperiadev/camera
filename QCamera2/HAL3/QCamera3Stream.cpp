@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -419,7 +419,7 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     }
 
     memset(value, 0, sizeof(value));
-    property_get("persist.camera.cache.optimize", value, "1");
+    property_get("persist.vendor.camera.cache.optimize", value, "1");
     bOptimizeCacheOps = atoi(value);
 
     if (bOptimizeCacheOps) {

@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -347,7 +347,7 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
     mm_camera_stream_t *p_stream = NULL;
     mm_camera_buf_def_t *frame = NULL;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
-    property_get("persist.camera.dumpimg", value, "0");
+    property_get("persist.vendor.camera.dumpimg", value, "0");
     uint32_t dump_preview = (uint32_t) atoi(value);
 
     if (NULL == bufs || NULL == user_data) {
