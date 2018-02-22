@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -84,7 +84,7 @@ QCamera2Factory::QCamera2Factory()
     int bDualCamera = 0;
     char propDefault[PROPERTY_VALUE_MAX];
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.HAL3.enabled", prop, "1");
+    property_get("persist.vendor.camera.HAL3.enabled", prop, "1");
     int isHAL3Enabled = atoi(prop);
 #ifndef QCAMERA_HAL1_SUPPORT
     isHAL3Enabled = 1;
@@ -92,7 +92,7 @@ QCamera2Factory::QCamera2Factory()
 
     // Signifies whether system has to enable dual camera mode
     snprintf(propDefault, PROPERTY_VALUE_MAX, "%d", isDualCamAvailable(isHAL3Enabled));
-    property_get("persist.camera.dual.camera", prop, propDefault);
+    property_get("persist.vendor.camera.dual.camera", prop, propDefault);
     bDualCamera = atoi(prop);
     LOGH("dualCamera:%d ", bDualCamera);
 #ifndef QCAMERA_HAL1_SUPPORT

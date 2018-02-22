@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -2405,7 +2405,7 @@ int32_t mm_jpeg_init(mm_jpeg_obj *my_obj)
   // create dummy OMX handle to avoid dlopen latency
   OMX_GetHandle(&my_obj->dummy_handle, mm_jpeg_get_comp_name(), NULL, NULL);
 
-  property_get("persist.camera.lib2d.rotation", prop, "off");
+  property_get("persist.vendor.camera.lib2d.rotation", prop, "off");
   if (!strcmp(prop, "on")) {
     my_obj->is_lib2d_enable = 1;
   } else {

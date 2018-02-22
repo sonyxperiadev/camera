@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -136,7 +136,7 @@ QCameraFOVControl* QCameraFOVControl::create(
                 // Check if LPM is enabled
                 char prop[PROPERTY_VALUE_MAX];
                 int lpmEnable = 1;
-                property_get("persist.dualcam.lpm.enable", prop, "1");
+                property_get("persist.vendor.dualcam.lpm.enable", prop, "1");
                 lpmEnable = atoi(prop);
                 if ((lpmEnable == 0) || (DUALCAM_LPM_ENABLE == 0)) {
                     pFovControl->mFovControlData.lpmEnabled = false;
@@ -1938,8 +1938,8 @@ bool QCameraFOVControl::validateAndExtractParameters(
         char propSAC[PROPERTY_VALUE_MAX];
         char propSAT[PROPERTY_VALUE_MAX];
 
-        property_get("persist.camera.sac.enable", propSAC, "0");
-        property_get("persist.camera.sat.enable", propSAT, "0");
+        property_get("persist.vendor.camera.sac.enable", propSAC, "0");
+        property_get("persist.vendor.camera.sat.enable", propSAT, "0");
 
         mFovControlConfig.percentMarginHysterisis  = 5;
         mFovControlConfig.percentMarginMain        = 25;

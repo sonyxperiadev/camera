@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -524,9 +524,9 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     // Getting system props of different kinds
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.raw.dump", prop, "0");
+    property_get("persist.vendor.camera.raw.dump", prop, "0");
     mEnableRawDump = atoi(prop);
-    property_get("persist.camera.hal3.force.hdr", prop, "0");
+    property_get("persist.vendor.camera.hal3.force.hdr", prop, "0");
     mForceHdrSnapshot = atoi(prop);
 
     if (mEnableRawDump)
@@ -536,24 +536,24 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     memset(mLdafCalib, 0, sizeof(mLdafCalib));
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.tnr.preview", prop, "0");
+    property_get("persist.vendor.camera.tnr.preview", prop, "0");
     m_bTnrPreview = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.swtnr.preview", prop, "1");
+    property_get("persist.vendor.camera.swtnr.preview", prop, "1");
     m_bSwTnrPreview = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.tnr.video", prop, "0");
+    property_get("persist.vendor.camera.tnr.video", prop, "0");
     m_bTnrVideo = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.avtimer.debug", prop, "0");
+    property_get("persist.vendor.camera.avtimer.debug", prop, "0");
     m_debug_avtimer = (uint8_t)atoi(prop);
     LOGI("AV timer enabled: %d", m_debug_avtimer);
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.cacmode.disable", prop, "0");
+    property_get("persist.vendor.camera.cacmode.disable", prop, "0");
     m_cacModeDisabled = (uint8_t)atoi(prop);
 
     mRdiModeFmt = gCamCapability[mCameraId]->rdi_mode_stream_fmt;
@@ -900,7 +900,7 @@ int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
     LOGI("[KPI Perf]: E PROFILE_OPEN_CAMERA camera id %d",
              mCameraId);
 #ifdef FDLEAK_FLAG
-    property_get("persist.camera.fdleak.enable", prop, "0");
+    property_get("persist.vendor.camera.fdleak.enable", prop, "0");
     enable_fdleak = atoi(prop);
     if (enable_fdleak) {
        LOGI("fdleak tool is enable for camera hal");
@@ -908,7 +908,7 @@ int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
     }
 #endif
 #ifdef MEMLEAK_FLAG
-    property_get("persist.camera.memleak.enable", prop, "0");
+    property_get("persist.vendor.camera.memleak.enable", prop, "0");
     enable_memleak = atoi(prop);
     if (enable_memleak) {
        LOGI("memleak tool is enable for camera hal");
@@ -1521,10 +1521,10 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
 #ifdef _LE_CAMERA_
     char swtnr_feature_mask_value[PROPERTY_VALUE_MAX];
     snprintf(swtnr_feature_mask_value, PROPERTY_VALUE_MAX, "%lld", CAM_QTI_FEATURE_SW_TNR);
-    property_len = property_get("persist.camera.hal3.feature",
+    property_len = property_get("persist.vendor.camera.hal3.feature",
             feature_mask_value, swtnr_feature_mask_value);
 #else
-    property_len = property_get("persist.camera.hal3.feature",
+    property_len = property_get("persist.vendor.camera.hal3.feature",
             feature_mask_value, "0");
 #endif
     if ((property_len > 2) && (feature_mask_value[0] == '0') &&
@@ -1858,7 +1858,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     /* EIS setprop control */
     char eis_prop[PROPERTY_VALUE_MAX];
     memset(eis_prop, 0, sizeof(eis_prop));
-    property_get("persist.camera.eis.enable", eis_prop, "1");
+    property_get("persist.vendor.camera.eis.enable", eis_prop, "1");
     eis_prop_set = (uint8_t)atoi(eis_prop);
 
     m_bEisEnable = eis_prop_set && m_bEisSupported &&
@@ -1995,7 +1995,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     char prop[PROPERTY_VALUE_MAX];
     uint8_t forceEnableTnr = 0;
     memset(prop, 0, sizeof(prop));
-    property_get("debug.camera.tnr.forceenable", prop, "0");
+    property_get("vendor.debug.camera.tnr.forceenable", prop, "0");
     forceEnableTnr = (uint8_t)atoi(prop);
 
     /* Logic to enable/disable TNR based on specific config size/etc.*/
@@ -2185,7 +2185,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     }
 
     char is_type_value[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.is_type", is_type_value, "4");
+    property_get("persist.vendor.camera.is_type", is_type_value, "4");
     m_bEis3PropertyEnabled = (atoi(is_type_value) == IS_TYPE_EIS_3_0);
 
     //Create metadata channel and initialize it
@@ -3793,7 +3793,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     //Dump tuning metadata if enabled and available
                     char prop[PROPERTY_VALUE_MAX];
                     memset(prop, 0, sizeof(prop));
-                    property_get("persist.camera.dumpmetadata", prop, "0");
+                    property_get("persist.vendor.camera.dumpmetadata", prop, "0");
                     int32_t enabled = atoi(prop);
                     if (enabled && metadata->is_tuning_params_valid) {
                         dumpMetadataToFile(metadata->tuning_params,
@@ -4227,7 +4227,7 @@ bool QCamera3HardwareInterface::isHdrSnapshotRequest(camera3_capture_request *re
     }
 
     char property[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.sensor.hdr", property, "0");
+    property_get("persist.vendor.camera.sensor.hdr", property, "0");
     int sensorHdr = atoi(property);
     if (sensorHdr)
         return false;
@@ -4941,10 +4941,10 @@ int QCamera3HardwareInterface::processCaptureRequest(
         /* get eis information for stream configuration */
         cam_is_type_t isTypeVideo, isTypePreview, is_type=IS_TYPE_NONE;
         char is_type_value[PROPERTY_VALUE_MAX];
-        property_get("persist.camera.is_type", is_type_value, "4");
+        property_get("persist.vendor.camera.is_type", is_type_value, "4");
         isTypeVideo = static_cast<cam_is_type_t>(atoi(is_type_value));
         // Make default value for preview IS_TYPE as IS_TYPE_EIS_2_0
-        property_get("persist.camera.is_type_preview", is_type_value, "4");
+        property_get("persist.vendor.camera.is_type_preview", is_type_value, "4");
         isTypePreview = static_cast<cam_is_type_t>(atoi(is_type_value));
         LOGD("isTypeVideo: %d isTypePreview: %d", isTypeVideo, isTypePreview);
 
@@ -4954,7 +4954,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 meta.find(QCAMERA3_SIMULTANEOUS_CAMERA_VFE1_RESERVED_RDI).data.i32[0];
         } else {
             char value[PROPERTY_VALUE_MAX];
-            property_get("persist.camera.vfe1.reservedrdi", value, "-1");
+            property_get("persist.vendor.camera.vfe1.reservedrdi", value, "-1");
             vfe1_reserved_rdi = atoi(value);
         }
         if (vfe1_reserved_rdi < -1 && vfe1_reserved_rdi > 3)
@@ -5050,7 +5050,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         if (isDualCamera()) {
             char PP_prop[PROPERTY_VALUE_MAX];
             memset(PP_prop, 0, sizeof(PP_prop));
-            property_get("persist.camera.halpp", PP_prop, "");
+            property_get("persist.vendor.camera.halpp", PP_prop, "");
             if (strlen(PP_prop) > 0) {
                 m_halPPType = (cam_hal_pp_type_t)atoi(PP_prop);
             }
@@ -5079,7 +5079,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         //Disable tintless only if the property is set to 0
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.tintless.enable", prop, "1");
+        property_get("persist.vendor.camera.tintless.enable", prop, "1");
         int32_t tintless_value = atoi(prop);
 
         ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
@@ -8784,7 +8784,7 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
 
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.quadcfa.id", prop, "");
+    property_get("persist.vendor.camera.quadcfa.id", prop, "");
     if (strlen(prop) > 0) {
         uint8_t camId = atoi(prop);
         if (camId == cameraId) {
@@ -8794,7 +8794,7 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
 
     if (gCamCapability[cameraId]->is_quadracfa_sensor) {
         LOGI("camera id:%d, quadra cfa sensor.", cameraId);
-        property_get("persist.camera.quadcfa.pic_size", prop, "quarter");
+        property_get("persist.vendor.camera.quadcfa.pic_size", prop, "quarter");
         if (strlen(prop) > 0 && !strcmp(prop, "quarter")) {
             // overide supported picture size, min_duration, and stall_duration,
             // move to filter_supported_snapshot_dimesion()
@@ -9364,7 +9364,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     char eis_prop[PROPERTY_VALUE_MAX];
     bool eisSupported = false;
     memset(eis_prop, 0, sizeof(eis_prop));
-    property_get("persist.camera.eis.enable", eis_prop, "1");
+    property_get("persist.vendor.camera.eis.enable", eis_prop, "1");
     uint8_t eis_prop_set = (uint8_t)atoi(eis_prop);
     count = IS_TYPE_MAX;
     count = MIN(gCamCapability[cameraId]->supported_is_types_cnt, count);
@@ -9400,7 +9400,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
 
     /* 0: OFF, 1: OFF+SIMPLE, 2: OFF+FULL, 3: OFF+SIMPLE+FULL */
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.facedetect", prop, "1");
+    property_get("persist.vendor.camera.facedetect", prop, "1");
     uint8_t supportedFaceDetectMode = (uint8_t)atoi(prop);
     LOGD("Support face detection mode: %d",
              supportedFaceDetectMode);
@@ -9457,11 +9457,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     /*advertise list of input dimensions supported based on below property.
     By default all sizes upto 5MP will be advertised.
     Note that the setprop resolution format should be WxH.
-    e.g: adb shell setprop persist.camera.input.minsize 1280x720
+    e.g: adb shell setprop persist.vendor.camera.input.minsize 1280x720
     To list all supported sizes, setprop needs to be set with "0x0" */
     cam_dimension_t minInputSize = {2592,1944}; //5MP
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.input.minsize", prop, "2592x1944");
+    property_get("persist.vendor.camera.input.minsize", prop, "2592x1944");
     if (strlen(prop) > 0) {
         char *saveptr = NULL;
         char *token = strtok_r(prop, "x", &saveptr);
@@ -9651,7 +9651,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     }
     //Advertise HFR capability only if the property is set
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.hal3hfr.enable", prop, "1");
+    property_get("persist.vendor.camera.hal3hfr.enable", prop, "1");
     uint8_t hfrEnable = (uint8_t)atoi(prop);
 
     if(hfrEnable && available_hfr_configs.array()) {
@@ -10899,13 +10899,13 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     /* OIS disable */
     char ois_prop[PROPERTY_VALUE_MAX];
     memset(ois_prop, 0, sizeof(ois_prop));
-    property_get("persist.camera.ois.disable", ois_prop, "0");
+    property_get("persist.vendor.camera.ois.disable", ois_prop, "0");
     uint8_t ois_disable = (uint8_t)atoi(ois_prop);
 
     /* Force video to use OIS */
     char videoOisProp[PROPERTY_VALUE_MAX];
     memset(videoOisProp, 0, sizeof(videoOisProp));
-    property_get("persist.camera.ois.video", videoOisProp, "1");
+    property_get("persist.vendor.camera.ois.video", videoOisProp, "1");
     uint8_t forceVideoOis = (uint8_t)atoi(videoOisProp);
     uint8_t controlIntent = 0;
     uint8_t focusMode;
@@ -11272,7 +11272,7 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     /* CDS default */
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.CDS", prop, "Off");
+    property_get("persist.vendor.camera.CDS", prop, "Auto");
     cam_cds_mode_type_t cds_mode = CAM_CDS_MODE_AUTO;
     cds_mode = lookupProp(CDS_MAP, METADATA_MAP_SIZE(CDS_MAP), prop);
     if (CAM_CDS_MODE_MAX == cds_mode) {
@@ -11946,7 +11946,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     }
 
     char af_value[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.af.infinity", af_value, "0");
+    property_get("persist.vendor.camera.af.infinity", af_value, "0");
 
     uint8_t fwk_focusMode = 0;
     if (atoi(af_value) == 0) {
@@ -11991,7 +11991,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 char prop[PROPERTY_VALUE_MAX];
                 memset(prop, 0, sizeof(prop));
                 //4 : CAM_ANTIBANDING_MODE_AUTO_50HZ , 5 : CAM_ANTIBANDING_MODE_AUTO_60HZ
-                property_get("persist.camera.set.afd", prop, "5");
+                property_get("persist.vendor.camera.set.afd", prop, "5");
                 hal_antibandingMode = (uint32_t)atoi(prop);
             }
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ANTIBANDING,
@@ -13153,7 +13153,7 @@ int QCamera3HardwareInterface::close_camera_device(struct hw_device_t* device)
     LOGI("[KPI Perf]: E camera id %d", hw->mCameraId);
     delete hw;
 #ifdef FDLEAK_FLAG
-    property_get("persist.camera.fdleak.enable", prop, "0");
+    property_get("persist.vendor.camera.fdleak.enable", prop, "0");
     enable_fdleak = atoi(prop);
     if (enable_fdleak) {
        LOGI("fdleak tool dump list");
@@ -13161,7 +13161,7 @@ int QCamera3HardwareInterface::close_camera_device(struct hw_device_t* device)
     }
 #endif
 #ifdef MEMLEAK_FLAG
-    property_get("persist.camera.memleak.enable", prop, "0");
+    property_get("persist.vendor.camera.memleak.enable", prop, "0");
     enable_memleak = atoi(prop);
     if (enable_memleak) {
        LOGI("memleak tool dump list");
@@ -13186,7 +13186,7 @@ cam_denoise_process_type_t QCamera3HardwareInterface::getWaveletDenoiseProcessPl
 {
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.denoise.process.plates", prop, "0");
+    property_get("persist.vendor.denoise.process.plates", prop, "0");
     int processPlate = atoi(prop);
     switch(processPlate) {
     case 0:
@@ -13216,7 +13216,7 @@ cam_denoise_process_type_t QCamera3HardwareInterface::getTemporalDenoiseProcessP
 {
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.tnr.process.plates", prop, "0");
+    property_get("persist.vendor.tnr.process.plates", prop, "0");
     int processPlate = atoi(prop);
     switch(processPlate) {
     case 0:
@@ -13356,9 +13356,9 @@ int32_t QCamera3HardwareInterface::setSensorHDR(
         memset(sensor_hdr_prop, 0, sizeof(sensor_hdr_prop));
         #ifdef _LE_CAMERA_
         //Default to staggered HDR for IOT
-        property_get("persist.camera.sensor.hdr", sensor_hdr_prop, "3");
+        property_get("persist.vendor.camera.sensor.hdr", sensor_hdr_prop, "3");
         #else
-        property_get("persist.camera.sensor.hdr", sensor_hdr_prop, "0");
+        property_get("persist.vendor.camera.sensor.hdr", sensor_hdr_prop, "0");
         #endif
         sensor_hdr = (cam_sensor_hdr_type_t) atoi(sensor_hdr_prop);
     }
@@ -13490,13 +13490,13 @@ bool QCamera3HardwareInterface::needJpegExifRotation()
 bool QCamera3HardwareInterface::useExifRotation() {
     char exifRotation[PROPERTY_VALUE_MAX];
 
-    property_get("persist.camera.exif.rotation", exifRotation, "off");
+    property_get("persist.vendor.camera.exif.rotation", exifRotation, "off");
 
     if (!strcmp(exifRotation, "on")) {
         return true;
     }
 
-    property_get("persist.camera.lib2d.rotation", exifRotation, "off");
+    property_get("persist.vendor.camera.lib2d.rotation", exifRotation, "off");
     if (!strcmp(exifRotation, "on")) {
         return false;
     }
@@ -13639,7 +13639,7 @@ uint8_t QCamera3HardwareInterface::getMobicatMask()
 int32_t QCamera3HardwareInterface::setMobicat()
 {
     char value [PROPERTY_VALUE_MAX];
-    property_get("persist.camera.mobicat", value, "0");
+    property_get("persist.vendor.camera.mobicat", value, "0");
     int32_t ret = NO_ERROR;
     uint8_t enableMobi = (uint8_t)atoi(value);
 
@@ -13677,16 +13677,16 @@ void QCamera3HardwareInterface::getLogLevel()
     char prop[PROPERTY_VALUE_MAX];
     uint32_t globalLogLevel = 0;
 
-    property_get("persist.camera.hal.debug", prop, "0");
+    property_get("persist.vendor.camera.hal.debug", prop, "0");
     int val = atoi(prop);
     if (0 <= val) {
         gCamHal3LogLevel = (uint32_t)val;
     }
 
-    property_get("persist.camera.kpi.debug", prop, "0");
+    property_get("persist.vendor.camera.kpi.debug", prop, "0");
     gKpiDebugLevel = atoi(prop);
 
-    property_get("persist.camera.global.debug", prop, "0");
+    property_get("persist.vendor.camera.global.debug", prop, "0");
     val = atoi(prop);
     if (0 <= val) {
         globalLogLevel = (uint32_t)val;
@@ -14261,7 +14261,7 @@ int32_t QCamera3HardwareInterface::setInstantAEC(const CameraMetadata &meta)
     // If framework did not set this value, try to read from set prop.
     if (val == 0) {
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.instant.aec", prop, "0");
+        property_get("persist.vendor.camera.instant.aec", prop, "0");
         val = (uint8_t)atoi(prop);
     }
 
@@ -14274,7 +14274,7 @@ int32_t QCamera3HardwareInterface::setInstantAEC(const CameraMetadata &meta)
         LOGH("instantAEC value set %d",val);
         if (mInstantAEC) {
             memset(prop, 0, sizeof(prop));
-            property_get("persist.camera.ae.instant.bound", prop, "10");
+            property_get("persist.vendor.camera.ae.instant.bound", prop, "10");
             int32_t aec_frame_skip_cnt = atoi(prop);
             if (aec_frame_skip_cnt >= 0) {
                 mAecSkipDisplayFrameBound = (uint8_t)aec_frame_skip_cnt;
@@ -14425,7 +14425,7 @@ void QCamera3HardwareInterface::setDCFeature(
         bool rtbdmEnabledFlag = FALSE;
         bool rtbEnabledFlag = FALSE;
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.sat.enable", prop, "0");
+        property_get("persist.vendor.camera.sat.enable", prop, "0");
         satEnabledFlag = atoi(prop);
 
         if (satEnabledFlag &&
@@ -14444,7 +14444,7 @@ void QCamera3HardwareInterface::setDCFeature(
         }
 
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.sac.enable", prop, "0");
+        property_get("persist.vendor.camera.sac.enable", prop, "0");
         sacEnabledFlag = atoi(prop);
 
         if (sacEnabledFlag  &&
@@ -14460,7 +14460,7 @@ void QCamera3HardwareInterface::setDCFeature(
         }
 
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.rtbdm.enable", prop, "0");
+        property_get("persist.vendor.camera.rtbdm.enable", prop, "0");
         rtbdmEnabledFlag = atoi(prop);
 
         if (rtbdmEnabledFlag  &&
@@ -14473,7 +14473,7 @@ void QCamera3HardwareInterface::setDCFeature(
         }
 
         memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.rtb.enable", prop, "0");
+        property_get("persist.vendor.camera.rtb.enable", prop, "0");
         rtbEnabledFlag = atoi(prop);
 
         if (rtbEnabledFlag ||
@@ -14545,7 +14545,7 @@ int32_t QCamera3HardwareInterface::bundleRelatedCameras(bool enable_sync)
     memset(prop, 0, sizeof(prop));
 
     cam_sync_related_sensors_control_t syncControl = CAM_SYNC_RELATED_SENSORS_OFF;
-    property_get("persist.camera.stats.test.2outs", prop, "0");
+    property_get("persist.vendor.camera.stats.test.2outs", prop, "0");
     sync_3a_mode = (atoi(prop) > 0) ? CAM_3A_SYNC_ALGO_CTRL : sync_3a_mode;
     cam_3a_sync_config_t sync_config_3a = {sync_3a_mode, sync_3a_mode};
 
@@ -14621,11 +14621,11 @@ cam_dual_camera_perf_mode_t QCamera3HardwareInterface::getLowPowerMode(cam_sync_
     }
 
     if (cam == CAM_TYPE_MAIN) {
-        property_get("persist.dualcam.lpm.main", prop, "0");
+        property_get("persist.vendor.dualcam.lpm.main", prop, "0");
         lpm = atoi(prop);
         lpmConfig = DUALCAM_LPM_MAIN;
     } else if (cam == CAM_TYPE_AUX) {
-        property_get("persist.dualcam.lpm.aux", prop, "0");
+        property_get("persist.vendor.dualcam.lpm.aux", prop, "0");
         lpm = atoi(prop);
         lpmConfig = DUALCAM_LPM_AUX;
     } else {
@@ -15023,7 +15023,7 @@ int32_t QCamera3HardwareInterface::setDCDeferCamera(cam_dual_camera_defer_cmd_t 
     char prop[PROPERTY_VALUE_MAX];
     bool deferEnable = TRUE;
 
-    property_get("persist.dualcam.defer.enable", prop, "1");
+    property_get("persist.vendor.dualcam.defer.enable", prop, "1");
     deferEnable = atoi(prop) ? TRUE : FALSE;
 
     if (deferEnable) {
@@ -15065,7 +15065,7 @@ void QCamera3HardwareInterface::initDCSettings()
     // LPM is enabled by default.
     // It can disabled at the compile time using DUALCAM_LPM_ENABLE from QCameraDualCamSettings.h
     // It can be disabled dynamically using the setprop persist.dualcam.lpm.enable.
-    property_get("persist.dualcam.lpm.enable", prop, "1");
+    property_get("persist.vendor.dualcam.lpm.enable", prop, "1");
     mLPMEnable = atoi(prop) ? TRUE : FALSE;
 
     if (DUALCAM_LPM_ENABLE == 0) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2012 The Android Open Source Project
@@ -140,13 +140,13 @@ void camscope_mutex_unlock(camscope_section_type camscope_section);
 
 #define CAMSCOPE_MASK(mask) { \
     char prop[PROPERTY_VALUE_MAX]; \
-    property_get("persist.camera.kpi.camscope", prop, "0"); \
+    property_get("persist.vendor.camera.kpi.camscope", prop, "0"); \
     mask = atoi(prop); \
 }
 
 #define CAMSCOPE_FRAME_COUNT_MASK(mask) { \
     char prop[PROPERTY_VALUE_MAX]; \
-    property_get("persist.camera.kpi.camscope_cnt", prop, "0"); \
+    property_get("persist.vendor.camera.kpi.camscope_cnt", prop, "0"); \
     mask = atoi(prop); \
 }
 

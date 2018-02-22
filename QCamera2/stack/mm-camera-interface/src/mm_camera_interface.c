@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -2477,7 +2477,7 @@ void sort_camera_info(int num_cam)
     memset(temp_is_yuv, 0, sizeof(temp_is_yuv));
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.expose.aux", prop, "0");
+    property_get("persist.vendor.camera.expose.aux", prop, "0");
     expose_aux = atoi(prop);
 
     /* Order of the camera exposed is
