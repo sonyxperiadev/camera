@@ -1702,6 +1702,7 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
                                  uint8_t num_planes)
 {
     int32_t rc = 0;
+    uint32_t buffer_type;
     struct v4l2_buffer vb;
     struct v4l2_plane planes[VIDEO_MAX_PLANES];
     LOGD("E, my_handle = 0x%x, fd = %d, state = %d",
@@ -1754,8 +1755,13 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
                 my_obj->ch_obj->cam_obj->my_num,
                 buf_info->buf->fd);
 
+        #ifdef USE_KERNEL_VERSION_GE_4_4_DEFS
+        buffer_type = vb.timecode.type;
+        #else
+        buffer_type = vb.reserved;
+        #endif
         buf_info->buf->is_uv_subsampled =
-            (vb.reserved == V4L2_PIX_FMT_NV14 || vb.reserved == V4L2_PIX_FMT_NV41);
+            (buffer_type == V4L2_PIX_FMT_NV14 || buffer_type == V4L2_PIX_FMT_NV41);
 
         if(buf_info->buf->buf_type == CAM_STREAM_BUF_TYPE_USERPTR) {
             mm_stream_read_user_buf(my_obj, buf_info);
