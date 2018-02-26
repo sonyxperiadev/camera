@@ -1354,12 +1354,11 @@ void QCamera2HardwareInterface::secure_stream_cb_routine(
                                 LOGE("stream mapNewBuffer %d failed - %d", dIdx, err);
                             }
                         }
-                        else {
+                    } else {
                             err = stream->bufDone((uint32_t)dIdx);
                             if (err < 0) {
                                 LOGE("stream bufDone %d failed %d", dIdx, err);
                             }
-                        }
                     }
                 }
             } else {
@@ -1392,9 +1391,6 @@ void QCamera2HardwareInterface::secure_stream_cb_routine(
         cbArg.cookie     = stream;
         cbArg.release_cb = returnStreamBuffer;
         pme->m_cbNotifier.notifyCallback(cbArg);
-    } else {
-        LOGD("No need to process secure frame CB, msg not enabled");
-        stream->bufDone(frame->buf_idx);
     }
 
 end:
