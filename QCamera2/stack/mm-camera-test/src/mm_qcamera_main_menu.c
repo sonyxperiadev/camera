@@ -29,6 +29,7 @@
 // System dependencies
 #include <ctype.h>
 #include <errno.h>
+#include <unistd.h>
 
 // Camera dependencies
 #include "mm_qcamera_main_menu.h"

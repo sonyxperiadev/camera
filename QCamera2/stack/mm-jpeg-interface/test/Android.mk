@@ -50,6 +50,7 @@ LOCAL_VENDOR_MODULE := true
 include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libcutils libdl liblog libmmjpeg_interface
+LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_EXECUTABLE)
 
@@ -95,6 +96,7 @@ LOCAL_VENDOR_MODULE := true
 include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libcutils libdl liblog libmmjpeg_interface
+LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_EXECUTABLE)
 
