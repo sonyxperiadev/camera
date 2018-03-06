@@ -54,7 +54,6 @@ public:
             cam_dimension_t exp_dim,
             cam_dimension_t cur_dim);
     bool isVideoUBWCEnabled();
-    static bool is_target_SDM630();
     static bool skipAnalysisBundling();
     bool needAnalysisStream();
 
