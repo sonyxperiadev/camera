@@ -65,6 +65,11 @@ using namespace android;
 
 namespace qcamera {
 
+//blur range
+#define MIN_BLUR 0
+#define MAX_BLUR 100
+#define BLUR_STEP 1
+
 #define DATA_PTR(MEM_OBJ,INDEX) MEM_OBJ->getPtr( INDEX )
 
 #define EMPTY_PIPELINE_DELAY 2
@@ -5030,6 +5035,18 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 m_halPPType = (cam_hal_pp_type_t)atoi(PP_prop);
             }
 
+            if (meta.exists(QCAMERA3_BOKEH_ENABLE)) {
+                bool bokehEnable = meta.find(QCAMERA3_BOKEH_ENABLE).data.u8[0];
+                LOGD("bokehEnable in vendor tag %d", bokehEnable);
+                if (bokehEnable) {
+                    m_halPPType = CAM_HAL_PP_TYPE_BOKEH;
+                }
+            }
+
+            if (m_halPPType == CAM_HAL_PP_TYPE_BOKEH) {
+                LOGI("setting bokeh mode" );
+                ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_BOKEH_MODE, 1);
+            }
             //Set feature masks based on dual cam feature enabled
             for (uint32_t i = 0; i < mStreamConfigInfo.num_streams; i++) {
                 setDCFeature(mStreamConfigInfo.postprocess_mask[i],
@@ -7894,6 +7911,13 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     IF_META_AVAILABLE(uint8_t, instant_aec_mode,
             CAM_INTF_PARM_INSTANT_AEC, metadata) {
         camMetadata.update(QCAMERA3_INSTANT_AEC_MODE, instant_aec_mode, 1);
+    }
+
+    //Bokeh status
+    IF_META_AVAILABLE(cam_rtb_msg_type_t, rtbStatus,
+            CAM_INTF_META_RTB_DATA, metadata) {
+        LOGD("Bokeh status %d", *rtbStatus);
+        camMetadata.update(QCAMERA3_BOKEH_STATUS, (int32_t*)rtbStatus, 1);
     }
 
     /* In batch mode, cache the first metadata in the batch */
@@ -12717,6 +12741,20 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
+    //bokeh
+    if (frame_settings.exists(QCAMERA3_BOKEH_BLURLEVEL)) {
+        cam_rtb_blur_info_t info;
+        memset(&info, 0, sizeof(info));
+        info.blur_level = frame_settings.find(QCAMERA3_BOKEH_BLURLEVEL).data.i32[0];
+        LOGD("blur_level in vendor tag %d", info.blur_level);
+        info.blur_min_value = MIN_BLUR;
+        info.blur_max_value = MAX_BLUR;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, info)) {
+            LOGE("Failed to update blur level");
+            rc = BAD_VALUE;
+        }
+    }
     return rc;
 }
 
@@ -14486,6 +14524,12 @@ cam_dual_camera_perf_mode_t QCamera3HardwareInterface::getLowPowerMode(cam_sync_
     char prop[PROPERTY_VALUE_MAX];
     int32_t lpm = 0;
     int32_t lpmConfig = 0;
+
+    // LPM is disabled for Bokeh mode as both sensors have to be running all the time
+    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+        LOGD("LPM disabled in bokeh mode:  %s camera", cam == CAM_TYPE_MAIN ? "main" : "aux");
+        return CAM_PERF_NONE;
+    }
 
     if (cam == CAM_TYPE_MAIN) {
         property_get("persist.dualcam.lpm.main", prop, "0");
