@@ -86,6 +86,7 @@ public:
     int32_t getGrallocBufferIndex(uint32_t frameNumber);
     int32_t getHeapBufferIndex(uint32_t frameNumber);
     int32_t getBufferIndex(uint32_t frameNumber);
+    void switchMaster(uint32_t masterCam);
 
 private:
     //variables

@@ -27,7 +27,8 @@ LOCAL_C_INCLUDES += \
     hardware/qcom/media/mm-core/inc \
     system/core/include/cutils \
     system/core/include/system \
-    system/media/camera/include/system
+    system/media/camera/include/system \
+    frameworks/native/include/android
 
 
 LOCAL_SRC_FILES := \

@@ -94,7 +94,8 @@ public:
     virtual int32_t queueBatchBuf();
     virtual int32_t setPerFrameMapUnmap(bool enable);
     int32_t bufDone(mm_camera_super_buf_t *recvd_frame);
-    int32_t setBundleInfo(const cam_bundle_config_t &bundleInfo);
+    int32_t setBundleInfo(const cam_bundle_config_t &bundleInfo,
+            uint32_t cam_type = CAM_TYPE_MAIN);
 
     virtual uint32_t getStreamTypeMask();
     uint32_t getStreamID(uint32_t streamMask);
@@ -134,6 +135,8 @@ public:
     cam_format_t getStreamDefaultFormat(cam_stream_type_t type,
             uint32_t width, uint32_t height);
     virtual int32_t timeoutFrame(__unused uint32_t frameNumber) = 0;
+    void switchMaster(uint32_t masterCam);
+    void overridePPConfig(cam_feature_mask_t pp_mask);
 
     void *mUserData;
     cam_padding_info_t mPaddingInfo;
@@ -179,6 +182,7 @@ protected:
     uint32_t mDumpFrmCnt;
     uint32_t mSkipMode;
     uint32_t mDumpSkipCnt;
+    uint32_t mMasterCam;
 };
 
 /* QCamera3ProcessingChannel is used to handle all streams that are directly

@@ -1196,11 +1196,6 @@ private:
     int32_t SyncDCParams();
     void setSyncDCParams();
     void setAsymmetricSnapMode();
-
-    dual_cam_type getDualCameraConfig(cam_capability_t *capsMainCam,
-            cam_capability_t *capsAuxCam);
-    bool isBayer(cam_capability_t *caps);
-    bool isMono(cam_capability_t *caps);
     inline bool isBayerMono() { return (mDualCamType == DUAL_CAM_BAYER_MONO); };
     bool isDualCamAvailable();
 

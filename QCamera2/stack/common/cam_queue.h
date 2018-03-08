@@ -103,6 +103,12 @@ static inline int32_t cam_queue_flush(cam_queue_t *queue)
     struct cam_list *pos = NULL;
 
     pthread_mutex_lock(&queue->lock);
+
+    if (queue->size == 0) {
+        pthread_mutex_unlock(&queue->lock);
+        return 0;
+    }
+
     head = &queue->head.list;
     pos = head->next;
 
