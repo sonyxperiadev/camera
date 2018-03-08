@@ -3525,9 +3525,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             pMetaDataAux  = metadata;
         }
         resultMetadata = m_pFovControl->processResultMetadata(pMetaDataMain, pMetaDataAux);
-        if (resultMetadata != NULL) {
-            metadata = resultMetadata;
-        } else {
+        if (frame_number == UINT32_MAX) {
             mMetadataChannel->bufDone(metadata_buf);
             free(metadata_buf);
             return;
