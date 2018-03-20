@@ -99,6 +99,7 @@ namespace qcamera {
 #define HDR_PLUS_PERF_TIME_OUT  (7000) // milliseconds
 // Set a threshold for detection of missing buffers //seconds
 #define MISSING_REQUEST_BUF_TIMEOUT 3
+#define MISSING_BOKEH_REQUEST_BUF_TIMEOUT 5
 #define FLUSH_TIMEOUT 3
 #define METADATA_MAP_SIZE(MAP) (sizeof(MAP)/sizeof(MAP[0]))
 
@@ -409,6 +410,7 @@ uint32_t QCamera3HardwareInterface::sessionId[] = {0xDEADBEEF, 0xDEADBEEF, 0xDEA
 QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
         const camera_module_callbacks_t *callbacks)
     : mCameraId(cameraId),
+      mBlurLevel(0),
       mCameraHandle(NULL),
       mCameraInitialized(false),
       mCallbackOps(NULL),
@@ -2703,7 +2705,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     if (onlyRaw || disableSupportStreams || isDepth) {
         createAnalysisAndCallbackStreams = false;
     }
-    
     if (createAnalysisAndCallbackStreams && (mCommon.needAnalysisStream() || isDualCamera())) {
         cam_feature_mask_t analysisFeatureMask = CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
         setPAAFSupport(analysisFeatureMask, CAM_STREAM_TYPE_ANALYSIS,
@@ -3529,13 +3530,34 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             mMetadataChannel->bufDone(metadata_buf);
             free(metadata_buf);
             return;
+        } else {
+            if (pMetaDataAux && frame_number_valid && frame_number) {
+                LOGD("found valid metadata for aux %d", frame_number);
+                for (auto req = mPendingBuffersMap.mPendingBuffersInRequest.begin();
+                          req != mPendingBuffersMap.mPendingBuffersInRequest.end();
+                          req++) {
+                    if (req->frame_number == frame_number) {
+                        for (auto k = req->mPendingBufferList.begin();
+                                    k != req->mPendingBufferList.end(); k++ ) {
+                            QCamera3PicChannel *channel = (QCamera3PicChannel *) (k->stream->priv);
+                            if (k->stream->format == HAL_PIXEL_FORMAT_BLOB) {
+                                LOGD("found snapshot stream in channel ");
+                                channel->queueAuxMetadata(metadata_buf, frame_number);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
     // Detect if buffers from any requests are overdue
     for (auto &req : mPendingBuffersMap.mPendingBuffersInRequest) {
         if ( (currentSysTime - req.timestamp) >
-            s2ns(MISSING_REQUEST_BUF_TIMEOUT) ) {
+                           s2ns(getHalPPType() == CAM_HAL_PP_TYPE_BOKEH ?
+                                       MISSING_BOKEH_REQUEST_BUF_TIMEOUT:
+                                       MISSING_REQUEST_BUF_TIMEOUT) ) {
             for (auto &missed : req.mPendingBufferList) {
                 assert(missed.stream->priv);
                 if (missed.stream->priv) {
@@ -5522,7 +5544,7 @@ no_error:
     }
 
     uint32_t frameNumber = request->frame_number;
-    cam_stream_ID_t streamsArray;
+    cam_stream_ID_t streamsArray, streamsArraySlave;
 
     if (mFlushPerf) {
         //we cannot accept any requests during flush
@@ -5560,8 +5582,10 @@ no_error:
 
     // Acquire all request buffers first
     streamsArray.num_streams = 0;
+    streamsArraySlave.num_streams = 0;
     int blob_request = 0;
     uint32_t snapshotStreamId = 0;
+    uint32_t snapshotStreamIdSlave = 0;
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         const camera3_stream_buffer_t& output = request->output_buffers[i];
         QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
@@ -5587,8 +5611,34 @@ no_error:
            }
         }
 
-        streamsArray.stream_request[streamsArray.num_streams++].streamID =
-            channel->getStreamID(channel->getStreamTypeMask());
+        if (blob_request) {
+            configureHalPostProcess();
+        }
+
+        if (isDualCamera() && needHALPP() &&
+                              (output.stream->format == HAL_PIXEL_FORMAT_BLOB)) {
+            uint32_t snapshotStreamIdAux = channel->getAuxStreamID();
+            if (mMasterCamera == CAM_TYPE_MAIN) {
+                    snapshotStreamIdSlave = snapshotStreamIdAux;
+            } else {
+                    snapshotStreamIdSlave = snapshotStreamId;
+                    snapshotStreamId = snapshotStreamIdAux;
+            }
+            LOGH("snapshotStreamId %d snapshotStreamIdAux %d", snapshotStreamId,
+                                                               snapshotStreamIdAux);
+            streamsArraySlave.stream_request[streamsArraySlave.num_streams].streamID =
+                                                                    snapshotStreamIdSlave;
+            streamsArraySlave.stream_request[streamsArraySlave.num_streams++].buf_index =
+                                                                        CAM_FREERUN_IDX;
+        }
+
+        if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
+            streamsArray.stream_request[streamsArray.num_streams++].streamID =
+                                                             snapshotStreamId;
+        } else {
+            streamsArray.stream_request[streamsArray.num_streams++].streamID =
+                           channel->getStreamID(channel->getStreamTypeMask());
+        }
 
         if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
             isVidBufRequested = true;
@@ -5862,6 +5912,11 @@ no_error:
                 }
 
                 uint32_t streamId = channel->getStreamID(channel->getStreamTypeMask());
+                if (needHALPP())
+                {
+                    //stream id should be of (mMasterCam == CAM_TYPE_MAIN)
+                    streamId = snapshotStreamId;
+                }
                 uint32_t j = 0;
                 for (j = 0; j < streamsArray.num_streams; j++) {
                     if (streamsArray.stream_request[j].streamID == streamId) {
@@ -5998,6 +6053,11 @@ no_error:
             }
 
             uint32_t streamId = channel->getStreamID(channel->getStreamTypeMask());
+            if (needHALPP())
+            {
+                //stream id should be of (mMasterCam == CAM_TYPE_MAIN)
+                streamId = snapshotStreamId;
+            }
             uint32_t j = 0;
             for (j = 0; j < streamsArray.num_streams; j++) {
                 if (streamsArray.stream_request[j].streamID == streamId) {
@@ -6076,19 +6136,26 @@ no_error:
                   get copied. Reset them on the slave session so that we request for frames only
                   on the master session.*/
                 if (isDualCamera()) {
-                     /* Update stream id of all the requested buffers in Aux session */
-                    if (ADD_SET_PARAM_ENTRY_TO_BATCH(
-                            mAuxParameters, CAM_INTF_META_STREAM_ID, streamsArray)) {
+                    /* Update stream id of all the requested buffers in Aux session */
+                    if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
+                                             CAM_INTF_META_STREAM_ID,
+                                                       streamsArray)) {
                         LOGE("Failed to set meta stream id in Aux session");
                         pthread_mutex_unlock(&mMutex);
                         return BAD_VALUE;
                     }
                     metadata_buffer_t* params =
                             (mMasterCamera == CAM_TYPE_MAIN) ? mAuxParameters : mParameters;
-                    LOGD("Requesting PCR on %s session",
-                            (mMasterCamera == CAM_TYPE_MAIN) ? "main" : "aux");
-                    params->is_valid[CAM_INTF_META_STREAM_ID] = 0;
-                    params->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
+                    if (blob_request && needHALPP()) {
+                        LOGD("snapshot request on slave session");
+                        ADD_SET_PARAM_ENTRY_TO_BATCH( params, CAM_INTF_META_STREAM_ID,
+                                                                    streamsArraySlave);
+                    } else {
+                        LOGD("Requesting PCR on %s session", (mMasterCamera == CAM_TYPE_MAIN) ?
+                                                                                "main" : "aux");
+                        params->is_valid[CAM_INTF_META_STREAM_ID] = 0;
+                        params->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
+                    }
                 }
                 rc = mCameraHandle->ops->set_parms(
                         get_main_camera_handle(mCameraHandle->camera_handle), mParameters);
@@ -7915,6 +7982,7 @@ QCamera3HardwareInterface::translateFromHalMetadata(
     IF_META_AVAILABLE(cam_rtb_msg_type_t, rtbStatus,
             CAM_INTF_META_RTB_DATA, metadata) {
         LOGD("Bokeh status %d", *rtbStatus);
+        mRTBStatus = *rtbStatus;
         camMetadata.update(QCAMERA3_BOKEH_STATUS, (int32_t*)rtbStatus, 1);
     }
 
@@ -8912,7 +8980,13 @@ size_t QCamera3HardwareInterface::calcMaxJpegSize(uint32_t camera_id)
     }
 
     max_jpeg_size = max_jpeg_size * 3/2 + sizeof(camera3_jpeg_blob_t);
-    return max_jpeg_size;
+
+    if(is_dual_camera_by_idx(camera_id))
+    {
+        return max_jpeg_size * MM_JPEG_MAX_MPO_IMAGES;
+    } else {
+        return max_jpeg_size;
+    }
 }
 
 /*===========================================================================
@@ -12747,6 +12821,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
         LOGD("blur_level in vendor tag %d", info.blur_level);
         info.blur_min_value = MIN_BLUR;
         info.blur_max_value = MAX_BLUR;
+        mBlurLevel = info.blur_level;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                 CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, info)) {
             LOGE("Failed to update blur level");
@@ -13440,6 +13515,7 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
     LOGD("cur pp idx:%d, total pp cahnnel cnt:%d", pp_channel_idx, getReprocChannelCnt());
     uint32_t camera_handle = mCameraHandle->camera_handle;
     uint32_t channel_handle = mChannelHandle;
+
     if (isDualCamera()) {
         if (get_main_camera_handle(mChannelHandle) == inputChHandle->getMyHandle()) {
             camera_handle = get_main_camera_handle(mCameraHandle->camera_handle);
@@ -13449,6 +13525,7 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
             channel_handle = get_aux_camera_handle(mChannelHandle);
         }
     }
+
     pChannel = new QCamera3ReprocessChannel(camera_handle,
             channel_handle, mCameraHandle->ops, captureResultCb, setBufferErrorStatus,
             config.padding, CAM_QCOM_FEATURE_NONE, this, inputChHandle);
@@ -14695,10 +14772,14 @@ int32_t QCamera3HardwareInterface::configureHalPostProcess()
     int32_t rc = NO_ERROR;
 
     /* check if halpp is needed in dual camera mode */
+    //currently needHalPP will be true only for BOKEH mode if RTB status success.
     if (isDualCamera()) {
-        if (mBundledSnapshot) {
+        if (mBundledSnapshot && ((getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
+                            (mRTBStatus == CAM_RTB_MSG_DEPTH_EFFECT_SUCCESS))) {
             LOGH("Use HALPP for dual camera bundle snapshot.");
             m_bNeedHalPP = TRUE;
+        }else {
+            m_bNeedHalPP = FALSE;
         }
         return rc;
     }

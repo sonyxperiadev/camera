@@ -1381,7 +1381,7 @@ int32_t QCamera3Stream::setParameter(cam_stream_parm_buffer_t &param,  uint32_t 
 {
     int32_t rc = NO_ERROR;
     Mutex::Autolock lock(mParamLock);
-    if (CAM_TYPE_MAIN == cam_type) {
+    if ((CAM_TYPE_MAIN == cam_type) && (get_main_camera_handle(mChannelHandle)!=0)) {
         mStreamInfo->parm_buf = param;
         rc = mCamOps->set_stream_parms(get_main_camera_handle(mCamHandle),
                                        get_main_camera_handle(mChannelHandle),
@@ -1398,6 +1398,15 @@ int32_t QCamera3Stream::setParameter(cam_stream_parm_buffer_t &param,  uint32_t 
                                        &mStreamInfo->aux_str_info->parm_buf);
         if (rc == NO_ERROR) {
             param = mStreamInfo->aux_str_info->parm_buf;
+        }
+    } else {
+        mStreamInfo->parm_buf = param;
+        rc = mCamOps->set_stream_parms(mCamHandle,
+                                       mChannelHandle,
+                                       mHandle,
+                                       &mStreamInfo->parm_buf);
+        if (rc == NO_ERROR) {
+            param = mStreamInfo->parm_buf;
         }
     }
     return rc;

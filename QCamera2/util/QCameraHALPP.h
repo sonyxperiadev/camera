@@ -82,10 +82,8 @@ protected:
             qcamera_hal_pp_data_t *pInputData,
             qcamera_hal_pp_data_t *pOutputData);
 
-    mm_camera_buf_def_t* getSnapshotBuf(qcamera_hal_pp_data_t* pData,
-            QCameraStream* &pSnapshotStream);
-    mm_camera_buf_def_t* getMetadataBuf(qcamera_hal_pp_data_t* pData,
-            QCameraStream* &pMetadataStream);
+    mm_camera_buf_def_t* getSnapshotBuf(qcamera_hal_pp_data_t* pData);
+    mm_camera_buf_def_t* getMetadataBuf(qcamera_hal_pp_data_t* pData);
 
 protected:
     QCameraQueue m_inputQ;

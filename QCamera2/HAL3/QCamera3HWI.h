@@ -85,6 +85,12 @@ typedef int64_t nsecs_t;
 #define INTERNAL_FRAME_STARTING_NUMBER 800
 #define EMPTY_FRAMEWORK_FRAME_NUMBER 0xFFFFFFFF
 
+//blur range
+#define MIN_BLUR 0
+#define MAX_BLUR 100
+#define BLUR_STEP 1
+
+
 typedef enum {
     SET_ENABLE,
     SET_CONTROLENABLE,
@@ -314,6 +320,7 @@ public:
     bool isDualCamera() { return mDualCamera; };
     int32_t bundleRelatedCameras(bool enable_sync);
     cam_hal_pp_type_t getHalPPType() {return m_halPPType;}
+    uint32_t getBlurLevel() {return mBlurLevel;}
     cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
     bool needHALPP() {return m_bNeedHalPP;}
     cam_capability_t *getCamHalCapabilities();
@@ -456,6 +463,7 @@ private:
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
+    uint32_t           mBlurLevel;
     cam_hal_pp_type_t m_halPPType;
     mm_camera_vtbl_t  *mCameraHandle;
     bool               mCameraInitialized;
@@ -713,6 +721,7 @@ private:
     uint32_t mMasterCamera;
     cam_fallback_mode_t mFallbackMode;
     bool mLPMEnable;
+    cam_rtb_msg_type_t mRTBStatus;
 };
 
 }; // namespace qcamera

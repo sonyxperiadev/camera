@@ -94,8 +94,8 @@ public:
     virtual int32_t queueBatchBuf();
     virtual int32_t setPerFrameMapUnmap(bool enable);
     int32_t bufDone(mm_camera_super_buf_t *recvd_frame);
-    int32_t setBundleInfo(const cam_bundle_config_t &bundleInfo,
-            uint32_t cam_type = CAM_TYPE_MAIN);
+    virtual int32_t setBundleInfo(const cam_bundle_config_t &bundleInfo,
+                                          uint32_t cam_type = CAM_TYPE_MAIN);
 
     virtual uint32_t getStreamTypeMask();
     uint32_t getStreamID(uint32_t streamMask);
@@ -135,8 +135,9 @@ public:
     cam_format_t getStreamDefaultFormat(cam_stream_type_t type,
             uint32_t width, uint32_t height);
     virtual int32_t timeoutFrame(__unused uint32_t frameNumber) = 0;
-    void switchMaster(uint32_t masterCam);
+    virtual void switchMaster(uint32_t masterCam);
     void overridePPConfig(cam_feature_mask_t pp_mask);
+    virtual uint32_t getAuxStreamID() {return 0;};
 
     void *mUserData;
     cam_padding_info_t mPaddingInfo;
@@ -252,6 +253,7 @@ public:
     void showDebugFPS(int32_t streamType);
     bool isFwkInputBuffer(uint32_t resultFrameNumber);
     int32_t releaseInputBuffer(uint32_t resultFrameNumber);
+    QCamera3StreamMem& getJpegMemory() {return mJpegMemory;}
 
 
 protected:
@@ -266,7 +268,7 @@ protected:
     int32_t releaseOfflineMemory(uint32_t resultFrameNumber);
 
     QCamera3StreamMem mMemory; //output buffer allocated by fwk
-    camera3_stream_t *mCamera3Stream;
+
     uint32_t mNumBufs;
     cam_stream_type_t mStreamType;
     cam_format_t mStreamFormat;
@@ -289,6 +291,9 @@ protected:
 private:
 
     bool m_bWNROn;
+public:
+    QCamera3StreamMem mJpegMemory;
+    camera3_stream_t *mCamera3Stream;
 };
 
 /* QCamera3RegularChannel is used to handle all streams that are directly
@@ -601,6 +606,8 @@ public:
             uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
     ~QCamera3PicChannel();
 
+    virtual int32_t start();
+    virtual int32_t stop();
     virtual int32_t initialize(cam_is_type_t isType);
     virtual int32_t flush();
     virtual int32_t request(buffer_handle_t *buffer,
@@ -628,9 +635,24 @@ public:
             void *userdata);
 
     void freeBufferForFrame(mm_camera_super_buf_t *frame);
+    void freeBufferForJpeg(int &index);
+    uint32_t getAuxStreamID() { return mAuxPicChannel->getStreamID(getStreamTypeMask());};
+    int32_t queueAuxMetadata(mm_camera_super_buf_t *metadata, uint32_t framenum);
+    virtual void switchMaster(uint32_t masterCam);
+    virtual int32_t setBundleInfo(const cam_bundle_config_t &bundleInfo,
+                                           uint32_t cam_type = CAM_TYPE_MAIN);
+    static void mpoEvtHandle(jpeg_job_status_t status,
+                                 mm_jpeg_output_t *p_output,
+                                            void *userdata);
+    int32_t getMpoBufferIndex() { return mMpoOutBufIndex; }
+    void clearMpoBufferIndex() { mMpoOutBufIndex = -1; }
+    int32_t getMpoOutputBuffer(mm_jpeg_output_t *output);
+    void releaseSnapshotBuffer (mm_camera_super_buf_t* src_frame);
+    int32_t releaseOfflineMemory(uint32_t resultFrameNumber);
 
 private:
-    int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata);
+    int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,
+                                    cam_hal3_JPEG_type_t imagetype = CAM_HAL3_JPEG_TYPE_MAIN);
 
 public:
     cam_dimension_t m_max_pic_dim;
@@ -640,11 +662,16 @@ private:
     uint32_t mYuvWidth, mYuvHeight;
     int32_t mCurrentBufIndex;
     bool mInputBufferHint;
+    int32_t mMpoOutBufIndex;
     QCamera3StreamMem *mYuvMemory;
     // Keep a list of free buffers
     Mutex mFreeBuffersLock;
     List<uint32_t> mFreeBufferList;
+    //Keep a list of free jpeg buffers;
+    Mutex mFreeJpegBufferLock;
+    List<uint32_t> mFreeJpegBufferList;
     uint32_t mFrameLen;
+    QCamera3PicChannel* mAuxPicChannel;
 };
 
 // reprocess channel class

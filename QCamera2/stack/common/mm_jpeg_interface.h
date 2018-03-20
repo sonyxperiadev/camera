@@ -41,7 +41,7 @@
 #define MM_JPEG_MAX_BUF CAM_MAX_NUM_BUFS_PER_STREAM
 #define QUANT_SIZE 64
 #define QTABLE_MAX 2
-#define MM_JPEG_MAX_MPO_IMAGES 2
+#define MM_JPEG_MAX_MPO_IMAGES 3
 
 /* bit mask for buffer usage*/
 #define MM_JPEG_HAS_READ_BUF CPU_HAS_READ
@@ -139,6 +139,10 @@ typedef enum {
 typedef void (*jpeg_encode_callback_t)(jpeg_job_status_t status,
   uint32_t client_hdl,
   uint32_t jobId,
+  mm_jpeg_output_t *p_output,
+  void *userData);
+
+typedef void (*mpo_encode_callback_t)(jpeg_job_status_t status,
   mm_jpeg_output_t *p_output,
   void *userData);
 

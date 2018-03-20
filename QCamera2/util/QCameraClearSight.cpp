@@ -170,8 +170,7 @@ int32_t QCameraClearSight::feedInput(qcamera_hal_pp_data_t *pInputData)
     int32_t rc = NO_ERROR;
     LOGD("E");
     if (NULL != pInputData) {
-        QCameraStream* pSnapshotStream = NULL;
-        mm_camera_buf_def_t *pInputSnapshotBuf = getSnapshotBuf(pInputData, pSnapshotStream);
+        mm_camera_buf_def_t *pInputSnapshotBuf = getSnapshotBuf(pInputData);
         if (pInputSnapshotBuf != NULL) {
             uint32_t frameIndex = pInputSnapshotBuf->frame_idx;
             std::vector<qcamera_hal_pp_data_t*> *pVector = getFrameVector(frameIndex);
@@ -324,42 +323,31 @@ int32_t QCameraClearSight::process()
             return UNEXPECTED_NULL;
         }
 
-        QCameraStream* pMainSnapshotStream = NULL;
-        QCameraStream* pMainMetadataStream = NULL;
-        QCameraStream* pAuxSnapshotStream  = NULL;
-        QCameraStream* pAuxMetadataStream  = NULL;
-
         mm_camera_buf_def_t *main_snapshot_buf =
-                getSnapshotBuf(pInputMainData, pMainSnapshotStream);
+                getSnapshotBuf(pInputMainData);
         if (main_snapshot_buf == NULL) {
             LOGE("main_snapshot_buf is NULL");
             return UNEXPECTED_NULL;
         }
-        mm_camera_buf_def_t *main_meta_buf = getMetadataBuf(pInputMainData, pMainMetadataStream);
+        mm_camera_buf_def_t *main_meta_buf = getMetadataBuf(pInputMainData);
         if (main_meta_buf == NULL) {
             LOGE("main_meta_buf is NULL");
             return UNEXPECTED_NULL;
         }
-        mm_camera_buf_def_t *aux_snapshot_buf = getSnapshotBuf(pInputAuxData, pAuxSnapshotStream);
+        mm_camera_buf_def_t *aux_snapshot_buf = getSnapshotBuf(pInputAuxData);
         if (aux_snapshot_buf == NULL) {
             LOGE("aux_snapshot_buf is NULL");
             return UNEXPECTED_NULL;
         }
-        mm_camera_buf_def_t *aux_meta_buf = getMetadataBuf(pInputAuxData, pAuxMetadataStream);
+        mm_camera_buf_def_t *aux_meta_buf = getMetadataBuf(pInputAuxData);
         if (aux_meta_buf == NULL) {
             LOGE("aux_meta_buf is NULL");
             return UNEXPECTED_NULL;
         }
 
         // Use offset info from reproc stream
-        if (pMainSnapshotStream == NULL) {
-            LOGE("pMainSnapshotStream is NULL");
-            return UNEXPECTED_NULL;
-        }
-        cam_frame_len_offset_t frm_offset;
-        pMainSnapshotStream->getFrameOffset(frm_offset);
-        LOGI("Stream type:%d, stride:%d, scanline:%d, frame len:%d",
-                pMainSnapshotStream->getMyType(),
+        cam_frame_len_offset_t frm_offset = pInputMainData->snap_offset;
+        LOGI("Main stride:%d, scanline:%d, frame len:%d",
                 frm_offset.mp[0].stride, frm_offset.mp[0].scanline,
                 frm_offset.frame_len);
 
@@ -372,11 +360,9 @@ int32_t QCameraClearSight::process()
 
         //Get input and output parameter
         clearsight_input_params_t inParams;
-        if (pAuxSnapshotStream == NULL) {
-            LOGE("pAuxSnapshotStream is NULL");
-            return UNEXPECTED_NULL;
-        }
-        getInputParams(main_meta_buf, aux_meta_buf, pMainSnapshotStream, pAuxSnapshotStream,
+        getInputParams(main_meta_buf, aux_meta_buf,
+                                pInputMainData->snap_offset,
+                                pInputAuxData->snap_offset,
                 inParams);
 
         if (main_snapshot_buf->frame_idx == aux_snapshot_buf->frame_idx)
@@ -459,28 +445,25 @@ bool QCameraClearSight::canProcess()
  * DESCRIPTION: Helper function to get input params from input metadata
  *==========================================================================*/
 void QCameraClearSight::getInputParams(__unused mm_camera_buf_def_t *pMainMetaBuf,
-        __unused mm_camera_buf_def_t *pAuxMetaBuf, QCameraStream* pMainSnapshotStream,
-        QCameraStream* pAuxSnapshotStream, clearsight_input_params_t& inParams)
+        __unused mm_camera_buf_def_t *pAuxMetaBuf, cam_frame_len_offset_t main_offset,
+                cam_frame_len_offset_t aux_offset, clearsight_input_params_t& inParams)
 {
     LOGD("E");
     memset(&inParams, 0, sizeof(clearsight_input_params_t));
 
     // bayer frame size
-    cam_frame_len_offset_t offset;
-    pMainSnapshotStream->getFrameOffset(offset);
-    inParams.bayer.width     = offset.mp[0].width;
-    inParams.bayer.height    = offset.mp[0].height;
-    inParams.bayer.stride    = offset.mp[0].stride;
-    inParams.bayer.scanline  = offset.mp[0].scanline;
-    inParams.bayer.frame_len = offset.frame_len;
+    inParams.bayer.width     = main_offset.mp[0].width;
+    inParams.bayer.height    = main_offset.mp[0].height;
+    inParams.bayer.stride    = main_offset.mp[0].stride;
+    inParams.bayer.scanline  = main_offset.mp[0].scanline;
+    inParams.bayer.frame_len = main_offset.frame_len;
 
     // mono frame size
-    pAuxSnapshotStream->getFrameOffset(offset);
-    inParams.mono.width     = offset.mp[0].width;
-    inParams.mono.height    = offset.mp[0].height;
-    inParams.mono.stride    = offset.mp[0].stride;
-    inParams.mono.scanline  = offset.mp[0].scanline;
-    inParams.mono.frame_len = offset.frame_len;
+    inParams.mono.width     = aux_offset.mp[0].width;
+    inParams.mono.height    = aux_offset.mp[0].height;
+    inParams.mono.stride    = aux_offset.mp[0].stride;
+    inParams.mono.scanline  = aux_offset.mp[0].scanline;
+    inParams.mono.frame_len = aux_offset.frame_len;
 
     LOGD("X");
 }

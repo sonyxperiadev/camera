@@ -35,7 +35,9 @@
 // Camera dependencies
 #include "cam_types.h"
 
-using namespace android;
+extern "C" {
+#include "mm_jpeg_interface.h"
+}
 
 namespace qcamera {
 
@@ -75,6 +77,16 @@ class QCamera3ProcessingChannel;
         uint8_t image_desc_valid;
         char image_desc[EXIF_IMAGE_DESCRIPTION_SIZE];
         bool hdr_snapshot;
+        cam_hal3_JPEG_type_t image_type;
+        bool is_dim_valid;
+        cam_dimension_t output_dim;
+        bool is_offset_valid;
+        cam_frame_len_offset_t offset;
+        bool is_format_valid;
+        cam_format_t format;
+        bool is_crop_valid;
+        cam_rect_t crop;
+        mm_jpeg_image_type_t encode_type;
     } jpeg_settings_t;
 
     typedef struct {

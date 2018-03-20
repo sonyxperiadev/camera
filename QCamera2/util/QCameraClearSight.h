@@ -69,8 +69,10 @@ public:
 protected:
     bool canProcess();
 private:
-    void getInputParams(mm_camera_buf_def_t *pMainMetaBuf, mm_camera_buf_def_t *pAuxMetaBuf,
-            QCameraStream* pMainSnapshotStream, QCameraStream* pAuxSnapshotStream,
+    void getInputParams(mm_camera_buf_def_t *pMainMetaBuf,
+                        mm_camera_buf_def_t *pAuxMetaBuf,
+                        cam_frame_len_offset_t main_offset,
+                        cam_frame_len_offset_t aux_offset,
             clearsight_input_params_t& inParams);
     int32_t doClearSightInit();
     int32_t doClearSightProcess(const uint8_t* pWide, const uint8_t* pTele,
