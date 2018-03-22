@@ -4224,8 +4224,7 @@ int32_t QCamera3PicChannel::flush()
         mFreeBufferList.push_back(i);
     }
 
-    if(0 < mJpegMemory.getCnt()) {
-        mJpegMemory.deallocate();
+    {
         Mutex::Autolock lock(mFreeJpegBufferLock);
         mFreeJpegBufferList.clear();
     }
@@ -4385,26 +4384,22 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     //                 mAuxPicChannel will always be Tele.
     //bIsMaster will be true if current pic channel is mMasterCam.
     bool bIsMaster = true;
-    if(hal_obj->needHALPP())
+    if(hal_obj->isDualCamera())
     {
-       if(mAuxPicChannel)
-       {
-           bIsMaster = (mMasterCam == CAM_TYPE_MAIN);
-       } else {
-           bIsMaster = (mMasterCam == CAM_TYPE_AUX);
-       }
+        bIsMaster = mAuxPicChannel ? (mMasterCam == CAM_TYPE_MAIN) : (mMasterCam == CAM_TYPE_AUX);
     }
 
-    //if needHALPP() is false then take snapshot-
-    //from mMaster channel, else request on both channels.
+    //if needHALPP() is false then take snapshot from mMaster channel,
+    // else request on both channels.
     if(hal_obj->needHALPP() || bIsMaster)
     {
         if (!internalRequest) {
-            if(hal_obj->needHALPP())
+            if(hal_obj->needHALPP() && (hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH))
             {   //BOKEH MODE
                 //For Main channel: allocate 2 jpeg settings one for main image
-                //and other for bokeh image with respective output buffer index.
-                //For mAuxPicChannel channel: allocate 1 jpeg settings for depth.
+                //and other for bokeh or depth image with respective output buffer index.
+                //For mAuxPicChannel channel: allocate 1 jpeg settings for depth or bokeh.
+                //BOKEH should always be allocated by master.
                 int index;
                 int numOfJpegSettings = 1;
                 if(mAuxPicChannel)
@@ -4415,7 +4410,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                 {
                     Mutex::Autolock lock(mFreeJpegBufferLock);
                     if (mFreeJpegBufferList.empty()) {
-                        if(mAuxPicChannel)
+                        if(bIsMaster || ((i == 0) && mAuxPicChannel))
                         {
                             index = mJpegMemory.allocateOne(mCamera3Stream->width *
                                                             mCamera3Stream->height);
@@ -4441,14 +4436,11 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                     rc = mJpegMemory.markFrameNumber((uint32_t)index, frameNumber);
 
                     // Queue jpeg settings
-                    if(i == 1)
-                    {
-                        rc = queueJpegSetting((uint32_t)index, metadata, CAM_HAL3_JPEG_TYPE_BOKEH);
-                    }
-                    else if (mAuxPicChannel) {
+                    if (mAuxPicChannel && (i == 0)) {
                         rc = queueJpegSetting((uint32_t)index, metadata, CAM_HAL3_JPEG_TYPE_MAIN);
                     } else {
-                        rc = queueJpegSetting((uint32_t)index, metadata, CAM_HAL3_JPEG_TYPE_DEPTH);
+                        rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster?
+                                            CAM_HAL3_JPEG_TYPE_BOKEH : CAM_HAL3_JPEG_TYPE_DEPTH);
                     }
                 }
                 if(mAuxPicChannel)
@@ -4475,7 +4467,13 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                }
            }
            else {
-               int index = mMemory.getMatchBufIndex((void*)buffer);
+           // For FUSION usecase i.e. needHALPP is true in non-BOKEH mode:
+           // jpeg_setting for slave is only required for overideMetadata
+           // so setting invalid index.
+           int index = -1;
+           if(bIsMaster)
+           {
+               index = mMemory.getMatchBufIndex((void*)buffer);
 
                if(index < 0) {
                    rc = registerBuffer(buffer, mIsType);
@@ -4494,9 +4492,10 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                LOGD("buffer index %d, frameNumber: %u", index, frameNumber);
 
                rc = mMemory.markFrameNumber((uint32_t)index, frameNumber);
-
+               }
                // Queue jpeg settings
-               rc = queueJpegSetting((uint32_t)index, metadata);
+               rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
+                                        CAM_HAL3_JPEG_TYPE_MAIN : CAM_HAL3_JPEG_TYPE_AUX);
            }
         } else {
             LOGD("Internal request @ Picchannel");
@@ -4933,6 +4932,8 @@ int32_t QCamera3PicChannel::queueAuxMetadata(mm_camera_super_buf_t *metadata, ui
 void QCamera3PicChannel::switchMaster(uint32_t masterCam)
 {
     mMasterCam = masterCam;
+    if(mAuxPicChannel)
+        mAuxPicChannel->switchMaster(masterCam);
 }
 
 /*===========================================================================

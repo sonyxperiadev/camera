@@ -70,7 +70,8 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_SIMULTANEOUS_CAMERA_END,
         QCAMERA3_QUADRA_CFA_DATA_END,
         QCAMERA3_HFR_END,
-        QCAMERA3_BOKEH_END
+        QCAMERA3_BOKEH_END,
+        QCAMERA3_FUSION_END,
 };
 
 typedef struct vendor_tag_info {
@@ -107,7 +108,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.simultaneous_camera",
     "org.codeaurora.qcamera3.quadra_cfa",
     "org.codeaurora.qcamera3.hfr",
-    "org.codeaurora.qcamera3.bokeh"
+    "org.codeaurora.qcamera3.bokeh",
+    "org.codeaurora.qcamera3.fusion"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -291,6 +293,10 @@ vendor_tag_info_t qcamera3_bokeh[QCAMERA3_BOKEH_END -
     { "status", TYPE_INT32 }
 };
 
+vendor_tag_info_t qcamera3_fusion[QCAMERA3_FUSION_END -
+        QCAMERA3_FUSION_START] = {
+    { "status", TYPE_BYTE },
+};
 
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
@@ -321,7 +327,8 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_simultaneous_camera,
     qcamera3_quadra_cfa,
     qcamera3_hfr,
-    qcamera3_bokeh
+    qcamera3_bokeh,
+    qcamera3_fusion,
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -444,7 +451,10 @@ uint32_t qcamera3_all_tags[] = {
     //QCAMERA3_BOKEH
     (uint32_t)QCAMERA3_BOKEH_ENABLE,
     (uint32_t)QCAMERA3_BOKEH_BLURLEVEL,
-    (uint32_t)QCAMERA3_BOKEH_STATUS
+    (uint32_t)QCAMERA3_BOKEH_STATUS,
+
+    //QCAMERA3_FUSION
+    (uint32_t)QCAMERA3_FUSION_STATUS
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;
