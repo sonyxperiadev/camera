@@ -10512,6 +10512,9 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             custom_hfr_configs.array(), custom_hfr_configs.size());
     }
 
+    uint8_t cam_mode = is_dual_camera_by_idx(cameraId);
+    staticInfo.update(QCAMERA3_LOGICAL_CAM_MODE, &cam_mode, 1);
+
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
 }
