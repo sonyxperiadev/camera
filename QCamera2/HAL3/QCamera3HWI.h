@@ -451,7 +451,7 @@ private:
             uint8_t num_cam, void *info);
     int32_t setDualCamBundleInfo(bool enable_sync,
             uint8_t bundle_cam_idx);
-    int32_t configureHalPostProcess();
+    int32_t configureHalPostProcess(bool bIsInput);
     void switchMaster(uint32_t masterCam);
     int32_t setDCMasterInfo(uint32_t camMaster);
     int32_t setDCControls(uint32_t camMaster, uint32_t state,

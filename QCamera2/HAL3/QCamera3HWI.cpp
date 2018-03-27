@@ -5612,7 +5612,12 @@ no_error:
         }
 
         if (blob_request) {
-            configureHalPostProcess();
+            if(request->input_buffer != NULL)
+            {
+                configureHalPostProcess(true);
+            } else {
+                configureHalPostProcess(false);
+            }
         }
 
         if (isDualCamera() && needHALPP() &&
@@ -7984,6 +7989,12 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         LOGD("Bokeh status %d", *rtbStatus);
         mRTBStatus = *rtbStatus;
         camMetadata.update(QCAMERA3_BOKEH_STATUS, (int32_t*)rtbStatus, 1);
+    }
+
+    if(isDualCamera() && (getHalPPType() == CAM_HAL_PP_TYPE_DUAL_FOV) )
+    {
+        uint8_t status = mBundledSnapshot;
+        camMetadata.update(QCAMERA3_FUSION_STATUS, (uint8_t *)&status, 1);
     }
 
     /* In batch mode, cache the first metadata in the batch */
@@ -14766,22 +14777,24 @@ int32_t QCamera3HardwareInterface::sendDualCamCmd(cam_dual_camera_cmd_type type,
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCamera3HardwareInterface::configureHalPostProcess()
+int32_t QCamera3HardwareInterface::configureHalPostProcess(bool bIsInput)
 {
     LOGD("E");
     int32_t rc = NO_ERROR;
 
     /* check if halpp is needed in dual camera mode */
-    //currently needHalPP will be true only for BOKEH mode if RTB status success.
-    if (isDualCamera()) {
-        if (mBundledSnapshot && ((getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
-                            (mRTBStatus == CAM_RTB_MSG_DEPTH_EFFECT_SUCCESS))) {
-            LOGH("Use HALPP for dual camera bundle snapshot.");
-            m_bNeedHalPP = TRUE;
-        }else {
+    if (isDualCamera() && mBundledSnapshot && !bIsInput &&
+              (getHalPPType() != CAM_HAL_PP_TYPE_NONE) && !m_bIsVideo) {
+        LOGH("Use HALPP for dual camera bundle snapshot.");
+        m_bNeedHalPP = TRUE;
+        // In Bokhe mode if RTB is status not success, halpp should be false
+        if((getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
+                 (mRTBStatus != CAM_RTB_MSG_DEPTH_EFFECT_SUCCESS))
+        {
             m_bNeedHalPP = FALSE;
         }
-        return rc;
+    }else {
+        m_bNeedHalPP = FALSE;
     }
 
     return rc;

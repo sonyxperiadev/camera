@@ -424,6 +424,10 @@ int32_t QCameraBokeh::process()
             dumpInputParams("input_params", mDebugData, pMainSnap->frame_idx);
         }
 
+        // Clean and invalidate output buffer
+        mBokehData.bokeh_output->snapshot_heap->cleanInvalidateCache(0);
+        mBokehData.depth_output->snapshot_heap->cleanInvalidateCache(0);
+
         // Callback Manager to notify output buffer and return input buffers
         LOGH("notifying Bokeh output");
         m_halPPBufNotifyCB(mBokehData.bokeh_output, m_pHalPPMgr);

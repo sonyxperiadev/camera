@@ -1205,7 +1205,12 @@ void QCameraFOVControl::generateFovControlResult()
         mFovControlResult.camMaster3A  = CAM_TYPE_MAIN;
         mFovControlResult.activeCameras = MM_CAMERA_DUAL_CAM;
         mFovControlData.configCompleted = true;
-        mFovControlResult.snapshotPostProcess = true;
+        if(mHalPPType != CAM_HAL_PP_TYPE_NONE)
+        {
+            mFovControlResult.snapshotPostProcess = true;
+        } else {
+            mFovControlResult.snapshotPostProcess = false;
+        }
         mFovControlResult.isValid = true;
         return;
      } else if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {

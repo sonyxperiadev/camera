@@ -322,7 +322,7 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
                 LOGE("Initializing PP manager failed");
                 return rc;
             }
-            if ((m_pHalPPManager != NULL) && hal_obj->needHALPP()) {
+            if (m_pHalPPManager != NULL) {
                 LOGH("HALPP is need, call QCameraHALPPManager::start() here");
                 rc = m_pHalPPManager->start();
                 if (rc != NO_ERROR) {
@@ -1281,9 +1281,7 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
         hal_pp_job->src_metadata = job ? job->src_metadata : NULL;
         hal_pp_job->pUserData = this;
         //adding blur information for BOKEH process.
-        if((hal_pp_job->metadata != NULL) &&
-                    ((job->jpeg_settings != NULL) &&
-                    (job->jpeg_settings->image_type == CAM_HAL3_JPEG_TYPE_MAIN)))
+        if(hal_pp_job->metadata != NULL)
         {
             QCamera3HardwareInterface * hal_obj = (QCamera3HardwareInterface *)m_parent->mUserData;
             uint32_t blurlevel = hal_obj->getBlurLevel();
