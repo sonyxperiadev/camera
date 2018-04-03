@@ -807,13 +807,13 @@ void QCameraBokeh::dumpYUVtoFile(
 
 }
 
-const char* QCameraBokeh::buildCommaSeparatedString(float array[], size_t length) {
+String8 QCameraBokeh::buildCommaSeparatedString(float array[], size_t length) {
     String8 str;
     str.appendFormat("%.4f", array[0]);
     for(size_t i = 1; i < length; i++) {
         str.appendFormat(",%.4f", array[i]);
     }
-    return str.string();
+    return str;
 }
 
 String8 QCameraBokeh::flattenCropInfo(cam_stream_crop_info_t* crop, uint8_t index)
@@ -922,10 +922,10 @@ String8 QCameraBokeh::extractCalibrationData()
 
     calibData.appendFormat(CALIB_FMT_STRINGS[11],
             buildCommaSeparatedString(calib_data.relative_rotation_matrix,
-            RELCAM_CALIB_ROT_MATRIX_MAX));
+            RELCAM_CALIB_ROT_MATRIX_MAX).string());
     calibData.appendFormat(CALIB_FMT_STRINGS[12],
             buildCommaSeparatedString(calib_data.relative_geometric_surface_parameters,
-            RELCAM_CALIB_SURFACE_PARMS_MAX));
+            RELCAM_CALIB_SURFACE_PARMS_MAX).string());
 
     calibData.appendFormat(CALIB_FMT_STRINGS[13], calib_data.relative_principle_point_x_offset);
     calibData.appendFormat(CALIB_FMT_STRINGS[14], calib_data.relative_principle_point_y_offset);

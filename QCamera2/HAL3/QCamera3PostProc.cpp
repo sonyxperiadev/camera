@@ -182,6 +182,7 @@ int32_t QCamera3PostProcessor::deinit()
     if (m_pHalPPManager != NULL) {
         LOGH("DeInit PP Manager");
         m_pHalPPManager->deinit();
+        m_pHalPPManager = NULL;
     }
     m_ppChannelCnt = 0;
 
@@ -1249,6 +1250,7 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
         //get snapshot offset info
         cam_frame_len_offset_t snap_offset, meta_offset;
         memset(&snap_offset, 0, sizeof(cam_frame_len_offset_t));
+        memset(&meta_offset, 0, sizeof(cam_frame_len_offset_t));
         if (pSnapStream != NULL) {
             pSnapStream->getFrameOffset(snap_offset);
         }
@@ -2562,13 +2564,18 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
                 jpg_job.encode_job.thumb_dim.dst_dim.width,
                 jpg_job.encode_job.thumb_dim.dst_dim.height);
     }
-    LOGI("Main image idx = %d src w/h (%dx%d), dst w/h (%dx%d) rot = %d",
+    LOGI("Main image idx = %d src w/h (%dx%d), dst w/h (%dx%d) rot = %d"
+            "crop t/lt (%dx%d) wxh (%dx%d)",
             jpg_job.encode_job.src_index,
             jpg_job.encode_job.main_dim.src_dim.width,
             jpg_job.encode_job.main_dim.src_dim.height,
             jpg_job.encode_job.main_dim.dst_dim.width,
             jpg_job.encode_job.main_dim.dst_dim.height,
-            jpg_job.encode_job.rotation);
+            jpg_job.encode_job.rotation,
+            jpg_job.encode_job.main_dim.crop.top,
+            jpg_job.encode_job.main_dim.crop.left,
+            jpg_job.encode_job.main_dim.crop.width,
+            jpg_job.encode_job.main_dim.crop.height);
 
     jpg_job.encode_job.cam_exif_params = hal_obj->get3AExifParams();
     exif_debug_params = jpg_job.encode_job.cam_exif_params.debug_params;
@@ -2999,13 +3006,18 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                         //In bokeh case, there will be no AUX image jpeg settings.
                         //DEPTH image jpeg_settings need to assign to ppOutPut_jpeg_settings.
                         //BOKEH image jpeg_settings need to assign to ppOutPut_jpeg_settings.
-                        if((jpeg_settings->image_type != CAM_HAL3_JPEG_TYPE_MAIN))
+                        QCamera3HardwareInterface* hal_obj =
+                                (QCamera3HardwareInterface*)pme->m_parent->mUserData;
+                        if(hal_obj->isDualCamera() && jpeg_settings != NULL)
                         {
-                            ppOutput_jpeg_settings = jpeg_settings;
-                            jpeg_settings = (jpeg_settings_t *)pme->m_jpegSettingsQ.dequeue();
-                        } else {
-                            ppOutput_jpeg_settings = (jpeg_settings_t *)
+                            if((jpeg_settings->image_type != CAM_HAL3_JPEG_TYPE_MAIN))
+                            {
+                                ppOutput_jpeg_settings = jpeg_settings;
+                                jpeg_settings = (jpeg_settings_t *)pme->m_jpegSettingsQ.dequeue();
+                            } else {
+                                ppOutput_jpeg_settings = (jpeg_settings_t *)
                                                                 pme->m_jpegSettingsQ.dequeue();
+                            }
                         }
 
                         pthread_mutex_unlock(&pme->mReprocJobLock);
