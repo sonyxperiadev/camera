@@ -106,12 +106,14 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/stack/mm-camera-interface/inc \
         $(LOCAL_PATH)/util \
         $(LOCAL_PATH)/HAL3 \
-        hardware/libhardware/include/hardware \
         $(SRC_MEDIA_HAL_DIR)/libstagefrighthw \
-        $(SRC_MEDIA_HAL_DIR)/mm-core/inc \
-        system/core/include/cutils \
-        system/core/include/system \
-        system/media/camera/include/system
+        $(SRC_MEDIA_HAL_DIR)/mm-core/inc
+
+LOCAL_HEADER_LIBRARIES := media_plugin_headers
+LOCAL_HEADER_LIBRARIES += libandroid_sensor_headers
+LOCAL_HEADER_LIBRARIES += libcutils_headers
+LOCAL_HEADER_LIBRARIES += libsystem_headers
+LOCAL_HEADER_LIBRARIES += libhardware_headers
 
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \
