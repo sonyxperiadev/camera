@@ -38,7 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "gralloc_priv.h"
-#include "native_handle.h"
+#include "cutils/native_handle.h"
 #include "fdleak.h"
 #include "memleak.h"
 // Camera definitions
