@@ -32,7 +32,11 @@
 #include "QCameraHAL3Base.h"
 #include "QCameraHAL3Test.h"
 
+using namespace android;
+
 namespace qcamera {
+
+using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 
 class QCameraHAL3PreviewTest : public QCameraHAL3Test
 {
@@ -45,7 +49,7 @@ private:
     camera3_stream_t *mPreviewStream;
     camera3_stream_t *mSnapshotStream;
     camera3_capture_request mRequest;
-    android::CameraMetadata hal3app_preview_settings;
+    CameraMetadata hal3app_preview_settings;
     camera3_stream_buffer_t mPreviewStreamBuffs;
     camera3_stream_buffer_t mSnapshotStreamBuffs;
     camera3_stream_configuration mPreviewConfig;
