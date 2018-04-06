@@ -1039,6 +1039,11 @@ int32_t QCameraBokeh::allocateDepthBuf(cam_frame_size_t depthSize)
     {
         output_data->src_reproc_frame = (mm_camera_super_buf_t *)
                                         calloc(1, sizeof(mm_camera_super_buf_t));
+        if (output_data->src_reproc_frame == NULL) {
+            LOGE("No memory for src frame");
+            free(output_data);
+            return NO_MEMORY;
+        }
         memcpy(output_data->src_reproc_frame, mBokehData.aux_input->src_reproc_frame,
                                                        sizeof(mm_camera_super_buf_t));
     }

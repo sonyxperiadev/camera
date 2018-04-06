@@ -1235,6 +1235,11 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
 
         // find snapshot frame
         QCamera3Channel * srcChannel = getChannelByHandle(frame->ch_id);
+        if (srcChannel == NULL) {
+            LOGE("No corresponding channel (ch_id = %d) exist, return here",
+                frame->ch_id);
+            return BAD_VALUE;
+        }
         QCamera3Stream *pSnapStream = NULL;
         for (uint32_t i = 0; i < frame->num_bufs; i++) {
             QCamera3Stream *pStream =
@@ -1257,6 +1262,11 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
 
         // find meta frame
         srcChannel = getChannelByHandle(job->src_frame->ch_id);
+        if (srcChannel == NULL) {
+            LOGE("No corresponding channel (ch_id = %d) exist, return here",
+                job->src_frame->ch_id);
+            return BAD_VALUE;
+        }
         QCamera3Stream *pMetaStream = NULL;
         for (uint32_t i = 0; i < job->src_frame->num_bufs; i++) {
             QCamera3Stream *pStream =
