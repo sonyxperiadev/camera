@@ -413,17 +413,21 @@ int32_t QCameraDualFOVPP::process()
 
         /* clean and invalidate caches, for input and output buffers*/
         pOutputData->snapshot_heap->cleanInvalidateCache(0);
-
-        if(pInputMainData->jpeg_settings)
+        if (pInputMainData->jpeg_settings || pInputAuxData->jpeg_settings)
         {
             pOutputData->jpeg_settings = (jpeg_settings_t *)calloc(1,sizeof(jpeg_settings_t));
-            memcpy(pOutputData->jpeg_settings, pInputMainData->jpeg_settings,
+            if (pOutputData->jpeg_settings == NULL) {
+                LOGE("No memory for src frame");
+                free(pOutputData);
+                return NO_MEMORY;
+            }
+            if(pInputMainData->jpeg_settings) {
+               memcpy(pOutputData->jpeg_settings, pInputMainData->jpeg_settings,
                                                      sizeof(jpeg_settings_t));
-        }else if (pInputAuxData->jpeg_settings)
-        {
-            pOutputData->jpeg_settings = (jpeg_settings_t *)calloc(1,sizeof(jpeg_settings_t));
-            memcpy(pOutputData->jpeg_settings, pInputAuxData->jpeg_settings,
+            } else if (pInputAuxData->jpeg_settings) {
+               memcpy(pOutputData->jpeg_settings, pInputAuxData->jpeg_settings,
                                                       sizeof(jpeg_settings_t));
+            }
         }
 
         // Calling cb function to return output_data after processed.
