@@ -13,11 +13,6 @@ src/mm_camera_stream.c \
 src/mm_camera_thread.c \
 src/mm_camera_sock.c
 
-ifeq ($(CAMERA_DAEMON_NOT_PRESENT), true)
-else
-LOCAL_CFLAGS += -DDAEMON_PRESENT
-endif
-
 # System header file path prefix
 LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
 
