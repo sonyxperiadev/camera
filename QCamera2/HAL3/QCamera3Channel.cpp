@@ -1715,13 +1715,14 @@ int32_t QCamera3ProcessingChannel::setReprocConfig(reprocess_config_t &reproc_cf
         reproc_cfg.stream_format = streamFormat;
     }
 
+    if (getStreamByIndex(0) == NULL) {
+        LOGE("Could not find stream");
+        rc = -1;
+        return rc;
+    }
+
     switch (reproc_cfg.stream_type) {
         case CAM_STREAM_TYPE_PREVIEW:
-            if (getStreamByIndex(0) == NULL) {
-                LOGE("Could not find stream");
-                rc = -1;
-                break;
-            }
             rc = mm_stream_calc_offset_preview(
                     getStreamByIndex(0)->getStreamInfo(),
                     &reproc_cfg.input_stream_dim,
