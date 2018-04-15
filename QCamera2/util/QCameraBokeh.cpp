@@ -743,7 +743,15 @@ int32_t QCameraBokeh::doBokehProcess(
     if(mBokehData.main_input->jpeg_settings != NULL)
     {
         mBokehData.main_input->is_crop_valid = true;
-        mBokehData.main_input->outputCrop = bokeh_out_dim;
+        mBokehData.main_input->outputCrop.top = inParams.zoomROI.top;
+        mBokehData.main_input->outputCrop.left = inParams.zoomROI.left;
+        mBokehData.main_input->outputCrop.width =
+                            PAD_TO_SIZE(PMIN(goodRoi.width, inParams.zoomROI.width), CAM_PAD_TO_2);
+        mBokehData.main_input->outputCrop.height =
+                           PAD_TO_SIZE(PMIN(goodRoi.height, inParams.zoomROI.height), CAM_PAD_TO_2);
+        DUMP("\nMain Crop left %d Top %d Width %d Height %d",mBokehData.main_input->outputCrop.left,
+                mBokehData.main_input->outputCrop.top, mBokehData.main_input->outputCrop.width,
+                mBokehData.main_input->outputCrop.height);
     }
 
     //apply zoom, if any, on depth map

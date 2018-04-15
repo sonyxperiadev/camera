@@ -5655,6 +5655,13 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
                                     mStreams[0]->getMyServerID();
                             crop_data->num_of_streams++;
 
+                            if((!hal_obj->needHALPP()) &&
+                                   (hal_obj->getHalPPType() ==  CAM_HAL_PP_TYPE_BOKEH))
+                            {
+                                jpeg_settings->crop = crop_data->crop_info[j].crop;
+                                jpeg_settings->is_crop_valid = true;
+                            }
+
                             LOGD("Reprocess stream server id: %d",
                                      mStreams[0]->getMyServerID());
                             LOGD("Found offline reprocess crop %dx%d %dx%d",
