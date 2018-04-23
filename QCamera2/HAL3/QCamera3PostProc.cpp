@@ -380,9 +380,7 @@ int32_t QCamera3PostProcessor::flush()
  *==========================================================================*/
 int32_t QCamera3PostProcessor::stop(bool isHDR)
 {
-    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
-    if ((m_pHalPPManager != NULL) && hal_obj->needHALPP() &&
-            (hal_obj->getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
+    if ((m_pHalPPManager != NULL)) {
         m_pHalPPManager->stop();
     }
 
