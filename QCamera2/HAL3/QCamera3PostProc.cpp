@@ -2346,6 +2346,8 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
         qrcp::getDepthMapSize(src_dim.width, src_dim.height,
                             src_dim.width, src_dim.height);
         dst_dim = src_dim;
+    } else if(jpeg_settings->is_dim_valid){
+        dst_dim = jpeg_settings->output_dim;
     } else {
         if (NO_ERROR != m_parent->getStreamSize(dst_dim)) {
             LOGE("Failed to get size of the JPEG stream");
