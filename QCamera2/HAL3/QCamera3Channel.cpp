@@ -1024,6 +1024,8 @@ void QCamera3YUVChannel::putStreamBufs()
     mFreeHeapBufferList.clear();
     // Clear offlinePpInfoList
     mOfflinePpInfoList.clear();
+    // Clear offlineMemory
+    mOfflineMemory.clear();
 }
 
 /*===========================================================================
@@ -4339,6 +4341,8 @@ void QCamera3PicChannel::putStreamBufs()
     delete mYuvMemory;
     mYuvMemory = NULL;
     mFreeBufferList.clear();
+    // Clear offlineMemory
+    mOfflineMemory.clear();
 }
 
 int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *metadata)
