@@ -656,12 +656,6 @@ private:
         CAMERA_ORIENTATION_LANDSCAPE = 2,
     };
 
-    enum {
-        CAM_BOKEH_WIDE_WIDTH = 4000,
-        CAM_BOKEH_WIDE_HEIGHT = 3000,
-        CAM_BOKEH_TELE_WIDTH = 4000,
-        CAM_BOKEH_TELE_HEIGHT = 3000
-    };
     template <typename valueType> struct QCameraMap {
         const char *const desc;
         valueType val;

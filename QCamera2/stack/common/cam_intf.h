@@ -679,6 +679,7 @@ typedef struct cam_capability{
     /*Mono Stats support*/
     uint8_t is_mono_stats_suport;
     uint8_t is_depth_sensor;
+    cam_dimension_t single_isp_max_size;
 } cam_capability_t;
 
 typedef enum {

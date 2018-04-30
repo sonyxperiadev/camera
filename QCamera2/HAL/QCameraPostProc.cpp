@@ -2679,6 +2679,21 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
         dst_dim.width = src_dim.width;
     }
 
+    //upscale from dual cam snapshot size to app's picture size, if needed.
+    if (m_parent->isDualCamera() &&
+            (m_parent->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+        cam_format_t img_fmt = CAM_FORMAT_YUV_420_NV12;
+        main_stream->getFormat(img_fmt);
+        cam_dimension_t pic_dim;
+        m_parent->mParameters.getStreamDimension(CAM_STREAM_TYPE_OFFLINE_PROC, pic_dim);
+        if ((pic_dim.width != dst_dim.width) || (pic_dim.height != dst_dim.height)) {
+            //Don't upscale depth map image
+            if (img_fmt != CAM_FORMAT_Y_ONLY) {
+                dst_dim = pic_dim;
+            }
+        }
+    }
+
     // main dim
     jpg_job.encode_job.main_dim.src_dim = src_dim;
     jpg_job.encode_job.main_dim.dst_dim = dst_dim;

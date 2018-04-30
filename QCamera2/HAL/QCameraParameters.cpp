@@ -1664,10 +1664,7 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
     int width, height;
     params.getPictureSize(&width, &height);
     int old_width, old_height;
-    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
-        width = CAM_BOKEH_TELE_WIDTH;
-        height = CAM_BOKEH_TELE_HEIGHT;
-    }
+
     LOGH("Requested picture size %d x %d", width, height);
     CameraParameters::getPictureSize(&old_width, &old_height);
     LOGH("old picture size %d x %d", old_width, old_height);
@@ -6751,12 +6748,6 @@ int32_t QCameraParameters::initDefaultParameters()
         set(KEY_QC_BOKEH_MODE, 0);
         set(KEY_QC_BOKEH_BLUR_VALUE, 0);
         set(KEY_QC_BOKEH_MPO_MODE, 0);
-        cam_dimension_t bokehPicSize = { CAM_BOKEH_TELE_WIDTH, CAM_BOKEH_TELE_HEIGHT };
-        String8 bokehPictureSizeValue = createSizesString(
-                &bokehPicSize, 1);
-        set(KEY_QC_BOKEH_PICTURE_SIZE, bokehPictureSizeValue.string());
-        LOGH("supported bokeh picture size: %s", bokehPictureSizeValue.string());
-
     } else {
         String8 minMaxValues = createMinMaxValuesString(0, 0, 0);
         set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
@@ -11083,6 +11074,8 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
 {
     int32_t ret = NO_ERROR;
     memset(&dim, 0, sizeof(cam_dimension_t));
+    int32_t ispMaxWidth = m_pCapability->single_isp_max_size.width;
+    int32_t ispMaxHeight = m_pCapability->single_isp_max_size.height;
 
     switch (streamType) {
     case CAM_STREAM_TYPE_PREVIEW:
@@ -11093,6 +11086,7 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         getPreviewSize(&dim.width, &dim.height);
         break;
     case CAM_STREAM_TYPE_SNAPSHOT:
+
         if (isPostProcScaling()) {
             getMaxPicSize(dim);
         } else if (getRecordingHintValue()) {
@@ -11103,6 +11097,7 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         }
         if (isDCmAsymmetricSnapMode()) {
             int32_t supportedWidth = 0, supportedHeight = 0;
+
             if (cam_type & MM_CAMERA_TYPE_MAIN) {
                 supportedWidth = m_pCapability->main_cam_cap->picture_sizes_tbl[0].width;
                 supportedHeight = m_pCapability->main_cam_cap->picture_sizes_tbl[0].height;
@@ -11112,21 +11107,19 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
             }
             if ((dim.width * dim.height) >
                     (supportedWidth * supportedHeight)){
+                LOGH("capping picture size (%d x %d) to sensormax (%d x %d)",
+                        dim.width, dim.height, supportedWidth , supportedHeight);
                 dim.width = supportedWidth;
                 dim.height = supportedHeight;
             }
 
-            if (m_halPPType == CAM_HAL_PP_TYPE_BOKEH) {
-                 if (cam_type & MM_CAMERA_TYPE_MAIN) {
-                      dim.width = CAM_BOKEH_WIDE_WIDTH;
-                      dim.height = CAM_BOKEH_WIDE_HEIGHT;
-                 } else if (cam_type & MM_CAMERA_TYPE_AUX) {
-                     // Tele Camera
-                     dim.width = CAM_BOKEH_TELE_WIDTH;
-                     dim.height = CAM_BOKEH_TELE_HEIGHT;
-                 }
-                 LOGH("Bokeh : Hardcoding Snapshot ( %d x %d), cam_type: 0x%x",
-                        dim.width, dim.height, cam_type);
+        }
+        if (isDualCamera()) {
+            if ((dim.width * dim.height) > (ispMaxWidth * ispMaxHeight)) {
+                LOGH("capping picture size (%d x %d) to ispmax (%d x %d)",
+                        dim.width, dim.height, ispMaxWidth, ispMaxHeight);
+                dim.width = ispMaxWidth;
+                dim.height = ispMaxHeight;
             }
         }
         break;
@@ -16991,6 +16984,8 @@ int32_t QCameraParameters::setCameraControls(uint32_t state, bool bundleSnap,
 void QCameraParameters::setAsymmetricSnapMode()
 {
     int width, height, maxWidth, maxHeight;
+    int32_t ispMaxWidth = m_pCapability->single_isp_max_size.width;
+    int32_t ispMaxHeight = m_pCapability->single_isp_max_size.height;
 
     if (!isDualCamera()) {
         mAsymmetricSnapMode = false;
@@ -17013,6 +17008,12 @@ void QCameraParameters::setAsymmetricSnapMode()
         return;
     }
 
+    if ((maxWidth * maxHeight) > (ispMaxWidth * ispMaxHeight)) {
+        mAsymmetricSnapMode = true;
+        LOGD("Asymmetric Snap mode is set since the MAIN max res < ISP max res");
+        return;
+    }
+
     maxWidth = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].width;
     maxHeight = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].height;
     if ((maxWidth * maxHeight) < (width * height)) {
@@ -17020,6 +17021,13 @@ void QCameraParameters::setAsymmetricSnapMode()
         LOGD("Asymmetric Snap mode is set since the Aux max res < Picture res");
         return;
     }
+
+    if ((maxWidth * maxHeight) > (ispMaxWidth * ispMaxHeight)) {
+        mAsymmetricSnapMode = true;
+        LOGD("Asymmetric Snap mode is set since the Aux max res < ISP max res");
+        return;
+    }
+
     mAsymmetricSnapMode = false;
 }
 
@@ -17085,7 +17093,9 @@ bool QCameraParameters::needAnalysisStream()
  *==========================================================================*/
 void QCameraParameters::getDepthMapSize(int &width, int &height)
 {
-    qrcp::getDepthMapSize(CAM_BOKEH_TELE_WIDTH, CAM_BOKEH_TELE_HEIGHT, width, height);
+    cam_dimension_t pic_dim;
+    getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, pic_dim);
+    qrcp::getDepthMapSize(pic_dim.width, pic_dim.height, width, height);
 }
 
 void QCameraParameters::setBokehSnaphot(bool enable)
