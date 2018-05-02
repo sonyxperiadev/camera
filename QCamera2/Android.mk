@@ -97,8 +97,8 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/util \
         $(LOCAL_PATH)/HAL3 \
         hardware/libhardware/include/hardware \
-        $(QCOM_MEDIA_ROOT)/libstagefrighthw \
-        $(QCOM_MEDIA_ROOT)/mm-core/inc \
+        hardware/qcom/media/msm8998/libstagefrighthw \
+        hardware/qcom/media/msm8998/mm-core/inc \
         system/core/include/cutils \
         system/core/include/system \
         system/media/camera/include/system
