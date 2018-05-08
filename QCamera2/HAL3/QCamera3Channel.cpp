@@ -5660,7 +5660,8 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
                             crop_data->num_of_streams++;
 
                             if((!hal_obj->needHALPP()) &&
-                                   (hal_obj->getHalPPType() ==  CAM_HAL_PP_TYPE_BOKEH))
+                                   (hal_obj->getHalPPType() ==  CAM_HAL_PP_TYPE_BOKEH) &&
+                                    (jpeg_settings != NULL))
                             {
                                 jpeg_settings->crop = crop_data->crop_info[j].crop;
                                 jpeg_settings->is_crop_valid = true;
