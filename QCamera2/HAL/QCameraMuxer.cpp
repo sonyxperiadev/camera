@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -154,7 +154,7 @@ QCameraMuxer::QCameraMuxer(uint32_t num_of_cameras)
 
     //Check whether dual camera images need to be dumped
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.dual.camera.dump", prop, "0");
+    property_get("persist.vendor.camera.dual.camera.dump", prop, "0");
     m_bDumpImages = atoi(prop);
     LOGH("dualCamera dump images:%d ", m_bDumpImages);
 }
@@ -1108,7 +1108,7 @@ int QCameraMuxer::take_picture(struct camera_device * device)
     CHECK_CAMERA_ERROR(cam);
 
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.dual.camera.mpo", prop, "1");
+    property_get("persist.vendor.camera.dual.camera.mpo", prop, "1");
     gMuxer->m_bMpoEnabled = atoi(prop);
     // If only one Physical Camera included in Logical, disable MPO
     int numOfAcitvePhyCam = 0;
@@ -1758,11 +1758,11 @@ int QCameraMuxer::setupLogicalCameras()
 
     LOGH("[%d] E: rc = %d", rc);
     // Signifies whether AUX camera has to be exposed as physical camera
-    property_get("persist.camera.aux.camera", prop, "0");
+    property_get("persist.vendor.camera.aux.camera", prop, "0");
     m_bAuxCameraExposed = atoi(prop);
 
     // Signifies whether AUX camera needs to be swapped
-    property_get("persist.camera.auxcamera.swap", prop, "0");
+    property_get("persist.vendor.camera.auxcamera.swap", prop, "0");
     int swapAux = atoi(prop);
     if (swapAux != 0) {
         primaryType = CAM_TYPE_AUX;
@@ -2112,7 +2112,7 @@ int QCameraMuxer::cameraDeviceOpen(int camera_id,
     }
 
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.dc.frame.sync", prop, "1");
+    property_get("persist.vendor.camera.dc.frame.sync", prop, "1");
     m_bFrameSyncEnabled = atoi(prop);
 
     // Get logical camera

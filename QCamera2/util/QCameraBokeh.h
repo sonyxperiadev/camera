@@ -94,7 +94,7 @@ private:
             cam_frame_len_offset_t offset,
             uint32_t idx,
             const char* name_prefix);
-    const char* buildCommaSeparatedString(float array[], size_t length);
+    String8 buildCommaSeparatedString(float array[], size_t length);
     String8 flattenCropInfo(cam_stream_crop_info_t* crop, uint8_t index);
     String8 extractReprocessInfo(metadata_buffer_t *metadata);
     String8 extractCalibrationData();

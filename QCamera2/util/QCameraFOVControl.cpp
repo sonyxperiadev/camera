@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -136,7 +136,7 @@ QCameraFOVControl* QCameraFOVControl::create(
                 // Check if LPM is enabled
                 char prop[PROPERTY_VALUE_MAX];
                 int lpmEnable = 1;
-                property_get("persist.dualcam.lpm.enable", prop, "1");
+                property_get("persist.vendor.dualcam.lpm.enable", prop, "1");
                 lpmEnable = atoi(prop);
                 if ((lpmEnable == 0) || (DUALCAM_LPM_ENABLE == 0)) {
                     pFovControl->mFovControlData.lpmEnabled = false;
@@ -736,10 +736,9 @@ int32_t QCameraFOVControl::translateInputParams(
                     mFovControlData.zoomRatioWide : mFovControlData.zoomRatioTele;
             if (useCropRegion) {
                 setCropParam(CAM_TYPE_MAIN, zoomStep, paramsMainCam);
-            } else {
-                setZoomParam(CAM_TYPE_MAIN, zoomInfo, zoomTotal, zoomIsp,
-                        snapshotPostProcess, paramsMainCam);
-                }
+            }
+            setZoomParam(CAM_TYPE_MAIN, zoomInfo, zoomTotal, zoomIsp,
+                        snapshotPostProcess, paramsMainCam, useCropRegion);
 
             // Update zoom value for aux camera param buffer
             zoomTotal = isMainCamFovWider() ?
@@ -750,10 +749,9 @@ int32_t QCameraFOVControl::translateInputParams(
                     mFovControlData.zoomRatioTele : mFovControlData.zoomRatioWide;
             if (useCropRegion) {
                 setCropParam(CAM_TYPE_AUX, zoomStep, paramsAuxCam);
-            } else {
-                setZoomParam(CAM_TYPE_AUX, zoomInfo, zoomTotal, zoomIsp,
-                        snapshotPostProcess, paramsAuxCam);
             }
+            setZoomParam(CAM_TYPE_AUX, zoomInfo, zoomTotal, zoomIsp,
+                        snapshotPostProcess, paramsAuxCam, useCropRegion);
 
             // Generate FOV-control result
             generateFovControlResult();
@@ -1940,8 +1938,8 @@ bool QCameraFOVControl::validateAndExtractParameters(
         char propSAC[PROPERTY_VALUE_MAX];
         char propSAT[PROPERTY_VALUE_MAX];
 
-        property_get("persist.camera.sac.enable", propSAC, "0");
-        property_get("persist.camera.sat.enable", propSAT, "0");
+        property_get("persist.vendor.camera.sac.enable", propSAC, "0");
+        property_get("persist.vendor.camera.sat.enable", propSAT, "0");
 
         mFovControlConfig.percentMarginHysterisis  = 5;
         mFovControlConfig.percentMarginMain        = 25;
@@ -2688,7 +2686,7 @@ void QCameraFOVControl::setDualCameraConfig(uint8_t type)
 }
 
 void QCameraFOVControl::setZoomParam(uint8_t cam_type, cam_zoom_info_t zoomInfo, uint32_t zoomTotal,
-        uint32_t zoomIsp, bool snapshotPostProcess, parm_buffer_t* params)
+        uint32_t zoomIsp, bool snapshotPostProcess, parm_buffer_t* params, bool isHAL3)
 {
     for (uint32_t i = 0; i < zoomInfo.num_streams; ++i) {
         zoomInfo.stream_zoom_info[i].stream_type = mFovControlData.camStreamInfo.type[i];
@@ -2706,7 +2704,11 @@ void QCameraFOVControl::setZoomParam(uint8_t cam_type, cam_zoom_info_t zoomInfo,
             zoomInfo.stream_zoom_info[i].stream_zoom,
             zoomInfo.stream_zoom_info[i].isp_zoom);
     }
-    ADD_SET_PARAM_ENTRY_TO_BATCH(params, CAM_INTF_PARM_USERZOOM, zoomInfo);
+    if (isHAL3) {
+        ADD_SET_PARAM_ENTRY_TO_BATCH(params, CAM_INTF_META_USERZOOM, zoomInfo);
+    } else {
+        ADD_SET_PARAM_ENTRY_TO_BATCH(params, CAM_INTF_PARM_USERZOOM, zoomInfo);
+    }
 }
 
 void QCameraFOVControl::setCropParam(uint8_t cam_type, uint32_t zoomStep, parm_buffer_t* params)

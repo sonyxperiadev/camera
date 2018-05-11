@@ -30,17 +30,11 @@ LOCAL_CFLAGS += -DUSE_JB_MR1
 endif
 
 LOCAL_C_INCLUDES += \
-    frameworks/base/include/ui \
-    frameworks/base/include/surfaceflinger \
-    frameworks/base/include/camera \
-    frameworks/base/include/media \
     external/skia/include/core \
     external/skia/include/images \
     $(TARGET_OUT_HEADERS)/qcom/display \
     hardware/qcom/camera/QCamera2/stack/common \
     hardware/qcom/camera/QCamera2/stack/mm-camera-interface/inc \
-    frameworks/av/include/media/stagefright \
-    frameworks/native/include/media/openmax \
     $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr

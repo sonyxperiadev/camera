@@ -274,7 +274,7 @@ private:
     void startTimer(timer_t *timer, uint32_t time);
     void inactivateTimer(timer_t *timer);
     void setZoomParam(uint8_t cam_type, cam_zoom_info_t zoomInfo, uint32_t zoomTotal,
-            uint32_t zoomIsp, bool snapshotPostProcess, parm_buffer_t* params);
+            uint32_t zoomIsp, bool snapshotPostProcess, parm_buffer_t* params, bool isHAL3);
     void setCropParam(uint8_t cam_type, uint32_t zoomStep, parm_buffer_t* params);
     cam_area_t translateRoi(cam_area_t roiMain, cam_sync_type_t cam);
 

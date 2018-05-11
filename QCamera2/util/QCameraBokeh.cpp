@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -193,7 +193,7 @@ int32_t QCameraBokeh::init(
     /* To dump debug data */
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.bokeh.debug", prop, "0");
+    property_get("persist.vendor.camera.bokeh.debug", prop, "0");
     m_bDebug = atoi(prop);
 
     LOGH("X");
@@ -644,7 +644,7 @@ int32_t QCameraBokeh::doBokehProcess(
 
     uint8_t dualCamConfig = DUAL_CAM_CONFIG;
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.ddm.config", prop, "");
+    property_get("persist.vendor.camera.ddm.config", prop, "");
     if (strlen(prop) > 0) {
         dualCamConfig = atoi(prop);
     }
@@ -655,7 +655,7 @@ int32_t QCameraBokeh::doBokehProcess(
         ddmMode = qrcp::DepthMapMode::NORMAL_MODE;
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.bokeh.ddmmode", prop, "");
+    property_get("persist.vendor.camera.bokeh.ddmmode", prop, "");
     if (strlen(prop) > 0) {
         if (!strcmp(prop, "normal"))
             ddmMode = qrcp::DepthMapMode::NORMAL_MODE;
@@ -743,7 +743,15 @@ int32_t QCameraBokeh::doBokehProcess(
     if(mBokehData.main_input->jpeg_settings != NULL)
     {
         mBokehData.main_input->is_crop_valid = true;
-        mBokehData.main_input->outputCrop = bokeh_out_dim;
+        mBokehData.main_input->outputCrop.top = inParams.zoomROI.top;
+        mBokehData.main_input->outputCrop.left = inParams.zoomROI.left;
+        mBokehData.main_input->outputCrop.width =
+                            PAD_TO_SIZE(PMIN(goodRoi.width, inParams.zoomROI.width), CAM_PAD_TO_2);
+        mBokehData.main_input->outputCrop.height =
+                           PAD_TO_SIZE(PMIN(goodRoi.height, inParams.zoomROI.height), CAM_PAD_TO_2);
+        DUMP("\nMain Crop left %d Top %d Width %d Height %d",mBokehData.main_input->outputCrop.left,
+                mBokehData.main_input->outputCrop.top, mBokehData.main_input->outputCrop.width,
+                mBokehData.main_input->outputCrop.height);
     }
 
     //apply zoom, if any, on depth map
@@ -807,13 +815,13 @@ void QCameraBokeh::dumpYUVtoFile(
 
 }
 
-const char* QCameraBokeh::buildCommaSeparatedString(float array[], size_t length) {
+String8 QCameraBokeh::buildCommaSeparatedString(float array[], size_t length) {
     String8 str;
     str.appendFormat("%.4f", array[0]);
     for(size_t i = 1; i < length; i++) {
         str.appendFormat(",%.4f", array[i]);
     }
-    return str.string();
+    return str;
 }
 
 String8 QCameraBokeh::flattenCropInfo(cam_stream_crop_info_t* crop, uint8_t index)
@@ -922,10 +930,10 @@ String8 QCameraBokeh::extractCalibrationData()
 
     calibData.appendFormat(CALIB_FMT_STRINGS[11],
             buildCommaSeparatedString(calib_data.relative_rotation_matrix,
-            RELCAM_CALIB_ROT_MATRIX_MAX));
+            RELCAM_CALIB_ROT_MATRIX_MAX).string());
     calibData.appendFormat(CALIB_FMT_STRINGS[12],
             buildCommaSeparatedString(calib_data.relative_geometric_surface_parameters,
-            RELCAM_CALIB_SURFACE_PARMS_MAX));
+            RELCAM_CALIB_SURFACE_PARMS_MAX).string());
 
     calibData.appendFormat(CALIB_FMT_STRINGS[13], calib_data.relative_principle_point_x_offset);
     calibData.appendFormat(CALIB_FMT_STRINGS[14], calib_data.relative_principle_point_y_offset);
@@ -1039,6 +1047,11 @@ int32_t QCameraBokeh::allocateDepthBuf(cam_frame_size_t depthSize)
     {
         output_data->src_reproc_frame = (mm_camera_super_buf_t *)
                                         calloc(1, sizeof(mm_camera_super_buf_t));
+        if (output_data->src_reproc_frame == NULL) {
+            LOGE("No memory for src frame");
+            free(output_data);
+            return NO_MEMORY;
+        }
         memcpy(output_data->src_reproc_frame, mBokehData.aux_input->src_reproc_frame,
                                                        sizeof(mm_camera_super_buf_t));
     }
