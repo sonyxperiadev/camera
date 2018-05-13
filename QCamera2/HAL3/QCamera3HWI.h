@@ -179,6 +179,8 @@ public:
     static int flush(const struct camera3_device *);
     static int close_camera_device(struct hw_device_t* device);
 
+    static bool tof_focusing;
+    static uint8_t tofAfState;
 public:
     QCamera3HardwareInterface(uint32_t cameraId,
             const camera_module_callbacks_t *callbacks);
