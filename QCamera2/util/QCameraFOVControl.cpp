@@ -55,10 +55,11 @@ namespace qcamera {
  * RETURN     : void
  *
  *==========================================================================*/
-QCameraFOVControl::QCameraFOVControl()
+QCameraFOVControl::QCameraFOVControl(uint8_t isHAL3)
     :mZoomTranslator(NULL),
      mHalPPType(CAM_HAL_PP_TYPE_NONE),
-     mDualCamType(DUAL_CAM_WIDE_TELE)
+     mDualCamType(DUAL_CAM_WIDE_TELE),
+     mbIsHAL3(isHAL3)
 {
     memset(&mDualCamParams,    0, sizeof(dual_cam_params_t));
     memset(&mFovControlConfig, 0, sizeof(fov_control_config_t));
@@ -105,13 +106,14 @@ QCameraFOVControl::~QCameraFOVControl()
  *==========================================================================*/
 QCameraFOVControl* QCameraFOVControl::create(
         cam_capability_t *capsMainCam,
-        cam_capability_t *capsAuxCam)
+        cam_capability_t *capsAuxCam,
+        uint8_t isHAL3)
 {
     QCameraFOVControl *pFovControl  = NULL;
 
     if (capsMainCam && capsAuxCam) {
         // Create FOV control object
-        pFovControl = new QCameraFOVControl();
+        pFovControl = new QCameraFOVControl(isHAL3);
 
         if (pFovControl) {
             bool  success = false;
@@ -2505,6 +2507,11 @@ cam_face_detection_data_t QCameraFOVControl::translateRoiFD(
         cam_face_detection_data_t metaFD,
         cam_sync_type_t cam)
 {
+
+    if (mbIsHAL3) {
+        return translateHAL3FDRoi(metaFD, cam);
+    }
+
     cam_face_detection_data_t metaFDTranslated = metaFD;
     int32_t shiftHorz = 0;
     int32_t shiftVert = 0;
@@ -2567,7 +2574,6 @@ cam_face_detection_data_t QCameraFOVControl::translateRoiFD(
     }
     return metaFDTranslated;
 }
-
 
 /*===========================================================================
  * FUNCTION      : getFrameMargins
@@ -2772,6 +2778,7 @@ cam_area_t QCameraFOVControl::translateRoi(
     cam_area_t roiTrans = roiMain;
     int32_t shiftHorzAdjusted;
     int32_t shiftVertAdjusted;
+    uint32_t maxW, maxH;
 
     zoomWide = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
     zoomTele = findZoomRatio(mFovControlData.zoomTele) / (float)mFovControlData.zoomRatioTable[0];
@@ -2805,9 +2812,18 @@ cam_area_t QCameraFOVControl::translateRoi(
                     + (mDualCamParams.paramsMain.sensorStreamWidth / 2.0f);
     roiTrans.rect.left = AuxRoiLeft - shiftHorzAdjusted;
 
+    if (CAM_TYPE_MAIN == cam) {
+        maxW = mDualCamParams.paramsMain.sensorStreamWidth;
+        maxH = mDualCamParams.paramsMain.sensorStreamHeight;
+    } else {
+        maxW = mDualCamParams.paramsAux.sensorStreamWidth;
+        maxH = mDualCamParams.paramsAux.sensorStreamHeight;
+    }
+
+
     // Check the ROI bounds and correct if necessory
-    if ((roiTrans.rect.width >= (int32_t)mDualCamParams.paramsAux.sensorStreamWidth) ||
-        (roiTrans.rect.height >= (int32_t)mDualCamParams.paramsAux.sensorStreamHeight)) {
+    if ((roiTrans.rect.width >= (int32_t)maxW) ||
+        (roiTrans.rect.height >= (int32_t)maxH)) {
         roiTrans = roiMain;
         LOGW("ROI translation failed, reverting to the pre-translation ROI");
     } else {
@@ -2820,18 +2836,14 @@ cam_area_t QCameraFOVControl::translateRoi(
             roiTrans.rect.top = 0;
             error = true;
         }
-        if ((roiTrans.rect.left >= (int32_t)mDualCamParams.paramsAux.sensorStreamWidth) ||
-            ((roiTrans.rect.left + roiTrans.rect.width) >
-                    (int32_t) mDualCamParams.paramsAux.sensorStreamWidth)) {
-            roiTrans.rect.left = mDualCamParams.paramsAux.sensorStreamWidth -
-                                            roiTrans.rect.width;
+        if ((roiTrans.rect.left >= (int32_t)maxW) ||
+            ((roiTrans.rect.left + roiTrans.rect.width) > (int32_t) maxW)) {
+            roiTrans.rect.left = maxW - roiTrans.rect.width;
             error = true;
         }
-        if ((roiTrans.rect.top >= (int32_t)mDualCamParams.paramsAux.sensorStreamHeight) ||
-            ((roiTrans.rect.top + roiTrans.rect.height) >
-                    (int32_t)mDualCamParams.paramsAux.sensorStreamHeight)) {
-            roiTrans.rect.top = mDualCamParams.paramsAux.sensorStreamHeight -
-                                            roiTrans.rect.height;
+        if ((roiTrans.rect.top >= (int32_t)maxH) ||
+            ((roiTrans.rect.top + roiTrans.rect.height) > (int32_t)maxH)) {
+            roiTrans.rect.top = maxH - roiTrans.rect.height;
             error = true;
         }
         if (error) {
@@ -2843,6 +2855,94 @@ cam_area_t QCameraFOVControl::translateRoi(
             (cam == CAM_TYPE_MAIN) ? "main cam" : "aux  cam", roiTrans.rect.left,
             roiTrans.rect.top, roiTrans.rect.width, roiTrans.rect.height);
     return roiTrans;
+}
+
+/*===========================================================================
+ * FUNCTION   : translateHAL3FDRoi
+ *
+ * DESCRIPTION: Translate face detection ROI from aux metadata to main
+ *
+ * PARAMETERS :
+ * @faceDetectionInfo  : face detection data from aux metadata. This face
+ *                       detection data is overwritten with the translated
+ *                       FD ROI.
+ * @cam                : Cam type
+ *
+ * RETURN     : none
+ *
+ *==========================================================================*/
+cam_face_detection_data_t QCameraFOVControl::translateHAL3FDRoi(
+        cam_face_detection_data_t metaFD,
+        cam_sync_type_t cam)
+{
+    cam_face_detection_data_t metaFDTranslated = metaFD;
+    int32_t shiftHorz = 0;
+    int32_t shiftVert = 0;
+    uint32_t maxW, maxH;
+
+    float zoomWide = findZoomRatio(mFovControlData.zoomWide) /
+                        (float)mFovControlData.zoomRatioTable[0];
+    float zoomTele = findZoomRatio(mFovControlData.zoomTele) /
+                        (float)mFovControlData.zoomRatioTable[0];
+
+    if (cam == mFovControlData.camWide) {
+        shiftHorz = mFovControlData.spatialAlignResult.shiftWide.shiftHorz * zoomWide;
+        shiftVert = mFovControlData.spatialAlignResult.shiftWide.shiftVert * zoomWide;
+    } else {
+        shiftHorz = mFovControlData.spatialAlignResult.shiftTele.shiftHorz * zoomTele;
+        shiftVert = mFovControlData.spatialAlignResult.shiftTele.shiftVert * zoomTele;
+    }
+
+    for (int i = 0; i < metaFDTranslated.num_faces_detected; ++i) {
+        metaFDTranslated.faces[i].face_boundary.left += shiftHorz;
+        metaFDTranslated.faces[i].face_boundary.top  += shiftVert;
+    }
+
+    if (CAM_TYPE_MAIN == cam) {
+        maxW = mDualCamParams.paramsMain.sensorStreamWidth;
+        maxH = mDualCamParams.paramsMain.sensorStreamHeight;
+    } else {
+        maxW = mDualCamParams.paramsAux.sensorStreamWidth;
+        maxH = mDualCamParams.paramsAux.sensorStreamHeight;
+    }
+
+    // If ROI is out of bounds, remove that FD ROI from the list
+    for (int i = 0; i < metaFDTranslated.num_faces_detected; ++i) {
+        if ((metaFDTranslated.faces[i].face_boundary.left < 0) ||
+            (metaFDTranslated.faces[i].face_boundary.left >= (int32_t)maxW) ||
+            (metaFDTranslated.faces[i].face_boundary.top < 0) ||
+            (metaFDTranslated.faces[i].face_boundary.top >= (int32_t)maxH) ||
+            ((metaFDTranslated.faces[i].face_boundary.left +
+                    metaFDTranslated.faces[i].face_boundary.width) >= (int32_t)maxW) ||
+            ((metaFDTranslated.faces[i].face_boundary.top +
+                    metaFDTranslated.faces[i].face_boundary.height) >= (int32_t)maxH)) {
+            // Invalid FD ROI detected
+            LOGW("Failed translating FD ROI %s: L:%d, T:%d, W:%d, H:%d",
+                    (cam == CAM_TYPE_MAIN) ? "main cam" : "aux  cam",
+                    metaFDTranslated.faces[i].face_boundary.left,
+                    metaFDTranslated.faces[i].face_boundary.top,
+                    metaFDTranslated.faces[i].face_boundary.width,
+                    metaFDTranslated.faces[i].face_boundary.height);
+
+            // Remove it by copying the last FD ROI at this index
+            if (i < (metaFDTranslated.num_faces_detected - 1)) {
+                metaFDTranslated.faces[i] =
+                        metaFDTranslated.faces[metaFDTranslated.num_faces_detected - 1];
+                // Decrement the current index to process the newly copied FD ROI.
+                --i;
+            }
+            --metaFDTranslated.num_faces_detected;
+        }
+        else {
+            LOGD("Translated FD ROI-%d %s: L:%d, T:%d, W:%d, H:%d", i,
+                    (cam == CAM_TYPE_MAIN) ? "main cam" : "aux  cam",
+                    metaFDTranslated.faces[i].face_boundary.left,
+                    metaFDTranslated.faces[i].face_boundary.top,
+                    metaFDTranslated.faces[i].face_boundary.width,
+                    metaFDTranslated.faces[i].face_boundary.height);
+        }
+    }
+    return metaFDTranslated;
 }
 
 }; // namespace qcamera
