@@ -3871,6 +3871,12 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     }
                 }
 
+                if(i->bUrgentReceived == 0)
+                {
+                    LOGD("urgent metadata is dropped for frame number %d", frame_number);
+                    i->partial_result_cnt++;
+                    result.partial_result = i->partial_result_cnt;
+                }
                 result.output_buffers = result_buffers;
                 orchestrateResult(&result);
                 LOGD("Sending buffers with meta frame_number = %u, capture_time = %lld",
@@ -3881,6 +3887,12 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 LOGE("Fatal error: out of memory");
             }
         } else {
+            if(i->bUrgentReceived == 0)
+            {
+                LOGD("urgent metadata is dropped for frame number %d", frame_number);
+                i->partial_result_cnt++;
+                result.partial_result = i->partial_result_cnt;
+            }
             orchestrateResult(&result);
             LOGD("meta frame_number = %u, capture_time = %lld",
                     result.frame_number, i->timestamp);
