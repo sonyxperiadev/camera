@@ -287,16 +287,14 @@ bool QCameraCommon::isVideoUBWCEnabled()
 {
 #ifdef UBWC_PRESENT
     char prop[PROPERTY_VALUE_MAX];
-    int pFormat;
     memset(prop, 0, sizeof(prop));
     /* Checking the property set by video
      * to disable/enable UBWC */
-    property_get("video.disable.ubwc", prop, "0");
-    pFormat = atoi(prop);
-    if (pFormat == 0) {
-        return TRUE;
-    }
-    return FALSE;
+    if (property_get("video.disable.ubwc", prop, "") > 0)
+        return (atoi(prop) == 0);
+    else if (property_get("vendor.video.disable.ubwc", prop, "") > 0)
+        return (atoi(prop) == 0);
+    return TRUE;
 #else
     return FALSE;
 #endif
