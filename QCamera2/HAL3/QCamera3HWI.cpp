@@ -14574,6 +14574,7 @@ int32_t QCamera3HardwareInterface::bundleRelatedCameras(bool enable_sync)
     bundle_info[num_cam].related_sensor_session_id = sessionID;
     bundle_info[num_cam].perf_mode = getLowPowerMode(CAM_TYPE_MAIN);
     bundle_info[num_cam].sync_mechanism = DUALCAM_SYNC_MECHANISM;
+    bundle_info[num_cam].hal_lpm_control = true;
     num_cam++;
 
     bundle_info[num_cam].sync_control = syncControl;
