@@ -348,14 +348,6 @@ QCameraDisplay::init()
         mDisplayEventCallback = new DisplayEventCallback();
     }
 
-    /*setting callbacks*/
-    Return<Status> retVal = mDisplayEventReceiver->init(mDisplayEventCallback);
-    if(!retVal.isOk() || (Status::SUCCESS != static_cast<Status>(retVal)) )
-    {
-        LOGE("Failed to register display vsync callback");
-        return;
-    }
-
     if(mDeathRecipient == nullptr)
     {
         mDeathRecipient = new DeathRecipient();
@@ -386,8 +378,15 @@ QCameraDisplay::startVsync(bool bStart)
 
     if(bStart)
     {
+         /*setting callbacks*/
+         Return<Status> retVal = mDisplayEventReceiver->init(mDisplayEventCallback);
+         if(!retVal.isOk() || (Status::SUCCESS != static_cast<Status>(retVal)) )
+         {
+             LOGE("Failed to register display vsync callback");
+             return false;
+         }
         /*send callback for each vsync event*/
-        Return<Status> retVal = mDisplayEventReceiver->setVsyncRate(1);
+        retVal = mDisplayEventReceiver->setVsyncRate(1);
         if(!retVal.isOk() || (Status::SUCCESS != static_cast<Status>(retVal)) )
         {
             LOGE("Failed to start vsync events");
@@ -401,6 +400,13 @@ QCameraDisplay::startVsync(bool bStart)
         if(!retVal.isOk() || (Status::SUCCESS != static_cast<Status>(retVal)) )
         {
             LOGE("Failed to stop vsync events");
+            return false;
+        }
+        /*Disable callbacks*/
+        retVal = mDisplayEventReceiver->close();
+        if(!retVal.isOk() || (Status::SUCCESS != static_cast<Status>(retVal)))
+        {
+            LOGE("Failed to disable vsync callback");
             return false;
         }
     }
