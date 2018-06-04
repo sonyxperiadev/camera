@@ -1068,7 +1068,7 @@ int QCamera3HardwareInterface::openCamera()
         // Create and initialize FOV-control object
         m_pFovControl = QCameraFOVControl::create(
                 gCamCapability[mCameraId]->main_cam_cap,
-                gCamCapability[mCameraId]->aux_cam_cap);
+                gCamCapability[mCameraId]->aux_cam_cap, true);
         if (m_pFovControl) {
             mDualCamType = (uint8_t)QCameraCommon::getDualCameraConfig(
                     gCamCapability[mCameraId]->main_cam_cap,
@@ -10806,7 +10806,7 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
             // Create and initialize FOV-control object
             QCameraFOVControl *pFovControl = QCameraFOVControl::create(
                     gCamCapability[cameraId]->main_cam_cap,
-                    gCamCapability[cameraId]->aux_cam_cap);
+                    gCamCapability[cameraId]->aux_cam_cap, true);
 
             if (pFovControl) {
                 *gCamCapability[cameraId] = pFovControl->consolidateCapabilities(
