@@ -1451,7 +1451,6 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         return processRawData(frame);
     }
 
-#ifdef TARGET_TS_MAKEUP
     // find snapshot frame frame
     mm_camera_buf_def_t *pReprocFrame = NULL;
     QCameraStream * pSnapshotStream = NULL;
@@ -1481,6 +1480,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         }
     }
 
+#ifdef TARGET_TS_MAKEUP
     if (pReprocFrame != NULL && m_parent->mParameters.isFaceDetectionEnabled()) {
         m_parent->TsMakeupProcess_Snapshot(pReprocFrame,pSnapshotStream);
     } else {
@@ -1542,7 +1542,7 @@ int32_t QCameraPostProcessor::processPPData(mm_camera_super_buf_t *frame)
         cam_frame_len_offset_t src_offset, meta_offset;
         memset(&src_offset, 0, sizeof(cam_frame_len_offset_t));
         if (pSnapshotStream != NULL)
-        pSnapshotStream->getFrameOffset(src_offset);
+            pSnapshotStream->getFrameOffset(src_offset);
 
         //get meta offset info
         QCameraStream * pMetaStream = NULL;
