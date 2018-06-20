@@ -707,7 +707,8 @@ public:
     bool isZSLMode() {return m_bZslMode;};
     bool isRdiMode() {return m_bRdiMode;};
     bool isSecureMode() {return m_bSecureMode;};
-    cam_stream_type_t getSecureStreamType() {return mSecureStraemType;};
+    cam_stream_secure_mode_t getSecureSessionType()const {return m_eSecSessMode;}
+    cam_stream_type_t getSecureStreamType()const {return mSecureStraemType;}
     bool isNoDisplayMode(uint32_t cam_type = CAM_TYPE_MAIN);
     bool isWNREnabled() {return m_bWNROn;};
     bool isTNRSnapshotEnabled() {return m_bTNRSnapshotOn;};
@@ -1317,6 +1318,7 @@ private:
     bool m_bSensorHDREnabled;             // if HDR is enabled
     bool m_bRdiMode;                // if RDI mode
     bool m_bSecureMode;
+    cam_stream_secure_mode_t m_eSecSessMode;
     bool m_bSecureModeUBWC;
     bool m_bAeBracketingEnabled;
     int32_t mFlashValue;

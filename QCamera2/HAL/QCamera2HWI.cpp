@@ -3446,6 +3446,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     streamInfo->buf_cnt = streamInfo->num_bufs;
     streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     streamInfo->is_secure = NON_SECURE;
+    streamInfo->secure_mode = SECURE_INVALID;
     streamInfo->bNoBundling = false;
 
     streamInfo->cam_type = (cam_sync_type_t)cam_type;
@@ -3548,6 +3549,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
         }
         if (isSecureMode()) {
             streamInfo->is_secure = SECURE;
+            streamInfo->secure_mode = mParameters.getSecureSessionType();
         } else {
             streamInfo->is_secure = NON_SECURE;
         }
