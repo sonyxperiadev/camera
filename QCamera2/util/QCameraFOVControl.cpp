@@ -2885,26 +2885,39 @@ cam_face_detection_data_t QCameraFOVControl::translateHAL3FDRoi(
     float zoomTele = findZoomRatio(mFovControlData.zoomTele) /
                         (float)mFovControlData.zoomRatioTable[0];
 
-    if (cam == mFovControlData.camWide) {
+   if (cam == mFovControlData.camWide) {
         shiftHorz = mFovControlData.spatialAlignResult.shiftWide.shiftHorz * zoomWide;
         shiftVert = mFovControlData.spatialAlignResult.shiftWide.shiftVert * zoomWide;
-    } else {
+   } else {
         shiftHorz = mFovControlData.spatialAlignResult.shiftTele.shiftHorz * zoomTele;
         shiftVert = mFovControlData.spatialAlignResult.shiftTele.shiftVert * zoomTele;
-    }
+   }
 
-    for (int i = 0; i < metaFDTranslated.num_faces_detected; ++i) {
-        metaFDTranslated.faces[i].face_boundary.left += shiftHorz;
-        metaFDTranslated.faces[i].face_boundary.top  += shiftVert;
-    }
+       maxW = mDualCamParams.paramsMain.sensorStreamWidth;
+       maxH = mDualCamParams.paramsMain.sensorStreamHeight;
 
-    if (CAM_TYPE_MAIN == cam) {
-        maxW = mDualCamParams.paramsMain.sensorStreamWidth;
-        maxH = mDualCamParams.paramsMain.sensorStreamHeight;
-    } else {
-        maxW = mDualCamParams.paramsAux.sensorStreamWidth;
-        maxH = mDualCamParams.paramsAux.sensorStreamHeight;
-    }
+   for (int i = 0; i < metaFDTranslated.num_faces_detected; ++i) {
+       metaFDTranslated.faces[i].face_boundary.left += shiftHorz;
+       metaFDTranslated.faces[i].face_boundary.top  += shiftVert;
+       //maping AUX fd values to MAIN.
+       if(CAM_TYPE_AUX == cam && (mHalPPType != CAM_HAL_PP_TYPE_BOKEH))
+       {
+           float widthFactor = (float)(mDualCamParams.paramsMain.sensorStreamWidth/
+                               (float)mDualCamParams.paramsAux.sensorStreamWidth);
+           float heightFactor = (float)(mDualCamParams.paramsMain.sensorStreamHeight/
+                               (float)mDualCamParams.paramsAux.sensorStreamHeight);
+           float zoomFactor = (float)(zoomTele / (float)zoomWide);
+           cam_rect_t *face = &metaFDTranslated.faces[i].face_boundary;
+           face->left =
+               (((face->left - mDualCamParams.paramsAux.sensorStreamWidth/2.0f) * zoomFactor)
+               + (mDualCamParams.paramsAux.sensorStreamWidth / 2.0f)) * widthFactor;
+           face->top =
+               (((face->top - mDualCamParams.paramsAux.sensorStreamHeight/2.0f) * zoomFactor)
+               + (mDualCamParams.paramsAux.sensorStreamHeight/2.0f)) * heightFactor;
+           face->width *= zoomFactor;
+           face->height *= zoomFactor;
+       }
+   }
 
     // If ROI is out of bounds, remove that FD ROI from the list
     for (int i = 0; i < metaFDTranslated.num_faces_detected; ++i) {
