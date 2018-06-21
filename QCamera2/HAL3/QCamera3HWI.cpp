@@ -2178,9 +2178,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
         }
     }
-    if (gCamCapability[mCameraId]->position == CAM_POSITION_FRONT ||
-            gCamCapability[mCameraId]->position == CAM_POSITION_FRONT_AUX ||
-            !m_bIsVideo) {
+    if (!m_bIsVideo) {
         m_bEisEnable = false;
     }
 
@@ -9596,7 +9594,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             break;
         }
     }
-    if (facingBack && eis_prop_set && eisSupported) {
+    if (eis_prop_set && eisSupported) {
         availableVstabModes.add(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_ON);
     }
     staticInfo.update(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES,
