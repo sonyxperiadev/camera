@@ -430,6 +430,7 @@ private:
             camera3_error_msg_code_t errorCode);
     int32_t getReprocessibleOutputStreamId(uint32_t &id);
     int32_t handleCameraDeviceError();
+    bool checkFrameInPendingList(const uint32_t frame_number);
 
     bool isOnEncoder(const cam_dimension_t max_viewfinder_size,
             uint32_t width, uint32_t height);

@@ -3446,6 +3446,31 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
 }
 
 /*===========================================================================
+ * FUNCTION   : checkFrameInPendingList
+ *
+ * DESCRIPTION: Check for the frame_number present in pending request list or not.
+ *
+ * PARAMETERS : @frame_number: frame_number
+ *
+ * RETURN     :@bool: true if frame present in list else false.
+ *
+ *==========================================================================*/
+bool QCamera3HardwareInterface::checkFrameInPendingList(
+        const uint32_t frame_number)
+{
+    bool ret = false;
+    for(auto itr = mPendingRequestsList.begin(); itr != mPendingRequestsList.end(); itr++)
+    {
+        if(frame_number == itr->frame_number)
+        {
+            ret = true;
+            break;
+        }
+    }
+    return ret;
+}
+
+/*===========================================================================
  * FUNCTION   : handleBatchMetadata
  *
  * DESCRIPTION: Handles metadata buffer callback in batch mode
@@ -3515,11 +3540,15 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     if (urgent_frame_number_valid) {
         ssize_t idx = mPendingBatchMap.indexOfKey(last_urgent_frame_number);
         if(idx < 0) {
-            LOGE("Invalid urgent frame number received: %d. Irrecoverable error",
+            LOGE("Invalid urgent frame number received: %d.",
                 last_urgent_frame_number);
-            mState = ERROR;
+            if(checkFrameInPendingList(last_urgent_frame_number))
+            {
+                LOGE("Irrecoverable Error: frame not batched");
+                mState = ERROR;
+            }
             pthread_mutex_unlock(&mMutex);
-            return;
+            goto BUFFER_NOT_BATCHED;
         }
         first_urgent_frame_number = mPendingBatchMap.valueAt(idx);
         urgentFrameNumDiff = last_urgent_frame_number + 1 -
@@ -3533,11 +3562,15 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     if (frame_number_valid) {
         ssize_t idx = mPendingBatchMap.indexOfKey(last_frame_number);
         if(idx < 0) {
-            LOGE("Invalid frame number received: %d. Irrecoverable error",
+            LOGE("Invalid frame number received: %d.",
                 last_frame_number);
-            mState = ERROR;
+            if(checkFrameInPendingList(last_frame_number))
+            {
+                LOGE("Irrecoverable Error: frame not batched");
+                mState = ERROR;
+            }
             pthread_mutex_unlock(&mMutex);
-            return;
+            goto BUFFER_NOT_BATCHED;
         }
         first_frame_number = mPendingBatchMap.valueAt(idx);
         frameNumDiff = last_frame_number + 1 -
@@ -3617,6 +3650,7 @@ void QCamera3HardwareInterface::handleBatchMetadata(
         pthread_mutex_unlock(&mMutex);
     }
 
+BUFFER_NOT_BATCHED:
     /* BufDone metadata buffer */
     if (free_and_bufdone_meta_buf && !is_metabuf_queued) {
         mMetadataChannel->bufDone(metadata_buf);
