@@ -2533,7 +2533,7 @@ int32_t mm_camera_handle_frame_sync_cb(mm_camera_obj_t *my_obj,
  * DESCRIPTION: mm camera debug interface
  *
  *==========================================================================*/
-pthread_mutex_t dbg_log_mutex;
+pthread_mutex_t dbg_log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int         cam_soft_assert     = 0;
 static FILE       *cam_log_fd          = NULL;
@@ -2764,7 +2764,6 @@ void mm_camera_set_dbg_log_properties(void) {
   void mm_camera_debug_open(void) {
     char         property_value[PROPERTY_VALUE_MAX] = {0};
 
-    pthread_mutex_init(&dbg_log_mutex, 0);
     mm_camera_set_dbg_log_properties();
 
     /* configure asserts */
@@ -2805,12 +2804,9 @@ void mm_camera_set_dbg_log_properties(void) {
    *  Return: N/A
    **/
   void mm_camera_debug_close(void) {
-
     if (cam_log_fd != NULL) {
       fclose(cam_log_fd);
       cam_log_fd = NULL;
     }
-
-    pthread_mutex_destroy(&dbg_log_mutex);
   }
 #endif
