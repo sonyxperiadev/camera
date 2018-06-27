@@ -294,7 +294,7 @@ bool QCameraCommon::isVideoUBWCEnabled()
         return (atoi(prop) == 0);
     else if (property_get("vendor.video.disable.ubwc", prop, "") > 0)
         return (atoi(prop) == 0);
-    return FALSE;
+    return TRUE;
 #else
     return FALSE;
 #endif

@@ -305,8 +305,6 @@ int32_t QCameraBokeh::feedInput(qcamera_hal_pp_data_t *pInputData)
             }
             if (mainHandle && (mBokehData.main_input == NULL)) {
                 mBokehData.main_input = pInputData;
-                //Encode main image always
-                mBokehData.main_input->needEncode = true;
                 LOGH("Update main input");
             }
             else if (auxHandle && (mBokehData.aux_input == NULL)) {
@@ -318,6 +316,8 @@ int32_t QCameraBokeh::feedInput(qcamera_hal_pp_data_t *pInputData)
                 if (bNeedCamSwap) {
                     SWAP(mBokehData.main_input, mBokehData.aux_input);
                 }
+                //Encode main image always
+                mBokehData.main_input->needEncode = true;
                 m_halPPGetOutputCB(pInputSnapshotBuf->frame_idx, m_pHalPPMgr);
             }
         }

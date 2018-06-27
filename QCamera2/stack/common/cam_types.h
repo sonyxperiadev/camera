@@ -140,7 +140,7 @@
 #define EXIF_IMAGE_DESCRIPTION_SIZE 100
 
 #define MAX_INFLIGHT_REQUESTS  6
-#define MAX_INFLIGHT_BLOB      10
+#define MAX_INFLIGHT_BLOB      6
 #define MIN_INFLIGHT_REQUESTS  3
 #define MIN_INFLIGHT_60FPS_REQUESTS (6)
 #define MAX_INFLIGHT_REPROCESS_REQUESTS 1
@@ -3121,6 +3121,7 @@ typedef enum {
     CAM_HAL3_JPEG_TYPE_BOKEH,           // BOKEH image
     CAM_HAL3_JPEG_TYPE_AUX,             // AUX image
     CAM_HAL3_JPEG_TYPE_DEPTH,           // DEPTH image
+    CAM_HAL3_JPEG_TYPE_FUSION,
     CAM_HAL3_JPEG_TYPE_MAX
 } cam_hal3_JPEG_type_t;
 

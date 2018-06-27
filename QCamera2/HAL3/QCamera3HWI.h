@@ -320,6 +320,13 @@ public:
     bool isDualCamera() { return mDualCamera; };
     int32_t bundleRelatedCameras(bool enable_sync);
     cam_hal_pp_type_t getHalPPType() {return m_halPPType;}
+    bool isDimSupportedbyCamType(const cam_dimension_t &dim, const cam_sync_type_t &type);
+    cam_dimension_t getOptimalSupportedDim(const cam_dimension_t &dim, const cam_sync_type_t &type);
+    cam_dimension_t getMaxSingleIspRes();
+    bool isAsymetricDim(const cam_dimension_t &dim);
+    bool isPPUpscaleNeededForDim(const cam_dimension_t &dim);
+    void rectifyStreamDimIfNeeded(
+        cam_dimension_t &dim, const cam_sync_type_t &type, bool &needUpScale);
     uint32_t getBlurLevel() {return mBlurLevel;}
     cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
     bool needHALPP() {return m_bNeedHalPP;}
@@ -459,6 +466,9 @@ private:
     int32_t setDCLowPowerMode(uint32_t state);
     int32_t setDCFallbackMode(cam_fallback_mode_t fallback);
     int32_t setDCDeferCamera(cam_dual_camera_defer_cmd_t type);
+    //dual camera api's
+    void rectifyStreamSizesByCamType(
+            cam_stream_size_info_t* streamsInfo, const cam_sync_type_t &type);
     void initDCSettings();
 
     camera3_device_t   mCameraDevice;
