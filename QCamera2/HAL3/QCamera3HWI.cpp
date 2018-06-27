@@ -2498,6 +2498,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                             CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
                 }
+                if ((isZsl) && (zslStream == newStream)) {
+                    zsl_ppmask = mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams];
+                }
             break;
             case HAL_PIXEL_FORMAT_BLOB:
                 if (newStream->data_space !=  HAL_DATASPACE_DEPTH) {
@@ -11530,7 +11533,7 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     /* CDS default */
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.vendor.camera.CDS", prop, "Auto");
+    property_get("persist.vendor.camera.CDS", prop, "Off");
     cam_cds_mode_type_t cds_mode = CAM_CDS_MODE_AUTO;
     cds_mode = lookupProp(CDS_MAP, METADATA_MAP_SIZE(CDS_MAP), prop);
     if (CAM_CDS_MODE_MAX == cds_mode) {
