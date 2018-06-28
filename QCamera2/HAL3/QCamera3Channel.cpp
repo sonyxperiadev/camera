@@ -51,6 +51,10 @@ extern "C" {
 
 #include "dualcameraddm_wrapper.h"
 
+#define PAD_TO_SIZE(size, padding) \
+        ((size + (typeof(size))(padding - 1)) & \
+        (typeof(size))(~(padding - 1)))
+
 using namespace android;
 
 namespace qcamera {
@@ -5996,7 +6000,13 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
                                    (hal_obj->getHalPPType() ==  CAM_HAL_PP_TYPE_BOKEH) &&
                                     (jpeg_settings != NULL))
                             {
+                                //In bokeh mode, reprocess don't do cropping irresepctive of scene
+                                //is bokeh eligible or not, so setting jpeg crop.
                                 jpeg_settings->crop = crop_data->crop_info[j].crop;
+                                jpeg_settings->crop.width = PAD_TO_SIZE(
+                                                                jpeg_settings->crop.width,2);
+                                jpeg_settings->crop.height = PAD_TO_SIZE(
+                                                                jpeg_settings->crop.height,2);
                                 jpeg_settings->is_crop_valid = true;
                             }
 
