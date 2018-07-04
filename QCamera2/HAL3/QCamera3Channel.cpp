@@ -49,7 +49,9 @@ extern "C" {
 #include "mm_camera_dbg.h"
 }
 
+#ifdef ENABLE_BOKEH
 #include "dualcameraddm_wrapper.h"
+#endif //ENABLE_BOKEH
 
 using namespace android;
 
@@ -4715,10 +4717,12 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                             index = mJpegMemory.allocateOne(mCamera3Stream->width *
                                                             mCamera3Stream->height);
                         } else {
-                            cam_dimension_t dim;
+                            cam_dimension_t dim = {0,0};
+#ifdef ENABLE_BOKEH
                             qrcp::getDepthMapSize(mCamera3Stream->width,
                                                     mCamera3Stream->height,
                                                     dim.width, dim.height);
+#endif //ENABLE_BOKEH
                             index = mJpegMemory.allocateOne(dim.width * dim.height);
                         }
                         if(index < 0)
