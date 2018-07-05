@@ -623,7 +623,7 @@ QCameraPerfLockIntf* QCameraPerfLockIntf::createSingleton()
         uint32_t perfLockEnable = 0;
         char value[PROPERTY_VALUE_MAX];
 
-        property_get("persist.camera.perflock.enable", value, "1");
+        property_get("persist.vendor.camera.perflock.enable", value, "1");
         perfLockEnable = atoi(value);
 
         if (perfLockEnable) {

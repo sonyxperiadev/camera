@@ -2791,7 +2791,6 @@ void mm_camera_set_dbg_log_properties(void) {
           ALOGD("Debug log file %s open\n", new_log_file_name);
         }
       } else {
-        property_set("persist.vendor.camera.debug.logfile", "0");
         ALOGD("Debug log file is not enabled");
         return;
       }
