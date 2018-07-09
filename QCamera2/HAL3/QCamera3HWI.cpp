@@ -11557,7 +11557,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
     bool use_tof = false;
 #ifdef TARGET_HAS_CASH
     tof_focusing = false;
-    if (atoi(af_value) == 0 && mCameraId == 0) {
+    if (m_bForceInfinityAf == 0 && mCameraId == 0) {
         if (frame_settings.exists(ANDROID_CONTROL_AF_MODE)) {
             /* Don't use ToF if we are in manual focus mode */
             fwk_focusMode =
