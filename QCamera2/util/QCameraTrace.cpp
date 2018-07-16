@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -36,9 +36,9 @@ volatile uint32_t kpi_camscope_flags = 0;
 volatile uint32_t kpi_camscope_frame_count = 0;
 
 static const char * camscope_filenames[CAMSCOPE_SECTION_SIZE] = {
-    "/data/misc/camera/camscope_mmcamera.bin",
-    "/data/misc/camera/camscope_hal.bin",
-    "/data/misc/camera/camscope_jpeg.bin"
+    QCAMERA_DUMP_FRM_LOCATION"camscope_mmcamera.bin",
+    QCAMERA_DUMP_FRM_LOCATION"camscope_hal.bin",
+    QCAMERA_DUMP_FRM_LOCATION"camscope_jpeg.bin"
 };
 
 static FILE * camscope_fd[CAMSCOPE_SECTION_SIZE];
