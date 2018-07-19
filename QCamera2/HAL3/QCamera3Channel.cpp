@@ -49,7 +49,13 @@ extern "C" {
 #include "mm_camera_dbg.h"
 }
 
+#ifdef ENABLE_BOKEH
 #include "dualcameraddm_wrapper.h"
+#endif //ENABLE_BOKEH
+
+#define PAD_TO_SIZE(size, padding) \
+        ((size + (typeof(size))(padding - 1)) & \
+        (typeof(size))(~(padding - 1)))
 
 using namespace android;
 
@@ -4715,10 +4721,12 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                             index = mJpegMemory.allocateOne(mCamera3Stream->width *
                                                             mCamera3Stream->height);
                         } else {
-                            cam_dimension_t dim;
+                            cam_dimension_t dim = {0,0};
+#ifdef ENABLE_BOKEH
                             qrcp::getDepthMapSize(mCamera3Stream->width,
                                                     mCamera3Stream->height,
                                                     dim.width, dim.height);
+#endif //ENABLE_BOKEH
                             index = mJpegMemory.allocateOne(dim.width * dim.height);
                         }
                         if(index < 0)
@@ -5996,7 +6004,13 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
                                    (hal_obj->getHalPPType() ==  CAM_HAL_PP_TYPE_BOKEH) &&
                                     (jpeg_settings != NULL))
                             {
+                                //In bokeh mode, reprocess don't do cropping irresepctive of scene
+                                //is bokeh eligible or not, so setting jpeg crop.
                                 jpeg_settings->crop = crop_data->crop_info[j].crop;
+                                jpeg_settings->crop.width = PAD_TO_SIZE(
+                                                                jpeg_settings->crop.width,2);
+                                jpeg_settings->crop.height = PAD_TO_SIZE(
+                                                                jpeg_settings->crop.height,2);
                                 jpeg_settings->is_crop_valid = true;
                             }
 

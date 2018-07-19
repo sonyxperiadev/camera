@@ -2178,9 +2178,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
         }
     }
-    if (gCamCapability[mCameraId]->position == CAM_POSITION_FRONT ||
-            gCamCapability[mCameraId]->position == CAM_POSITION_FRONT_AUX ||
-            !m_bIsVideo) {
+    if (!m_bIsVideo) {
         m_bEisEnable = false;
     }
 
@@ -2499,6 +2497,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 } else {
                     mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                             CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                }
+                if ((isZsl) && (zslStream == newStream)) {
+                    zsl_ppmask = mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams];
                 }
             break;
             case HAL_PIXEL_FORMAT_BLOB:
@@ -3446,6 +3447,31 @@ int32_t QCamera3HardwareInterface::handlePendingReprocResults(uint32_t frame_num
 }
 
 /*===========================================================================
+ * FUNCTION   : checkFrameInPendingList
+ *
+ * DESCRIPTION: Check for the frame_number present in pending request list or not.
+ *
+ * PARAMETERS : @frame_number: frame_number
+ *
+ * RETURN     :@bool: true if frame present in list else false.
+ *
+ *==========================================================================*/
+bool QCamera3HardwareInterface::checkFrameInPendingList(
+        const uint32_t frame_number)
+{
+    bool ret = false;
+    for(auto itr = mPendingRequestsList.begin(); itr != mPendingRequestsList.end(); itr++)
+    {
+        if(frame_number == itr->frame_number)
+        {
+            ret = true;
+            break;
+        }
+    }
+    return ret;
+}
+
+/*===========================================================================
  * FUNCTION   : handleBatchMetadata
  *
  * DESCRIPTION: Handles metadata buffer callback in batch mode
@@ -3515,11 +3541,15 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     if (urgent_frame_number_valid) {
         ssize_t idx = mPendingBatchMap.indexOfKey(last_urgent_frame_number);
         if(idx < 0) {
-            LOGE("Invalid urgent frame number received: %d. Irrecoverable error",
+            LOGE("Invalid urgent frame number received: %d.",
                 last_urgent_frame_number);
-            mState = ERROR;
+            if(checkFrameInPendingList(last_urgent_frame_number))
+            {
+                LOGE("Irrecoverable Error: frame not batched");
+                mState = ERROR;
+            }
             pthread_mutex_unlock(&mMutex);
-            return;
+            goto BUFFER_NOT_BATCHED;
         }
         first_urgent_frame_number = mPendingBatchMap.valueAt(idx);
         urgentFrameNumDiff = last_urgent_frame_number + 1 -
@@ -3533,11 +3563,15 @@ void QCamera3HardwareInterface::handleBatchMetadata(
     if (frame_number_valid) {
         ssize_t idx = mPendingBatchMap.indexOfKey(last_frame_number);
         if(idx < 0) {
-            LOGE("Invalid frame number received: %d. Irrecoverable error",
+            LOGE("Invalid frame number received: %d.",
                 last_frame_number);
-            mState = ERROR;
+            if(checkFrameInPendingList(last_frame_number))
+            {
+                LOGE("Irrecoverable Error: frame not batched");
+                mState = ERROR;
+            }
             pthread_mutex_unlock(&mMutex);
-            return;
+            goto BUFFER_NOT_BATCHED;
         }
         first_frame_number = mPendingBatchMap.valueAt(idx);
         frameNumDiff = last_frame_number + 1 -
@@ -3617,6 +3651,7 @@ void QCamera3HardwareInterface::handleBatchMetadata(
         pthread_mutex_unlock(&mMutex);
     }
 
+BUFFER_NOT_BATCHED:
     /* BufDone metadata buffer */
     if (free_and_bufdone_meta_buf && !is_metabuf_queued) {
         mMetadataChannel->bufDone(metadata_buf);
@@ -9596,7 +9631,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             break;
         }
     }
-    if (facingBack && eis_prop_set && eisSupported) {
+    if (eis_prop_set && eisSupported) {
         availableVstabModes.add(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_ON);
     }
     staticInfo.update(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES,
@@ -11498,7 +11533,7 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     /* CDS default */
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.vendor.camera.CDS", prop, "Auto");
+    property_get("persist.vendor.camera.CDS", prop, "Off");
     cam_cds_mode_type_t cds_mode = CAM_CDS_MODE_AUTO;
     cds_mode = lookupProp(CDS_MAP, METADATA_MAP_SIZE(CDS_MAP), prop);
     if (CAM_CDS_MODE_MAX == cds_mode) {

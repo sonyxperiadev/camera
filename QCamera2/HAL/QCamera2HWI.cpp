@@ -2890,7 +2890,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
             mParameters.getStreamDimension(CAM_STREAM_TYPE_VIDEO, dim);
             if (is4k2kResolution(&dim)) {
                  //get additional buffer count
-                 property_get("vidc.enc.dcvs.extra-buff-count", value, "0");
+                 property_get("vendor.vidc.enc.dcvs.extra-buff-count", value, "0");
                  persist_cnt = atoi(value);
                  if (persist_cnt >= 0 &&
                      persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM) {

@@ -31,7 +31,9 @@
 #define __QCAMERADUALCAMSETTINGS_H__
 
 #include <cam_intf.h>
+#ifdef ENABLE_BOKEH
 #include "dualcameraddm_wrapper.h"
+#endif //ENABLE_BOKEH
 
 typedef enum {
     OIS_HOLD,
