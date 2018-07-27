@@ -2343,10 +2343,10 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     //For depth images calculate src and des dim from getDepthMapSize.
     if(jpeg_settings->image_type == CAM_HAL3_JPEG_TYPE_DEPTH)
     {
-#ifdef ENABLE_BOKEH
+#ifdef ENABLE_QC_BOKEH
         qrcp::getDepthMapSize(src_dim.width, src_dim.height,
                             src_dim.width, src_dim.height);
-#endif //ENABLE_BOKEH
+#endif //ENABLE_QC_BOKEH
         dst_dim = src_dim;
     } else if(jpeg_settings->is_dim_valid){
         dst_dim = jpeg_settings->output_dim;
