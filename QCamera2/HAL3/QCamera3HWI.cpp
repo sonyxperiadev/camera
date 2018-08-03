@@ -7622,12 +7622,6 @@ QCamera3HardwareInterface::translateFromHalMetadata(
         camMetadata.update(QCAMERA3_INSTANT_AEC_MODE, instant_aec_mode, 1);
     }
 
-    // AF scene change
-    IF_META_AVAILABLE(uint8_t, afSceneChange,
-            CAM_INTF_META_AF_SCENE_CHANGE, metadata) {
-        camMetadata.update(NEXUS_EXPERIMENTAL_2016_AF_SCENE_CHANGE, afSceneChange, 1);
-    }
-
     /* In batch mode, cache the first metadata in the batch */
     if (mBatchSize && firstMetadataInBatch) {
         mCachedMetadata.clear();
@@ -9686,7 +9680,6 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
        ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST,
 #endif
        NEXUS_EXPERIMENTAL_2016_HYBRID_AE_ENABLE,
-       NEXUS_EXPERIMENTAL_2016_AF_SCENE_CHANGE,
        ANDROID_STATISTICS_FACE_DETECT_MODE,
        ANDROID_STATISTICS_SHARPNESS_MAP_MODE,
        ANDROID_STATISTICS_LENS_SHADING_MAP_MODE, ANDROID_TONEMAP_CURVE_BLUE,
