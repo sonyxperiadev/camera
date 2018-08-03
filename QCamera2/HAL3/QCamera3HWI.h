@@ -253,7 +253,7 @@ public:
     camera_metadata_t* translateFromHalMetadata(metadata_buffer_t *metadata,
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
-                            uint8_t capture_intent, uint8_t hybrid_ae_enable, bool pprocDone, uint8_t fwk_cacMode,
+                            uint8_t capture_intent, bool pprocDone, uint8_t fwk_cacMode,
                             bool firstMetadataInBatch);
     camera_metadata_t* saveRequestSettings(const CameraMetadata& jpegMetadata,
                             camera3_capture_request_t *request);
@@ -514,7 +514,6 @@ private:
         uint8_t capture_intent;
         uint8_t fwkCacMode;
         bool shutter_notified;
-        uint8_t hybrid_ae_enable;
         uint8_t scene_mode;
     } PendingRequestInfo;
     typedef struct {
@@ -569,7 +568,6 @@ private:
 
     uint8_t mCaptureIntent;
     uint8_t mCacMode;
-    uint8_t mHybridAeEnable;
     metadata_buffer_t mReprocMeta; //scratch meta buffer
     /* 0: Not batch, non-zero: Number of image buffers in a batch */
     uint8_t mBatchSize;
