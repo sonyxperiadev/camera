@@ -10476,13 +10476,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     memset(videoOisProp, 0, sizeof(videoOisProp));
     property_get("persist.camera.ois.video", videoOisProp, "1");
     uint8_t forceVideoOis = (uint8_t)atoi(videoOisProp);
-
-    // Hybrid AE enable/disable
-    char hybrid_ae_prop[PROPERTY_VALUE_MAX];
-    memset(hybrid_ae_prop, 0, sizeof(hybrid_ae_prop));
-    property_get("persist.camera.hybrid_ae.enable", hybrid_ae_prop, "0");
-    const uint8_t hybrid_ae = (uint8_t)atoi(hybrid_ae_prop);
-
     uint8_t controlIntent = 0;
     uint8_t focusMode;
     uint8_t vsMode;
@@ -10873,9 +10866,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
     // Set instant AEC to normal convergence by default
     int32_t instant_aec_mode = (int32_t)QCAMERA3_INSTANT_AEC_NORMAL_CONVERGENCE;
     settings.update(QCAMERA3_INSTANT_AEC_MODE, &instant_aec_mode, 1);
-
-    /* hybrid ae */
-    settings.update(NEXUS_EXPERIMENTAL_2016_HYBRID_AE_ENABLE, &hybrid_ae, 1);
 
     mDefaultMetadata[type] = settings.release();
 
@@ -12423,17 +12413,6 @@ int QCamera3HardwareInterface::translateToHalMetadata
 
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
                 CAM_INTF_META_CDS_DATA, *cdsData)) {
-            rc = BAD_VALUE;
-        }
-    }
-
-    // Hybrid AE
-    if (frame_settings.exists(NEXUS_EXPERIMENTAL_2016_HYBRID_AE_ENABLE)) {
-        uint8_t *hybrid_ae = (uint8_t *)
-                frame_settings.find(NEXUS_EXPERIMENTAL_2016_HYBRID_AE_ENABLE).data.u8;
-
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
-                CAM_INTF_META_HYBRID_AE, *hybrid_ae)) {
             rc = BAD_VALUE;
         }
     }
