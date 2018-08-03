@@ -9701,8 +9701,6 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
         available_request_keys.add(ANDROID_CONTROL_AF_REGIONS);
     }
 
-    available_request_keys.add(NEXUS_EXPERIMENTAL_2017_DISABLE_HDRPLUS);
-
     staticInfo.update(ANDROID_REQUEST_AVAILABLE_REQUEST_KEYS,
             available_request_keys.array(), available_request_keys.size());
 
@@ -10897,10 +10895,6 @@ camera_metadata_t* QCamera3HardwareInterface::translateCapabilityToMetadata(int 
 
     /* hybrid ae */
     settings.update(NEXUS_EXPERIMENTAL_2016_HYBRID_AE_ENABLE, &hybrid_ae, 1);
-
-    // Disable HDR+ for templates other than CAMERA3_TEMPLATE_STILL_CAPTURE.
-    int32_t disableHdrplus = (type == CAMERA3_TEMPLATE_STILL_CAPTURE) ? 0 : 1;
-    settings.update(NEXUS_EXPERIMENTAL_2017_DISABLE_HDRPLUS, &disableHdrplus, 1);
 
     mDefaultMetadata[type] = settings.release();
 
