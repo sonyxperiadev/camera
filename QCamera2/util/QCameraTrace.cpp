@@ -40,9 +40,9 @@ volatile uint32_t kpi_camscope_flags = 0;
 volatile uint32_t kpi_camscope_frame_count = 0;
 
 static const char * camscope_filenames[CAMSCOPE_SECTION_SIZE] = {
-    "/data/misc/camera/camscope_mmcamera.bin",
-    "/data/misc/camera/camscope_hal.bin",
-    "/data/misc/camera/camscope_jpeg.bin"
+    "/data/vendor/camera/camscope_mmcamera.bin",
+    "/data/vendor/camera/camscope_hal.bin",
+    "/data/vendor/camera/camscope_jpeg.bin"
 };
 
 static FILE * camscope_fd[CAMSCOPE_SECTION_SIZE];
