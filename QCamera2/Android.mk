@@ -148,7 +148,7 @@ LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcam
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 LOCAL_SHARED_LIBRARIES += libbase libcutils libdl libhal_dbg
 ifeq ($(USE_DISPLAY_SERVICE),true)
-LOCAL_SHARED_LIBRARIES += android.frameworks.displayservice@1.0 libhidlbase libhidltransport
+LOCAL_SHARED_LIBRARIES += android.frameworks.displayservice@1.0 libhidlbase
 else
 LOCAL_SHARED_LIBRARIES += libgui
 endif
