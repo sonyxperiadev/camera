@@ -34,7 +34,7 @@
 #include <utils/Errors.h>
 #define MMAN_H <SYSTEM_HEADER_PREFIX/mman.h>
 #include MMAN_H
-#include "gralloc.h"
+#include "hardware/gralloc.h"
 #include "gralloc_priv.h"
 
 // Camera dependencies
@@ -2513,6 +2513,14 @@ void QCameraGrallocMemory::deallocate()
         }
         mLocalFlag[cnt] = BUFFER_NOT_OWNED;
         LOGH("put buffer %d successfully", cnt);
+    }
+    if(mWindow)
+    {
+        //cleaning up buffers cached in framework
+        if(mWindow->set_buffer_count(mWindow, 0) != 0)
+        {
+            LOGE("ERROR: Cannot clean the framework cached buffers");
+        }
     }
     mBufferCount = 0;
     mMappableBuffers = 0;
