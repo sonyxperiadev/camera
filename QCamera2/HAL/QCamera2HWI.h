@@ -39,9 +39,6 @@
 #include "QCameraAllocator.h"
 #include "QCameraChannel.h"
 #include "QCameraCmdThread.h"
-#if 0 // Temporary removing the dependency on libgui
-#include "QCameraDisplay.h"
-#endif
 #include "QCameraMem.h"
 #include "QCameraParameters.h"
 #include "QCameraParametersIntf.h"
@@ -842,9 +839,7 @@ private:
     uint32_t mSurfaceStridePadding;
 
     //QCamera Display Object
-#if 0 // Temporary removing the dependency on libgui
     //QCameraDisplay mCameraDisplay;
-#endif
 
     bool m_bNeedRestart;
     Mutex mMapLock;
