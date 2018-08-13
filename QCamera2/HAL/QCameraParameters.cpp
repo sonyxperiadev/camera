@@ -3249,7 +3249,8 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
         }
         if (m_bBokehMode) {
            char val[32];
-           int depthW, depthH;
+           int depthW = 0;
+           int depthH = 0;
            getDepthMapSize(depthW, depthH);
            snprintf(val, sizeof(val), "%dx%d", depthW, depthH);
            updateParamEntry(KEY_QC_DEPTH_MAP_SIZE, val);
