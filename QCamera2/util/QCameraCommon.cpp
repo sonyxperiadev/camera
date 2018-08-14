@@ -289,11 +289,17 @@ bool QCameraCommon::isVideoUBWCEnabled()
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
     /* Checking the property set by video
-     * to disable/enable UBWC */
-    if (property_get("video.disable.ubwc", prop, "") > 0)
+     * to disable/enable UBWC. And, Android P
+     * onwards we use vendor prefix*/
+#ifdef USE_VENDOR_PROP
+    if (property_get("vendor.video.disable.ubwc", prop, "") > 0) {
         return (atoi(prop) == 0);
-    else if (property_get("vendor.video.disable.ubwc", prop, "") > 0)
+    }
+#else
+    if (property_get("video.disable.ubwc", prop, "") > 0){
         return (atoi(prop) == 0);
+    }
+#endif
     return TRUE;
 #else
     return FALSE;
