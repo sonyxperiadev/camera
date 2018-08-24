@@ -10,7 +10,7 @@ SDCLANG_FLAG_DEFS := $(LOCAL_PATH)/sdllvm-flag-defs.mk
 LOCAL_COPY_HEADERS_TO := qcom/camera
 LOCAL_COPY_HEADERS := QCameraFormat.h
 
-IS_BOKEH_SUPPORTED := false
+IS_QC_BOKEH_SUPPORTED := false
 
 LOCAL_SRC_FILES := \
         util/QCameraBufferMaps.cpp \
@@ -63,14 +63,8 @@ LOCAL_SRC_FILES += \
         util/QCameraDualFOVPP.cpp \
         util/QCameraExtZoomTranslator.cpp \
         util/QCameraPprocManager.cpp \
+        util/QCameraBokeh.cpp \
         util/QCameraClearSight.cpp
-
-ifeq ($(IS_BOKEH_SUPPORTED), true)
-LOCAL_SRC_FILES += \
-        util/QCameraBokeh.cpp
-LOCAL_CFLAGS += -DENABLE_BOKEH
-endif
-
 endif
 
 # System header file path prefix
@@ -156,8 +150,9 @@ LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 LOCAL_SHARED_LIBRARIES += libcutils libdl libhal_dbg
-ifeq ($(IS_BOKEH_SUPPORTED),true)
+ifeq ($(IS_QC_BOKEH_SUPPORTED),true)
 LOCAL_SHARED_LIBRARIES += libdualcameraddm
+LOCAL_CFLAGS += ENABLE_QC_BOKEH
 endif
 ifeq ($(USE_DISPLAY_SERVICE),true)
 LOCAL_SHARED_LIBRARIES += android.frameworks.displayservice@1.0 android.hidl.base@1.0 libhidlbase libhidltransport

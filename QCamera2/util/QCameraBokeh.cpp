@@ -40,7 +40,9 @@ extern "C" {
 #include "mm_camera_dbg.h"
 }
 
+#ifdef ENABLE_QC_BOKEH
 #include "dualcameraddm_wrapper.h"
+#endif //ENABLE_QC_BOKEH
 
 const char* SCALE_CROP_ROTATION_FORMAT_STRING[] = {
         "Sensor Crop left = %d\n",
@@ -588,6 +590,7 @@ int32_t QCameraBokeh::doBokehProcess(
         bokeh_input_params_t &inParams,
         uint8_t* pOut)
 {
+#ifdef ENABLE_QC_BOKEH
     LOGD(":E");
     ATRACE_BEGIN("doBokehProcess");
     int32_t rc = NO_ERROR;
@@ -780,6 +783,13 @@ done:
     ATRACE_END();
     LOGD("X");
     return rc;
+#else
+    (void) pMain;
+    (void) pAux;
+    (void) &inParams;
+    (void) pOut;
+    return -1;
+#endif //ENABLE_QC_BOKEH
 }
 
 void QCameraBokeh::dumpYUVtoFile(
