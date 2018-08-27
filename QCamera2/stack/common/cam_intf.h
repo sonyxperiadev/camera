@@ -1191,6 +1191,7 @@ typedef struct {
     INCLUDE(CAM_INTF_META_DC_CAPTURE,                   uint8_t,                     1);
     INCLUDE(CAM_INTF_PARM_BOKEH_MODE,                   uint8_t,                     1);
     INCLUDE(CAM_INTF_META_USERZOOM,                     cam_zoom_info_t,             1);
+    INCLUDE(CAM_INTF_META_TUNING_PARAMS,                tuning_params_t,             1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
@@ -1204,38 +1205,6 @@ typedef struct {
         uint8_t         is_reqd[CAM_INTF_PARM_MAX];
     };
     metadata_data_t data;
-    /*Tuning Data */
-    uint8_t is_tuning_params_valid;
-    tuning_params_t tuning_params;
-
-    /* Mobicat Params */
-    uint8_t is_mobicat_aec_params_valid;
-    cam_3a_params_t mobicat_aec_params;
-
-    /* Stats 3A Debug Params */
-    uint8_t is_statsdebug_ae_params_valid;
-    cam_ae_exif_debug_t statsdebug_ae_data;
-
-    uint8_t is_statsdebug_awb_params_valid;
-    cam_awb_exif_debug_t statsdebug_awb_data;
-
-    uint8_t is_statsdebug_af_params_valid;
-    cam_af_exif_debug_t statsdebug_af_data;
-
-    uint8_t is_statsdebug_asd_params_valid;
-    cam_asd_exif_debug_t statsdebug_asd_data;
-
-    uint8_t is_statsdebug_stats_params_valid;
-    cam_stats_buffer_exif_debug_t statsdebug_stats_buffer_data;
-
-    uint8_t is_statsdebug_bestats_params_valid;
-    cam_bestats_buffer_exif_debug_t statsdebug_bestats_buffer_data;
-
-    uint8_t is_statsdebug_bhist_params_valid;
-    cam_bhist_buffer_exif_debug_t statsdebug_bhist_data;
-
-    uint8_t is_statsdebug_3a_tuning_params_valid;
-    cam_q3a_tuning_info_t statsdebug_3a_tuning_data;
 } metadata_buffer_t;
 
 typedef metadata_buffer_t parm_buffer_t;
@@ -1250,23 +1219,6 @@ static inline void clear_metadata_buffer(metadata_buffer_t *meta)
 {
     if (meta) {
       memset(meta->is_valid, 0, CAM_INTF_PARM_MAX);
-      meta->is_tuning_params_valid = 0;
-      meta->is_mobicat_aec_params_valid = 0;
-      meta->is_statsdebug_ae_params_valid = 0;
-      meta->is_statsdebug_awb_params_valid = 0;
-      meta->is_statsdebug_af_params_valid = 0;
-      meta->is_statsdebug_asd_params_valid = 0;
-      meta->is_statsdebug_stats_params_valid = 0;
-      meta->is_statsdebug_bestats_params_valid = 0;
-      meta->is_statsdebug_bhist_params_valid = 0;
-      meta->is_statsdebug_3a_tuning_params_valid = 0;
-      /* tuning parameter sizes are never gets zero.
-       * It gets overwritten when it populated
-       * But we can't reply and make decision based on that
-       */
-      meta->tuning_params.tuning_sensor_data_size = 0;
-      meta->tuning_params.tuning_vfe_data_size = 0;
-      meta->tuning_params.tuning_mod1_stats_data_size = 0;
     }
 }
 

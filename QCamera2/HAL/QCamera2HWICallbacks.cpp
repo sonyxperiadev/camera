@@ -244,9 +244,12 @@ void QCamera2HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
             if (pStream != NULL) {
                 if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
                     pMetaFrame = frame->bufs[i];
-                    if (pMetaFrame != NULL &&
-                            ((metadata_buffer_t *)pMetaFrame->buffer)->is_tuning_params_valid) {
-                        pme->dumpMetadataToFile(pStream, pMetaFrame, (char *) "ZSL_Snapshot");
+                    if (pMetaFrame != NULL ) {
+                        IF_META_AVAILABLE(tuning_params_t, tuning_ptr, CAM_INTF_META_TUNING_PARAMS,
+                            ((metadata_buffer_t *)pMetaFrame->buffer)) {
+                                pme->dumpMetadataToFile(pStream, pMetaFrame,
+                                    (char *) "ZSL_Snapshot",tuning_ptr);
+                        }
                     }
                     break;
                 }
@@ -446,9 +449,12 @@ void QCamera2HardwareInterface::capture_channel_cb_routine(mm_camera_super_buf_t
             if (pStream != NULL) {
                 if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
                     pMetaFrame = frame->bufs[i]; //find the metadata
-                    if (pMetaFrame != NULL &&
-                            ((metadata_buffer_t *)pMetaFrame->buffer)->is_tuning_params_valid) {
-                        pme->dumpMetadataToFile(pStream, pMetaFrame, (char *) "Snapshot");
+                    if (pMetaFrame != NULL ) {
+                        IF_META_AVAILABLE(tuning_params_t, tuning_ptr, CAM_INTF_META_TUNING_PARAMS,
+                            ((metadata_buffer_t *)pMetaFrame->buffer)) {
+                                pme->dumpMetadataToFile(pStream, pMetaFrame,
+                                    (char *) "Snapshot",tuning_ptr);
+                        }
                     }
                     break;
                 }
@@ -1836,9 +1842,12 @@ void QCamera2HardwareInterface::snapshot_channel_cb_routine(mm_camera_super_buf_
             if (pStream != NULL) {
                 if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
                     pMetaFrame = super_frame->bufs[i]; //find the metadata
-                    if (pMetaFrame != NULL &&
-                            ((metadata_buffer_t *)pMetaFrame->buffer)->is_tuning_params_valid) {
-                        pme->dumpMetadataToFile(pStream, pMetaFrame, (char *) "Snapshot");
+                    if (pMetaFrame != NULL ) {
+                        IF_META_AVAILABLE(tuning_params_t, tuning_ptr, CAM_INTF_META_TUNING_PARAMS,
+                            ((metadata_buffer_t *)pMetaFrame->buffer)) {
+                                pme->dumpMetadataToFile(pStream, pMetaFrame,
+                                    (char *) "Snapshot",tuning_ptr);
+                        }
                     }
                     break;
                 }
@@ -1969,9 +1978,12 @@ void QCamera2HardwareInterface::raw_channel_cb_routine(mm_camera_super_buf_t *su
             if (pStream != NULL) {
                 if (pStream->isTypeOf(CAM_STREAM_TYPE_METADATA)) {
                     pMetaFrame = super_frame->bufs[i]; //find the metadata
-                    if (pMetaFrame != NULL &&
-                            ((metadata_buffer_t *)pMetaFrame->buffer)->is_tuning_params_valid) {
-                        pme->dumpMetadataToFile(pStream, pMetaFrame, (char *) "raw");
+                    if (pMetaFrame != NULL ) {
+                        IF_META_AVAILABLE(tuning_params_t, tuning_ptr, CAM_INTF_META_TUNING_PARAMS,
+                            ((metadata_buffer_t *)pMetaFrame->buffer)) {
+                                pme->dumpMetadataToFile(pStream, pMetaFrame,
+                                    (char *) "raw",tuning_ptr);
+                        }
                     }
                     break;
                 }
@@ -2359,9 +2371,11 @@ void QCamera2HardwareInterface::metadata_stream_cb_routine(mm_camera_super_buf_t
        pme->playShutter();
     }
 
-    if (pMetaData->is_tuning_params_valid && pme->mParameters.getRecordingHintValue() == true) {
+    if (pme->mParameters.getRecordingHintValue() == true) {
+        IF_META_AVAILABLE(tuning_params_t,tuning_ptr,CAM_INTF_META_TUNING_PARAMS,pMetaData) {
         //Dump Tuning data for video
-        pme->dumpMetadataToFile(stream,frame,(char *)"Video");
+            pme->dumpMetadataToFile(stream,frame,(char *)"Video",tuning_ptr);
+        }
     }
 
     IF_META_AVAILABLE(cam_hist_stats_t, stats_data, CAM_INTF_META_HISTOGRAM, pMetaData) {
@@ -2961,15 +2975,20 @@ void QCamera2HardwareInterface::dumpJpegToFile(const void *data,
 
 
 void QCamera2HardwareInterface::dumpMetadataToFile(QCameraStream *stream,
-                                                   mm_camera_buf_def_t *frame,char *type)
+                                                   mm_camera_buf_def_t *frame,
+                                                   char *type,
+                                                   tuning_params_t *tuning_ptr)
 {
     char value[PROPERTY_VALUE_MAX];
     uint32_t frm_num = 0;
-    metadata_buffer_t *metadata = (metadata_buffer_t *)frame->buffer;
     property_get("persist.vendor.camera.dumpmetadata", value, "0");
     uint32_t enabled = (uint32_t) atoi(value);
     if (stream == NULL) {
         LOGH("No op");
+        return;
+    }
+    if(tuning_ptr == NULL) {
+        LOGH("tuning pointer is not valid");
         return;
     }
 
@@ -3006,46 +3025,46 @@ void QCamera2HardwareInterface::dumpMetadataToFile(QCameraStream *stream,
             int file_fd = open(filePath.string(), O_RDWR | O_CREAT, 0777);
             if (file_fd >= 0) {
                 ssize_t written_len = 0;
-                metadata->tuning_params.tuning_data_version = TUNING_DATA_VERSION;
-                void *data = (void *)((uint8_t *)&metadata->tuning_params.tuning_data_version);
+                tuning_ptr->tuning_data_version = TUNING_DATA_VERSION;
+                void *data = (void *)((uint8_t *)&tuning_ptr->tuning_data_version);
                 written_len += write(file_fd, data, sizeof(uint32_t));
-                data = (void *)((uint8_t *)&metadata->tuning_params.tuning_sensor_data_size);
+                data = (void *)((uint8_t *)&tuning_ptr->tuning_sensor_data_size);
                 LOGH("tuning_sensor_data_size %d",(int)(*(int *)data));
                 written_len += write(file_fd, data, sizeof(uint32_t));
-                data = (void *)((uint8_t *)&metadata->tuning_params.tuning_vfe_data_size);
+                data = (void *)((uint8_t *)&tuning_ptr->tuning_vfe_data_size);
                 LOGH("tuning_vfe_data_size %d",(int)(*(int *)data));
                 written_len += write(file_fd, data, sizeof(uint32_t));
-                data = (void *)((uint8_t *)&metadata->tuning_params.tuning_cpp_data_size);
+                data = (void *)((uint8_t *)&tuning_ptr->tuning_cpp_data_size);
                 LOGH("tuning_cpp_data_size %d",(int)(*(int *)data));
                 written_len += write(file_fd, data, sizeof(uint32_t));
-                data = (void *)((uint8_t *)&metadata->tuning_params.tuning_cac_data_size);
+                data = (void *)((uint8_t *)&tuning_ptr->tuning_cac_data_size);
                 LOGH("tuning_cac_data_size %d",(int)(*(int *)data));
                 written_len += write(file_fd, data, sizeof(uint32_t));
-                data = (void *)((uint8_t *)&metadata->tuning_params.tuning_cac_data_size2);
+                data = (void *)((uint8_t *)&tuning_ptr->tuning_cac_data_size2);
                 LOGH("< skrajago >tuning_cac_data_size %d",(int)(*(int *)data));
                 written_len += write(file_fd, data, sizeof(uint32_t));
-                size_t total_size = metadata->tuning_params.tuning_sensor_data_size;
-                data = (void *)((uint8_t *)&metadata->tuning_params.data);
+                size_t total_size = tuning_ptr->tuning_sensor_data_size;
+                data = (void *)((uint8_t *)&tuning_ptr->data);
                 written_len += write(file_fd, data, total_size);
-                total_size = metadata->tuning_params.tuning_vfe_data_size;
-                data = (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_VFE_DATA_OFFSET]);
+                total_size = tuning_ptr->tuning_vfe_data_size;
+                data = (void *)((uint8_t *)&tuning_ptr->data[TUNING_VFE_DATA_OFFSET]);
                 written_len += write(file_fd, data, total_size);
-                total_size = metadata->tuning_params.tuning_cpp_data_size;
-                data = (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_CPP_DATA_OFFSET]);
+                total_size = tuning_ptr->tuning_cpp_data_size;
+                data = (void *)((uint8_t *)&tuning_ptr->data[TUNING_CPP_DATA_OFFSET]);
                 written_len += write(file_fd, data, total_size);
-                total_size = metadata->tuning_params.tuning_cac_data_size;
-                data = (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_CAC_DATA_OFFSET]);
+                total_size = tuning_ptr->tuning_cac_data_size;
+                data = (void *)((uint8_t *)&tuning_ptr->data[TUNING_CAC_DATA_OFFSET]);
                 written_len += write(file_fd, data, total_size);
 
-                total_size = metadata->tuning_params.tuning_mod1_stats_data_size;
+                total_size = tuning_ptr->tuning_mod1_stats_data_size;
                 data =
-                (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_MOD1_AEC_DATA_OFFSET]);
+                (void *)((uint8_t *)&tuning_ptr->data[TUNING_MOD1_AEC_DATA_OFFSET]);
                 written_len += write(file_fd, data, total_size);
                 data =
-                (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_MOD1_AWB_DATA_OFFSET]);
+                (void *)((uint8_t *)&tuning_ptr->data[TUNING_MOD1_AWB_DATA_OFFSET]);
                 written_len += write(file_fd, data, total_size);
                 data =
-                (void *)((uint8_t *)&metadata->tuning_params.data[TUNING_MOD1_AF_DATA_OFFSET]);
+                (void *)((uint8_t *)&tuning_ptr->data[TUNING_MOD1_AF_DATA_OFFSET]);
                 written_len += write(file_fd, data, total_size);
                 close(file_fd);
             }else {
