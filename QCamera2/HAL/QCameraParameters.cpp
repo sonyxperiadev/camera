@@ -17137,18 +17137,7 @@ bool QCameraParameters::isDualCamAvailable()
 
 bool QCameraParameters::isAutoFocusSupported(uint32_t cam_type)
 {
-    bool bAFSupported = false;
-    bool bMainCamAFSupported = (m_pCapability->main_cam_cap->supported_focus_modes_cnt > 1);
-    bool bAuxCamAFSupported = (m_pCapability->aux_cam_cap->supported_focus_modes_cnt > 1);
-    if (cam_type == MM_CAMERA_DUAL_CAM) {
-        bAFSupported =  (bMainCamAFSupported || bAuxCamAFSupported) ;
-    } else if (cam_type == CAM_TYPE_AUX) {
-        bAFSupported =  bAuxCamAFSupported;
-    } else {
-        bAFSupported =  bMainCamAFSupported;
-    }
-    LOGH("bAFSupported: %d cam_type: %d", bAFSupported, cam_type);
-    return bAFSupported;
+    return mCommon.isAutoFocusSupported(cam_type);
 }
 
 }; // namespace qcamera
