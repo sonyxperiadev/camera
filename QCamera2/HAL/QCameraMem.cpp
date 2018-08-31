@@ -486,8 +486,11 @@ int QCameraMemory::allocOneBuffer(QCameraMemInfo &memInfo,
     alloc.heap_id_mask = heap_id;
     if (secure_mode) {
         LOGD("Allocate secure buffer\n");
+        if (QCameraCommon::is_target_SDM450())
+            alloc.heap_id_mask = ION_HEAP(ION_CP_MM_HEAP_ID);
+        else
+            alloc.heap_id_mask = ION_HEAP(ION_SECURE_DISPLAY_HEAP_ID);
         alloc.flags = ION_FLAG_SECURE | ION_FLAG_CP_CAMERA;
-        alloc.heap_id_mask = ION_HEAP(ION_SECURE_DISPLAY_HEAP_ID);
         alloc.align = 2097152; // 2 MiB alignment to be able to protect later
         alloc.len = (alloc.len + 2097152U) & (~2097152U);
     }

@@ -1026,6 +1026,12 @@ typedef enum {
   SECURE
 } cam_stream_secure_t;
 
+typedef enum {
+  SECURE_INVALID,
+  SECURE_SLAVE,
+  SECURE_MASTER,
+} cam_stream_secure_mode_t;
+
 #define CAM_REPROCESS_MASK_TYPE_WNR (1<<0)
 
 /* event from server */

@@ -106,6 +106,7 @@ public:
     bool isZSLMode();
     bool isRdiMode();
     bool isSecureMode();
+    cam_stream_secure_mode_t getSecureSessionType();
     cam_stream_type_t getSecureStreamType();
     bool isNoDisplayMode(uint32_t cam_type = CAM_TYPE_MAIN);
     bool isWNREnabled();

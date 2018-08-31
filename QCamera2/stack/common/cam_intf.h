@@ -793,8 +793,11 @@ typedef struct cam_stream_info {
     /* Image Stabilization type */
     cam_is_type_t is_type;
 
-    /* Signifies Secure stream mode */
+    /* Signifies whether stream is secure or not*/
     cam_stream_secure_t is_secure;
+
+    /* signifies mode of secure session */
+    cam_stream_secure_mode_t secure_mode;
 
     /* Preferred Performance mode */
     cam_perf_mode_t perf_mode;

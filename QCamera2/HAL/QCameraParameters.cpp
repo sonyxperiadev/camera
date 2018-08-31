@@ -1013,6 +1013,7 @@ QCameraParameters::QCameraParameters()
       m_bSensorHDREnabled(false),
       m_bRdiMode(false),
       m_bSecureMode(false),
+      m_eSecSessMode(SECURE_INVALID),
       m_bSecureModeUBWC(true),
       m_bAeBracketingEnabled(false),
       mFlashValue(CAM_FLASH_MODE_OFF),
@@ -5240,6 +5241,14 @@ int32_t QCameraParameters::setSecureMode(const QCameraParameters& params)
         LOGD("Secure steam type is CAM_STREAM_TYPE_PREVIEW");
         mSecureStraemType = CAM_STREAM_TYPE_PREVIEW;
     }
+
+    if (isSecureMode())
+        if (QCameraCommon::is_target_SDM450())
+            m_eSecSessMode = SECURE_SLAVE;
+        else
+            m_eSecSessMode = SECURE_MASTER;
+    else
+        m_eSecSessMode = SECURE_INVALID;
 
     str = params.get(KEY_QC_SECURE_MODE_UBWC);
     prev_str = get(KEY_QC_SECURE_MODE_UBWC);
