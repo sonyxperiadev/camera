@@ -331,6 +331,7 @@ public:
     cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
     bool needHALPP() {return m_bNeedHalPP;}
     cam_capability_t *getCamHalCapabilities();
+    bool isPPMaskSetForScaling(cam_feature_mask_t pp_mask);
 private:
 
     // State transition conditions:

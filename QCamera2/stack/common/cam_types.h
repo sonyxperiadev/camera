@@ -2738,7 +2738,7 @@ typedef struct {
                                          CAM_QCOM_FEATURE_LLVD|CAM_QCOM_FEATURE_QUADRA_CFA)
 
 #define CAM_QCOM_FEATURE_PP_PASS_1      CAM_QCOM_FEATURE_PP_SUPERSET
-#define CAM_QCOM_FEATURE_PP_PASS_2      CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP;
+#define CAM_QCOM_FEATURE_PP_PASS_2      (CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP)
 
 typedef struct {
    cam_rotation_t rotation;         /* jpeg rotation */

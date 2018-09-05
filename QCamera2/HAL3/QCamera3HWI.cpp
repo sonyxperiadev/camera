@@ -1707,6 +1707,11 @@ void QCamera3HardwareInterface::rectifyStreamSizesByCamType(
             cam_dimension_t dim;
             dim.width = info->stream_sizes[i].width;
             dim.height = info->stream_sizes[i].height;
+            //skipping for stream with pp mask set for upscaling/cropping
+            if(isPPMaskSetForScaling(info->postprocess_mask[i]))
+            {
+                continue;
+            }
             if(isPPUpscaleNeededForDim(dim) || isAsymetricDim(dim))
             {
                 //setting stream size less then equal to requested dimension of same
@@ -14910,6 +14915,15 @@ cam_dual_camera_perf_mode_t QCamera3HardwareInterface::getLowPowerMode(cam_sync_
     return (cam_dual_camera_perf_mode_t)lpm;
 }
 
+bool QCamera3HardwareInterface::isPPMaskSetForScaling(cam_feature_mask_t pp_mask)
+{
+    if(pp_mask & CAM_QCOM_FEATURE_PP_SUPERSET_HAL3)
+    {
+        return true;
+    }
+
+    return false;
+}
 
 
 /*===========================================================================
