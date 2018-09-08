@@ -92,6 +92,11 @@ else
 LOCAL_CFLAGS += -std=c++11 -std=gnu++0x
 endif
 
+#Android P onwards we use vendor prefix
+ifeq ($(call is-platform-sdk-version-at-least,28),true)
+LOCAL_CFLAGS += -DUSE_VENDOR_PROP
+endif
+
 #HAL 1.0 Flags
 LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3 -DQCAMERA_REDEFINE_LOG
 LOCAL_LDFLAGS += -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=socket -Wl,--wrap=pipe -Wl,--wrap=mmap -Wl,--wrap=__open_2
