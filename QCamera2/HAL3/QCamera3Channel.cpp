@@ -4443,7 +4443,8 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                         mYuvMemory(NULL),
                         mFrameLen(0),
                         mAuxPicChannel(NULL),
-                        mNeedPPUpscale(false)
+                        mNeedPPUpscale(false),
+                        m_bMpoEnabled(true)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     m_max_pic_dim = hal_obj->calcMaxJpegDim();
@@ -4621,7 +4622,17 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
         mAuxPicChannel->initialize(isType);
     }
 
+    configureMpo();
+
     return rc;
+}
+
+void QCamera3PicChannel::configureMpo()
+{
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.vendor.camera.mpo.disabled",prop,"0");
+    m_bMpoEnabled = atoi(prop)?FALSE:TRUE;
+    m_postprocessor.setMpoMode(m_bMpoEnabled);
 }
 
 /*===========================================================================
@@ -4701,12 +4712,14 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     if(hal_obj->needHALPP() || bIsMaster)
     {
         if (!internalRequest) {
-            if(hal_obj->needHALPP() && (hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH))
+            if(hal_obj->needHALPP()
+               && (hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
+               && isMpoEnabled())
             {   //BOKEH MODE
                 //Master channel: allocate 2 jpeg settings one for main image
                 //and other for bokeh with respective output buffer index.
                 //Non Master will allocate buffer for depth image.
-                int index;
+                int index = -1;
                 int numOfJpegSettings = 1;
                 if(bIsMaster)
                 {
@@ -4806,7 +4819,9 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                 {
                      rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
                                             CAM_HAL3_JPEG_TYPE_FUSION : CAM_HAL3_JPEG_TYPE_AUX);
-                } else {
+                } else if ((hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && bIsMaster){
+                    rc = queueJpegSetting((uint32_t)index, metadata, CAM_HAL3_JPEG_TYPE_BOKEH);
+                } else if (hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
                     rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
                                             CAM_HAL3_JPEG_TYPE_MAIN : CAM_HAL3_JPEG_TYPE_AUX);
                 }
@@ -5103,7 +5118,7 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
         }
     }
 
-    if(hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH && hal_obj->needHALPP())
+    if(hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH && hal_obj->needHALPP() && isMpoEnabled())
     {
         settings->encode_type = MM_JPEG_TYPE_MPO;
     } else {

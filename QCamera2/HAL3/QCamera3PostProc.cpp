@@ -80,6 +80,7 @@ QCamera3PostProcessor::QCamera3PostProcessor(QCamera3ProcessingChannel* ch_ctrl)
       mJpegSessionId(0),
       m_bThumbnailNeeded(TRUE),
       m_ppChannelCnt(1),
+      m_bMpoEnabled(FALSE),
       m_inputPPQ(releasePPInputData, this),
       m_inputFWKPPQ(NULL, this),
       m_inputMultiReprocQ(NULL, this),  // add release job data func here
@@ -1198,7 +1199,7 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
     if (job->jpeg_settings == NULL )
     {
         //If needHALPP is true, checking for ouput jpeg settings != NULL
-        if(hal_obj->needHALPP() && job->ppOutput_jpeg_settings == NULL) {
+        if(hal_obj->needHALPP() && (job->ppOutput_jpeg_settings == NULL) && isMpoEnabled()) {
             LOGE("Cannot find jpeg settings");
             return BAD_VALUE;
         }
@@ -3243,20 +3244,13 @@ int32_t QCamera3PostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
 
     LOGD("halPPAllocatedBuf = %d needEncode %d", pData->halPPAllocatedBuf, pData->needEncode);
 
-    if (!pData->halPPAllocatedBuf && !pData->needEncode) {
-        // check if to encode hal pp input buffer
-        char prop[PROPERTY_VALUE_MAX];
-        memset(prop, 0, sizeof(prop));
-        property_get("persist.vendor.camera.dualfov.jpegnum", prop, "1");
-        int dualfov_snap_num = atoi(prop);
-        if (dualfov_snap_num == 1) {
-            LOGH("No need to encode input buffer, just release it.");
-            releaseJpegJobData(jpeg_job);
-            free(jpeg_job);
-            jpeg_job = NULL;
-            free(pData);
-            return NO_ERROR;
-        }
+    if ((!pData->halPPAllocatedBuf && !pData->needEncode)|| (jpeg_job->jpeg_settings == NULL)) {
+        LOGH("No need to encode input buffer, just release it.");
+        releaseJpegJobData(jpeg_job);
+        free(jpeg_job);
+        jpeg_job = NULL;
+        free(pData);
+        return NO_ERROR;
     }
 
     if (pData->is_dim_valid) {

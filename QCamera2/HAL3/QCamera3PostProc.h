@@ -177,6 +177,8 @@ public:
     bool releaseReprocMetaBuffer(uint32_t);
     static void processHalPPDataCB(qcamera_hal_pp_data_t *pOutput, void* pUserData);
     static void releaseSuperBufCb(mm_camera_super_buf_t *super_buf, void* pUserData);
+    void setMpoMode(bool enable) {m_bMpoEnabled = enable;}
+    bool isMpoEnabled() { return m_bMpoEnabled; }
 
 private:
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
@@ -230,6 +232,7 @@ private:
     QCamera3StreamMem          *mOutputMem;
     int8_t                      m_ppChannelCnt;
     QCamera3ReprocessChannel *  m_pReprocChannel[2];
+    bool                        m_bMpoEnabled;
     uint32_t             mReprocessFrameNum;
     List<ReprocessBuffer> mReprocessNode;
 

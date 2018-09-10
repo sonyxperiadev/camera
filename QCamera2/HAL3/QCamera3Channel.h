@@ -670,10 +670,12 @@ public:
     void releaseSnapshotBuffer (mm_camera_super_buf_t* src_frame);
     int32_t releaseOfflineMemory(uint32_t resultFrameNumber);
     virtual void setDualChannelMode(bool bMode);
+    bool isMpoEnabled() { return m_bMpoEnabled; }
 
 private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,
                                     cam_hal3_JPEG_type_t imagetype = CAM_HAL3_JPEG_TYPE_MAIN);
+    void configureMpo();
 
 public:
     cam_dimension_t m_max_pic_dim;
@@ -694,6 +696,7 @@ private:
     uint32_t mFrameLen;
     QCamera3PicChannel* mAuxPicChannel;
     bool mNeedPPUpscale;
+    bool m_bMpoEnabled;
 };
 
 // reprocess channel class
