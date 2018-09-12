@@ -26,8 +26,8 @@ LOCAL_C_INCLUDES+= $(kernel_includes)
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/../ \
     $(LOCAL_PATH)/../../stack/mm-camera-interface/inc \
-    hardware/qcom/media/libstagefrighthw \
-    hardware/qcom/media/mm-core/inc
+    $(SRC_MEDIA_HAL_DIR)/libstagefrighthw \
+    $(SRC_MEDIA_HAL_DIR)/mm-core/inc 
 
 LOCAL_HEADER_LIBRARIES := libhardware_headers
 LOCAL_HEADER_LIBRARIES += libbinder_headers
@@ -41,7 +41,6 @@ LOCAL_SRC_FILES := \
     QCameraHAL3SnapshotTest.cpp \
     QCameraHAL3RawSnapshotTest.cpp \
     QCameraHAL3Test.cpp
-
 
 LOCAL_SHARED_LIBRARIES:= libutils liblog libcamera_metadata libcutils
 ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
