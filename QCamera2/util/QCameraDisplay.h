@@ -37,6 +37,7 @@
 #include <android/frameworks/displayservice/1.0/IDisplayService.h>
 #include <android/frameworks/displayservice/1.0/IEventCallback.h>
 #include <android/frameworks/displayservice/1.0/IDisplayEventReceiver.h>
+#include <android/hidl/manager/1.0/IServiceNotification.h>
 #include <android/looper.h>
 #include <utils/Looper.h>
 
@@ -47,6 +48,7 @@ using ::android::frameworks::displayservice::V1_0::Status;
 using ::android::hardware::hidl_death_recipient;
 using ::android::hardware::Return;
 using ::android::hardware::Void;
+using ::android::hardware::hidl_string;
 using ::android::wp;
 using ::android::sp;
 #else //USE_DISPLAY_SERVICE
@@ -88,6 +90,13 @@ class DeathRecipient : virtual public hidl_death_recipient {
     virtual void serviceDied(uint64_t cookie, const wp<android::hidl::base::V1_0::IBase>& who) override;
 };
 
+class ServiceRegisterNotification :
+                virtual public android::hidl::manager::V1_0::IServiceNotification {
+    virtual Return<void> onRegistration(const hidl_string& fqName,
+                                              const hidl_string& name,
+                                              bool preexisting) override;
+};
+
 #else //USE_DISPLAY_SERVICE
     static int   vsyncEventReceiverCamera(int fd, int events, void* data);
     static void* vsyncThreadCamera(void * data);
@@ -119,6 +128,7 @@ private:
     sp<IDisplayService> mDisplayService;
     sp<DeathRecipient> mDeathRecipient;
     sp<DisplayEventCallback> mDisplayEventCallback;
+    sp<ServiceRegisterNotification> mRegistrationCB;
     static QCameraDisplay *mCameraDisplay;
 #else //USE_DISPLAY_SERVICE
     pthread_t mVsyncThreadCameraHandle;
