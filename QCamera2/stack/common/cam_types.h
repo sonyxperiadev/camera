@@ -152,7 +152,7 @@
 // Max allowed video buffer count for 30fps
 #define MAX_30FPS_VIDEO_BUFFERS 18
 
-#define QCAMERA_DUMP_FRM_LOCATION "/data/vendor/camera/"
+#define QCAMERA_DUMP_FRM_LOCATION "/data/misc/camera/"
 #define QCAMERA_MAX_FILEPATH_LENGTH 64
 
 #define LIKELY(x)       __builtin_expect((x), true)
