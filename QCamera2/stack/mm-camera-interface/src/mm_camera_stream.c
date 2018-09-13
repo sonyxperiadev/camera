@@ -1756,7 +1756,7 @@ int32_t mm_stream_read_msm_frame(mm_stream_t * my_obj,
                 buf_info->buf->fd);
 
         buf_info->buf->is_uv_subsampled =
-            (vb.reserved == V4L2_PIX_FMT_NV14 || vb.reserved == V4L2_PIX_FMT_NV41);
+            (vb.timecode.type == V4L2_PIX_FMT_NV14 || vb.timecode.type == V4L2_PIX_FMT_NV41);
 
         if(buf_info->buf->buf_type == CAM_STREAM_BUF_TYPE_USERPTR) {
             mm_stream_read_user_buf(my_obj, buf_info);

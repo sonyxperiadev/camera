@@ -65,6 +65,7 @@ enum qcamera3_ext_section {
     QCAMERA3_HFR,
     NEXUS_EXPERIMENTAL_2016,
     NEXUS_EXPERIMENTAL_2017,
+    QCAMERA3_BRIGHTNESS_DATA,
     QCAMERA3_SECTIONS_END
 };
 
@@ -98,6 +99,7 @@ enum qcamera3_ext_section_ranges {
     QCAMERA3_HFR_START = QCAMERA3_HFR << 16,
     NEXUS_EXPERIMENTAL_2016_START = NEXUS_EXPERIMENTAL_2016 << 16,
     NEXUS_EXPERIMENTAL_2017_START = NEXUS_EXPERIMENTAL_2017 << 16,
+    QCAMERA3_BRIGHTNESS_START = QCAMERA3_BRIGHTNESS_DATA << 16
 };
 
 enum qcamera3_ext_tags {
@@ -375,6 +377,13 @@ enum qcamera3_ext_tags {
     NEXUS_EXPERIMENTAL_2017_EEPROM_VERSION_INFO,
 
     NEXUS_EXPERIMENTAL_2017_END,
+
+    /* Property Name:  org.codeaurora.qcamera3.brightness.brightness_val
+    Type: float
+    Description: Brightness Value
+    */
+    QCAMERA3_BRIGHTNESS_VALUE = QCAMERA3_BRIGHTNESS_START,
+    QCAMERA3_BRIGHTNESS_END
 };
 
 // QCAMERA3_OPAQUE_RAW_FORMAT
