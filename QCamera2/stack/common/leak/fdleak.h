@@ -30,6 +30,7 @@
 #ifndef FDLEAK_H
 #define FDLEAK_H
 #include <pthread.h>
+#include <unistd.h>
 
 extern pthread_mutex_t hal_debug_fdleak_mut;
 #ifdef __cplusplus

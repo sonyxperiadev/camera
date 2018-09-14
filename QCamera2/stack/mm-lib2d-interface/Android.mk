@@ -20,6 +20,7 @@ LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/../common \
     $(LOCAL_PATH)/../mm-camera-interface/inc
 
+LOCAL_HEADER_LIBRARIES := libutils_headers
 ifeq ($(strip $(TARGET_USES_ION)),true)
     LOCAL_CFLAGS += -DUSE_ION
 endif
@@ -33,7 +34,7 @@ include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_PATH_32 := $(TARGET_OUT_VENDOR)/lib
+LOCAL_VENDOR_MODULE := true
 
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 include $(BUILD_SHARED_LIBRARY)

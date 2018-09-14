@@ -2538,7 +2538,7 @@ pthread_mutex_t dbg_log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int         cam_soft_assert     = 0;
 static FILE       *cam_log_fd          = NULL;
-static const char *cam_log_filename    = "/data/vendor/camera/cam_dbg_log_hal.txt";
+static const char *cam_log_filename    = QCAMERA_DUMP_FRM_LOCATION"cam_dbg_log_hal.txt";
 
 #undef LOG_TAG
 #define LOG_TAG "QCamera"
