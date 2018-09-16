@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1901,7 +1901,7 @@ status_t CameraContext::startPreview()
         // set rdi mode if system prop is set for front camera
         if (mCameraIndex == 1) {
             char value[32];
-            property_get("persist.camera.rdimode", value, "0");
+            property_get("persist.vendor.camera.rdimode", value, "0");
             int rdimode = atoi(value);
             printf("rdi mode = %d\n", rdimode);
             if (rdimode == 1) {

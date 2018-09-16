@@ -4,6 +4,9 @@ LOCAL_PATH := $(call my-dir)
 include $(LOCAL_PATH)/../../../common.mk
 include $(CLEAR_VARS)
 
+LOCAL_HEADER_LIBRARIES := libutils_headers
+LOCAL_HEADER_LIBRARIES += media_plugin_headers
+
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 LOCAL_CFLAGS+= -D_ANDROID_ -DQCAMERA_REDEFINE_LOG
 
@@ -15,7 +18,6 @@ LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)
 LIB2D_ROTATION=false
 
 LOCAL_C_INCLUDES += \
-    frameworks/native/include/media/openmax \
     $(LOCAL_PATH)/inc \
     $(LOCAL_PATH)/../common \
     $(LOCAL_PATH)/../mm-camera-interface/inc \
@@ -73,12 +75,12 @@ LOCAL_SRC_FILES := \
 LOCAL_MODULE           := libmmjpeg_interface
 include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
-LOCAL_SHARED_LIBRARIES := libdl libcutils liblog libqomx_core libmmcamera_interface libutils
+LOCAL_SHARED_LIBRARIES := libdl libcutils liblog libqomx_core libmmcamera_interface
 ifeq ($(strip $(LIB2D_ROTATION)),true)
     LOCAL_SHARED_LIBRARIES += libmmlib2d_interface
 endif
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_PATH_32 := $(TARGET_OUT_VENDOR)/lib
+LOCAL_VENDOR_MODULE := true
 
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 include $(BUILD_SHARED_LIBRARY)

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -40,8 +40,6 @@
 #include <dlfcn.h>
 #include "fdleak.h"
 #include "memleak.h"
-#include <unistd.h>
-
 #define IOCTL_H <SYSTEM_HEADER_PREFIX/ioctl.h>
 #include IOCTL_H
 
@@ -1303,7 +1301,7 @@ static int32_t mm_camera_intf_config_stream(uint32_t camera_handle,
 static int32_t mm_camera_intf_start_channel(uint32_t camera_handle,
                                             uint32_t ch_id)
 {
-    int32_t rc = -1;
+    int32_t rc = 0;
     mm_camera_obj_t * my_obj = NULL;
     uint32_t chid = get_main_camera_handle(ch_id);
     uint32_t aux_chid = get_aux_camera_handle(ch_id);
@@ -2479,7 +2477,7 @@ void sort_camera_info(int num_cam)
     memset(temp_is_yuv, 0, sizeof(temp_is_yuv));
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.expose.aux", prop, "0");
+    property_get("persist.vendor.camera.expose.aux", prop, "0");
     expose_aux = atoi(prop);
 
     /* Order of the camera exposed is

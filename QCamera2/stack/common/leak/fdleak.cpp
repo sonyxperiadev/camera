@@ -33,12 +33,11 @@
 #include <ctype.h>
 #include <unwind.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <inttypes.h>
 #include <cutils/properties.h>
 // System dependencies
-#include <log/log.h>
+#include <utils/Log.h>
 #include <iostream>
 #include <sys/types.h>
 #include <fcntl.h>

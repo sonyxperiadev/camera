@@ -233,6 +233,13 @@ bool QCameraParametersIntf::isSecureMode()
     return mImpl->isSecureMode();
 }
 
+cam_stream_secure_mode_t QCameraParametersIntf::getSecureSessionType()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getSecureSessionType();
+}
+
 cam_stream_type_t QCameraParametersIntf::getSecureStreamType()
 {
     Mutex::Autolock lock(mLock);
@@ -1614,6 +1621,41 @@ bool QCameraParametersIntf::needAnalysisStream()
     Mutex::Autolock lock(mLock);
     CHECK_PARAM_INTF(mImpl);
     return mImpl->needAnalysisStream();
+}
+
+void QCameraParametersIntf::setLowPower(bool value)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    mImpl->setLowPower(value);
+}
+
+uint32_t QCameraParametersIntf::getBlurLevel()
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->getBlurLevel();
+}
+
+void QCameraParametersIntf::setBokehSnaphot(bool enable)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    mImpl->setBokehSnaphot(enable);
+}
+
+void QCameraParametersIntf::getDepthMapSize(int &width, int &height)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    mImpl->getDepthMapSize(width, height);
+}
+
+bool QCameraParametersIntf::isAutoFocusSupported(uint32_t cam_type)
+{
+    Mutex::Autolock lock(mLock);
+    CHECK_PARAM_INTF(mImpl);
+    return mImpl->isAutoFocusSupported(cam_type);
 }
 
 }; // namespace qcamera

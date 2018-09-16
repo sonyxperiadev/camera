@@ -77,9 +77,11 @@ public:
 protected:
     bool canProcess();
 private:
-    void getInputParams(mm_camera_buf_def_t *pMainMetaBuf, mm_camera_buf_def_t *pAuxMetaBuf,
-            QCameraStream* pMainSnapshotStream, QCameraStream* pAuxSnapshotStream,
-            dualfov_input_params_t& inParams);
+    void getInputParams(mm_camera_buf_def_t *pMainMetaBuf,
+                        mm_camera_buf_def_t *pAuxMetaBuf,
+                        cam_frame_len_offset_t main_offset,
+                        cam_frame_len_offset_t aux_offset,
+                        dualfov_input_params_t& inParams);
     int32_t doDualFovPPInit();
     int32_t doDualFovPPProcess(const uint8_t* pWide, const uint8_t* pTele,
             dualfov_input_params_t inParams, uint8_t* pOut);

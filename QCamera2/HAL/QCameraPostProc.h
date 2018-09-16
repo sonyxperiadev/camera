@@ -32,6 +32,7 @@
 
 // Camera dependencies
 #include "QCamera2HWI.h"
+#include "QCameraPprocManager.h"
 
 extern "C" {
 #include "mm_camera_interface.h"
@@ -88,24 +89,6 @@ typedef struct {
     uint8_t offline_buffer;
     mm_camera_buf_def_t *offline_reproc_buf; //HAL processed buffer
 } qcamera_pp_data_t;
-
-typedef struct {
-    mm_camera_super_buf_t *frame; // source frame
-    mm_camera_buf_def_t   *bufs;  // source buf_defs
-    uint32_t frameIndex;          // source frame index
-    bool halPPAllocatedBuf;       // true if src frame buffer is allocated by HAL PP block
-    QCameraHeapMemory    *snapshot_heap;    // output image heap buffer
-    QCameraHeapMemory    *metadata_heap;    // metadata heap buffer
-
-    /* buffer in qcamera_pp_data_t need to be release when done */
-    bool reproc_frame_release;       // false release original buffer
-                                     // true don't release it
-    mm_camera_buf_def_t *src_reproc_bufs;
-    mm_camera_super_buf_t *src_reproc_frame;// source frame (need to be
-                                            //returned back to kernel after done)
-    uint8_t offline_buffer;
-    mm_camera_buf_def_t *offline_reproc_buf; //HAL processed buffer
-} qcamera_hal_pp_data_t;
 
 typedef struct {
     uint32_t jobId;                  // job ID (obtained when start_jpeg_job)
@@ -175,6 +158,7 @@ public:
             mm_camera_super_buf_t *src_frame);
     static void processHalPPDataCB(qcamera_hal_pp_data_t *pOutput, void* pUserData);
     static void getHalPPOutputBufferCB(uint32_t frameIndex, void* pUserData);
+    static void releaseSuperBuf(mm_camera_super_buf_t *super_buf, void* pUserData);
     QCameraMemory *mOfflineDataBufs;
     QCameraChannel *getChannelByHandle(uint32_t channelHandle);
     bool isHalPPEnabled() { return (m_pHalPPManager != NULL);}

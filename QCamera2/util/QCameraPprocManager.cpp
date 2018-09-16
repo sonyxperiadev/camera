@@ -38,6 +38,8 @@ using namespace android;
 
 namespace qcamera {
 
+QCameraHALPPManager* QCameraHALPPManager::s_pInstance = NULL;
+
 /*===========================================================================
  * FUNCTION   : QCameraHALPPManager
  *
@@ -47,16 +49,15 @@ namespace qcamera {
  *
  * RETURN     : None
  *==========================================================================*/
-QCameraHALPPManager::QCameraHALPPManager(void *pUserData)
+QCameraHALPPManager::QCameraHALPPManager()
         : m_inputQ(releaseDataCb, this),
     //m_outgoingQ(releaseDataCb, this),
-    m_pQCameraPostProc((QCameraPostProcessor*)pUserData),
     m_pPprocModule(NULL),
     m_pprocType(CAM_HAL_PP_TYPE_NONE),
     m_bInited(FALSE),
     m_bStarted(FALSE),
     m_halPPBufNotifyCB(NULL),
-    m_halPPGetOutputCB(NULL)
+    m_halPPReleaseBufCB(NULL)
 {
 }
 
@@ -77,6 +78,22 @@ QCameraHALPPManager::~QCameraHALPPManager()
     }
 }
 
+void QCameraHALPPManager::release() {
+    Mutex::Autolock lock(mLock);
+    if (s_pInstance) {
+        delete s_pInstance;
+        s_pInstance = NULL;
+    }
+}
+
+QCameraHALPPManager* QCameraHALPPManager::getInstance() {
+    if (!s_pInstance) {
+        s_pInstance = new QCameraHALPPManager();
+    }
+    return s_pInstance;
+}
+
+
 /*===========================================================================
  * FUNCTION   : init
  *
@@ -91,13 +108,17 @@ QCameraHALPPManager::~QCameraHALPPManager()
 int32_t QCameraHALPPManager::init(
         cam_hal_pp_type_t type,
         halPPBufNotify bufNotifyCb,
-        halPPGetOutput getOutputCb,
+        halPPReleaseSuperbuf releaseBufCb,
         void *pStaticParam) {
     int32_t rc = NO_ERROR;
+
+    if (m_bInited == TRUE) {
+        return NO_ERROR;
+    }
     LOGH("E halppType: %d", type);
     m_pprocType = type;
     m_halPPBufNotifyCB = bufNotifyCb;
-    m_halPPGetOutputCB = getOutputCb;
+    m_halPPReleaseBufCB = releaseBufCb;
     // Init the HAL Pproc module
     switch (m_pprocType) {
         case CAM_HAL_PP_TYPE_DUAL_FOV:
@@ -145,6 +166,7 @@ int32_t QCameraHALPPManager::init(
  *==========================================================================*/
 int32_t QCameraHALPPManager::deinit() {
     int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mLock);
     LOGH("E");
     if (m_bInited == TRUE) {
         if (m_pPprocModule) {
@@ -154,7 +176,6 @@ int32_t QCameraHALPPManager::deinit() {
         }
         m_pprocType = CAM_HAL_PP_TYPE_NONE;
         m_halPPBufNotifyCB = NULL;
-        m_halPPGetOutputCB = NULL;
         m_pprocTh.exit();
     }
     m_bInited = FALSE;
@@ -178,6 +199,8 @@ int32_t QCameraHALPPManager::deinit() {
 int32_t QCameraHALPPManager::start()
 {
     int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mLock);
+    if (m_bStarted) return NO_ERROR;
     LOGH("E");
     if (m_bInited) {
         m_pprocTh.sendCmd(CAMERA_CMD_TYPE_START_DATA_PROC, TRUE, FALSE);
@@ -206,6 +229,8 @@ int32_t QCameraHALPPManager::start()
 int32_t QCameraHALPPManager::stop()
 {
     int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mLock);
+    if (!m_bStarted) return NO_ERROR;
     LOGH("E");
     if (m_bStarted) {
         m_pprocTh.sendCmd(CAMERA_CMD_TYPE_STOP_DATA_PROC, TRUE, TRUE);
@@ -230,6 +255,7 @@ int32_t QCameraHALPPManager::stop()
 int32_t QCameraHALPPManager::feedInput(qcamera_hal_pp_data_t *pInput)
 {
     int32_t rc = NO_ERROR;
+    Mutex::Autolock lock(mLock);
     LOGD("E");
     if (!m_bStarted) {
         LOGE("X NOT SUPPORTED");
@@ -308,7 +334,7 @@ void QCameraHALPPManager::releaseData(qcamera_hal_pp_data_t *pData)
     if (pData) {
         if (pData->src_reproc_frame) {
             if (!pData->reproc_frame_release) {
-                m_pQCameraPostProc->releaseSuperBuf(pData->src_reproc_frame);
+                m_halPPReleaseBufCB(pData->src_reproc_frame, pData->pUserData);
             }
             free(pData->src_reproc_frame);
             pData->src_reproc_frame = NULL;
@@ -318,7 +344,7 @@ void QCameraHALPPManager::releaseData(qcamera_hal_pp_data_t *pData)
             if (pData->halPPAllocatedBuf && pData->bufs) {
                 free(pData->bufs);
             } else {
-                m_pQCameraPostProc->releaseSuperBuf(frame);
+                m_halPPReleaseBufCB(frame, pData->pUserData);
             }
             free(frame);
             frame = NULL;
@@ -354,8 +380,7 @@ void QCameraHALPPManager::releaseData(qcamera_hal_pp_data_t *pData)
  *   @pSnapshotStream : stream of snapshot that found
  * RETURN             : snapshot buf def
  *==========================================================================*/
-mm_camera_buf_def_t* QCameraHALPPManager::getSnapshotBuf(qcamera_hal_pp_data_t* pData,
-        QCameraStream* &pSnapshotStream)
+mm_camera_buf_def_t* QCameraHALPPManager::getSnapshotBuf(qcamera_hal_pp_data_t* pData)
 {
     LOGH("E");
     mm_camera_buf_def_t *pBufDef = NULL;
@@ -364,20 +389,12 @@ mm_camera_buf_def_t* QCameraHALPPManager::getSnapshotBuf(qcamera_hal_pp_data_t* 
         return pBufDef;
     }
     mm_camera_super_buf_t *pFrame = pData->frame;
-    QCameraChannel *pChannel = m_pQCameraPostProc->getChannelByHandle(pFrame->ch_id);
-    if (pChannel == NULL) {
-        LOGE("Cannot find channel");
-        return pBufDef;
-    }
     // Search for input snapshot frame buf
     for (uint32_t i = 0; i < pFrame->num_bufs; i++) {
-        pSnapshotStream = pChannel->getStreamByHandle(pFrame->bufs[i]->stream_id);
-        if (pSnapshotStream != NULL) {
-            if (pSnapshotStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
-                pSnapshotStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
-                    pBufDef = pFrame->bufs[i];
-                    break;
-            }
+        if (pFrame->bufs[i]->stream_type == CAM_STREAM_TYPE_SNAPSHOT ||
+                    pFrame->bufs[i]->stream_type == CAM_STREAM_TYPE_OFFLINE_PROC) {
+            pBufDef = pFrame->bufs[i];
+            break;
         }
     }
     LOGH("X");
@@ -393,8 +410,7 @@ mm_camera_buf_def_t* QCameraHALPPManager::getSnapshotBuf(qcamera_hal_pp_data_t* 
  *   @pMetadataStream : stream of metadata that found
  * RETURN     : metadata buf def
  *==========================================================================*/
-mm_camera_buf_def_t* QCameraHALPPManager::getMetadataBuf(qcamera_hal_pp_data_t *pData,
-        QCameraStream* &pMetadataStream)
+mm_camera_buf_def_t* QCameraHALPPManager::getMetadataBuf(qcamera_hal_pp_data_t *pData)
 {
     LOGH("E");
     mm_camera_buf_def_t *pBufDef = NULL;
@@ -402,16 +418,16 @@ mm_camera_buf_def_t* QCameraHALPPManager::getMetadataBuf(qcamera_hal_pp_data_t *
         LOGE("Cannot find input frame super buffer");
         return pBufDef;
     }
-    mm_camera_super_buf_t* pFrame = pData->frame;
-    QCameraChannel *pChannel =
-            m_pQCameraPostProc->getChannelByHandle(pData->src_reproc_frame->ch_id);
-    LOGD("src_reproc_frame num_bufs = %d", pFrame->num_bufs);
-    if (pChannel == NULL) {
-            LOGE("Cannot find src_reproc_frame channel");
-            return pBufDef;
+
+    if (pData->src_metadata != NULL) {
+        pBufDef = pData->src_metadata->bufs[0];
+        return pBufDef;
     }
+
+    mm_camera_super_buf_t* pFrame = pData->frame;
+    LOGD("src_reproc_frame num_bufs = %d", pFrame->num_bufs);
+
     for (uint32_t i = 0;  i < pData->src_reproc_frame->num_bufs; i++) {
-        pMetadataStream = pChannel->getStreamByHandle(pData->src_reproc_frame->bufs[i]->stream_id);
         if (pData->src_reproc_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
             pBufDef = pData->src_reproc_frame->bufs[i];
             LOGD("find metadata stream and buf from src_reproc_frame");
@@ -420,22 +436,15 @@ mm_camera_buf_def_t* QCameraHALPPManager::getMetadataBuf(qcamera_hal_pp_data_t *
     }
     if (pBufDef == NULL) {
         LOGD("frame num_bufs = %d", pFrame->num_bufs);
-        pChannel = m_pQCameraPostProc->getChannelByHandle(pFrame->ch_id);
-        if (pChannel == NULL) {
-            LOGE("Cannot find frame channel");
-            return pBufDef;
-        }
         for (uint32_t i = 0; i < pFrame->num_bufs; i++) {
-            pMetadataStream = pChannel->getStreamByHandle(pFrame->bufs[i]->stream_id);
-            if (pMetadataStream != NULL) {
-                LOGD("bufs[%d] stream_type = %d", i, pFrame->bufs[i]->stream_type);
-                if (pFrame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
-                    pBufDef = pFrame->bufs[i];
-                    break;
-                }
+            LOGD("bufs[%d] stream_type = %d", i, pFrame->bufs[i]->stream_type);
+            if (pFrame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
+                pBufDef = pFrame->bufs[i];
+                break;
             }
         }
     }
+
     LOGH("X");
     return pBufDef;
 }
@@ -455,7 +464,7 @@ void QCameraHALPPManager::processHalPPDataCB(qcamera_hal_pp_data_t *pOutput, voi
 {
     LOGH("E");
     QCameraHALPPManager *pme = (QCameraHALPPManager *)pUserData;
-    pme->m_halPPBufNotifyCB(pOutput, pme->m_pQCameraPostProc);
+    pme->m_halPPBufNotifyCB(pOutput, pOutput->pUserData);
     LOGH("X");
 }
 
@@ -474,8 +483,67 @@ void QCameraHALPPManager::getHalPPOutputBufferCB(uint32_t frameIndex, void* pUse
 {
     LOGH("E");
     QCameraHALPPManager *pme = (QCameraHALPPManager *)pUserData;
-    pme->m_halPPGetOutputCB(frameIndex, pme->m_pQCameraPostProc);
+    pme->getHalPPOutputBuffer(frameIndex);
     LOGH("X");
+}
+
+/*===========================================================================
+ * FUNCTION   : getHalPPOutputBuffer
+ *
+ * DESCRIPTION: function to send HAL PP output buffer
+ * PARAMETERS :
+ *   @frameIndex  : frameIndex needs to be appended in the output data
+ * RETURN     : None
+ *==========================================================================*/
+void QCameraHALPPManager::getHalPPOutputBuffer(uint32_t frameIndex)
+{
+    LOGD("E. Allocate HAL PP Output buffer");
+    qcamera_hal_pp_data_t *output_data =
+            (qcamera_hal_pp_data_t*) malloc(sizeof(qcamera_hal_pp_data_t));
+    if (output_data == NULL) {
+        LOGE("No memory for qcamera_hal_pp_data_t output data");
+        return;
+    }
+    memset(output_data, 0, sizeof(qcamera_hal_pp_data_t));
+    mm_camera_super_buf_t* output_frame =
+            (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
+    if (output_frame == NULL) {
+        LOGE("No memory for mm_camera_super_buf_t frame");
+        free(output_data);
+        return;
+    }
+    memset(output_frame, 0, sizeof(mm_camera_super_buf_t));
+    output_data->frame = output_frame;
+    output_data->bufs =
+            (mm_camera_buf_def_t *)malloc(HAL_PP_NUM_BUFS * sizeof(mm_camera_buf_def_t));
+    if (output_data->bufs == NULL) {
+        LOGE("No memory for output_data->bufs");
+        free(output_frame);
+        free(output_data);
+        return;
+    }
+    memset(output_data->bufs, 0, HAL_PP_NUM_BUFS * sizeof(mm_camera_buf_def_t));
+    output_data->halPPAllocatedBuf = true;
+    output_data->snapshot_heap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
+    if (output_data->snapshot_heap == NULL) {
+        LOGE("Unable to new heap memory obj for image buf");
+        free(output_frame);
+        free(output_data->bufs);
+        free(output_data);
+        return;
+    }
+    output_data->metadata_heap = new QCameraHeapMemory(QCAMERA_ION_USE_CACHE);
+    if (output_data->metadata_heap == NULL) {
+        LOGE("Unable to new heap memory obj for metadata buf");
+        delete output_data->snapshot_heap;
+        free(output_frame);
+        free(output_data->bufs);
+        free(output_data);
+        return;
+    }
+
+    output_data->frameIndex = frameIndex;
+    feedOutput(output_data);
 }
 
 /*===========================================================================

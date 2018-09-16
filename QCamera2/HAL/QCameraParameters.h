@@ -28,7 +28,7 @@
 #include <utils/Errors.h>
 
 // Camera dependencies
-#include "camera.h"
+#include "hardware/camera.h"
 #include "QCameraMem.h"
 #include "QCameraParametersIntf.h"
 #include "QCameraThermalAdapter.h"
@@ -57,6 +57,11 @@ static const char ExifUndefinedPrefix[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 #define QCAMERA_MAX_EXP_TIME_LEVEL2      500
 #define QCAMERA_MAX_EXP_TIME_LEVEL3      1000
 #define QCAMERA_MAX_EXP_TIME_LEVEL4      10000
+
+//blur range
+#define MIN_BLUR 0
+#define MAX_BLUR 100
+#define BLUR_STEP 1
 
 class QCameraParameters: private CameraParameters
 {
@@ -642,18 +647,15 @@ private:
     //Key to enable dual LED calibration
     static const char KEY_QC_LED_CALIBRATION[];
 
+    //Key to get depth map size
+    static const char KEY_QC_DEPTH_MAP_SIZE[];
+
     enum {
         CAMERA_ORIENTATION_UNKNOWN = 0,
         CAMERA_ORIENTATION_PORTRAIT = 1,
         CAMERA_ORIENTATION_LANDSCAPE = 2,
     };
 
-    enum {
-        CAM_BOKEH_WIDE_WIDTH = 4000,
-        CAM_BOKEH_WIDE_HEIGHT = 3000,
-        CAM_BOKEH_TELE_WIDTH = 4000,
-        CAM_BOKEH_TELE_HEIGHT = 3000
-    };
     template <typename valueType> struct QCameraMap {
         const char *const desc;
         valueType val;
@@ -705,7 +707,8 @@ public:
     bool isZSLMode() {return m_bZslMode;};
     bool isRdiMode() {return m_bRdiMode;};
     bool isSecureMode() {return m_bSecureMode;};
-    cam_stream_type_t getSecureStreamType() {return mSecureStraemType;};
+    cam_stream_secure_mode_t getSecureSessionType()const {return m_eSecSessMode;}
+    cam_stream_type_t getSecureStreamType()const {return mSecureStraemType;}
     bool isNoDisplayMode(uint32_t cam_type = CAM_TYPE_MAIN);
     bool isWNREnabled() {return m_bWNROn;};
     bool isTNRSnapshotEnabled() {return m_bTNRSnapshotOn;};
@@ -959,6 +962,12 @@ public:
     void initDCSettings(int32_t state, uint32_t camMaster,
             bool bundleSnapshot, cam_fallback_mode_t fallback);
     bool needAnalysisStream();
+    bool isLowPowerMode() {return m_bisLowPower;};
+    void setLowPower(bool lowPowerMode) {m_bisLowPower = lowPowerMode;};
+    inline uint32_t getBlurLevel() {return m_bBokehBlurLevel;};
+    void setBokehSnaphot(bool enable);
+    void getDepthMapSize(int &width, int &height);
+    bool isAutoFocusSupported(uint32_t cam_type);
 private:
     int32_t setPreviewSize(const QCameraParameters& );
     int32_t setVideoSize(const QCameraParameters& );
@@ -1182,12 +1191,8 @@ private:
     int32_t SyncDCParams();
     void setSyncDCParams();
     void setAsymmetricSnapMode();
-
-    dual_cam_type getDualCameraConfig(cam_capability_t *capsMainCam,
-            cam_capability_t *capsAuxCam);
-    bool isBayer(cam_capability_t *caps);
-    bool isMono(cam_capability_t *caps);
     inline bool isBayerMono() { return (mDualCamType == DUAL_CAM_BAYER_MONO); };
+    bool isDualCamAvailable();
 
     // Map from strings to values
     static const cam_dimension_t THUMBNAIL_SIZES_MAP[];
@@ -1313,6 +1318,7 @@ private:
     bool m_bSensorHDREnabled;             // if HDR is enabled
     bool m_bRdiMode;                // if RDI mode
     bool m_bSecureMode;
+    cam_stream_secure_mode_t m_eSecSessMode;
     bool m_bSecureModeUBWC;
     bool m_bAeBracketingEnabled;
     int32_t mFlashValue;
@@ -1373,12 +1379,14 @@ private:
     cam_fallback_mode_t mFallback;
     bool mAsymmetricSnapMode;
     bool mAsymmetricPreviewMode;
+    bool m_bisLowPower;
     cam_hal_pp_type_t m_halPPType;
     cam_hal_pp_type_t m_defaultHalPPType;
     uint32_t m_bBokehMode;
     uint32_t m_bBokehBlurLevel;
     uint32_t m_bBokehMpoEnabled;
     uint8_t  mDualCamType;
+    bool m_bBokehSnapEnabled;
 };
 
 }; // namespace qcamera

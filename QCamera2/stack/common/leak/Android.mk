@@ -10,12 +10,13 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/../
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../mm-camera-interface/inc
 
+LOCAL_HEADER_LIBRARIES := libutils_headers
+
 #************* Kernel headers ************#
 ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 endif
-
 LOCAL_SRC_FILES := fdleak.cpp memleak.cpp
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog
 LOCAL_MODULE := libhal_dbg

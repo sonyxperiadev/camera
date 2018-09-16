@@ -4,6 +4,9 @@ LOCAL_PATH := $(call my-dir)
 include $(LOCAL_PATH)/../../../common.mk
 include $(CLEAR_VARS)
 
+LOCAL_HEADER_LIBRARIES := libhardware_headers
+LOCAL_HEADER_LIBRARIES += media_plugin_headers
+
 MM_CAM_FILES := \
 src/mm_camera_interface.c \
 src/mm_camera.c \
@@ -12,11 +15,6 @@ src/mm_camera_channel.c \
 src/mm_camera_stream.c \
 src/mm_camera_thread.c \
 src/mm_camera_sock.c
-
-ifeq ($(CAMERA_DAEMON_NOT_PRESENT), true)
-else
-LOCAL_CFLAGS += -DDAEMON_PRESENT
-endif
 
 # System header file path prefix
 LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
@@ -42,11 +40,10 @@ LOCAL_CFLAGS  += -DMEMLEAK_FLAG
 LOCAL_LDFLAGS += -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=socket -Wl,--wrap=pipe -Wl,--wrap=mmap -Wl,--wrap=__open_2
 LOCAL_LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=free -Wl,--wrap=realloc -Wl,--wrap=calloc
 LOCAL_C_INCLUDES := \
+system/media/camera/include \
 $(LOCAL_PATH)/inc \
 $(LOCAL_PATH)/../common \
 $(LOCAL_PATH)/../common/leak \
-hardware/libhardware/include/hardware \
-system/media/camera/include \
 
 LOCAL_CFLAGS += -DCAMERA_ION_HEAP_ID=ION_IOMMU_HEAP_ID
 LOCAL_C_INCLUDES+= $(kernel_includes)
@@ -58,7 +55,7 @@ LOCAL_CFLAGS += -include bionic/libc/kernel/common/linux/un.h
 endif
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
-ifeq ($(SOMC_KERNEL_VERSION), 4.9)
+ifeq ($(TARGET_KERNEL_VERSION), 4.9)
 LOCAL_CFLAGS += -DUSE_4_9_DEFS
 endif
 
@@ -68,11 +65,10 @@ LOCAL_MODULE           := libmmcamera_interface
 include $(SDCLANG_COMMON_DEFS)
 
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog \
-                          libhal_dbg libutils
+                          libhal_dbg
 
-LOCAL_HEADER_LIBRARIES := libhardware_headers
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_PATH_32 := $(TARGET_OUT_VENDOR)/lib
+LOCAL_VENDOR_MODULE := true
 
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 include $(BUILD_SHARED_LIBRARY)

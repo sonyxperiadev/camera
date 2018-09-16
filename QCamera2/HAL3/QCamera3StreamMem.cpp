@@ -562,6 +562,9 @@ int32_t QCamera3StreamMem::getBufferIndex(uint32_t frameNumber)
         return index;
 }
 
-
+void QCamera3StreamMem::switchMaster(uint32_t masterCam)
+{
+    mGrallocMem.switchMaster(masterCam);
+}
 
 }; //namespace qcamera

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -94,7 +94,7 @@ static OMX_ERRORTYPE mm_jpeg_session_configure(mm_jpeg_job_session_t *p_session)
  *       Get the name of omx component to be used for jpeg encoding
  *
  **/
-static inline char* mm_jpeg_get_comp_name()
+inline char* mm_jpeg_get_comp_name()
 {
 #ifdef MM_JPEG_USE_PIPELINE
   return "OMX.qcom.image.jpeg.encoder_pipeline";
@@ -2743,7 +2743,6 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
   uint32_t work_buf_size;
 
   *job_id = 0;
-
   if (!job) {
     LOGE("invalid job !!!");
     return rc;
@@ -2830,6 +2829,7 @@ int32_t mm_jpeg_start_job(mm_jpeg_obj *my_obj,
 #ifdef LIB2D_ROTATION_ENABLE
   if (p_session->lib2d_rotation_flag) {
     rc = mm_jpeg_lib2d_rotation(p_session, node, job, job_id);
+    LOGH("Lib2d rotation done %d", rc);
     if (rc < 0) {
       LOGE("Lib2d rotation failed");
       return rc;
@@ -3110,27 +3110,22 @@ int32_t mm_jpeg_create_session(mm_jpeg_obj *my_obj,
       p_session->params.thumb_dim.src_dim = p_session->params.main_dim.src_dim;
       p_session->params.thumb_dim.crop = p_session->params.main_dim.crop;
     }
+
 #ifdef LIB2D_ROTATION_ENABLE
     if (p_session->params.rotation) {
-      LOGD("Enable lib2d rotation");
-      p_session->lib2d_rotation_flag = 1;
-
-      cam_format_t lib2d_format;
-      lib2d_error lib2d_err = MM_LIB2D_SUCCESS;
-      lib2d_format =
-        mm_jpeg_get_imgfmt_from_colorfmt(p_session->params.color_format);
-      lib2d_err = mm_lib2d_init(MM_LIB2D_SYNC_MODE, lib2d_format,
-      lib2d_format, &p_session->lib2d_handle);
-      if (lib2d_err != MM_LIB2D_SUCCESS) {
+      if (my_obj->static_lib2d_handle == NULL) {
         LOGE("lib2d init for rotation failed\n");
         rc = -1;
         p_session->lib2d_rotation_flag = 0;
         goto error2;
+      } else {
+        p_session->lib2d_handle = my_obj->static_lib2d_handle;
+        p_session->lib2d_rotation_flag = 1;
       }
     } else {
-      LOGD("Disable lib2d rotation");
       p_session->lib2d_rotation_flag = 0;
     }
+    LOGH("lib2d rotation flag %d", p_session->lib2d_rotation_flag);
 #else
     p_session->lib2d_rotation_flag = 0;
 #endif

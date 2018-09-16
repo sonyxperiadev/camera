@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -37,7 +37,7 @@
 #include <string.h>
 #include <utils/Log.h>
 #include <math.h>
-
+#include <fcntl.h>
 
 // Camera dependencies
 #include "QCameraCommon.h"
@@ -287,20 +287,58 @@ bool QCameraCommon::isVideoUBWCEnabled()
 {
 #ifdef UBWC_PRESENT
     char prop[PROPERTY_VALUE_MAX];
-    int pFormat;
     memset(prop, 0, sizeof(prop));
     /* Checking the property set by video
-     * to disable/enable UBWC */
-    property_get("video.disable.ubwc", prop, "0");
-    pFormat = atoi(prop);
-    if (pFormat == 0) {
-        return TRUE;
+     * to disable/enable UBWC. And, Android P
+     * onwards we use vendor prefix*/
+#ifdef USE_VENDOR_PROP
+    if (property_get("vendor.video.disable.ubwc", prop, "") > 0) {
+        return (atoi(prop) == 0);
     }
-    return FALSE;
+#else
+    if (property_get("video.disable.ubwc", prop, "") > 0){
+        return (atoi(prop) == 0);
+    }
+#endif
+    return TRUE;
 #else
     return FALSE;
 #endif
 }
+
+/*===========================================================================
+ * FUNCTION   : is_target_SDM450
+ *
+ * DESCRIPTION: Function to check whether target is sdm630 or not.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : TRUE -- SDM450 target.
+ *              FALSE -- Some other target.
+ *==========================================================================*/
+
+bool QCameraCommon::is_target_SDM450()
+{
+    return (parseHWID() == 338 || parseHWID() == 351);
+}
+
+
+/*===========================================================================
+ * FUNCTION   : is_target_SDM630
+ *
+ * DESCRIPTION: Function to check whether target is sdm630 or not.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : TRUE -- SDM630 target.
+ *              FALSE -- Some other target.
+ *==========================================================================*/
+
+bool QCameraCommon::is_target_SDM630()
+{
+    return  (parseHWID() == 318 || parseHWID() == 327);
+}
+
 
 bool QCameraCommon::skipAnalysisBundling()
 {
@@ -311,7 +349,7 @@ bool QCameraCommon::skipAnalysisBundling()
     char prop[PROPERTY_VALUE_MAX];
     bool needBundling = true;
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.isp.analysis_en", prop, "1");
+    property_get("persist.vendor.camera.isp.analysis_en", prop, "1");
     needBundling = atoi(prop);
 
     return !needBundling;
@@ -337,6 +375,101 @@ bool QCameraCommon::needAnalysisStream()
     }
 
     return needAnalysisStream;
+}
+
+/*===========================================================================
+* FUNCTION   : isBayer
+*
+* DESCRIPTION: check whether sensor is bayer type or not
+*
+* PARAMETERS : cam_capability_t
+*
+* RETURN    : true or false
+*==========================================================================*/
+bool QCameraCommon::isBayer(cam_capability_t *caps)
+{
+    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_RGGB ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GRBG ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GBRG ||
+            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_BGGR));
+}
+
+/*===========================================================================
+* FUNCTION   : isMono
+*
+* DESCRIPTION: check whether sensor is mono or not
+*
+* PARAMETERS : cam_capability_t
+*
+* RETURN    : true or false
+*==========================================================================*/
+bool QCameraCommon::isMono(cam_capability_t *caps)
+{
+    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_Y));
+}
+
+/*===========================================================================
+* FUNCTION   : getDualCameraConfig
+*
+* DESCRIPTION: get dual camera configuration whether B+M/W+T
+*
+* PARAMETERS : capabilities of main and aux cams
+*
+* RETURN    : dual_cam_type
+*==========================================================================*/
+dual_cam_type QCameraCommon::getDualCameraConfig(cam_capability_t *capsMainCam,
+        cam_capability_t *capsAuxCam)
+{
+    dual_cam_type type = DUAL_CAM_WIDE_TELE;
+    if (isBayer(capsMainCam) && isMono(capsAuxCam)) {
+        type = DUAL_CAM_BAYER_MONO;
+    }
+    return type;
+}
+
+
+/*===========================================================================
+* FUNCTION   : parseHWID
+*
+* DESCRIPTION: get SOC id of current platform
+*
+* PARAMETERS : None
+*
+* RETURN     : Return Soc Id if successfull else -1
+*==========================================================================*/
+int QCameraCommon::parseHWID()
+{
+    static int nHW_ID = -1;
+    if (nHW_ID == -1)
+    {
+#ifdef ANDROID
+        int result = -1;
+        char buffer[PATH_MAX];
+        FILE *device = NULL;
+        device = fopen("/sys/devices/soc0/soc_id", "r");
+        if(device)
+        {
+          /* 4 = 3 (MAX_SOC_ID_LENGTH) + 1 */
+          result = fread(buffer, 1, 4, device);
+          fclose(device);
+        }
+        else
+        {
+          device = fopen("/sys/devices/system/soc/soc0/id", "r");
+          if(device)
+          {
+             result = fread(buffer, 1, 4, device);
+             fclose(device);
+          }
+        }
+        if(result > 0)
+        {
+           nHW_ID = atoi(buffer);
+        }
+        ALOGE("%s: Got HW_ID = %d",__func__, nHW_ID);
+#endif
+    }
+    return nHW_ID;
 }
 
 }; // namespace qcamera

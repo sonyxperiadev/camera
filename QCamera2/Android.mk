@@ -10,12 +10,15 @@ SDCLANG_FLAG_DEFS := $(LOCAL_PATH)/sdllvm-flag-defs.mk
 LOCAL_COPY_HEADERS_TO := qcom/camera
 LOCAL_COPY_HEADERS := QCameraFormat.h
 
+IS_QC_BOKEH_SUPPORTED := false
+
 LOCAL_SRC_FILES := \
         util/QCameraBufferMaps.cpp \
         util/QCameraCmdThread.cpp \
         util/QCameraFlash.cpp \
         util/QCameraPerf.cpp \
         util/QCameraQueue.cpp \
+        util/QCameraDisplay.cpp \
         util/QCameraCommon.cpp \
         util/QCameraTrace.cpp \
         util/camscope_packet_type.cpp \
@@ -82,7 +85,21 @@ ifeq ($(TARGET_USES_MEDIA_EXTENSIONS), true)
 LOCAL_CFLAGS += -DUSE_MEDIA_EXTENSIONS
 endif
 
+#USE_DISPLAY_SERVICE from Android O onwards
+#to receive vsync event from display
+ifeq ($(call is-platform-sdk-version-at-least,26),true)
+USE_DISPLAY_SERVICE := true
+LOCAL_CFLAGS += -DUSE_DISPLAY_SERVICE
+LOCAL_CFLAGS += -std=c++11 -std=gnu++1y
+else
 LOCAL_CFLAGS += -std=c++11 -std=gnu++0x
+endif
+
+#Android P onwards we use vendor prefix
+ifeq ($(call is-platform-sdk-version-at-least,28),true)
+LOCAL_CFLAGS += -DUSE_VENDOR_PROP
+endif
+
 #HAL 1.0 Flags
 LOCAL_CFLAGS += -DDEFAULT_DENOISE_MODE_ON -DHAL3 -DQCAMERA_REDEFINE_LOG
 LOCAL_LDFLAGS += -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=socket -Wl,--wrap=pipe -Wl,--wrap=mmap -Wl,--wrap=__open_2
@@ -96,12 +113,15 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/stack/mm-camera-interface/inc \
         $(LOCAL_PATH)/util \
         $(LOCAL_PATH)/HAL3 \
-        hardware/libhardware/include/hardware \
         $(SRC_MEDIA_HAL_DIR)/libstagefrighthw \
         $(SRC_MEDIA_HAL_DIR)/mm-core/inc \
-        system/core/include/cutils \
-        system/core/include/system \
-        system/media/camera/include/system
+        $(TARGET_OUT_HEADERS)/mm-camera-lib/cp/prebuilt
+
+LOCAL_HEADER_LIBRARIES := media_plugin_headers
+LOCAL_HEADER_LIBRARIES += libandroid_sensor_headers
+LOCAL_HEADER_LIBRARIES += libcutils_headers
+LOCAL_HEADER_LIBRARIES += libsystem_headers
+LOCAL_HEADER_LIBRARIES += libhardware_headers
 
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \
@@ -136,11 +156,19 @@ LOCAL_C_INCLUDES += \
 LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
-LOCAL_SHARED_LIBRARIES += libbase libcutils libdl libhal_dbg
+LOCAL_SHARED_LIBRARIES += libcutils libdl libhal_dbg
+ifeq ($(IS_QC_BOKEH_SUPPORTED),true)
+LOCAL_SHARED_LIBRARIES += libdualcameraddm
+LOCAL_CFLAGS += ENABLE_QC_BOKEH
+endif
+ifeq ($(USE_DISPLAY_SERVICE),true)
+LOCAL_SHARED_LIBRARIES += android.frameworks.displayservice@1.0 libhidlbase libhidltransport
+else
+LOCAL_SHARED_LIBRARIES += libgui
+endif
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_SHARED_LIBRARIES += libts_face_beautify_hal libts_detected_face_hal
 endif
-LOCAL_HEADER_LIBRARIES := libhardware_headers media_plugin_headers
 
 ifeq ($(TARGET_USES_CASH_EXTENSION), true)
 LOCAL_SHARED_LIBRARIES += libcashctl

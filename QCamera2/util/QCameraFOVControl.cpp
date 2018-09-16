@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -38,6 +38,7 @@
 
 
 extern "C" {
+#define CAM_MODULE CAM_HAL_MODULE
 #include "mm_camera_dbg.h"
 #include "mm_camera_interface.h"
 }
@@ -54,10 +55,11 @@ namespace qcamera {
  * RETURN     : void
  *
  *==========================================================================*/
-QCameraFOVControl::QCameraFOVControl()
+QCameraFOVControl::QCameraFOVControl(uint8_t isHAL3)
     :mZoomTranslator(NULL),
      mHalPPType(CAM_HAL_PP_TYPE_NONE),
-     mDualCamType(DUAL_CAM_WIDE_TELE)
+     mDualCamType(DUAL_CAM_WIDE_TELE),
+     mbIsHAL3(isHAL3)
 {
     memset(&mDualCamParams,    0, sizeof(dual_cam_params_t));
     memset(&mFovControlConfig, 0, sizeof(fov_control_config_t));
@@ -104,13 +106,14 @@ QCameraFOVControl::~QCameraFOVControl()
  *==========================================================================*/
 QCameraFOVControl* QCameraFOVControl::create(
         cam_capability_t *capsMainCam,
-        cam_capability_t *capsAuxCam)
+        cam_capability_t *capsAuxCam,
+        uint8_t isHAL3)
 {
     QCameraFOVControl *pFovControl  = NULL;
 
     if (capsMainCam && capsAuxCam) {
         // Create FOV control object
-        pFovControl = new QCameraFOVControl();
+        pFovControl = new QCameraFOVControl(isHAL3);
 
         if (pFovControl) {
             bool  success = false;
@@ -135,7 +138,7 @@ QCameraFOVControl* QCameraFOVControl::create(
                 // Check if LPM is enabled
                 char prop[PROPERTY_VALUE_MAX];
                 int lpmEnable = 1;
-                property_get("persist.dualcam.lpm.enable", prop, "1");
+                property_get("persist.vendor.dualcam.lpm.enable", prop, "1");
                 lpmEnable = atoi(prop);
                 if ((lpmEnable == 0) || (DUALCAM_LPM_ENABLE == 0)) {
                     pFovControl->mFovControlData.lpmEnabled = false;
@@ -344,6 +347,13 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
             }
         }
         capsConsolidated.supported_picture_fmt_cnt = supportedPictureFmtCntFinal;
+
+        //consolidate focus modes, to handle FF + AF case
+        if (capsMainCam->supported_focus_modes_cnt <= 1) {
+            capsConsolidated.supported_focus_modes_cnt = capsAuxCam->supported_focus_modes_cnt;
+            memcpy(capsConsolidated.supported_focus_modes, capsAuxCam->supported_focus_modes,
+                    (capsAuxCam->supported_focus_modes_cnt * sizeof(cam_focus_mode_type)));
+        }
 
         if (mZoomTranslator) {
             // Copy the opaque calibration data pointer and size
@@ -667,6 +677,8 @@ int32_t QCameraFOVControl::translateInputParams(
 {
     int32_t rc = INVALID_OPERATION;
     if (paramsMainCam && paramsAuxCam) {
+        bool useCropRegion = false;
+        cam_crop_region_t scalerCropRegion;
         // First copy all the parameters from main to aux and then translate the subset
         memcpy(paramsAuxCam, paramsMainCam, sizeof(parm_buffer_t));
 
@@ -675,32 +687,20 @@ int32_t QCameraFOVControl::translateInputParams(
             return NO_ERROR;
         }
 
-        if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
-            // Only translate AF and AEC ROIs in case of Bokeh
-            if (paramsMainCam->is_valid[CAM_INTF_PARM_AF_ROI]) {
-                cam_roi_info_t roiAfInput;
-                cam_roi_info_t roiAfTrans;
-                READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_AF_ROI, roiAfInput);
-                if (roiAfInput.num_roi > 0) {
-                    roiAfTrans = translateFocusAreas(roiAfInput, CAM_TYPE_MAIN);
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_AF_ROI, roiAfTrans);
-                }
-            }
-
-            // Translate metering areas
-            if (paramsMainCam->is_valid[CAM_INTF_PARM_AEC_ROI]) {
-                cam_set_aec_roi_t roiAecInput;
-                cam_set_aec_roi_t roiAecTrans;
-                READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_AEC_ROI, roiAecInput);
-                if (roiAecInput.aec_roi_enable == CAM_AEC_ROI_ON) {
-                    roiAecTrans = translateMeteringAreas(roiAecInput, CAM_TYPE_MAIN);
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_AEC_ROI, roiAecTrans);
-                }
-            }
-            return NO_ERROR;
+        //Translate zoom in HAL3
+        if (paramsMainCam->is_valid[CAM_INTF_META_SCALER_CROP_REGION]) {
+            READ_PARAM_ENTRY(paramsMainCam,
+                    CAM_INTF_META_SCALER_CROP_REGION, scalerCropRegion);
+            float ratio = (float)mDualCamParams.paramsMain.sensorStreamWidth / scalerCropRegion.width;
+            uint32_t userZoomRatio = ratio * 100;
+            uint32_t userZoom = findZoomValue(userZoomRatio);
+            mFovControlParm.zoom_valid = 1;
+            mFovControlParm.zoom_value = userZoom;
+            useCropRegion = true;
+            LOGD("user zoomRatio: %f", ratio);
         }
 
-        // Translate zoom
+        // Translate zoom in HAL1
         if (paramsMainCam->is_valid[CAM_INTF_PARM_USERZOOM]) {
             //Cache user zoom
             cam_zoom_info_t zoomInfo;
@@ -734,46 +734,26 @@ int32_t QCameraFOVControl::translateInputParams(
                     mFovControlData.zoomWide : mFovControlData.zoomTele;
             uint32_t zoomIsp   = isMainCamFovWider() ?
                     mFovControlData.zoomWideIsp : mFovControlData.zoomTeleIsp;
-            for (uint32_t i = 0; i < zoomInfo.num_streams; ++i) {
-                zoomInfo.stream_zoom_info[i].stream_type = mFovControlData.camStreamInfo.type[i];
-                zoomInfo.stream_zoom_info[i].stream_zoom = zoomTotal;
-                zoomInfo.stream_zoom_info[i].isp_zoom    = zoomIsp;
-
-                // If the snapshot post-processing is enabled, disable isp zoom
-                if (snapshotPostProcess &&
-                        (zoomInfo.stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT)) {
-                    zoomInfo.stream_zoom_info[i].isp_zoom = 0;
-                }
-
-                LOGD("main cam: stream_type: %d, stream_zoom: %d, isp_zoom: %d",
-                    zoomInfo.stream_zoom_info[i].stream_type,
-                    zoomInfo.stream_zoom_info[i].stream_zoom,
-                    zoomInfo.stream_zoom_info[i].isp_zoom);
+            uint32_t zoomStep = isMainCamFovWider() ?
+                    mFovControlData.zoomRatioWide : mFovControlData.zoomRatioTele;
+            if (useCropRegion) {
+                setCropParam(CAM_TYPE_MAIN, zoomStep, paramsMainCam);
             }
-            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_USERZOOM, zoomInfo);
+            setZoomParam(CAM_TYPE_MAIN, zoomInfo, zoomTotal, zoomIsp,
+                        snapshotPostProcess, paramsMainCam, useCropRegion);
 
             // Update zoom value for aux camera param buffer
             zoomTotal = isMainCamFovWider() ?
                     mFovControlData.zoomTele : mFovControlData.zoomWide;
             zoomIsp = isMainCamFovWider() ?
                     mFovControlData.zoomTeleIsp : mFovControlData.zoomWideIsp;
-            for (uint32_t i = 0; i < zoomInfo.num_streams; ++i) {
-                zoomInfo.stream_zoom_info[i].stream_type = mFovControlData.camStreamInfo.type[i];
-                zoomInfo.stream_zoom_info[i].stream_zoom = zoomTotal;
-                zoomInfo.stream_zoom_info[i].isp_zoom    = zoomIsp;
-
-                // If the snapshot post-processing is enabled, disable isp zoom
-                if (snapshotPostProcess &&
-                        (zoomInfo.stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT)) {
-                    zoomInfo.stream_zoom_info[i].isp_zoom = 0;
-                }
-
-                LOGD("aux cam: stream_type: %d, stream_zoom: %d, isp_zoom: %d",
-                    zoomInfo.stream_zoom_info[i].stream_type,
-                    zoomInfo.stream_zoom_info[i].stream_zoom,
-                    zoomInfo.stream_zoom_info[i].isp_zoom);
+            zoomStep = isMainCamFovWider() ?
+                    mFovControlData.zoomRatioTele : mFovControlData.zoomRatioWide;
+            if (useCropRegion) {
+                setCropParam(CAM_TYPE_AUX, zoomStep, paramsAuxCam);
             }
-            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_USERZOOM, zoomInfo);
+            setZoomParam(CAM_TYPE_AUX, zoomInfo, zoomTotal, zoomIsp,
+                        snapshotPostProcess, paramsAuxCam, useCropRegion);
 
             // Generate FOV-control result
             generateFovControlResult();
@@ -793,6 +773,14 @@ int32_t QCameraFOVControl::translateInputParams(
                 ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_AF_ROI, roiAfAux);
                 ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_AF_ROI, roiAfMain);
             }
+        } else if (paramsMainCam->is_valid[CAM_INTF_META_AF_ROI]) {
+            cam_area_t roiAfMain;
+            cam_area_t roiAfAux;
+            READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_META_AF_ROI, roiAfMain);
+            roiAfAux = translateRoi(roiAfMain, CAM_TYPE_AUX);
+            roiAfMain = translateRoi(roiAfMain, CAM_TYPE_MAIN);
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_META_AF_ROI, roiAfAux);
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_META_AF_ROI, roiAfMain);
         }
 
         // Translate metering areas
@@ -806,6 +794,14 @@ int32_t QCameraFOVControl::translateInputParams(
                 ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_PARM_AEC_ROI, roiAecAux);
                 ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_PARM_AEC_ROI, roiAecMain);
             }
+        } else if (paramsMainCam->is_valid[CAM_INTF_META_AEC_ROI]) {
+            cam_area_t roiAecMain;
+            cam_area_t roiAecAux;
+            READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_META_AEC_ROI, roiAecMain);
+            roiAecAux = translateRoi(roiAecMain, CAM_TYPE_AUX);
+            roiAecMain = translateRoi(roiAecMain, CAM_TYPE_MAIN);
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsAuxCam, CAM_INTF_META_AEC_ROI, roiAecAux);
+            ADD_SET_PARAM_ENTRY_TO_BATCH(paramsMainCam, CAM_INTF_META_AEC_ROI, roiAecMain);
         }
 
         /*Set torch param only in the active session.With present LPM logic in MCT, if the session
@@ -1144,6 +1140,10 @@ metadata_buffer_t* QCameraFOVControl::processResultMetadata(
         if (snapshotPostProcess &&
                 (camState == (CAM_TYPE_MAIN | CAM_TYPE_AUX)) &&
                 metaResult) {
+            if (!mDualCamParams.paramsMain.isAFSupported)
+                mFovControlData.afStatusMain = mFovControlData.afStatusAux;
+            else if (!mDualCamParams.paramsAux.isAFSupported)
+                mFovControlData.afStatusAux = mFovControlData.afStatusMain;
             if (((mFovControlData.afStatusMain == CAM_AF_STATE_FOCUSED_LOCKED) ||
                     (mFovControlData.afStatusMain == CAM_AF_STATE_NOT_FOCUSED_LOCKED)) &&
                     ((mFovControlData.afStatusAux == CAM_AF_STATE_FOCUSED_LOCKED) ||
@@ -1205,7 +1205,12 @@ void QCameraFOVControl::generateFovControlResult()
         mFovControlResult.camMaster3A  = CAM_TYPE_MAIN;
         mFovControlResult.activeCameras = MM_CAMERA_DUAL_CAM;
         mFovControlData.configCompleted = true;
-        mFovControlResult.snapshotPostProcess = true;
+        if(mHalPPType != CAM_HAL_PP_TYPE_NONE)
+        {
+            mFovControlResult.snapshotPostProcess = true;
+        } else {
+            mFovControlResult.snapshotPostProcess = false;
+        }
         mFovControlResult.isValid = true;
         return;
      } else if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
@@ -1622,7 +1627,7 @@ void QCameraFOVControl::generateFovControlResult()
  * false       : If main cam FOV is narrower than tele
  *
  *==========================================================================*/
-inline bool QCameraFOVControl::isMainCamFovWider()
+bool QCameraFOVControl::isMainCamFovWider()
 {
     if (mDualCamParams.paramsMain.focalLengthMm <
             mDualCamParams.paramsAux.focalLengthMm) {
@@ -1935,8 +1940,8 @@ bool QCameraFOVControl::validateAndExtractParameters(
         char propSAC[PROPERTY_VALUE_MAX];
         char propSAT[PROPERTY_VALUE_MAX];
 
-        property_get("persist.camera.sac.enable", propSAC, "0");
-        property_get("persist.camera.sat.enable", propSAT, "0");
+        property_get("persist.vendor.camera.sac.enable", propSAC, "0");
+        property_get("persist.vendor.camera.sat.enable", propSAT, "0");
 
         mFovControlConfig.percentMarginHysterisis  = 5;
         mFovControlConfig.percentMarginMain        = 25;
@@ -1947,6 +1952,11 @@ bool QCameraFOVControl::validateAndExtractParameters(
 
         mDualCamParams.paramsMain.pixelPitchUm = capsMainCam->pixel_pitch_um;
         mDualCamParams.paramsAux.pixelPitchUm  = capsAuxCam->pixel_pitch_um;
+
+        if (capsMainCam->supported_focus_modes_cnt > 1)
+            mDualCamParams.paramsMain.isAFSupported = true;
+        if (capsAuxCam->supported_focus_modes_cnt > 1)
+            mDualCamParams.paramsAux.isAFSupported = true;
 
         if (((capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_QTI) && atoi(propSAC)) ||
                 ((capsMainCam->avail_spatial_align_solns & CAM_SPATIAL_ALIGN_OEM) &&
@@ -2205,6 +2215,9 @@ uint32_t QCameraFOVControl::readjustZoomForTele(
     zoomRatioWide = findZoomRatio(zoomWide);
     zoomRatioTele  = zoomRatioWide / mFovControlData.transitionParams.cutOverFactor;
 
+    mFovControlData.zoomRatioWide = zoomRatioWide;
+    mFovControlData.zoomRatioTele = zoomRatioTele;
+
     return(findZoomValue(zoomRatioTele));
 }
 
@@ -2229,6 +2242,9 @@ uint32_t QCameraFOVControl::readjustZoomForWide(
 
     zoomRatioTele = findZoomRatio(zoomTele);
     zoomRatioWide = zoomRatioTele * mFovControlData.transitionParams.cutOverFactor;
+
+    mFovControlData.zoomRatioWide = zoomRatioWide;
+    mFovControlData.zoomRatioTele = zoomRatioTele;
 
     return(findZoomValue(zoomRatioWide));
 }
@@ -2270,8 +2286,13 @@ void QCameraFOVControl::convertUserZoomToWideAndTele(
             mFovControlData.zoomTele    = zoomData.zoomTeleTotal;
         }
     } else {
-        mFovControlData.zoomWide = zoom;
-        mFovControlData.zoomTele = readjustZoomForTele(mFovControlData.zoomWide);
+        if (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) {
+            mFovControlData.zoomTele = zoom;
+            mFovControlData.zoomWide = readjustZoomForWide(mFovControlData.zoomTele);
+        } else {
+            mFovControlData.zoomWide = zoom;
+            mFovControlData.zoomTele = readjustZoomForTele(mFovControlData.zoomWide);
+        }
         mFovControlData.zoomWideIsp = mFovControlData.zoomWide;
         mFovControlData.zoomTeleIsp = mFovControlData.zoomTele;
     }
@@ -2486,6 +2507,11 @@ cam_face_detection_data_t QCameraFOVControl::translateRoiFD(
         cam_face_detection_data_t metaFD,
         cam_sync_type_t cam)
 {
+
+    if (mbIsHAL3) {
+        return translateHAL3FDRoi(metaFD, cam);
+    }
+
     cam_face_detection_data_t metaFDTranslated = metaFD;
     int32_t shiftHorz = 0;
     int32_t shiftVert = 0;
@@ -2548,7 +2574,6 @@ cam_face_detection_data_t QCameraFOVControl::translateRoiFD(
     }
     return metaFDTranslated;
 }
-
 
 /*===========================================================================
  * FUNCTION      : getFrameMargins
@@ -2664,6 +2689,273 @@ void QCameraFOVControl::UpdateFlag(
 void QCameraFOVControl::setDualCameraConfig(uint8_t type)
 {
     mDualCamType = type;
+}
+
+void QCameraFOVControl::setZoomParam(uint8_t cam_type, cam_zoom_info_t zoomInfo, uint32_t zoomTotal,
+        uint32_t zoomIsp, bool snapshotPostProcess, parm_buffer_t* params, bool isHAL3)
+{
+    for (uint32_t i = 0; i < zoomInfo.num_streams; ++i) {
+        zoomInfo.stream_zoom_info[i].stream_type = mFovControlData.camStreamInfo.type[i];
+        zoomInfo.stream_zoom_info[i].stream_zoom = zoomTotal;
+        zoomInfo.stream_zoom_info[i].isp_zoom    = zoomIsp;
+
+        // If the snapshot post-processing is enabled, disable isp zoom
+        if (snapshotPostProcess &&
+                (zoomInfo.stream_zoom_info[i].stream_type == CAM_STREAM_TYPE_SNAPSHOT)) {
+            zoomInfo.stream_zoom_info[i].isp_zoom = 0;
+        }
+
+        LOGD("cam[%d]: stream_type: %d, stream_zoom: %d, isp_zoom: %d",
+            cam_type, zoomInfo.stream_zoom_info[i].stream_type,
+            zoomInfo.stream_zoom_info[i].stream_zoom,
+            zoomInfo.stream_zoom_info[i].isp_zoom);
+    }
+    if (isHAL3) {
+        ADD_SET_PARAM_ENTRY_TO_BATCH(params, CAM_INTF_META_USERZOOM, zoomInfo);
+    } else {
+        ADD_SET_PARAM_ENTRY_TO_BATCH(params, CAM_INTF_PARM_USERZOOM, zoomInfo);
+    }
+}
+
+void QCameraFOVControl::setCropParam(uint8_t cam_type, uint32_t zoomStep, parm_buffer_t* params)
+{
+    uint32_t sensorW, sensorH;
+    cam_crop_region_t scalerCropRegion;
+    float zoomRatio = zoomStep/100.0;
+    if (zoomRatio < 1.0) zoomRatio = 1.0;
+    // Adjust crop region from main sensor output coordinate system to aux
+    // array coordinate system.
+
+    if (cam_type == CAM_TYPE_MAIN) {
+        sensorW = mDualCamParams.paramsMain.sensorStreamWidth;
+        sensorH = mDualCamParams.paramsMain.sensorStreamHeight;
+    } else {
+        sensorW = mDualCamParams.paramsAux.sensorStreamWidth;
+        sensorH = mDualCamParams.paramsAux.sensorStreamHeight;
+    }
+
+    uint32_t xCenter = sensorW / 2;
+    uint32_t yCenter = sensorH / 2;
+    uint32_t xDelta = (uint32_t) (sensorW / (2 * zoomRatio));
+    uint32_t yDelta = (uint32_t) (sensorH / (2 * zoomRatio));
+
+    scalerCropRegion.left = xCenter - xDelta;
+    scalerCropRegion.top = yCenter - yDelta;
+    scalerCropRegion.width = (uint32_t)sensorW/zoomRatio;
+    scalerCropRegion.height = (uint32_t)sensorH/zoomRatio;
+
+    LOGD("Cam type %d : zoomRatio %f Crop [%d, %d, %d %d]",
+        cam_type, zoomRatio,
+        scalerCropRegion.left,
+        scalerCropRegion.top,
+        scalerCropRegion.width,
+        scalerCropRegion.height);
+
+    ADD_SET_PARAM_ENTRY_TO_BATCH(params, CAM_INTF_META_SCALER_CROP_REGION,
+        scalerCropRegion);
+}
+/*===========================================================================
+ * FUNCTION   : translateRoi
+ *
+ * DESCRIPTION: Translate the focus areas from main to aux camera.
+ *
+ * PARAMETERS :
+ * @roiAfMain : Focus area ROI for main camera
+ * @cam       : Cam type
+ *
+ * RETURN     : Translated focus area ROI for aux camera
+ *
+ *==========================================================================*/
+cam_area_t QCameraFOVControl::translateRoi(
+        cam_area_t  roiMain,
+        cam_sync_type_t cam)
+{
+    float fovRatio;
+    float zoomWide;
+    float zoomTele;
+    float AuxRoiLeft;
+    float AuxRoiTop;
+    cam_area_t roiTrans = roiMain;
+    int32_t shiftHorzAdjusted;
+    int32_t shiftVertAdjusted;
+    uint32_t maxW, maxH;
+
+    zoomWide = findZoomRatio(mFovControlData.zoomWide) / (float)mFovControlData.zoomRatioTable[0];
+    zoomTele = findZoomRatio(mFovControlData.zoomTele) / (float)mFovControlData.zoomRatioTable[0];
+
+    if (cam == mFovControlData.camWide) {
+        fovRatio = (mHalPPType == CAM_HAL_PP_TYPE_BOKEH) ?
+                        (1.0f / mFovControlData.transitionParams.cropRatio) : 1.0f;
+    } else {
+        fovRatio = (zoomTele / zoomWide) * mFovControlData.transitionParams.cropRatio;
+    }
+
+    // Acquire the mutex in order to read the spatial alignment result which is written
+    // by another thread
+    mMutex.lock();
+    if (cam == mFovControlData.camWide) {
+        shiftHorzAdjusted = mFovControlData.spatialAlignResult.shiftAfRoiWide.shiftHorz * zoomWide;
+        shiftVertAdjusted = mFovControlData.spatialAlignResult.shiftAfRoiWide.shiftVert * zoomWide;
+    } else {
+        shiftHorzAdjusted = mFovControlData.spatialAlignResult.shiftAfRoiTele.shiftHorz * zoomTele;
+        shiftVertAdjusted = mFovControlData.spatialAlignResult.shiftAfRoiTele.shiftVert * zoomTele;
+    }
+    mMutex.unlock();
+
+    roiTrans.rect.width  = roiMain.rect.width * fovRatio;
+    roiTrans.rect.height = roiMain.rect.height * fovRatio;
+
+    AuxRoiTop = ((roiMain.rect.top - mDualCamParams.paramsMain.sensorStreamHeight / 2.0f) * fovRatio)
+                    + (mDualCamParams.paramsMain.sensorStreamHeight / 2.0f);
+    roiTrans.rect.top =  AuxRoiTop - shiftVertAdjusted;
+    AuxRoiLeft = ((roiMain.rect.left - mDualCamParams.paramsMain.sensorStreamWidth / 2.0f) * fovRatio)
+                    + (mDualCamParams.paramsMain.sensorStreamWidth / 2.0f);
+    roiTrans.rect.left = AuxRoiLeft - shiftHorzAdjusted;
+
+    if (CAM_TYPE_MAIN == cam) {
+        maxW = mDualCamParams.paramsMain.sensorStreamWidth;
+        maxH = mDualCamParams.paramsMain.sensorStreamHeight;
+    } else {
+        maxW = mDualCamParams.paramsAux.sensorStreamWidth;
+        maxH = mDualCamParams.paramsAux.sensorStreamHeight;
+    }
+
+
+    // Check the ROI bounds and correct if necessory
+    if ((roiTrans.rect.width >= (int32_t)maxW) ||
+        (roiTrans.rect.height >= (int32_t)maxH)) {
+        roiTrans = roiMain;
+        LOGW("ROI translation failed, reverting to the pre-translation ROI");
+    } else {
+        bool error = false;
+        if (roiTrans.rect.left < 0) {
+            roiTrans.rect.left = 0;
+            error = true;
+        }
+        if (roiTrans.rect.top < 0) {
+            roiTrans.rect.top = 0;
+            error = true;
+        }
+        if ((roiTrans.rect.left >= (int32_t)maxW) ||
+            ((roiTrans.rect.left + roiTrans.rect.width) > (int32_t) maxW)) {
+            roiTrans.rect.left = maxW - roiTrans.rect.width;
+            error = true;
+        }
+        if ((roiTrans.rect.top >= (int32_t)maxH) ||
+            ((roiTrans.rect.top + roiTrans.rect.height) > (int32_t)maxH)) {
+            roiTrans.rect.top = maxH - roiTrans.rect.height;
+            error = true;
+        }
+        if (error) {
+            LOGW("Translated ROI - out of bounds. Clamping to the nearest valid ROI");
+        }
+    }
+
+    LOGD("Translated ROI - %s: L:%d, T:%d, W:%d, H:%d",
+            (cam == CAM_TYPE_MAIN) ? "main cam" : "aux  cam", roiTrans.rect.left,
+            roiTrans.rect.top, roiTrans.rect.width, roiTrans.rect.height);
+    return roiTrans;
+}
+
+/*===========================================================================
+ * FUNCTION   : translateHAL3FDRoi
+ *
+ * DESCRIPTION: Translate face detection ROI from aux metadata to main
+ *
+ * PARAMETERS :
+ * @faceDetectionInfo  : face detection data from aux metadata. This face
+ *                       detection data is overwritten with the translated
+ *                       FD ROI.
+ * @cam                : Cam type
+ *
+ * RETURN     : none
+ *
+ *==========================================================================*/
+cam_face_detection_data_t QCameraFOVControl::translateHAL3FDRoi(
+        cam_face_detection_data_t metaFD,
+        cam_sync_type_t cam)
+{
+    cam_face_detection_data_t metaFDTranslated = metaFD;
+    int32_t shiftHorz = 0;
+    int32_t shiftVert = 0;
+    uint32_t maxW, maxH;
+
+    float zoomWide = findZoomRatio(mFovControlData.zoomWide) /
+                        (float)mFovControlData.zoomRatioTable[0];
+    float zoomTele = findZoomRatio(mFovControlData.zoomTele) /
+                        (float)mFovControlData.zoomRatioTable[0];
+
+   if (cam == mFovControlData.camWide) {
+        shiftHorz = mFovControlData.spatialAlignResult.shiftWide.shiftHorz * zoomWide;
+        shiftVert = mFovControlData.spatialAlignResult.shiftWide.shiftVert * zoomWide;
+   } else {
+        shiftHorz = mFovControlData.spatialAlignResult.shiftTele.shiftHorz * zoomTele;
+        shiftVert = mFovControlData.spatialAlignResult.shiftTele.shiftVert * zoomTele;
+   }
+
+       maxW = mDualCamParams.paramsMain.sensorStreamWidth;
+       maxH = mDualCamParams.paramsMain.sensorStreamHeight;
+
+   for (int i = 0; i < metaFDTranslated.num_faces_detected; ++i) {
+       metaFDTranslated.faces[i].face_boundary.left += shiftHorz;
+       metaFDTranslated.faces[i].face_boundary.top  += shiftVert;
+       //maping AUX fd values to MAIN.
+       if(CAM_TYPE_AUX == cam && (mHalPPType != CAM_HAL_PP_TYPE_BOKEH))
+       {
+           float widthFactor = (float)(mDualCamParams.paramsMain.sensorStreamWidth/
+                               (float)mDualCamParams.paramsAux.sensorStreamWidth);
+           float heightFactor = (float)(mDualCamParams.paramsMain.sensorStreamHeight/
+                               (float)mDualCamParams.paramsAux.sensorStreamHeight);
+           float zoomFactor = (float)(zoomTele / (float)zoomWide);
+           cam_rect_t *face = &metaFDTranslated.faces[i].face_boundary;
+           face->left =
+               (((face->left - mDualCamParams.paramsAux.sensorStreamWidth/2.0f) * zoomFactor)
+               + (mDualCamParams.paramsAux.sensorStreamWidth / 2.0f)) * widthFactor;
+           face->top =
+               (((face->top - mDualCamParams.paramsAux.sensorStreamHeight/2.0f) * zoomFactor)
+               + (mDualCamParams.paramsAux.sensorStreamHeight/2.0f)) * heightFactor;
+           face->width *= zoomFactor;
+           face->height *= zoomFactor;
+       }
+   }
+
+    // If ROI is out of bounds, remove that FD ROI from the list
+    for (int i = 0; i < metaFDTranslated.num_faces_detected; ++i) {
+        if ((metaFDTranslated.faces[i].face_boundary.left < 0) ||
+            (metaFDTranslated.faces[i].face_boundary.left >= (int32_t)maxW) ||
+            (metaFDTranslated.faces[i].face_boundary.top < 0) ||
+            (metaFDTranslated.faces[i].face_boundary.top >= (int32_t)maxH) ||
+            ((metaFDTranslated.faces[i].face_boundary.left +
+                    metaFDTranslated.faces[i].face_boundary.width) >= (int32_t)maxW) ||
+            ((metaFDTranslated.faces[i].face_boundary.top +
+                    metaFDTranslated.faces[i].face_boundary.height) >= (int32_t)maxH)) {
+            // Invalid FD ROI detected
+            LOGW("Failed translating FD ROI %s: L:%d, T:%d, W:%d, H:%d",
+                    (cam == CAM_TYPE_MAIN) ? "main cam" : "aux  cam",
+                    metaFDTranslated.faces[i].face_boundary.left,
+                    metaFDTranslated.faces[i].face_boundary.top,
+                    metaFDTranslated.faces[i].face_boundary.width,
+                    metaFDTranslated.faces[i].face_boundary.height);
+
+            // Remove it by copying the last FD ROI at this index
+            if (i < (metaFDTranslated.num_faces_detected - 1)) {
+                metaFDTranslated.faces[i] =
+                        metaFDTranslated.faces[metaFDTranslated.num_faces_detected - 1];
+                // Decrement the current index to process the newly copied FD ROI.
+                --i;
+            }
+            --metaFDTranslated.num_faces_detected;
+        }
+        else {
+            LOGD("Translated FD ROI-%d %s: L:%d, T:%d, W:%d, H:%d", i,
+                    (cam == CAM_TYPE_MAIN) ? "main cam" : "aux  cam",
+                    metaFDTranslated.faces[i].face_boundary.left,
+                    metaFDTranslated.faces[i].face_boundary.top,
+                    metaFDTranslated.faces[i].face_boundary.width,
+                    metaFDTranslated.faces[i].face_boundary.height);
+        }
+    }
+    return metaFDTranslated;
 }
 
 }; // namespace qcamera

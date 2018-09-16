@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -38,7 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "gralloc_priv.h"
-#include "native_handle.h"
+#include "cutils/native_handle.h"
 #include "fdleak.h"
 #include "memleak.h"
 // Camera definitions
@@ -47,6 +47,7 @@
 #include "QCameraBufferMaps.h"
 #include "QCameraFlash.h"
 #include "QCameraTrace.h"
+#include "QCameraDisplay.h"
 
 extern "C" {
 #include "mm_camera_dbg.h"
@@ -930,7 +931,12 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
 
     // Acquire the perf lock for JPEG snapshot only
     if (hw->mParameters.isJpegPictureFormat()) {
-        hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+        if (hw->isDualCamera() && (hw->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+            hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_BOKEH_SNAPSHOT,
+                    PERF_LOCK_BOKEH_SNAP_TIMEOUT_MS);
+        } else {
+            hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+        }
     }
 
     qcamera_api_result_t apiResult;
@@ -1521,7 +1527,7 @@ int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
     LOGI("[KPI Perf]: E camera id %d", hw->getCameraId());
     delete hw;
 #ifdef FDLEAK_FLAG
-    property_get("persist.camera.fdleak.enable", prop, "0");
+    property_get("persist.vendor.camera.fdleak.enable", prop, "0");
     enable_fdleak = atoi(prop);
     if (enable_fdleak) {
        LOGI("fdleak tool dump list");
@@ -1529,7 +1535,7 @@ int QCamera2HardwareInterface::close_camera_device(hw_device_t *hw_dev)
     }
 #endif
 #ifdef MEMLEAK_FLAG
-    property_get("persist.camera.memleak.enable", prop, "0");
+    property_get("persist.vendor.camera.memleak.enable", prop, "0");
     enable_memleak = atoi(prop);
     if (enable_memleak) {
        LOGI("memleak tool dump list");
@@ -1734,6 +1740,11 @@ QCamera2HardwareInterface::QCamera2HardwareInterface(uint32_t cameraId)
     mCameraDevice.ops = &mCameraOps;
     mCameraDevice.priv = this;
 
+#ifndef USE_DISPLAY_SERVICE
+    mCameraDisplay = new QCameraDisplay();
+#else
+    mCameraDisplay = QCameraDisplay::instance();
+#endif
     mDualCamera = is_dual_camera_by_idx(cameraId);
     pthread_condattr_t mCondAttr;
 
@@ -1888,7 +1899,7 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
 
     m_perfLockMgr.acquirePerfLock(PERF_LOCK_OPEN_CAMERA);
 #ifdef FDLEAK_FLAG
-    property_get("persist.camera.fdleak.enable", prop, "0");
+    property_get("persist.vendor.camera.fdleak.enable", prop, "0");
     enable_fdleak = atoi(prop);
     if (enable_fdleak) {
        LOGI("fdleak tool is enable for camera hal");
@@ -1896,7 +1907,7 @@ int QCamera2HardwareInterface::openCamera(struct hw_device_t **hw_device)
     }
 #endif
 #ifdef MEMLEAK_FLAG
-    property_get("persist.camera.memleak.enable", prop, "0");
+    property_get("persist.vendor.camera.memleak.enable", prop, "0");
     enable_memleak = atoi(prop);
     if (enable_memleak) {
        LOGI("memleak tool is enable for camera hal");
@@ -2063,7 +2074,7 @@ int QCamera2HardwareInterface::openCamera()
 
     // Setprop to decide the time source (whether boottime or monotonic).
     // By default, use monotonic time.
-    property_get("persist.camera.time.monotonic", value, "1");
+    property_get("persist.vendor.camera.time.monotonic", value, "1");
     mBootToMonoTimestampOffset = 0;
     if (atoi(value) == 1) {
         // if monotonic is set, then need to use time in monotonic.
@@ -2079,13 +2090,12 @@ int QCamera2HardwareInterface::openCamera()
     LOGH("mBootToMonoTimestampOffset = %lld", mBootToMonoTimestampOffset);
 
     memset(value, 0, sizeof(value));
-    property_get("persist.camera.depth.focus.cb", value, "1");
+    property_get("persist.vendor.camera.depth.focus.cb", value, "1");
     bDepthAFCallbacks = atoi(value);
 
     memset(value, 0, sizeof(value));
-    property_get("persist.camera.cache.optimize", value, "1");
+    property_get("persist.vendor.camera.cache.optimize", value, "1");
     m_bOptimizeCacheOps = atoi(value);
-
     return NO_ERROR;
 
 error_exit3:
@@ -2759,13 +2769,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
             // Add the display minUndequeCount count on top of camera requirement
             bufferCnt += minUndequeCount;
 
-            // Make preview buffer cnt to zero for the slavesession in Bokeh
-            if ((mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) &&
-                     isNoDisplayMode(cam_type)) {
-                bufferCnt = 0;
-            }
-
-            property_get("persist.camera.preview_yuv", value, "0");
+            property_get("persist.vendor.camera.preview_yuv", value, "0");
             persist_cnt = atoi(value);
             if ((persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM)
                     && (bufferCnt < persist_cnt)) {
@@ -2820,7 +2824,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
         }
         break;
     case CAM_STREAM_TYPE_RAW:
-        property_get("persist.camera.raw_yuv", value, "0");
+        property_get("persist.vendor.camera.raw_yuv", value, "0");
         raw_yuv = atoi(value) > 0 ? true : false;
 
         if (isRdiMode() || raw_yuv || isSecureMode() || mParameters.getRawZsl()) {
@@ -2849,13 +2853,13 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
             bufferCnt = mParameters.getSecureQueueDepth() + minUndequeCount;
         }
 
-        property_get("persist.camera.preview_raw", value, "0");
+        property_get("persist.vendor.camera.preview_raw", value, "0");
         persist_cnt = atoi(value);
         if ((persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM)
                 && (bufferCnt < persist_cnt)) {
             bufferCnt = persist_cnt;
         }
-        property_get("persist.camera.video_raw", value, "0");
+        property_get("persist.vendor.camera.video_raw", value, "0");
         persist_cnt = atoi(value);
         if ((persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM)
                 && (bufferCnt < persist_cnt)) {
@@ -2886,7 +2890,7 @@ uint8_t QCamera2HardwareInterface::getBufNumRequired(
             mParameters.getStreamDimension(CAM_STREAM_TYPE_VIDEO, dim);
             if (is4k2kResolution(&dim)) {
                  //get additional buffer count
-                 property_get("vidc.enc.dcvs.extra-buff-count", value, "0");
+                 property_get("vendor.vidc.enc.dcvs.extra-buff-count", value, "0");
                  persist_cnt = atoi(value);
                  if (persist_cnt >= 0 &&
                      persist_cnt < CAM_MAX_NUM_BUFS_PER_STREAM) {
@@ -3080,7 +3084,7 @@ QCameraMemory *QCamera2HardwareInterface::allocateStreamBuf(
     bool bCachedMem = QCAMERA_ION_USE_CACHE;
     bool bPoolMem = false;
     char value[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.mem.usepool", value, "1");
+    property_get("persist.vendor.camera.mem.usepool", value, "1");
     if (atoi(value) == 1) {
         bPoolMem = true;
     }
@@ -3442,6 +3446,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     streamInfo->buf_cnt = streamInfo->num_bufs;
     streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     streamInfo->is_secure = NON_SECURE;
+    streamInfo->secure_mode = SECURE_INVALID;
     streamInfo->bNoBundling = false;
 
     streamInfo->cam_type = (cam_sync_type_t)cam_type;
@@ -3474,7 +3479,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     case CAM_STREAM_TYPE_RAW: {
             char value[PROPERTY_VALUE_MAX];
             bool raw_yuv = false;
-            property_get("persist.camera.raw_yuv", value, "0");
+            property_get("persist.vendor.camera.raw_yuv", value, "0");
             raw_yuv = atoi(value) > 0 ? true : false;
             if ((mParameters.isZSLMode()) || (isRdiMode()) || (raw_yuv) || isSecureMode()) {
                 streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
@@ -3544,6 +3549,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
         }
         if (isSecureMode()) {
             streamInfo->is_secure = SECURE;
+            streamInfo->secure_mode = mParameters.getSecureSessionType();
         } else {
             streamInfo->is_secure = NON_SECURE;
         }
@@ -3994,6 +4000,12 @@ int QCamera2HardwareInterface::startPreview()
 
     m_perfLockMgr.acquirePerfLockIfExpired(PERF_LOCK_START_PREVIEW);
 
+#ifdef USE_DISPLAY_SERVICE
+    if(!mCameraDisplay->startVsync(TRUE)) {
+        LOGE("Error: Cannot start vsync (still continue)");
+    }
+#endif //USE_DISPLAY_SERVICE
+
     updateThermalLevel((void *)&mThermalLevel);
 
     setDisplayFrameSkip();
@@ -4115,6 +4127,9 @@ int QCamera2HardwareInterface::stopPreview()
     // delete all channels from preparePreview
     unpreparePreview();
     m_bFirstPreviewFrameReceived = false;
+#ifdef USE_DISPLAY_SERVICE
+    mCameraDisplay->startVsync(FALSE);
+#endif //Use_DISPLAY_SERVICE
 
     m_perfLockMgr.releasePerfLock(PERF_LOCK_STOP_PREVIEW);
     LOGI("X");
@@ -4417,6 +4432,12 @@ int QCamera2HardwareInterface::autoFocus()
         if (isDualCamera() && mBundledSnapshot) {
             // Force the cameras to stream for auto focus on both
             forceCameraWakeup();
+        }
+        //Send dummy focus event if the active camera doesn't support AF.
+        if (isDualCamera() && !mParameters.isAutoFocusSupported(mActiveCameras)) {
+            mActiveAF = false;
+            rc = sendEvtNotify(CAMERA_MSG_FOCUS, true, 0);
+            break;
         }
         LOGI("Send AUTO FOCUS event. focusMode=%d, m_currentFocusState=%d \
                 mActiveCameras %d, mMasterCamera %d",
@@ -4925,7 +4946,7 @@ int32_t QCamera2HardwareInterface::configureStillMore()
 
     /* Reconfigure burst count from user input */
     char prop[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.imglib.stillmore", prop, "0");
+    property_get("persist.vendor.camera.imglib.stillmore", prop, "0");
     uint8_t burst_setprop = (uint32_t)atoi(prop);
     if (burst_setprop != 0)  {
        if ((burst_setprop < stillmore_cap.min_burst_count) ||
@@ -5161,11 +5182,13 @@ int QCamera2HardwareInterface::takePicture()
         if (mActiveCameras == MM_CAMERA_DUAL_CAM) {
             char prop[PROPERTY_VALUE_MAX];
             memset(prop, 0, sizeof(prop));
-            property_get("persist.camera.dualfov.jpegnum", prop, "1");
+            property_get("persist.vendor.camera.dualfov.jpegnum", prop, "1");
             int dualfov_snap_num = atoi(prop);
 
             if(mParameters.getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
                 dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
+            } else if (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+                dualfov_snap_num = NUM_BOKEH_OUTPUT;
             }
 
             dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
@@ -5884,7 +5907,7 @@ void QCamera2HardwareInterface::checkIntPicPending(bool JpegMemOpt, char *raw_fo
             stopChannel(QCAMERA_CH_TYPE_RAW);
             delChannel(QCAMERA_CH_TYPE_RAW);
             //restoring the old raw format
-            property_set("persist.camera.raw.format", raw_format);
+            property_set("persist.vendor.camera.raw.format", raw_format);
         }
 
         if (true == bSendToBackend) {
@@ -5963,9 +5986,9 @@ int QCamera2HardwareInterface::takeBackendPic_internal(bool *JpegMemOpt, char *r
         stopPreview();
 
         //getting the existing raw format type
-        property_get("persist.camera.raw.format", raw_format, "17");
+        property_get("persist.vendor.camera.raw.format", raw_format, "17");
         //setting it to a default know value for this task
-        property_set("persist.camera.raw.format", "18");
+        property_set("persist.vendor.camera.raw.format", "18");
 
         rc = addChannel(QCAMERA_CH_TYPE_RAW);
         if (rc == NO_ERROR) {
@@ -6142,7 +6165,7 @@ int QCamera2HardwareInterface::takeLiveSnapshot_internal()
                        // 1)HFR live snapshot,Thumbnail will not be derived from
                        //   preview for HFR live snapshot.
                        // 2)Dual Camera since preview & snapshot correction is different
-                       // 3)persist.camera.linkpreview is 0
+                       // 3)persist.vendor.camera.linkpreview is 0
                        pPreviewStream = pStream;
                    }
                }
@@ -7285,6 +7308,9 @@ int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
     //Check if we are in real time bokeh mode
     if (isDualCamera() && (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
         LOGH("DC RTB metadata: msgType: %d",rtbData);
+
+        mParameters.setBokehSnaphot(rtbData == CAM_RTB_MSG_DEPTH_EFFECT_SUCCESS);
+
         int32_t data_len = sizeof(rtbData);
         int32_t buffer_len = sizeof(rtbData)       //meta type
                 + sizeof(int)                  //data len
@@ -8141,7 +8167,7 @@ int32_t QCamera2HardwareInterface::addPreviewChannel()
         }
     }
 
-    property_get("persist.camera.raw_yuv", value, "0");
+    property_get("persist.vendor.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
     if ( raw_yuv ) {
         rc = addStreamToChannel(pChannel,CAM_STREAM_TYPE_RAW,
@@ -8482,7 +8508,7 @@ int32_t QCamera2HardwareInterface::addZSLChannel()
         }
     }
 
-    property_get("persist.camera.raw_yuv", value, "0");
+    property_get("persist.vendor.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
     if ((raw_yuv && !mParameters.getofflineRAW()) || mParameters.getRawZsl()) {
         rc = addStreamToChannel(pChannel,
@@ -8597,7 +8623,7 @@ int32_t QCamera2HardwareInterface::addCaptureChannel()
     }
 
     stream_cb_routine stream_cb = NULL;
-    property_get("persist.camera.raw_yuv", value, "0");
+    property_get("persist.vendor.camera.raw_yuv", value, "0");
     raw_yuv = atoi(value) > 0 ? true : false;
 
     if (raw_yuv) {
@@ -10341,7 +10367,7 @@ bool QCamera2HardwareInterface::isCACEnabled()
 {
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.feature.cac", prop, "0");
+    property_get("persist.vendor.camera.feature.cac", prop, "0");
     int enableCAC = atoi(prop);
     return enableCAC == 1;
 }
@@ -10381,7 +10407,7 @@ bool QCamera2HardwareInterface::isPreviewRestartEnabled()
 {
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.feature.restart", prop, "0");
+    property_get("persist.vendor.camera.feature.restart", prop, "0");
     int earlyRestart = atoi(prop);
     return earlyRestart == 1;
 }
@@ -10644,7 +10670,7 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
 #ifdef ENABLE_MODEL_INFO_EXIF
 
     char value[PROPERTY_VALUE_MAX];
-    if (property_get("persist.sys.exif.make", value, "") > 0 ||
+    if (property_get("persist.vendor.sys.exif.make", value, "") > 0 ||
             property_get("ro.product.manufacturer", value, "QCOM-AA") > 0) {
         exif->addEntry(EXIFTAGID_MAKE,
                 EXIF_ASCII, strlen(value) + 1, (void *)value);
@@ -10652,7 +10678,7 @@ QCameraExif *QCamera2HardwareInterface::getExifData()
         LOGW("getExifMaker failed");
     }
 
-    if (property_get("persist.sys.exif.model", value, "") > 0 ||
+    if (property_get("persist.vendor.sys.exif.model", value, "") > 0 ||
             property_get("ro.product.model", value, "QCAM-AA") > 0) {
         exif->addEntry(EXIFTAGID_MODEL,
                 EXIF_ASCII, strlen(value) + 1, (void *)value);
@@ -10750,7 +10776,7 @@ bool QCamera2HardwareInterface::isCaptureShutterEnabled()
 {
     char prop[PROPERTY_VALUE_MAX];
     memset(prop, 0, sizeof(prop));
-    property_get("persist.camera.feature.shutter", prop, "0");
+    property_get("persist.vendor.camera.feature.shutter", prop, "0");
     int enableShutter = atoi(prop);
     return enableShutter == 1;
 }
@@ -11693,7 +11719,7 @@ bool QCamera2HardwareInterface::needSyncCB(cam_stream_type_t stream_type)
 #endif
 
     char value[PROPERTY_VALUE_MAX];
-    property_get("persist.camera.preview.sync_cb", value, "1");
+    property_get("persist.vendor.camera.preview.sync_cb", value, "1");
     if ((atoi(value) == 1) && (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
         return TRUE;
     }
@@ -11759,7 +11785,7 @@ void QCamera2HardwareInterface::getLogLevel()
 {
     char prop[PROPERTY_VALUE_MAX];
 
-    property_get("persist.camera.kpi.debug", prop, "0");
+    property_get("persist.vendor.camera.kpi.debug", prop, "0");
     gKpiDebugLevel = atoi(prop);
     return;
 }
@@ -11859,7 +11885,7 @@ bool QCamera2HardwareInterface::isLowPowerMode()
     mParameters.getStreamDimension(CAM_STREAM_TYPE_VIDEO, dim);
 
     char prop[PROPERTY_VALUE_MAX];
-    property_get("camera.lowpower.record.enable", prop, "0");
+    property_get("vendor.camera.lowpower.record.enable", prop, "0");
     int enable = atoi(prop);
 
     //Enable low power mode if :
@@ -11869,6 +11895,7 @@ bool QCamera2HardwareInterface::isLowPowerMode()
     bool isLowpower = mParameters.getRecordingHintValue() && enable
             && ((dim.width * dim.height) >= (2048 * 1080));
     isLowpower = isLowpower || (mParameters.isHfrMode() && !mParameters.getBufBatchCount());
+    mParameters.setLowPower(isLowpower);
     LOGD("low power mode %d",isLowpower);
     return isLowpower;
 }
@@ -11961,6 +11988,8 @@ void QCamera2HardwareInterface::configureSnapshotSkip(bool skip)
                     }
                 }
             }
+            if (skip)
+                ((QCameraPicChannel *)pChannel)->flushSuperbuffer(mActiveCameras, 0);
         }
     }
 }

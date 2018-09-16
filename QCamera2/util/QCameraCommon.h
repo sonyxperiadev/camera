@@ -33,6 +33,7 @@
 // Camera dependencies
 #include "cam_types.h"
 #include "cam_intf.h"
+#include "QCameraFOVControl.h"
 
 namespace qcamera {
 
@@ -54,12 +55,18 @@ public:
             cam_dimension_t exp_dim,
             cam_dimension_t cur_dim);
     bool isVideoUBWCEnabled();
+    static bool is_target_SDM450();
+    static bool is_target_SDM630();
     static bool skipAnalysisBundling();
     bool needAnalysisStream();
+    static dual_cam_type getDualCameraConfig(cam_capability_t *capsMainCam,
+            cam_capability_t *capsAuxCam);
+    static bool isBayer(cam_capability_t *caps);
+    static bool isMono(cam_capability_t *caps);
 
 private:
     cam_capability_t *m_pCapability;
-
+    static int parseHWID();
 };
 
 }; // namespace qcamera
