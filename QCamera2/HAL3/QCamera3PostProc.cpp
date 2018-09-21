@@ -2274,7 +2274,10 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
 
     QCamera3Channel *pChannel = NULL;
     // first check picture channel
-    if (m_parent->getMyHandle() == recvd_frame->ch_id) {
+    if ((is_dual_camera_by_handle(m_parent->getMyHandle())
+        && ((get_main_camera_handle(m_parent->getMyHandle()) == recvd_frame->ch_id)
+        || (get_aux_camera_handle(m_parent->getMyHandle()) == recvd_frame->ch_id)))
+        || (m_parent->getMyHandle() == recvd_frame->ch_id)) {
         pChannel = m_parent;
     }
     // check reprocess channel if not found

@@ -2005,7 +2005,7 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
 
     QCamera3HardwareInterface *hal_obj = (QCamera3HardwareInterface *)mUserData;
     if(is_dual_camera_by_handle(cam_handle)
-        && (stream_type == CAM_STREAM_TYPE_SNAPSHOT)
+        && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))
         && hal_obj->isAsymetricDim(dim))
     {
         m_camHandle = get_main_camera_handle(cam_handle);
@@ -3259,7 +3259,9 @@ QCamera3YUVChannel::QCamera3YUVChannel(uint32_t cam_handle,
     dim.width = stream->width;
     dim.height = stream->height;
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
-    if (is_dual_camera_by_handle(cam_handle) && hal_obj->isAsymetricDim(dim)) {
+    if (is_dual_camera_by_handle(cam_handle)
+        && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))
+        && hal_obj->isAsymetricDim(dim)) {
         m_camHandle = get_main_camera_handle(cam_handle);
         m_handle = get_main_camera_handle(channel_handle);
         mAuxYUVChannel = new QCamera3YUVChannel(get_aux_camera_handle(cam_handle),
@@ -4334,8 +4336,11 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                 src_frame = job->src_frame;
 
             if (src_frame) {
-                if (obj->mStreams[0]->getMyHandle() ==
-                        src_frame->bufs[0]->stream_id) {
+                if ((is_dual_camera_by_handle(obj->mStreams[0]->getMyHandle())
+                    && ((get_main_camera_handle(obj->mStreams[0]->getMyHandle()))
+                    || (get_aux_camera_handle(obj->mStreams[0]->getMyHandle()))))
+                    || (obj->mStreams[0]->getMyHandle() ==
+                    src_frame->bufs[0]->stream_id)) {
                     snapshotIdx = (int32_t)src_frame->bufs[0]->buf_idx;
                 } else {
                     LOGD("Snapshot stream id %d and framework"
@@ -4458,8 +4463,8 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
     if (rc != 0) {
         LOGE("Init Postprocessor failed");
     }
-
-    if (is_dual_camera_by_handle(cam_handle)) {
+    if (is_dual_camera_by_handle(cam_handle)
+        && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))) {
             m_camHandle = get_main_camera_handle(cam_handle);
             m_handle = get_main_camera_handle(channel_handle);
             mAuxPicChannel = new QCamera3PicChannel(get_aux_camera_handle(cam_handle),
