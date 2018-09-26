@@ -2213,6 +2213,20 @@ int32_t QCamera2HardwareInterface::updateMetadata(metadata_buffer_t *pMetaData)
                 // Set the margins to 0.
                 crop_data->margins.widthMargins  = 0.0f;
                 crop_data->margins.heightMargins = 0.0f;
+                //In bokeh mode, need to do rotation from crop info.
+                if(needRotationReprocess()
+                        && (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH))
+                {
+                    for(uint8_t i =0; i < crop_data->num_of_streams; i++)
+                    {
+                        cam_rect_t crop;
+                        crop.left = crop_data->crop_info[i].crop.top;
+                        crop.top = crop_data->crop_info[i].crop.left;
+                        crop.width = crop_data->crop_info[i].crop.height;
+                        crop.height = crop_data->crop_info[i].crop.width;
+                        crop_data->crop_info[i].crop = crop;
+                    }
+                }
             } else {
                 crop_data->ignore_crop = 0;
                 // Get the frame margin data for the master camera and copy to the metadata

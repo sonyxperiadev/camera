@@ -2690,6 +2690,13 @@ int32_t QCameraPostProcessor::encodeData(qcamera_jpeg_data_t *jpeg_job_data,
             //Don't upscale depth map image
             if (img_fmt != CAM_FORMAT_Y_ONLY) {
                 dst_dim = pic_dim;
+                if(m_parent->needRotationReprocess() &&
+                        ((m_parent->mParameters.getJpegRotation() == 270) ||
+                        (m_parent->mParameters.getJpegRotation() == 90))) {
+                    int32_t width = dst_dim.height;
+                    dst_dim.height =dst_dim.width;
+                    dst_dim.width = width;
+                }
             }
         }
     }
@@ -4179,7 +4186,19 @@ int32_t QCameraPostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
             if (pStream->isTypeOf(CAM_STREAM_TYPE_SNAPSHOT) ||
                 pStream->isOrignalTypeOf(CAM_STREAM_TYPE_SNAPSHOT)) {
                 if (pData->is_dim_valid) {
-                    pStream->setFrameDimension(pData->outputDim);
+                    if(pData->outputFormat == CAM_FORMAT_Y_ONLY)
+                    {
+                        if(m_parent->needRotationReprocess() &&
+                                ((m_parent->mParameters.getJpegRotation() == 270) ||
+                                (m_parent->mParameters.getJpegRotation() == 90))) {
+                            cam_dimension_t dim;
+                            dim.width = pData->outputDim.height;
+                            dim.height = pData->outputDim.width;
+                            pStream->setFrameDimension(dim);
+                        }
+                    } else {
+                        pStream->setFrameDimension(pData->outputDim);
+                    }
                 }
                 if (pData->is_offset_valid) {
                     pStream->setFrameOffset(pData->snap_offset);
