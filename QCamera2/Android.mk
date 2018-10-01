@@ -177,6 +177,10 @@ LOCAL_SHARED_LIBRARIES += libcashctl
 LOCAL_CFLAGS += -DTARGET_HAS_CASH
 endif
 
+ifeq ($(TARGET_HAS_LOW_RAM), true)
+LOCAL_CFLAGS += -DHAS_LOW_RAM
+endif
+
 LOCAL_STATIC_LIBRARIES := android.hardware.camera.common@1.0-helper
 
 
