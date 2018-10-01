@@ -10,7 +10,11 @@ SDCLANG_FLAG_DEFS := $(LOCAL_PATH)/sdllvm-flag-defs.mk
 LOCAL_COPY_HEADERS_TO := qcom/camera
 LOCAL_COPY_HEADERS := QCameraFormat.h
 
+ifneq ($(call is-platform-sdk-version-at-least,28),true)
+IS_QC_BOKEH_SUPPORTED := true
+else
 IS_QC_BOKEH_SUPPORTED := false
+endif
 
 LOCAL_SRC_FILES := \
         util/QCameraBufferMaps.cpp \
