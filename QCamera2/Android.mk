@@ -167,6 +167,10 @@ endif
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_SHARED_LIBRARIES += libts_face_beautify_hal libts_detected_face_hal
 endif
+ifeq ($(TARGET_HAS_LOW_RAM), true)
+LOCAL_CFLAGS += -DHAS_LOW_RAM
+endif
+
 
 LOCAL_STATIC_LIBRARIES := android.hardware.camera.common@1.0-helper
 
