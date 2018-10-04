@@ -5268,6 +5268,24 @@ int32_t QCamera3PicChannel::queueReprocMetadata(mm_camera_super_buf_t *metadata,
     {
         return mAuxPicChannel->queueReprocMetadata(metadata, framenum, dropFrame);
     } else {
+        metadata_buffer_t* meta = (metadata_buffer_t *)metadata->bufs[0]->buffer;
+        IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
+            QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+            if(hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
+            {
+                if(hal_obj->needHALPP())
+                {
+                    crop_data->ignore_crop = 1; // CPP ignores the crop in this special zone
+                    // Set the margins to 0.
+                    crop_data->margins.widthMargins  = 0.0f;
+                    crop_data->margins.heightMargins = 0.0f;
+                } else {
+                    crop_data->ignore_crop = 0;
+                    // Get the frame margin data for the master camera and copy to the metadata
+                    crop_data->margins = hal_obj->m_pFovControl->getFrameMargins(mMasterCam);
+                }
+            }
+        }
         return QCamera3ProcessingChannel::queueReprocMetadata(metadata, framenum, dropFrame);
     }
     LOGE("Should never be here");
@@ -6020,20 +6038,6 @@ int32_t QCamera3ReprocessChannel::overrideMetadata(qcamera_hal3_pp_buffer_t *pp_
                             crop_data->crop_info[crop_data->num_of_streams].stream_id =
                                     mStreams[0]->getMyServerID();
                             crop_data->num_of_streams++;
-
-                            if((!hal_obj->needHALPP()) &&
-                                   (hal_obj->getHalPPType() ==  CAM_HAL_PP_TYPE_BOKEH) &&
-                                    (jpeg_settings != NULL))
-                            {
-                                //In bokeh mode, reprocess don't do cropping irresepctive of scene
-                                //is bokeh eligible or not, so setting jpeg crop.
-                                jpeg_settings->crop = crop_data->crop_info[j].crop;
-                                jpeg_settings->crop.width = PAD_TO_SIZE(
-                                                                jpeg_settings->crop.width,2);
-                                jpeg_settings->crop.height = PAD_TO_SIZE(
-                                                                jpeg_settings->crop.height,2);
-                                jpeg_settings->is_crop_valid = true;
-                            }
 
                             LOGD("Reprocess stream server id: %d",
                                      mStreams[0]->getMyServerID());
