@@ -1707,6 +1707,11 @@ void QCamera3HardwareInterface::rectifyStreamSizesByCamType(
             cam_dimension_t dim;
             dim.width = info->stream_sizes[i].width;
             dim.height = info->stream_sizes[i].height;
+            //skipping for stream with pp mask set for upscaling/cropping
+            if(isPPMaskSetForScaling(info->postprocess_mask[i]))
+            {
+                continue;
+            }
             if(isPPUpscaleNeededForDim(dim) || isAsymetricDim(dim))
             {
                 //setting stream size less then equal to requested dimension of same
@@ -4294,7 +4299,11 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_HANDLE_BUF_LKD);
 
     if (buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) {
-        mPerfLockMgr.releasePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+        if (isDualCamera() && (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && needHALPP()) {
+            mPerfLockMgr.releasePerfLock(PERF_LOCK_BOKEH_SNAPSHOT);
+        } else {
+            mPerfLockMgr.releasePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+        }
     }
 
     /* Nothing to be done during error state */
@@ -5942,7 +5951,13 @@ no_error:
     if (blob_request) {
         LOGI("[KPI Perf] : PROFILE_SNAPSHOT_REQUEST_RECEIVED");
         KPI_ATRACE_CAMSCOPE_INT("SNAPSHOT", CAMSCOPE_HAL3_SNAPSHOT, 1);
-        mPerfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+
+        if (isDualCamera() && (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && needHALPP()) {
+            mPerfLockMgr.acquirePerfLock(PERF_LOCK_BOKEH_SNAPSHOT,
+                    PERF_LOCK_BOKEH_SNAP_TIMEOUT_MS);
+        } else {
+            mPerfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+        }
     }
     if (blob_request && mRawDumpChannel) {
         LOGD("Trigger Raw based on blob request if Raw dump is enabled");
@@ -14910,6 +14925,15 @@ cam_dual_camera_perf_mode_t QCamera3HardwareInterface::getLowPowerMode(cam_sync_
     return (cam_dual_camera_perf_mode_t)lpm;
 }
 
+bool QCamera3HardwareInterface::isPPMaskSetForScaling(cam_feature_mask_t pp_mask)
+{
+    if(pp_mask & CAM_QCOM_FEATURE_PP_SUPERSET_HAL3)
+    {
+        return true;
+    }
+
+    return false;
+}
 
 
 /*===========================================================================
