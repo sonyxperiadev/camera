@@ -63,6 +63,7 @@ public:
             cam_capability_t *capsAuxCam);
     static bool isBayer(cam_capability_t *caps);
     static bool isMono(cam_capability_t *caps);
+    bool isAutoFocusSupported(uint32_t cam_type);
 
 private:
     cam_capability_t *m_pCapability;

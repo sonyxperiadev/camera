@@ -14864,7 +14864,14 @@ int32_t QCamera3HardwareInterface::bundleRelatedCameras(bool enable_sync)
     cam_sync_related_sensors_control_t syncControl = CAM_SYNC_RELATED_SENSORS_OFF;
     property_get("persist.vendor.camera.stats.test.2outs", prop, "0");
     sync_3a_mode = (atoi(prop) > 0) ? CAM_3A_SYNC_ALGO_CTRL : sync_3a_mode;
-    cam_3a_sync_config_t sync_config_3a = {sync_3a_mode, sync_3a_mode};
+    cam_3a_sync_mode_t sync_stats_common, af_sync;
+    sync_stats_common = af_sync = sync_3a_mode;
+
+    //Set AF sync mode to none, if either of the sensors doesn't support auto focus.
+    if (!mCommon.isAutoFocusSupported(CAM_TYPE_MAIN) || !mCommon.isAutoFocusSupported(CAM_TYPE_AUX))
+        af_sync = CAM_3A_SYNC_NONE;
+
+    cam_3a_sync_config_t sync_config_3a = {sync_stats_common, af_sync};
 
     //Trigger dual camera Link command before Meta info
     cam_dual_camera_bundle_info_t bundle_info[MM_CAMERA_MAX_CAM_CNT];
