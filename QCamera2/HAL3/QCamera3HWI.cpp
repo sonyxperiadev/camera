@@ -4016,13 +4016,14 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     memset(prop, 0, sizeof(prop));
                     property_get("persist.vendor.camera.dumpmetadata", prop, "0");
                     int32_t enabled = atoi(prop);
-                    if (enabled && metadata->is_tuning_params_valid) {
-                        dumpMetadataToFile(metadata->tuning_params,
-                               mMetaFrameCount,
-                               enabled,
-                               "Snapshot",
-                               frame_number);
+                    if (enabled) {
+                        IF_META_AVAILABLE(tuning_params_t, tuning_ptr, CAM_INTF_META_TUNING_PARAMS,
+                            metadata) {
+                                dumpMetadataToFile(*tuning_ptr,mMetaFrameCount,enabled,
+                                    "Snapshot",frame_number);
+                        }
                     }
+
                 }
             }
 
@@ -7788,63 +7789,63 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
 
 
-    if (metadata->is_tuning_params_valid) {
+    IF_META_AVAILABLE(tuning_params_t, tuning_ptr, CAM_INTF_META_TUNING_PARAMS, metadata) {
         uint8_t tuning_meta_data_blob[sizeof(tuning_params_t)];
         uint8_t *data = (uint8_t *)&tuning_meta_data_blob[0];
-        metadata->tuning_params.tuning_data_version = TUNING_DATA_VERSION;
+        tuning_ptr->tuning_data_version = TUNING_DATA_VERSION;
 
 
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.tuning_data_version),
+        memcpy(data, ((uint8_t *)&tuning_ptr->tuning_data_version),
                 sizeof(uint32_t));
         data += sizeof(uint32_t);
 
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.tuning_sensor_data_size),
+        memcpy(data, ((uint8_t *)&tuning_ptr->tuning_sensor_data_size),
                 sizeof(uint32_t));
         LOGD("tuning_sensor_data_size %d",(int)(*(int *)data));
         data += sizeof(uint32_t);
 
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.tuning_vfe_data_size),
+        memcpy(data, ((uint8_t *)&tuning_ptr->tuning_vfe_data_size),
                 sizeof(uint32_t));
         LOGD("tuning_vfe_data_size %d",(int)(*(int *)data));
         data += sizeof(uint32_t);
 
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.tuning_cpp_data_size),
+        memcpy(data, ((uint8_t *)&tuning_ptr->tuning_cpp_data_size),
                 sizeof(uint32_t));
         LOGD("tuning_cpp_data_size %d",(int)(*(int *)data));
         data += sizeof(uint32_t);
 
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.tuning_cac_data_size),
+        memcpy(data, ((uint8_t *)&tuning_ptr->tuning_cac_data_size),
                 sizeof(uint32_t));
         LOGD("tuning_cac_data_size %d",(int)(*(int *)data));
         data += sizeof(uint32_t);
 
-        metadata->tuning_params.tuning_mod3_data_size = 0;
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.tuning_mod3_data_size),
+        tuning_ptr->tuning_mod3_data_size = 0;
+        memcpy(data, ((uint8_t *)&tuning_ptr->tuning_mod3_data_size),
                 sizeof(uint32_t));
         LOGD("tuning_mod3_data_size %d",(int)(*(int *)data));
         data += sizeof(uint32_t);
 
-        size_t count = MIN(metadata->tuning_params.tuning_sensor_data_size,
+        size_t count = MIN(tuning_ptr->tuning_sensor_data_size,
                 TUNING_SENSOR_DATA_MAX);
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.data),
+        memcpy(data, ((uint8_t *)&tuning_ptr->data),
                 count);
         data += count;
 
-        count = MIN(metadata->tuning_params.tuning_vfe_data_size,
+        count = MIN(tuning_ptr->tuning_vfe_data_size,
                 TUNING_VFE_DATA_MAX);
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.data[TUNING_VFE_DATA_OFFSET]),
+        memcpy(data, ((uint8_t *)&tuning_ptr->data[TUNING_VFE_DATA_OFFSET]),
                 count);
         data += count;
 
-        count = MIN(metadata->tuning_params.tuning_cpp_data_size,
+        count = MIN(tuning_ptr->tuning_cpp_data_size,
                 TUNING_CPP_DATA_MAX);
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.data[TUNING_CPP_DATA_OFFSET]),
+        memcpy(data, ((uint8_t *)&tuning_ptr->data[TUNING_CPP_DATA_OFFSET]),
                 count);
         data += count;
 
-        count = MIN(metadata->tuning_params.tuning_cac_data_size,
+        count = MIN(tuning_ptr->tuning_cac_data_size,
                 TUNING_CAC_DATA_MAX);
-        memcpy(data, ((uint8_t *)&metadata->tuning_params.data[TUNING_CAC_DATA_OFFSET]),
+        memcpy(data, ((uint8_t *)&tuning_ptr->data[TUNING_CAC_DATA_OFFSET]),
                 count);
         data += count;
 
