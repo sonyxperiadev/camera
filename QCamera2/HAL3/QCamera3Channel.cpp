@@ -4824,9 +4824,10 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                 {
                      rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
                                             CAM_HAL3_JPEG_TYPE_FUSION : CAM_HAL3_JPEG_TYPE_AUX);
-                } else if ((hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && bIsMaster){
+                } else if ((hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
+                                             && bIsMaster && hal_obj->needHALPP()){
                     rc = queueJpegSetting((uint32_t)index, metadata, CAM_HAL3_JPEG_TYPE_BOKEH);
-                } else if (hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
+                } else {
                     rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
                                             CAM_HAL3_JPEG_TYPE_MAIN : CAM_HAL3_JPEG_TYPE_AUX);
                 }

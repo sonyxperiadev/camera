@@ -1199,7 +1199,7 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
     if (job->jpeg_settings == NULL )
     {
         //If needHALPP is true, checking for ouput jpeg settings != NULL
-        if(hal_obj->needHALPP() && (job->ppOutput_jpeg_settings == NULL) && isMpoEnabled()) {
+        if(!hal_obj->needHALPP() || (job->ppOutput_jpeg_settings == NULL)) {
             LOGE("Cannot find jpeg settings");
             return BAD_VALUE;
         }
@@ -3247,7 +3247,9 @@ int32_t QCamera3PostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
 
     LOGD("halPPAllocatedBuf = %d needEncode %d", pData->halPPAllocatedBuf, pData->needEncode);
 
-    if ((!pData->halPPAllocatedBuf && !pData->needEncode)|| (jpeg_job->jpeg_settings == NULL)) {
+    if ((!pData->halPPAllocatedBuf && !pData->needEncode)
+                || ((jpeg_job->jpeg_settings == NULL)
+                || (jpeg_job->jpeg_settings->image_type == CAM_HAL3_JPEG_TYPE_AUX))) {
         LOGH("No need to encode input buffer, just release it.");
         releaseJpegJobData(jpeg_job);
         free(jpeg_job);
