@@ -347,12 +347,9 @@ uint32_t jpeg_open(mm_jpeg_ops_t *ops, mm_jpeg_mpo_ops_t *mpo_ops,
     /* initialize jpeg obj */
     memset(jpeg_obj, 0, sizeof(mm_jpeg_obj));
 
-    /* by default reuse reproc source buffer if available */
-    if (mpo_ops == NULL) {
+    /* by default reuse reproc source buffer*/
       jpeg_obj->reuse_reproc_buffer = 1;
-    } else {
-      jpeg_obj->reuse_reproc_buffer = 0;
-    }
+
    LOGH("reuse_reproc_buffer %d ",
       jpeg_obj->reuse_reproc_buffer);
 

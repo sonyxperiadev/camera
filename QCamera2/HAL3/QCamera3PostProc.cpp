@@ -2507,6 +2507,25 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
     if (hal_obj)
         hal_obj->get3AVersion(sw_version);
 
+    if(jpeg_job_data->src_reproc_frame != NULL)
+    {
+        if((m_parent->getMyHandle() == jpeg_job_data->src_reproc_frame->ch_id)
+                && (jpeg_job_data->src_reproc_frame->num_bufs != 0))
+        {
+            mm_camera_buf_def_t *buf = jpeg_job_data->src_reproc_frame->bufs[0];
+            if(buf->mem_info && (buf->stream_type == CAM_STREAM_TYPE_SNAPSHOT))
+            {
+                QCamera3StreamMem *memObj =
+                        (QCamera3StreamMem *)buf->mem_info;
+                int bufidx = buf->buf_idx;
+                jpg_job.encode_job.work_buf.buf_size = memObj->getSize(bufidx);
+                jpg_job.encode_job.work_buf.buf_vaddr = (uint8_t *)memObj->getPtr(bufidx);
+                jpg_job.encode_job.work_buf.fd = memObj->getFd(bufidx);
+                memObj->invalidateCache(bufidx);
+            }
+        }
+    }
+
     // get exif data
     QCamera3Exif *pJpegExifObj = getExifData(metadata, jpeg_settings,
             (needJpegExifRotation && hal_obj->useExifRotation()));
@@ -3045,7 +3064,7 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 (QCamera3HardwareInterface*)pme->m_parent->mUserData;
                         if(hal_obj->isDualCamera() && jpeg_settings != NULL)
                         {
-                            if((jpeg_settings->image_type != CAM_HAL3_JPEG_TYPE_MAIN))
+                            if(jpeg_settings->image_type != CAM_HAL3_JPEG_TYPE_MAIN)
                             {
                                 ppOutput_jpeg_settings = jpeg_settings;
                                 jpeg_settings = (jpeg_settings_t *)pme->m_jpegSettingsQ.dequeue();
