@@ -2005,7 +2005,7 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
 
     QCamera3HardwareInterface *hal_obj = (QCamera3HardwareInterface *)mUserData;
     if(is_dual_camera_by_handle(cam_handle)
-        && (stream_type == CAM_STREAM_TYPE_SNAPSHOT)
+        && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))
         && hal_obj->isAsymetricDim(dim))
     {
         m_camHandle = get_main_camera_handle(cam_handle);
@@ -3259,7 +3259,9 @@ QCamera3YUVChannel::QCamera3YUVChannel(uint32_t cam_handle,
     dim.width = stream->width;
     dim.height = stream->height;
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
-    if (is_dual_camera_by_handle(cam_handle) && hal_obj->isAsymetricDim(dim)) {
+    if (is_dual_camera_by_handle(cam_handle)
+        && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))
+        && hal_obj->isAsymetricDim(dim)) {
         m_camHandle = get_main_camera_handle(cam_handle);
         m_handle = get_main_camera_handle(channel_handle);
         mAuxYUVChannel = new QCamera3YUVChannel(get_aux_camera_handle(cam_handle),
@@ -4334,8 +4336,11 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                 src_frame = job->src_frame;
 
             if (src_frame) {
-                if (obj->mStreams[0]->getMyHandle() ==
-                        src_frame->bufs[0]->stream_id) {
+                if ((is_dual_camera_by_handle(obj->mStreams[0]->getMyHandle())
+                    && ((get_main_camera_handle(obj->mStreams[0]->getMyHandle()))
+                    || (get_aux_camera_handle(obj->mStreams[0]->getMyHandle()))))
+                    || (obj->mStreams[0]->getMyHandle() ==
+                    src_frame->bufs[0]->stream_id)) {
                     snapshotIdx = (int32_t)src_frame->bufs[0]->buf_idx;
                 } else {
                     LOGD("Snapshot stream id %d and framework"
@@ -4443,7 +4448,8 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                         mYuvMemory(NULL),
                         mFrameLen(0),
                         mAuxPicChannel(NULL),
-                        mNeedPPUpscale(false)
+                        mNeedPPUpscale(false),
+                        m_bMpoEnabled(true)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     m_max_pic_dim = hal_obj->calcMaxJpegDim();
@@ -4457,8 +4463,8 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
     if (rc != 0) {
         LOGE("Init Postprocessor failed");
     }
-
-    if (is_dual_camera_by_handle(cam_handle)) {
+    if (is_dual_camera_by_handle(cam_handle)
+        && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))) {
             m_camHandle = get_main_camera_handle(cam_handle);
             m_handle = get_main_camera_handle(channel_handle);
             mAuxPicChannel = new QCamera3PicChannel(get_aux_camera_handle(cam_handle),
@@ -4621,7 +4627,17 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
         mAuxPicChannel->initialize(isType);
     }
 
+    configureMpo();
+
     return rc;
+}
+
+void QCamera3PicChannel::configureMpo()
+{
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.vendor.camera.mpo.disabled",prop,"0");
+    m_bMpoEnabled = atoi(prop)?FALSE:TRUE;
+    m_postprocessor.setMpoMode(m_bMpoEnabled);
 }
 
 /*===========================================================================
@@ -4701,12 +4717,14 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     if(hal_obj->needHALPP() || bIsMaster)
     {
         if (!internalRequest) {
-            if(hal_obj->needHALPP() && (hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH))
+            if(hal_obj->needHALPP()
+               && (hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
+               && isMpoEnabled())
             {   //BOKEH MODE
                 //Master channel: allocate 2 jpeg settings one for main image
                 //and other for bokeh with respective output buffer index.
                 //Non Master will allocate buffer for depth image.
-                int index;
+                int index = -1;
                 int numOfJpegSettings = 1;
                 if(bIsMaster)
                 {
@@ -4806,7 +4824,9 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                 {
                      rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
                                             CAM_HAL3_JPEG_TYPE_FUSION : CAM_HAL3_JPEG_TYPE_AUX);
-                } else {
+                } else if ((hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && bIsMaster){
+                    rc = queueJpegSetting((uint32_t)index, metadata, CAM_HAL3_JPEG_TYPE_BOKEH);
+                } else if (hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
                     rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
                                             CAM_HAL3_JPEG_TYPE_MAIN : CAM_HAL3_JPEG_TYPE_AUX);
                 }
@@ -5103,7 +5123,7 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
         }
     }
 
-    if(hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH && hal_obj->needHALPP())
+    if(hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH && hal_obj->needHALPP() && isMpoEnabled())
     {
         settings->encode_type = MM_JPEG_TYPE_MPO;
     } else {

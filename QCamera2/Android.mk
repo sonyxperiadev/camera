@@ -159,7 +159,7 @@ LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 LOCAL_SHARED_LIBRARIES += libcutils libdl libhal_dbg
 ifeq ($(IS_QC_BOKEH_SUPPORTED),true)
 LOCAL_SHARED_LIBRARIES += libdualcameraddm
-LOCAL_CFLAGS += ENABLE_QC_BOKEH
+LOCAL_CFLAGS += -DENABLE_QC_BOKEH
 endif
 ifeq ($(USE_DISPLAY_SERVICE),true)
 LOCAL_SHARED_LIBRARIES += android.frameworks.displayservice@1.0 libhidlbase libhidltransport
@@ -169,6 +169,10 @@ endif
 ifeq ($(TARGET_TS_MAKEUP),true)
 LOCAL_SHARED_LIBRARIES += libts_face_beautify_hal libts_detected_face_hal
 endif
+ifeq ($(TARGET_HAS_LOW_RAM), true)
+LOCAL_CFLAGS += -DHAS_LOW_RAM
+endif
+
 
 ifeq ($(TARGET_USES_CASH_EXTENSION), true)
 LOCAL_SHARED_LIBRARIES += libcashctl

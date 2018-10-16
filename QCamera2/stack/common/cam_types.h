@@ -140,7 +140,11 @@
 #define EXIF_IMAGE_DESCRIPTION_SIZE 100
 
 #define MAX_INFLIGHT_REQUESTS  6
+#ifdef HAS_LOW_RAM
+#define MAX_INFLIGHT_BLOB      4
+#else
 #define MAX_INFLIGHT_BLOB      6
+#endif
 #define MIN_INFLIGHT_REQUESTS  3
 #define MIN_INFLIGHT_60FPS_REQUESTS (6)
 #define MAX_INFLIGHT_REPROCESS_REQUESTS 1
@@ -2738,7 +2742,7 @@ typedef struct {
                                          CAM_QCOM_FEATURE_LLVD|CAM_QCOM_FEATURE_QUADRA_CFA)
 
 #define CAM_QCOM_FEATURE_PP_PASS_1      CAM_QCOM_FEATURE_PP_SUPERSET
-#define CAM_QCOM_FEATURE_PP_PASS_2      CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP;
+#define CAM_QCOM_FEATURE_PP_PASS_2      (CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP)
 
 typedef struct {
    cam_rotation_t rotation;         /* jpeg rotation */
