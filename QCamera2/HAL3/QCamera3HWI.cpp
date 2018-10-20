@@ -1093,8 +1093,10 @@ int QCamera3HardwareInterface::openCamera()
     LOGH("mCameraId=%d",mCameraId);
 
 #ifdef TARGET_HAS_CASH
-    if (mCameraId == 0)
+    if (mCameraId == 0) {
         cash_tof_start(true);
+        cash_rgbc_start(true);
+    }
 #endif
 
     return NO_ERROR;
@@ -1121,8 +1123,10 @@ int QCamera3HardwareInterface::closeCamera()
              mCameraId);
 
 #ifdef TARGET_HAS_CASH
-    if (mCameraId == 0)
+    if (mCameraId == 0) {
         cash_tof_start(false);
+        cash_rgbc_start(false);
+    }
 #endif
 
     // unmap memory for related cam sync buffer
@@ -12161,13 +12165,28 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
+    bool use_rgbc = false;
+#ifdef TARGET_HAS_CASH
+    struct exptime_iso_tpl exptime_iso = { -1, -1};
+#endif
     if (frame_settings.exists(ANDROID_CONTROL_AE_MODE)) {
         uint8_t fwk_aeMode =
             frame_settings.find(ANDROID_CONTROL_AE_MODE).data.u8[0];
         uint8_t aeMode;
         int32_t redeye;
 
-        if (fwk_aeMode == ANDROID_CONTROL_AE_MODE_OFF ) {
+#ifdef TARGET_HAS_CASH
+        /*
+         * Only consider RGBC when there is no flash accompanying AE
+         * When that is the case, disable AE to use RGBC instead
+         */
+        if (fwk_aeMode == ANDROID_CONTROL_AE_MODE_ON && cash_is_rgbc_in_range())
+            exptime_iso = cash_get_exptime_iso();
+        if (exptime_iso.iso > 0 && exptime_iso.exptime > 0)
+            use_rgbc = true;
+        ALOGI("RGBC: use_rgbc = %d", use_rgbc);
+#endif
+        if (fwk_aeMode == ANDROID_CONTROL_AE_MODE_OFF || use_rgbc ) {
             aeMode = CAM_AE_MODE_OFF;
         } else {
             aeMode = CAM_AE_MODE_ON;
@@ -12625,7 +12644,21 @@ int QCamera3HardwareInterface::translateToHalMetadata
         scalerCropSet = true;
     }
 
-    if (frame_settings.exists(ANDROID_SENSOR_FRAME_DURATION)) {
+#ifdef TARGET_HAS_CASH
+    if (use_rgbc) {
+        ALOGI("Setting frame duration to %lld", exptime_iso.exptime);
+        int64_t sensorFrameDuration = exptime_iso.exptime;
+        int64_t minFrameDuration = getMinFrameDuration(request);
+        sensorFrameDuration = MAX(sensorFrameDuration, minFrameDuration);
+        if (sensorFrameDuration > gCamCapability[mCameraId]->max_frame_duration)
+            sensorFrameDuration = gCamCapability[mCameraId]->max_frame_duration;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_FRAME_DURATION,
+                sensorFrameDuration)) {
+            rc = BAD_VALUE;
+        }
+    }
+#endif
+    if (!use_rgbc && frame_settings.exists(ANDROID_SENSOR_FRAME_DURATION)) {
         int64_t sensorFrameDuration =
                 frame_settings.find(ANDROID_SENSOR_FRAME_DURATION).data.i64[0];
         int64_t minFrameDuration = getMinFrameDuration(request);
@@ -13106,7 +13139,26 @@ int QCamera3HardwareInterface::translateToHalMetadata
             }
         }
     } else {
-        if (frame_settings.exists(ANDROID_SENSOR_EXPOSURE_TIME)) {
+#ifdef TARGET_HAS_CASH
+        if (use_rgbc) {
+            ALOGI("Setting ISO to %d and exposure time to %lld", exptime_iso.iso, exptime_iso.exptime);
+            int64_t sensorExpTime = exptime_iso.exptime;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_EXPOSURE_TIME,
+                        sensorExpTime)) {
+                rc = BAD_VALUE;
+            }
+            int32_t sensorSensitivity = exptime_iso.iso;
+            if (sensorSensitivity < gCamCapability[mCameraId]->sensitivity_range.min_sensitivity)
+                sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.min_sensitivity;
+            if (sensorSensitivity > gCamCapability[mCameraId]->sensitivity_range.max_sensitivity)
+                sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.max_sensitivity;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_SENSITIVITY,
+                        sensorSensitivity)) {
+                rc = BAD_VALUE;
+            }
+        }
+#endif
+        if (!use_rgbc && frame_settings.exists(ANDROID_SENSOR_EXPOSURE_TIME)) {
             int64_t sensorExpTime =
                 frame_settings.find(ANDROID_SENSOR_EXPOSURE_TIME).data.i64[0];
             LOGD("setting sensorExpTime %lld", sensorExpTime);
@@ -13115,7 +13167,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 rc = BAD_VALUE;
             }
         }
-        if (frame_settings.exists(ANDROID_SENSOR_SENSITIVITY)) {
+        if (!use_rgbc && frame_settings.exists(ANDROID_SENSOR_SENSITIVITY)) {
             int32_t sensorSensitivity = frame_settings.find(ANDROID_SENSOR_SENSITIVITY).data.i32[0];
             if (sensorSensitivity < gCamCapability[mCameraId]->sensitivity_range.min_sensitivity)
                 sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.min_sensitivity;
