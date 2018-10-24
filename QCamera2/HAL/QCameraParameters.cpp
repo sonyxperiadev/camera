@@ -7668,9 +7668,18 @@ int32_t QCameraParameters::setSensorSnapshotHDR(const char *snapshotHDR)
             property_get("persist.vendor.camera.zzhdr.enable", zz_prop, "0");
             uint8_t zzhdr_enable = (uint8_t)atoi(zz_prop);
 
+            char exp3_hdr_prop[PROPERTY_VALUE_MAX];
+            memset(exp3_hdr_prop, 0, sizeof(exp3_hdr_prop));
+            property_get("persist.camera.3hdr.enable", exp3_hdr_prop, "0");
+            uint8_t exp3_hdr_enable = (uint8_t)atoi(exp3_hdr_prop);
+
+
             if (zzhdr_enable && (value != CAM_SENSOR_HDR_OFF)) {
                 value = CAM_SENSOR_HDR_ZIGZAG;
-                LOGH("%s: Overriding to ZZ HDR Mode", __func__);
+                LOGH("Overriding to ZZ HDR Mode");
+            }else if (exp3_hdr_enable && (value != CAM_SENSOR_HDR_OFF)) {
+                value = CAM_SENSOR_3EXP_HDR_IN_SENSOR;
+                LOGH("Overriding to 3EXP HDR IN SENSOR Mode");
             }
 
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, (cam_sensor_hdr_type_t)value)) {

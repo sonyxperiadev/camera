@@ -439,6 +439,7 @@ typedef enum {
 typedef enum {
     CAM_FORMAT_SUBTYPE_HDR_STATS,
     CAM_FORMAT_SUBTYPE_PDAF_STATS,
+    CAM_FORMAT_SUBTYPE_FLICKER_STATS,
     CAM_FORMAT_SUBTYPE_MAX
 } cam_sub_format_type_t;
 
@@ -955,6 +956,7 @@ typedef enum {
     CAM_SENSOR_HDR_IN_SENSOR = 1,
     CAM_SENSOR_HDR_ZIGZAG,
     CAM_SENSOR_HDR_STAGGERED,
+    CAM_SENSOR_3EXP_HDR_IN_SENSOR,
     CAM_SENSOR_HDR_MAX,
 } cam_sensor_hdr_type_t;
 
