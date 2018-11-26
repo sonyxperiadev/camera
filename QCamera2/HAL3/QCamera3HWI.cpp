@@ -10760,13 +10760,11 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     /*HFR configs of 60 and 90fps are not supported as changes are not completely implemented
     end to end. Once changes are implemented, changes can be uncommented to support it. Define
     macro "SUPPORT_HFR_CONFIG_60_90_FPS" to enable HFR 60 and 90 fps in the app setting*/
-#ifdef SUPPORT_HFR_CONFIGS_60_90_FPS
     if (custom_hfr_configs.size() > 0) {
         staticInfo.update(
             QCAMERA3_HFR_SIZES,
             custom_hfr_configs.array(), custom_hfr_configs.size());
     }
-#endif
 
     uint8_t cam_mode = is_dual_camera_by_idx(cameraId);
     staticInfo.update(QCAMERA3_LOGICAL_CAM_MODE, &cam_mode, 1);
