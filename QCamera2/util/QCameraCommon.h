@@ -58,6 +58,7 @@ public:
     static bool is_target_SDM450();
     static bool is_target_SDM630();
     static bool is_target_QM215();
+    static bool needHAL1Support();
     static bool skipAnalysisBundling();
     bool needAnalysisStream();
     static dual_cam_type getDualCameraConfig(cam_capability_t *capsMainCam,
