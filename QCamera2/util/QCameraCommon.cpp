@@ -323,6 +323,21 @@ bool QCameraCommon::is_target_SDM450()
     return (parseHWID() == 338 || parseHWID() == 351);
 }
 
+/*===========================================================================
+ * FUNCTION   : is_target_QM215
+ *
+ * DESCRIPTION: Function to check whether target is QM215  or not.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : TRUE -- QM215 target.
+ *              FALSE -- Some other target.
+ *==========================================================================*/
+
+bool QCameraCommon::is_target_QM215()
+{
+    return (parseHWID() == 386);
+}
 
 /*===========================================================================
  * FUNCTION   : is_target_SDM630
