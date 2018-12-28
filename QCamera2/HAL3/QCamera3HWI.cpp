@@ -1535,6 +1535,16 @@ void QCamera3HardwareInterface::addToPPFeatureMask(int stream_format,
 
     switch (stream_format) {
     case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED: {
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        int32_t fixedFOVCenabled = FALSE;
+        property_get("persist.vendor.camera.fovc.enable", prop, "0");
+        fixedFOVCenabled = atoi(prop);
+        if (fixedFOVCenabled == 1) {
+            LOGH("Fixed FOVC feature mask set for stream format");
+            mStreamConfigInfo.postprocess_mask[stream_idx]
+                    |= CAM_QTI_FEATURE_FIXED_FOVC;
+        }
         /* Add LLVD to pp feature mask only if video hint is enabled */
         if ((m_bIsVideo) && (feature_mask & CAM_QTI_FEATURE_SW_TNR)) {
             mStreamConfigInfo.postprocess_mask[stream_idx]
