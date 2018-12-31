@@ -1019,6 +1019,15 @@ uint32_t get_main_camera_handle(uint32_t handle);
 /*Get Auxilary camera handle for camera/channel/stream*/
 uint32_t get_aux_camera_handle(uint32_t handle);
 
+/*Get Primary camera idx */
+uint32_t get_main_camera_idx(uint32_t camera_id);
+
+/*Get Auxilary camera idx */
+uint32_t get_aux_camera_idx(uint32_t camera_id);
+
+uint32_t get_phys_handle(uint32_t phys_camera_id,
+    uint32_t logical_camera_id, uint32_t logical_handle);
+
 /*Validate 2 handle if it is belong to same instance of camera/channel/stream*/
 uint8_t validate_handle(uint32_t src_handle, uint32_t handle);
 

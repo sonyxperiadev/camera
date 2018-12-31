@@ -105,8 +105,17 @@ typedef enum {
     QCFA_RAW_REPROCESS
 } quadra_cfa_state_t;
 
+typedef enum {
+    CONFIG_INDEX_MAIN = 0,
+    CONFIG_INDEX_AUX,
+    CONFIG_INDEX_MAX
+}stream_config_index_t;
 
 #define MODULE_ALL 0
+
+#define IS_PP_TYPE_NONE (getHalPPType() == CAM_HAL_PP_TYPE_NONE)
+
+#define IS_MULTI_CAMERA (isDualCamera() && IS_PP_TYPE_NONE)
 
 extern volatile uint32_t gCamHal3LogLevel;
 
@@ -208,6 +217,7 @@ public:
             uint32_t cam_handle);
     static int initCapabilities(uint32_t cameraId);
     static int initStaticMetadata(uint32_t cameraId);
+     static uint8_t convertIdToUTF8(uint32_t id);
     static void makeTable(cam_dimension_t *dimTable, size_t size,
             size_t max_size, int32_t *sizeTable);
     static void makeFPSTable(cam_fps_range_t *fpsTable, size_t size,
@@ -248,13 +258,15 @@ public:
     void dump(int fd);
     int flushPerf();
 
-    int setFrameParameters(camera3_capture_request_t *request,
-            cam_stream_ID_t streamID, int blob_request, uint32_t snapshotStreamId);
+    int setFrameParameters(const camera_metadata_t *settings,
+            cam_stream_ID_t streamID, int blob_request, uint32_t snapshotStreamId,
+            metadata_buffer_t *mParams, const camera3_capture_request_t *request);
     int32_t setReprocParameters(camera3_capture_request_t *request,
             metadata_buffer_t *reprocParam, uint32_t snapshotStreamId);
     int8_t getReprocChannelCnt() {return m_ppChannelCnt;};
-    int translateToHalMetadata(const camera3_capture_request_t *request,
-            metadata_buffer_t *parm, uint32_t snapshotStreamId);
+    int translateToHalMetadata(const camera_metadata_t *settings,
+            metadata_buffer_t *parm, uint32_t snapshotStreamId,
+            const camera3_capture_request_t *request);
     camera_metadata_t* translateCbUrgentMetadataToResultMetadata (
                              metadata_buffer_t *metadata);
     camera_metadata_t* translateFromHalMetadata(metadata_buffer_t *metadata,
@@ -422,7 +434,11 @@ private:
     int32_t numOfSizesOnEncoder(const camera3_stream_configuration_t *streamList,
             const cam_dimension_t &maxViewfinderSize);
 
-    void addToPPFeatureMask(int stream_format, uint32_t stream_idx);
+    void addToPPFeatureMask(int stream_format, uint32_t stream_idx,
+                cam_stream_size_info_t *mStreamConfigInfo);
+    int cacheFwConfiguredStreams(camera3_stream_configuration_t *streams_configuration);
+    Vector<uint32_t> getPhyIdListForCameraId(uint32_t cameraId);
+    int validateStreamsPhyIds(camera3_stream_configuration_t *streamList);
     void setDCFeature(cam_feature_mask_t& feature_mask,
             cam_stream_type_t stream_type);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
@@ -554,6 +570,7 @@ private:
         uint32_t frame_number;
         uint32_t num_buffers;
         int32_t request_id;
+        int32_t aux_request_id;
         List<RequestedBufferInfo> buffers;
         List<InternalRequest> internalRequestList;
         int blob_request;
@@ -565,9 +582,18 @@ private:
         uint8_t pipeline_depth;
         uint32_t partial_result_cnt;
         uint8_t capture_intent;
+        uint8_t aux_capture_intent;
         uint8_t fwkCacMode;
+        uint8_t fwkAuxCacMode;
         bool shutter_notified;
         uint8_t scene_mode;
+        bool requested_on_aux;
+        bool requested_on_main;
+        bool received_main_meta;
+        bool requested_logical;
+        bool received_aux_meta;
+        mm_camera_super_buf_t *main_meta;
+        mm_camera_super_buf_t*aux_meta;
     } PendingRequestInfo;
     typedef struct {
         uint32_t frame_number;
@@ -601,7 +627,8 @@ private:
     uint32_t mPendingLiveRequest;
     bool mWokenUpByDaemon;
     int32_t mCurrentRequestId;
-    cam_stream_size_info_t mStreamConfigInfo;
+    int32_t mAuxCurrentRequestId;
+    cam_stream_size_info_t mStreamConfigInfo[CONFIG_INDEX_MAX];
     cam_stream_size_info_t mAuxStreamConfigInfo;
 
     //mutex for serialized access to camera3_device_ops_t functions
@@ -621,7 +648,9 @@ private:
     const camera_module_callbacks_t *mCallbacks;
 
     uint8_t mCaptureIntent;
+    uint8_t mAuxCaptureIntent;
     uint8_t mCacMode;
+    uint8_t mAuxCacMode;
     metadata_buffer_t mReprocMeta; //scratch meta buffer
     /* 0: Not batch, non-zero: Number of image buffers in a batch */
     uint8_t mBatchSize;
@@ -665,6 +694,25 @@ private:
     uint32_t mLdafCalib[2];
     int32_t mLastCustIntentFrmNum;
     CameraMetadata  mCachedMetadata;
+
+    bool cacheMetaIfNeeded(
+             mm_camera_super_buf_t *metadata_buf, uint32_t frame_number);
+    bool isTotalMetaReceivedForFrame(
+            uint32_t frame_number, PendingRequestInfo *request);
+    char *getUINT8Ptr(uint32_t cameraId);
+    void releasePhysicalId(const char **physicalId, uint32_t size);
+    camera_metadata_t *getPhysicalMeta(const mm_camera_super_buf_t *metadata,
+                PendingRequestInfo *request, bool dummyMeta,
+                cam_sync_type_t sync_type = CAM_TYPE_MAIN);
+    void  allocateAndinitializeMetadata(camera3_capture_result *result,
+                PendingRequestInfo *request);
+    void releasePhysicalMetadata(const camera_metadata_t **meta, uint32_t num_of_meta);
+    void releaseCachedMeta(
+                PendingRequestInfo *request, QCamera3Channel *meta_channel);
+    bool shouldWaitForFrame(
+                PendingRequestInfo *request, mm_camera_super_buf_t *cur_meta,
+                uint32_t cur_frame_number, uint32_t &pendingFor);
+    bool checkIfMetaDropped(PendingRequestInfo *request);
 
     static const QCameraMap<camera_metadata_enum_android_control_effect_mode_t,
             cam_effect_mode_type> EFFECT_MODES_MAP[];
@@ -746,6 +794,11 @@ private:
     cam_rtb_msg_type_t mRTBStatus;
     bool m_bIsSecureMode;
     bool m_bStopPicChannel;
+
+    bool is_aux_configured = false;   //only for dualcamera usecase
+    bool is_main_configured = false;  //only for dual camera usecase
+    bool is_logical_configured = false; //only for dual camera usecase
+
 };
 
 }; // namespace qcamera

@@ -3049,6 +3049,27 @@ uint32_t get_main_camera_handle(uint32_t handle)
     return mm_camera_util_get_handle_by_num(0, handle);
 }
 
+uint32_t get_aux_camera_idx(uint32_t camera_id)
+{
+    return (mm_camera_util_get_handle_by_num(1,
+        g_cam_ctrl.cam_index[camera_id])) >> MM_CAMERA_HANDLE_SHIFT_MASK;
+}
+
+uint32_t get_main_camera_idx(uint32_t camera_id)
+{
+    return mm_camera_util_get_handle_by_num(0, g_cam_ctrl.cam_index[camera_id]);
+}
+
+uint32_t get_phys_handle(uint32_t phys_camera_id,
+    uint32_t logical_camera_id, uint32_t logical_handle)
+{
+    if (phys_camera_id == get_main_camera_idx(logical_camera_id)) {
+        return get_main_camera_handle(logical_handle);
+    } else {
+        return get_aux_camera_handle(logical_handle);
+    }
+}
+
 cam_sync_type_t get_cam_type(uint32_t camera_id)
 {
     return  g_cam_ctrl.cam_type[camera_id];

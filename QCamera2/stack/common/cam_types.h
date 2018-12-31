@@ -3139,6 +3139,7 @@ typedef enum {
     CAM_HAL_PP_TYPE_DUAL_FOV,            // dual camera Wide+Tele Dual FOV blending
     CAM_HAL_PP_TYPE_BOKEH,               // dual camera Wide+Tele Snapshot Bokeh
     CAM_HAL_PP_TYPE_CLEARSIGHT,          // dual camera Bayer+Mono Clearsight
+    CAM_HAL_PP_TYPE_SAT,
     CAM_HAL_PP_TYPE_MAX
 } cam_hal_pp_type_t;
 

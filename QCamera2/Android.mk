@@ -16,6 +16,10 @@ else
 IS_QC_BOKEH_SUPPORTED := false
 endif
 
+ifeq ($(call is-platform-sdk-version-at-least,28),true)
+ENABLE_MULTICAM_SUPPORT := true
+endif
+
 LOCAL_SRC_FILES := \
         util/QCameraBufferMaps.cpp \
         util/QCameraCmdThread.cpp \
@@ -76,9 +80,12 @@ LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
 
 LOCAL_CFLAGS += -DHAS_MULTIMEDIA_HINTS -D_ANDROID
 
-
+ifeq ($(ENABLE_MULTICAM_SUPPORT), true)
+LOCAL_CFLAGS += -DUSE_HAL_3_5
+else
 ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) <= 23 ))" )))
 LOCAL_CFLAGS += -DUSE_HAL_3_3
+endif
 endif
 
 #use media extension
