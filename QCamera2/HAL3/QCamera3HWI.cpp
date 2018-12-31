@@ -10811,6 +10811,18 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     uint8_t cam_mode = is_dual_camera_by_idx(cameraId);
     staticInfo.update(QCAMERA3_LOGICAL_CAM_MODE, &cam_mode, 1);
 
+    float cct_range[2];
+    cct_range[0] = gCamCapability[cameraId]->min_wb_cct;
+    cct_range[1] = gCamCapability[cameraId]->max_wb_cct;
+    staticInfo.update(QCAMERA3_MANUAL_WB_CCT_RANGE,
+            cct_range, 2);
+
+    float wb_gains_range[2];
+    wb_gains_range[0] = gCamCapability[cameraId]->min_wb_gain;
+    wb_gains_range[1] = gCamCapability[cameraId]->max_wb_gain;
+    staticInfo.update(QCAMERA3_MANUAL_WB_GAINS_RANGE,
+            wb_gains_range, 2);
+
     gStaticMetadata[cameraId] = staticInfo.release();
     return rc;
 }
@@ -13141,6 +13153,34 @@ int QCamera3HardwareInterface::translateToHalMetadata
             rc = BAD_VALUE;
         }
     }
+
+    if (frame_settings.exists(QCAMERA3_MANUAL_WB_MODE)) {
+        cam_manual_wb_mode_t mode =
+                (cam_manual_wb_mode_t)frame_settings.find(QCAMERA3_MANUAL_WB_MODE).data.i32[0];
+        if((CAM_MANUAL_WB_CCT == mode) || (CAM_MANUAL_WB_GAINS == mode)) {
+            cam_manual_wb_parm_t manual_wb;
+            memset(&manual_wb, 0, sizeof(manual_wb));
+            if(CAM_MANUAL_WB_CCT == mode) {
+                manual_wb.type = CAM_MANUAL_WB_MODE_CCT;
+                manual_wb.cct = frame_settings.find(QCAMERA3_MANUAL_WB_CCT).data.i32[0];
+            }
+            else {
+                manual_wb.type = CAM_MANUAL_WB_MODE_GAIN;
+                manual_wb.gains.r_gain = frame_settings.find(QCAMERA3_MANUAL_WB_GAINS).data.f[0];
+                manual_wb.gains.g_gain = frame_settings.find(QCAMERA3_MANUAL_WB_GAINS).data.f[1];
+                manual_wb.gains.b_gain = frame_settings.find(QCAMERA3_MANUAL_WB_GAINS).data.f[2];
+            }
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_WB_MANUAL, manual_wb)) {
+                return BAD_VALUE;
+            }
+
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_ZSL_MODE, 1)) {
+                    rc = BAD_VALUE;
+            }
+        }
+    }
+
     return rc;
 }
 

@@ -637,6 +637,13 @@ typedef enum {
 } cam_priority_mode_t;
 
 typedef enum {
+    CAM_MANUAL_WB_OFF,
+    CAM_MANUAL_WB_CCT,
+    CAM_MANUAL_WB_GAINS,
+} cam_manual_wb_mode_t;
+
+
+typedef enum {
     CAM_HFR_MODE_OFF,
     CAM_HFR_MODE_60FPS,
     CAM_HFR_MODE_90FPS,
