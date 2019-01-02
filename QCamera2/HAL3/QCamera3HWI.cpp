@@ -539,7 +539,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     memset(mLdafCalib, 0, sizeof(mLdafCalib));
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.vendor.camera.tnr.preview", prop, "0");
+    property_get("persist.vendor.camera.tnr.preview", prop, "1");
     m_bTnrPreview = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
@@ -547,7 +547,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_bSwTnrPreview = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
-    property_get("persist.vendor.camera.tnr.video", prop, "0");
+    property_get("persist.vendor.camera.tnr.video", prop, "1");
     m_bTnrVideo = (uint8_t)atoi(prop);
 
     memset(prop, 0, sizeof(prop));
@@ -2228,13 +2228,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     forceEnableTnr = (uint8_t)atoi(prop);
 
     /* Logic to enable/disable TNR based on specific config size/etc.*/
-    if ((m_bTnrPreview || m_bTnrVideo) && m_bIsVideo &&
-            ((videoWidth == 1920 && videoHeight == 1080) ||
-            (videoWidth == 1280 && videoHeight == 720)) &&
-            (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE))
+    if (((m_bTnrPreview || m_bTnrVideo) && m_bIsVideo) || forceEnableTnr) {
         m_bTnrEnabled = true;
-    else if (forceEnableTnr)
-        m_bTnrEnabled = true;
+    }
 
     /* Check if num_streams is sane */
     if (stallStreamCnt > MAX_STALLING_STREAMS ||
