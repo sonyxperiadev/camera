@@ -4570,9 +4570,10 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
                     gCamCapability[mCameraId]->hdr_bracketing_setting;
         uint32_t hdrFrameCount =
                 hdrBracketingSetting.num_frames;
-        LOGD("HDR values %d, %d frame count: %u",
+        LOGI("HDR values %d, %d , %d frame count: %u",
               (int8_t) hdrBracketingSetting.exp_val.values[0],
               (int8_t) hdrBracketingSetting.exp_val.values[1],
+              (int8_t) hdrBracketingSetting.exp_val.values[2],
               hdrFrameCount);
 
         cam_exp_bracketing_t aeBracket;
@@ -4691,6 +4692,29 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
         request->frame_number = internalFrameNumber;
         mHdrSnapshotRunning = true;
+        processCaptureRequest(request, internallyRequestedStreams);
+
+        //Add extra EV 0 capture at the end to avoid preview flicker
+        modified_meta = modified_settings;
+        hdr_exp_values = hdrBracketingSetting.exp_val.values[0];
+        expCompensation = hdr_exp_values;
+        aeLock = 1;
+        modified_meta.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION, &expCompensation, 1);
+        modified_meta.update(ANDROID_CONTROL_AE_LOCK, &aeLock, 1);
+        modified_settings = modified_meta.release();
+        request->settings = modified_settings;
+
+        itr =  internallyRequestedStreams.begin();
+        if (itr == internallyRequestedStreams.end()) {
+            LOGE("Error Internally Requested Stream list is empty");
+            assert(0);
+        } else {
+            itr->need_metadata = 0;
+            itr->meteringOnly = 1;
+        }
+
+        _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
+        request->frame_number = internalFrameNumber;
         processCaptureRequest(request, internallyRequestedStreams);
 
 
