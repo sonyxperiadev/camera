@@ -9,6 +9,11 @@ LOCAL_CFLAGS+= -D_ANDROID_ -DQCAMERA_REDEFINE_LOG
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 
+ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+LOCAL_C_INCLUDES += \
+    $(TOP)/system/core/libion/include \
+    $(TOP)/system/core/libion/kernel-headers
+endif
 LOCAL_C_INCLUDES+= $(kernel_includes)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)
 
@@ -33,6 +38,9 @@ LOCAL_MODULE           := libmmlib2d_interface
 include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog
+ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+LOCAL_SHARED_LIBRARIES += libion
+endif
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_PATH_32 := $(TARGET_OUT_VENDOR)/lib
 

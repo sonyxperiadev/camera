@@ -61,9 +61,17 @@ void *buffer_allocate(buffer_t *p_buffer, int cached)
    p_buffer->alloc.len = p_buffer->size;
    p_buffer->alloc.align = 4096;
    p_buffer->alloc.flags = (cached) ? ION_FLAG_CACHED : 0;
+#ifndef TARGET_ION_ABI_VERSION
    p_buffer->alloc.heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
+#else
+   p_buffer->alloc.heap_id_mask = 0x1 << ION_SYSTEM_HEAP_ID;
+#endif //TARGET_ION_ABI_VERSION
 
+#ifndef TARGET_ION_ABI_VERSION
    p_buffer->ion_fd = open("/dev/ion", O_RDONLY);
+#else
+   p_buffer->ion_fd = ion_open();
+#endif //TARGET_ION_ABI_VERSION
    if(p_buffer->ion_fd < 0) {
     LOGE("Ion open failed");
     goto ION_ALLOC_FAILED;
@@ -71,7 +79,13 @@ void *buffer_allocate(buffer_t *p_buffer, int cached)
 
   /* Make it page size aligned */
   p_buffer->alloc.len = (p_buffer->alloc.len + 4095U) & (~4095U);
+#ifndef TARGET_ION_ABI_VERSION
   lrc = ioctl(p_buffer->ion_fd, ION_IOC_ALLOC, &p_buffer->alloc);
+#else
+  lrc = ion_alloc(p_buffer->ion_fd, p_buffer->alloc.len, p_buffer->alloc.align,
+                 p_buffer->alloc.heap_id_mask, p_buffer->alloc.flags,
+                 (ion_user_handle_t *)&p_buffer->alloc.handle);
+#endif //TARGET_ION_ABI_VERSION
   if (lrc < 0) {
     LOGE("ION allocation failed len %zu",
       p_buffer->alloc.len);
@@ -79,8 +93,13 @@ void *buffer_allocate(buffer_t *p_buffer, int cached)
   }
 
   p_buffer->ion_info_fd.handle = p_buffer->alloc.handle;
+#ifndef TARGET_ION_ABI_VERSION
   lrc = ioctl(p_buffer->ion_fd, ION_IOC_SHARE,
     &p_buffer->ion_info_fd);
+#else
+   lrc = ion_share(p_buffer->ion_fd, (ion_user_handle_t )p_buffer->ion_info_fd.handle,
+                   &p_buffer->ion_info_fd.fd);
+#endif //TARGET_ION_ABI_VERSION
   if (lrc < 0) {
     LOGE("ION map failed %s", strerror(errno));
     goto ION_MAP_FAILED;
@@ -101,7 +120,11 @@ void *buffer_allocate(buffer_t *p_buffer, int cached)
 
 ION_MAP_FAILED:
   lhandle_data.handle = p_buffer->ion_info_fd.handle;
+#ifndef TARGET_ION_ABI_VERSION
   ioctl(p_buffer->ion_fd, ION_IOC_FREE, &lhandle_data);
+#else
+  ion_free(p_buffer->ion_fd, lhandle_data.handle);
+#endif //TARGET_ION_ABI_VERSION
   return NULL;
 ION_ALLOC_FAILED:
   return NULL;
@@ -131,9 +154,14 @@ int buffer_deallocate(buffer_t *p_buffer)
   close(p_buffer->ion_info_fd.fd);
 
   lhandle_data.handle = p_buffer->ion_info_fd.handle;
+#ifndef TARGET_ION_ABI_VERSION
   ioctl(p_buffer->ion_fd, ION_IOC_FREE, &lhandle_data);
-
   close(p_buffer->ion_fd);
+#else
+  ion_free(p_buffer->ion_fd, lhandle_data.handle);
+  ion_close(p_buffer->ion_fd);
+#endif //TARGET_ION_ABI_VERSION
+
   return lrc;
 }
 
@@ -152,6 +180,7 @@ int buffer_deallocate(buffer_t *p_buffer)
 int buffer_invalidate(buffer_t *p_buffer)
 {
   int lrc = 0;
+#ifndef TARGET_ION_ABI_VERSION
   struct ion_flush_data cache_inv_data;
   struct ion_custom_data custom_data;
 
@@ -167,7 +196,9 @@ int buffer_invalidate(buffer_t *p_buffer)
   lrc = ioctl(p_buffer->ion_fd, ION_IOC_CUSTOM, &custom_data);
   if (lrc < 0)
     LOGW("Cache Invalidate failed: %s\n", strerror(errno));
-
+#else
+  (void)p_buffer;
+#endif //TARGET_ION_ABI_VERSION
   return lrc;
 }
 
@@ -186,6 +217,7 @@ int buffer_invalidate(buffer_t *p_buffer)
 int buffer_clean(buffer_t *p_buffer)
 {
   int lrc = 0;
+#ifndef TARGET_ION_ABI_VERSION
   struct ion_flush_data cache_clean_data;
   struct ion_custom_data custom_data;
 
@@ -201,6 +233,9 @@ int buffer_clean(buffer_t *p_buffer)
   lrc = ioctl(p_buffer->ion_fd, ION_IOC_CUSTOM, &custom_data);
   if (lrc < 0)
     LOGW("Cache clean failed: %s\n", strerror(errno));
+#else
+  (void)p_buffer;
+#endif //TARGET_ION_ABI_VERSION
 
   return lrc;
 }

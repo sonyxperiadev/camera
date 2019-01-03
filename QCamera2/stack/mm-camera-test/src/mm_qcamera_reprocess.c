@@ -89,8 +89,10 @@ static void mm_app_reprocess_notify_cb(mm_camera_super_buf_t *bufs,
                                                 frame)) {
             LOGE(" Failed in Reprocess Qbuf\n");
         }
+#ifndef TARGET_ION_ABI_VERSION
         mm_app_cache_ops((mm_camera_app_meminfo_t *)frame->mem_info,
                          ION_IOC_INV_CACHES);
+#endif //TARGET_ION_ABI_VERSION
     }
 
 exit:
@@ -345,8 +347,10 @@ void mm_app_release_ppinput(void *data, void *user_data)
                                                 recvd_frame->bufs[i])) {
             LOGE(" Failed in Qbuf\n");
         }
+#ifndef TARGET_ION_ABI_VERSION
         mm_app_cache_ops((mm_camera_app_meminfo_t *) recvd_frame->bufs[i]->mem_info,
                          ION_IOC_INV_CACHES);
+#endif //TARGET_ION_ABI_VERSION
     }
 }
 

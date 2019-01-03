@@ -65,8 +65,10 @@ static void jpeg_encode_cb(jpeg_job_status_t status,
                                                 pme->current_job_frames->bufs[i])) {
             LOGE(" Failed in Qbuf\n");
         }
+#ifndef TARGET_ION_ABI_VERSION
         mm_app_cache_ops((mm_camera_app_meminfo_t *) pme->current_job_frames->bufs[i]->mem_info,
                          ION_IOC_INV_CACHES);
+#endif //TARGET_ION_ABI_VERSION
     }
 
     mm_app_deallocate_ion_memory(&pme->jpeg_buf);
@@ -340,8 +342,10 @@ static void mm_app_snapshot_metadata_notify_cb(mm_camera_super_buf_t *bufs,
                                           frame)) {
     LOGE(" Failed in Preview Qbuf\n");
   }
+#ifndef TARGET_ION_ABI_VERSION
   mm_app_cache_ops((mm_camera_app_meminfo_t *)frame->mem_info,
                    ION_IOC_INV_CACHES);
+#endif //TARGET_ION_ABI_VERSION
 }
 
 static void mm_app_snapshot_notify_cb_raw(mm_camera_super_buf_t *bufs,
@@ -486,8 +490,10 @@ static void mm_app_snapshot_notify_cb(mm_camera_super_buf_t *bufs,
         }
     }
 
+#ifndef TARGET_ION_ABI_VERSION
     mm_app_cache_ops((mm_camera_app_meminfo_t *)m_frame->mem_info,
                      ION_IOC_CLEAN_INV_CACHES);
+#endif //TARGET_ION_ABI_VERSION
 
     pme->jpeg_buf.mem_info.size = m_frame->frame_len;
 
@@ -519,8 +525,10 @@ error:
                                                     bufs->bufs[i])) {
                 LOGE(" Failed in Qbuf\n");
             }
+#ifndef TARGET_ION_ABI_VERSION
             mm_app_cache_ops((mm_camera_app_meminfo_t *)bufs->bufs[i]->mem_info,
                              ION_IOC_INV_CACHES);
+#endif //TARGET_ION_ABI_VERSION
         }
     }
 

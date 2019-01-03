@@ -114,6 +114,12 @@ LOCAL_C_INCLUDES := \
         $(SRC_MEDIA_HAL_DIR)/libstagefrighthw \
         $(SRC_MEDIA_HAL_DIR)/mm-core/inc
 
+ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+LOCAL_C_INCLUDES += \
+        system/core/libion/kernel-headers \
+        system/core/libion/include
+endif
+
 LOCAL_HEADER_LIBRARIES := media_plugin_headers
 LOCAL_HEADER_LIBRARIES += libandroid_sensor_headers
 LOCAL_HEADER_LIBRARIES += libcutils_headers
@@ -154,6 +160,9 @@ LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 LOCAL_SHARED_LIBRARIES += libbase libcutils libdl libhal_dbg
+ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+LOCAL_SHARED_LIBRARIES += libion
+endif
 ifeq ($(USE_DISPLAY_SERVICE),true)
 LOCAL_SHARED_LIBRARIES += android.frameworks.displayservice@1.0 libhidlbase libhidltransport
 else

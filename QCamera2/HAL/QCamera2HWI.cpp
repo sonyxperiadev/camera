@@ -6523,9 +6523,10 @@ int QCamera2HardwareInterface::registerFaceImage(void *img_ptr,
         return NO_MEMORY;
     }
     memcpy(pBufPtr, img_ptr, config->input_buf_planes.plane_info.frame_len);
+#ifndef TARGET_ION_ABI_VERSION
     //Do cache ops before sending for reprocess
     imgBuf->cacheOps(0, ION_IOC_CLEAN_INV_CACHES);
-
+#endif //TARGET_ION_ABI_VERSION
     cam_pp_feature_config_t pp_feature;
     memset(&pp_feature, 0, sizeof(cam_pp_feature_config_t));
     pp_feature.feature_mask = CAM_QCOM_FEATURE_REGISTER_FACE;

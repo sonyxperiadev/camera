@@ -141,7 +141,12 @@ int mm_app_allocate_ion_memory(mm_camera_app_buf_t *buf,
     alloc.align = 4096;
     alloc.flags = ION_FLAG_CACHED;
     alloc.heap_id_mask = ION_HEAP(ION_SYSTEM_HEAP_ID);
+#ifndef TARGET_ION_ABI_VERSION
     rc = ioctl(main_ion_fd, ION_IOC_ALLOC, &alloc);
+#else
+    rc = ion_alloc(main_ion_fd, alloc.len, alloc.align, alloc.heap_id_mask,
+              alloc.flags, (ion_user_handle_t *)&alloc.handle);
+#endif //TARGET_ION_ABI_VERSION
     if (rc < 0) {
         LOGE("ION allocation failed %s with rc = %d \n",strerror(errno), rc);
         goto ION_ALLOC_FAILED;
@@ -149,7 +154,12 @@ int mm_app_allocate_ion_memory(mm_camera_app_buf_t *buf,
 
     memset(&ion_info_fd, 0, sizeof(ion_info_fd));
     ion_info_fd.handle = alloc.handle;
+#ifndef TARGET_ION_ABI_VERSION
     rc = ioctl(main_ion_fd, ION_IOC_SHARE, &ion_info_fd);
+#else
+    rc = ion_share(main_ion_fd, (ion_user_handle_t )ion_info_fd.handle,
+                   &ion_info_fd.fd);
+#endif //TARGET_ION_ABI_VERSION
     if (rc < 0) {
         LOGE("ION map failed %s\n", strerror(errno));
         goto ION_MAP_FAILED;
@@ -176,9 +186,17 @@ int mm_app_allocate_ion_memory(mm_camera_app_buf_t *buf,
 ION_MAP_FAILED:
     memset(&handle_data, 0, sizeof(handle_data));
     handle_data.handle = ion_info_fd.handle;
+#ifndef TARGET_ION_ABI_VERSION
     ioctl(main_ion_fd, ION_IOC_FREE, &handle_data);
+#else
+    ion_free(main_ion_fd, handle_data.handle);
+#endif //TARGET_ION_ABI_VERSION
 ION_ALLOC_FAILED:
+#ifndef TARGET_ION_ABI_VERSION
     close(main_ion_fd);
+#else
+    ion_close(main_ion_fd);
+#endif //TARGET_ION_ABI_VERSION
 ION_OPEN_FAILED:
     return -MM_CAMERA_E_GENERAL;
 }
@@ -198,8 +216,13 @@ int mm_app_deallocate_ion_memory(mm_camera_app_buf_t *buf)
   if (buf->mem_info.main_ion_fd >= 0) {
       memset(&handle_data, 0, sizeof(handle_data));
       handle_data.handle = buf->mem_info.handle;
+#ifndef  TARGET_ION_ABI_VERSION
       ioctl(buf->mem_info.main_ion_fd, ION_IOC_FREE, &handle_data);
       close(buf->mem_info.main_ion_fd);
+#else
+        ion_free(buf->mem_info.main_ion_fd, handle_data.handle);
+        ion_close(buf->mem_info.main_ion_fd);
+#endif  // TARGET_ION_ABI_VERSION
       buf->mem_info.main_ion_fd = -1;
   }
   return rc;
@@ -209,9 +232,10 @@ int mm_app_deallocate_ion_memory(mm_camera_app_buf_t *buf)
 int mm_app_cache_ops(mm_camera_app_meminfo_t *mem_info,
                      int cmd)
 {
+    int ret = MM_CAMERA_OK;
+#ifndef  TARGET_ION_ABI_VERSION
     struct ion_flush_data cache_inv_data;
     struct ion_custom_data custom_data;
-    int ret = MM_CAMERA_OK;
 
 #ifdef USE_ION
     if (NULL == mem_info) {
@@ -239,6 +263,10 @@ int mm_app_cache_ops(mm_camera_app_meminfo_t *mem_info,
         }
     }
 #endif
+#else
+     (void)mem_info;
+     (void)cmd;
+#endif  // TARGET_ION_ABI_VERSION
 
     return ret;
 }
@@ -463,21 +491,39 @@ int32_t mm_app_stream_deinitbuf(mm_camera_map_unmap_ops_tbl_t *ops_tbl,
 
 int32_t mm_app_stream_clean_invalidate_buf(uint32_t index, void *user_data)
 {
+#ifndef TARGET_ION_ABI_VERSION
     mm_camera_stream_t *stream = (mm_camera_stream_t *)user_data;
     return mm_app_cache_ops(&stream->s_bufs[index].mem_info,
       ION_IOC_CLEAN_INV_CACHES);
+#else
+    (void)index;
+    (void)user_data;
+    return 0;
+#endif //TARGET_ION_ABI_VERSION
 }
 
 int32_t mm_app_stream_invalidate_buf(uint32_t index, void *user_data)
 {
+#ifndef TARGET_ION_ABI_VERSION
     mm_camera_stream_t *stream = (mm_camera_stream_t *)user_data;
     return mm_app_cache_ops(&stream->s_bufs[index].mem_info, ION_IOC_INV_CACHES);
+#else
+    (void)index;
+    (void)user_data;
+    return 0;
+#endif //TARGET_ION_ABI_VERSION
 }
 
 int32_t mm_app_stream_clean_buf(uint32_t index, void *user_data)
 {
+#ifndef TARGET_ION_ABI_VERSION
     mm_camera_stream_t *stream = (mm_camera_stream_t *)user_data;
     return mm_app_cache_ops(&stream->s_bufs[index].mem_info, ION_IOC_CLEAN_CACHES);
+#else
+    (void)index;
+    (void)user_data;
+    return 0;
+#endif //TARGET_ION_ABI_VERSION
 }
 
 static void notify_evt_cb(uint32_t camera_handle,
