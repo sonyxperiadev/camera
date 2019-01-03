@@ -33,6 +33,10 @@
 // System dependencies
 #include <pthread.h>
 #include <linux/msm_ion.h>
+#if TARGET_ION_ABI_VERSION >= 2
+#include <ion/ion.h>
+#endif //TARGET_ION_ABI_VERSION
+
 #include <linux/msm_mdp.h>
 
 // Camera dependencies

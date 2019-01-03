@@ -17,6 +17,11 @@ endif
 
 IMGLIB_HEADER_PATH := $(TARGET_OUT_INTERMEDIATES)/include/mm-camera/imglib
 
+ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
+LOCAL_C_INCLUDES += \
+        system/core/libion/kernel-headers \
+        system/core/libion/include
+endif
 LOCAL_C_INCLUDES += \
     $(IMGLIB_HEADER_PATH) \
     $(LOCAL_PATH)/../../common \
@@ -33,7 +38,9 @@ LOCAL_VENDOR_MODULE := true
 include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libcutils libdl libmmlib2d_interface
-
+ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
+LOCAL_SHARED_LIBRARIES += libion
+endif
 include $(BUILD_EXECUTABLE)
 
 LOCAL_PATH := $(OLD_LOCAL_PATH)

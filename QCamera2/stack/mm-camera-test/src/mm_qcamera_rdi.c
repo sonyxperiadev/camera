@@ -82,8 +82,10 @@ static void mm_app_rdi_notify_cb(mm_camera_super_buf_t *bufs,
                                             frame)) {
         LOGE(" Failed in RDI Qbuf\n");
     }
+#ifndef TARGET_ION_ABI_VERSION
     mm_app_cache_ops((mm_camera_app_meminfo_t *)frame->mem_info,
                      ION_IOC_INV_CACHES);
+#endif //TARGET_ION_ABI_VERSION
 
     LOGD(" END\n");
 }

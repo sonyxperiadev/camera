@@ -32,6 +32,9 @@
 
 // System dependencies
 #include <linux/msm_ion.h>
+#if TARGET_ION_ABI_VERSION >= 2
+#include <ion/ion.h>
+#endif //TARGET_ION_ABI_VERSION
 #include <utils/Mutex.h>
 #include <utils/List.h>
 
@@ -50,6 +53,7 @@ extern "C" {
 
 namespace qcamera {
 
+using namespace android;
 class QCameraMemoryPool;
 
 //Buffer identity
@@ -91,15 +95,30 @@ class QCameraMemory {
 public:
     int cleanCache(uint32_t index)
     {
+#ifndef TARGET_ION_ABI_VERSION
         return cacheOps(index, ION_IOC_CLEAN_CACHES);
+#else //TARGET_ION_ABI_VERSION
+        (void)index;
+        return NO_ERROR;
+#endif
     }
     int invalidateCache(uint32_t index)
     {
+#ifndef TARGET_ION_ABI_VERSION
         return cacheOps(index, ION_IOC_INV_CACHES);
+#else //TARGET_ION_ABI_VERSION
+        (void)index;
+        return NO_ERROR;
+#endif
     }
     int cleanInvalidateCache(uint32_t index)
     {
+#ifndef TARGET_ION_ABI_VERSION
         return cacheOps(index, ION_IOC_CLEAN_INV_CACHES);
+#else //TARGET_ION_ABI_VERSION
+        (void)index;
+        return NO_ERROR;
+#endif
     }
     int getFd(uint32_t index) const;
     ssize_t getSize(uint32_t index) const;

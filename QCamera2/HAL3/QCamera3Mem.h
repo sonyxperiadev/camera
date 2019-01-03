@@ -32,6 +32,9 @@
 
 // System dependencies
 #include <linux/msm_ion.h>
+#if TARGET_ION_ABI_VERSION >= 2
+#include <ion/ion.h>
+#endif //TARGET_ION_ABI_VERSION
 #include <utils/Mutex.h>
 
 // Camera dependencies
@@ -51,15 +54,31 @@ class QCamera3Memory {
 public:
     int cleanCache(uint32_t index)
     {
+#ifndef TARGET_ION_ABI_VERSION
         return cacheOps(index, ION_IOC_CLEAN_CACHES);
+#else //TARGET_ION_ABI_VERSION
+        (void)index;
+        return NO_ERROR;
+#endif //TARGET_ION_ABI_VERSION
+
     }
     int invalidateCache(uint32_t index)
     {
+#ifndef TARGET_ION_ABI_VERSION
         return cacheOps(index, ION_IOC_INV_CACHES);
+#else //TARGET_ION_ABI_VERSION
+        (void)index;
+        return NO_ERROR;
+#endif //TARGET_ION_ABI_VERSION
     }
     int cleanInvalidateCache(uint32_t index)
     {
+#ifndef TARGET_ION_ABI_VERSION
         return cacheOps(index, ION_IOC_CLEAN_INV_CACHES);
+#else //TARGET_ION_ABI_VERSION
+        (void)index;
+        return NO_ERROR;
+#endif //TARGET_ION_ABI_VERSION
     }
     int getFd(uint32_t index);
     ssize_t getSize(uint32_t index);

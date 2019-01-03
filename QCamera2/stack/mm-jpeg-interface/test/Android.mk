@@ -30,7 +30,12 @@ LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
 
 OMX_CORE_DIR := $(MM_JPEG_TEST_PATH)/../../../../mm-image-codec
 
-LOCAL_C_INCLUDES := $(MM_JPEG_TEST_PATH)
+ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
+LOCAL_C_INCLUDES := \
+    $(TOP)/system/core/libion/include \
+    $(TOP)/system/core/libion/kernel-headers
+endif
+LOCAL_C_INCLUDES += $(MM_JPEG_TEST_PATH)
 LOCAL_C_INCLUDES += $(MM_JPEG_TEST_PATH)/../inc
 LOCAL_C_INCLUDES += $(MM_JPEG_TEST_PATH)/../../common
 LOCAL_C_INCLUDES += $(MM_JPEG_TEST_PATH)/../../mm-camera-interface/inc
@@ -49,7 +54,9 @@ LOCAL_VENDOR_MODULE := true
 include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libcutils libdl liblog libmmjpeg_interface
-
+ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
+LOCAL_SHARED_LIBRARIES += libion
+endif
 include $(BUILD_EXECUTABLE)
 
 
@@ -74,7 +81,12 @@ LOCAL_CFLAGS += -DSYSTEM_HEADER_PREFIX=sys
 
 OMX_CORE_DIR := $(MM_JPEG_TEST_PATH)/../../../../mm-image-codec
 
-LOCAL_C_INCLUDES := $(MM_JPEG_TEST_PATH)
+ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
+LOCAL_C_INCLUDES := \
+    $(TOP)/system/core/libion/include \
+    $(TOP)/system/core/libion/kernel-headers
+endif
+LOCAL_C_INCLUDES += $(MM_JPEG_TEST_PATH)
 LOCAL_C_INCLUDES += $(MM_JPEG_TEST_PATH)/../inc
 LOCAL_C_INCLUDES += $(MM_JPEG_TEST_PATH)/../../common
 LOCAL_C_INCLUDES += $(MM_JPEG_TEST_PATH)/../../mm-camera-interface/inc
@@ -93,6 +105,9 @@ LOCAL_VENDOR_MODULE := true
 include $(SDCLANG_COMMON_DEFS)
 LOCAL_PRELINK_MODULE   := false
 LOCAL_SHARED_LIBRARIES := libcutils libdl liblog libmmjpeg_interface
+ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
+LOCAL_SHARED_LIBRARIES += libion
+endif
 
 include $(BUILD_EXECUTABLE)
 

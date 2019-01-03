@@ -112,14 +112,24 @@ native_handle_t *QCameraHAL3Test::allocateBuffers(int width, int height,
     alloc.align = 4096;
     alloc.flags = ION_FLAG_CACHED;
     alloc.heap_id_mask = ION_HEAP(ION_SYSTEM_HEAP_ID);
+#ifndef TARGET_ION_ABI_VERSION
     rc = ioctl(main_ion_fd, ION_IOC_ALLOC, &alloc);
+#else
+    rc = ion_alloc(main_ion_fd, alloc.len, alloc.align, alloc.heap_id_mask,
+              alloc.flags, (ion_user_handle_t *)&alloc.handle);
+#endif //TARGET_ION_ABI_VERSION
     if (rc < 0) {
         LOGE("ION allocation failed %s with rc = %d \n", strerror(errno), rc);
         return NULL;
     }
     memset(&ion_info_fd, 0, sizeof(ion_info_fd));
     ion_info_fd.handle = alloc.handle;
+#ifndef TARGET_ION_ABI_VERSION
     rc = ioctl(main_ion_fd, ION_IOC_SHARE, &ion_info_fd);
+#else
+    rc = ion_share(main_ion_fd, (ion_user_handle_t )ion_info_fd.handle,
+                   &ion_info_fd.fd);
+#endif //TARGET_ION_ABI_VERSION
     if (rc < 0) {
         LOGE("ION map failed %s\n", strerror(errno));
         return NULL;
