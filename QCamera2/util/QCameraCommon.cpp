@@ -308,6 +308,31 @@ bool QCameraCommon::isVideoUBWCEnabled()
 }
 
 /*===========================================================================
+ * FUNCTION   : needHAL1Support
+ *
+ * DESCRIPTION: Function to check whether HAL1 is supported or not.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : TRUE -- HAL1/HAL3 supported target.
+ *              FALSE -- Only HAL3 supported target.
+ *==========================================================================*/
+
+bool QCameraCommon::needHAL1Support()
+{
+#ifndef HAS_LOW_RAM
+    // QM215 non-GO supports only HAL3
+    if (is_target_QM215()) {
+        LOGI("ONLY HAL3 SUPPORTED");
+        return FALSE;
+    }
+#endif
+    // HAL1/HAL3 is supported
+    LOGI("HAL1/HAL3 IS SUPPORTED");
+    return TRUE;
+}
+
+/*===========================================================================
  * FUNCTION   : is_target_SDM450
  *
  * DESCRIPTION: Function to check whether target is sdm630 or not.
