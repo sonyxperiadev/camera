@@ -29,6 +29,7 @@
 
 // Camera dependencies
 #include "QCamera2Factory.h"
+#include "util/QCameraCommon.h"
 #include "HAL3/QCamera3VendorTags.h"
 #include "util/QCameraCommon.h"
 

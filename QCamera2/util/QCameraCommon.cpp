@@ -317,19 +317,16 @@ bool QCameraCommon::isVideoUBWCEnabled()
  * RETURN     : TRUE -- HAL1/HAL3 supported target.
  *              FALSE -- Only HAL3 supported target.
  *==========================================================================*/
-
 bool QCameraCommon::needHAL1Support()
 {
-#ifndef HAS_LOW_RAM
-    // QM215 non-GO supports only HAL3
-    if (is_target_QM215()) {
+#ifdef SUPPORT_ONLY_HAL3
         LOGI("ONLY HAL3 SUPPORTED");
         return FALSE;
-    }
-#endif
+#else
     // HAL1/HAL3 is supported
     LOGI("HAL1/HAL3 IS SUPPORTED");
     return TRUE;
+#endif
 }
 
 /*===========================================================================
