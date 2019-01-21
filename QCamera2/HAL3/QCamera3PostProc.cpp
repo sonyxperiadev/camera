@@ -2903,6 +2903,32 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                 pme->m_inputMetaQ.flush();
                 pme->m_jpegSettingsQ.flush();
 
+                while(pme->mReprocessNode.size())
+                {
+                    List<ReprocessBuffer>::iterator reprocData;
+                    reprocData = pme->mReprocessNode.begin();
+                    qcamera_hal3_pp_buffer_t *pp_buffer = reprocData->reprocBuf;
+                    qcamera_hal3_meta_pp_buffer_t *meta_pp_buffer = reprocData->metaBuffer;
+
+                    pme->mReprocessNode.erase(pme->mReprocessNode.begin());
+                    // free frame
+                    if (pp_buffer != NULL) {
+                        if (pp_buffer->input) {
+                            pme->releaseSuperBuf(pp_buffer->input);
+                            free(pp_buffer->input);
+                        }
+                        free(pp_buffer);
+                    }
+                    //free metadata
+                    if (NULL != meta_pp_buffer) {
+                        if(NULL != meta_pp_buffer->metabuf)
+                        {
+                            pme->m_parent->metadataBufDone(meta_pp_buffer->metabuf);
+                            free(meta_pp_buffer->metabuf);
+                        }
+                        free(meta_pp_buffer);
+                    }
+                }
                 // signal cmd is completed
                 cam_sem_post(&cmdThread->sync_sem);
                 pthread_mutex_lock(&pme->mHDRJobLock);
