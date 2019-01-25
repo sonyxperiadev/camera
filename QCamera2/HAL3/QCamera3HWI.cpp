@@ -13681,13 +13681,7 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
 
 
     info->orientation = (int)gCamCapability[cameraId]->sensor_mount_angle;
-#ifdef USE_HAL_3_5
-    info->device_version = CAMERA_DEVICE_API_VERSION_3_5;
-#elif USE_HAL_3_3
-    info->device_version = CAMERA_DEVICE_API_VERSION_3_4;
-#else
-    info->device_version = CAMERA_DEVICE_API_VERSION_3_3;
-#endif
+    getDeviceVersion(&info->device_version);
     info->static_camera_characteristics = gStaticMetadata[cameraId];
 
     //For now assume both cameras can operate independently.
@@ -13714,6 +13708,23 @@ int QCamera3HardwareInterface::getCamInfo(uint32_t cameraId,
     pthread_mutex_unlock(&gCamLock);
     return rc;
 }
+
+
+int QCamera3HardwareInterface::getDeviceVersion(uint32_t *version)
+{
+    if (version == NULL) {
+        return BAD_VALUE;
+    }
+
+#ifndef USE_HAL_3_3
+        *version = CAMERA_DEVICE_API_VERSION_3_4;
+#else
+        *version = CAMERA_DEVICE_API_VERSION_3_3;
+#endif
+    LOGI("HAL device version 0x%x", *version);
+    return NO_ERROR;
+}
+
 
 /*===========================================================================
  * FUNCTION   : translateCapabilityToMetadata
@@ -16693,6 +16704,72 @@ void QCamera3HardwareInterface::getFlashInfo(const int cameraId,
     }
 }
 
+void QCamera3HardwareInterface::getFlashInfo(
+        bool& hasFlash,
+        char (&flashNode)[QCAMERA_MAX_FILEPATH_LENGTH]) {
+
+    struct    media_device_info mdev_info;
+    int32_t   num_media_devices = 0;
+    int32_t   rc = 0, dev_fd = 0;
+    char      dev_name[32];
+
+    while (1) {
+      uint32_t num_entities = 0, subdev_type = 0;
+
+      snprintf(dev_name, sizeof(dev_name), "/dev/media%d", num_media_devices);
+      dev_fd = open(dev_name, O_RDWR | O_NONBLOCK);
+      LOGD("Opened Device %s dev_fd %d",dev_name,dev_fd);
+      if (dev_fd < 0) {
+        LOGE("Done enumerating media devices");
+        break;
+      }
+      num_media_devices++;
+      //get the dev info
+      rc = ioctl(dev_fd, MEDIA_IOC_DEVICE_INFO, &mdev_info);
+      if (rc < 0) {
+        LOGE("Error: ioctl media_dev failed: %s", strerror(errno));
+        close(dev_fd);
+        break;
+      }
+
+      if (strncmp(mdev_info.model, "msm_config", sizeof(mdev_info.model)) != 0) {
+        close(dev_fd);
+        continue;
+      }
+
+      while (1) {
+        struct media_entity_desc entity;
+        memset(&entity, 0, sizeof(entity));
+        entity.id = num_entities | MEDIA_ENT_ID_FLAG_NEXT;
+        LOGD("entity id %x", entity.id);
+        rc = ioctl(dev_fd, MEDIA_IOC_ENUM_ENTITIES, &entity, "enum_entities");
+        if (rc < 0) {
+          LOGD("Done enumerating media entities");
+          rc = 0;
+          break;
+        }
+        num_entities = entity.id;
+        LOGD("entity name %s type %x:%x group id %x:%x",
+          entity.name, entity.type, MEDIA_ENT_T_V4L2_SUBDEV,
+          entity.group_id, MSM_CAMERA_SUBDEV_FLASH);
+
+        #ifndef USE_4_9_DEFS
+          subdev_type = entity.group_id;
+        #else
+          subdev_type = entity.type;
+        #endif
+
+        if (mm_camera_util_match_subdev_type(entity, MSM_CAMERA_SUBDEV_FLASH,
+          MEDIA_ENT_T_V4L2_SUBDEV)) {
+          hasFlash = true;
+          snprintf(flashNode, sizeof(flashNode), "%s", entity.name);
+          LOGD("found flash device %s",flashNode);
+          break;
+        }
+      }
+      close(dev_fd);
+    }
+}
 /*===========================================================================
 * FUNCTION   : getEepromVersionInfo
 *

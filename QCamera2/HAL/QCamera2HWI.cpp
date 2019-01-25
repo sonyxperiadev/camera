@@ -2002,17 +2002,17 @@ int QCamera2HardwareInterface::openCamera()
     } else {
         LOGH("Capabilities not inited, initializing now.");
 
+        if(NO_ERROR != initCapabilities(mCameraId,mCameraHandle)) {
+            LOGE("initCapabilities failed.");
+            rc = UNKNOWN_ERROR;
+            goto error_exit3;
+        }
+
         rc = camera_open((uint8_t)mCameraId, &mCameraHandle);
         if (rc) {
             LOGE("camera_open failed. rc = %d, mCameraHandle = %p",
                      rc, mCameraHandle);
             goto error_exit2;
-        }
-
-        if(NO_ERROR != initCapabilities(mCameraId,mCameraHandle)) {
-            LOGE("initCapabilities failed.");
-            rc = UNKNOWN_ERROR;
-            goto error_exit3;
         }
 
         mCameraHandle->ops->register_event_notify(mCameraHandle->camera_handle,
