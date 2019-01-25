@@ -100,7 +100,12 @@ native_handle_t *QCameraHAL3Test::allocateBuffers(int width, int height,
     int main_ion_fd = -1, rc;
     size_t buf_size;
     native_handle_t *nh_test;
+#ifndef TARGET_ION_ABI_VERSION
     main_ion_fd = open("/dev/ion", O_RDONLY);
+#else
+    main_ion_fd = ion_open();
+#endif //TARGET_ION_ABI_VERSION
+    memset(&ion_info_fd, 0, sizeof(ion_info_fd));
     if (main_ion_fd <= 0) {
         LOGE("Ion dev open failed %s\n", strerror(errno));
         return NULL;
@@ -110,25 +115,23 @@ native_handle_t *QCameraHAL3Test::allocateBuffers(int width, int height,
     alloc.len = (size_t)(buf_size);
     alloc.len = (alloc.len + 4095U) & (~4095U);
     alloc.align = 4096;
-    alloc.flags = ION_FLAG_CACHED;
     alloc.heap_id_mask = ION_HEAP(ION_SYSTEM_HEAP_ID);
 #ifndef TARGET_ION_ABI_VERSION
+    alloc.flags = ION_FLAG_CACHED;
     rc = ioctl(main_ion_fd, ION_IOC_ALLOC, &alloc);
 #else
-    rc = ion_alloc(main_ion_fd, alloc.len, alloc.align, alloc.heap_id_mask,
-              alloc.flags, (ion_user_handle_t *)&alloc.handle);
+    rc = ion_alloc_fd(main_ion_fd, alloc.len, alloc.align, alloc.heap_id_mask,
+              alloc.flags, &ion_info_fd.fd);
 #endif //TARGET_ION_ABI_VERSION
     if (rc < 0) {
         LOGE("ION allocation failed %s with rc = %d \n", strerror(errno), rc);
         return NULL;
     }
-    memset(&ion_info_fd, 0, sizeof(ion_info_fd));
-    ion_info_fd.handle = alloc.handle;
 #ifndef TARGET_ION_ABI_VERSION
+    ion_info_fd.handle = alloc.handle;
     rc = ioctl(main_ion_fd, ION_IOC_SHARE, &ion_info_fd);
 #else
-    rc = ion_share(main_ion_fd, (ion_user_handle_t )ion_info_fd.handle,
-                   &ion_info_fd.fd);
+    ion_info_fd.handle = ion_info_fd.fd;
 #endif //TARGET_ION_ABI_VERSION
     if (rc < 0) {
         LOGE("ION map failed %s\n", strerror(errno));

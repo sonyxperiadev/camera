@@ -60,7 +60,7 @@ LOCAL_CFLAGS += -include bionic/libc/kernel/common/linux/un.h
 endif
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
-ifeq ($(SOMC_KERNEL_VERSION), 4.9)
+ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
 LOCAL_CFLAGS += -DUSE_4_9_DEFS
 endif
 
