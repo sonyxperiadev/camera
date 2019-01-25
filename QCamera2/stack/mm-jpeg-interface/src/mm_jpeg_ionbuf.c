@@ -56,12 +56,12 @@ void *buffer_allocate(buffer_t *p_buffer, int cached)
   void *l_buffer = NULL;
 
   int lrc = 0;
-  struct ion_handle_data lhandle_data;
 
    p_buffer->alloc.len = p_buffer->size;
    p_buffer->alloc.align = 4096;
-   p_buffer->alloc.flags = (cached) ? ION_FLAG_CACHED : 0;
 #ifndef TARGET_ION_ABI_VERSION
+   p_buffer->alloc.flags = (cached) ? ION_FLAG_CACHED : 0;
+  struct ion_handle_data lhandle_data;
    p_buffer->alloc.heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
 #else
    p_buffer->alloc.heap_id_mask = 0x1 << ION_SYSTEM_HEAP_ID;
@@ -82,9 +82,9 @@ void *buffer_allocate(buffer_t *p_buffer, int cached)
 #ifndef TARGET_ION_ABI_VERSION
   lrc = ioctl(p_buffer->ion_fd, ION_IOC_ALLOC, &p_buffer->alloc);
 #else
-  lrc = ion_alloc(p_buffer->ion_fd, p_buffer->alloc.len, p_buffer->alloc.align,
+  lrc = ion_alloc_fd(p_buffer->ion_fd, p_buffer->alloc.len, p_buffer->alloc.align,
                  p_buffer->alloc.heap_id_mask, p_buffer->alloc.flags,
-                 (ion_user_handle_t *)&p_buffer->alloc.handle);
+                 &p_buffer->ion_info_fd.fd);
 #endif //TARGET_ION_ABI_VERSION
   if (lrc < 0) {
     LOGE("ION allocation failed len %zu",
@@ -96,14 +96,13 @@ void *buffer_allocate(buffer_t *p_buffer, int cached)
 #ifndef TARGET_ION_ABI_VERSION
   lrc = ioctl(p_buffer->ion_fd, ION_IOC_SHARE,
     &p_buffer->ion_info_fd);
-#else
-   lrc = ion_share(p_buffer->ion_fd, (ion_user_handle_t )p_buffer->ion_info_fd.handle,
-                   &p_buffer->ion_info_fd.fd);
-#endif //TARGET_ION_ABI_VERSION
   if (lrc < 0) {
     LOGE("ION map failed %s", strerror(errno));
     goto ION_MAP_FAILED;
   }
+#else
+  p_buffer->ion_info_fd.handle = p_buffer->ion_info_fd.fd;
+#endif //TARGET_ION_ABI_VERSION
 
   p_buffer->p_pmem_fd = p_buffer->ion_info_fd.fd;
 
@@ -115,18 +114,28 @@ void *buffer_allocate(buffer_t *p_buffer, int cached)
       strerror(errno), errno);
     goto ION_MAP_FAILED;
   }
+#ifdef TARGET_ION_ABI_VERSION
+  struct dma_buf_sync buf_sync;
+  buf_sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW;
+    int rc = ioctl(p_buffer->p_pmem_fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
+    if (rc) {
+        LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
+    }
+#endif //TARGET_ION_ABI_VERSION
 
   return l_buffer;
 
 ION_MAP_FAILED:
-  lhandle_data.handle = p_buffer->ion_info_fd.handle;
 #ifndef TARGET_ION_ABI_VERSION
+  lhandle_data.handle = p_buffer->ion_info_fd.handle;
   ioctl(p_buffer->ion_fd, ION_IOC_FREE, &lhandle_data);
 #else
-  ion_free(p_buffer->ion_fd, lhandle_data.handle);
+  close(p_buffer->ion_info_fd.fd);
+  ion_close(p_buffer->ion_fd);
 #endif //TARGET_ION_ABI_VERSION
   return NULL;
 ION_ALLOC_FAILED:
+  ion_close(p_buffer->ion_fd);
   return NULL;
 
 }
@@ -149,6 +158,15 @@ int buffer_deallocate(buffer_t *p_buffer)
   size_t lsize = (p_buffer->size + 4095U) & (~4095U);
 
   struct ion_handle_data lhandle_data;
+#ifdef TARGET_ION_ABI_VERSION
+  struct dma_buf_sync buf_sync;
+  buf_sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW;
+    int rc = ioctl(p_buffer->ion_info_fd.fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
+    if (rc) {
+        LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
+    }
+#endif //TARGET_ION_ABI_VERSION
+
   lrc = munmap(p_buffer->addr, lsize);
 
   close(p_buffer->ion_info_fd.fd);
@@ -158,7 +176,7 @@ int buffer_deallocate(buffer_t *p_buffer)
   ioctl(p_buffer->ion_fd, ION_IOC_FREE, &lhandle_data);
   close(p_buffer->ion_fd);
 #else
-  ion_free(p_buffer->ion_fd, lhandle_data.handle);
+  close(lhandle_data.handle);
   ion_close(p_buffer->ion_fd);
 #endif //TARGET_ION_ABI_VERSION
 

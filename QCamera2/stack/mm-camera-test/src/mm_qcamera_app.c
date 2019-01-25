@@ -122,48 +122,51 @@ int mm_app_allocate_ion_memory(mm_camera_app_buf_t *buf,
         __unused unsigned int ion_type)
 {
     int rc = MM_CAMERA_OK;
-    struct ion_handle_data handle_data;
     struct ion_allocation_data alloc;
     struct ion_fd_data ion_info_fd;
     int main_ion_fd = -1;
     void *data = NULL;
 
+#ifndef TARGET_ION_ABI_VERSION
+    struct ion_handle_data handle_data;
     main_ion_fd = open("/dev/ion", O_RDONLY);
+#else
+    main_ion_fd = ion_open();
+#endif //TARGET_ION_ABI_VERSION
     if (main_ion_fd <= 0) {
         LOGE("Ion dev open failed %s\n", strerror(errno));
         goto ION_OPEN_FAILED;
     }
 
+    memset(&ion_info_fd, 0, sizeof(ion_info_fd));
     memset(&alloc, 0, sizeof(alloc));
     alloc.len = buf->mem_info.size;
     /* to make it page size aligned */
     alloc.len = (alloc.len + 4095U) & (~4095U);
     alloc.align = 4096;
-    alloc.flags = ION_FLAG_CACHED;
     alloc.heap_id_mask = ION_HEAP(ION_SYSTEM_HEAP_ID);
 #ifndef TARGET_ION_ABI_VERSION
+    alloc.flags = ION_FLAG_CACHED;
     rc = ioctl(main_ion_fd, ION_IOC_ALLOC, &alloc);
 #else
-    rc = ion_alloc(main_ion_fd, alloc.len, alloc.align, alloc.heap_id_mask,
-              alloc.flags, (ion_user_handle_t *)&alloc.handle);
+    rc = ion_alloc_fd(main_ion_fd, alloc.len, alloc.align, alloc.heap_id_mask,
+              alloc.flags, &ion_info_fd.fd);
 #endif //TARGET_ION_ABI_VERSION
     if (rc < 0) {
         LOGE("ION allocation failed %s with rc = %d \n",strerror(errno), rc);
         goto ION_ALLOC_FAILED;
     }
 
-    memset(&ion_info_fd, 0, sizeof(ion_info_fd));
-    ion_info_fd.handle = alloc.handle;
 #ifndef TARGET_ION_ABI_VERSION
+    ion_info_fd.handle = alloc.handle;
     rc = ioctl(main_ion_fd, ION_IOC_SHARE, &ion_info_fd);
-#else
-    rc = ion_share(main_ion_fd, (ion_user_handle_t )ion_info_fd.handle,
-                   &ion_info_fd.fd);
-#endif //TARGET_ION_ABI_VERSION
     if (rc < 0) {
         LOGE("ION map failed %s\n", strerror(errno));
         goto ION_MAP_FAILED;
     }
+#else
+    ion_info_fd.handle = ion_info_fd.fd;
+#endif //TARGET_ION_ABI_VERSION
 
     data = mmap(NULL,
                 alloc.len,
@@ -176,6 +179,16 @@ int mm_app_allocate_ion_memory(mm_camera_app_buf_t *buf,
         LOGE("ION_MMAP_FAILED: %s (%d)\n", strerror(errno), errno);
         goto ION_MAP_FAILED;
     }
+
+#ifdef TARGET_ION_ABI_VERSION
+    struct dma_buf_sync buf_sync;
+    buf_sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW;
+    rc = ioctl(ion_info_fd.fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
+    if (rc) {
+        LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
+    }
+#endif //TARGET_ION_ABI_VERSION
+
     buf->mem_info.main_ion_fd = main_ion_fd;
     buf->mem_info.fd = ion_info_fd.fd;
     buf->mem_info.handle = ion_info_fd.handle;
@@ -184,12 +197,10 @@ int mm_app_allocate_ion_memory(mm_camera_app_buf_t *buf,
     return MM_CAMERA_OK;
 
 ION_MAP_FAILED:
+#ifndef TARGET_ION_ABI_VERSION
     memset(&handle_data, 0, sizeof(handle_data));
     handle_data.handle = ion_info_fd.handle;
-#ifndef TARGET_ION_ABI_VERSION
     ioctl(main_ion_fd, ION_IOC_FREE, &handle_data);
-#else
-    ion_free(main_ion_fd, handle_data.handle);
 #endif //TARGET_ION_ABI_VERSION
 ION_ALLOC_FAILED:
 #ifndef TARGET_ION_ABI_VERSION
@@ -205,6 +216,14 @@ int mm_app_deallocate_ion_memory(mm_camera_app_buf_t *buf)
 {
   struct ion_handle_data handle_data;
   int rc = 0;
+#ifdef TARGET_ION_ABI_VERSION
+    struct dma_buf_sync buf_sync;
+    buf_sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW;
+    rc = ioctl(buf->mem_info.fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
+    if (rc) {
+        LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
+    }
+#endif //TARGET_ION_ABI_VERSION
 
   rc = munmap(buf->mem_info.data, buf->mem_info.size);
 
@@ -220,7 +239,7 @@ int mm_app_deallocate_ion_memory(mm_camera_app_buf_t *buf)
       ioctl(buf->mem_info.main_ion_fd, ION_IOC_FREE, &handle_data);
       close(buf->mem_info.main_ion_fd);
 #else
-        ion_free(buf->mem_info.main_ion_fd, handle_data.handle);
+        close(handle_data.handle);
         ion_close(buf->mem_info.main_ion_fd);
 #endif  // TARGET_ION_ABI_VERSION
       buf->mem_info.main_ion_fd = -1;

@@ -35,6 +35,7 @@
 #include <linux/msm_ion.h>
 #if TARGET_ION_ABI_VERSION >= 2
 #include <ion/ion.h>
+#include <linux/dma-buf.h>
 #endif //TARGET_ION_ABI_VERSION
 
 #include <linux/msm_mdp.h>
