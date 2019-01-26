@@ -135,7 +135,13 @@ ION_MAP_FAILED:
 #endif //TARGET_ION_ABI_VERSION
   return NULL;
 ION_ALLOC_FAILED:
+if (p_buffer->ion_fd > 0) {
+#ifndef TARGET_ION_ABI_VERSION
+  close(p_buffer->ion_fd);
+#else
   ion_close(p_buffer->ion_fd);
+#endif //TARGET_ION_ABI_VERSION
+}
   return NULL;
 
 }
