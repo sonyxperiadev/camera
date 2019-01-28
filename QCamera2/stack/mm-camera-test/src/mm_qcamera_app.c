@@ -201,6 +201,8 @@ ION_MAP_FAILED:
     memset(&handle_data, 0, sizeof(handle_data));
     handle_data.handle = ion_info_fd.handle;
     ioctl(main_ion_fd, ION_IOC_FREE, &handle_data);
+#else
+    close(ion_info_fd.fd);
 #endif //TARGET_ION_ABI_VERSION
 ION_ALLOC_FAILED:
 #ifndef TARGET_ION_ABI_VERSION

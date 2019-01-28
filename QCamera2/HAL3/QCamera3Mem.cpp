@@ -347,6 +347,7 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
     }
 
 #ifndef TARGET_ION_ABI_VERSION
+    ion_info_fd.handle = allocData.handle;
     rc = ioctl(main_ion_fd, ION_IOC_SHARE, &ion_info_fd);
 #else
     ion_info_fd.handle = ion_info_fd.fd;
@@ -911,7 +912,11 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     mMemInfo[idx].size =
             ( /* FIXME: Should update ION interface */ size_t)
             mPrivateHandle[idx]->size;
+#ifndef TARGET_ION_ABI_VERSION
+    mMemInfo[idx].handle = ion_info_fd.handle;
+#else
     mMemInfo[idx].handle = ion_info_fd.fd;
+#endif //TARGET_ION_ABI_VERSION
 
     vaddr = mmap(NULL,
             mMemInfo[idx].size,
