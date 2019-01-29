@@ -11588,7 +11588,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
             fwk_focusMode =
                     frame_settings.find(ANDROID_CONTROL_AF_MODE).data.u8[0];
             if (fwk_focusMode != ANDROID_CONTROL_AF_MODE_OFF)
-                use_tof = cash_is_tof_in_range();
+                use_tof = ((cash_is_tof_in_range() > 0) ? true : false);
             else
                 use_tof = false;
             ALOGI("ToF: use_tof = %d", use_tof);
