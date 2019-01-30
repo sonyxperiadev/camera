@@ -156,6 +156,7 @@ protected:
                       uint32_t batchSize = 0);
 
     int32_t allocateStreamInfoBuf(camera3_stream_t *stream);
+    bool isSecureMode() {return m_bIsSecureMode;}
 
     uint32_t m_camHandle;
     mm_camera_ops_t *m_camOps;
@@ -186,6 +187,7 @@ protected:
     uint32_t mDumpSkipCnt;
     uint32_t mMasterCam;
     bool m_bDualChannel;
+    bool m_bIsSecureMode;
 };
 
 /* QCamera3ProcessingChannel is used to handle all streams that are directly

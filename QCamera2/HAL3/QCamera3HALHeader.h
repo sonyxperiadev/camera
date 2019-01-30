@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -46,6 +46,9 @@ namespace qcamera {
 
 #define IS_USAGE_ZSL(usage)  (((usage) & (GRALLOC_USAGE_HW_CAMERA_ZSL)) \
         == (GRALLOC_USAGE_HW_CAMERA_ZSL))
+
+#define IS_USAGE_SECURE(usage) (((usage) & (GRALLOC_USAGE_PROTECTED)) \
+        == (GRALLOC_USAGE_PROTECTED))
 
 class QCamera3Channel;
 class QCamera3ProcessingChannel;
