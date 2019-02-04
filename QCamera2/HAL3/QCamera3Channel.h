@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -133,7 +133,7 @@ public:
     bool isUBWCEnabled();
     void setUBWCEnabled(bool val);
     cam_format_t getStreamDefaultFormat(cam_stream_type_t type,
-            uint32_t width, uint32_t height);
+            uint32_t width, uint32_t height, uint32_t usage = 0);
     virtual int32_t timeoutFrame(__unused uint32_t frameNumber) = 0;
     virtual void switchMaster(uint32_t masterCam);
     virtual void overridePPConfig(cam_feature_mask_t pp_mask);

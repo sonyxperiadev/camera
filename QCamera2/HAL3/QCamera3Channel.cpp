@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -688,7 +688,7 @@ void QCamera3Channel::setUBWCEnabled(bool val)
  *
  *==========================================================================*/
 cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
-        uint32_t width, uint32_t height)
+        uint32_t width, uint32_t height, __unused uint32_t usage)
 {
     cam_format_t streamFormat;
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
@@ -732,6 +732,13 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
         streamFormat = CAM_FORMAT_YUV_420_NV12;
 #endif
         }
+
+#if VIDEO_EXPLICIT_UBWC
+        bool isUBWCBitSet = (usage & GRALLOC_USAGE_PRIVATE_ALLOC_UBWC);
+        if (!isUBWCBitSet) {
+            streamFormat = CAM_FORMAT_YUV_420_NV12_VENUS;
+        }
+#endif
         break;
     }
     case CAM_STREAM_TYPE_SNAPSHOT:
@@ -767,6 +774,7 @@ cam_format_t QCamera3Channel::getStreamDefaultFormat(cam_stream_type_t type,
         streamFormat = CAM_FORMAT_YUV_420_NV21;
         break;
     }
+    LOGH("stream type %d, usage 0x%x stream format %d",type,usage,streamFormat);
     return streamFormat;
 }
 
@@ -1618,7 +1626,7 @@ int32_t QCamera3ProcessingChannel::translateStreamTypeAndFormat(camera3_stream_t
             if (stream->usage & GRALLOC_USAGE_HW_VIDEO_ENCODER) {
                 streamType = CAM_STREAM_TYPE_VIDEO;
                 streamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_VIDEO,
-                        stream->width, stream->height);
+                        stream->width, stream->height, stream->usage);
             } else if(stream->stream_type == CAMERA3_STREAM_INPUT ||
                     stream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL ||
                     IS_USAGE_ZSL(stream->usage)){

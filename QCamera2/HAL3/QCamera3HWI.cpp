@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -2860,7 +2860,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             if (channel != NULL && channel->isUBWCEnabled()) {
                 cam_format_t fmt = channel->getStreamDefaultFormat(
                         mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
-                        newStream->width, newStream->height);
+                        newStream->width, newStream->height, newStream->usage);
                 if(fmt == CAM_FORMAT_YUV_420_NV12_UBWC) {
                     newStream->usage |= GRALLOC_USAGE_PRIVATE_ALLOC_UBWC;
                 }

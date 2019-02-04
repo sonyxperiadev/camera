@@ -167,6 +167,7 @@ LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
 LOCAL_SHARED_LIBRARIES += libcutils libdl libhal_dbg
 ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
 LOCAL_SHARED_LIBRARIES += libion
+LOCAL_CFLAGS += -DVIDEO_EXPLICIT_UBWC
 endif
 ifeq ($(IS_QC_BOKEH_SUPPORTED),true)
 LOCAL_SHARED_LIBRARIES += libdualcameraddm
