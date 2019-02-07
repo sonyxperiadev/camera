@@ -96,6 +96,7 @@ class QCamera3ProcessingChannel;
         mm_jpeg_image_type_t encode_type;
         bool zsl_snapshot;
         uint32_t frame_number;
+        bool raw_mfc_snapshot;
     } jpeg_settings_t;
 
     typedef struct {
