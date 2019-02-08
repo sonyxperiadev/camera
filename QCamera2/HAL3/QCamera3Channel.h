@@ -673,6 +673,9 @@ public:
     int32_t releaseOfflineMemory(uint32_t resultFrameNumber);
     virtual void setDualChannelMode(bool bMode);
     bool isMpoEnabled() { return m_bMpoEnabled; }
+    void deleteChannel();
+    int32_t startChannel();
+    int32_t stopChannel();
 
 private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,

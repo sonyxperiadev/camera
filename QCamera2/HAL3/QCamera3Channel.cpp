@@ -4572,6 +4572,16 @@ int32_t QCamera3PicChannel::stop()
     return rc;
 }
 
+int32_t QCamera3PicChannel::stopChannel()
+{
+    return m_camOps->stop_channel(m_camHandle, m_handle);
+}
+
+int32_t QCamera3PicChannel::startChannel()
+{
+    return m_camOps->start_channel(m_camHandle, m_handle);
+}
+
 void QCamera3PicChannel::setDualChannelMode(bool bMode)
 {
     QCamera3Channel::setDualChannelMode(bMode);
@@ -5360,6 +5370,17 @@ int32_t QCamera3PicChannel::setBundleInfo(const cam_bundle_config_t &bundleInfo,
         }
     }
     return rc;
+}
+
+void QCamera3PicChannel::deleteChannel()
+{
+    destroy();
+
+    if (m_handle) {
+        m_camOps->delete_channel(m_camHandle, m_handle);
+        LOGD("deleting channel %d", m_handle);
+        m_handle = 0;
+    }
 }
 
 /*===========================================================================

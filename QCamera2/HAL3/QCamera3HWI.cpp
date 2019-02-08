@@ -426,6 +426,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mPerfLockMgr(),
       m_thermalAdapter(QCameraThermalAdapter::getInstance()),
       mChannelHandle(0),
+      mPicChannelHandle(0),
       mFirstConfiguration(true),
       mFlush(false),
       mFlushPerf(false),
@@ -487,7 +488,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mActiveCameras(CAM_TYPE_MAIN),
       mMasterCamera(CAM_TYPE_MAIN),
       mFallbackMode(CAM_NO_FALLBACK),
-      mLPMEnable(true)
+      mLPMEnable(true),
+      m_bStopPicChannel(false)
 {
     getLogLevel();
     m_halPPType = CAM_HAL_PP_TYPE_NONE;
@@ -689,6 +691,11 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         mCameraHandle->ops->stop_channel(mCameraHandle->camera_handle,
                 mChannelHandle);
         LOGD("stopping channel %d", mChannelHandle);
+    }
+    if (mPicChannelHandle) {
+        mPictureChannel->stopChannel();
+        mPictureChannel->deleteChannel();
+        mPicChannelHandle = 0;
     }
 
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
@@ -1987,6 +1994,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         (*it)->status = INVALID;
     }
 
+    if (mPicChannelHandle) {
+        mPictureChannel->stopChannel();
+        mPictureChannel->deleteChannel();
+        mPicChannelHandle = 0;
+    }
+
     if (mRawDumpChannel) {
         mRawDumpChannel->stop();
         delete mRawDumpChannel;
@@ -2800,11 +2813,23 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     break;
                 case HAL_PIXEL_FORMAT_BLOB:
                     if (newStream->data_space !=  HAL_DATASPACE_DEPTH) {
+                        uint32_t picHdl = mChannelHandle;
+                        if (m_bIsVideo) {
+                            mPicChannelHandle = mCameraHandle->ops->add_channel(
+                                    mCameraHandle->camera_handle, NULL, NULL, this);
+                            if (mPicChannelHandle == 0) {
+                                LOGE("add_channel failed");
+                                rc = -ENOMEM;
+                                pthread_mutex_unlock(&mMutex);
+                                return rc;
+                            }
+                            picHdl = mPicChannelHandle;
+                        }
                         // Max live snapshot inflight buffer is 1. This is to mitigate
                         // frame drop issues for video snapshot. The more buffers being
                         // allocated, the more frame drops there are.
                         mPictureChannel = new QCamera3PicChannel(
-                                mCameraHandle->camera_handle, mChannelHandle,
+                                mCameraHandle->camera_handle, picHdl,
                                 mCameraHandle->ops, captureResultCb,
                                 setBufferErrorStatus, &padding_info, this, newStream,
                                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
@@ -4336,6 +4361,9 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_HANDLE_BUF_LKD);
 
     if (buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) {
+        if (m_bIsVideo) {
+            m_bStopPicChannel = true;
+        }
         if (isDualCamera() && (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && needHALPP()) {
             mPerfLockMgr.releasePerfLock(PERF_LOCK_BOKEH_SNAPSHOT);
         } else {
@@ -5893,6 +5921,11 @@ no_error:
                                     request->input_buffer,
                                     frameNumber);
 
+    if (m_bStopPicChannel) {
+        mPictureChannel->stopChannel();
+        m_bStopPicChannel = false;
+    }
+
     if (isDualCamera()) {
         fov_control_result_t fovControlResult = m_pFovControl->getFovControlResult();
         if (fovControlResult.isValid) {
@@ -5919,6 +5952,9 @@ no_error:
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
             //FIXME??:Call function to store local copy of jpeg data for encode params.
             blob_request = 1;
+            if (m_bIsVideo && !m_bStopPicChannel) {
+                mPictureChannel->startChannel();
+            }
             snapshotStreamId = channel->getStreamID(channel->getStreamTypeMask());
         }
 
@@ -14293,6 +14329,10 @@ int32_t QCamera3HardwareInterface::stopAllChannels()
     if (mMetadataChannel) {
         /* If content of mStreamInfo is not 0, there is metadata stream */
         mMetadataChannel->stop();
+    }
+
+    if (mPicChannelHandle) {
+        mPictureChannel->stopChannel();
     }
 
     LOGD("All channels stopped");

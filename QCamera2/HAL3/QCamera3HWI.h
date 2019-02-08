@@ -497,7 +497,7 @@ private:
     QCameraPerfLockMgr mPerfLockMgr;
     QCameraThermalAdapter &m_thermalAdapter;
     uint32_t mChannelHandle;
-
+    uint32_t mPicChannelHandle;
     void saveExifParams(metadata_buffer_t *metadata);
     mm_jpeg_exif_params_t mExifParams;
 
@@ -741,6 +741,7 @@ private:
     bool mLPMEnable;
     cam_rtb_msg_type_t mRTBStatus;
     bool m_bIsSecureMode;
+    bool m_bStopPicChannel;
 };
 
 }; // namespace qcamera
