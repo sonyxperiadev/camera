@@ -379,7 +379,8 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
                             uint32_t batchSize,
                             hal3_stream_cb_routine stream_cb,
                             void *userdata,
-                            bool isSecureMode)
+                            bool isSecureMode,
+                            bool bNeedBundling)
 {
     int32_t rc = OK;
     ssize_t bufSize = BAD_INDEX;
@@ -439,6 +440,7 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
     if (isSecureMode) {
         mStreamInfo->secure_mode = (cam_stream_secure_mode_t)SECURE_MASTER;
     }
+    mStreamInfo->noFrameExpected = !bNeedBundling;
 
     if (mStreamInfo->aux_str_info != NULL) {
         mStreamInfo->aux_str_info->num_bufs = minNumBuffers;
@@ -446,6 +448,7 @@ int32_t QCamera3Stream::init(cam_stream_type_t streamType,
         mStreamInfo->aux_str_info->fmt = streamFormat;
         mStreamInfo->aux_str_info->dim = streamDim;
         mStreamInfo->aux_str_info->buf_cnt = minNumBuffers;
+        mStreamInfo->aux_str_info->noFrameExpected = !bNeedBundling;
 
         mStreamInfo->buf_cnt = minNumBuffers;
         mStreamInfo->num_bufs += mStreamInfo->aux_str_info->num_bufs;

@@ -174,7 +174,9 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
                                   uint8_t minStreamBufNum,
                                   cam_feature_mask_t postprocessMask,
                                   cam_is_type_t isType,
-                                  uint32_t batchSize)
+                                  uint32_t batchSize,
+                                  bool bNeedStreamCb,
+                                  bool bNeedBundling)
 {
     int32_t rc = NO_ERROR;
     bool isSecure = isSecureMode() && (streamType != CAM_STREAM_TYPE_METADATA);
@@ -200,9 +202,12 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
     }
     LOGD("batch size is %d", batchSize);
 
+    hal3_stream_cb_routine stream_cb =
+            bNeedStreamCb ? (hal3_stream_cb_routine)streamCbRoutine : NULL;
+
     rc = pStream->init(streamType, streamFormat, streamDim, streamRotation,
             NULL, minStreamBufNum, postprocessMask, isType, batchSize,
-            streamCbRoutine, this, isSecure);
+            stream_cb, this, isSecure, bNeedBundling);
     if (rc == 0) {
         mStreams[m_numStreams] = pStream;
         m_numStreams++;
@@ -1139,8 +1144,9 @@ int32_t QCamera3ProcessingChannel::request(buffer_handle_t *buffer,
         camera3_stream_buffer_t* pInputBuffer,
         metadata_buffer_t* metadata,
         int &indexUsed,
-        __unused bool internalRequest = false,
-        __unused bool meteringOnly = false)
+        __unused bool internalRequest,
+        __unused bool meteringOnly,
+        __unused bool isZSL)
 {
     int32_t rc = NO_ERROR;
     int index;
@@ -2446,8 +2452,10 @@ int32_t QCamera3MetadataChannel::initialize(cam_is_type_t isType)
     streamDim.height = 1;
 
     mIsType = isType;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    bool needBundledMeta = hal_obj->isHALZSLEnabled();
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_METADATA, CAM_FORMAT_MAX,
-            streamDim, ROTATE_0, (uint8_t)mNumBuffers, mPostProcMask, mIsType);
+            streamDim, ROTATE_0, (uint8_t)mNumBuffers, mPostProcMask, mIsType, 0, true, needBundledMeta);
     if (rc < 0) {
         LOGE("addStream failed");
     }
@@ -3457,8 +3465,9 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
         camera3_stream_buffer_t* pInputBuffer,
         metadata_buffer_t* metadata, bool &needMetadata,
         int &indexUsed,
-        __unused bool internalRequest = false,
-        __unused bool meteringOnly = false)
+        __unused bool internalRequest,
+        __unused bool meteringOnly,
+        __unused bool isZSL)
 {
     int32_t rc = NO_ERROR;
     Mutex::Autolock lock(mOfflinePpLock);
@@ -4099,8 +4108,12 @@ void QCamera3PicChannel::releaseSnapshotBuffer (mm_camera_super_buf_t*
     }
 
     if (0 <= snapshotIdx) {
-        Mutex::Autolock lock(mFreeBuffersLock);
-        mFreeBufferList.push_back((uint32_t)snapshotIdx);
+        if (mZSL) {
+            mStreams[0]->bufDone((uint32_t)snapshotIdx);
+        } else {
+            Mutex::Autolock lock(mFreeBuffersLock);
+            mFreeBufferList.push_back((uint32_t)snapshotIdx);
+        }
     }
 }
 
@@ -4363,8 +4376,14 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                 }
             }
             if (0 <= snapshotIdx) {
-                Mutex::Autolock lock(obj->mFreeBuffersLock);
-                obj->mFreeBufferList.push_back((uint32_t)snapshotIdx);
+                LOGD("Pushing snapshot buf idx %d to freebuf list", snapshotIdx);
+
+                if (obj->mZSL) {
+                    obj->mStreams[0]->bufDone(snapshotIdx);
+                } else {
+                    Mutex::Autolock lock(obj->mFreeBuffersLock);
+                    obj->mFreeBufferList.push_back((uint32_t)snapshotIdx);
+                }
             }
 
             if(isHDR || isMFCapture) {
@@ -4451,7 +4470,7 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                     __unused bool is4KVideo,
                     bool isInputStreamConfigured,
                     QCamera3Channel *metadataChannel,
-                    uint32_t numBuffers) :
+                    uint32_t numBuffers, bool isZSL, bool isLiveshot) :
                         QCamera3ProcessingChannel(cam_handle, channel_handle,
                                 cam_ops, cb_routine, cb_buf_err, paddingInfo, userData,
                                 stream, CAM_STREAM_TYPE_SNAPSHOT,
@@ -4472,21 +4491,25 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
     // Use same pixelformat for 4K video case
     mStreamFormat = getStreamDefaultFormat(CAM_STREAM_TYPE_SNAPSHOT,
             stream->width, stream->height);
+    mZSL = isZSL;
+    mLiveShot = isLiveshot;
+    LOGH("Configuring picchannel in %s mode", mZSL ? "ZSL" : "psuedo-ZSL");
     int32_t rc = m_postprocessor.initJpeg(jpegEvtHandle, mpoEvtHandle, &m_max_pic_dim, this);
     if (rc != 0) {
         LOGE("Init Postprocessor failed");
     }
+    mCompositeHandle = channel_handle;
     if (is_dual_camera_by_handle(cam_handle)
         && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))) {
             m_camHandle = get_main_camera_handle(cam_handle);
             m_handle = get_main_camera_handle(channel_handle);
             mAuxPicChannel = new QCamera3PicChannel(get_aux_camera_handle(cam_handle),
-                        get_aux_camera_handle(channel_handle), cam_ops,
-                        cb_routine, cb_buf_err,
-                        paddingInfo, userData,
-                        stream, postprocess_mask,
-                        is4KVideo, isInputStreamConfigured,
-                        metadataChannel, numBuffers);
+                        get_aux_camera_handle(channel_handle),
+                        cam_ops, cb_routine, cb_buf_err,
+                        paddingInfo, userData, stream,
+                        postprocess_mask, is4KVideo,
+                        isInputStreamConfigured,
+                        metadataChannel, numBuffers, isZSL, isLiveshot);
             setDualChannelMode(true);
     }
 }
@@ -4526,8 +4549,10 @@ int32_t QCamera3PicChannel::flush()
     Mutex::Autolock lock(mFreeBuffersLock);
     mFreeBufferList.clear();
 
-    for (uint32_t i = 0; i < mCamera3Stream->max_buffers; i++) {
-        mFreeBufferList.push_back(i);
+    if (!mZSL) {
+        for (uint32_t i = 0; i < mCamera3Stream->max_buffers; i++) {
+            mFreeBufferList.push_back(i);
+        }
     }
 
     {
@@ -4544,6 +4569,7 @@ int32_t QCamera3PicChannel::flush()
 
 QCamera3PicChannel::~QCamera3PicChannel()
 {
+    deleteChannel();
     if(0 < mJpegMemory.getCnt())
     {
         mJpegMemory.deallocate();
@@ -4559,7 +4585,16 @@ QCamera3PicChannel::~QCamera3PicChannel()
 int32_t QCamera3PicChannel::start()
 {
     int32_t rc = NO_ERROR;
+
+    if(m_bIsActive) {
+        LOGE("Attempt to start active channel");
+        return rc;
+    }
+
     QCamera3Channel::start();
+
+    startChannel();
+
     if (mAuxPicChannel) {
         rc = mAuxPicChannel->start();
     }
@@ -4569,7 +4604,16 @@ int32_t QCamera3PicChannel::start()
 int32_t QCamera3PicChannel::stop()
 {
     int32_t rc = NO_ERROR;
+
+    if(!m_bIsActive) {
+        LOGE("Attempt to stop inactive channel");
+        return rc;
+    }
+
     QCamera3ProcessingChannel::stop();
+
+    stopChannel();
+
     if (mAuxPicChannel) {
         rc = mAuxPicChannel->stop();
     }
@@ -4578,11 +4622,15 @@ int32_t QCamera3PicChannel::stop()
 
 int32_t QCamera3PicChannel::stopChannel()
 {
+    if (!mLiveShot) return NO_ERROR;
+    LOGD("QCamera3PicChannel::stopChannel");
     return m_camOps->stop_channel(m_camHandle, m_handle);
 }
 
 int32_t QCamera3PicChannel::startChannel()
 {
+    if (!mLiveShot) return NO_ERROR;
+    LOGD("QCamera3PicChannel::startChannel");
     return m_camOps->start_channel(m_camHandle, m_handle);
 }
 
@@ -4593,6 +4641,41 @@ void QCamera3PicChannel::setDualChannelMode(bool bMode)
     {
         mAuxPicChannel->setDualChannelMode(bMode);
     }
+}
+
+int32_t QCamera3PicChannel::addChannel()
+{
+    if (!mLiveShot) return NO_ERROR;
+    int32_t rc = NO_ERROR;
+    uint32_t handle = 0;
+
+    handle = m_camOps->add_channel(m_camHandle, NULL, NULL, this);
+
+    if(!m_bDualChannel || (mAuxPicChannel != NULL))
+    {
+        m_handle = get_main_camera_handle(handle);
+    } else {
+        m_handle = get_aux_camera_handle(handle);
+    }
+    if (m_handle == 0) {
+        LOGE("Add channel failed");
+        rc = UNKNOWN_ERROR;
+    }
+    return rc;
+}
+
+int32_t QCamera3PicChannel::deleteChannel()
+{
+    if (!mLiveShot) return NO_ERROR;
+    destroy();
+
+    int32_t rc = NO_ERROR;
+    if (m_handle) {
+        rc = m_camOps->delete_channel(m_camHandle, m_handle);
+        LOGD("deleting channel %d", m_handle);
+        m_handle = 0;
+    }
+    return rc;
 }
 
 int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
@@ -4618,6 +4701,8 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
     streamDim.width = (int32_t)mYuvWidth;
     streamDim.height = (int32_t)mYuvHeight;
 
+    addChannel();
+
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     if(m_bDualChannel)
     {
@@ -4632,7 +4717,7 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
     mNumSnapshotBufs = mCamera3Stream->max_buffers;
     rc = QCamera3Channel::addStream(streamType, streamFormat, streamDim,
             ROTATE_0, (uint8_t)mCamera3Stream->max_buffers, mPostProcMask,
-            mIsType);
+            mIsType, 0 , !mZSL, mZSL);
 
     if (NO_ERROR != rc) {
         LOGE("Initialize failed, rc = %d", rc);
@@ -4694,7 +4779,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         uint32_t frameNumber,
         camera3_stream_buffer_t *pInputBuffer,
         metadata_buffer_t *metadata, int &indexUsed,
-        bool internalRequest, bool meteringOnly)
+        bool internalRequest, bool meteringOnly, bool isZSL)
 {
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_PIC_CH_REQ);
     //FIX ME: Return buffer back in case of failures below.
@@ -4894,6 +4979,21 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
             }
             memcpy(super_buf, &(pChannel->raw_frame), sizeof(mm_camera_super_buf_t));
             m_postprocessor.processData(super_buf, NULL, frameNumber);
+        } else if ((pInputBuffer == NULL) &&  mZSL) {
+            {
+                Mutex::Autolock lock(mReqFrameListLock);
+                if (meteringOnly) {
+                    mReqFrameNumList.push_back(0xFFFFFFFF);
+                } else {
+                    mReqFrameNumList.push_back(frameNumber);
+                }
+            }
+            if (isZSL) {
+                requestZSLBuf();
+            } else {
+                requestZSLBuf(frameNumber);
+            }
+            indexUsed = CAM_FREERUN_IDX;
         } else if (pInputBuffer == NULL) {
             Mutex::Autolock lock(mFreeBuffersLock);
             uint32_t bufIdx;
@@ -4941,7 +5041,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
         int AuxIndexUsed = 0;
         rc = mAuxPicChannel->request(buffer, frameNumber,
                 pInputBuffer, metadata, AuxIndexUsed,
-                internalRequest, meteringOnly);
+                internalRequest, meteringOnly, isZSL);
         //Only mMasterCam indexUsed is required, slave is in freeRunIdx
         if((rc != -1) && (!bIsMaster))
         {
@@ -4953,6 +5053,25 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 }
 
 
+int32_t QCamera3PicChannel::requestZSLBuf(uint32_t frameNumber, uint32_t numBuf)
+{
+    uint32_t channel_handle = m_handle;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    if((hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && hal_obj->needHALPP()) {
+        if (!mAuxPicChannel) {
+            return NO_ERROR;
+        } else {
+            channel_handle = mCompositeHandle;
+        }
+    }
+
+    mm_camera_req_buf_t buf;
+    memset(&buf, 0x0, sizeof(buf));
+    buf.type = MM_CAMERA_REQ_SUPER_BUF;
+    buf.num_buf_requested = numBuf;
+    buf.frame_idx = frameNumber;
+    return m_camOps->request_super_buf(m_camHandle, channel_handle, &buf);
+}
 
 /*===========================================================================
  * FUNCTION   : dataNotifyCB
@@ -5004,8 +5123,12 @@ int32_t QCamera3PicChannel::releaseOfflineMemory(uint32_t resultFrameNumber)
 void QCamera3PicChannel::freeBufferForFrame(mm_camera_super_buf_t *frame)
 {
     Mutex::Autolock lock(mFreeBuffersLock);
-    LOGD(" Freeing the Buffer");
-    mFreeBufferList.push_back(frame->bufs[0]->buf_idx);
+    LOGD(" Freeing the Buffer %d", frame->bufs[0]->buf_idx);
+    if (mZSL) {
+        mStreams[0]->bufDone(frame->bufs[0]->buf_idx);
+    } else {
+        mFreeBufferList.push_back(frame->bufs[0]->buf_idx);
+    }
 }
 
 void QCamera3PicChannel::freeBufferForJpeg(int& index)
@@ -5064,7 +5187,11 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
     if ((uint32_t)mYuvMemory->getFrameNumber(frameIndex) == EMPTY_FRAMEWORK_FRAME_NUMBER) {
         LOGD("Internal Request recycle frame");
         Mutex::Autolock lock(mFreeBuffersLock);
-        mFreeBufferList.push_back(frameIndex);
+        if (mZSL) {
+            stream->bufDone(frameIndex);
+        } else {
+            mFreeBufferList.push_back(frameIndex);
+        }
         free(super_frame);
         return;
     }
@@ -5096,12 +5223,17 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
 
 QCamera3StreamMem* QCamera3PicChannel::getStreamBufs(uint32_t len)
 {
-    mYuvMemory = new QCamera3StreamMem(mCamera3Stream->max_buffers, false, isSecureMode());
+    bool queueBuffers = mZSL ? true : false;
+    mYuvMemory = new QCamera3StreamMem(mCamera3Stream->max_buffers, queueBuffers, isSecureMode());
     if (!mYuvMemory) {
         LOGE("unable to create metadata memory");
         return NULL;
     }
     mFrameLen = len;
+
+    if(mZSL) {
+        mYuvMemory->allocateAll(len);
+    }
 
     return mYuvMemory;
 }
@@ -5119,7 +5251,7 @@ void QCamera3PicChannel::putStreamBufs()
 }
 
 int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *metadata,
-                                                                 cam_hal3_JPEG_type_t imagetype)
+                                                  cam_hal3_JPEG_type_t imagetype)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     jpeg_settings_t *settings =
@@ -5226,6 +5358,9 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
         }
     }
 
+    if (mZSL) {
+        settings->zsl_snapshot = true;
+    }
     return m_postprocessor.processJpegSettingData(settings);
 }
 
@@ -5394,16 +5529,70 @@ int32_t QCamera3PicChannel::setBundleInfo(const cam_bundle_config_t &bundleInfo,
     return rc;
 }
 
-void QCamera3PicChannel::deleteChannel()
+void QCamera3PicChannel::ZSLChannelCb(mm_camera_super_buf_t *recvd_frame)
 {
-    destroy();
 
-    if (m_handle) {
-        m_camOps->delete_channel(m_camHandle, m_handle);
-        LOGD("deleting channel %d", m_handle);
-        m_handle = 0;
+    if(mAuxPicChannel) {
+        if (recvd_frame->ch_id == mAuxPicChannel->getMyHandle()) {
+            return mAuxPicChannel->ZSLChannelCb(recvd_frame);
+        }
+    }
+
+    LOGI("[KPI Perf]: superbuf frame_idx %d",
+            recvd_frame->bufs[0]->frame_idx);
+
+    uint32_t frameIndex;
+    uint32_t frameNum;
+    bool metaNeedPP = true;
+
+    {
+        Mutex::Autolock lock(mReqFrameListLock);
+        if (!mReqFrameNumList.empty()) {
+            List<uint32_t>::iterator it = mReqFrameNumList.begin();
+            frameNum = *it;
+            mReqFrameNumList.erase(it);
+            if (frameNum == 0xFFFFFFFF) metaNeedPP = false;
+            LOGH("Processing ZSL superbuf for frame_number %d", frameNum);
+        } else {
+            LOGE("Error ! Received zsl callback without corresponding request entry");
+            return;
+        }
+    }
+
+    for (uint32_t i = 0; i < recvd_frame->num_bufs; i++) {
+        if (recvd_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+            frameIndex = (uint8_t)recvd_frame->bufs[i]->buf_idx;
+            mm_camera_super_buf_t *snap_buf =
+                    (mm_camera_super_buf_t *) malloc(sizeof(mm_camera_super_buf_t));
+            *snap_buf = *recvd_frame;
+            snap_buf->num_bufs = 1;
+            snap_buf->bufs[0] = recvd_frame->bufs[i];
+
+            LOGD("Snapshot buf_idx %d", snap_buf->bufs[0]->buf_idx);
+            mYuvMemory->markFrameNumber(recvd_frame->bufs[i]->buf_idx, frameNum);
+            streamCbRoutine(snap_buf, mStreams[0]);
+        }
+
+        if (recvd_frame->bufs[i]->stream_type == CAM_STREAM_TYPE_METADATA) {
+            mm_camera_super_buf_t *meta_buf =
+                    (mm_camera_super_buf_t *) malloc(sizeof(mm_camera_super_buf_t));
+            *meta_buf = *recvd_frame;
+            meta_buf->num_bufs = 1;
+            meta_buf->ch_id = m_pMetaChannel->getMyHandle();
+            meta_buf->bufs[0] = recvd_frame->bufs[i];
+
+            metadata_buffer_t *metadata = (metadata_buffer_t *)meta_buf->bufs[0]->buffer;
+            uint32_t *p_frame_number = POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
+            if (p_frame_number) LOGD("meta frame_number : %d", *p_frame_number);
+            if (metaNeedPP) {
+                queueReprocMetadata(meta_buf, frameNum, false);
+            } else {
+                m_pMetaChannel->bufDone(meta_buf);
+            }
+        }
     }
 }
+
 
 /*===========================================================================
  * FUNCTION   : QCamera3ReprocessChannel

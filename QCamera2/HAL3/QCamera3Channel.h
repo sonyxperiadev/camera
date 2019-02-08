@@ -53,7 +53,7 @@ extern "C" {
 
 using namespace android;
 
-#define MIN_STREAMING_BUFFER_NUM 11
+#define MIN_STREAMING_BUFFER_NUM 18
 
 #define QCAMERA_DUMP_FRM_PREVIEW          1
 #define QCAMERA_DUMP_FRM_VIDEO            (1<<1)
@@ -110,7 +110,8 @@ public:
                 metadata_buffer_t* /*metadata*/,
                 int & /*indexUsed*/,
                 __unused bool internalRequest = false,
-                __unused bool meteringOnly = false){ return 0;};
+                __unused bool meteringOnly = false,
+                __unused bool isZSL = false){ return 0;};
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
                             QCamera3Stream *stream) = 0;
 
@@ -153,7 +154,9 @@ protected:
                       uint8_t minStreamBufnum,
                       cam_feature_mask_t postprocessMask,
                       cam_is_type_t isType,
-                      uint32_t batchSize = 0);
+                      uint32_t batchSize = 0,
+                      bool bNeedStreamCb = true,
+                      bool bNeedBundling = false);
 
     int32_t allocateStreamInfoBuf(camera3_stream_t *stream);
     bool isSecureMode() {return m_bIsSecureMode;}
@@ -217,7 +220,9 @@ public:
             uint32_t frameNumber,
             camera3_stream_buffer_t* pInputBuffer,
             metadata_buffer_t* metadata, int &indexUsed,
-            __unused bool internalRequest, __unused bool meteringOnly);
+            __unused bool internalRequest = false,
+            __unused bool meteringOnly = false,
+            __unused bool isZSL = false);
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
     virtual QCamera3StreamMem *getStreamBufs(uint32_t len);
@@ -555,7 +560,10 @@ public:
             uint32_t frameNumber,
             camera3_stream_buffer_t* pInputBuffer,
             metadata_buffer_t* metadata, bool &needMetadata,
-            int &indexUsed, bool internalRequest, bool meteringOnly);
+            int &indexUsed,
+            __unused bool internalRequest = false,
+            __unused bool meteringOnly = false,
+            __unused bool isZSL = false);
     virtual reprocess_type_t getReprocessType();
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
@@ -624,9 +632,9 @@ public:
             bool is4KVideo,
             bool isInputStreamConfigured,
             QCamera3Channel *metadataChannel,
-            uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
+            uint32_t numBuffers, bool isZSL,
+            bool isLiveshot);
     ~QCamera3PicChannel();
-
     virtual int32_t start();
     virtual int32_t stop();
     virtual int32_t initialize(cam_is_type_t isType);
@@ -635,7 +643,8 @@ public:
             uint32_t frameNumber,
             camera3_stream_buffer_t* pInputBuffer,
             metadata_buffer_t* metadata,
-            int &indexUsed, bool internalRequest, bool meteringOnly);
+            int &indexUsed, bool internalRequest = false,
+            bool meteringOnly = false, bool isZSL = false);
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
 
@@ -674,10 +683,13 @@ public:
     int32_t releaseOfflineMemory(uint32_t resultFrameNumber);
     virtual void setDualChannelMode(bool bMode);
     bool isMpoEnabled() { return m_bMpoEnabled; }
-    void deleteChannel();
+    int32_t addChannel();
+    int32_t deleteChannel();
     int32_t startChannel();
     int32_t stopChannel();
     void stopPostProc();
+    void ZSLChannelCb(mm_camera_super_buf_t *recvd_frame);
+    int32_t requestZSLBuf(uint32_t frameNumber = 0, uint32_t numBuf = 1);
 
 private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,
@@ -704,6 +716,11 @@ private:
     QCamera3PicChannel* mAuxPicChannel;
     bool mNeedPPUpscale;
     bool m_bMpoEnabled;
+    List<uint32_t> mReqFrameNumList;
+    Mutex          mReqFrameListLock;
+    bool mZSL;
+    bool mLiveShot;
+    uint32_t mCompositeHandle;
 };
 
 // reprocess channel class

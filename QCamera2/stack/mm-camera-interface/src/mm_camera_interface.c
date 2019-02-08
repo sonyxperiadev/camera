@@ -1450,7 +1450,7 @@ static int32_t mm_camera_intf_request_super_buf(uint32_t camera_handle,
         }
     }
 
-    LOGH("X ch_id = 0x%x rc = %d", ch_id, rc);
+    LOGD("X ch_id = 0x%x rc = %d", ch_id, rc);
     return rc;
 }
 

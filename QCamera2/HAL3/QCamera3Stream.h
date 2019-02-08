@@ -72,7 +72,8 @@ public:
                          uint32_t batchSize,
                          hal3_stream_cb_routine stream_cb,
                          void *userdata,
-                         bool isSecureMode);
+                         bool isSecureMode,
+                         bool bNeedBundling = false);
     virtual int32_t bufDone(uint32_t index);
     virtual int32_t cancelBuffer(uint32_t index);
     virtual int32_t bufRelease(int32_t index);

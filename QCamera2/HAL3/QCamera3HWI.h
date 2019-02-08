@@ -92,6 +92,11 @@ typedef int64_t nsecs_t;
 #define BLUR_STEP 1
 
 #define MAX_MFPROC_FRAMECOUNT 5
+//ZSL queue attributes
+#define ZSL_WATER_MARK 2
+#define ZSL_UNMATCH_COUNT 3
+#define ZSL_LOOK_BACK 2
+#define ZSL_POST_FRAME_SKIP 1
 
 typedef enum {
     SET_ENABLE,
@@ -117,6 +122,8 @@ typedef enum {
 #define IS_PP_TYPE_NONE (getHalPPType() == CAM_HAL_PP_TYPE_NONE)
 
 #define IS_MULTI_CAMERA (isDualCamera() && IS_PP_TYPE_NONE)
+
+#define IS_HAL_PP_TYPE_BOKEH (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
 
 extern volatile uint32_t gCamHal3LogLevel;
 
@@ -211,6 +218,7 @@ public:
         camera3_stream_t *stream;
         bool need_metadata;
         bool meteringOnly;
+        bool needPastFrame;
     } InternalRequest;
 
     static int getCamInfo(uint32_t cameraId, struct camera_info *info);
@@ -278,7 +286,7 @@ public:
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
                             uint8_t capture_intent, bool pprocDone, uint8_t fwk_cacMode,
-                            bool firstMetadataInBatch);
+                            bool firstMetadataInBatch, bool enableZSL);
     camera_metadata_t* saveRequestSettings(const CameraMetadata& jpegMetadata,
                             camera3_capture_request_t *request);
     int initParameters();
@@ -355,6 +363,7 @@ public:
     bool needHALPP() {return m_bNeedHalPP;}
     cam_capability_t *getCamHalCapabilities();
     bool isPPMaskSetForScaling(cam_feature_mask_t pp_mask);
+    bool isHALZSLEnabled() {return mHALZSL;}
 private:
 
     // State transition conditions:
@@ -502,6 +511,9 @@ private:
             cam_stream_size_info_t* streamsInfo, const cam_sync_type_t &type);
     void initDCSettings();
     void fillUBWCStats(camera3_stream_buffer_t *buffer);
+    bool needZSLCapture(const camera3_capture_request_t *request);
+    int32_t addZSLChannel();
+    static void zsl_channel_cb(mm_camera_super_buf_t *recvd_frame, void *userdata);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
@@ -523,7 +535,6 @@ private:
     QCameraPerfLockMgr mPerfLockMgr;
     QCameraThermalAdapter &m_thermalAdapter;
     uint32_t mChannelHandle;
-    uint32_t mPicChannelHandle;
     void saveExifParams(metadata_buffer_t *metadata);
     mm_jpeg_exif_params_t mExifParams;
 
@@ -603,6 +614,7 @@ private:
         bool received_aux_meta;
         mm_camera_super_buf_t *main_meta;
         mm_camera_super_buf_t*aux_meta;
+        bool enableZSL;
     } PendingRequestInfo;
     typedef struct {
         uint32_t frame_number;
@@ -812,6 +824,8 @@ private:
     bool is_main_configured = false;  //only for dual camera usecase
     bool is_logical_configured = false; //only for dual camera usecase
 
+    bool mHALZSL;
+    bool mFlashNeeded;
 };
 
 }; // namespace qcamera

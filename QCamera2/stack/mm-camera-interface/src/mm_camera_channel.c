@@ -152,6 +152,11 @@ void mm_channel_node_qbuf(mm_channel_t *ch_obj, mm_channel_queue_node_t *node);
 void mm_channel_send_super_buf(mm_channel_node_info_t *info);
 mm_channel_queue_node_t* mm_channel_superbuf_dequeue_frame_internal(
         mm_channel_queue_t * queue, uint32_t frame_idx);
+mm_channel_queue_node_t* mm_channel_superbuf_dequeue_meta_frame(
+        mm_channel_queue_t *queue, uint32_t frame_idx, mm_channel_t *ch_obj);
+void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
+                        mm_channel_queue_node_t * node);
+
 
 /*===========================================================================
  * FUNCTION   : mm_channel_util_get_stream_by_handler
@@ -346,7 +351,11 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                         &cmd_cb->u.buf);
     } else if (MM_CAMERA_CMD_TYPE_REQ_DATA_CB  == cmd_cb->cmd_type) {
         /* skip frames if needed */
-        ch_obj->pending_cnt = cmd_cb->u.req_buf.num_buf_requested;
+        if (ch_obj->match_meta) {
+            ch_obj->pending_cnt += cmd_cb->u.req_buf.num_buf_requested;
+        } else {
+            ch_obj->pending_cnt = cmd_cb->u.req_buf.num_buf_requested;
+        }
         ch_obj->pending_retro_cnt = cmd_cb->u.req_buf.num_retro_buf_requested;
         ch_obj->req_type = cmd_cb->u.req_buf.type;
         ch_obj->bWaitForPrepSnapshotDone = 0;
@@ -614,9 +623,15 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                node = mm_channel_superbuf_dequeue(&ch_obj->bundle.superbuf_queue, ch_obj);
            } else {
                uint32_t req_frame = ch_obj->requested_frame_id[ch_obj->cur_req_idx];
-               node = mm_channel_superbuf_dequeue_frame_internal(
-                       &ch_obj->bundle.superbuf_queue,
-                       req_frame);
+               if (ch_obj->match_meta) {
+                   node = mm_channel_superbuf_dequeue_meta_frame(
+                           &ch_obj->bundle.superbuf_queue,
+                           req_frame, ch_obj);
+                } else {
+                   node = mm_channel_superbuf_dequeue_frame_internal(
+                           &ch_obj->bundle.superbuf_queue,
+                           req_frame);
+               }
            }
            if (node != NULL) {
                if (ch_obj->isConfigCapture &&
@@ -656,6 +671,14 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
                 if (ch_obj->frame_req_cnt != 0) {
                     ch_obj->cur_req_idx++;
                 }
+
+                if ((ch_obj->pending_cnt == 0) && ch_obj->match_meta) {
+                    ch_obj->cur_req_idx = 0;
+                    ch_obj->frame_req_cnt = 0;
+                    memset(ch_obj->requested_frame_id, 0,
+                            sizeof(uint8_t) * MAX_CAPTURE_BATCH_NUM);
+                }
+
                 if (((ch_obj->pending_cnt == 0) ||
                       (ch_obj->stopZslSnapshot == 1)) &&
                       (ch_obj->manualZSLSnapshot == FALSE) &&
@@ -1356,6 +1379,10 @@ int32_t mm_channel_init(mm_channel_t *my_obj,
 
     /* change state to stopped state */
     my_obj->state = MM_CHANNEL_STATE_STOPPED;
+    my_obj->match_meta = false;
+    if (attr && (attr->priority == MM_CAMERA_SUPER_BUF_PRIORITY_MATCH_META)) {
+        my_obj->match_meta = true;
+    }
     return rc;
 }
 
@@ -2764,6 +2791,32 @@ int8_t mm_channel_validate_super_buf(mm_channel_t* ch_obj,
     return ret;
 }
 
+void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
+                        mm_channel_queue_node_t * node)
+{
+    mm_stream_t* stream_obj = NULL;
+    uint8_t i;
+    for (i=0; i< node->num_of_bufs; i++) {
+        mm_camera_buf_info_t *buf_info = &node->super_buf[i];
+        stream_obj = mm_channel_util_get_stream_by_handler(ch_obj, buf_info->stream_id);
+        metadata_buffer_t *metadata;
+        metadata = (metadata_buffer_t *)buf_info->buf->buffer;
+        if (CAM_STREAM_TYPE_METADATA == stream_obj->stream_info->stream_type) {
+            int32_t *p_frame_number_valid =
+                POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
+            uint32_t *p_frame_number =
+                POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER, metadata);
+
+            if (p_frame_number_valid && *p_frame_number_valid && p_frame_number) {
+                node->meta_frame_idx = *p_frame_number;
+            }
+            LOGD("node meta_frame_idx = %d", node->meta_frame_idx);
+            break;
+        }
+    }
+}
+
+
 /*===========================================================================
  * FUNCTION   : mm_channel_handle_metadata
  *
@@ -3069,9 +3122,11 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
         return 0;
     }
 
-    if (mm_channel_handle_metadata(ch_obj, queue, buf_info) < 0) {
-        mm_channel_qbuf(ch_obj, buf_info->buf);
-        return -1;
+    if (!ch_obj->match_meta) {
+        if (mm_channel_handle_metadata(ch_obj, queue, buf_info) < 0) {
+            mm_channel_qbuf(ch_obj, buf_info->buf);
+            return -1;
+        }
     }
 
     if ((mm_channel_util_seq_comp_w_rollover(buf_info->frame_idx,
@@ -3168,6 +3223,9 @@ int32_t mm_channel_superbuf_comp_and_enqueue(
         }
 
         if (super_buf->matched) {
+            if (ch_obj->match_meta) {
+                mm_channel_fill_meta_frame_id(ch_obj, super_buf);
+            }
             if(ch_obj->isFlashBracketingEnabled) {
                queue->expected_frame_id =
                    queue->expected_frame_id_without_led;
@@ -3435,6 +3493,48 @@ mm_channel_queue_node_t* mm_channel_superbuf_dequeue_frame_internal(
     return super_buf;
 }
 
+/*===========================================================================
+ * FUNCTION   : mm_channel_superbuf_dequeue_meta_frame
+ *
+ * DESCRIPTION: internal implementation for dequeue based on frame index
+ *                     from the superbuf queue
+ *
+ * PARAMETERS :
+ *   @queue       : superbuf queue
+ *   @frame_idx  : frame index to be dequeued
+ *
+ * RETURN     : ptr to a node from superbuf queue with matched meta frame index
+ *                : NULL if not found
+ *==========================================================================*/
+mm_channel_queue_node_t* mm_channel_superbuf_dequeue_meta_frame(
+        mm_channel_queue_t *queue, uint32_t frame_idx, mm_channel_t *ch_obj)
+{
+    mm_channel_queue_node_t* super_buf = NULL;
+    int i = 0;
+
+    if (!queue) {
+        LOGE("queue is NULL");
+        return NULL;
+    }
+
+    super_buf = mm_channel_superbuf_dequeue_internal(queue, TRUE, ch_obj);
+    while (super_buf != NULL) {
+        if (frame_idx == super_buf->meta_frame_idx) {
+            LOGH("Found requested superbuf with meta_frame_idx %d", frame_idx);
+            break;
+        } else {
+            LOGD("Discarding unwanted superbuf meta_frame_idx %d", super_buf->meta_frame_idx);
+            for (i=0; i<super_buf->num_of_bufs; i++) {
+                if (NULL != super_buf->super_buf[i].buf) {
+                    mm_channel_qbuf(ch_obj, super_buf->super_buf[i].buf);
+                }
+            }
+            free(super_buf);
+        }
+        super_buf = mm_channel_superbuf_dequeue_internal(queue, TRUE, ch_obj);
+    }
+    return super_buf;
+}
 
 /*===========================================================================
  * FUNCTION   : mm_channel_superbuf_dequeue

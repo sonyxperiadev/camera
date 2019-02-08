@@ -5246,7 +5246,7 @@ int32_t mm_stream_handle_cache_ops(mm_stream_t* my_obj,
                 buf->buf_idx, my_obj->mem_vtbl.user_data);
     }
 
-    LOGH("[CACHE_OPS] Stream type: %d buf index: %d cache ops flags: 0x%x",
+    LOGD("[CACHE_OPS] Stream type: %d buf index: %d cache ops flags: 0x%x",
             buf->stream_type, buf->buf_idx, buf->cache_flags);
 
     if (rc != 0) {

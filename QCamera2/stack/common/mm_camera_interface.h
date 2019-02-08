@@ -344,6 +344,7 @@ typedef enum {
     MM_CAMERA_SUPER_BUF_PRIORITY_FOCUS,
     MM_CAMERA_SUPER_BUF_PRIORITY_EXPOSURE_BRACKETING,
     MM_CAMERA_SUPER_BUF_PRIORITY_LOW,/* Bundled metadata frame may not match*/
+    MM_CAMERA_SUPER_BUF_PRIORITY_MATCH_META,/* For HAL3*/
     MM_CAMERA_SUPER_BUF_PRIORITY_MAX
 } mm_camera_super_buf_priority_t;
 

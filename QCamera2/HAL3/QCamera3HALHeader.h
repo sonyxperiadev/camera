@@ -94,6 +94,7 @@ class QCamera3ProcessingChannel;
         bool is_crop_valid;
         cam_rect_t crop;
         mm_jpeg_image_type_t encode_type;
+        bool zsl_snapshot;
     } jpeg_settings_t;
 
     typedef struct {

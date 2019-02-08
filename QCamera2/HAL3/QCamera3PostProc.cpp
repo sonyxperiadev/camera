@@ -1314,6 +1314,11 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
         return NO_ERROR;
     }
 
+    if (job->jpeg_settings->zsl_snapshot) {
+        m_parent->freeBufferForFrame(job->src_frame);
+        job->src_frame = NULL;
+    }
+
     LOGH("pp_ch_idx:%d, total_pp_count:%d, frame number:%d", job->pp_ch_idx,
             m_ppChannelCnt, job->frameNumber);
     if ((job->pp_ch_idx+1) < m_ppChannelCnt) {
