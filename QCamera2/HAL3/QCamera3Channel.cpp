@@ -107,6 +107,7 @@ QCamera3Channel::QCamera3Channel(uint32_t cam_handle,
     mPerFrameMapUnmapEnable = true;
     mDumpFrmCnt = 0;
     m_bDualChannel = false;
+    m_bIsSecureMode = ((QCamera3HardwareInterface*)mUserData)->isSecureMode();
 }
 
 /*===========================================================================
@@ -841,17 +842,17 @@ QCamera3ProcessingChannel::QCamera3ProcessingChannel(uint32_t cam_handle,
             mFrameCount(0),
             mLastFrameCount(0),
             mLastFpsTime(0),
-            mMemory(numBuffers),
+            mMemory(numBuffers, isSecureMode()),
             mNumBufs(CAM_MAX_NUM_BUFS_PER_STREAM),
             mStreamType(stream_type),
             mPostProcStarted(false),
             mInputBufferConfig(false),
             m_pMetaChannel(metadataChannel),
             mMetaFrame(NULL),
-            mOfflineMemory(0),
+            mOfflineMemory(0, isSecureMode()),
             mOfflineMetaMemory(numBuffers + (MAX_REPROCESS_PIPELINE_STAGES - 1),
-                    false),
-            mJpegMemory(numBuffers),
+                    false, false),
+            mJpegMemory(numBuffers, isSecureMode()),
             mCamera3Stream(stream)
 {
     char prop[PROPERTY_VALUE_MAX];

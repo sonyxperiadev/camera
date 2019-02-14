@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -46,7 +46,7 @@ namespace qcamera {
 
 class QCamera3StreamMem {
 public:
-    QCamera3StreamMem(uint32_t maxHeapBuffer, bool queueAll = true);
+    QCamera3StreamMem(uint32_t maxHeapBuffer, bool queueAll = true, bool isSecure = false);
     virtual ~QCamera3StreamMem();
 
     uint32_t getCnt();

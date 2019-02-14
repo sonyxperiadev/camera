@@ -2069,6 +2069,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     mInstantAecFrameIdxCount = 0;
     mCurrFeatureState = 0;
     mStreamConfig = true;
+    m_bIsSecureMode = false;
 
     memset(&mInputStreamInfo, 0, sizeof(mInputStreamInfo));
 
@@ -2123,6 +2124,10 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             if (newStream->width > VIDEO_4K_WIDTH ||
                     newStream->height > VIDEO_4K_HEIGHT)
                 bJpegExceeds4K = true;
+        }
+
+        if (IS_USAGE_SECURE(newStream->usage)) {
+            m_bIsSecureMode = true;
         }
 
         if ((HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == newStream->format) &&
@@ -2718,6 +2723,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             if (m_bEis3PropertyEnabled /* hint for EIS 3 needed here */)
                                 bufferCount = MAX_VIDEO_BUFFERS;
                         }
+
+                        if (isSecureMode()) {
+                            bufferCount = MAX_SECURE_BUFFERS;
+                            mStreamConfigInfo.is_secure = SECURE;
+                        }
+
                         channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                                 mChannelHandle, mCameraHandle->ops, captureResultCb,
                                 setBufferErrorStatus, &gCamCapability[mCameraId]->padding_info,
