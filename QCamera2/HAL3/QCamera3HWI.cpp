@@ -8383,6 +8383,12 @@ void QCamera3HardwareInterface::saveExifParams(metadata_buffer_t *metadata)
             mExifParams.debug_params->q3a_tuning_debug_params_valid = TRUE;
         }
     }
+
+    IF_META_AVAILABLE(cam_3a_params_t,ae_debug,
+            CAM_INTF_META_AEC_INFO,metadata) {
+       mExifParams.cam_3a_params = *ae_debug;
+       mExifParams.cam_3a_params_valid = TRUE;
+    }
 }
 
 /*===========================================================================
