@@ -30,6 +30,7 @@ LOCAL_SRC_FILES := \
         util/QCameraCommon.cpp \
         util/QCameraTrace.cpp \
         util/camscope_packet_type.cpp \
+        util/QCameraPerfTranslator.cpp \
         QCamera2Hal.cpp \
         QCamera2Factory.cpp
 
