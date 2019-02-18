@@ -177,6 +177,7 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
                                   uint32_t batchSize)
 {
     int32_t rc = NO_ERROR;
+    bool isSecure = isSecureMode() && (streamType != CAM_STREAM_TYPE_METADATA);
 
     if (m_numStreams >= 1) {
         LOGE("Only one stream per channel supported in v3 Hal");
@@ -201,7 +202,7 @@ int32_t QCamera3Channel::addStream(cam_stream_type_t streamType,
 
     rc = pStream->init(streamType, streamFormat, streamDim, streamRotation,
             NULL, minStreamBufNum, postprocessMask, isType, batchSize,
-            streamCbRoutine, this);
+            streamCbRoutine, this, isSecure);
     if (rc == 0) {
         mStreams[m_numStreams] = pStream;
         m_numStreams++;
@@ -842,17 +843,17 @@ QCamera3ProcessingChannel::QCamera3ProcessingChannel(uint32_t cam_handle,
             mFrameCount(0),
             mLastFrameCount(0),
             mLastFpsTime(0),
-            mMemory(numBuffers, isSecureMode()),
+            mMemory(numBuffers, true, isSecureMode()),
             mNumBufs(CAM_MAX_NUM_BUFS_PER_STREAM),
             mStreamType(stream_type),
             mPostProcStarted(false),
             mInputBufferConfig(false),
             m_pMetaChannel(metadataChannel),
             mMetaFrame(NULL),
-            mOfflineMemory(0, isSecureMode()),
+            mOfflineMemory(0, true, isSecureMode()),
             mOfflineMetaMemory(numBuffers + (MAX_REPROCESS_PIPELINE_STAGES - 1),
                     false, false),
-            mJpegMemory(numBuffers, isSecureMode()),
+            mJpegMemory(numBuffers, true, isSecureMode()),
             mCamera3Stream(stream)
 {
     char prop[PROPERTY_VALUE_MAX];
@@ -2950,7 +2951,7 @@ void QCamera3RawDumpChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
 QCamera3StreamMem* QCamera3RawDumpChannel::getStreamBufs(uint32_t len)
 {
     int rc;
-    mMemory = new QCamera3StreamMem(mNumBuffers);
+    mMemory = new QCamera3StreamMem(mNumBuffers, true, isSecureMode());
 
     if (!mMemory) {
         LOGE("unable to create heap memory");
@@ -3113,7 +3114,7 @@ void QCamera3QCfaRawChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
 QCamera3StreamMem* QCamera3QCfaRawChannel::getStreamBufs(uint32_t len)
 {
     int rc;
-    mMemory = new QCamera3StreamMem(mNumBuffers);
+    mMemory = new QCamera3StreamMem(mNumBuffers, true, isSecureMode());
     if (!mMemory) {
         LOGE("unable to create heap memory");
         return NULL;
@@ -3249,10 +3250,11 @@ QCamera3YUVChannel::QCamera3YUVChannel(uint32_t cam_handle,
         camera3_stream_t *stream,
         cam_stream_type_t stream_type,
         cam_feature_mask_t postprocess_mask,
-        QCamera3Channel *metadataChannel) :
+        QCamera3Channel *metadataChannel,
+        uint32_t numBuffers) :
             QCamera3ProcessingChannel(cam_handle, channel_handle, cam_ops,
                     cb_routine, cb_buf_err, paddingInfo, userData, stream, stream_type,
-                    postprocess_mask, metadataChannel),
+                    postprocess_mask, metadataChannel, numBuffers),
                 mAuxYUVChannel(NULL),
                 mNeedPPUpscale(false)
 {
@@ -5082,7 +5084,7 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
 
 QCamera3StreamMem* QCamera3PicChannel::getStreamBufs(uint32_t len)
 {
-    mYuvMemory = new QCamera3StreamMem(mCamera3Stream->max_buffers, false);
+    mYuvMemory = new QCamera3StreamMem(mCamera3Stream->max_buffers, false, isSecureMode());
     if (!mYuvMemory) {
         LOGE("unable to create metadata memory");
         return NULL;
@@ -5707,7 +5709,7 @@ QCamera3StreamMem* QCamera3ReprocessChannel::getMetaStreamBufs(uint32_t len)
 QCamera3StreamMem* QCamera3ReprocessChannel::getStreamBufs(uint32_t len)
 {
     if (mReprocessType == REPROCESS_TYPE_JPEG) {
-        mMemory = new QCamera3StreamMem(mNumBuffers, false);
+        mMemory = new QCamera3StreamMem(mNumBuffers, false, isSecureMode());
         if (!mMemory) {
             LOGE("unable to create reproc memory");
             return NULL;
@@ -6734,7 +6736,7 @@ int32_t QCamera3ReprocessChannel::addMetaReprocStream(QCamera3Channel *pMetaChan
             reproc_cfg.pp_feature_config.feature_mask,
             IS_TYPE_NONE,
             0,/* batchSize */
-            QCamera3Channel::streamCbRoutine, this);
+            QCamera3Channel::streamCbRoutine, this, false);
 
     if (rc == 0) {
         mStreams[m_numStreams] = pStream;
@@ -6827,7 +6829,7 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
             reprocess_config.pp_feature_config.feature_mask,
             is_type,
             0,/* batchSize */
-            QCamera3Channel::streamCbRoutine, this);
+            QCamera3Channel::streamCbRoutine, this, isSecureMode());
 
     if (rc == 0) {
         mStreams[m_numStreams] = pStream;
@@ -6950,7 +6952,7 @@ void QCamera3SupportChannel::streamCbRoutine(
 QCamera3StreamMem* QCamera3SupportChannel::getStreamBufs(uint32_t len)
 {
     int rc;
-    mMemory = new QCamera3StreamMem(mNumBuffers);
+    mMemory = new QCamera3StreamMem(mNumBuffers, true, isSecureMode());
     if (!mMemory) {
         LOGE("unable to create heap memory");
         return NULL;

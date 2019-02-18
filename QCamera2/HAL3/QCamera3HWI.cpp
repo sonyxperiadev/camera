@@ -2457,6 +2457,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     bool isRawStreamRequested = false;
     bool isDepth = false;
     memset(&mStreamConfigInfo, 0, sizeof(cam_stream_size_info_t));
+
+    if (isSecureMode()) {
+        LOGI("Configuring secure mode");
+        mStreamConfigInfo.is_secure = SECURE;
+    }
+
     /* Allocate channel objects for the requested streams */
     for (size_t i = 0; i < streamList->num_streams; i++) {
         camera3_stream_t *newStream = streamList->streams[i];
@@ -2693,6 +2699,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             if (newStream->stream_type == CAMERA3_STREAM_OUTPUT ||
                     newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL) {
                 QCamera3ProcessingChannel *channel = NULL;
+                int bufferCount = isSecureMode() ? MAX_SECURE_BUFFERS : MAX_INFLIGHT_REQUESTS;
                 switch (newStream->format) {
                 case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
                     if ((newStream->usage &
@@ -2730,7 +2737,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             mDummyBatchStream = *newStream;
                             mDummyBatchStream.usage |= GRALLOC_USAGE_HW_VIDEO_ENCODER;
                         }
-                        int bufferCount = MAX_INFLIGHT_REQUESTS;
+                        bufferCount = MAX_INFLIGHT_REQUESTS;
                         if (mStreamConfigInfo.type[mStreamConfigInfo.num_streams] ==
                                 CAM_STREAM_TYPE_VIDEO) {
                             if (m_bEis3PropertyEnabled /* hint for EIS 3 needed here */)
@@ -2739,7 +2746,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
                         if (isSecureMode()) {
                             bufferCount = MAX_SECURE_BUFFERS;
-                            mStreamConfigInfo.is_secure = SECURE;
                         }
 
                         channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
@@ -2780,7 +2786,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             (cam_stream_type_t)
                                     mStreamConfigInfo.type[mStreamConfigInfo.num_streams],
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
-                            mMetadataChannel);
+                            mMetadataChannel, bufferCount);
                     if (channel == NULL) {
                         LOGE("allocation of YUV channel failed");
                         pthread_mutex_unlock(&mMutex);
@@ -2802,7 +2808,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                             mMetadataChannel,
                             (mQuadraCfaStage == QCFA_INACTIVE) &&
-                            (newStream->format == HAL_PIXEL_FORMAT_RAW16));
+                            (newStream->format == HAL_PIXEL_FORMAT_RAW16),
+                            bufferCount);
                     if (mRawChannel == NULL) {
                         LOGE("allocation of raw channel failed");
                         pthread_mutex_unlock(&mMutex);
@@ -2812,6 +2819,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     newStream->priv = (QCamera3ProcessingChannel*)mRawChannel;
                     break;
                 case HAL_PIXEL_FORMAT_BLOB:
+                    bufferCount = isSecureMode() ? MAX_SECURE_BUFFERS : (m_bIsVideo ? 1 : MAX_INFLIGHT_BLOB);
                     if (newStream->data_space !=  HAL_DATASPACE_DEPTH) {
                         uint32_t picHdl = mChannelHandle;
                         if (m_bIsVideo) {
@@ -2834,7 +2842,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                                 setBufferErrorStatus, &padding_info, this, newStream,
                                 mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
                                 m_bIs4KVideo, isZsl, mMetadataChannel,
-                                (m_bIsVideo ? 1 : MAX_INFLIGHT_BLOB));
+                                bufferCount);
                         if (mPictureChannel == NULL) {
                             LOGE("allocation of channel failed");
                             pthread_mutex_unlock(&mMutex);
@@ -2870,7 +2878,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             setBufferErrorStatus, &padding_info,
                             this, newStream,
                             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams],
-                            mMetadataChannel, gCamCapability[mCameraId]->max_depth_points);
+                            mMetadataChannel, gCamCapability[mCameraId]->max_depth_points,
+                            bufferCount);
                     if (mDepthChannel == NULL) {
                         LOGE("allocation of channel failed");
                         pthread_mutex_unlock(&mMutex);
