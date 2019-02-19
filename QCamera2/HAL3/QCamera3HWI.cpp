@@ -2107,8 +2107,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     property_get("persist.vendor.camera.eis.enable", eis_prop, "1");
     eis_prop_set = (uint8_t)atoi(eis_prop);
 
-    m_bEisEnable = eis_prop_set && m_bEisSupported &&
-            (mOpMode != CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE);
+    m_bEisEnable = eis_prop_set && m_bEisSupported;
 
     LOGD("m_bEisEnable: %d, eis_prop_set: %d, m_bEisSupported: %d",
             m_bEisEnable, eis_prop_set, m_bEisSupported);
@@ -5315,6 +5314,32 @@ int QCamera3HardwareInterface::processCaptureRequest(
             // i.e. This is set only once for the first capture request, after open camera.
             setInstantAEC(meta);
         }
+
+
+        /* Set fps and hfr mode while sending meta stream info so that sensor
+         * can configure appropriate streaming mode */
+        mHFRVideoFps = DEFAULT_VIDEO_FPS;
+        mMinInFlightRequests = MIN_INFLIGHT_REQUESTS;
+        mMaxInFlightRequests = MAX_INFLIGHT_REQUESTS;
+        if (meta.exists(ANDROID_CONTROL_AE_TARGET_FPS_RANGE)) {
+            rc = setHalFpsRange(meta, mParameters);
+            if (rc == NO_ERROR) {
+                int32_t max_fps =
+                    (int32_t) meta.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
+                if (max_fps == 60) {
+                    mMinInFlightRequests = MIN_INFLIGHT_60FPS_REQUESTS;
+                }
+                /* For HFR, more buffers are dequeued upfront to improve the performance */
+                if (mBatchSize) {
+                    mMinInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
+                    mMaxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
+                }
+            }
+            else {
+                LOGE("setHalFpsRange failed");
+            }
+        }
+
         uint8_t fwkVideoStabMode=0;
         if (meta.exists(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE)) {
             fwkVideoStabMode = meta.find(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE).data.u8[0];
@@ -5323,7 +5348,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
         // If EIS setprop is enabled & if first capture setting has EIS enabled then only
         // turn it on for video/preview
         bool setEis = m_bEisEnable && fwkVideoStabMode && m_bEisSupportedSize &&
-                (isTypeVideo >= IS_TYPE_EIS_2_0);
+                (isTypeVideo >= IS_TYPE_EIS_2_0) && !mBatchSize;
         int32_t vsMode;
         vsMode = (setEis)? DIS_ENABLE: DIS_DISABLE;
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_DIS_ENABLE, vsMode)) {
@@ -5453,29 +5478,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
         setMobicat();
 
-        /* Set fps and hfr mode while sending meta stream info so that sensor
-         * can configure appropriate streaming mode */
-        mHFRVideoFps = DEFAULT_VIDEO_FPS;
-        mMinInFlightRequests = MIN_INFLIGHT_REQUESTS;
-        mMaxInFlightRequests = MAX_INFLIGHT_REQUESTS;
-        if (meta.exists(ANDROID_CONTROL_AE_TARGET_FPS_RANGE)) {
-            rc = setHalFpsRange(meta, mParameters);
-            if (rc == NO_ERROR) {
-                int32_t max_fps =
-                    (int32_t) meta.find(ANDROID_CONTROL_AE_TARGET_FPS_RANGE).data.i32[1];
-                if (max_fps == 60) {
-                    mMinInFlightRequests = MIN_INFLIGHT_60FPS_REQUESTS;
-                }
-                /* For HFR, more buffers are dequeued upfront to improve the performance */
-                if (mBatchSize) {
-                    mMinInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
-                    mMaxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
-                }
-            }
-            else {
-                LOGE("setHalFpsRange failed");
-            }
-        }
         mShouldSetSensorHdr = true;
         bool didSetSensorHdr = false;
         if (meta.exists(ANDROID_CONTROL_MODE)) {
