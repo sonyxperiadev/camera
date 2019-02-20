@@ -10884,7 +10884,15 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     uint8_t cam_mode = is_dual_camera_by_idx(cameraId);
     staticInfo.update(QCAMERA3_LOGICAL_CAM_MODE, &cam_mode, 1);
 
-    float cct_range[2];
+    // set supported wb cct, we should get them from m_pCapabilit
+    gCamCapability[cameraId]->min_wb_cct = 2000;
+    gCamCapability[cameraId]->max_wb_cct = 8000;
+    // set supported wb rgb gains, ideally we should get them from m_pCapability
+    //but for now hardcode.
+    gCamCapability[cameraId]->min_wb_gain = 1.0;
+    gCamCapability[cameraId]->max_wb_gain = 4.0;
+
+    int32_t cct_range[2];
     cct_range[0] = gCamCapability[cameraId]->min_wb_cct;
     cct_range[1] = gCamCapability[cameraId]->max_wb_cct;
     staticInfo.update(QCAMERA3_MANUAL_WB_CCT_RANGE,
