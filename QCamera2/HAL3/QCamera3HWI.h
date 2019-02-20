@@ -439,7 +439,7 @@ private:
     bool isMultiFrameSnapshotRequest(camera3_capture_request *request);
     int32_t setMobicat();
 
-    int32_t getSensorOutputSize(cam_dimension_t &sensor_dim, uint32_t cam_type = CAM_TYPE_MAIN);
+    int32_t getSensorOutputSize(cam_sensor_config_t &sensor_dim, uint32_t cam_type = CAM_TYPE_MAIN);
     int32_t setHalFpsRange(const CameraMetadata &settings,
             metadata_buffer_t *hal_metadata);
     int32_t extractSceneMode(const CameraMetadata &frame_settings, uint8_t metaMode,
