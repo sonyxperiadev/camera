@@ -546,7 +546,8 @@ public:
             camera3_stream_t *stream,
             cam_stream_type_t stream_type,
             cam_feature_mask_t postprocess_mask,
-            QCamera3Channel *metadataChannel);
+            QCamera3Channel *metadataChannel,
+            uint32_t numBuffers = MAX_INFLIGHT_REQUESTS);
     ~QCamera3YUVChannel();
     virtual int32_t initialize(cam_is_type_t isType);
     using QCamera3ProcessingChannel::request;
