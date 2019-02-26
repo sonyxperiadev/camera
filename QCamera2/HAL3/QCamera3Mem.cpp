@@ -875,7 +875,7 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     }
 
     Mutex::Autolock lock(mLock);
-    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - 1 - mStartIdx)) {
+    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - mStartIdx)) {
         LOGE("Number of buffers %d greater than what's supported %d",
                  mBufferCount, MM_CAMERA_MAX_NUM_FRAMES - mStartIdx);
         return BAD_INDEX;
@@ -1296,7 +1296,7 @@ int QCamera3GrallocMemory::getFreeIndexLocked()
 {
     int index = -1;
 
-    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - 1)) {
+    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES)) {
         LOGE("Number of buffers %d greater than what's supported %d",
              mBufferCount, MM_CAMERA_MAX_NUM_FRAMES);
         return index;
