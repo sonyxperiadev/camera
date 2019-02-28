@@ -309,6 +309,8 @@ public:
     int getCameraId() {return mCameraId;}
     bool isQuadCfaSensor() {return m_bQuadraCfaSensor;}
     int32_t deleteQCFARawChannel();
+    cam_dimension_t getQCFAComapitbleDim(const uint32_t& width,
+                                             const uint32_t& height);
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;

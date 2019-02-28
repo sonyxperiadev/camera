@@ -1322,8 +1322,8 @@ int QCamera3HardwareInterface::validateStreamDimensions(
             break;
         case HAL_PIXEL_FORMAT_BLOB:
             if (newStream->data_space !=  HAL_DATASPACE_DEPTH) {
-                count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
                 /* Verify set size against generated sizes table */
+                count = MIN(gCamCapability[mCameraId]->picture_sizes_tbl_cnt, MAX_SIZES_CNT);
                 for (size_t i = 0; i < count; i++) {
                     if (((int32_t)rotatedWidth ==
                             gCamCapability[mCameraId]->picture_sizes_tbl[i].width) &&
@@ -1336,9 +1336,11 @@ int QCamera3HardwareInterface::validateStreamDimensions(
             } else {
                 sizeFound = true;
             }
-            if (m_bQuadraCfaSensor && !sizeFound) {
-                if ((int32_t)rotatedWidth  <= gCamCapability[mCameraId]->quadra_cfa_dim[0].width &&
-                    (int32_t)rotatedHeight <= gCamCapability[mCameraId]->quadra_cfa_dim[0].height) {
+            if (m_bQuadraCfaSensor) {
+                if (((int32_t)rotatedWidth  <= gCamCapability[mCameraId]->quadra_cfa_dim[0].width &&
+                   (int32_t)rotatedHeight <= gCamCapability[mCameraId]->quadra_cfa_dim[0].height) &&
+                    (((int32_t)rotatedWidth > gCamCapability[mCameraId]->raw_dim[0].width) ||
+                       ((int32_t)rotatedHeight > gCamCapability[mCameraId]->raw_dim[0].height))) {
                     sizeFound = true;
                     LOGI("BLOB stream configured with quadracfa size");
                     m_bQuadraSizeConfigured = true;
@@ -2615,10 +2617,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             }
                         }
                     } else if (m_bQuadraSizeConfigured) {
-                        cam_dimension_t raw_dim = getQuadraCfaDim();
-                        cam_dimension_t binning_dim = {0, 0};
-                        binning_dim.width = raw_dim.width >> 1;
-                        binning_dim.height = raw_dim.height >> 1;
+                        cam_dimension_t binning_dim =
+                                 getQCFAComapitbleDim(newStream->width, newStream->height);
                         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
                             binning_dim.width;
                         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
@@ -4542,12 +4542,31 @@ void QCamera3HardwareInterface::unblockRequestIfNecessary()
    pthread_cond_signal(&mRequestCond);
 }
 
-bool QCamera3HardwareInterface::IsQCFASelected(__unused camera3_capture_request *request)
+bool QCamera3HardwareInterface::IsQCFASelected(camera3_capture_request *request)
 {
+    if((request == NULL) || !m_bQuadraCfaSensor)
+    {
+        LOGE("Invalid check !!");
+        return false;
+    }
+    bool qcfaReq = false;
+    size_t i = 0;
+    for(i = 0; i < request->num_output_buffers; i++)
+    {
+        const camera3_stream_buffer_t& output = request->output_buffers[i];
+        if((output.stream->format == HAL_PIXEL_FORMAT_BLOB) &&
+           ((output.stream->width ==
+               (uint32_t)gCamCapability[mCameraId]->quadra_cfa_dim[0].width) &&
+           (output.stream->height ==
+              (uint32_t)gCamCapability[mCameraId]->quadra_cfa_dim[0].height))) {
+            qcfaReq = true;
+        }
+    }
     char property[PROPERTY_VALUE_MAX];
     property_get("persist.vendor.camera.qcfa.select", property, "1");
     int selected = atoi(property);
-    return (selected > 0);
+    //ret: fasle for upscaling. true for remosaic
+    return (qcfaReq && (selected > 0));
 }
 
 /*===========================================================================
@@ -4964,6 +4983,39 @@ int32_t QCamera3HardwareInterface::deleteQCFARawChannel()
     }
 
     return 0;
+}
+
+cam_dimension_t QCamera3HardwareInterface::getQCFAComapitbleDim(
+            const uint32_t& width, const uint32_t& height)
+{
+    const cam_dimension_t& qcfa_dim = gCamCapability[mCameraId]->quadra_cfa_dim[0];
+    const cam_dimension_t& raw_dim = gCamCapability[mCameraId]->raw_dim[0];
+    if((0 == width) || (0 == height) ||
+           ((uint32_t)qcfa_dim.width == width) ||
+           ((uint32_t)qcfa_dim.height == height))
+    {
+        return raw_dim;
+    }
+
+    float aspectRatio = width/(float)height;
+    float aspectRatioTolerence = 0.04;
+    cam_dimension_t ret_dim = raw_dim;
+    for(uint32_t i = 0; i < gCamCapability[mCameraId]->picture_sizes_tbl_cnt; i++)
+    {
+        const cam_dimension_t& dim = gCamCapability[mCameraId]->picture_sizes_tbl[i];
+        if((dim.width <= raw_dim.width) && (dim.height <= raw_dim.height))
+        {
+            float ar = dim.width/(float)dim.height;
+            if((ar >= (aspectRatio - aspectRatioTolerence)) &&
+              (ar <= (aspectRatio + aspectRatioTolerence))){
+              ret_dim = dim;
+              break;
+            }
+        }
+    }
+
+    LOGI("changed dimentation to %dx%d", ret_dim.width, ret_dim.height);
+    return ret_dim;
 }
 
 cam_dimension_t QCamera3HardwareInterface::getQuadraCfaDim()
