@@ -4660,6 +4660,13 @@ void QCamera3PicChannel::configureMpo()
     m_bMpoEnabled = atoi(prop)?FALSE:TRUE;
     m_postprocessor.setMpoMode(m_bMpoEnabled);
 }
+void QCamera3PicChannel::stopPostProc()
+{
+    if(mPostProcStarted) {
+        m_postprocessor.stop();
+        mPostProcStarted = false;
+    }
+}
 
 /*===========================================================================
  * FUNCTION   : request

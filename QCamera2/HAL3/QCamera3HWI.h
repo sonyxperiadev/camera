@@ -406,6 +406,7 @@ private:
 
     bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList,
             cam_stream_size_info_t stream_config_info);
+    bool IsQCFASelected(camera3_capture_request *request);
     bool isHdrSnapshotRequest(camera3_capture_request *request);
     int32_t setMobicat();
 
@@ -633,6 +634,7 @@ public:
     cam_format_t mRdiModeFmt;
     QCamera3QCfaRawChannel *mQCFARawChannel;
     bool m_bQuadraCfaRequest;
+    bool m_bPreSnapQuadraCfaRequest;
     QCameraFOVControl *m_pFovControl;
     bool isSecureMode() {return m_bIsSecureMode;}
 private:

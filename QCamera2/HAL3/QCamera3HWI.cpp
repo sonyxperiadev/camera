@@ -582,6 +582,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     }
 
     m_bQuadraCfaRequest = false;
+    m_bPreSnapQuadraCfaRequest = false;
     m_bQuadraSizeConfigured = false;
     memset(&mStreamList, 0, sizeof(camera3_stream_configuration_t));
     m_bLPMEnabled = false;
@@ -2614,10 +2615,14 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             }
                         }
                     } else if (m_bQuadraSizeConfigured) {
+                        cam_dimension_t raw_dim = getQuadraCfaDim();
+                        cam_dimension_t binning_dim = {0, 0};
+                        binning_dim.width = raw_dim.width >> 1;
+                        binning_dim.height = raw_dim.height >> 1;
                         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].width =
-                            gCamCapability[mCameraId]->picture_sizes_tbl[0].width;
+                            binning_dim.width;
                         mStreamConfigInfo.stream_sizes[mStreamConfigInfo.num_streams].height =
-                            gCamCapability[mCameraId]->picture_sizes_tbl[0].height;
+                            binning_dim.height;
                         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] =
                             CAM_QCOM_FEATURE_NONE;
                     } else if (m_bIs4KVideo) {
@@ -4537,6 +4542,14 @@ void QCamera3HardwareInterface::unblockRequestIfNecessary()
    pthread_cond_signal(&mRequestCond);
 }
 
+bool QCamera3HardwareInterface::IsQCFASelected(__unused camera3_capture_request *request)
+{
+    char property[PROPERTY_VALUE_MAX];
+    property_get("persist.vendor.camera.qcfa.select", property, "1");
+    int selected = atoi(property);
+    return (selected > 0);
+}
+
 /*===========================================================================
  * FUNCTION   : isHdrSnapshotRequest
  *
@@ -5227,21 +5240,29 @@ int QCamera3HardwareInterface::processCaptureRequest(
         for (size_t i = 0; i < request->num_output_buffers; i++) {
             const camera3_stream_buffer_t& output = request->output_buffers[i];
             if (request->input_buffer == NULL && output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
-                /* only one output stream is supported for quadra cfa snapshot right now */
-                if (request->num_output_buffers > 1) {
-                    LOGE("invalid num of streams requested for quadra cfa snapshot!");
-                    pthread_mutex_unlock(&mMutex);
-                    return BAD_VALUE;
+                if (IsQCFASelected(request)) {
+                    /* only one output stream is supported for quadra cfa snapshot right now */
+                    if (request->num_output_buffers > 1) {
+                        LOGE("invalid num of streams requested for quadra cfa snapshot!");
+                        pthread_mutex_unlock(&mMutex);
+                        return BAD_VALUE;
+                    }
+
+                    LOGI("quadra cfa size request on blob stream");
+                    m_bQuadraCfaRequest = true;
+                    m_bPreSnapQuadraCfaRequest = true;
+
+                    /* this will trigger internal stream reconfig and block until get raw output */
+                    captureQuadraCfaRawInternal(request);
+
+                    //reset state to configured so that channel get initialized and streamed on again
+                    mState = CONFIGURED;
+                } else {
+                    if (true == m_bPreSnapQuadraCfaRequest) {
+                        m_bPreSnapQuadraCfaRequest = false;
+                        mPictureChannel->stopPostProc();
+                    }
                 }
-
-                LOGI("quadra cfa size request on blob stream");
-                m_bQuadraCfaRequest = true;
-
-                /* this will trigger internal stream reconfig and block until get raw output */
-                captureQuadraCfaRawInternal(request);
-
-                //reset state to configured so that channel get initialized and streamed on again
-                mState = CONFIGURED;
             }
         }
     }
