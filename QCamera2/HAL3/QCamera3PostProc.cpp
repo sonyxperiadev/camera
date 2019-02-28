@@ -317,7 +317,8 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
         }
 
         if (hal_obj->isDualCamera() &&
-        (hal_obj->getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
+        (hal_obj->getHalPPType() != CAM_HAL_PP_TYPE_NONE
+        && hal_obj->getHalPPType() != CAM_HAL_PP_TYPE_SAT)) {
             // HALPP type might have changed, ensure we have right pp block
             rc = initHalPPManager();
             if (rc != NO_ERROR) {

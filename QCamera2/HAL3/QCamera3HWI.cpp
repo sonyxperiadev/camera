@@ -4360,6 +4360,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     uint32_t frame_number, urgent_frame_number;
     int64_t capture_time;
     nsecs_t currentSysTime;
+    bool meta_freed = false;
 
     int32_t *p_frame_number_valid =
             POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
@@ -4381,6 +4382,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         if (free_and_bufdone_meta_buf) {
             mMetadataChannel->bufDone(metadata_buf);
             free(metadata_buf);
+            meta_freed = true;
         }
         goto done_metadata;
     }
@@ -4511,6 +4513,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
         if (free_and_bufdone_meta_buf) {
             mMetadataChannel->bufDone(metadata_buf);
             free(metadata_buf);
+            meta_freed = true;
         }
         goto done_metadata;
     }
@@ -4676,6 +4679,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     if(p_is_metabuf_queued != NULL) {
                         *p_is_metabuf_queued = true;
                     }
+                    meta_freed = true;
                     break;
                 }
             }
@@ -4731,6 +4735,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                         mMetadataChannel->bufDone(metadata_buf);
                         free(metadata_buf);
                    }
+                   meta_freed = true;
                 }
             }
         }
@@ -4845,6 +4850,13 @@ done_metadata:
             i != mPendingRequestsList.end() ;i++) {
         i->pipeline_depth++;
     }
+
+    if(!meta_freed && free_and_bufdone_meta_buf)
+    {
+        mMetadataChannel->bufDone(metadata_buf);
+        free(metadata_buf);
+    }
+
     LOGD("mPendingLiveRequest = %d", mPendingLiveRequest);
 cached_metadata:
     unblockRequestIfNecessary();
@@ -4977,6 +4989,7 @@ void QCamera3HardwareInterface::handleInputBufferWithLock(uint32_t frame_number)
         orchestrateResult(&result);
         LOGD("Input request metadata and input buffer frame_number = %u",
                         i->frame_number);
+            mPendingLiveRequest--;
         i = erasePendingRequest(i);
     } else {
         LOGE("Could not find input request for frame number %d", frame_number);
@@ -5001,6 +5014,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
 
     if (buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) {
         if (m_bIsVideo) {
+
             m_bStopPicChannel = true;
         }
         if (isDualCamera() && (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && needHALPP()) {
@@ -5046,7 +5060,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     while (i != mPendingRequestsList.end() && i->frame_number != frame_number){
         i++;
     }
-    if (i == mPendingRequestsList.end()) {
+    if (i == mPendingRequestsList.end() || (i->input_buffer != NULL)) {
         // Verify all pending requests frame_numbers are greater
         for (pendingRequestIterator j = mPendingRequestsList.begin();
                 j != mPendingRequestsList.end(); j++) {
@@ -5082,69 +5096,20 @@ void QCamera3HardwareInterface::handleBufferWithLock(
 
         orchestrateResult(&result);
     } else {
-        if (i->input_buffer) {
-            CameraMetadata settings;
-            camera3_notify_msg_t notify_msg;
-            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
-            nsecs_t capture_time = systemTime(CLOCK_MONOTONIC);
-            if(i->settings) {
-                settings = i->settings;
-                if (settings.exists(ANDROID_SENSOR_TIMESTAMP)) {
-                    capture_time = settings.find(ANDROID_SENSOR_TIMESTAMP).data.i64[0];
-                } else {
-                    LOGW("No timestamp in input settings! Using current one.");
-                }
-            } else {
-                LOGE("Input settings missing!");
-            }
-
-            notify_msg.type = CAMERA3_MSG_SHUTTER;
-            notify_msg.message.shutter.frame_number = frame_number;
-            notify_msg.message.shutter.timestamp = (uint64_t)capture_time;
-
-            if (i->input_buffer->release_fence != -1) {
-               int32_t rc = sync_wait(i->input_buffer->release_fence, TIMEOUT_NEVER);
-               close(i->input_buffer->release_fence);
-               if (rc != OK) {
-                   LOGE("input buffer sync wait failed %d", rc);
+       for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
+           j != i->buffers.end(); j++) {
+           if (j->stream == buffer->stream) {
+               if (j->buffer != NULL) {
+                   LOGE("Error: buffer is already set");
+               } else {
+                   j->buffer = (camera3_stream_buffer_t *)malloc(
+                       sizeof(camera3_stream_buffer_t));
+                   *(j->buffer) = *buffer;
+                   LOGH("cache buffer %p at result frame_number %u",
+                        buffer->buffer, frame_number);
                }
-            }
-            buffer->status |= mPendingBuffersMap.getBufErrStatus(buffer->buffer);
-            if (buffer->status & CAMERA3_BUFFER_STATUS_ERROR) {
-                LOGI("Input buffer CAMERA3_BUFFER_STATUS_ERROR frame_number=%u, buffer=%p",
-                        frame_number, buffer->buffer);
-            }
-            mPendingBuffersMap.removeBuf(buffer->buffer);
-
-            camera3_capture_result result;
-            memset(&result, 0, sizeof(camera3_capture_result));
-            result.frame_number = frame_number;
-            result.result = i->settings;
-            result.input_buffer = i->input_buffer;
-            result.num_output_buffers = 1;
-            result.output_buffers = buffer;
-            result.partial_result = PARTIAL_RESULT_COUNT;
-
-            orchestrateNotify(&notify_msg);
-            orchestrateResult(&result);
-            LOGD("Notify reprocess now %d!", frame_number);
-            i = erasePendingRequest(i);
-        } else {
-            for (List<RequestedBufferInfo>::iterator j = i->buffers.begin();
-                j != i->buffers.end(); j++) {
-                if (j->stream == buffer->stream) {
-                    if (j->buffer != NULL) {
-                        LOGE("Error: buffer is already set");
-                    } else {
-                        j->buffer = (camera3_stream_buffer_t *)malloc(
-                            sizeof(camera3_stream_buffer_t));
-                        *(j->buffer) = *buffer;
-                        LOGH("cache buffer %p at result frame_number %u",
-                             buffer->buffer, frame_number);
-                    }
-                }
-            }
-        }
+           }
+       }
     }
 
     if (mPreviewStarted == false) {
@@ -6985,7 +6950,7 @@ no_error:
         request_id = mCurrentRequestId;
     }
 
-    LOGE("num_output_buffers = %d input_buffer = %p frame_number = %d",
+    LOGH("num_output_buffers = %d input_buffer = %p frame_number = %d",
                                     request->num_output_buffers,
                                     request->input_buffer,
                                     frameNumber);
@@ -7092,11 +7057,15 @@ no_error:
         }
 
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
-            streamArray->stream_request[streamArray->num_streams++].streamID =
-                                                             snapshotStreamId;
+            if(request->input_buffer == NULL) {
+                streamArray->stream_request[streamArray->num_streams++].streamID =
+                                                                 snapshotStreamId;
+            }
         } else {
+            if( !(request->input_buffer != NULL) || (request->num_output_buffers > 1)) {
             streamArray->stream_request[streamArray->num_streams++].streamID =
                            channel->getStreamID(channel->getStreamTypeMask());
+            }
         }
 
         if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
@@ -7623,162 +7592,158 @@ no_error:
         return -EINVAL;
     }
 
-    if (request->input_buffer == NULL) {
-        /* Set the parameters to backend:
-         * - For every request in NORMAL MODE
-         * - For every request in HFR mode during preview only case
-         * - Once every batch in HFR mode during video recording
-         */
-        if (!mBatchSize ||
-           (mBatchSize && !isVidBufRequested) ||
-           (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize))) {
-            LOGD("set_parms  batchSz: %d IsVidBufReq: %d vidBufTobeQd: %d ",
-                     mBatchSize, isVidBufRequested,
-                    mToBeQueuedVidBufs);
+    /* Set the parameters to backend:
+     * - For every request in NORMAL MODE
+     * - For every request in HFR mode during preview only case
+     * - Once every batch in HFR mode during video recording
+     */
+    if (!mBatchSize ||
+       (mBatchSize && !isVidBufRequested) ||
+       (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize))) {
+        LOGD("set_parms  batchSz: %d IsVidBufReq: %d vidBufTobeQd: %d ",
+                 mBatchSize, isVidBufRequested,
+                mToBeQueuedVidBufs);
 
-            if(mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize)) {
-                for (uint32_t k = 0; k < streamsArray.num_streams; k++) {
-                    uint32_t m = 0;
-                    for (m = 0; m < mBatchedStreamsArray.num_streams; m++) {
-                        if (streamsArray.stream_request[k].streamID ==
-                                mBatchedStreamsArray.stream_request[m].streamID)
-                            break;
-                        }
-                        if (m == mBatchedStreamsArray.num_streams) {
-                            mBatchedStreamsArray.stream_request\
-                                [mBatchedStreamsArray.num_streams].streamID =
-                                streamsArray.stream_request[k].streamID;
-                            mBatchedStreamsArray.stream_request\
-                                [mBatchedStreamsArray.num_streams].buf_index =
-                                streamsArray.stream_request[k].buf_index;
-                            mBatchedStreamsArray.num_streams = mBatchedStreamsArray.num_streams + 1;
-                        }
-                }
-                streamsArray = mBatchedStreamsArray;
-            }
-            /* Update stream id of all the requested buffers */
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STREAM_ID, streamsArray)) {
-                LOGE("Failed to set stream type mask in the parameters");
-                return BAD_VALUE;
-            }
-
-            /* for quadra cfa request, dont' send request to back-end again,
-             * as we already got raw frame  */
-            if (!m_bQuadraCfaRequest) {
-                /*While translating input params to Aux by FOV control, stream requests will also
-                  get copied. Reset them on the slave session so that we request for frames only
-                  on the master session.*/
-                if (isDualCamera() && (getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
-                    /* Update stream id of all the requested buffers in Aux session */
-                    if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
-                                             CAM_INTF_META_STREAM_ID,
-                                                       streamsArray)) {
-                        LOGE("Failed to set meta stream id in Aux session");
-                        pthread_mutex_unlock(&mMutex);
-                        return BAD_VALUE;
-                    }
-                    metadata_buffer_t* params =
-                            (mMasterCamera == CAM_TYPE_MAIN) ? mAuxParameters : mParameters;
-                    if (blob_request && needHALPP()) {
-                        LOGD("snapshot request on slave session");
-                        ADD_SET_PARAM_ENTRY_TO_BATCH( params, CAM_INTF_META_STREAM_ID,
-                                                                    streamsArraySlave);
-                    } else {
-                        LOGD("Requesting PCR on %s session", (mMasterCamera == CAM_TYPE_MAIN) ?
-                                                                                "main" : "aux");
-                        params->is_valid[CAM_INTF_META_STREAM_ID] = 0;
-                        params->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
-                    }
-                } else if(IS_MULTI_CAMERA && is_aux_configured) {
-                        /* Update stream id of all the requested buffers in Aux session */
-                        if(is_requested_on_aux){
-                            if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
-                                              CAM_INTF_META_STREAM_ID,
-                                              streamsArraySlave)) {
-                                LOGE("Failed to set meta stream id in Aux session");
-                                pthread_mutex_unlock(&mMutex);
-                                return BAD_VALUE;
-                            }
-                        } else {
-                            if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
-                                    CAM_INTF_META_STREAM_ID,
-                                    streamsArray)) {
-                                LOGE("Failed to set meta stream id in Aux session");
-                                pthread_mutex_unlock(&mMutex);
-                                return BAD_VALUE;
-                            }
-                            mAuxParameters->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
-                        }
-                    }
-                if(!IS_MULTI_CAMERA)
-                {
-                    rc = mCameraHandle->ops->set_parms(
-                            get_main_camera_handle(mCameraHandle->camera_handle), mParameters);
-                    if (rc < 0) {
-                        LOGE("set_parms failed");
-                    }
-
-
-                    if (isDualCamera() && !IS_PP_TYPE_NONE) {
-                        rc = mCameraHandle->ops->set_parms(
-                              get_aux_camera_handle(mCameraHandle->camera_handle), mAuxParameters);
-                        if (rc < 0) {
-                            LOGE("set_parms on aux failed");
-                        }
-                    }
-                }else {
-                    uint32_t camHandle = get_main_camera_handle(mCameraHandle->camera_handle);
-                    metadata_buffer_t *params = mParameters;
-                    uint32_t config_index = CONFIG_INDEX_MAIN;
-                    if(!(is_main_configured || is_logical_configured))
-                    {
-                        if(is_aux_configured)
-                        {
-                            camHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
-                            params = mAuxParameters;
-                            config_index = CONFIG_INDEX_AUX;
-                        }
-                    }
-
-                    do {
-                        rc = mCameraHandle->ops->set_parms(camHandle, params);
-                        if (rc < 0) {
-                            LOGE("set_parms on %s failed",
-                                (config_index == CONFIG_INDEX_MAIN)?"main":"aux");
-                        }
-
-                        if(is_aux_configured && (config_index != CONFIG_INDEX_AUX))
-                        {
-                            camHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
-                            params = mAuxParameters;
-                        }
-                        config_index++;
-                    } while(is_aux_configured && (config_index < CONFIG_INDEX_MAX));
-                }
-            }
-            /* reset to zero coz, the batch is queued */
-            mToBeQueuedVidBufs = 0;
-            mPendingBatchMap.add(frameNumber, mFirstFrameNumberInBatch);
-            memset(&mBatchedStreamsArray, 0, sizeof(cam_stream_ID_t));
-        } else if (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs != mBatchSize)) {
+        if(mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize)) {
             for (uint32_t k = 0; k < streamsArray.num_streams; k++) {
                 uint32_t m = 0;
                 for (m = 0; m < mBatchedStreamsArray.num_streams; m++) {
                     if (streamsArray.stream_request[k].streamID ==
                             mBatchedStreamsArray.stream_request[m].streamID)
                         break;
+                    }
+                    if (m == mBatchedStreamsArray.num_streams) {
+                        mBatchedStreamsArray.stream_request\
+                            [mBatchedStreamsArray.num_streams].streamID =
+                            streamsArray.stream_request[k].streamID;
+                        mBatchedStreamsArray.stream_request\
+                            [mBatchedStreamsArray.num_streams].buf_index =
+                            streamsArray.stream_request[k].buf_index;
+                        mBatchedStreamsArray.num_streams = mBatchedStreamsArray.num_streams + 1;
+                    }
+            }
+            streamsArray = mBatchedStreamsArray;
+        }
+        /* Update stream id of all the requested buffers */
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STREAM_ID, streamsArray)) {
+            LOGE("Failed to set stream type mask in the parameters");
+            return BAD_VALUE;
+        }
+
+        /* for quadra cfa request, dont' send request to back-end again,
+         * as we already got raw frame  */
+        if (!m_bQuadraCfaRequest) {
+            /*While translating input params to Aux by FOV control, stream requests will also
+              get copied. Reset them on the slave session so that we request for frames only
+              on the master session.*/
+            if (isDualCamera() && (getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
+                /* Update stream id of all the requested buffers in Aux session */
+                if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
+                                         CAM_INTF_META_STREAM_ID,
+                                                   streamsArray)) {
+                    LOGE("Failed to set meta stream id in Aux session");
+                    pthread_mutex_unlock(&mMutex);
+                    return BAD_VALUE;
                 }
-                if (m == mBatchedStreamsArray.num_streams) {
-                    mBatchedStreamsArray.stream_request[mBatchedStreamsArray.num_streams].streamID =
-                        streamsArray.stream_request[k].streamID;
-                    mBatchedStreamsArray.stream_request[mBatchedStreamsArray.num_streams].buf_index =
-                        streamsArray.stream_request[k].buf_index;
-                    mBatchedStreamsArray.num_streams = mBatchedStreamsArray.num_streams + 1;
+                metadata_buffer_t* params =
+                        (mMasterCamera == CAM_TYPE_MAIN) ? mAuxParameters : mParameters;
+                if (blob_request && needHALPP()) {
+                    LOGD("snapshot request on slave session");
+                    ADD_SET_PARAM_ENTRY_TO_BATCH( params, CAM_INTF_META_STREAM_ID,
+                                                                streamsArraySlave);
+                } else {
+                    LOGD("Requesting PCR on %s session", (mMasterCamera == CAM_TYPE_MAIN) ?
+                                                                            "main" : "aux");
+                    params->is_valid[CAM_INTF_META_STREAM_ID] = 0;
+                    params->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
+                }
+            } else if(IS_MULTI_CAMERA && is_aux_configured) {
+                /* Update stream id of all the requested buffers in Aux session */
+                if(is_requested_on_aux){
+                    if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
+                                      CAM_INTF_META_STREAM_ID,
+                                      streamsArraySlave)) {
+                        LOGE("Failed to set meta stream id in Aux session");
+                        pthread_mutex_unlock(&mMutex);
+                        return BAD_VALUE;
+                    }
+                } else {
+                    if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
+                            CAM_INTF_META_STREAM_ID,
+                            streamsArray)) {
+                        LOGE("Failed to set meta stream id in Aux session");
+                        pthread_mutex_unlock(&mMutex);
+                        return BAD_VALUE;
+                    }
+                    mAuxParameters->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
                 }
             }
+            if(!IS_MULTI_CAMERA)
+            {
+                rc = mCameraHandle->ops->set_parms(
+                        get_main_camera_handle(mCameraHandle->camera_handle), mParameters);
+                if (rc < 0) {
+                    LOGE("set_parms failed");
+                }
+
+                if (isDualCamera() && !IS_PP_TYPE_NONE) {
+                    rc = mCameraHandle->ops->set_parms(
+                          get_aux_camera_handle(mCameraHandle->camera_handle), mAuxParameters);
+                    if (rc < 0) {
+                        LOGE("set_parms on aux failed");
+                    }
+                }
+            }else {
+                uint32_t camHandle = get_main_camera_handle(mCameraHandle->camera_handle);
+                metadata_buffer_t *params = mParameters;
+                uint32_t config_index = CONFIG_INDEX_MAIN;
+                if(!(is_main_configured || is_logical_configured))
+                {
+                    if(is_aux_configured)
+                    {
+                        camHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
+                        params = mAuxParameters;
+                        config_index = CONFIG_INDEX_AUX;
+                    }
+                }
+                do {
+                    rc = mCameraHandle->ops->set_parms(camHandle, params);
+                    if (rc < 0) {
+                        LOGE("set_parms on %s failed",
+                            (config_index == CONFIG_INDEX_MAIN)?"main":"aux");
+                    }
+
+                    if(is_aux_configured && (config_index != CONFIG_INDEX_AUX))
+                    {
+                        camHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
+                        params = mAuxParameters;
+                    }
+                    config_index++;
+                } while(is_aux_configured && (config_index < CONFIG_INDEX_MAX));
+            }
         }
-        mPendingLiveRequest++;
+        /* reset to zero coz, the batch is queued */
+        mToBeQueuedVidBufs = 0;
+        mPendingBatchMap.add(frameNumber, mFirstFrameNumberInBatch);
+        memset(&mBatchedStreamsArray, 0, sizeof(cam_stream_ID_t));
+    } else if (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs != mBatchSize)) {
+        for (uint32_t k = 0; k < streamsArray.num_streams; k++) {
+            uint32_t m = 0;
+            for (m = 0; m < mBatchedStreamsArray.num_streams; m++) {
+                if (streamsArray.stream_request[k].streamID ==
+                        mBatchedStreamsArray.stream_request[m].streamID)
+                    break;
+            }
+            if (m == mBatchedStreamsArray.num_streams) {
+                mBatchedStreamsArray.stream_request[mBatchedStreamsArray.num_streams].streamID =
+                    streamsArray.stream_request[k].streamID;
+                mBatchedStreamsArray.stream_request[mBatchedStreamsArray.num_streams].buf_index =
+                    streamsArray.stream_request[k].buf_index;
+                mBatchedStreamsArray.num_streams = mBatchedStreamsArray.num_streams + 1;
+            }
+        }
     }
+    mPendingLiveRequest++;
 
     LOGD("mPendingLiveRequest = %d", mPendingLiveRequest);
     mState = STARTED;
@@ -16645,7 +16610,8 @@ int32_t QCamera3HardwareInterface::configureHalPostProcess(bool bIsInput)
 
     /* check if halpp is needed in dual camera mode */
     if (isDualCamera() && mBundledSnapshot && !bIsInput &&
-              (getHalPPType() != CAM_HAL_PP_TYPE_NONE) && !m_bIsVideo) {
+              ((getHalPPType() != CAM_HAL_PP_TYPE_NONE)
+              && (getHalPPType() != CAM_HAL_PP_TYPE_SAT)) && !m_bIsVideo) {
         LOGH("Use HALPP for dual camera bundle snapshot.");
         m_bNeedHalPP = TRUE;
         // In Bokhe mode if RTB is status not success, halpp should be false
