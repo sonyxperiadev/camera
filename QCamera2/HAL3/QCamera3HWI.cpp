@@ -2493,6 +2493,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 else
                     zsl_ppmask = CAM_QCOM_FEATURE_NONE;
             }
+
             mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] = zsl_ppmask;
         } else if(newStream->stream_type == CAMERA3_STREAM_INPUT) {
                 LOGH("Input stream configured, reprocess config");
@@ -2521,6 +2522,13 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         mStreamConfigInfo.postprocess_mask[mStreamConfigInfo.num_streams] |=
                             CAM_QTI_FEATURE_PPEISCORE;
                     }
+                    if(IS_USAGE_HEIF(newStream->usage))
+                    {
+                        padding_info.width_padding = CAM_PAD_TO_512;
+                        padding_info.height_padding = CAM_PAD_TO_512;
+                        padding_info.usage = newStream->usage;
+                    }
+
                 } else {
                         mStreamConfigInfo.type[mStreamConfigInfo.num_streams] =
                             CAM_STREAM_TYPE_PREVIEW;
@@ -2712,9 +2720,15 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             (streamList->operation_mode ==
                             CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)
                     ) {
+                       cam_padding_info_t l_padding = gCamCapability[mCameraId]->padding_info;
+                       if(IS_USAGE_HEIF(newStream->usage))
+                        {
+                             l_padding = padding_info;
+                        }
+
                         channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                                 mChannelHandle, mCameraHandle->ops, captureResultCb,
-                                setBufferErrorStatus, &gCamCapability[mCameraId]->padding_info,
+                                setBufferErrorStatus, &l_padding,
                                 this,
                                 newStream,
                                 (cam_stream_type_t)
