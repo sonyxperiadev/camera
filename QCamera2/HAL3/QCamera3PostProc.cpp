@@ -1206,12 +1206,16 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
     }
 
     bool hdr_snapshot = FALSE;
-    if((job->jpeg_settings != NULL && job->jpeg_settings->hdr_snapshot == 1))
-    {
+    if((job->jpeg_settings != NULL && job->jpeg_settings->hdr_snapshot == 1)) {
         hdr_snapshot = TRUE;
     }
 
-    while((hdr_snapshot == TRUE) && (!m_ongoingPPQ.isEmpty()) ) {
+    bool multiframe_snapshot = FALSE;
+    if((job->jpeg_settings != NULL && job->jpeg_settings->multiframe_snapshot == 1)) {
+        multiframe_snapshot = TRUE;
+    }
+
+    while((hdr_snapshot == TRUE || multiframe_snapshot == TRUE) && (!m_ongoingPPQ.isEmpty()) ) {
         LOGD(" Checking if empty");
         pending_job = (qcamera_hal3_pp_data_t *)m_ongoingPPQ.dequeue();
         if ((pending_job != NULL)) {
