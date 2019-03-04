@@ -142,9 +142,42 @@ int QCamera3Memory::cacheOpsInternal(uint32_t index, unsigned int cmd, void *vad
     if (ret < 0)
         LOGE("Cache Invalidate failed: %s\n", strerror(errno));
 #else
-   (void) index;
-   (void) cmd;
-   (void) vaddr;
+  struct dma_buf_sync buf_sync_start;
+  struct dma_buf_sync buf_sync_end;
+
+  /* ION_IOC_CLEAN_CACHES-->call the DMA_BUF_IOCTL_SYNC IOCTL with flags DMA_BUF_SYNC_START
+     and DMA_BUF_SYNC_WRITE and then call the DMA_BUF_IOCTL_SYNC IOCTL with flags DMA_BUF_SYNC_END
+     and DMA_BUF_SYNC_WRITE
+     ION_IOC_INV_CACHES-->call the DMA_BUF_IOCTL_SYNC IOCT with flags DMA_BUF_SYNC_START and
+     DMA_BUF_SYNC_WRITE and then call the DMA_BUF_IOCTL_SYNC IOCT with flags DMA_BUF_SYNC_END
+     and DMA_BUF_SYNC_READ
+  */
+
+  switch (cmd) {
+  case CAM_INV_CACHE:
+    buf_sync_start.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE;
+    buf_sync_end.flags   = DMA_BUF_SYNC_END   | DMA_BUF_SYNC_READ;
+    break;
+  case CAM_CLEAN_CACHE:
+    buf_sync_start.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE;
+    buf_sync_end.flags   = DMA_BUF_SYNC_END   | DMA_BUF_SYNC_WRITE;
+    break;
+  default:
+  case CAM_CLEAN_INV_CACHE:
+    buf_sync_start.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW;
+    buf_sync_end.flags   = DMA_BUF_SYNC_END   | DMA_BUF_SYNC_RW;
+    break;
+  }
+
+  ret = ioctl(mMemInfo[index].fd, DMA_BUF_IOCTL_SYNC, &buf_sync_start.flags);
+  if (ret) {
+      LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
+  }
+  ret = ioctl(mMemInfo[index].fd, DMA_BUF_IOCTL_SYNC, &buf_sync_end.flags);
+  if (ret) {
+      LOGE("Failed first DMA_BUF_IOCTL_SYNC End\n");
+  }
+  (void) vaddr;
 #endif //TARGET_ION_ABI_VERSION
     return ret;
 }
@@ -334,10 +367,7 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
     allocData.len = (allocData.len + 4095U) & (~4095U);
     allocData.align = 4096;
     allocData.heap_id_mask = heap_id;
-
-#ifndef TARGET_ION_ABI_VERSION
     allocData.flags = ION_FLAG_CACHED;
-#endif
 
     if (m_bIsSecureMode) {
         LOGD("Allocate secure buffer\n");
@@ -615,8 +645,6 @@ int QCamera3HeapMemory::allocate(size_t size)
 #ifndef TARGET_ION_ABI_VERSION
     unsigned int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
 #else
-    struct dma_buf_sync buf_sync;
-    buf_sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW;
     uint32_t heap_id_mask = 0x1 << ION_SYSTEM_HEAP_ID;
 #endif // TARGET_ION_ABI_VERSION
     uint32_t i;
@@ -652,13 +680,6 @@ int QCamera3HeapMemory::allocate(size_t size)
         } else {
             mPtr[i] = vaddr;
         }
-#ifdef TARGET_ION_ABI_VERSION
-        rc = ioctl(mMemInfo[i].fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
-        if (rc) {
-            LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
-            goto ALLOC_FAILED;
-        }
-#endif //TARGET_ION_ABI_VERSION
     }
     if (rc == 0)
         mBufferCount = mMaxCnt;
@@ -695,7 +716,6 @@ int QCamera3HeapMemory::allocateOne(size_t size)
     unsigned int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
 #else
     uint32_t heap_id_mask = 0x1 << ION_SYSTEM_HEAP_ID;
-    struct dma_buf_sync buf_sync;
 #endif // TARGET_ION_ABI_VERSION
     int rc = NO_ERROR;
 
@@ -730,14 +750,6 @@ int QCamera3HeapMemory::allocateOne(size_t size)
         mPtr[mBufferCount] = vaddr;
     }
 
-#ifdef TARGET_ION_ABI_VERSION
-    buf_sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW;
-    rc = ioctl(mMemInfo[mBufferCount].fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
-    if (rc) {
-        LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
-    }
-#endif //TARGET_ION_ABI_VERSION
-
 ALLOC_DONE:
     if (rc == 0)
         mBufferCount += 1;
@@ -756,17 +768,7 @@ ALLOC_DONE:
  *==========================================================================*/
 void QCamera3HeapMemory::deallocate()
 {
-#ifdef TARGET_ION_ABI_VERSION
-    struct dma_buf_sync buf_sync;
-    buf_sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW;
-#endif //TARGET_ION_ABI_VERSION
     for (uint32_t i = 0; i < mBufferCount; i++) {
-#ifdef TARGET_ION_ABI_VERSION
-    int rc = ioctl(mMemInfo[i].fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
-    if (rc) {
-        LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
-    }
-#endif //TARGET_ION_ABI_VERSION
         if (mPtr[i] != NULL) {
             munmap(mPtr[i], mMemInfo[i].size);
             mPtr[i] = NULL;
@@ -970,15 +972,6 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     } else {
         mPtr[idx] = vaddr;
     }
-#ifdef TARGET_ION_ABI_VERSION
-    struct dma_buf_sync buf_sync;
-    buf_sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW;
-    ret = ioctl(mMemInfo[idx].fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
-    if (ret) {
-        LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
-    }
-#endif //TARGET_ION_ABI_VERSION
-
 end:
     LOGD("X ");
     return ret;
@@ -998,15 +991,6 @@ end:
  *==========================================================================*/
 int32_t QCamera3GrallocMemory::unregisterBufferLocked(size_t idx)
 {
-#ifdef TARGET_ION_ABI_VERSION
-    struct dma_buf_sync buf_sync;
-    buf_sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW;
-    int rc = ioctl(mMemInfo[idx].fd, DMA_BUF_IOCTL_SYNC, &buf_sync.flags);
-    if (rc) {
-        LOGE("Failed first DMA_BUF_IOCTL_SYNC start\n");
-    }
-#endif //TARGET_ION_ABI_VERSION
-
     if (mPtr[idx] != NULL) {
         munmap(mPtr[idx], mMemInfo[idx].size);
         mPtr[idx] = NULL;

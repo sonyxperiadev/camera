@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -103,6 +103,21 @@ int buffer_invalidate(buffer_t *p_buffer);
  *
  **/
 int buffer_clean(buffer_t *p_buffer);
+
+/** buffer_cache_ops:
+ *
+ *  Arguments:
+ *     @p_buffer: ION buffer
+ *     @uint32_t cmd
+ *
+ *  Return:
+ *     error val
+ *
+ *  Description:
+ *      buffer cache ops based on comd.
+ *
+ **/
+int buffer_cache_ops(buffer_t *p_buffer, uint32_t cmd);
 
 #endif
 
