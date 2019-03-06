@@ -4772,6 +4772,9 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                             qrcp::getDepthMapSize(mCamera3Stream->width,
                                                     mCamera3Stream->height,
                                                     dim.width, dim.height);
+#else
+                            dim.width = mCamera3Stream->width;
+                            dim.height = mCamera3Stream->height;
 #endif //ENABLE_QC_BOKEH
                             index = mJpegMemory.allocateOne(dim.width * dim.height);
                         }
