@@ -697,6 +697,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         mPictureChannel->stopChannel();
         mPictureChannel->deleteChannel();
         mPicChannelHandle = 0;
+        m_bStopPicChannel = false;
     }
 
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
@@ -2007,6 +2008,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         mPictureChannel->stopChannel();
         mPictureChannel->deleteChannel();
         mPicChannelHandle = 0;
+        m_bStopPicChannel = false;
     }
 
     if (mRawDumpChannel) {
@@ -14445,6 +14447,7 @@ int32_t QCamera3HardwareInterface::stopAllChannels()
 
     if (mPicChannelHandle) {
         mPictureChannel->stopChannel();
+        m_bStopPicChannel = false;
     }
 
     LOGD("All channels stopped");
