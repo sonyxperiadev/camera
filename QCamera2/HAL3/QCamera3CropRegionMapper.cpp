@@ -133,8 +133,10 @@ void QCamera3CropRegionMapper::toActiveArray(int32_t& crop_left, int32_t& crop_t
         return;
     }
 
-    crop_left = crop_left * mActiveArrayW / mSensorW;
-    crop_top = crop_top * mActiveArrayH / mSensorH;
+    crop_left =
+       (crop_left * mActiveArrayW / mSensorW) + ((mActiveArrayW - mSensorW)/2);
+    crop_top =
+       (crop_top * mActiveArrayH / mSensorH) + ((mActiveArrayH - mSensorH)/2);
     crop_width = crop_width * mActiveArrayW / mSensorW;
     crop_height = crop_height * mActiveArrayH / mSensorH;
 
@@ -165,8 +167,10 @@ void QCamera3CropRegionMapper::toSensor(int32_t& crop_left, int32_t& crop_top,
         return;
     }
 
-    crop_left = crop_left * mSensorW / mActiveArrayW;
-    crop_top = crop_top * mSensorH / mActiveArrayH;
+    crop_left =
+      (crop_left - ((mActiveArrayW - mSensorW)/2)) * mSensorW / mActiveArrayW;
+    crop_top =
+      (crop_top - ((mActiveArrayH - mSensorH)/2)) * mSensorH / mActiveArrayH;
     crop_width = crop_width * mSensorW / mActiveArrayW;
     crop_height = crop_height * mSensorH / mActiveArrayH;
 
