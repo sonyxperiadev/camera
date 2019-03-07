@@ -309,6 +309,8 @@ public:
     int getCameraId() {return mCameraId;}
     bool isQuadCfaSensor() {return m_bQuadraCfaSensor;}
     int32_t deleteQCFARawChannel();
+    cam_dimension_t getQCFAComapitbleDim(const uint32_t& width,
+                                             const uint32_t& height);
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
@@ -406,6 +408,7 @@ private:
 
     bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList,
             cam_stream_size_info_t stream_config_info);
+    bool IsQCFASelected(camera3_capture_request *request);
     bool isHdrSnapshotRequest(camera3_capture_request *request);
     int32_t setMobicat();
 
@@ -633,6 +636,7 @@ public:
     cam_format_t mRdiModeFmt;
     QCamera3QCfaRawChannel *mQCFARawChannel;
     bool m_bQuadraCfaRequest;
+    bool m_bPreSnapQuadraCfaRequest;
     QCameraFOVControl *m_pFovControl;
     bool isSecureMode() {return m_bIsSecureMode;}
 private:

@@ -677,6 +677,7 @@ public:
     void deleteChannel();
     int32_t startChannel();
     int32_t stopChannel();
+    void stopPostProc();
 
 private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,
