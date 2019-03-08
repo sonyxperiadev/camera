@@ -1038,6 +1038,7 @@ typedef enum {
     IS_TYPE_GA_DIS,
     IS_TYPE_EIS_2_0,
     IS_TYPE_EIS_3_0,
+    IS_TYPE_VENDOR_EIS,
     IS_TYPE_MAX
 } cam_is_type_t;
 
@@ -2759,6 +2760,7 @@ typedef struct {
 #define CAM_QTI_FEATURE_DEPTH_MAP       ((cam_feature_mask_t)1UL<<47)
 #define CAM_QTI_FEATURE_MFPROC_PRECPP   ((cam_feature_mask_t)1UL<<48)
 #define CAM_QTI_FEATURE_MFPROC_POSTCPP   ((cam_feature_mask_t)1UL<<49)
+#define CAM_QTI_FEATURE_VENDOR_EIS      ((cam_feature_mask_t)1UL<<50)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
