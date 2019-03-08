@@ -625,7 +625,6 @@ private:
     pthread_cond_t mRequestCond;
     pthread_cond_t mHdrRequestCond;
     uint32_t mPendingLiveRequest;
-    bool mWokenUpByDaemon;
     int32_t mCurrentRequestId;
     int32_t mAuxCurrentRequestId;
     cam_stream_size_info_t mStreamConfigInfo[CONFIG_INDEX_MAX];

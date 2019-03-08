@@ -863,12 +863,7 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
 
             case CAM_EVENT_TYPE_DAEMON_PULL_REQ:
                 LOGD("HAL got request pull from Daemon");
-                pthread_mutex_lock(&obj->mMutex);
-                obj->mWokenUpByDaemon = true;
-                obj->unblockRequestIfNecessary();
-                pthread_mutex_unlock(&obj->mMutex);
                 break;
-
             default:
                 LOGW("Warning: Unhandled event %d",
                         evt->server_event_type);
@@ -6209,6 +6204,10 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 }
             }
 
+            if (setEis && eis3Supported && (isTypeVideo == IS_TYPE_EIS_3_0)) {
+                mMaxInFlightRequests = MAX_INFLIGHT_EIS_REQUESTS;
+            }
+
             // This DC info is required for setting the actual sync type instead of value
             // set in confgure streams
             if (l_meta.exists(QCAMERA3_DUALCAM_LINK_ENABLE)) {
@@ -6780,7 +6779,6 @@ error_exit:
         mPerfLockMgr.releasePerfLock(PERF_LOCK_START_PREVIEW);
         return rc;
 no_error:
-        mWokenUpByDaemon = false;
         mPendingLiveRequest = 0;
         mFirstConfiguration = false;
     }
@@ -7624,7 +7622,7 @@ no_error:
     }
       ts.tv_sec += ((bufsForCurRequest.timestamp - systemTime(CLOCK_MONOTONIC))/1000000000);
     //Block on conditional variable
-    while ((mPendingLiveRequest >= mMinInFlightRequests) && !pInputBuffer &&
+    while ((mPendingLiveRequest > mMaxInFlightRequests) && !pInputBuffer &&
             (mState != ERROR) && (mState != DEINIT)) {
         if (!isValidTimeout) {
             LOGD("Blocking on conditional wait");
@@ -7640,11 +7638,6 @@ no_error:
             }
         }
         LOGD("Unblocked");
-        if (mWokenUpByDaemon) {
-            mWokenUpByDaemon = false;
-            if (mPendingLiveRequest < mMaxInFlightRequests)
-                break;
-        }
     }
     pthread_mutex_unlock(&mMutex);
 
