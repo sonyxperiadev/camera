@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -6538,10 +6538,8 @@ int QCamera2HardwareInterface::registerFaceImage(void *img_ptr,
         return NO_MEMORY;
     }
     memcpy(pBufPtr, img_ptr, config->input_buf_planes.plane_info.frame_len);
-#ifndef TARGET_ION_ABI_VERSION
     //Do cache ops before sending for reprocess
-    imgBuf->cacheOps(0, ION_IOC_CLEAN_INV_CACHES);
-#endif //TARGET_ION_ABI_VERSION
+    imgBuf->cleanInvalidateCache(0);
     cam_pp_feature_config_t pp_feature;
     memset(&pp_feature, 0, sizeof(cam_pp_feature_config_t));
     pp_feature.feature_mask = CAM_QCOM_FEATURE_REGISTER_FACE;

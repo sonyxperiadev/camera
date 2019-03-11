@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -94,6 +94,20 @@
 #ifndef FALSE
 #define FALSE 0
 #endif
+
+#if TARGET_ION_ABI_VERSION >= 2
+#ifndef CAM_CACHE_OPS
+#define CAM_CACHE_OPS
+enum {
+    CAM_CLEAN_CACHE,
+    CAM_INV_CACHE,
+    CAM_CLEAN_INV_CACHE
+};
+#define ION_IOC_CLEAN_CACHES CAM_CLEAN_CACHE
+#define ION_IOC_INV_CACHES CAM_INV_CACHE
+#define ION_IOC_CLEAN_INV_CACHES CAM_CLEAN_INV_CACHE
+#endif //CAM_CACHE_OPS
+#endif //TARGET_ION_ABI_VERSION
 
 typedef enum {
     TUNE_CMD_INIT,
