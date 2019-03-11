@@ -195,9 +195,9 @@
 
 #define MAX_SECURE_BUFFERS  3
 
-#define QCOM_GRALLOC_USAGE_PRIVATE_HEIF (UINT32_C(1) << 27)
-#define IS_USAGE_HEIF(usage) (((usage) & (QCOM_GRALLOC_USAGE_PRIVATE_HEIF)) \
-        == (QCOM_GRALLOC_USAGE_PRIVATE_HEIF))
+#define CAM_GRALLOC_USAGE_PRIVATE_HEIF (UINT32_C(1) << 27)
+#define IS_USAGE_HEIF(usage) (((usage) & (CAM_GRALLOC_USAGE_PRIVATE_HEIF)) \
+        == (CAM_GRALLOC_USAGE_PRIVATE_HEIF))
 
 typedef uint64_t cam_feature_mask_t;
 
