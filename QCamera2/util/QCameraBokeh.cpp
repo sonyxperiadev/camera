@@ -401,11 +401,31 @@ int32_t QCameraBokeh::process()
         bokeh_input_params_t inParams;
         getInputParams(inParams);
 
+#ifdef ENABLE_QC_BOKEH
         rc = doBokehProcess(
                 (const uint8_t *)pMainSnap->buffer,
                 (const uint8_t *)pAuxSnap->buffer,
                 inParams, (uint8_t *)pOutputBuf->buffer);
+#else
+        inParams.depth.offset.num_planes = 1;
+        inParams.depth.offset.mp[0].offset = 0;
+        inParams.depth.offset.mp[0].width = inParams.depth.offset.mp[0].stride =
+                inParams.depth.width = inParams.depth.stride = inParams.main.width;
+        inParams.depth.offset.mp[0].height = inParams.depth.offset.mp[0].scanline =
+                inParams.depth.height = inParams.depth.scanline = inParams.main.height;
+        inParams.depth.frame_len = inParams.depth.offset.frame_len =
+                inParams.depth.offset.mp[0].len = inParams.main.width * inParams.main.height;
+        rc = allocateDepthBuf(inParams.depth);
+        if(rc != NO_ERROR)
+        {
+            ATRACE_END();
+            LOGE("ERROR: Failed to allocate depth buffer, error no:%d X",rc);
+            return rc;
+        }
 
+        memcpy(pOutputBuf->buffer, pMainSnap->buffer,
+                                       mBokehData.main_input->snap_offset.frame_len);
+#endif //ENABLE_QC_BOKEH
         uint8_t * pDepthMap = (uint8_t *)mBokehData.depth_output->frame->bufs[0]->buffer;
 
         if (rc != NO_ERROR) {
