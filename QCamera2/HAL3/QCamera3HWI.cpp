@@ -2926,9 +2926,16 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             bufferCount = MAX_SECURE_BUFFERS;
                             mStreamConfigInfo[index].is_secure = SECURE;
                         }
+
+                       cam_padding_info_t l_padding = gCamCapability[mCameraId]->padding_info;
+                       if(IS_USAGE_HEIF(newStream->usage))
+                        {
+                             l_padding = padding_info;
+                        }
+
                         channel = new QCamera3RegularChannel(camHdl,
                                 channelHdl, mCameraHandle->ops, captureResultCb,
-                                setBufferErrorStatus, &gCamCapability[mCameraId]->padding_info,
+                                setBufferErrorStatus, &l_padding,
                                 this,
                                 newStream,
                                 (cam_stream_type_t)
