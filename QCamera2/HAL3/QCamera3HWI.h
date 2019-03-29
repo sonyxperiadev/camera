@@ -91,6 +91,7 @@ typedef int64_t nsecs_t;
 #define MAX_BLUR 100
 #define BLUR_STEP 1
 
+#define MAX_MFPROC_FRAMECOUNT 5
 
 typedef enum {
     SET_ENABLE,
@@ -254,6 +255,10 @@ public:
     int orchestrateRequest(camera3_capture_request_t *request);
     void orchestrateResult(camera3_capture_result_t *result);
     void orchestrateNotify(camera3_notify_msg_t *notify_msg);
+
+    int32_t orchestrateHDRCapture(camera3_capture_request_t *request);
+    int32_t orchestrateMultiFrameCapture(camera3_capture_request_t *request);
+    int32_t orchestrateAdvancedCapture(camera3_capture_request_t *request, bool &isAdvancedCapture);
 
     void dump(int fd);
     int flushPerf();
@@ -422,6 +427,7 @@ private:
             cam_stream_size_info_t stream_config_info);
     bool IsQCFASelected(camera3_capture_request *request);
     bool isHdrSnapshotRequest(camera3_capture_request *request);
+    bool isMultiFrameSnapshotRequest(camera3_capture_request *request);
     int32_t setMobicat();
 
     int32_t getSensorOutputSize(cam_dimension_t &sensor_dim, uint32_t cam_type = CAM_TYPE_MAIN);
@@ -527,7 +533,9 @@ private:
     bool mEnableRawDump;
     bool mForceHdrSnapshot;
     uint32_t mHdrFrameNum;
+    uint32_t mMultiFrameCaptureNumber;
     bool mHdrSnapshotRunning;
+    bool mMultiFrameSnapshotRunning;
     bool mShouldSetSensorHdr;
     QCamera3HeapMemory *mParamHeap;
     metadata_buffer_t* mParameters;
@@ -624,6 +632,7 @@ private:
     PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
     pthread_cond_t mHdrRequestCond;
+    pthread_cond_t mMultiFrameRequestCond;
     uint32_t mPendingLiveRequest;
     int32_t mCurrentRequestId;
     int32_t mAuxCurrentRequestId;
@@ -774,6 +783,10 @@ private:
 
     uint8_t mCurrentSceneMode;
     bool m_bOfflineIsp;
+
+    //for multiframe process capture
+    bool mbIsMultiFrameCapture;
+    uint8_t mMultiFrameCaptureCount;
 
     // for quad cfa
     bool m_bQuadraCfaSensor;

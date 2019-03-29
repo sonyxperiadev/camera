@@ -4248,6 +4248,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
     buffer_handle_t *jpegBufferHandle = NULL;
     int resultStatus = CAMERA3_BUFFER_STATUS_OK;
     bool isHDR = false;
+    bool isMFCapture = false;
     camera3_stream_buffer_t result;
     camera3_jpeg_blob_t jpegHeader;
 
@@ -4267,6 +4268,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             uint32_t bufIdx = (uint32_t)job->jpeg_settings->out_buf_index;
             LOGD("jpeg out_buf_index: %d and if HDR :%d", bufIdx, job->jpeg_settings->hdr_snapshot);
             isHDR = job->jpeg_settings->hdr_snapshot;
+            isMFCapture = job->jpeg_settings->multiframe_snapshot;
             //Construct jpeg transient header of type camera3_jpeg_blob_t
             //Append at the end of jpeg image of buf_filled_len size
 
@@ -4365,7 +4367,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                 obj->mFreeBufferList.push_back((uint32_t)snapshotIdx);
             }
 
-            if(isHDR) {
+            if(isHDR || isMFCapture) {
                obj->mPostProcStarted = false;
                obj->m_postprocessor.mChannelStop = false;
             } else {
@@ -4411,7 +4413,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             }
             obj->m_postprocessor.releaseJpegJobData(job);
             free(job);
-            if(isHDR) {
+            if(isHDR || isMFCapture) {
                LOGD("Calling PostProc Stopped sending ");
                if (obj->mChannelCB) {
                    obj->mChannelCB(NULL,
@@ -5197,6 +5199,14 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
         }
     }
 
+    settings->multiframe_snapshot = 0;
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.vendor.camera.multiframe.capture.enable", prop, "0");
+    bool bIsMultiFrameCapture = atoi(prop) ? TRUE : FALSE;
+
+    if(bIsMultiFrameCapture) {
+        settings->multiframe_snapshot = 1;
+    }
 
     // Image description
     const char *eepromVersion = hal_obj->getEepromVersionInfo();

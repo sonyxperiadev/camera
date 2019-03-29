@@ -431,7 +431,9 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mFlush(false),
       mFlushPerf(false),
       mHdrFrameNum(0),
+      mMultiFrameCaptureNumber(0),
       mHdrSnapshotRunning(false),
+      mMultiFrameSnapshotRunning(false),
       mShouldSetSensorHdr(false),
       mParamHeap(NULL),
       mParameters(NULL),
@@ -518,6 +520,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 
     pthread_cond_init(&mRequestCond, &mCondAttr);
     pthread_cond_init(&mHdrRequestCond, &mCondAttr);
+    pthread_cond_init(&mMultiFrameRequestCond, &mCondAttr);
 
     pthread_condattr_destroy(&mCondAttr);
 
@@ -804,6 +807,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     pthread_cond_destroy(&mRequestCond);
     pthread_cond_destroy(&mBuffersCond);
     pthread_cond_destroy(&mHdrRequestCond);
+    pthread_cond_destroy(&mMultiFrameRequestCond);
 
     pthread_mutex_destroy(&mMutex);
     if (mStreamList.streams != NULL) {
@@ -5014,6 +5018,13 @@ void QCamera3HardwareInterface::handleBufferWithLock(
         mHdrSnapshotRunning = false;
         pthread_cond_signal(&mHdrRequestCond);
     }
+
+    if ((buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) && (frame_number == mMultiFrameCaptureNumber)) {
+        mMultiFrameCaptureNumber = 0;
+        mMultiFrameSnapshotRunning = false;
+        pthread_cond_signal(&mMultiFrameRequestCond);
+    }
+
     pendingRequestIterator i = mPendingRequestsList.begin();
     while (i != mPendingRequestsList.end() && i->frame_number != frame_number){
         i++;
@@ -5232,6 +5243,82 @@ bool QCamera3HardwareInterface::isHdrSnapshotRequest(camera3_capture_request *re
 
     return false;
 }
+
+
+/*===========================================================================
+ * FUNCTION   : isMultiFrameSnapshotRequest
+ *
+ * DESCRIPTION: Function to determine if the request is for a Multiframe Process snapshot
+ *
+ * PARAMETERS : camera3 request structure
+ *
+ * RETURN     : boolean decision variable
+ *
+ *==========================================================================*/
+bool QCamera3HardwareInterface::isMultiFrameSnapshotRequest(camera3_capture_request *request)
+{
+    if (request == NULL) {
+        LOGE("Invalid request handle");
+        assert(0);
+        return false;
+    }
+
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("persist.vendor.camera.multiframe.capture.enable", prop, "0");
+    mbIsMultiFrameCapture = atoi(prop) ? TRUE : FALSE;
+
+    if (mbIsMultiFrameCapture) {
+        property_get("persist.vendor.camera.multiframe.capture.count", prop, "3");
+        mMultiFrameCaptureCount = (uint8_t)atoi(prop);
+        if ((mMultiFrameCaptureCount == 0) || (mMultiFrameCaptureCount > MAX_MFPROC_FRAMECOUNT)) {
+            LOGE("Supported Frame count range (1 - 5), set to max frame count %d",
+                MAX_MFPROC_FRAMECOUNT);
+            mMultiFrameCaptureCount = MAX_MFPROC_FRAMECOUNT;
+        }
+
+        for (uint32_t i = 0; i < request->num_output_buffers; i++) {
+            if (request->output_buffers[i].stream->format == HAL_PIXEL_FORMAT_BLOB) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
+int32_t QCamera3HardwareInterface::orchestrateAdvancedCapture(
+        camera3_capture_request_t *request, bool &isAdvancedCapture)
+{
+    isAdvancedCapture = false;
+    bool blob_request = false;
+
+    for (size_t i = 0; i < request->num_output_buffers; i++) {
+        const camera3_stream_buffer_t& output = request->output_buffers[i];
+        if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
+            //FIXME??:Call function to store local copy of jpeg data for encode params.
+            blob_request = 1;
+        }
+    }
+
+    if (!blob_request) {
+        LOGD("Not a snapshot request, skip");
+        return NO_ERROR;
+    }
+
+    if (isHdrSnapshotRequest(request)) {
+        isAdvancedCapture = true;
+        return orchestrateHDRCapture(request);
+    }
+
+    if (isMultiFrameSnapshotRequest(request)) {
+        isAdvancedCapture = true;
+        return orchestrateMultiFrameCapture(request);
+    }
+
+    return NO_ERROR;
+}
+
+
 /*===========================================================================
  * FUNCTION   : orchestrateRequest
  *
@@ -5246,14 +5333,35 @@ bool QCamera3HardwareInterface::isHdrSnapshotRequest(camera3_capture_request *re
 int32_t QCamera3HardwareInterface::orchestrateRequest(
         camera3_capture_request_t *request)
 {
+    int32_t ret = NO_ERROR;
+    bool isAdvancedCapture = false;
 
+    //Check if any advanced capture features are enabled
+    ret = orchestrateAdvancedCapture(request, isAdvancedCapture);
+
+    //If not, revert to regular capture flow
+    if (!isAdvancedCapture) {
+        uint32_t internalFrameNumber;
+        List<InternalRequest> internallyRequestedStreams;
+        _orchestrationDb.allocStoreInternalFrameNumber(request->frame_number, internalFrameNumber);
+        request->frame_number = internalFrameNumber;
+        ret = processCaptureRequest(request, internallyRequestedStreams);
+    }
+
+    return ret;
+}
+
+int32_t QCamera3HardwareInterface::orchestrateHDRCapture(
+        camera3_capture_request_t *request)
+{
+    int32_t ret = NO_ERROR;
     uint32_t originalFrameNumber = request->frame_number;
     uint32_t originalOutputCount = request->num_output_buffers;
     const camera_metadata_t *original_settings = request->settings;
     List<InternalRequest> internallyRequestedStreams;
     List<InternalRequest> emptyInternalList;
 
-    if (isHdrSnapshotRequest(request) && request->input_buffer == NULL) {
+    if (request->input_buffer == NULL) {
         LOGD("Framework requested:%d buffers in HDR snapshot", request->num_output_buffers);
         uint32_t internalFrameNumber;
         CameraMetadata modified_meta;
@@ -5262,7 +5370,7 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
                     gCamCapability[mCameraId]->hdr_bracketing_setting;
         uint32_t hdrFrameCount =
                 hdrBracketingSetting.num_frames;
-        LOGI("HDR values %d, %d , %d frame count: %u",
+        LOGD("HDR values %d, %d , %d frame count: %u",
               (int8_t) hdrBracketingSetting.exp_val.values[0],
               (int8_t) hdrBracketingSetting.exp_val.values[1],
               (int8_t) hdrBracketingSetting.exp_val.values[2],
@@ -5291,6 +5399,8 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         request->num_output_buffers = 0;
         auto itr =  internallyRequestedStreams.begin();
 
+        /* Capture Settling & -2x frame */
+
         /* Modify setting to set compensation */
         modified_meta = request->settings;
         hdr_exp_values = hdrBracketingSetting.exp_val.values[0];
@@ -5301,7 +5411,6 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         camera_metadata_t *modified_settings = modified_meta.release();
         request->settings = modified_settings;
 
-        /* Capture Settling & -2x frame */
         _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
         request->frame_number = internalFrameNumber;
         processCaptureRequest(request, internallyRequestedStreams);
@@ -5313,6 +5422,8 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         processCaptureRequest(request, emptyInternalList);
         request->num_output_buffers = 0;
 
+        /* Capture Settling & 0X frame */
+
         modified_meta = modified_settings;
         hdr_exp_values = hdrBracketingSetting.exp_val.values[1];
         expCompensation = hdr_exp_values;
@@ -5321,8 +5432,6 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         modified_meta.update(ANDROID_CONTROL_AE_LOCK, &aeLock, 1);
         modified_settings = modified_meta.release();
         request->settings = modified_settings;
-
-        /* Capture Settling & 0X frame */
 
         itr =  internallyRequestedStreams.begin();
         if (itr == internallyRequestedStreams.end()) {
@@ -5384,8 +5493,7 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
         request->frame_number = internalFrameNumber;
         mHdrSnapshotRunning = true;
-        processCaptureRequest(request, internallyRequestedStreams);
-
+        ret = processCaptureRequest(request, internallyRequestedStreams);
         //Add extra EV 0 capture at the end to avoid preview flicker
         modified_meta = modified_settings;
         hdr_exp_values = hdrBracketingSetting.exp_val.values[0];
@@ -5415,14 +5523,64 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
 
         /* Restore original settings pointer */
         request->settings = original_settings;
-    } else {
-        uint32_t internalFrameNumber;
-        _orchestrationDb.allocStoreInternalFrameNumber(request->frame_number, internalFrameNumber);
-        request->frame_number = internalFrameNumber;
-        return processCaptureRequest(request, internallyRequestedStreams);
     }
+    return ret;
+}
 
-    return NO_ERROR;
+int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
+        camera3_capture_request_t *request)
+{
+    int32_t ret = NO_ERROR;
+    uint32_t originalFrameNumber = request->frame_number;
+    uint32_t originalOutputCount = request->num_output_buffers;
+    const camera_metadata_t *original_settings = request->settings;
+    List<InternalRequest> internallyRequestedStreams;
+    List<InternalRequest> emptyInternalList;
+
+    if (request->input_buffer == NULL) {
+        LOGD("Framework requested:%d buffers in Multi Frame snapshot", request->num_output_buffers);
+        uint32_t internalFrameNumber;
+
+        /* Add Blob channel to list of internally requested streams */
+        for (uint32_t i = 0; i < request->num_output_buffers; i++) {
+            if (request->output_buffers[i].stream->format
+                    == HAL_PIXEL_FORMAT_BLOB) {
+                InternalRequest streamRequested;
+                streamRequested.meteringOnly = 0;
+                streamRequested.need_metadata = 1;
+                streamRequested.stream = request->output_buffers[i].stream;
+                internallyRequestedStreams.push_back(streamRequested);
+            }
+        }
+
+        for (uint32_t j = 0; j < mMultiFrameCaptureCount-1; j++) {
+            request->num_output_buffers = 0;
+            auto itr =  internallyRequestedStreams.begin();
+            if (itr == internallyRequestedStreams.end()) {
+                LOGE("Error Internally Requested Stream list is empty");
+                assert(0);
+            } else {
+                itr->need_metadata = 1;
+                itr->meteringOnly = 0;
+            }
+            _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
+            request->frame_number = internalFrameNumber;
+            processCaptureRequest(request, internallyRequestedStreams);
+        }
+
+        request->num_output_buffers = originalOutputCount;
+        _orchestrationDb.allocStoreInternalFrameNumber(originalFrameNumber, internalFrameNumber);
+        request->frame_number = internalFrameNumber;
+        mMultiFrameCaptureNumber = internalFrameNumber;
+        mMultiFrameSnapshotRunning = true;
+        ret = processCaptureRequest(request, emptyInternalList);
+
+        internallyRequestedStreams.clear();
+
+        /* Restore original settings pointer */
+        request->settings = original_settings;
+    }
+    return ret;
 }
 
 /*===========================================================================
@@ -7611,6 +7769,11 @@ no_error:
         pthread_cond_wait(&mHdrRequestCond, &mMutex);
         mHdrSnapshotRunning = false;
     }
+    if (mMultiFrameSnapshotRunning) {
+        pthread_cond_wait(&mMultiFrameRequestCond, &mMutex);
+        mMultiFrameSnapshotRunning = false;
+    }
+
     // Added a timed condition wait
     struct timespec ts;
     uint8_t isValidTimeout = 1;
@@ -15231,6 +15394,16 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
         pp_config.hdr_param.hdr_enable = 1;
         pp_config.hdr_param.hdr_need_1x = 0;
         pp_config.hdr_param.hdr_mode = CAM_HDR_MODE_MULTIFRAME;
+    }
+
+    if (mbIsMultiFrameCapture) {
+        char prop[PROPERTY_VALUE_MAX];
+        property_get("persist.vendor.camera.multiframe.capture.precpp", prop, "1");
+        bool bMultiFrameCapture_precpp = atoi(prop) ? TRUE : FALSE;
+        if(bMultiFrameCapture_precpp) {
+            pp_config.feature_mask |= CAM_QTI_FEATURE_MFPROC_PRECPP;
+        }
+        pp_config.burst_cnt = mMultiFrameCaptureCount;
     }
 
     if (m_bOfflineIsp) {
