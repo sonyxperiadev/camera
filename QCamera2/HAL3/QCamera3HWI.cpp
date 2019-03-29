@@ -2115,8 +2115,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
     if (mRawDumpChannel) {
         mRawDumpChannel->stop();
-        delete mRawDumpChannel;
-        mRawDumpChannel = NULL;
     }
 
     if (mSupportChannel)
@@ -2551,6 +2549,11 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     if (mDummyBatchChannel) {
         delete mDummyBatchChannel;
         mDummyBatchChannel = NULL;
+    }
+
+    if (mRawDumpChannel) {
+        delete mRawDumpChannel;
+        mRawDumpChannel = NULL;
     }
 
     char is_type_value[PROPERTY_VALUE_MAX];
