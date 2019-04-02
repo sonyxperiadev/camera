@@ -179,6 +179,7 @@ public:
     static void releaseSuperBufCb(mm_camera_super_buf_t *super_buf, void* pUserData);
     void setMpoMode(bool enable) {m_bMpoEnabled = enable;}
     bool isMpoEnabled() { return m_bMpoEnabled; }
+    int releaseFreeJpegSessions();
 
 private:
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
@@ -255,6 +256,7 @@ private:
 public:
     bool mChannelStop;
     static List<qcamera_hal3_mpo_data_t> mMpoInputData;
+    List<uint32_t> mFreeJpegSessions;
 };
 
 }; // namespace qcamera
