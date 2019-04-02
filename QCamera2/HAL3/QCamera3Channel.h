@@ -791,6 +791,7 @@ private:
     Mutex            mPriorityFramesLock;
     bool             mReprocessPerfMode;
     bool             m_bOfflineIsp;
+    bool             m_bMultiFrameCapture;
     mm_camera_buf_def_t m_processedMetaBuf;
     int8_t           m_ppIndex;
 };
