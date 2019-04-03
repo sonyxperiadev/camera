@@ -501,6 +501,7 @@ private:
     void rectifyStreamSizesByCamType(
             cam_stream_size_info_t* streamsInfo, const cam_sync_type_t &type);
     void initDCSettings();
+    void fillUBWCStats(camera3_stream_buffer_t *buffer);
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;

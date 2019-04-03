@@ -50,6 +50,9 @@ namespace qcamera {
 #define IS_USAGE_SECURE(usage) (((usage) & (GRALLOC_USAGE_PROTECTED)) \
         == (GRALLOC_USAGE_PROTECTED))
 
+#define IS_USAGE_UBWC(usage) (((usage) & (GRALLOC_USAGE_PRIVATE_ALLOC_UBWC)) \
+        == (GRALLOC_USAGE_PRIVATE_ALLOC_UBWC))
+
 class QCamera3Channel;
 class QCamera3ProcessingChannel;
 

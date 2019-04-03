@@ -133,6 +133,8 @@ namespace qcamera {
 #define MOUTH_Y                5
 #define TOTAL_LANDMARK_INDICES 6
 
+#define UBWC_COMP_RATIO 1.26
+
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
 extern pthread_mutex_t gCamLock;
@@ -5005,6 +5007,14 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     if ((ERROR == mState) || (DEINIT == mState)) {
         return;
     }
+
+    if (IS_USAGE_UBWC(buffer->stream->usage)) {
+        QCamera3Channel *channel = (QCamera3Channel *)buffer->stream->priv;
+        if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
+            fillUBWCStats(buffer);
+        }
+    }
+
     if (mFlushPerf) {
         handleBuffersDuringFlushLock(buffer);
         return;
@@ -16928,6 +16938,19 @@ void QCamera3HardwareInterface::initDCSettings()
     setDCMasterInfo(mMasterCamera);
     //set LPM mode
     setDCLowPowerMode(mActiveCameras);
+}
+
+void QCamera3HardwareInterface::fillUBWCStats(camera3_stream_buffer_t *buffer)
+{
+    UBWCStats stats[2];
+    memset(&stats, 0, sizeof(stats));
+    stats[0].version = UBWC_1_0;
+    stats[0].bDataValid = 1;
+    stats[0].ubwc_stats.nCRStatsTile32 = UBWC_COMP_RATIO * (1<<16);
+
+    struct private_handle_t *priv_handle =
+                        (struct private_handle_t *) (*(buffer->buffer));
+    setMetaData(priv_handle, SET_UBWC_CR_STATS_INFO, &stats);
 }
 
 }; //end namespace qcamera
