@@ -4081,8 +4081,14 @@ int32_t mm_stream_calc_offset_video(cam_stream_info_t *stream_info,
 #ifdef VENUS_PRESENT
             // using Venus
             if (stream_info->stream_type != CAM_STREAM_TYPE_OFFLINE_PROC) {
-                stride = VENUS_Y_STRIDE(COLOR_FMT_NV12, dim->width);
-                scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12, dim->height);
+                if(IS_USAGE_HEIF(padding->usage))
+                {
+                    stride = VENUS_Y_STRIDE(COLOR_FMT_NV12_512, dim->width);
+                    scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12_512, dim->height);
+                } else {
+                    stride = VENUS_Y_STRIDE(COLOR_FMT_NV12, dim->width);
+                    scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12, dim->height);
+                }
             } else {
                 stride = PAD_TO_SIZE(dim->width, padding->width_padding);
                 scanline = PAD_TO_SIZE(dim->height, padding->height_padding);
@@ -4100,12 +4106,13 @@ int32_t mm_stream_calc_offset_video(cam_stream_info_t *stream_info,
             buf_planes->plane_info.mp[0].width = dim->width;
             buf_planes->plane_info.mp[0].height = dim->height;
             if (stream_info->stream_type != CAM_STREAM_TYPE_OFFLINE_PROC) {
-                stride = VENUS_UV_STRIDE(COLOR_FMT_NV12, dim->width);
-                scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12, dim->height);
                 if(IS_USAGE_HEIF(padding->usage))
                 {
-                    stride = PAD_TO_SIZE(stride, padding->width_padding);
-                    scanline = PAD_TO_SIZE(scanline, padding->height_padding);
+                    stride = VENUS_UV_STRIDE(COLOR_FMT_NV12_512, dim->width);
+                    scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12_512, dim->height);
+                }else {
+                    stride = VENUS_UV_STRIDE(COLOR_FMT_NV12, dim->width);
+                    scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12, dim->height);
                 }
             } else {
                 stride = PAD_TO_SIZE(dim->width, padding->width_padding);
