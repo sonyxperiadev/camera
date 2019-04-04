@@ -1265,7 +1265,6 @@ int QCamera3GrallocMemory::cacheOps(uint32_t index, unsigned int cmd)
         }
     }
 
-#ifndef TARGET_ION_ABI_VERSION
     LOGD("needToInvalidate %d buf idx %d", needToInvalidate, index);
     if(((cmd == ION_IOC_INV_CACHES) || (cmd == ION_IOC_CLEAN_INV_CACHES))
         && needToInvalidate) {
@@ -1274,9 +1273,6 @@ int QCamera3GrallocMemory::cacheOps(uint32_t index, unsigned int cmd)
     else if(cmd == ION_IOC_CLEAN_CACHES) {
         rc = cacheOpsInternal(index, cmd, mPtr[index]);
     }
-#else
-    (void) cmd;
-#endif //TARGET_ION_ABI_VERSION
     return rc;
 }
 

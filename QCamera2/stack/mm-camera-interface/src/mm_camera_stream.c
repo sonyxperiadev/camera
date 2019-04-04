@@ -4083,8 +4083,13 @@ int32_t mm_stream_calc_offset_video(cam_stream_info_t *stream_info,
             if (stream_info->stream_type != CAM_STREAM_TYPE_OFFLINE_PROC) {
                 if(IS_USAGE_HEIF(padding->usage))
                 {
+#ifdef COLOR_FMT_NV12_512
                     stride = VENUS_Y_STRIDE(COLOR_FMT_NV12_512, dim->width);
                     scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12_512, dim->height);
+#else
+                    stride = PAD_TO_SIZE(dim->width, padding->width_padding);
+                    scanline = PAD_TO_SIZE(dim->height, padding->height_padding);
+#endif //COLOR_FMT_NV12_512
                 } else {
                     stride = VENUS_Y_STRIDE(COLOR_FMT_NV12, dim->width);
                     scanline = VENUS_Y_SCANLINES(COLOR_FMT_NV12, dim->height);
@@ -4094,8 +4099,20 @@ int32_t mm_stream_calc_offset_video(cam_stream_info_t *stream_info,
                 scanline = PAD_TO_SIZE(dim->height, padding->height_padding);
             }
 
-            buf_planes->plane_info.frame_len =
-                    VENUS_BUFFER_SIZE(COLOR_FMT_NV12, stride, scanline);
+            if(IS_USAGE_HEIF(padding->usage))
+            {
+#ifdef COLOR_FMT_NV12_512
+                buf_planes->plane_info.frame_len =
+                        VENUS_BUFFER_SIZE(COLOR_FMT_NV12_512, stride, scanline);
+#else
+                buf_planes->plane_info.frame_len =
+                        PAD_TO_SIZE((uint32_t)(stride*scanline), CAM_PAD_TO_512);
+#endif //COLOR_FMT_NV12_512
+            }else {
+                buf_planes->plane_info.frame_len =
+                        VENUS_BUFFER_SIZE(COLOR_FMT_NV12, stride, scanline);
+            }
+
             buf_planes->plane_info.num_planes = 2;
             buf_planes->plane_info.mp[0].len = (uint32_t)(stride * scanline);
             buf_planes->plane_info.mp[0].offset = 0;
@@ -4108,8 +4125,13 @@ int32_t mm_stream_calc_offset_video(cam_stream_info_t *stream_info,
             if (stream_info->stream_type != CAM_STREAM_TYPE_OFFLINE_PROC) {
                 if(IS_USAGE_HEIF(padding->usage))
                 {
+#ifdef COLOR_FMT_NV12_512
                     stride = VENUS_UV_STRIDE(COLOR_FMT_NV12_512, dim->width);
                     scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12_512, dim->height);
+#else
+                    stride = PAD_TO_SIZE(dim->width, padding->width_padding);
+                    scanline = PAD_TO_SIZE(dim->height, padding->height_padding);
+#endif //COLOR_FMT_NV12_512
                 }else {
                     stride = VENUS_UV_STRIDE(COLOR_FMT_NV12, dim->width);
                     scanline = VENUS_UV_SCANLINES(COLOR_FMT_NV12, dim->height);
