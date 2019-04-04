@@ -1758,7 +1758,8 @@ void QCamera3HardwareInterface::rectifyStreamSizesByCamType(
             dim.width = info->stream_sizes[i].width;
             dim.height = info->stream_sizes[i].height;
             //skipping for stream with pp mask set for upscaling/cropping
-            if(isPPMaskSetForScaling(info->postprocess_mask[i]))
+            if(isPPMaskSetForScaling(info->postprocess_mask[i])
+                || (info->type[i] == CAM_STREAM_TYPE_RAW))
             {
                 continue;
             }
