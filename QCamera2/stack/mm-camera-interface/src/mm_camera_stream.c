@@ -606,6 +606,10 @@ int32_t mm_stream_fsm_inited(mm_stream_t *my_obj,
             break;
         }
         break;
+    case MM_STREAM_EVT_RELEASE:
+        mm_stream_deinit(my_obj);
+        memset(my_obj, 0, sizeof(mm_stream_t));
+        break;
     default:
         LOGE("invalid state (%d) for evt (%d), in(%p), out(%p)",
                     my_obj->state, evt, in_val, out_val);
@@ -1040,6 +1044,7 @@ int32_t mm_stream_init(mm_stream_t *my_obj)
     my_obj->map_ops.bundled_map_ops = mm_camera_bundled_map_stream_buf_ops;
     my_obj->map_ops.unmap_ops = mm_camera_unmap_stream_buf_ops;
     my_obj->map_ops.userdata = my_obj;
+    my_obj->is_stream_inited = 1;
     return rc;
 }
 
@@ -1047,12 +1052,16 @@ int32_t mm_stream_deinit(mm_stream_t *my_obj)
 {
     int32_t rc = 0;
     /* destroy mutex */
-    mm_muxer_frame_sync_queue_deinit(&my_obj->frame_sync.superbuf_queue);
-    pthread_mutex_destroy(&my_obj->frame_sync.sync_lock);
-    pthread_cond_destroy(&my_obj->buf_cond);
-    pthread_mutex_destroy(&my_obj->buf_lock);
-    pthread_mutex_destroy(&my_obj->cb_lock);
-    pthread_mutex_destroy(&my_obj->cmd_lock);
+    LOGH("stream inited %d",my_obj->is_stream_inited);
+    if (my_obj->is_stream_inited) {
+        mm_muxer_frame_sync_queue_deinit(&my_obj->frame_sync.superbuf_queue);
+        pthread_mutex_destroy(&my_obj->frame_sync.sync_lock);
+        pthread_cond_destroy(&my_obj->buf_cond);
+        pthread_mutex_destroy(&my_obj->buf_lock);
+        pthread_mutex_destroy(&my_obj->cb_lock);
+        pthread_mutex_destroy(&my_obj->cmd_lock);
+        my_obj->is_stream_inited = 0;
+    }
 
     return rc;
 }
