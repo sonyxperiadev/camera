@@ -430,6 +430,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mChannelHandle(0),
       mFirstConfiguration(true),
       mFlush(false),
+      mStreamOnPending(false),
       mFlushPerf(false),
       mHdrFrameNum(0),
       mMultiFrameCaptureNumber(0),
@@ -2082,6 +2083,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     mQuadraCfaStage = QCFA_INACTIVE;
     m_ppChannelCnt = 1;
     m_bOfflineIsp = false;
+    mStreamOnPending = false;
 
     /* cache fw stream configuration, for internally reconfigure streams and then config "back" */
     cacheFwConfiguredStreams(streamList);
@@ -6938,6 +6940,24 @@ no_error:
         mPendingLiveRequest = 0;
         mFirstConfiguration = false;
     }
+    if ((mState == STARTED)&&(mStreamOnPending)){
+        rc = startAllChannels();
+        if (rc < 0) {
+            LOGE("startAllChannels failed");
+            pthread_mutex_unlock(&mMutex);
+            return rc;
+        }
+        if (mChannelHandle) {
+            mCameraHandle->ops->start_channel(mCameraHandle->camera_handle,
+                        mChannelHandle);
+            if (rc < 0) {
+                LOGE("start_channel failed");
+                pthread_mutex_unlock(&mMutex);
+                return rc;
+            }
+        }
+        mStreamOnPending = false;
+    }
 
     uint32_t frameNumber = request->frame_number;
     cam_stream_ID_t streamsArray, streamsArraySlave;
@@ -7968,15 +7988,9 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     }
 
     mFlush = false;
-
-    // Start the Streams/Channels
-    if (restartChannels) {
-        rc = startAllChannels();
-        if (rc < 0) {
-            LOGE("startAllChannels failed");
-            pthread_mutex_unlock(&mMutex);
-            return rc;
-        }
+    if (mState == STARTED)
+    {
+        mStreamOnPending = restartChannels;
     }
     pthread_mutex_unlock(&mMutex);
 
