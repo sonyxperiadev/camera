@@ -996,6 +996,7 @@ int32_t QCamera3PostProcessor::processJpegSettingData(
         LOGE("invalid jpeg settings pointer");
         return -EINVAL;
     }
+    m_jpegSettingsQ.init();
     return m_jpegSettingsQ.enqueue((void *)jpeg_settings);
 }
 
@@ -2870,7 +2871,6 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
             pme->m_inputFWKPPQ.init();
             pme->m_inputMultiReprocQ.init();
             pme->m_inputMetaQ.init();
-            pme->m_jpegSettingsQ.init();
             cam_sem_post(&cmdThread->sync_sem);
 
             break;
@@ -2886,7 +2886,6 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
 
                     pme->releaseJpegJobData(jpeg_job);
                     free(jpeg_job);
-
                     jpeg_job = (qcamera_hal3_jpeg_data_t *)pme->m_ongoingJpegQ.dequeue();
                 }
 
