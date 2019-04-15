@@ -7792,8 +7792,10 @@ no_error:
     LOGD("mPendingLiveRequest = %d", mPendingLiveRequest);
     mState = STARTED;
     if(mHdrSnapshotRunning) {
+        LOGD("blocked for HDR snapshot completion");
         pthread_cond_wait(&mHdrRequestCond, &mMutex);
         mHdrSnapshotRunning = false;
+        LOGD("unblocked ");
     }
     if (mMultiFrameSnapshotRunning) {
         pthread_cond_wait(&mMultiFrameRequestCond, &mMutex);
