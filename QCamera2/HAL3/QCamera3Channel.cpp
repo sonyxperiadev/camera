@@ -4602,8 +4602,6 @@ int32_t QCamera3PicChannel::start()
 
     QCamera3Channel::start();
 
-    startChannel();
-
     if (mAuxPicChannel) {
         rc = mAuxPicChannel->start();
     }

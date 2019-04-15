@@ -2099,12 +2099,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             it != mStreamInfo.end(); it++) {
         QCamera3ProcessingChannel *channel = (QCamera3ProcessingChannel*)(*it)->stream->priv;
         if (channel) {
-            if(!m_bIsVideo
-                    || ((mPictureChannel == NULL)
-                || (mPictureChannel->getMyHandle() != channel->getMyHandle())))
-            {
-                channel->stop();
-            }
+            channel->stop();
         }
         (*it)->status = INVALID;
     }
@@ -2129,11 +2124,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         LOGD("stopping channel %d", mChannelHandle);
     }
 
-    if(m_bIsVideo && (mPictureChannel != NULL))
-    {
-        mPictureChannel->stop();
-        m_bStopPicChannel = false;
-    }
+    m_bStopPicChannel = false;
 
     pthread_mutex_lock(&mMutex);
 
@@ -2179,7 +2170,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     bool isJpeg = false;
     cam_dimension_t jpegSize = {0, 0};
     cam_dimension_t previewSize = {0, 0};
-    m_bStopPicChannel = false;
 
     cam_padding_info_t padding_info = gCamCapability[mCameraId]->padding_info;
 
@@ -3043,7 +3033,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                                 setBufferErrorStatus, &padding_info, this, newStream,
                                 mStreamConfigInfo[index].postprocess_mask[stream_index],
                                 m_bIs4KVideo, isZsl, mMetadataChannel,
-                                maxSnapshotBuffers, mHALZSL, m_bIsVideo);
+                                maxSnapshotBuffers, mHALZSL, (m_bIsVideo && !m_bIs4KVideo));
                         if (mPictureChannel == NULL) {
                             LOGE("allocation of channel failed");
                             pthread_mutex_unlock(&mMutex);
@@ -5022,8 +5012,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_HANDLE_BUF_LKD);
 
     if (buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) {
-        if (m_bIsVideo) {
-
+        if (m_bIsVideo && !m_bIs4KVideo) {
             m_bStopPicChannel = true;
         }
         if (isDualCamera() && (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && needHALPP()) {
@@ -6881,9 +6870,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
             LOGH("Start Processing Channel mask=%d",
                      channel->getStreamTypeMask());
-            if(!m_bIsVideo
-                || ((mPictureChannel == NULL)
-                || (mPictureChannel->getMyHandle() != channel->getMyHandle())))
+            if(channel)
             {
                 rc = channel->start();
                 if (rc < 0) {
@@ -6989,8 +6976,8 @@ no_error:
                                     request->input_buffer,
                                     frameNumber);
 
-    if (m_bStopPicChannel && mPictureChannel) {
-        mPictureChannel->stop();
+    if (m_bStopPicChannel && mPictureChannel && !m_bIs4KVideo) {
+        mPictureChannel->stopChannel();
         m_bStopPicChannel = false;
     }
     if (isDualCamera() && !IS_PP_TYPE_NONE) {
@@ -7042,8 +7029,8 @@ no_error:
 
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
             //FIXME??:Call function to store local copy of jpeg data for encode params.
-            if (m_bIsVideo && !m_bStopPicChannel) {
-                mPictureChannel->start();
+            if (m_bIsVideo && !m_bStopPicChannel && !m_bIs4KVideo) {
+                mPictureChannel->startChannel();
             }
             if(IS_MULTI_CAMERA &&
                 (channel->getMyHandle() == get_aux_camera_handle(mChannelHandle)))
@@ -15712,12 +15699,7 @@ int32_t QCamera3HardwareInterface::stopAllChannels()
         it != mStreamInfo.end(); it++) {
         QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
         if (channel) {
-            if(!m_bIsVideo
-                    || ((mPictureChannel == NULL)
-                    || (mPictureChannel->getMyHandle() != channel->getMyHandle())))
-            {
-                channel->stop();
-            }
+            channel->stop();
         }
         (*it)->status = INVALID;
     }
@@ -15791,15 +15773,7 @@ int32_t QCamera3HardwareInterface::stopAllChannels()
                 mChannelHandle);
     }
 
-    if(m_bIsVideo && (mPictureChannel != NULL))
-    {
-        rc = mPictureChannel->stop();
-        m_bStopPicChannel = false;
-        if (rc < 0) {
-            LOGE("channel stop failed");
-            return rc;
-        }
-    }
+    m_bStopPicChannel = false;
 
     LOGD("All channels stopped");
     return rc;
@@ -15834,15 +15808,10 @@ int32_t QCamera3HardwareInterface::startAllChannels()
         it != mStreamInfo.end(); it++) {
         QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
         if (channel) {
-            if(!m_bIsVideo
-                || ((mPictureChannel == NULL)
-                || (mPictureChannel->getMyHandle() != channel->getMyHandle())))
-            {
-                rc = channel->start();
-                if (rc < 0) {
-                    LOGE("channel start failed");
-                    return rc;
-                }
+            rc = channel->start();
+            if (rc < 0) {
+                LOGE("channel start failed");
+                return rc;
             }
         }
     }
