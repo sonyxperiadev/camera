@@ -2022,7 +2022,8 @@ QCamera3RegularChannel::QCamera3RegularChannel(uint32_t cam_handle,
     QCamera3HardwareInterface *hal_obj = (QCamera3HardwareInterface *)mUserData;
     if(is_dual_camera_by_handle(cam_handle)
         && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))
-        && hal_obj->isAsymetricDim(dim))
+        && hal_obj->isAsymetricDim(dim)
+        && (stream_type != CAM_STREAM_TYPE_RAW))
     {
         m_camHandle = get_main_camera_handle(cam_handle);
         m_handle = get_main_camera_handle(channel_handle);
@@ -2152,7 +2153,7 @@ int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
 
     //In DualCamera usecase for Asymetric mode
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
-    if(m_bDualChannel)
+    if(m_bDualChannel && (mStreamType != CAM_STREAM_TYPE_RAW))
     {
          //if 2 channels are configure with different dimensions
         //for low configuration don't change the stream dimension.
@@ -2410,7 +2411,6 @@ int32_t QCamera3RegularChannel::setBundleInfo(
 
 }
 
-
 QCamera3MetadataChannel::QCamera3MetadataChannel(uint32_t cam_handle,
                     uint32_t channel_handle,
                     mm_camera_ops_t *cam_ops,
@@ -2625,6 +2625,7 @@ QCamera3RawChannel::~QCamera3RawChannel()
 {
 }
 
+
 /*===========================================================================
  * FUNCTION   : initialize
  *
@@ -2637,7 +2638,6 @@ QCamera3RawChannel::~QCamera3RawChannel()
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-
 int32_t QCamera3RawChannel::initialize(cam_is_type_t isType)
 {
     return QCamera3RegularChannel::initialize(isType);
@@ -2789,6 +2789,15 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
         LOGE("Could not find stream");
     }
 
+}
+
+int32_t QCamera3RawChannel::start()
+{
+    int32_t ret = NO_ERROR;
+    ret = QCamera3Channel::start();
+    if(mAuxChannel && ret == NO_ERROR)
+        ret = mAuxChannel->start();
+    return ret;
 }
 
 /*===========================================================================

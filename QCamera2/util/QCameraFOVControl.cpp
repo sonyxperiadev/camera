@@ -310,6 +310,46 @@ cam_capability_t QCameraFOVControl::consolidateCapabilities(
         LOGH("Consolidated Max picture wxh %dx%d", capsConsolidated.picture_sizes_tbl[0].width,
                 capsConsolidated.picture_sizes_tbl[0].height);
 
+       // Consolidate raw size
+       cam_dimension_t maxRawDimMain;
+       maxRawDimMain.width = 0;
+       maxRawDimMain.height = 0;
+
+       //Find max raw dimension for main camera
+       for(uint32_t i=0; i < (capsMainCam->supported_raw_dim_cnt); i++)
+       {
+           if((maxRawDimMain.width * maxRawDimMain.height) <
+                (capsMainCam->raw_dim[i].width * capsMainCam->raw_dim[i].height))
+           {
+               maxRawDimMain.width = capsMainCam->raw_dim[i].width;
+               maxRawDimMain.height = capsMainCam->raw_dim[i].height;
+           }
+       }
+
+       cam_dimension_t maxRawDimAux;
+       maxRawDimAux.width = 0;
+       maxRawDimAux.height = 0;
+       //Find max raw dimention for aux camera
+       for(uint32_t i = 0; i < (capsAuxCam->supported_raw_dim_cnt ); i++)
+       {
+           if((maxRawDimAux.width * maxRawDimAux.height) <
+                (capsAuxCam->raw_dim[i].width * capsAuxCam->raw_dim[i].height))
+           {
+               maxRawDimAux.width = capsAuxCam->raw_dim[i].width;
+               maxRawDimAux.height = capsAuxCam->raw_dim[i].height;
+           }
+       }
+
+       //Choose the larger of the two max raw dimensions
+       if ((maxRawDimAux.width * maxRawDimAux.height) >
+               (maxRawDimMain.width * maxRawDimMain.height)) {
+           capsConsolidated.supported_raw_dim_cnt= capsAuxCam->supported_raw_dim_cnt;
+           memcpy(capsConsolidated.raw_dim, capsAuxCam->raw_dim,
+                   (capsAuxCam->supported_raw_dim_cnt * sizeof(cam_dimension_t)));
+       }
+       LOGH("Consolidated Raw picture wxh %dx%d", capsConsolidated.raw_dim[0].width,
+               capsConsolidated.raw_dim[0].height);
+
         // Consolidate supported preview formats
         uint32_t supportedPreviewFmtCntMain  = capsMainCam->supported_preview_fmt_cnt;
         uint32_t supportedPreviewFmtCntAux   = capsAuxCam->supported_preview_fmt_cnt;
