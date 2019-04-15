@@ -541,6 +541,7 @@ private:
      //First request yet to be processed after configureStreams
     bool mFirstConfiguration;
     bool mFlush;
+    bool mStreamOnPending;
     bool mFlushPerf;
     bool mEnableRawDump;
     bool mForceHdrSnapshot;
