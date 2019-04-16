@@ -15393,6 +15393,8 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
         bool bMultiFrameCapture_precpp = atoi(prop) ? TRUE : FALSE;
         if(bMultiFrameCapture_precpp) {
             pp_config.feature_mask |= CAM_QTI_FEATURE_MFPROC_PRECPP;
+        } else {
+            pp_config.feature_mask |= CAM_QTI_FEATURE_MFPROC_POSTCPP;
         }
         pp_config.burst_cnt = mMultiFrameCaptureCount;
     }

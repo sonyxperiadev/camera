@@ -5629,7 +5629,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
     QCamera3Channel(cam_handle, channel_handle, cam_ops, cb_routine, cb_buf_err, paddingInfo,
                     postprocess_mask, userData,
                     ((QCamera3Channel *)ch_hdl)->getNumBuffers()
-                              + (MAX_REPROCESS_PIPELINE_STAGES - 1)),
+                              + (MAX_REPROCESS_PIPELINE_STAGES - 1) + MAX_REPROCESS_POSTCPP_BUFCNT),
     inputChHandle(ch_hdl),
     mOfflineBuffersIndex(-1),
     mFrameLen(0),
@@ -5642,6 +5642,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
     mGrallocMemory(0),
     mReprocessPerfMode(false),
     m_bOfflineIsp(false),
+    m_bMultiFrameCapture(false),
     m_ppIndex(0)
 {
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
@@ -6026,6 +6027,23 @@ int32_t QCamera3ReprocessChannel::start()
            QCamera3Channel::stop();
        }
     }
+
+    if (m_bMultiFrameCapture) {
+        uint32_t bufIdx;
+        rc = mMemory->allocateOne(mFrameLen);
+        if (rc < 0) {
+            LOGE("Failed allocating heap buffer. Fatal");
+            return BAD_VALUE;
+        } else {
+            bufIdx = (uint32_t)rc;
+        }
+        rc = mStreams[0]->bufDone(bufIdx);
+        if (rc != NO_ERROR) {
+            LOGE("Failed to queue new buffer to stream");
+            return rc;
+        }
+    }
+
     return rc;
 }
 
@@ -6048,6 +6066,7 @@ int32_t QCamera3ReprocessChannel::stop()
     rc |= m_camOps->stop_channel(m_camHandle, m_handle);
     // Unmapping the buffers
     unmapOfflineBuffers(true);
+    m_bMultiFrameCapture = FALSE;
     return rc;
 }
 
@@ -7069,6 +7088,12 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
         LOGH("raw process mask is set, need offline isp and meta reprocess");
         m_bOfflineIsp = TRUE;
         addMetaReprocStream(pMetaChannel);
+    }
+
+    // meta reproc stream always appends as the last reproc stream
+    if (pp_config.feature_mask & CAM_QTI_FEATURE_MFPROC_POSTCPP) {
+        LOGH("MultiFrame Postcpp rocess mask is set, need duplicate buffers");
+        m_bMultiFrameCapture = TRUE;
     }
 
     mm_camera_req_buf_t buf;
