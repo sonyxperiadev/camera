@@ -693,6 +693,9 @@ public:
     void stopPostProc();
     void ZSLChannelCb(mm_camera_super_buf_t *recvd_frame);
     int32_t requestZSLBuf(uint32_t frameNumber = 0, uint32_t numBuf = 1);
+    int allocateZSLBuffers();
+    int createAllocThread();
+    void startDeferredAllocation();
 
 private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,
@@ -701,6 +704,7 @@ private:
 
 public:
     cam_dimension_t m_max_pic_dim;
+    bool mAllocDone;
 
 private:
     uint32_t mNumSnapshotBufs;
@@ -724,6 +728,7 @@ private:
     bool mZSL;
     bool mLiveShot;
     uint32_t mCompositeHandle;
+    pthread_t mAllocThread;
 };
 
 // reprocess channel class

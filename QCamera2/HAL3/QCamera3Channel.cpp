@@ -4529,6 +4529,8 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
                         metadataChannel, numBuffers, isZSL, isLiveshot);
             setDualChannelMode(true);
     }
+    mAllocDone = false;
+    mAllocThread = 0;
 }
 
 /*===========================================================================
@@ -4602,6 +4604,8 @@ QCamera3PicChannel::~QCamera3PicChannel()
 int32_t QCamera3PicChannel::start()
 {
     int32_t rc = NO_ERROR;
+    mAllocDone = false;
+    mAllocThread = 0;
 
     if(m_bIsActive) {
         LOGE("Attempt to start active channel");
@@ -4827,6 +4831,11 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     if (!m_bIsActive) {
         LOGE("Channel not started!!");
         return NO_INIT;
+    }
+
+    if (mZSL && (mAllocThread != 0)) {
+        pthread_join(mAllocThread, NULL);
+        mAllocThread = 0;
     }
 
     // Start postprocessor
@@ -5240,28 +5249,80 @@ void QCamera3PicChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
 
 QCamera3StreamMem* QCamera3PicChannel::getStreamBufs(uint32_t len)
 {
-    bool queueBuffers = mZSL ? true : false;
-    mYuvMemory = new QCamera3StreamMem(mCamera3Stream->max_buffers, queueBuffers, isSecureMode());
+    mYuvMemory = new QCamera3StreamMem(mCamera3Stream->max_buffers, false, isSecureMode());
     if (!mYuvMemory) {
         LOGE("unable to create metadata memory");
         return NULL;
     }
     mFrameLen = len;
+    return mYuvMemory;
+}
 
-    if(mZSL) {
-        mYuvMemory->allocateAll(len);
+void QCamera3PicChannel::startDeferredAllocation() {
+    createAllocThread();
+}
+
+int QCamera3PicChannel::allocateZSLBuffers()
+{
+    LOGH(": E numbufs %d", mCamera3Stream->max_buffers);
+    int rc = NO_ERROR;
+    uint32_t bufIdx;
+    if (mZSL) {
+        for (size_t i = 0; i < mCamera3Stream->max_buffers; i++) {
+            rc = mYuvMemory->allocateOne(mFrameLen);
+            if (rc < 0) {
+                LOGE("Failed allocating heap buffer. Fatal");
+                return BAD_VALUE;
+            } else {
+                bufIdx = (uint32_t)rc;
+                mStreams[0]->bufDone(bufIdx);
+            }
+        }
+        mAllocDone = true;
+    }
+    LOGH(": X");
+    return rc;
+}
+
+void* buffer_alloc_thread (void* data)
+{
+    QCamera3PicChannel *channelObj = reinterpret_cast<QCamera3PicChannel *>(data);
+    if (!channelObj) {
+        return (void *)BAD_VALUE;
+    }
+    channelObj->allocateZSLBuffers();
+    return (void* )NULL;
+}
+
+int QCamera3PicChannel::createAllocThread()
+{
+    int rc = NO_ERROR;
+
+    if (mAllocThread != 0) {
+        pthread_join(mAllocThread,NULL);
+        mAllocThread = 0;
     }
 
-    return mYuvMemory;
+    rc = pthread_create(&mAllocThread, NULL, buffer_alloc_thread, (void *) this);
+    if (!rc) {
+        pthread_setname_np(mAllocThread, "CAM_BufferAlloc");
+    }
+    return rc;
 }
 
 void QCamera3PicChannel::putStreamBufs()
 {
     QCamera3ProcessingChannel::putStreamBufs();
 
+    if (mAllocThread != 0) {
+        pthread_join(mAllocThread,NULL);
+        mAllocThread = 0;
+    }
+
     mYuvMemory->deallocate();
     delete mYuvMemory;
     mYuvMemory = NULL;
+    mAllocDone = false;
     mFreeBufferList.clear();
     // Clear offlineMemory
     mOfflineMemory.clear();
