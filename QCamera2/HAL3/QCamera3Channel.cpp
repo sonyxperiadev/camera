@@ -952,8 +952,13 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
         dumpYUV(super_frame->bufs[0], dim, offset, QCAMERA_DUMP_FRM_CALLBACK);
     }
 
-    do {
+    if(super_frame->bufs[0]->cache_flags != 0)
+    {
+        mMemory.cleanInvalidateCache(super_frame->bufs[0]->buf_idx);
+        super_frame->bufs[0]->cache_flags = 0;
+    }
 
+    do {
        //Use below data to issue framework callback
        resultBuffer = (buffer_handle_t *)mMemory.getBufferHandle(frameIndex);
        resultFrameNumber = mMemory.getFrameNumber(frameIndex);
@@ -2576,9 +2581,6 @@ void QCamera3DepthChannel::streamCbRoutine(
                         QCamera3Stream * stream)
 {
     ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_RAW_CH_STRM_CB);
-    //Make sure cache coherence because extra processing is done
-    mMemory.cleanInvalidateCache(super_frame->bufs[0]->buf_idx);
-
     QCamera3RegularChannel::streamCbRoutine(super_frame, stream);
     return;
 }
@@ -2660,10 +2662,9 @@ void QCamera3RawChannel::streamCbRoutine(
             convertMipiToRaw16(super_frame->bufs[0]);
         else
             convertLegacyToRaw16(super_frame->bufs[0]);
+        //Make sure cache coherence because extra processing is done
+        mMemory.cleanInvalidateCache(super_frame->bufs[0]->buf_idx);
     }
-
-    //Make sure cache coherence because extra processing is done
-    mMemory.cleanInvalidateCache(super_frame->bufs[0]->buf_idx);
 
     QCamera3RegularChannel::streamCbRoutine(super_frame, stream);
     return;
@@ -2696,6 +2697,13 @@ void QCamera3RawChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
        }
    } else {
        LOGE("Could not find stream");
+   }
+
+   if(frame->cache_flags != 0)
+   {
+       //Make sure cache coherence because extra processing is done
+       mMemory.cleanInvalidateCache(frame->buf_idx);
+       frame->cache_flags = 0;
    }
 
 }
@@ -6738,11 +6746,6 @@ int32_t QCamera3ReprocessChannel::timeoutFrame(uint32_t frameNumber)
     }
     uint32_t buf_idx = (uint32_t)(mOfflineBuffersIndex + 1);
 
-    //Do cache ops before sending for reprocess
-    if (mMemory != NULL) {
-        mMemory->cleanInvalidateCache(buf_idx);
-    }
-
     rc = pStream->mapBuf(
             CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF,
             buf_idx, -1,
@@ -6864,11 +6867,6 @@ int32_t QCamera3ReprocessChannel::doReprocess(int buf_fd, void *buffer, size_t b
         rc = mStreams[i]->mapBuf(CAM_MAPPING_BUF_TYPE_OFFLINE_INPUT_BUF,
                                  buf_idx, -1,
                                  buf_fd, buffer, buf_length);
-
-        //Do cache ops before sending for reprocess
-        if (mMemory != NULL) {
-            mMemory->cleanInvalidateCache(buf_idx);
-        }
 
         if (rc == NO_ERROR) {
             cam_stream_parm_buffer_t param;
