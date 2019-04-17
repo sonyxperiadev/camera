@@ -252,6 +252,7 @@ private:
     pthread_mutex_t mHDRJobLock;
     pthread_cond_t mProcChStopCond;
     QCameraHALPPManager *m_pHalPPManager; // HAL Post process block
+    mm_dimension max_pic_size;
 public:
     bool mChannelStop;
     static List<qcamera_hal3_mpo_data_t> mMpoInputData;
