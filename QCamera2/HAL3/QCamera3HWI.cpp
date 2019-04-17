@@ -8827,7 +8827,7 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                         // Adjust crop region from sensor output coordinate system to active
                         // array coordinate system.
                         cam_rect_t& rect = faceDetectionInfo->faces[i].face_boundary;
-                        mCropRegionMapper.toActiveArray(rect.left, rect.top,
+                        mCropRegionMapper.convertFDROI(rect.left, rect.top,
                                 rect.width, rect.height);
 
                         convertToRegions(faceDetectionInfo->faces[i].face_boundary,
