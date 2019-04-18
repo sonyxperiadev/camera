@@ -841,13 +841,6 @@ int32_t QCamera3Stream::bufDone(uint32_t index)
     if (UNLIKELY(mBatchSize)) {
         rc = aggregateBufToBatch(mBufDefs[index]);
     } else {
-        // By default every buffer that goes to camera should be invalidated
-        // except Metadata/Preview/Video buffers
-        if ((getMyType() != CAM_STREAM_TYPE_METADATA) &&
-                (getMyType() != CAM_STREAM_TYPE_PREVIEW) &&
-                (getMyType() != CAM_STREAM_TYPE_VIDEO)) {
-            mBufDefs[index].cache_flags |= CPU_HAS_READ;
-        }
         rc = mCamOps->qbuf(mCamHandle, mChannelHandle, &mBufDefs[index]);
         if (rc < 0) {
             return FAILED_TRANSACTION;
