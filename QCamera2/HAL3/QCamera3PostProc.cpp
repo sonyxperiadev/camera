@@ -153,6 +153,7 @@ int32_t QCamera3PostProcessor::init(QCamera3StreamMem *memory)
         LOGH("Check and create HAL PP manager if not present");
         createHalPPManager();
     }
+    mFreeJpegSessions.clear();
     return NO_ERROR;
 }
 
@@ -1447,9 +1448,27 @@ qcamera_hal3_jpeg_data_t *QCamera3PostProcessor::findJpegJobByJobId(uint32_t job
         return NULL;
     }
 
+    mFreeJpegSessions.push_back(mJpegSessionId);
+    mJpegSessionId = 0;
     // currely only one jpeg job ongoing, so simply dequeue the head
     job = (qcamera_hal3_jpeg_data_t *)m_ongoingJpegQ.dequeue();
     return job;
+}
+
+int QCamera3PostProcessor::releaseFreeJpegSessions()
+{
+    int ret = NO_ERROR;
+    auto it = mFreeJpegSessions.begin();
+    while(it != mFreeJpegSessions.end())
+    {
+        ret = mJpegHandle.destroy_session(*it);
+        if(ret != NO_ERROR)
+        {
+            LOGE("failed to destroy jpeg session %d, non-fatal", *it);
+        }
+        it = mFreeJpegSessions.erase(it);
+    }
+    return ret;
 }
 
 /*===========================================================================
@@ -2895,6 +2914,8 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                     pme->mJpegSessionId = 0;
                 }
 
+                pme->releaseFreeJpegSessions();
+
                 needNewSess = TRUE;
 
                 // flush ongoing postproc Queue
@@ -2978,6 +2999,7 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 pme->releaseJpegJobData(jpeg_job);
                                 free(jpeg_job);
                             }
+                            pme->releaseFreeJpegSessions();
                         }
                     }
 
