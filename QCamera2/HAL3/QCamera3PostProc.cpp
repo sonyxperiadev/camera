@@ -1448,8 +1448,12 @@ qcamera_hal3_jpeg_data_t *QCamera3PostProcessor::findJpegJobByJobId(uint32_t job
         return NULL;
     }
 
-    mFreeJpegSessions.push_back(mJpegSessionId);
-    mJpegSessionId = 0;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
+    if(!hal_obj->needHALPP())
+    {
+        mFreeJpegSessions.push_back(mJpegSessionId);
+        mJpegSessionId = 0;
+    }
     // currely only one jpeg job ongoing, so simply dequeue the head
     job = (qcamera_hal3_jpeg_data_t *)m_ongoingJpegQ.dequeue();
     return job;
