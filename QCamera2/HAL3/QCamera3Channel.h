@@ -696,6 +696,7 @@ public:
     int allocateZSLBuffers();
     int createAllocThread();
     void startDeferredAllocation();
+    int32_t notifyDropForPendingBuffer(uint32_t frameNumber, buffer_handle_t *buf);
 
 private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,
