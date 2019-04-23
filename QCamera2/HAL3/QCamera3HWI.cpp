@@ -2969,9 +2969,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         }
                         /* disable UBWC for preview, though supported,
                          * to take advantage of CPP duplication */
-                        if (m_bIsVideo && (!mCommon.isVideoUBWCEnabled()) &&
+                        if ((m_bIsVideo && (!mCommon.isVideoUBWCEnabled()) &&
                                 (previewSize.width == (int32_t)videoWidth)&&
-                                (previewSize.height == (int32_t)videoHeight)){
+                                (previewSize.height == (int32_t)videoHeight))||isDualCamera()){
                             channel->setUBWCEnabled(false);
                         }else {
                             channel->setUBWCEnabled(true);
