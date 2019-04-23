@@ -99,6 +99,7 @@ QCamera3PostProcessor::QCamera3PostProcessor(QCamera3ProcessingChannel* ch_ctrl)
     pthread_mutex_init(&mReprocJobLock, NULL);
     pthread_mutex_init(&mHDRJobLock, NULL);
     pthread_cond_init(&mProcChStopCond, NULL);
+    max_pic_size = {0,0};
 }
 
 /*===========================================================================
@@ -223,7 +224,6 @@ int32_t QCamera3PostProcessor::initJpeg(jpeg_encode_callback_t jpeg_cb,
     mJpegCB = jpeg_cb;
     mMpoCB = mpo_cb;
     mJpegUserData = user_data;
-    mm_dimension max_size;
 
     mMpoInputData.clear();
 
@@ -234,9 +234,9 @@ int32_t QCamera3PostProcessor::initJpeg(jpeg_encode_callback_t jpeg_cb,
     }
 
     // set max pic size
-    memset(&max_size, 0, sizeof(mm_dimension));
-    max_size.w =  max_pic_dim->width;
-    max_size.h =  max_pic_dim->height;
+    memset(&max_pic_size, 0, sizeof(mm_dimension));
+    max_pic_size.w =  max_pic_dim->width;
+    max_pic_size.h =  max_pic_dim->height;
 
     // Pass OTP calibration data to JPEG
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
@@ -245,12 +245,7 @@ int32_t QCamera3PostProcessor::initJpeg(jpeg_encode_callback_t jpeg_cb,
     memcpy(&mJpegMetadata.otp_calibration_data,
             hal_obj->getRelatedCalibrationData(),
             sizeof(cam_related_system_calibration_data_t));
-    mJpegClientHandle = jpeg_open(&mJpegHandle, &mMpoHandle, max_size, &mJpegMetadata);
-
-    if (!mJpegClientHandle) {
-        LOGE("jpeg_open did not work");
-        return UNKNOWN_ERROR;
-    }
+    m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_INIT_JPEG, FALSE, TRUE);
     return NO_ERROR;
 }
 
@@ -3259,6 +3254,17 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                             (qcamera_fwk_input_pp_data_t *) pme->m_inputFWKPPQ.dequeue();
                     if (NULL != fwk_frame) {
                         free(fwk_frame);
+                    }
+                }
+            }
+            break;
+        case CAMERA_CMD_TYPE_INIT_JPEG:{
+                if(pme->mJpegClientHandle <= 0)
+                {
+                    pme->mJpegClientHandle = jpeg_open(&pme->mJpegHandle, &pme->mMpoHandle,
+                                               pme->max_pic_size, &pme->mJpegMetadata);
+                    if (!pme->mJpegClientHandle) {
+                        LOGE("jpeg_open did not work");
                     }
                 }
             }
