@@ -50,6 +50,8 @@ public:
             int32_t& crop_width, int32_t& crop_height);
     void toActiveArray(uint32_t& x, uint32_t& y);
     void toSensor(uint32_t& x, uint32_t& y);
+    void convertFDROI(int32_t& crop_left, int32_t& crop_top,
+            int32_t& crop_width, int32_t& crop_height);
 
 private:
     /* sensor output size */
