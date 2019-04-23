@@ -17084,6 +17084,14 @@ bool QCamera3HardwareInterface::needZSLCapture(const camera3_capture_request_t *
         if (fwk_aeMode == ANDROID_CONTROL_AE_MODE_OFF ) {
             needZSL = false;
         }
+        if (fwk_aeMode == ANDROID_CONTROL_AE_MODE_ON) {
+            if (frame_settings.exists(ANDROID_FLASH_MODE)) {
+                uint8_t flashMode = frame_settings.find(ANDROID_FLASH_MODE).data.u8[0];
+                if (ANDROID_FLASH_MODE_OFF != flashMode) {
+                    needZSL = false;
+                }
+            }
+        }
     }
 
     if (frame_settings.exists(ANDROID_CONTROL_AWB_MODE)) {
