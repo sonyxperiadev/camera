@@ -6958,6 +6958,9 @@ error_exit:
 no_error:
         mPendingLiveRequest = 0;
         mFirstConfiguration = false;
+        if (mPictureChannel && mHALZSL) {
+            mPictureChannel->startDeferredAllocation();
+        }
     }
     if ((mState == STARTED)&&(mStreamOnPending)){
         rc = startAllChannels();
@@ -7178,7 +7181,7 @@ no_error:
 
     //Induce HAL ZSL request for every alternate frame (max 15fps)
     if (!blob_request && mHALZSL && (frameNumber % 2 == 0) &&
-            (internallyRequestedStreams.size() == 0)) {
+            (internallyRequestedStreams.size() == 0) && mPictureChannel->mAllocDone) {
         streamsArray.stream_request[streamsArray.num_streams].streamID =
             mPictureChannel->getStreamID(mPictureChannel->getStreamTypeMask());
         streamsArray.stream_request[streamsArray.num_streams++].buf_index = CAM_FREERUN_IDX;
@@ -15876,6 +15879,10 @@ int32_t QCamera3HardwareInterface::startAllChannels()
             LOGE("start_channel failed");
             return rc;
         }
+    }
+
+    if (mPictureChannel && mHALZSL) {
+        mPictureChannel->startDeferredAllocation();
     }
 
     LOGD("All channels started");
