@@ -530,6 +530,11 @@ bool QCameraPerfLock::acquirePerfLock(
         return true;
     }
 
+    if (mPerfLockType == PERF_LOCK_POWERHINT_HFR) {
+        powerHintInternal(POWER_HINT_VIDEO_DECODE, true);
+        return true;
+    }
+
     if (isTimedOut()) {
         mHandle   = 0;
         mRefCount = 0;
@@ -578,6 +583,11 @@ bool QCameraPerfLock::releasePerfLock()
     if ((mPerfLockType == PERF_LOCK_POWERHINT_PREVIEW) ||
         (mPerfLockType == PERF_LOCK_POWERHINT_ENCODE)) {
         powerHintInternal(POWER_HINT_VIDEO_ENCODE, false);
+        return true;
+    }
+
+    if (mPerfLockType == PERF_LOCK_POWERHINT_HFR) {
+        powerHintInternal(POWER_HINT_VIDEO_DECODE, false);
         return true;
     }
 

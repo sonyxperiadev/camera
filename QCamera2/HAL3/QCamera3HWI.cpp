@@ -617,6 +617,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 
     // Disable power hint and enable the perf lock for close camera
     mPerfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_ENCODE);
+    mPerfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_HFR);
     mPerfLockMgr.acquirePerfLock(PERF_LOCK_CLOSE_CAMERA);
 
     if (isDualCamera()) {
@@ -6440,6 +6441,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     if (mBatchSize) {
                         mMinInFlightRequests = MIN_INFLIGHT_HFR_REQUESTS;
                         mMaxInFlightRequests = MAX_INFLIGHT_HFR_REQUESTS;
+                    }
+                    if (max_fps >= 60) {
+                        mPerfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_ENCODE);
+                        mPerfLockMgr.acquirePerfLock(PERF_LOCK_POWERHINT_HFR, 0);
+                    } else {
+                        mPerfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_HFR);
+                        if (mPreviewStarted) {
+                            mPerfLockMgr.acquirePerfLock(PERF_LOCK_POWERHINT_ENCODE, 0);
+                        }
                     }
                 }
                 else {
