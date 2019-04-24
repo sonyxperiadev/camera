@@ -5260,6 +5260,9 @@ QCamera3StreamMem* QCamera3PicChannel::getStreamBufs(uint32_t len)
 
 void QCamera3PicChannel::startDeferredAllocation() {
     createAllocThread();
+    if(mAuxPicChannel) {
+        mAuxPicChannel->createAllocThread();
+    }
 }
 
 int QCamera3PicChannel::allocateZSLBuffers()
