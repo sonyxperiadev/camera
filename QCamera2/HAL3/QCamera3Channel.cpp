@@ -4510,6 +4510,7 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
             stream->width, stream->height);
     mZSL = isZSL;
     mLiveShot = isLiveshot;
+    mInit = false;
     LOGH("Configuring picchannel in %s mode", mZSL ? "ZSL" : "psuedo-ZSL");
     int32_t rc = m_postprocessor.initJpeg(jpegEvtHandle, mpoEvtHandle, &m_max_pic_dim, this);
     if (rc != 0) {
@@ -4586,7 +4587,11 @@ int32_t QCamera3PicChannel::flush()
 
 QCamera3PicChannel::~QCamera3PicChannel()
 {
-    deleteChannel();
+    if(mInit)
+    {
+        deleteChannel();
+        mInit = false;
+    }
     if(0 < mJpegMemory.getCnt())
     {
         mJpegMemory.deallocate();
@@ -4751,7 +4756,7 @@ int32_t QCamera3PicChannel::initialize(cam_is_type_t isType)
     }
 
     configureMpo();
-
+    mInit = true;
     return rc;
 }
 
