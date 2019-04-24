@@ -145,6 +145,7 @@ int32_t QCameraCmdThread::sendCmd(camera_cmd_type_t cmd, uint8_t sync_cmd, uint8
     }
     memset(node, 0, sizeof(camera_cmd_t));
     node->cmd = cmd;
+    node->is_sync = sync_cmd;
 
     if (priority) {
         if (!cmd_queue.enqueueWithPriority((void *)node)) {
@@ -184,6 +185,31 @@ camera_cmd_type_t QCameraCmdThread::getCmd()
         return CAMERA_CMD_TYPE_NONE;
     } else {
         cmd = node->cmd;
+        free(node);
+    }
+    return cmd;
+}
+
+/*===========================================================================
+ * FUNCTION   : getCmd
+ *
+ * DESCRIPTION: dequeue a cmommand from cmd queue
+ *
+ * PARAMETERS :
+ *   @uint8_t : sync flag for sending post if cmd wait.
+ *
+ * RETURN     : cmd dequeued
+ *==========================================================================*/
+camera_cmd_type_t QCameraCmdThread::getCmd(uint8_t &sync_cmd)
+{
+    camera_cmd_type_t cmd = CAMERA_CMD_TYPE_NONE;
+    camera_cmd_t *node = (camera_cmd_t *)cmd_queue.dequeue();
+    if (NULL == node) {
+        LOGD("No notify avail");
+        return CAMERA_CMD_TYPE_NONE;
+    } else {
+        cmd = node->cmd;
+        sync_cmd = node->is_sync;
         free(node);
     }
     return cmd;

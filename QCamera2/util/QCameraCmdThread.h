@@ -53,6 +53,7 @@ typedef enum
 
 typedef struct {
     camera_cmd_type_t cmd;
+    uint8_t is_sync;
 } camera_cmd_t;
 
 class QCameraCmdThread {
@@ -65,6 +66,7 @@ public:
     int32_t exit();
     int32_t sendCmd(camera_cmd_type_t cmd, uint8_t sync_cmd, uint8_t priority);
     camera_cmd_type_t getCmd();
+    camera_cmd_type_t getCmd(uint8_t &sync_cmd);
 
     QCameraQueue cmd_queue;      /* cmd queue */
     pthread_t cmd_pid;           /* cmd thread ID */
