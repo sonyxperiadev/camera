@@ -1636,11 +1636,7 @@ uint32_t mm_channel_add_stream(mm_channel_t *my_obj)
         s_hdl = stream_obj->my_hdl;
     } else {
         /* error during acquire, de-init */
-        pthread_cond_destroy(&stream_obj->buf_cond);
-        pthread_mutex_destroy(&stream_obj->buf_lock);
-        pthread_mutex_destroy(&stream_obj->cb_lock);
-        pthread_mutex_destroy(&stream_obj->cmd_lock);
-        memset(stream_obj, 0, sizeof(mm_stream_t));
+        mm_stream_fsm_fn(stream_obj, MM_STREAM_EVT_RELEASE, NULL, NULL);
     }
     LOGD("stream handle = %d", s_hdl);
     return s_hdl;

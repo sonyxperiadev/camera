@@ -352,6 +352,7 @@ typedef struct mm_stream {
     uint8_t is_res_shared;
     uint8_t is_deferred;
     uint8_t is_frame_shared;
+    uint8_t is_stream_inited;
 } mm_stream_t;
 
 /* mm_channel */
