@@ -642,8 +642,6 @@ private:
      * batch as value for that key */
     KeyedVector<uint32_t, uint32_t> mPendingBatchMap;
     cam_stream_ID_t mBatchedStreamsArray;
-
-    PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
     pthread_cond_t mHdrRequestCond;
     pthread_cond_t mMultiFrameRequestCond;
@@ -689,6 +687,7 @@ public:
     bool m_bQuadraCfaRequest;
     bool m_bPreSnapQuadraCfaRequest;
     QCameraFOVControl *m_pFovControl;
+    PendingBuffersMap mPendingBuffersMap;
     bool isSecureMode() {return m_bIsSecureMode;}
 private:
     uint32_t mFirstFrameNumberInBatch;
