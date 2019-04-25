@@ -600,11 +600,12 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 
     mDualCamera = is_dual_camera_by_idx(cameraId);
     memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
-
+#ifdef ENABLE_THROTTLE
     FSM=setupFSM((char*)PERF_CONFIG_PATH);
     memset(&mSettingInfo, 0, sizeof(mSettingInfo));
     mSessionId = 0;
     mHFRMode = CAM_HFR_MODE_OFF;
+#endif
 }
 
 /*===========================================================================
@@ -1049,8 +1050,10 @@ int QCamera3HardwareInterface::openCamera()
         if (gNumCameraSessions++ == 0) {
             setCameraLaunchStatus(true);
         }
+        #ifdef ENABLE_THROTTLE
         //session id starts from 0
         mSessionId = gNumCameraSessions - 1;
+        #endif
         pthread_mutex_unlock(&gCamLock);
     }
 
@@ -1147,7 +1150,9 @@ int QCamera3HardwareInterface::closeCamera()
     KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CLOSECAMERA);
     int rc = NO_ERROR;
     char value[PROPERTY_VALUE_MAX];
+#ifdef ENABLE_THROTTLE
     int perfLevel;
+#endif
     LOGI("[KPI Perf]: E PROFILE_CLOSE_CAMERA camera id %d",
              mCameraId);
 
@@ -1160,12 +1165,13 @@ int QCamera3HardwareInterface::closeCamera()
         m_pDualCamCmdHeap = NULL;
         memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
     }
-
+#ifdef ENABLE_THROTTLE
     perfLevel = predictFSM(FSM, NULL, NULL, mSessionId);
     if (isDualCamera()) {
         perfLevel = predictFSM(FSM, NULL, NULL, CONFIG_INDEX_AUX);
     }
     m_thermalAdapter.SetPerfLevel(perfLevel);
+#endif
     m_thermalAdapter.deinit();
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
@@ -1185,10 +1191,12 @@ int QCamera3HardwareInterface::closeCamera()
         if (--gNumCameraSessions == 0) {
             setCameraLaunchStatus(false);
         }
+#ifdef ENABLE_THROTTLE
         if ((gNumCameraSessions == 0) && (FSM != NULL)) {
             closeFSM();
             FSM = NULL;
         }
+#endif
         pthread_mutex_unlock(&gCamLock);
     }
 
@@ -6043,7 +6051,9 @@ int QCamera3HardwareInterface::processCaptureRequest(
     bool setEis = false;
 
     char prop[PROPERTY_VALUE_MAX];
+#ifdef ENABLE_THROTTLE
     int32_t perfLevel = 0;
+#endif
 
 
     pthread_mutex_lock(&mMutex);
@@ -6595,7 +6605,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 pthread_mutex_unlock(&mMutex);
                 goto error_exit;
             }
-
+#ifdef ENABLE_THROTTLE
             mSettingInfo[0].sensorW = sensor_dim.width;
             mSettingInfo[0].sensorH = sensor_dim.height;
             mSettingInfo[0].sensorClk = sensor_dim.opClock;
@@ -6607,7 +6617,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                         meta.find(ANDROID_STATISTICS_FACE_DETECT_MODE).data.u8[0];
             }
             perfLevel = predictFSM(FSM, &mStreamConfigInfo, &mSettingInfo[0], mSessionId);
-
+#endif
             if(isDualCamera()  && !IS_PP_TYPE_NONE) {
                 cam_sensor_config_t sensor_dim_aux;
                 memset(&sensor_dim_aux, 0, sizeof(sensor_dim_aux));
@@ -6640,6 +6650,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     ADD_SET_PARAM_ENTRY_TO_BATCH(
                             params, CAM_INTF_META_STREAM_INFO, mStreamConfigInfo[config_index]);
                 }
+#ifdef ENABLE_THROTTLE
                 mSettingInfo[1].sensorW = sensor_dim_aux.width;
                 mSettingInfo[1].sensorH = sensor_dim_aux.height;
                 mSettingInfo[1].sensorClk = sensor_dim_aux.opClock;
@@ -6647,9 +6658,11 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 mSettingInfo[1].tnr = mSettingInfo[0].tnr;
                 mSettingInfo[1].fd = mSettingInfo[0].fd;
                 perfLevel = predictFSM(FSM, &mAuxStreamConfigInfo, &mSettingInfo[1], CONFIG_INDEX_AUX);
+#endif
             }
-
+#ifdef ENABLE_THROTTLE
             m_thermalAdapter.SetPerfLevel(perfLevel);
+#endif
 
             if(config_index == CONFIG_INDEX_MAIN) {
                 mCaptureIntent = l_captureIntent;
@@ -14163,6 +14176,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                     facedetectMode)) {
                 rc = BAD_VALUE;
             }
+#ifdef ENABLE_THROTTLE
             if (facedetectMode != mSettingInfo[0].fd) {
                 mSettingInfo[0].fd = mSettingInfo[1].fd = facedetectMode;
                 int perfLevel = predictFSM(FSM, &mStreamConfigInfo, &mSettingInfo[0], mSessionId);
@@ -14171,6 +14185,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 }
                 m_thermalAdapter.SetPerfLevel(perfLevel);
             }
+#endif
         }
     }
 
