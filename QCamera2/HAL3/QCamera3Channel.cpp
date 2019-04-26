@@ -1000,6 +1000,7 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
                         if (frame->bufs[0]->buf_idx == oldestBufIndex) {
                             LOGE("buffer already in mOutOfSequenceBuffers list");
                             frameIndex = oldestBufIndex;
+                            super_frame = *it;
                             mOutOfSequenceBuffers.erase(it);
                             break;
                         }
