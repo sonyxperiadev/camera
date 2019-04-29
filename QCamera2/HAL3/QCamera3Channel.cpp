@@ -4634,6 +4634,11 @@ int32_t QCamera3PicChannel::stop()
         return rc;
     }
 
+    if (mAllocThread != 0) {
+        pthread_join(mAllocThread,NULL);
+        mAllocThread = 0;
+    }
+
     QCamera3ProcessingChannel::stop();
 
     stopChannel();
@@ -5316,11 +5321,6 @@ int QCamera3PicChannel::createAllocThread()
 void QCamera3PicChannel::putStreamBufs()
 {
     QCamera3ProcessingChannel::putStreamBufs();
-
-    if (mAllocThread != 0) {
-        pthread_join(mAllocThread,NULL);
-        mAllocThread = 0;
-    }
 
     mYuvMemory->deallocate();
     delete mYuvMemory;
