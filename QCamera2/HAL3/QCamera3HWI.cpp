@@ -2669,10 +2669,11 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         mStreamConfigInfo[index].stream_sizes[stream_index].width = (int32_t)newStream->width;
         mStreamConfigInfo[index].stream_sizes[stream_index].height = (int32_t)newStream->height;
 
-        struct camera_info *p_info = NULL;
-        pthread_mutex_lock(&gCamLock);
-        p_info = get_cam_info(mCameraId, &mStreamConfigInfo[index].sync_type);
-        pthread_mutex_unlock(&gCamLock);
+        if (isDualCamera()) {
+            mStreamConfigInfo[index].sync_type = CAM_TYPE_MAIN;
+        } else {
+            mStreamConfigInfo[index].sync_type = CAM_TYPE_STANDALONE;
+        }
         if ((newStream->stream_type == CAMERA3_STREAM_BIDIRECTIONAL
                 || IS_USAGE_ZSL(newStream->usage)) &&
             newStream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED){
