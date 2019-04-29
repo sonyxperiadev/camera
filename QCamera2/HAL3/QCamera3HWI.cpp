@@ -17253,6 +17253,15 @@ bool QCamera3HardwareInterface::needZSLCapture(const camera3_capture_request_t *
         }
     }
 
+    if (frame_settings.exists(QCAMERA3_USE_ISO_EXP_PRIORITY) &&
+        frame_settings.exists(QCAMERA3_SELECT_PRIORITY)) {
+        cam_priority_mode_t mode =
+                (cam_priority_mode_t)frame_settings.find(QCAMERA3_SELECT_PRIORITY).data.i32[0];
+        if((CAM_ISO_PRIORITY == mode)) {
+            needZSL = false;
+        }
+    }
+
     if (atoi(prop) == 1) {
         needZSL = true;
     }
