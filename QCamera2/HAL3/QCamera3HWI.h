@@ -125,6 +125,10 @@ typedef enum {
 
 #define IS_HAL_PP_TYPE_BOKEH (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
 
+#define IS_YUV_ZSL (mHALZSL == CAM_HAL3_ZSL_TYPE_CALLBACK)
+
+#define IS_SNAP_ZSL (mHALZSL == CAM_HAL3_ZSL_TYPE_SNAPSHOT)
+
 extern volatile uint32_t gCamHal3LogLevel;
 
 class QCamera3MetadataChannel;
@@ -691,6 +695,7 @@ public:
     PendingBuffersMap mPendingBuffersMap;
     bool m_bInSensorQCFA;
     bool isSecureMode() {return m_bIsSecureMode;}
+    QCamera3ProcessingChannel *mZSLChannel; //Interface ptr for actual ZSL channel.
 private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
@@ -826,7 +831,7 @@ private:
     bool is_main_configured = false;  //only for dual camera usecase
     bool is_logical_configured = false; //only for dual camera usecase
 
-    bool mHALZSL;
+    zsl_stream_type_t mHALZSL;
     bool mFlashNeeded;
     cam_perf_info_t mSettingInfo[CONFIG_INDEX_MAX];
     uint8_t mSessionId;

@@ -496,7 +496,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mFallbackMode(CAM_NO_FALLBACK),
       mLPMEnable(true),
       m_bStopPicChannel(false),
-      mHALZSL(false),
+      mHALZSL(CAM_HAL3_ZSL_TYPE_NONE),
       mFlashNeeded(false)
 {
     getLogLevel();
@@ -514,6 +514,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     mCameraDevice.ops = &mCameraOps;
     mCameraDevice.priv = this;
     gCamCapability[cameraId]->version = CAM_HAL_V3;
+    mZSLChannel = NULL;
     // TODO: hardcode for now until mctl add support for min_num_pp_bufs
     //TBD - To see if this hardcoding is needed. Check by printing if this is filled by mctl to 3
     gCamCapability[cameraId]->min_num_pp_bufs = 3;
@@ -769,6 +770,8 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 
     mPictureChannel = NULL;
     m_bStopPicChannel = false;
+
+    mZSLChannel = NULL;
 
     if (mMetadataChannel) {
         delete mMetadataChannel;
@@ -2257,7 +2260,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     mCurrFeatureState = 0;
     mStreamConfig = true;
     m_bIsSecureMode = false;
-    mHALZSL = false;
+    mHALZSL = CAM_HAL3_ZSL_TYPE_NONE;
+    uint32_t num_cb_stream = 0;
 
     //MULTICAM
     is_main_configured = false;
@@ -2361,9 +2365,11 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         numStreamsOnEncoder++;
                         bJpegOnEncoder = true;
                     }
-                    width_ratio = CEIL_DIVISION(gCamCapability[mCameraId]->active_array_size.width,
+                    width_ratio =
+                        CEIL_DIVISION(gCamCapability[mCameraId]->active_array_size.width,
                             newStream->width);
-                    height_ratio = CEIL_DIVISION(gCamCapability[mCameraId]->active_array_size.height,
+                    height_ratio =
+                        CEIL_DIVISION(gCamCapability[mCameraId]->active_array_size.height,
                             newStream->height);;
                     FATAL_IF(gCamCapability[mCameraId]->max_downscale_factor == 0,
                             "FATAL: max_downscale_factor cannot be zero and so assert");
@@ -2397,6 +2403,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 break;
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
                 processedStreamCnt++;
+                num_cb_stream++;
                 if (isOnEncoder(maxViewfinderSize, newStream->width,
                         newStream->height)) {
                     // If Yuv888 size is not greater than 4K, set feature mask
@@ -2622,8 +2629,23 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     }
 
     mPictureChannel = NULL;
-    mHALZSL = isJpeg && !isZsl && !m_bIsVideo && (!numStreamsOnEncoder ||
-            ((numStreamsOnEncoder == 1) && bJpegOnEncoder));
+    mZSLChannel = NULL;
+
+    mHALZSL = CAM_HAL3_ZSL_TYPE_NONE;
+    if(mOpMode == QCAMERA3_VENDOR_STREAM_CONFIGURATION_YUV_ZSL_MODE)
+    {
+        if((isDualCamera() && (num_cb_stream >= 0 ) && (num_cb_stream <= 2))
+            || (!isDualCamera() && (num_cb_stream > 0)))
+        {
+            mHALZSL = CAM_HAL3_ZSL_TYPE_CALLBACK;
+        }
+    }else if(isJpeg && !isZsl && !m_bIsVideo && (!numStreamsOnEncoder ||
+              ((numStreamsOnEncoder == 1) && bJpegOnEncoder)))
+    {
+        mHALZSL = CAM_HAL3_ZSL_TYPE_SNAPSHOT;
+    } else {
+        mHALZSL = CAM_HAL3_ZSL_TYPE_NONE;
+    }
 
     char is_type_value[PROPERTY_VALUE_MAX];
     property_get("persist.vendor.camera.is_type", is_type_value, "0");
@@ -2650,11 +2672,15 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         pthread_mutex_unlock(&mMutex);
         return rc;
     }
+
+    if(mHALZSL)
+    {
+        mMetadataChannel->setZSLMode(true);
+    }
+
     rc = mMetadataChannel->initialize(IS_TYPE_NONE);
     if (rc < 0) {
         LOGE("metadata channel initialization failed");
-        delete mMetadataChannel;
-        mMetadataChannel = NULL;
         pthread_mutex_unlock(&mMutex);
         return rc;
     }
@@ -2677,11 +2703,34 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         uint32_t camHdl = mCameraHandle->camera_handle;
         uint32_t channelHdl = mChannelHandle;
         bool is_logical_stream = false;
+        cam_sync_type_t camConfigType = CAM_TYPE_MAIN;
+        uint8_t skip_config = FALSE; //skip this config for yuv zsl
 #ifdef USE_HAL_3_5
         if(isDualCamera())
         {
             uint32_t newStreamPhyId = UINT32_MAX;
-            if((newStream->physical_camera_id != NULL)
+            if(IS_YUV_ZSL)
+            {
+                is_logical_stream = true;
+                is_logical_configured = true;
+                newStreamPhyId = this->mCameraId;
+                index = CONFIG_INDEX_MAIN;
+                camHdl = mCameraHandle->camera_handle;
+                channelHdl = mChannelHandle;
+                camConfigType = CAM_TYPE_MAIN;
+                if(IS_EQUAL(newStream->format, HAL_PIXEL_FORMAT_YCbCr_420_888))
+                {
+                    if(IS_VALID_PTR(mZSLChannel))
+                    {
+                        index = CONFIG_INDEX_AUX;
+                        is_logical_stream = false;
+                        camConfigType = CAM_TYPE_AUX;
+                    }else {
+                        index = CONFIG_INDEX_MAIN;
+                        is_logical_stream = false;
+                    }
+                }
+            } else  if((newStream->physical_camera_id != NULL)
                     && (newStream->physical_camera_id[0] != '\0'))
             {
                 newStreamPhyId = atoi(newStream->physical_camera_id);
@@ -2707,6 +2756,15 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             }
         }
 #endif
+
+        if(IS_YUV_ZSL && newStream->format == HAL_PIXEL_FORMAT_BLOB)
+        {
+            if(isDualCamera())
+            {
+                is_logical_stream = false;
+            }
+            skip_config = TRUE;
+        }
 
         uint32_t &stream_index = mStreamConfigInfo[index].num_streams;
         mStreamConfigInfo[index].stream_sizes[stream_index].width = (int32_t)newStream->width;
@@ -2803,26 +2861,34 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             }
             break;
             case HAL_PIXEL_FORMAT_YCbCr_420_888:
-                mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
-                if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
-                    if (bUseCommonFeatureMask)
-                        mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                commonFeatureMask;
-                    else
-                        mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                CAM_QCOM_FEATURE_NONE;
-                } else {
+                if(IS_YUV_ZSL)
+                {
                     mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                            CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-                }
-                if ((isZsl) && (zslStream == newStream)) {
-                    zsl_ppmask = mStreamConfigInfo[index].postprocess_mask[stream_index];
+                                   CAM_QCOM_FEATURE_NONE;
+                    mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
+                } else {
+                    mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
+                    if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
+                        if (bUseCommonFeatureMask)
+                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                    commonFeatureMask;
+                        else
+                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                    CAM_QCOM_FEATURE_NONE;
+                    } else {
+                        mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                    }
+                    if ((isZsl) && (zslStream == newStream)) {
+                        zsl_ppmask = mStreamConfigInfo[index].postprocess_mask[stream_index];
+                    }
                 }
             break;
             case HAL_PIXEL_FORMAT_BLOB:
                 if (newStream->data_space !=  HAL_DATASPACE_DEPTH) {
                     mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_SNAPSHOT;
-                    // No need to check bSmallJpegSize if ZSL is present since JPEG uses ZSL stream
+                    // No need to check bSmallJpegSize if ZSL is present
+                    //since JPEG uses ZSL stream
                     if ((m_bIs4KVideo && !isZsl) || (bSmallJpegSize && !isZsl)) {
                         mStreamConfigInfo[index].postprocess_mask[stream_index] =
                                 CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
@@ -3052,6 +3118,12 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     }
                     break;
                 case HAL_PIXEL_FORMAT_YCbCr_420_888: {
+                    bool skipAux = IS_YUV_ZSL && (num_cb_stream == 2);
+                    uint32_t maxYUVBufs = bufferCount;
+                    if(IS_YUV_ZSL && isDualCamera())
+                    {
+                        maxYUVBufs += MAX_DUAL_CAM_MUXER_BUF;
+                    }
                     channel = new QCamera3YUVChannel(camHdl,
                             channelHdl,
                             mCameraHandle->ops, captureResultCb,
@@ -3061,7 +3133,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             (cam_stream_type_t)
                                     mStreamConfigInfo[index].type[stream_index],
                             mStreamConfigInfo[index].postprocess_mask[stream_index],
-                            mMetadataChannel, bufferCount);
+                            mMetadataChannel, maxYUVBufs, skipAux,camConfigType);
                     if (channel == NULL) {
                         LOGE("allocation of YUV channel failed");
                         pthread_mutex_unlock(&mMutex);
@@ -3094,25 +3166,33 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     newStream->priv = (QCamera3ProcessingChannel*)mRawChannel;
                     break;
                 case HAL_PIXEL_FORMAT_BLOB:
-                    bufferCount = isSecureMode() ? MAX_SECURE_BUFFERS : (m_bIsVideo ? 1 : MAX_INFLIGHT_BLOB);
+                    bufferCount = isSecureMode() ? MAX_SECURE_BUFFERS :
+                                  (m_bIsVideo ? 1 : MAX_INFLIGHT_BLOB);
                     if (newStream->data_space !=  HAL_DATASPACE_DEPTH) {
                         // Max live snapshot inflight buffer is 1. This is to mitigate
                         // frame drop issues for video snapshot. The more buffers being
                         // allocated, the more frame drops there are.
                         int maxZSLBuffers = MAX_INFLIGHT_REQUESTS;
 
-                        char prop[PROPERTY_VALUE_MAX];
-                        memset(prop, 0, sizeof(prop));
-                        property_get("persist.vendor.camera.halzsl.enable", prop, "");
-                        if (strlen(prop) > 0) {
-                            mHALZSL = (atoi(prop) > 0);
-                        }
+                       if(mOpMode != QCAMERA3_VENDOR_STREAM_CONFIGURATION_YUV_ZSL_MODE)
+                       {
+                           char prop[PROPERTY_VALUE_MAX];
+                           memset(prop, 0, sizeof(prop));
+                           property_get("persist.vendor.camera.halzsl.enable", prop, "");
+                           if (strlen(prop) > 0) {
+                               mHALZSL = (atoi(prop) == 1)?
+                                              CAM_HAL3_ZSL_TYPE_SNAPSHOT:
+                                              CAM_HAL3_ZSL_TYPE_NONE;
+                           }
+                       }
 
-                        LOGI("%s HAL ZSL : ", mHALZSL ? "Enabling":"Disabling");
+                        LOGI("%s HAL ZSL : ",
+                            (mHALZSL == CAM_HAL3_ZSL_TYPE_SNAPSHOT) ? "Enabling":"Disabling");
                         LOGH("isZsl %d, m_bIsVideo %d, numStreamsOnEncoder %d, bJpegOnEncoder %d",
                                 isZsl, m_bIsVideo, numStreamsOnEncoder, bJpegOnEncoder);
                         int maxSnapshotBuffers = (m_bIsVideo ? 1 :
-                            (mHALZSL ? maxZSLBuffers : MAX_INFLIGHT_BLOB));
+                            (mHALZSL == CAM_HAL3_ZSL_TYPE_SNAPSHOT) ?
+                                    maxZSLBuffers : MAX_INFLIGHT_BLOB);
                         if (isDualCamera()) {
                             maxSnapshotBuffers += MAX_DUAL_CAM_MUXER_BUF;
                         }
@@ -3122,7 +3202,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                                 setBufferErrorStatus, &padding_info, this, newStream,
                                 mStreamConfigInfo[index].postprocess_mask[stream_index],
                                 m_bIs4KVideo, isZsl, mMetadataChannel,
-                                maxSnapshotBuffers, mHALZSL, (m_bIsVideo && !m_bIs4KVideo));
+                                maxSnapshotBuffers,
+                                IS_SNAP_ZSL,
+                                (m_bIsVideo && !m_bIs4KVideo));
                         if (mPictureChannel == NULL) {
                             LOGE("allocation of channel failed");
                             pthread_mutex_unlock(&mMutex);
@@ -3133,6 +3215,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         mPictureChannel->overrideYuvSize(
                                 mStreamConfigInfo[index].stream_sizes[stream_index].width,
                                 mStreamConfigInfo[index].stream_sizes[stream_index].height);
+                        if(skip_config) LOGD("skip blob channel config in YUV ZSL mode");
                     } else {
                         mDepthChannel = new QCamera3DepthChannel(
                                 camHdl, channelHdl,
@@ -3172,6 +3255,27 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     LOGE("not a supported format 0x%x", newStream->format);
                     pthread_mutex_unlock(&mMutex);
                     return -EINVAL;
+                }
+                if((IS_YUV_ZSL) && (newStream->format == HAL_PIXEL_FORMAT_YCbCr_420_888))
+                {
+                    if(mZSLChannel == NULL)
+                    {
+                        mZSLChannel = (QCamera3ProcessingChannel *)newStream->priv;
+                        mZSLChannel->setZSLMode(true);
+                    } else if(isDualCamera())
+                    {
+                        if(IS_VALID_PTR(mZSLChannel))
+                        {
+                            mZSLChannel->setAuxChannel((QCamera3Channel *)newStream->priv);
+                            ((QCamera3ProcessingChannel *)(newStream->priv))->setZSLMode(true);
+                        }
+                    }
+                }else if(IS_SNAP_ZSL
+                          && IS_VALID_PTR(mPictureChannel)
+                          && IS_EQUAL(mZSLChannel,NULL))
+                {
+                    mPictureChannel->setZSLMode(true);
+                    mZSLChannel = mPictureChannel;
                 }
             } else if (newStream->stream_type == CAMERA3_STREAM_INPUT) {
                 newStream->max_buffers = MAX_INFLIGHT_REPROCESS_REQUESTS;
@@ -3231,9 +3335,31 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         /* Do not add entries for input stream in metastream info
          * since there is no real stream associated with it
          */
-        if (newStream->stream_type != CAMERA3_STREAM_INPUT)
+
+        if ((newStream->stream_type != CAMERA3_STREAM_INPUT) && !skip_config)
             stream_index++;
 
+    }
+
+    if(IS_YUV_ZSL && IS_VALID_PTR(mZSLChannel) && IS_VALID_PTR(mPictureChannel))
+    {
+        QCamera3ProcessingChannel * channel = mZSLChannel;
+        mPictureChannel->setSourceZSLChannel(channel, mHALZSL,true);
+        mPictureChannel->setZSLMode(true);
+        if(isDualCamera() && (num_cb_stream == 2))
+        {
+            mPictureChannel->setAuxSourceZSLChannel(
+                (QCamera3ProcessingChannel *)mZSLChannel->getAuxHandle(),mHALZSL,true);
+        }
+    }
+
+    if(mHALZSL && IS_VALID_PTR(mZSLChannel))
+    {
+        mZSLChannel->setZSLStreamType(mHALZSL);
+        if(IS_YUV_ZSL)
+        {
+            LOGI("Enabling YUV ZSL");
+        }
     }
 
     bool onlyRaw = true;
@@ -4755,7 +4881,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             //TODO: for now, we don't support two streams requiring metadata at the same time.
             // (because we are not making copies, and metadata buffer is not reference counted.
             bool internalPproc = false;
-            if (!mHALZSL) {
+            if (!IS_SNAP_ZSL) {
                 for (pendingBufferIterator iter = i->buffers.begin();
                         iter != i->buffers.end(); iter++) {
                     if (iter->need_metadata) {
@@ -6271,8 +6397,9 @@ int QCamera3HardwareInterface::processCaptureRequest(
             camHdl = get_main_camera_handle(mCameraHandle->camera_handle);
             channelHdl = mChannelHandle;
 
-            //Set HAL pptype for dual camera
-            m_halPPType = CAM_HAL_PP_TYPE_NONE;
+            //Set HAL pptype for dual camera.
+            //For multicamera set PP type NONE.
+            m_halPPType = CAM_HAL_PP_TYPE_SAT;
             char PP_prop[PROPERTY_VALUE_MAX];
             memset(PP_prop, 0, sizeof(PP_prop));
             property_get("persist.vendor.camera.halpp", PP_prop, "");
@@ -6628,6 +6755,11 @@ int QCamera3HardwareInterface::processCaptureRequest(
             if (isDualCamera() && !IS_PP_TYPE_NONE)
             {
                 //Set sync type for AUX camera.
+                if(IS_YUV_ZSL)
+                {
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(mAuxParameters,
+                        CAM_INTF_META_STREAM_INFO, mStreamConfigInfo[CONFIG_INDEX_AUX]);
+                }
                 if (mAuxParameters->is_valid[CAM_INTF_META_STREAM_INFO]) {
                     void *aux_param = POINTER_OF_META(CAM_INTF_META_STREAM_INFO, mAuxParameters);
                     if (aux_param) {
@@ -7058,8 +7190,8 @@ error_exit:
 no_error:
         mPendingLiveRequest = 0;
         mFirstConfiguration = false;
-        if (mPictureChannel && mHALZSL) {
-            mPictureChannel->startDeferredAllocation();
+        if (mZSLChannel != NULL) {
+            mZSLChannel->startDeferredAllocation();
         }
     }
     if ((mState == STARTED)&&(mStreamOnPending)){
@@ -7143,6 +7275,10 @@ no_error:
     bool  is_blob_on_aux = 0;
     uint32_t snapshotStreamId = 0;
     uint32_t snapshotStreamIdSlave = 0;
+    bool needSyncFrame = false;
+    bool req_on_yuv_main = false;
+    bool req_on_yuv_aux = false;
+    uint8_t is_request_on_zsl = FALSE;
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         cam_stream_ID_t *streamArray = &streamsArray;
         const camera3_stream_buffer_t& output = request->output_buffers[i];
@@ -7158,6 +7294,45 @@ no_error:
             if(channel->getMyHandle() == get_aux_camera_handle(mChannelHandle))
             {
                 streamArray = &streamsArraySlave;
+            }
+        }
+
+        if(IS_EQUAL(channel, mZSLChannel) || (IS_VALID_PTR(mZSLChannel) &&
+            (((QCamera3Channel *)mZSLChannel)->getAuxHandle() == channel))
+            || ((IS_YUV_ZSL) && IS_EQUAL(channel, mPictureChannel)))
+        {
+            is_request_on_zsl = TRUE;
+            if((((QCamera3Channel *)mZSLChannel)->getAuxHandle() == channel))
+            {
+                streamArray = &streamsArraySlave;
+            }
+
+            if(IS_YUV_ZSL)
+            {
+                if(IS_EQUAL(channel, mZSLChannel)) {
+                    req_on_yuv_main = true;
+                } else if(IS_EQUAL(((QCamera3Channel *)mZSLChannel)->getAuxHandle(),channel))
+                {
+                    req_on_yuv_aux = true;
+                }
+
+                if(req_on_yuv_main && req_on_yuv_aux)
+                {
+                    needSyncFrame = true;
+                }
+            } else {
+                needSyncFrame = false;
+            }
+        }
+
+        if(IS_YUV_ZSL) {
+            if(isDualCamera()
+                && IS_EQUAL(channel, mPictureChannel)
+                && IS_EQUAL(request->input_buffer,NULL)
+                && (mMasterCamera == CAM_TYPE_AUX))
+            {
+                streamArray = &streamsArraySlave;
+                is_request_on_zsl = TRUE;
             }
         }
 
@@ -7258,7 +7433,18 @@ no_error:
     for (auto itr = internallyRequestedStreams.begin(); itr != internallyRequestedStreams.end();
           itr++) {
         QCamera3Channel *channel = (QCamera3Channel *)(*itr).stream->priv;
-        streamsArray.stream_request[streamsArray.num_streams++].streamID =
+        cam_stream_ID_t *streamArray = &streamsArray;
+
+        if(IS_YUV_ZSL) {
+            if(isDualCamera()
+                && IS_EQUAL(channel, mPictureChannel)
+                && IS_EQUAL(request->input_buffer,NULL)
+                && (mMasterCamera == CAM_TYPE_AUX))
+            {
+                streamArray = &streamsArraySlave;
+            }
+        }
+        streamArray->stream_request[streamArray->num_streams++].streamID =
             channel->getStreamID(channel->getStreamTypeMask());
 
         if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
@@ -7285,16 +7471,28 @@ no_error:
     }
 
     //Induce HAL ZSL request for every alternate frame (max 15fps)
-    if (!blob_request && mHALZSL && (frameNumber % 2 == 0) &&
-            (internallyRequestedStreams.size() == 0) && mPictureChannel->mAllocDone) {
+    if (!is_request_on_zsl && (mZSLChannel != NULL) && (frameNumber % 2 == 0) &&
+            (internallyRequestedStreams.size() == 0) && mZSLChannel->mAllocDone) {
         streamsArray.stream_request[streamsArray.num_streams].streamID =
-            mPictureChannel->getStreamID(mPictureChannel->getStreamTypeMask());
+            mZSLChannel->getStreamID(mZSLChannel->getStreamTypeMask());
         streamsArray.stream_request[streamsArray.num_streams++].buf_index = CAM_FREERUN_IDX;
-        if(!IS_MULTI_CAMERA && (isDualCamera() && IS_HAL_PP_TYPE_BOKEH)) {
-            streamsArraySlave.stream_request[streamsArraySlave.num_streams].streamID =
-                mPictureChannel->getStreamID(mPictureChannel->getStreamTypeMask());
-            streamsArraySlave.stream_request[streamsArraySlave.num_streams++].buf_index =
-                CAM_FREERUN_IDX;
+        if(isDualCamera() && !IS_MULTI_CAMERA)
+        {
+            bool is_aux_needed = false;
+            if (IS_HAL_PP_TYPE_BOKEH
+                || (IS_YUV_ZSL
+                && getHalPPType() == CAM_HAL_PP_TYPE_SAT))
+            {
+                is_aux_needed = true;
+            }
+
+            if(is_aux_needed)
+            {
+                streamsArraySlave.stream_request[streamsArraySlave.num_streams].streamID =
+                    mZSLChannel->getStreamID(mZSLChannel->getStreamTypeMask());
+                streamsArraySlave.stream_request[streamsArraySlave.num_streams++].buf_index =
+                    CAM_FREERUN_IDX;
+            }
         }
     }
 
@@ -7540,6 +7738,7 @@ no_error:
 
     // Call request on other streams
     uint32_t streams_need_metadata = 0;
+    bool isZSLCapture = false;
     pendingBufferIterator pendingBufferIter = latestRequest->buffers.begin();
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         metadata_buffer_t *m_params = mParameters;
@@ -7559,6 +7758,21 @@ no_error:
                 m_params = mAuxParameters;
                 streamArray = &streamsArraySlave;
             }
+        } else if((mZSLChannel != NULL)
+                && (((QCamera3Channel *)mZSLChannel)->getAuxHandle() == channel))
+        {
+                //request is on aux handle in non-multicamera
+                streamArray = &streamsArraySlave;
+        }
+
+        if(IS_YUV_ZSL) {
+            if(isDualCamera()
+                && IS_EQUAL(channel, mPictureChannel)
+                && IS_EQUAL(request->input_buffer,NULL)
+                && (mMasterCamera == CAM_TYPE_AUX))
+            {
+                streamArray = &streamsArraySlave;
+            }
         }
 
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB
@@ -7574,8 +7788,7 @@ no_error:
                     return rc;
                 }
             } else {
-                bool isZSLCapture = false;
-                if (mHALZSL) {
+                if (channel->isZSLChannel()) {
                     isZSLCapture = needZSLCapture(request);
                     pendingBufferIter->isZSL = isZSLCapture;
                 }
@@ -7621,17 +7834,21 @@ no_error:
                     assert(0);
                 }
 
-                if (!mHALZSL) {
+                if (!channel->isZSLChannel()) {
                     pendingBufferIter->need_metadata = true;
                     streams_need_metadata++;
                 }
             }
         } else if (output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
             bool needMetadata = false;
+            if (channel->isZSLChannel()) {
+                isZSLCapture = needZSLCapture(request);
+                pendingBufferIter->isZSL = isZSLCapture;
+            }
             QCamera3YUVChannel *yuvChannel = (QCamera3YUVChannel *)channel;
             rc = yuvChannel->request(output.buffer, frameNumber,
                     pInputBuffer, (pInputBuffer ? &mReprocMeta : m_params),
-                    needMetadata, indexUsed, false, false);
+                    needMetadata, indexUsed, false,false, isZSLCapture, needSyncFrame);
             if (rc < 0) {
                 LOGE("Fail to request on YUV channel");
                 pthread_mutex_unlock(&mMutex);
@@ -7709,6 +7926,17 @@ no_error:
 
         InternalRequest requestedStream;
         requestedStream = (*itr);
+        cam_stream_ID_t *streamArray = &streamsArray;
+
+        if(IS_YUV_ZSL) {
+            if(isDualCamera()
+                && IS_EQUAL(channel, mPictureChannel)
+                && IS_EQUAL(request->input_buffer,NULL)
+                && (mMasterCamera == CAM_TYPE_AUX))
+            {
+                streamArray = &streamsArraySlave;
+            }
+        }
 
 
         if ((*itr).stream->format == HAL_PIXEL_FORMAT_BLOB) {
@@ -7739,7 +7967,7 @@ no_error:
                     return rc;
                 }
 
-                if (((*itr).meteringOnly != 1) && !mHALZSL) {
+                if (((*itr).meteringOnly != 1) && !channel->isZSLChannel()) {
                     requestedStream.need_metadata = 1;
                     streams_need_metadata++;
                 }
@@ -7752,16 +7980,16 @@ no_error:
                 streamId = snapshotStreamId;
             }
             uint32_t j = 0;
-            for (j = 0; j < streamsArray.num_streams; j++) {
-                if (streamsArray.stream_request[j].streamID == streamId) {
+            for (j = 0; j < streamArray->num_streams; j++) {
+                if (streamArray->stream_request[j].streamID == streamId) {
                   if (mOpMode == CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)
-                      streamsArray.stream_request[j].buf_index = CAM_FREERUN_IDX;
+                      streamArray->stream_request[j].buf_index = CAM_FREERUN_IDX;
                   else
-                      streamsArray.stream_request[j].buf_index = indexUsed;
+                      streamArray->stream_request[j].buf_index = indexUsed;
                     break;
                 }
             }
-            if (j == streamsArray.num_streams) {
+            if (j == streamArray->num_streams) {
                 LOGE("Did not find matching stream to update index");
                 assert(0);
             }
@@ -7783,161 +8011,169 @@ no_error:
         return -EINVAL;
     }
 
-    /* Set the parameters to backend:
-     * - For every request in NORMAL MODE
-     * - For every request in HFR mode during preview only case
-     * - Once every batch in HFR mode during video recording
-     */
-    if (!mBatchSize ||
-       (mBatchSize && !isVidBufRequested) ||
-       (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize))) {
-        LOGD("set_parms  batchSz: %d IsVidBufReq: %d vidBufTobeQd: %d ",
-                 mBatchSize, isVidBufRequested,
-                mToBeQueuedVidBufs);
+    //if one o/p and one i/p i.e. reprocess request.
+    uint8_t reproc_req = ((request->num_output_buffers == 1) && (request->input_buffer != NULL));
 
-        if(mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize)) {
+    if(!reproc_req || (internallyRequestedStreams.size()))
+    {
+        /* Set the parameters to backend:
+         * - For every request in NORMAL MODE
+         * - For every request in HFR mode during preview only case
+         * - Once every batch in HFR mode during video recording
+         */
+        if (!mBatchSize ||
+           (mBatchSize && !isVidBufRequested) ||
+           (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize))) {
+            LOGD("set_parms  batchSz: %d IsVidBufReq: %d vidBufTobeQd: %d ",
+                     mBatchSize, isVidBufRequested,
+                    mToBeQueuedVidBufs);
+
+            if(mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs == mBatchSize)) {
+                for (uint32_t k = 0; k < streamsArray.num_streams; k++) {
+                    uint32_t m = 0;
+                    for (m = 0; m < mBatchedStreamsArray.num_streams; m++) {
+                        if (streamsArray.stream_request[k].streamID ==
+                                mBatchedStreamsArray.stream_request[m].streamID)
+                            break;
+                        }
+                        if (m == mBatchedStreamsArray.num_streams) {
+                            mBatchedStreamsArray.stream_request\
+                                [mBatchedStreamsArray.num_streams].streamID =
+                                streamsArray.stream_request[k].streamID;
+                            mBatchedStreamsArray.stream_request\
+                                [mBatchedStreamsArray.num_streams].buf_index =
+                                streamsArray.stream_request[k].buf_index;
+                            mBatchedStreamsArray.num_streams = mBatchedStreamsArray.num_streams + 1;
+                        }
+                }
+                streamsArray = mBatchedStreamsArray;
+            }
+
+            /* Update stream id of all the requested buffers */
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STREAM_ID, streamsArray)) {
+                LOGE("Failed to set stream type mask in the parameters");
+                return BAD_VALUE;
+            }
+
+            /* for quadra cfa request, dont' send request to back-end again,
+             * as we already got raw frame  */
+            if (!m_bQuadraCfaRequest) {
+                /*While translating input params to Aux by FOV control, stream requests will also
+                  get copied. Reset them on the slave session so that we request for frames only
+                  on the master session.*/
+                if (isDualCamera() && (getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
+                    /* Update stream id of all the requested buffers in Aux session */
+                    if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
+                                             CAM_INTF_META_STREAM_ID,
+                                                       streamsArray)) {
+                        LOGE("Failed to set meta stream id in Aux session");
+                        pthread_mutex_unlock(&mMutex);
+                        return BAD_VALUE;
+                    }
+                    if(ADD_SET_PARAM_ENTRY_TO_BATCH(mAuxParameters,
+                        CAM_INTF_META_FRAME_NUMBER, request->frame_number)) {
+                        LOGE("Failed to set the frame number in the parameters");
+                        pthread_mutex_unlock(&mMutex);
+                        return BAD_VALUE;
+                    }
+                    metadata_buffer_t* params =
+                            (mMasterCamera == CAM_TYPE_MAIN) ? mAuxParameters : mParameters;
+                    if ((IS_YUV_ZSL && IS_VALID_PTR(mZSLChannel))
+                        || (!(IS_YUV_ZSL) && blob_request && needHALPP())
+                        ||(IS_SNAP_ZSL && IS_HAL_PP_TYPE_BOKEH)) {
+                        LOGD("snapshot request on slave session");
+                        ADD_SET_PARAM_ENTRY_TO_BATCH( params, CAM_INTF_META_STREAM_ID,
+                                                                    streamsArraySlave);
+                    } else {
+                        LOGD("Requesting PCR on %s session", (mMasterCamera == CAM_TYPE_MAIN) ?
+                                                                                "main" : "aux");
+                        params->is_valid[CAM_INTF_META_STREAM_ID] = 0;
+                        params->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
+                    }
+                } else if(IS_MULTI_CAMERA && is_aux_configured) {
+                    /* Update stream id of all the requested buffers in Aux session */
+                    if(is_requested_on_aux){
+                        if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
+                                          CAM_INTF_META_STREAM_ID,
+                                          streamsArraySlave)) {
+                            LOGE("Failed to set meta stream id in Aux session");
+                            pthread_mutex_unlock(&mMutex);
+                            return BAD_VALUE;
+                        }
+                    } else {
+                        if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
+                                CAM_INTF_META_STREAM_ID,
+                                streamsArray)) {
+                            LOGE("Failed to set meta stream id in Aux session");
+                            pthread_mutex_unlock(&mMutex);
+                            return BAD_VALUE;
+                        }
+                        mAuxParameters->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
+                    }
+                }
+                if(!IS_MULTI_CAMERA)
+                {
+                    rc = mCameraHandle->ops->set_parms(
+                            get_main_camera_handle(mCameraHandle->camera_handle), mParameters);
+                    if (rc < 0) {
+                        LOGE("set_parms failed");
+                    }
+
+                    if (isDualCamera() && !IS_PP_TYPE_NONE) {
+                        rc = mCameraHandle->ops->set_parms(
+                              get_aux_camera_handle(mCameraHandle->camera_handle), mAuxParameters);
+                        if (rc < 0) {
+                            LOGE("set_parms on aux failed");
+                        }
+                    }
+                }else {
+                    uint32_t camHandle = get_main_camera_handle(mCameraHandle->camera_handle);
+                    metadata_buffer_t *params = mParameters;
+                    uint32_t config_index = CONFIG_INDEX_MAIN;
+                    if(!(is_main_configured || is_logical_configured))
+                    {
+                        if(is_aux_configured)
+                        {
+                            camHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
+                            params = mAuxParameters;
+                            config_index = CONFIG_INDEX_AUX;
+                        }
+                    }
+                    do {
+                        rc = mCameraHandle->ops->set_parms(camHandle, params);
+                        if (rc < 0) {
+                            LOGE("set_parms on %s failed",
+                                (config_index == CONFIG_INDEX_MAIN)?"main":"aux");
+                        }
+
+                        if(is_aux_configured && (config_index != CONFIG_INDEX_AUX))
+                        {
+                            camHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
+                            params = mAuxParameters;
+                        }
+                        config_index++;
+                    } while(is_aux_configured && (config_index < CONFIG_INDEX_MAX));
+                }
+            }
+            /* reset to zero coz, the batch is queued */
+            mToBeQueuedVidBufs = 0;
+            mPendingBatchMap.add(frameNumber, mFirstFrameNumberInBatch);
+            memset(&mBatchedStreamsArray, 0, sizeof(cam_stream_ID_t));
+        } else if (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs != mBatchSize)) {
             for (uint32_t k = 0; k < streamsArray.num_streams; k++) {
                 uint32_t m = 0;
                 for (m = 0; m < mBatchedStreamsArray.num_streams; m++) {
                     if (streamsArray.stream_request[k].streamID ==
                             mBatchedStreamsArray.stream_request[m].streamID)
                         break;
-                    }
-                    if (m == mBatchedStreamsArray.num_streams) {
-                        mBatchedStreamsArray.stream_request\
-                            [mBatchedStreamsArray.num_streams].streamID =
-                            streamsArray.stream_request[k].streamID;
-                        mBatchedStreamsArray.stream_request\
-                            [mBatchedStreamsArray.num_streams].buf_index =
-                            streamsArray.stream_request[k].buf_index;
-                        mBatchedStreamsArray.num_streams = mBatchedStreamsArray.num_streams + 1;
-                    }
-            }
-            streamsArray = mBatchedStreamsArray;
-        }
-        /* Update stream id of all the requested buffers */
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_META_STREAM_ID, streamsArray)) {
-            LOGE("Failed to set stream type mask in the parameters");
-            return BAD_VALUE;
-        }
-
-        /* for quadra cfa request, dont' send request to back-end again,
-         * as we already got raw frame  */
-        if (!m_bQuadraCfaRequest) {
-            /*While translating input params to Aux by FOV control, stream requests will also
-              get copied. Reset them on the slave session so that we request for frames only
-              on the master session.*/
-            if (isDualCamera() && (getHalPPType() != CAM_HAL_PP_TYPE_NONE)) {
-                /* Update stream id of all the requested buffers in Aux session */
-                if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
-                                         CAM_INTF_META_STREAM_ID,
-                                                   streamsArray)) {
-                    LOGE("Failed to set meta stream id in Aux session");
-                    pthread_mutex_unlock(&mMutex);
-                    return BAD_VALUE;
                 }
-                if(ADD_SET_PARAM_ENTRY_TO_BATCH(mAuxParameters,
-                    CAM_INTF_META_FRAME_NUMBER, request->frame_number)) {
-                    LOGE("Failed to set the frame number in the parameters");
-                    pthread_mutex_unlock(&mMutex);
-                    return BAD_VALUE;
+                if (m == mBatchedStreamsArray.num_streams) {
+                    mBatchedStreamsArray.stream_request[mBatchedStreamsArray.num_streams].streamID =
+                        streamsArray.stream_request[k].streamID;
+                    mBatchedStreamsArray.stream_request[mBatchedStreamsArray.num_streams].buf_index =
+                        streamsArray.stream_request[k].buf_index;
+                    mBatchedStreamsArray.num_streams = mBatchedStreamsArray.num_streams + 1;
                 }
-                metadata_buffer_t* params =
-                        (mMasterCamera == CAM_TYPE_MAIN) ? mAuxParameters : mParameters;
-                if ((blob_request && needHALPP())
-                    ||(mHALZSL && IS_HAL_PP_TYPE_BOKEH)) {
-                    LOGD("snapshot request on slave session");
-                    ADD_SET_PARAM_ENTRY_TO_BATCH( params, CAM_INTF_META_STREAM_ID,
-                                                                streamsArraySlave);
-                } else {
-                    LOGD("Requesting PCR on %s session", (mMasterCamera == CAM_TYPE_MAIN) ?
-                                                                            "main" : "aux");
-                    params->is_valid[CAM_INTF_META_STREAM_ID] = 0;
-                    params->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
-                }
-            } else if(IS_MULTI_CAMERA && is_aux_configured) {
-                /* Update stream id of all the requested buffers in Aux session */
-                if(is_requested_on_aux){
-                    if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
-                                      CAM_INTF_META_STREAM_ID,
-                                      streamsArraySlave)) {
-                        LOGE("Failed to set meta stream id in Aux session");
-                        pthread_mutex_unlock(&mMutex);
-                        return BAD_VALUE;
-                    }
-                } else {
-                    if (ADD_SET_PARAM_ENTRY_TO_BATCH( mAuxParameters,
-                            CAM_INTF_META_STREAM_ID,
-                            streamsArray)) {
-                        LOGE("Failed to set meta stream id in Aux session");
-                        pthread_mutex_unlock(&mMutex);
-                        return BAD_VALUE;
-                    }
-                    mAuxParameters->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
-                }
-            }
-            if(!IS_MULTI_CAMERA)
-            {
-                rc = mCameraHandle->ops->set_parms(
-                        get_main_camera_handle(mCameraHandle->camera_handle), mParameters);
-                if (rc < 0) {
-                    LOGE("set_parms failed");
-                }
-
-                if (isDualCamera() && !IS_PP_TYPE_NONE) {
-                    rc = mCameraHandle->ops->set_parms(
-                          get_aux_camera_handle(mCameraHandle->camera_handle), mAuxParameters);
-                    if (rc < 0) {
-                        LOGE("set_parms on aux failed");
-                    }
-                }
-            }else {
-                uint32_t camHandle = get_main_camera_handle(mCameraHandle->camera_handle);
-                metadata_buffer_t *params = mParameters;
-                uint32_t config_index = CONFIG_INDEX_MAIN;
-                if(!(is_main_configured || is_logical_configured))
-                {
-                    if(is_aux_configured)
-                    {
-                        camHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
-                        params = mAuxParameters;
-                        config_index = CONFIG_INDEX_AUX;
-                    }
-                }
-                do {
-                    rc = mCameraHandle->ops->set_parms(camHandle, params);
-                    if (rc < 0) {
-                        LOGE("set_parms on %s failed",
-                            (config_index == CONFIG_INDEX_MAIN)?"main":"aux");
-                    }
-
-                    if(is_aux_configured && (config_index != CONFIG_INDEX_AUX))
-                    {
-                        camHandle = get_aux_camera_handle(mCameraHandle->camera_handle);
-                        params = mAuxParameters;
-                    }
-                    config_index++;
-                } while(is_aux_configured && (config_index < CONFIG_INDEX_MAX));
-            }
-        }
-        /* reset to zero coz, the batch is queued */
-        mToBeQueuedVidBufs = 0;
-        mPendingBatchMap.add(frameNumber, mFirstFrameNumberInBatch);
-        memset(&mBatchedStreamsArray, 0, sizeof(cam_stream_ID_t));
-    } else if (mBatchSize && isVidBufRequested && (mToBeQueuedVidBufs != mBatchSize)) {
-        for (uint32_t k = 0; k < streamsArray.num_streams; k++) {
-            uint32_t m = 0;
-            for (m = 0; m < mBatchedStreamsArray.num_streams; m++) {
-                if (streamsArray.stream_request[k].streamID ==
-                        mBatchedStreamsArray.stream_request[m].streamID)
-                    break;
-            }
-            if (m == mBatchedStreamsArray.num_streams) {
-                mBatchedStreamsArray.stream_request[mBatchedStreamsArray.num_streams].streamID =
-                    streamsArray.stream_request[k].streamID;
-                mBatchedStreamsArray.stream_request[mBatchedStreamsArray.num_streams].buf_index =
-                    streamsArray.stream_request[k].buf_index;
-                mBatchedStreamsArray.num_streams = mBatchedStreamsArray.num_streams + 1;
             }
         }
     }
@@ -16029,8 +16265,8 @@ int32_t QCamera3HardwareInterface::startAllChannels()
         }
     }
 
-    if (mPictureChannel && mHALZSL) {
-        mPictureChannel->startDeferredAllocation();
+    if (mZSLChannel != NULL) {
+        mZSLChannel->startDeferredAllocation();
     }
 
     LOGD("All channels started");
@@ -16285,6 +16521,7 @@ int32_t QCamera3HardwareInterface::setAuxBundleInfo()
             for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
                     it != mStreamInfo.end(); it++) {
                 QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
+                if(IS_VALID_PTR(mZSLChannel) && (mZSLChannel->getAuxHandle() != channel))
                 channel->setBundleInfo(bundleInfo, CAM_TYPE_AUX);
             }
             if (mRawDumpChannel) {
@@ -16682,7 +16919,7 @@ cam_dual_camera_perf_mode_t QCamera3HardwareInterface::getLowPowerMode(cam_sync_
     int32_t lpmConfig = 0;
 
     // LPM is disabled for Bokeh mode as both sensors have to be running all the time
-    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+    if ((getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) ||  IS_YUV_ZSL) {
         LOGD("LPM disabled in bokeh mode:  %s camera", cam == CAM_TYPE_MAIN ? "main" : "aux");
         return CAM_PERF_NONE;
     }
@@ -16915,7 +17152,7 @@ void QCamera3HardwareInterface::switchMaster(uint32_t masterCam)
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
         QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-        if (channel != NULL) {
+        if (channel != NULL && (channel != channel->getAuxHandle())) {
             channel->switchMaster(masterCam);
         }
     }
@@ -17289,8 +17526,8 @@ void QCamera3HardwareInterface::zsl_channel_cb(mm_camera_super_buf_t *recvd_fram
                                                void *userdata)
 {
     QCamera3HardwareInterface* halObj = (QCamera3HardwareInterface*)userdata;
-    if (halObj && halObj->mPictureChannel) {
-        halObj->mPictureChannel->ZSLChannelCb(recvd_frame);
+    if (halObj && halObj->mZSLChannel) {
+        halObj->mZSLChannel->ZSLChannelCb(recvd_frame);
     }
 }
 
