@@ -1,5 +1,5 @@
 /*
-** Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+** Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
 ** Not a Contribution. Apache license notifications and license are
 ** retained for attribution purposes only.
 **
@@ -772,7 +772,7 @@ public:
     int32_t setISType();
     void setSmallJpegSize(cam_dimension_t sensor_dim, cam_dimension_t snap_dim);
     int32_t updateSnapshotPpMask(cam_stream_size_info_t &stream_config_info);
-    int32_t getSensorOutputSize(cam_dimension_t max_dim, cam_dimension_t &sensor_dim,
+    int32_t getSensorOutputSize(cam_dimension_t max_dim, cam_sensor_config_t &sensor_dim,
             uint32_t cam_type = MM_CAMERA_TYPE_MAIN);
     cam_is_type_t getVideoISType();
     cam_is_type_t getPreviewISType();

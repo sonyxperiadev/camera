@@ -3162,5 +3162,10 @@ typedef enum {
     CAM_HAL3_JPEG_TYPE_MAX
 } cam_hal3_JPEG_type_t;
 
+typedef struct {
+    int32_t width;
+    int32_t height;
+    int32_t opClock;
+} cam_sensor_config_t;
 
 #endif /* __QCAMERA_TYPES_H__ */

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -12520,7 +12520,7 @@ int32_t QCameraParameters::setFrameSkip(enum msm_vfe_frame_skip_pattern pattern)
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
-        cam_dimension_t &sensor_dim, uint32_t cam_type)
+        cam_sensor_config_t &sensor_dim, uint32_t cam_type)
 {
     int32_t rc = NO_ERROR;
     cam_dimension_t pic_dim;
@@ -12612,9 +12612,11 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
     if (sensor_dim.width == 0 || sensor_dim.height == 0) {
         LOGW("Error getting RAW size. Setting to Capability value");
         if (getQuadraCfa()) {
-            sensor_dim = m_pCapability->quadra_cfa_dim[0];
+            sensor_dim.width = m_pCapability->quadra_cfa_dim[0].width;
+            sensor_dim.height = m_pCapability->quadra_cfa_dim[0].height;
         } else {
-            sensor_dim = m_pCapability->raw_dim[0];
+            sensor_dim.width = m_pCapability->raw_dim[0].width;
+            sensor_dim.height = m_pCapability->raw_dim[0].height;
         }
     }
     return rc;
@@ -12635,9 +12637,13 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
 int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
 {
     int32_t rc = NO_ERROR;
+    cam_sensor_config_t sensor_dim;
     cam_dimension_t raw_dim;
 
-    getSensorOutputSize(max_dim,raw_dim);
+    getSensorOutputSize(max_dim,sensor_dim);
+
+    raw_dim.width = sensor_dim.width;
+    raw_dim.height = sensor_dim.height;
     setRawSize(raw_dim);
     return rc;
 }
@@ -14326,7 +14332,8 @@ int32_t QCameraParameters::updateSnapshotPpMask(cam_stream_size_info_t &stream_c
 
 {
     int32_t rc = NO_ERROR;
-    cam_dimension_t sensor_dim, snap_dim;
+    cam_dimension_t snap_dim, raw_dim;
+    cam_sensor_config_t sensor_dim;
     cam_dimension_t max_dim = {0,0};
 
     // Find the Maximum dimension among all the streams
@@ -14340,8 +14347,10 @@ int32_t QCameraParameters::updateSnapshotPpMask(cam_stream_size_info_t &stream_c
     }
     LOGH("Max Dimension = %d X %d", max_dim.width, max_dim.height);
     getSensorOutputSize(max_dim,sensor_dim);
+    raw_dim.width = sensor_dim.width;
+    raw_dim.height = sensor_dim.height;
     getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, snap_dim);
-    setSmallJpegSize(sensor_dim,snap_dim);
+    setSmallJpegSize(raw_dim,snap_dim);
 
     //Picture ratio is greater than VFE downscale factor.So, link CPP
     if ( isSmallJpegSizeEnabled() ) {
@@ -14428,8 +14437,8 @@ uint8_t QCameraParameters::getMobicatMask()
  *==========================================================================*/
 bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_config_info) {
     int32_t rc = NO_ERROR;
-    cam_dimension_t sensor_dim_main = {0,0};
-    cam_dimension_t sensor_dim_aux  = {0,0};
+    cam_sensor_config_t sensor_dim_main = {0,0,0};
+    cam_sensor_config_t sensor_dim_aux  = {0,0,0};
 
     if (isDualCamera()) {
         // Get the sensor output dimensions for main and aux cameras.

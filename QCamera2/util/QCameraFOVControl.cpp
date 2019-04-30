@@ -556,8 +556,8 @@ int32_t QCameraFOVControl::updateConfigSettings(
         }
 
         // Get the sensor out dimensions
-        cam_dimension_t sensorDimMain = {0,0};
-        cam_dimension_t sensorDimAux  = {0,0};
+        cam_sensor_config_t sensorDimMain = {0,0,0};
+        cam_sensor_config_t sensorDimAux  = {0,0,0};
         if (paramsMainCam->is_valid[CAM_INTF_PARM_RAW_DIMENSION]) {
             READ_PARAM_ENTRY(paramsMainCam, CAM_INTF_PARM_RAW_DIMENSION, sensorDimMain);
             mDualCamParams.paramsMain.sensorStreamWidth  = sensorDimMain.width;

@@ -1457,7 +1457,7 @@ bool QCamera3HardwareInterface::isSupportChannelNeeded(
  *              none-zero failure code
  *
  *==========================================================================*/
-int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_dimension_t &sensor_dim,
+int32_t QCamera3HardwareInterface::getSensorOutputSize(cam_sensor_config_t &sensor_dim,
         uint32_t cam_type)
 {
     int32_t rc = NO_ERROR;
@@ -6581,7 +6581,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 }
             }
 
-            cam_dimension_t sensor_dim;
+            cam_sensor_config_t sensor_dim;
             memset(&sensor_dim, 0, sizeof(sensor_dim));
             if(config_index == CONFIG_INDEX_AUX)
             {
@@ -6601,7 +6601,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
 
             if(isDualCamera()  && !IS_PP_TYPE_NONE) {
-                cam_dimension_t sensor_dim_aux;
+                cam_sensor_config_t sensor_dim_aux;
                 memset(&sensor_dim_aux, 0, sizeof(sensor_dim_aux));
                 rc = getSensorOutputSize(sensor_dim_aux, CAM_TYPE_AUX);
                 if (rc != NO_ERROR) {
