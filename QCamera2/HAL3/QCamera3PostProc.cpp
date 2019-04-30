@@ -2859,6 +2859,7 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
     int ret;
     uint8_t is_active = FALSE;
     uint8_t needNewSess = TRUE;
+    uint8_t sync = FALSE;
     mm_camera_super_buf_t *meta_buffer = NULL;
     LOGD("E");
     QCamera3PostProcessor *pme = (QCamera3PostProcessor *)data;
@@ -2875,8 +2876,9 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
             }
         } while (ret != 0);
 
+        sync = FALSE;
         // we got notified about new cmd avail in cmd queue
-        camera_cmd_type_t cmd = cmdThread->getCmd();
+        camera_cmd_type_t cmd = cmdThread->getCmd(sync);
         switch (cmd) {
         case CAMERA_CMD_TYPE_START_DATA_PROC:
             LOGH("start data proc");
@@ -2889,7 +2891,10 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
             pme->m_inputFWKPPQ.init();
             pme->m_inputMultiReprocQ.init();
             pme->m_inputMetaQ.init();
-            cam_sem_post(&cmdThread->sync_sem);
+            if(sync)
+            {
+                cam_sem_post(&cmdThread->sync_sem);
+            }
 
             break;
         case CAMERA_CMD_TYPE_STOP_DATA_PROC:
@@ -2961,7 +2966,10 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                     }
                 }
                 // signal cmd is completed
-                cam_sem_post(&cmdThread->sync_sem);
+                if(sync)
+                {
+                    cam_sem_post(&cmdThread->sync_sem);
+                }
                 pthread_mutex_lock(&pme->mHDRJobLock);
                 pme->mChannelStop = true;
                 pthread_cond_signal(&pme->mProcChStopCond);
