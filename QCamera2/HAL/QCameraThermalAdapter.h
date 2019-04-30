@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -65,6 +65,7 @@ public:
 
     int init(QCameraThermalCallback *thermalCb);
     void deinit();
+    int SetPerfLevel(int level);
 
 private:
     static char mStrCamera[];
@@ -77,6 +78,7 @@ private:
     int (*mRegister)(char *name,
             int (*callback)(int, void *userdata, void *data), void *data);
     int (*mUnregister)(int handle);
+    int (*mSetPerfLevel)(char *client_name, int req_data);
     int mCameraHandle;
     int mCamcorderHandle;
 

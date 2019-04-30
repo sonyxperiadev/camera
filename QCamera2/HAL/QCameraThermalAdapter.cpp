@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -40,6 +40,8 @@
 extern "C" {
 #include "mm_camera_dbg.h"
 }
+
+#define CLIENT_NAME "camera_bw"
 
 using namespace android;
 
@@ -86,6 +88,14 @@ int QCameraThermalAdapter::init(QCameraThermalCallback *thermalCb)
     }
     *(void **)&mUnregister = dlsym(mHandle, "thermal_client_unregister_callback");
     if (!mUnregister) {
+        error = dlerror();
+        LOGE("dlsym failed with error code %s",
+                     error ? error: "");
+        rc = UNKNOWN_ERROR;
+        goto error2;
+    }
+    *(void **)&mSetPerfLevel = dlsym(mHandle, "thermal_bandwidth_client_request");
+    if (!mSetPerfLevel) {
         error = dlerror();
         LOGE("dlsym failed with error code %s",
                      error ? error: "");
@@ -167,6 +177,10 @@ int QCameraThermalAdapter::thermalCallback(int level,
     return rc;
 }
 
+int QCameraThermalAdapter::SetPerfLevel(int level) {
+    return mSetPerfLevel((char*)CLIENT_NAME, level);
+}
+
 qcamera_thermal_level_enum_t *QCameraThermalCallback::getThermalLevel() {
     return &mLevel;
 }
@@ -174,4 +188,7 @@ qcamera_thermal_level_enum_t *QCameraThermalCallback::getThermalLevel() {
 void QCameraThermalCallback::setThermalLevel(qcamera_thermal_level_enum_t level) {
     mLevel = level;
 }
+
+
+
 }; //namespace qcamera
