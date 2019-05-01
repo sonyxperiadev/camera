@@ -653,6 +653,7 @@ private:
 
     //mutex for serialized access to camera3_device_ops_t functions
     pthread_mutex_t mMutex;
+    Mutex mMultiFrameReqLock;
 
     //condition used to signal flush after buffers have returned
     pthread_cond_t mBuffersCond;

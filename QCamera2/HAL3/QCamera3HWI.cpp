@@ -5389,6 +5389,7 @@ int32_t QCamera3HardwareInterface::orchestrateHDRCapture(
     List<InternalRequest> emptyInternalList;
 
     if (request->input_buffer == NULL) {
+        Mutex::Autolock lock(mMultiFrameReqLock);
         LOGD("Framework requested:%d buffers in HDR snapshot", request->num_output_buffers);
         uint32_t internalFrameNumber;
         CameraMetadata modified_meta;
@@ -5566,6 +5567,7 @@ int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
     List<InternalRequest> emptyInternalList;
 
     if (request->input_buffer == NULL) {
+        Mutex::Autolock lock(mMultiFrameReqLock);
         LOGD("Framework requested:%d buffers in Multi Frame snapshot", request->num_output_buffers);
         uint32_t internalFrameNumber;
 
@@ -7458,9 +7460,12 @@ no_error:
             channel->getStreamTypeMask(), bufferInfo.stream->format);
     }
     // Add this request packet into mPendingBuffersMap
-    mPendingBuffersMap.mPendingBuffersInRequest.push_back(bufsForCurRequest);
-    LOGD("mPendingBuffersMap.num_overall_buffers = %d",
-        mPendingBuffersMap.get_num_overall_buffers());
+    if(request->num_output_buffers > 0)
+    {
+        mPendingBuffersMap.mPendingBuffersInRequest.push_back(bufsForCurRequest);
+        LOGD("mPendingBuffersMap.num_overall_buffers = %d",
+            mPendingBuffersMap.get_num_overall_buffers());
+    }
 
     latestRequest = mPendingRequestsList.insert(
             mPendingRequestsList.end(), pendingRequest);
@@ -8033,7 +8038,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     mPerfLockMgr.acquirePerfLock(PERF_LOCK_FLUSH, DEFAULT_PERF_LOCK_TIMEOUT_MS);
     KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_STOP_PREVIEW);
     int32_t rc = NO_ERROR;
-
+    Mutex::Autolock lock(mMultiFrameReqLock);
     LOGD("Unblocking Process Capture Request");
     pthread_mutex_lock(&mMutex);
     mFlush = true;
@@ -8055,6 +8060,19 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     // Mutex Lock
     pthread_mutex_lock(&mMutex);
 
+    if(mHdrSnapshotRunning)
+    {
+        mHdrFrameNum = 0;
+        mHdrSnapshotRunning = false;
+        pthread_cond_signal(&mHdrRequestCond);
+    }
+
+    if(mMultiFrameSnapshotRunning)
+    {
+        mMultiFrameCaptureNumber = 0;
+        mMultiFrameSnapshotRunning = false;
+        pthread_cond_signal(&mMultiFrameRequestCond);
+    }
     // Unblock process_capture_request
     mPendingLiveRequest = 0;
     pthread_cond_signal(&mRequestCond);
