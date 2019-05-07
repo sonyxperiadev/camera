@@ -2583,7 +2583,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             ((numStreamsOnEncoder == 1) && bJpegOnEncoder));
 
     char is_type_value[PROPERTY_VALUE_MAX];
-    property_get("persist.vendor.camera.is_type", is_type_value, "4");
+    property_get("persist.vendor.camera.is_type", is_type_value, "0");
     m_bEis3PropertyEnabled = (atoi(is_type_value) == IS_TYPE_EIS_3_0);
 
     /* get eis information for stream configuration */
