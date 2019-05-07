@@ -585,6 +585,7 @@ private:
         // metadata needs to be consumed by the corresponding stream
         // in order to generate the buffer.
         bool need_metadata;
+        bool isZSL;
     } RequestedBufferInfo;
 
     typedef struct {

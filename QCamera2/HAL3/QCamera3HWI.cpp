@@ -4625,7 +4625,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                     // For instant AEC drop the stream untill AEC is settled.
                     dropFrame = true;
                 }
-                if (dropFrame) {
+                if (dropFrame && !j->isZSL) {
                     // Send Error notify to frameworks with CAMERA3_MSG_ERROR_BUFFER
                     if (p_cam_frame_drop) {
                         // Treat msg as error for system buffer drops
@@ -7525,7 +7525,11 @@ no_error:
                     return rc;
                 }
             } else {
-                bool isZSLCapture = needZSLCapture(request);
+                bool isZSLCapture = false;
+                if (mHALZSL) {
+                    isZSLCapture = needZSLCapture(request);
+                    pendingBufferIter->isZSL = isZSLCapture;
+                }
                 LOGD("snapshot request with buffer %p, frame_number %d isZSLCapture %d",
                          output.buffer, frameNumber, isZSLCapture);
                 if (m_bQuadraCfaRequest) {
