@@ -5389,7 +5389,7 @@ int32_t QCamera3HardwareInterface::orchestrateHDRCapture(
     List<InternalRequest> emptyInternalList;
 
     if (request->input_buffer == NULL) {
-        Mutex::Autolock lock(mMultiFrameReqLock);
+        mMultiFrameReqLock.lock();
         LOGD("Framework requested:%d buffers in HDR snapshot", request->num_output_buffers);
         uint32_t internalFrameNumber;
         CameraMetadata modified_meta;
@@ -5567,7 +5567,7 @@ int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
     List<InternalRequest> emptyInternalList;
 
     if (request->input_buffer == NULL) {
-        Mutex::Autolock lock(mMultiFrameReqLock);
+        mMultiFrameReqLock.lock();
         LOGD("Framework requested:%d buffers in Multi Frame snapshot", request->num_output_buffers);
         uint32_t internalFrameNumber;
 
@@ -7894,11 +7894,13 @@ no_error:
     mState = STARTED;
     if(mHdrSnapshotRunning) {
         LOGD("blocked for HDR snapshot completion");
+        mMultiFrameReqLock.unlock();
         pthread_cond_wait(&mHdrRequestCond, &mMutex);
         mHdrSnapshotRunning = false;
         LOGD("unblocked ");
     }
     if (mMultiFrameSnapshotRunning) {
+        mMultiFrameReqLock.unlock();
         pthread_cond_wait(&mMultiFrameRequestCond, &mMutex);
         mMultiFrameSnapshotRunning = false;
     }
