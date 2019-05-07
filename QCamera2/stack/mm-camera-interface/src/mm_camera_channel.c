@@ -156,6 +156,8 @@ mm_channel_queue_node_t* mm_channel_superbuf_dequeue_meta_frame(
         mm_channel_queue_t *queue, uint32_t frame_idx, mm_channel_t *ch_obj);
 void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
                         mm_channel_queue_node_t * node);
+mm_channel_queue_node_t* mm_channel_superbuf_dequeue_frame(
+        mm_channel_queue_t *queue, mm_channel_t *ch_obj);
 
 
 /*===========================================================================
@@ -620,7 +622,12 @@ static void mm_channel_process_stream_buf(mm_camera_cmdcb_t * cmd_cb,
             mm_frame_sync_unlock_queues();
         } else {
            if (ch_obj->frame_req_cnt == 0) {
-               node = mm_channel_superbuf_dequeue(&ch_obj->bundle.superbuf_queue, ch_obj);
+               if (ch_obj->match_meta) {
+                   node = mm_channel_superbuf_dequeue_frame(
+                           &ch_obj->bundle.superbuf_queue, ch_obj);
+               } else {
+                   node = mm_channel_superbuf_dequeue(&ch_obj->bundle.superbuf_queue, ch_obj);
+               }
            } else {
                uint32_t req_frame = ch_obj->requested_frame_id[ch_obj->cur_req_idx];
                if (ch_obj->match_meta) {
@@ -1383,6 +1390,7 @@ int32_t mm_channel_init(mm_channel_t *my_obj,
     if (attr && (attr->priority == MM_CAMERA_SUPER_BUF_PRIORITY_MATCH_META)) {
         my_obj->match_meta = true;
     }
+    my_obj->snapshot_stream_id = 0;
     return rc;
 }
 
@@ -2805,8 +2813,22 @@ void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
 
             if (p_frame_number_valid && *p_frame_number_valid && p_frame_number) {
                 node->meta_frame_idx = *p_frame_number;
+                LOGD("node meta_frame_idx = %d", node->meta_frame_idx);
+
+                IF_META_AVAILABLE(cam_stream_ID_t, p_cam_frame_drop, CAM_INTF_META_FRAME_DROPPED,
+                    metadata) {
+                    for (uint32_t k = 0; k < p_cam_frame_drop->num_streams; k++) {
+                        if (ch_obj->snapshot_stream_id ==
+                                p_cam_frame_drop->stream_request[k].streamID) {
+                            // Snapshot frame got dropped
+                            LOGD("Snapshot dropped for frame_number %d frame_idx %d",
+                                node->meta_frame_idx, node->frame_idx);
+                            node->is_drop_frame = true;
+                            break;
+                        }
+                    }
+                }
             }
-            LOGD("node meta_frame_idx = %d", node->meta_frame_idx);
             break;
         }
     }
@@ -3531,6 +3553,37 @@ mm_channel_queue_node_t* mm_channel_superbuf_dequeue_meta_frame(
     }
     return super_buf;
 }
+
+mm_channel_queue_node_t* mm_channel_superbuf_dequeue_frame(
+        mm_channel_queue_t *queue, mm_channel_t *ch_obj)
+{
+    mm_channel_queue_node_t* super_buf = NULL;
+    int i = 0;
+
+    if (!queue) {
+        LOGE("queue is NULL");
+        return NULL;
+    }
+
+    super_buf = mm_channel_superbuf_dequeue_internal(queue, TRUE, ch_obj);
+    while (super_buf != NULL) {
+        if (!super_buf->is_drop_frame) {
+            break;
+        } else {
+            LOGD("Discarding superbuf frame_idx %d due to frame drop",
+                super_buf->frame_idx);
+            for (i=0; i<super_buf->num_of_bufs; i++) {
+                if (NULL != super_buf->super_buf[i].buf) {
+                    mm_channel_qbuf(ch_obj, super_buf->super_buf[i].buf);
+                }
+            }
+            free(super_buf);
+        }
+        super_buf = mm_channel_superbuf_dequeue_internal(queue, TRUE, ch_obj);
+    }
+    return super_buf;
+}
+
 
 /*===========================================================================
  * FUNCTION   : mm_channel_superbuf_dequeue

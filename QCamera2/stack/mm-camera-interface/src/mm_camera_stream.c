@@ -4957,6 +4957,9 @@ int32_t mm_stream_sync_info(mm_stream_t *my_obj)
     if (rc == 0) {
         mm_camera_obj_t *cam_obj = my_obj->ch_obj->cam_obj;
         int stream_id  =  my_obj->server_stream_id;
+        if (my_obj->stream_info->stream_type == CAM_STREAM_TYPE_SNAPSHOT) {
+            my_obj->ch_obj->snapshot_stream_id = stream_id;
+        }
         rc = mm_camera_util_s_ctrl(cam_obj, stream_id, my_obj->fd,
                 CAM_PRIV_STREAM_INFO_SYNC, &value);
     }
