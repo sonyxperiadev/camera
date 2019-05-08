@@ -702,6 +702,8 @@ private:
     int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,
                                     cam_hal3_JPEG_type_t imagetype = CAM_HAL3_JPEG_TYPE_MAIN);
     void configureMpo();
+    int returnBufferError(uint32_t frameNumber);
+    void releaseSuperBuf(mm_camera_super_buf_t *recvd_frame);
 
 public:
     cam_dimension_t m_max_pic_dim;
