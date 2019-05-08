@@ -913,6 +913,7 @@ int QCamera3HardwareInterface::thermalEvtHandle(
         pthread_mutex_lock(&mMutex);
         mState = ERROR;
         pthread_mutex_unlock(&mMutex);
+        handleCameraDeviceError();
     }
 
     return NO_ERROR;
