@@ -5091,6 +5091,7 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 int32_t QCamera3PicChannel::requestZSLBuf(uint32_t frameNumber, uint32_t numBuf)
 {
     uint32_t channel_handle = m_handle;
+    LOGH("frameNumber %d", frameNumber);
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     if((hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && hal_obj->needHALPP()) {
         if (!mAuxPicChannel) {
