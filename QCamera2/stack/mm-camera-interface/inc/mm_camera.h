@@ -427,6 +427,7 @@ typedef struct {
     /* unmatched meta idx needed in case of low priority queue */
     uint32_t unmatched_meta_idx;
     uint32_t meta_frame_idx;
+    uint8_t is_drop_frame;
 } mm_channel_queue_node_t;
 
 typedef struct {
@@ -567,6 +568,7 @@ typedef struct mm_channel {
     uint8_t num_s_cnt;
     struct mm_channel *aux_ch_obj[MM_CAMERA_MAX_AUX_CAMERA];  /*Slave channel of this channel*/
     uint8_t match_meta;
+    uint32_t snapshot_stream_id;
 } mm_channel_t;
 
 typedef struct {
