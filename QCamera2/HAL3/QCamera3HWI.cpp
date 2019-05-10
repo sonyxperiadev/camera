@@ -462,7 +462,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mOpMode(CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE),
       mStreamConfig(false),
       mCommon(),
-      mQCFARawChannel(NULL),
+      mQCFACaptureChannel(NULL),
       m_pFovControl(NULL),
       mFirstFrameNumberInBatch(0),
       mNeedSensorRestart(false),
@@ -587,9 +587,19 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
          dlclose(lib_surface_utils);
     }
 
+    m_bInSensorQCFA = false;
     if (gCamCapability[cameraId]->is_quadracfa_sensor) {
         LOGI("Sensor support Quadra CFA mode");
         m_bQuadraCfaSensor = true;
+
+        char prop[PROPERTY_VALUE_MAX];
+        memset(prop, 0, sizeof(prop));
+        property_get("persist.vendor.camera.quadcfa.insensor", prop, "0");
+        if (strlen(prop) > 0) {
+            uint8_t enabled = atoi(prop);
+            if(enabled > 0)
+                m_bInSensorQCFA = true;
+        }
     }
 
     m_bQuadraCfaRequest = false;
@@ -685,8 +695,8 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         mRawDumpChannel->stop();
     }
 
-    if (mQCFARawChannel) {
-        mQCFARawChannel->stop();
+    if (mQCFACaptureChannel) {
+        mQCFACaptureChannel->stop();
     }
     // NOTE: 'camera3_stream_t *' objects are already freed at
     //        this stage by the framework
@@ -736,9 +746,9 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
         delete mDummyBatchChannel;
         mDummyBatchChannel = NULL;
     }
-    if (mQCFARawChannel) {
-        delete mQCFARawChannel;
-        mQCFARawChannel = NULL;
+    if (mQCFACaptureChannel) {
+        delete mQCFACaptureChannel;
+        mQCFACaptureChannel = NULL;
     }
 
     mPictureChannel = NULL;
@@ -5701,9 +5711,9 @@ int32_t QCamera3HardwareInterface::switchStreamConfigInternal(__unused uint32_t 
         delete mAnalysisChannel;
         mAnalysisChannel = NULL;
     }
-    if (mQCFARawChannel) {
-        delete mQCFARawChannel;
-        mQCFARawChannel = NULL;
+    if (mQCFACaptureChannel) {
+        delete mQCFACaptureChannel;
+        mQCFACaptureChannel = NULL;
     }
 
     /* unconfigure and reset meta stream info */
@@ -5729,17 +5739,23 @@ int32_t QCamera3HardwareInterface::switchStreamConfigInternal(__unused uint32_t 
     mMetadataChannel->initialize(IS_TYPE_NONE);
 
     cam_dimension_t raw_dim = getQuadraCfaDim();
+
     LOGH("quadra cfa raw dim: %dx%d", raw_dim.width, raw_dim.height);
-    mQCFARawChannel = new QCamera3QCfaRawChannel(mCameraHandle->camera_handle, mChannelHandle,
+    mQCFACaptureChannel = new QCamera3QCfaCaptureChannel(mCameraHandle->camera_handle, mChannelHandle,
                             mCameraHandle->ops, raw_dim, &gCamCapability[mCameraId]->padding_info,
-                            this, CAM_QCOM_FEATURE_NONE);
+                            this, CAM_QCOM_FEATURE_NONE,m_bInSensorQCFA);
 
     /* send meta stream info */
     cam_stream_size_info_t stream_sz_info;
     memset(&stream_sz_info, 0, sizeof(cam_stream_size_info_t));
     stream_sz_info.num_streams = 1;
     stream_sz_info.stream_sizes[0] = raw_dim;
-    stream_sz_info.type[0] = CAM_STREAM_TYPE_RAW;
+
+    if(m_bInSensorQCFA)
+        stream_sz_info.type[0] = CAM_STREAM_TYPE_SNAPSHOT;
+    else
+        stream_sz_info.type[0] = CAM_STREAM_TYPE_RAW;
+
     stream_sz_info.postprocess_mask[0] = CAM_QCOM_FEATURE_NONE;
 
     clear_metadata_buffer(mParameters);
@@ -5750,7 +5766,8 @@ int32_t QCamera3HardwareInterface::switchStreamConfigInternal(__unused uint32_t 
     mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
 
     /* initialize and start channel */
-    mQCFARawChannel->initialize(IS_TYPE_NONE);
+    mQCFACaptureChannel->initialize(IS_TYPE_NONE);
+
 
     int32_t rc = setBundleInfo();
     if (rc < 0) {
@@ -5759,7 +5776,8 @@ int32_t QCamera3HardwareInterface::switchStreamConfigInternal(__unused uint32_t 
     }
 
     mMetadataChannel->start();
-    mQCFARawChannel->start();
+
+    mQCFACaptureChannel->start();
 
     if (mChannelHandle) {
         mCameraHandle->ops->start_channel(mCameraHandle->camera_handle, mChannelHandle);
@@ -5769,13 +5787,13 @@ int32_t QCamera3HardwareInterface::switchStreamConfigInternal(__unused uint32_t 
     return 0;
 }
 
-int32_t QCamera3HardwareInterface::deleteQCFARawChannel()
+int32_t QCamera3HardwareInterface::deleteQCFACaptureChannel()
 {
     LOGD("E");
 
-    if (mQCFARawChannel) {
-        delete mQCFARawChannel;
-        mQCFARawChannel = NULL;
+    if (mQCFACaptureChannel) {
+        delete mQCFACaptureChannel;
+        mQCFACaptureChannel = NULL;
     }
 
     return 0;
@@ -5839,7 +5857,7 @@ cam_dimension_t QCamera3HardwareInterface::getQuadraCfaDim()
  * RETURN     :
  *
  *==========================================================================*/
-int32_t QCamera3HardwareInterface::captureQuadraCfaRawInternal(camera3_capture_request_t *request)
+int32_t QCamera3HardwareInterface::captureQuadraCfaFrameInternal(camera3_capture_request_t *request)
 {
     LOGD("E");
     int32_t rc = 0;
@@ -5851,31 +5869,31 @@ int32_t QCamera3HardwareInterface::captureQuadraCfaRawInternal(camera3_capture_r
         return rc;
     }
     assert(mMetadataChannel != NULL);
-    assert(mQCFARawChannel  != NULL);
+    assert(mQCFACaptureChannel  != NULL);
 
 
     /* 2. request new frame */
     int indexUsed;
     mMetadataChannel->request(NULL, request->frame_number, indexUsed);
-    mQCFARawChannel->request(NULL, request->frame_number, indexUsed);
+    mQCFACaptureChannel->request(NULL, request->frame_number, indexUsed);
 
     cam_stream_ID_t streamsArray;
     memset(&streamsArray, 0, sizeof(cam_stream_ID_t));
     streamsArray.num_streams = 1;
     streamsArray.stream_request[0].streamID =
-        mQCFARawChannel->getStreamID(mQCFARawChannel->getStreamTypeMask());
+        mQCFACaptureChannel->getStreamID(mQCFACaptureChannel->getStreamTypeMask());
     streamsArray.stream_request[0].buf_index = CAM_FREERUN_IDX;
     setFrameParameters(request->settings, streamsArray, true, 0, mParameters, request);
     mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
 
 
     /* 3. wait for raw capture done */
-    mQCFARawChannel->waitCaptureDone();
+    mQCFACaptureChannel->waitCaptureDone();
     LOGH("quadra cfa raw capture done.");
 
 
     /* 4. stop streams and restore fwk stream configuration */
-    mQCFARawChannel->stop();
+    mQCFACaptureChannel->stop();
     mMetadataChannel->stop();
     if (mChannelHandle) {
         mCameraHandle->ops->stop_channel(mCameraHandle->camera_handle,
@@ -5883,7 +5901,7 @@ int32_t QCamera3HardwareInterface::captureQuadraCfaRawInternal(camera3_capture_r
     }
 
     // need keep channel context and frame buffer, so call destroy instead of del the channel.
-    mQCFARawChannel->destroy();
+    mQCFACaptureChannel->destroy();
     delete mMetadataChannel;
     mMetadataChannel = NULL;
 
@@ -6195,10 +6213,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     LOGI("quadra cfa size request on blob stream");
                     m_bQuadraCfaRequest = true;
                     m_bPreSnapQuadraCfaRequest = true;
-
                     /* this will trigger internal stream reconfig and block until get raw output */
-                    captureQuadraCfaRawInternal(request);
-
+                    captureQuadraCfaFrameInternal(request);
                     //reset state to configured so that channel get initialized and streamed on again
                     mState = CONFIGURED;
                 } else {
@@ -7196,7 +7212,7 @@ no_error:
                 } else {
                     m_bOfflineIsp = false;
                 }
-            } else if (m_bQuadraCfaRequest) {
+            } else if (m_bQuadraCfaRequest && !m_bInSensorQCFA) {
                 m_bOfflineIsp = true;
                 m_ppChannelCnt = 2;
             } else {
@@ -7952,13 +7968,13 @@ no_error:
         dummy_super_buf.num_bufs = 1;
         dummy_super_buf.bufs[0] = &dummy_meta_buf;
 
-        dummy_meta_buf.buffer = &(mQCFARawChannel->urgent_meta);
+        dummy_meta_buf.buffer = &(mQCFACaptureChannel->urgent_meta);
         handleMetadataWithLock(&dummy_super_buf,
                 false /* free_and_bufdone_meta_buf */,
                 false /* first frame of batch metadata */ ,
                 NULL);
 
-        handleMetadataWithLock(&(mQCFARawChannel->meta_frame), false, false, NULL);
+        handleMetadataWithLock(&(mQCFACaptureChannel->meta_frame), false, false, NULL);
 
         pthread_mutex_unlock(&mMutex);
     }
@@ -8325,17 +8341,18 @@ void QCamera3HardwareInterface::internalMetaCb(mm_camera_super_buf_t *metadata){
 
     if (*p_urgent_frame_number_valid) {
         LOGD("valid urgent meta for frame number:%d", *p_urgent_frame_number);
-        if (mQCFARawChannel != NULL) {
+
+        if (mQCFACaptureChannel != NULL) {
             cam_frame_len_offset_t meta_offset;
             mMetadataChannel->getFrameOffset(meta_offset);
-            mQCFARawChannel->queueReprocMetadata(metadata, meta_offset, true);
+            mQCFACaptureChannel->queueReprocMetadata(metadata, meta_offset, true);
         }
     } else if (*p_frame_number_valid) {
         LOGD("valid meta for frame number:%d", *p_frame_number);
-        if (mQCFARawChannel != NULL) {
+        if (mQCFACaptureChannel != NULL) {
             cam_frame_len_offset_t meta_offset;
             mMetadataChannel->getFrameOffset(meta_offset);
-            mQCFARawChannel->queueReprocMetadata(metadata, meta_offset);
+            mQCFACaptureChannel->queueReprocMetadata(metadata, meta_offset);
         }
     }
 
@@ -16179,9 +16196,10 @@ int32_t QCamera3HardwareInterface::setBundleInfo()
 
         /* temporally use mStreams[0] to check if bundling qcfa channel or not.
          * as we call channel::destroy() but don't delete the channel obj after get qcfa raw */
-        if (mQCFARawChannel && mQCFARawChannel->getStreamByIndex(0) != NULL) {
-            mQCFARawChannel->setBundleInfo(bundleInfo);
+        if (mQCFACaptureChannel && mQCFACaptureChannel->getStreamByIndex(0) != NULL) {
+            mQCFACaptureChannel->setBundleInfo(bundleInfo);
         }
+
 
         if(isDualCamera()) {
             setAuxBundleInfo();

@@ -333,7 +333,7 @@ public:
     const cam_related_system_calibration_data_t *getRelatedCalibrationData();
     int getCameraId() {return mCameraId;}
     bool isQuadCfaSensor() {return m_bQuadraCfaSensor;}
-    int32_t deleteQCFARawChannel();
+    int32_t deleteQCFACaptureChannel();
     cam_dimension_t getQCFAComapitbleDim(const uint32_t& width,
                                              const uint32_t& height);
 
@@ -489,7 +489,7 @@ private:
             cam_color_filter_arrangement_t filter_arrangement);
     int32_t setSensorHDR(metadata_buffer_t *hal_metadata, bool enable,
             bool isVideoHdrEnable = false);
-    int32_t captureQuadraCfaRawInternal(camera3_capture_request_t *request);
+    int32_t captureQuadraCfaFrameInternal(camera3_capture_request_t *request);
     int32_t switchStreamConfigInternal(uint32_t frame_number);
     uint8_t  mDualCamType;
 
@@ -685,11 +685,12 @@ public:
     bool mStreamConfig;
     QCameraCommon   mCommon;
     cam_format_t mRdiModeFmt;
-    QCamera3QCfaRawChannel *mQCFARawChannel;
+    QCamera3QCfaCaptureChannel *mQCFACaptureChannel;
     bool m_bQuadraCfaRequest;
     bool m_bPreSnapQuadraCfaRequest;
     QCameraFOVControl *m_pFovControl;
     PendingBuffersMap mPendingBuffersMap;
+    bool m_bInSensorQCFA;
     bool isSecureMode() {return m_bIsSecureMode;}
 private:
     uint32_t mFirstFrameNumberInBatch;
