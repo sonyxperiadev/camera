@@ -632,6 +632,19 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 
     int32_t rc = 0;
 
+    if (mState == STARTED && mChannelHandle && isSecureMode()) {
+        uint8_t close_hint = 1;
+        LOGD("set_parms for close hint");
+        clear_metadata_buffer(mParameters);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_CLOSE_HINT,
+            close_hint);
+        rc = mCameraHandle->ops->set_parms(
+            get_main_camera_handle(mCameraHandle->camera_handle), mParameters);
+        if (rc < 0) {
+            LOGE("set_parms failed for close hint");
+        }
+    }
+
     // Disable power hint and enable the perf lock for close camera
     mPerfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_ENCODE);
     mPerfLockMgr.releasePerfLock(PERF_LOCK_POWERHINT_HFR);
@@ -2127,6 +2140,19 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
 
     if (isDualCamera() && !mFirstConfiguration) {
         setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+    }
+
+    if (mState == STARTED && mChannelHandle && isSecureMode()) {
+        uint8_t close_hint = 1;
+        LOGD("set_parms for close hint");
+        clear_metadata_buffer(mParameters);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_CLOSE_HINT,
+            close_hint);
+        rc = mCameraHandle->ops->set_parms(
+            get_main_camera_handle(mCameraHandle->camera_handle), mParameters);
+        if (rc < 0) {
+            LOGE("set_parms failed for close hint");
+        }
     }
 
     /* first invalidate all the steams in the mStreamList
@@ -15823,6 +15849,20 @@ int32_t QCamera3HardwareInterface::stopAllChannels()
     int32_t rc = NO_ERROR;
 
     LOGD("Stopping all channels");
+
+    if (mState == STARTED && mChannelHandle && isSecureMode()) {
+        uint8_t close_hint = 1;
+        LOGD("set_parms for close hint");
+        clear_metadata_buffer(mParameters);
+        ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters, CAM_INTF_PARM_CLOSE_HINT,
+            close_hint);
+        rc = mCameraHandle->ops->set_parms(
+            get_main_camera_handle(mCameraHandle->camera_handle), mParameters);
+        if (rc < 0) {
+            LOGE("set_parms failed for close hint");
+        }
+    }
+
     // Stop the Streams/Channels
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
         it != mStreamInfo.end(); it++) {
