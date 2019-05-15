@@ -3077,8 +3077,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                                 CAM_STREAM_TYPE_VIDEO) {
                             if (m_bEis3PropertyEnabled /* hint for EIS 3 needed here */)
                                 bufferCount = MAX_VIDEO_BUFFERS;
-                            else if (isTypeVideo == IS_TYPE_VENDOR_EIS)
-                                bufferCount = MAX_VIDEO_BUFFERS;
                         }
 
                         if (isSecureMode()) {
@@ -3117,6 +3115,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             channel->setUBWCEnabled(true);
                         }
                         newStream->max_buffers = channel->getNumBuffers();
+                        if (isTypeVideo == IS_TYPE_VENDOR_EIS) {
+                            newStream->max_buffers = MAX_VIDEO_VENDOR_EIS_BUFFERS;
+                        }
                         newStream->priv = channel;
                     }
                     break;
