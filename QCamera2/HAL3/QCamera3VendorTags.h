@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016,2019 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -68,6 +68,7 @@ enum qcamera3_ext_section {
     QCAMERA3_LOGICAL_CAM,
     QCAMERA3_MANUAL_WB,
     QCAMERA3_SAT_MODE,
+    QCAMERA3_EIS_FLUSH,
     QCAMERA3_SECTIONS_END
 };
 
@@ -104,6 +105,7 @@ enum qcamera3_ext_section_ranges {
     QCAMERA3_LOGICAL_CAM_START = QCAMERA3_LOGICAL_CAM << 16,
     QCAMERA3_MANUAL_WB_START = QCAMERA3_MANUAL_WB << 16,
     QCAMERA3_SAT_MODE_START = QCAMERA3_SAT_MODE << 16,
+    QCAMERA3_EIS_FLUSH_START = QCAMERA3_EIS_FLUSH << 16,
 };
 
 enum qcamera3_ext_tags {
@@ -390,7 +392,10 @@ enum qcamera3_ext_tags {
     QCAMERA3_MANUAL_WB_END,
 
     QCAMERA3_SAT_MODE_ON = QCAMERA3_SAT_MODE_START,
-    QCAMERA3_SAT_MODE_END
+    QCAMERA3_SAT_MODE_END,
+
+    QCAMERA3_EIS_FLUSH_ON = QCAMERA3_EIS_FLUSH_START,
+    QCAMERA3_EIS_FLUSH_END
 };
 
 // QCAMERA3_OPAQUE_RAW_FORMAT

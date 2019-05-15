@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016,2019 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -75,6 +75,7 @@ enum qcamera3_ext_tags qcamera3_ext3_section_bounds[QCAMERA3_SECTIONS_END -
         QCAMERA3_LOGICAL_CAM_END,
         QCAMERA3_MANUAL_WB_END,
         QCAMERA3_SAT_MODE_END,
+        QCAMERA3_EIS_FLUSH_END,
 };
 
 typedef struct vendor_tag_info {
@@ -115,7 +116,8 @@ const char *qcamera3_ext_section_names[QCAMERA3_SECTIONS_END -
     "org.codeaurora.qcamera3.fusion",
     "org.codeaurora.qcamera3.logical",
     "org.codeaurora.qcamera3.manualWB",
-    "org.codeaurora.qcamera3.sat"
+    "org.codeaurora.qcamera3.sat",
+    "org.quic.camera.recording"
 };
 
 vendor_tag_info_t qcamera3_privatedata[QCAMERA3_PRIVATEDATA_END - QCAMERA3_PRIVATEDATA_START] = {
@@ -323,6 +325,11 @@ vendor_tag_info_t qcamera3_sat_cam[QCAMERA3_SAT_MODE_END -
     { "on", TYPE_BYTE }
 };
 
+vendor_tag_info_t qcamera3_eis_flush[QCAMERA3_EIS_FLUSH_END -
+        QCAMERA3_EIS_FLUSH_START] = {
+    { "endOfStream", TYPE_BYTE }
+};
+
 vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
         VENDOR_SECTION] = {
     qcamera3_privatedata,
@@ -357,6 +364,7 @@ vendor_tag_info_t *qcamera3_tag_info[QCAMERA3_SECTIONS_END -
     qcamera3_logical_cam,
     qcamera3_manual_wb,
     qcamera3_sat_cam,
+    qcamera3_eis_flush,
 };
 
 uint32_t qcamera3_all_tags[] = {
@@ -494,7 +502,8 @@ uint32_t qcamera3_all_tags[] = {
     (uint32_t)QCAMERA3_MANUAL_WB_CCT,
     (uint32_t)QCAMERA3_MANUAL_WB_GAINS,
     //QCAMERA3_SAT
-    (uint32_t)QCAMERA3_SAT_MODE_ON
+    (uint32_t)QCAMERA3_SAT_MODE_ON,
+    (uint32_t)QCAMERA3_EIS_FLUSH_ON
 };
 
 const vendor_tag_ops_t* QCamera3VendorTags::Ops = NULL;

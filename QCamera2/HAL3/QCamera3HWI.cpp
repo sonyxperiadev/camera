@@ -6394,11 +6394,18 @@ int QCamera3HardwareInterface::processCaptureRequest(
     CameraMetadata l_meta = meta;
     metadata_buffer_t *params = mParameters;
     uint8_t l_captureIntent = mCaptureIntent;
+    cam_is_type_t isTypeVideo, isTypePreview, is_type=IS_TYPE_NONE;
+    char is_type_value[PROPERTY_VALUE_MAX];
+    property_get("persist.vendor.camera.is_type", is_type_value, "0");
+    isTypeVideo = static_cast<cam_is_type_t>(atoi(is_type_value));
+    // Make default value for preview IS_TYPE as IS_TYPE_EIS_2_0
+    property_get("persist.vendor.camera.is_type_preview", is_type_value, "4");
+    isTypePreview = static_cast<cam_is_type_t>(atoi(is_type_value));
+    LOGD("isTypeVideo: %d isTypePreview: %d ", isTypeVideo, isTypePreview);
 
     if (mState == CONFIGURED) {
         // send an unconfigure to the backend so that the isp
         // resources are deallocated
-        cam_is_type_t isTypeVideo, isTypePreview, is_type=IS_TYPE_NONE;
         if(isDualCamera()) {
             camHdl = get_main_camera_handle(mCameraHandle->camera_handle);
             channelHdl = mChannelHandle;
@@ -6480,14 +6487,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 }
             }
             mPerfLockMgr.acquirePerfLock(PERF_LOCK_START_PREVIEW);
-            /* get eis information for stream configuration */
-            char is_type_value[PROPERTY_VALUE_MAX];
-            property_get("persist.vendor.camera.is_type", is_type_value, "0");
-            isTypeVideo = static_cast<cam_is_type_t>(atoi(is_type_value));
-            // Make default value for preview IS_TYPE as IS_TYPE_EIS_2_0
-            property_get("persist.vendor.camera.is_type_preview", is_type_value, "4");
-            isTypePreview = static_cast<cam_is_type_t>(atoi(is_type_value));
-            LOGD("isTypeVideo: %d isTypePreview: %d", isTypeVideo, isTypePreview);
 
             int32_t vfe1_reserved_rdi = -1;
             if (l_meta.exists(QCAMERA3_SIMULTANEOUS_CAMERA_VFE1_RESERVED_RDI)) {
@@ -7749,6 +7748,41 @@ no_error:
             LOGE("fail to set reproc parameters");
             pthread_mutex_unlock(&mMutex);
             return rc;
+        }
+    }
+    if (meta.exists(QCAMERA3_EIS_FLUSH_ON)) {
+        uint32_t flush_val = (uint32_t)meta.find(QCAMERA3_EIS_FLUSH_ON).data.u8[0];
+        LOGD("QCAMERA3_EIS_FLUSH flush_val %d isTypePreview: %d", flush_val,isTypePreview);
+        cam_stream_parm_buffer_t param;
+        memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+        param.type = CAM_STREAM_PARAM_TYPE_FLUSH_FRAME;
+        param.isflush = flush_val;
+        for (size_t i = 0; i < request->num_output_buffers; i++) {
+            const camera3_stream_buffer_t& output = request->output_buffers[i];
+            QCamera3Channel *channel = (QCamera3Channel *)output.stream->priv;
+            if (channel == NULL) {
+                LOGE("%s: invalid channel pointer for stream");
+                continue;
+            }
+            if (((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask())) {
+                //Trigger Perf Flush event to back-end
+                QCamera3Stream *stream = channel->getStreamByIndex(0);
+                rc = stream->setParameter(param);
+                if (rc != NO_ERROR) {
+                    LOGE("stream setParameter failed for CAM_STREAM_PARAM_TYPE_FLUSH_FRAME");
+                    return BAD_VALUE;
+                }
+            }
+            if ((isTypePreview == IS_TYPE_VENDOR_EIS) &&
+               (((1U << CAM_STREAM_TYPE_PREVIEW) == channel->getStreamTypeMask()))) {
+                //Trigger Perf Flush event to back-end
+                QCamera3Stream *stream = channel->getStreamByIndex(0);
+                rc = stream->setParameter(param);
+                if (rc != NO_ERROR) {
+                    LOGE("stream setParameter failed for CAM_STREAM_PARAM_TYPE_FLUSH_FRAME");
+                    return BAD_VALUE;
+                }
+            }
         }
     }
 
