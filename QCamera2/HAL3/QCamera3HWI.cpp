@@ -5093,6 +5093,7 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     }
 
     if ((buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) && (frame_number == mMultiFrameCaptureNumber)) {
+        mMaxInFlightRequests -= mMultiFrameCaptureCount;
         mMultiFrameCaptureNumber = 0;
         mMultiFrameSnapshotRunning = false;
     }
@@ -5580,6 +5581,9 @@ int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
                 internallyRequestedStreams.push_back(streamRequested);
             }
         }
+
+        //Increase max inflight requests first
+        mMaxInFlightRequests += mMultiFrameCaptureCount;
 
         _orchestrationDb.allocStoreInternalFrameNumber(originalFrameNumber, internalFrameNumber);
         request->frame_number = internalFrameNumber;
@@ -8063,6 +8067,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
 
     if(mMultiFrameSnapshotRunning)
     {
+        mMaxInFlightRequests -= mMultiFrameCaptureCount;
         mMultiFrameCaptureNumber = 0;
         mMultiFrameSnapshotRunning = false;
     }
