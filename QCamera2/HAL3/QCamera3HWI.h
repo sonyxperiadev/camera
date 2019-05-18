@@ -645,7 +645,6 @@ private:
     cam_stream_ID_t mBatchedStreamsArray;
     pthread_cond_t mRequestCond;
     pthread_cond_t mHdrRequestCond;
-    pthread_cond_t mMultiFrameRequestCond;
     uint32_t mPendingLiveRequest;
     int32_t mCurrentRequestId;
     int32_t mAuxCurrentRequestId;
