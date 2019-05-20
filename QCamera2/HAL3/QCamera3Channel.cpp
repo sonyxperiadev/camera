@@ -551,9 +551,6 @@ void QCamera3Channel::dumpYUV(mm_camera_buf_def_t *frame, cam_dimension_t dim,
         if (mFrmNum == 0) {
             mFrmNum = 10;
         }
-        if (mFrmNum > 256) {
-            mFrmNum = 256;
-        }
         mSkipMode = ((mYUVDump & 0x0000ff00) >> 8);
         if (mSkipMode == 0) {
             mSkipMode = 1;
