@@ -5502,7 +5502,7 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
         }
     }
 
-    if (mZSL) {
+    if (mZSL && !hal_obj->m_bQuadraCfaRequest) {
         settings->zsl_snapshot = true;
     }
     return m_postprocessor.processJpegSettingData(settings);
