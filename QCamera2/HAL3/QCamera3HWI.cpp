@@ -7130,7 +7130,12 @@ no_error:
         if (output.stream->format == HAL_PIXEL_FORMAT_BLOB) {
             //FIXME??:Call function to store local copy of jpeg data for encode params.
             if (m_bIsVideo && !m_bStopPicChannel && !m_bIs4KVideo) {
-                mPictureChannel->startChannel();
+                rc = mPictureChannel->startChannel();
+                if (rc != NO_ERROR) {
+                    LOGE("startchannel is failed for Pic channel %d", rc);
+                    pthread_mutex_unlock(&mMutex);
+                    return rc;
+                }
             }
             if(IS_MULTI_CAMERA &&
                 (channel->getMyHandle() == get_aux_camera_handle(mChannelHandle)))
