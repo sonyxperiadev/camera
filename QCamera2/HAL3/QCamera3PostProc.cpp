@@ -3035,7 +3035,7 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                         = *(pp_job->reprocessed_src_frame->bufs[0]);
                                     fwk_frame.metadata_buffer = *(pp_job->src_metadata->bufs[0]);
 
-                                    uint32_t stream_id = hal_obj->mQCFARawChannel->getStreamSvrId();
+                                    uint32_t stream_id = hal_obj->mQCFACaptureChannel->getStreamSvrId();
                                     LOGD("src stream server id:%d", stream_id);
                                     ret = pme->m_pReprocChannel[pp_job->pp_ch_idx]->overrideMetadata(
                                             (metadata_buffer_t *)fwk_frame.metadata_buffer.buffer,
@@ -3180,10 +3180,23 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 } else {
                                     if(pp_job->jpeg_settings != NULL)
                                     {
-                                        ret = pme->m_pReprocChannel[0]->overrideMetadata(
-                                                pp_buffer, meta_buffer_arg,
-                                                pp_job->jpeg_settings,
-                                                fwk_frame);
+                                        if(hal_obj->m_bInSensorQCFA &&
+                                                (hal_obj->mQCFACaptureChannel != NULL)) {
+                                            uint32_t stream_id =
+                                                hal_obj->mQCFACaptureChannel->getStreamSvrId();
+                                            fwk_frame.input_buffer = *(pp_buffer->input->bufs[0]);
+                                            fwk_frame.metadata_buffer = *(meta_buffer->bufs[0]);
+                                            fwk_frame.output_buffer = pp_buffer->output;
+                                            LOGD("src stream server id:%d", stream_id);
+                                            ret = pme->m_pReprocChannel[0]->overrideMetadata(
+                                                    (metadata_buffer_t *)meta_buffer_arg->buffer,
+                                                    pp_job->jpeg_settings, stream_id);
+                                        } else {
+                                            ret = pme->m_pReprocChannel[0]->overrideMetadata(
+                                                    pp_buffer, meta_buffer_arg,
+                                                    pp_job->jpeg_settings,
+                                                    fwk_frame);
+                                        }
                                     } else {
                                         ret = pme->m_pReprocChannel[0]->overrideMetadata(
                                                 pp_buffer, meta_buffer_arg,
