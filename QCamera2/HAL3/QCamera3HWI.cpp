@@ -526,7 +526,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 
     pthread_cond_init(&mRequestCond, &mCondAttr);
     pthread_cond_init(&mHdrRequestCond, &mCondAttr);
-    pthread_cond_init(&mMultiFrameRequestCond, &mCondAttr);
 
     pthread_condattr_destroy(&mCondAttr);
 
@@ -825,7 +824,6 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     pthread_cond_destroy(&mRequestCond);
     pthread_cond_destroy(&mBuffersCond);
     pthread_cond_destroy(&mHdrRequestCond);
-    pthread_cond_destroy(&mMultiFrameRequestCond);
 
     pthread_mutex_destroy(&mMutex);
     if (mStreamList.streams != NULL) {
@@ -5106,9 +5104,9 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     }
 
     if ((buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) && (frame_number == mMultiFrameCaptureNumber)) {
+        mMaxInFlightRequests -= mMultiFrameCaptureCount;
         mMultiFrameCaptureNumber = 0;
         mMultiFrameSnapshotRunning = false;
-        pthread_cond_signal(&mMultiFrameRequestCond);
     }
 
     pendingRequestIterator i = mPendingRequestsList.begin();
@@ -5573,7 +5571,6 @@ int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
 {
     int32_t ret = NO_ERROR;
     uint32_t originalFrameNumber = request->frame_number;
-    uint32_t originalOutputCount = request->num_output_buffers;
     const camera_metadata_t *original_settings = request->settings;
     List<InternalRequest> internallyRequestedStreams;
     List<InternalRequest> emptyInternalList;
@@ -5590,32 +5587,27 @@ int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
                 InternalRequest streamRequested;
                 streamRequested.meteringOnly = 0;
                 streamRequested.need_metadata = 1;
+                streamRequested.needPastFrame = 1;
                 streamRequested.stream = request->output_buffers[i].stream;
                 internallyRequestedStreams.push_back(streamRequested);
             }
         }
 
-        for (uint32_t j = 0; j < mMultiFrameCaptureCount-1; j++) {
-            request->num_output_buffers = 0;
-            auto itr =  internallyRequestedStreams.begin();
-            if (itr == internallyRequestedStreams.end()) {
-                LOGE("Error Internally Requested Stream list is empty");
-                assert(0);
-            } else {
-                itr->need_metadata = 1;
-                itr->meteringOnly = 0;
-            }
-            _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
-            request->frame_number = internalFrameNumber;
-            processCaptureRequest(request, internallyRequestedStreams);
-        }
+        //Increase max inflight requests first
+        mMaxInFlightRequests += mMultiFrameCaptureCount;
 
-        request->num_output_buffers = originalOutputCount;
         _orchestrationDb.allocStoreInternalFrameNumber(originalFrameNumber, internalFrameNumber);
         request->frame_number = internalFrameNumber;
         mMultiFrameCaptureNumber = internalFrameNumber;
         mMultiFrameSnapshotRunning = true;
         ret = processCaptureRequest(request, emptyInternalList);
+
+        for (uint32_t j = 0; j < mMultiFrameCaptureCount-1; j++) {
+            request->num_output_buffers = 0;
+            _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
+            request->frame_number = internalFrameNumber;
+            processCaptureRequest(request, internallyRequestedStreams);
+        }
 
         internallyRequestedStreams.clear();
 
@@ -7923,7 +7915,6 @@ no_error:
     }
     if (mMultiFrameSnapshotRunning) {
         mMultiFrameReqLock.unlock();
-        pthread_cond_wait(&mMultiFrameRequestCond, &mMutex);
         mMultiFrameSnapshotRunning = false;
     }
 
@@ -8093,9 +8084,9 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
 
     if(mMultiFrameSnapshotRunning)
     {
+        mMaxInFlightRequests -= mMultiFrameCaptureCount;
         mMultiFrameCaptureNumber = 0;
         mMultiFrameSnapshotRunning = false;
-        pthread_cond_signal(&mMultiFrameRequestCond);
     }
     // Unblock process_capture_request
     mPendingLiveRequest = 0;
