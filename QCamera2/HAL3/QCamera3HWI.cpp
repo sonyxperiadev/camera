@@ -10790,15 +10790,6 @@ size_t QCamera3HardwareInterface::calcMaxJpegSize(uint32_t camera_id)
         }
     }
 
-    // adjust for quadra cfa
-    if (gCamCapability[camera_id]->is_quadracfa_sensor &&
-            gCamCapability[camera_id]->supported_quadra_cfa_dim_cnt > 0) {
-        cam_dimension_t curr_jpeg_dim = gCamCapability[camera_id]->quadra_cfa_dim[0];
-        if ((size_t)(curr_jpeg_dim.width * curr_jpeg_dim.height) > max_jpeg_size) {
-            max_jpeg_size = curr_jpeg_dim.width * curr_jpeg_dim.height;
-        }
-    }
-
     max_jpeg_size = max_jpeg_size * 3/2 + sizeof(camera3_jpeg_blob_t);
 
     if(is_dual_camera_by_idx(camera_id))
