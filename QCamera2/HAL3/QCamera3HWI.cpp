@@ -588,17 +588,20 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 
     m_bInSensorQCFA = false;
     if (gCamCapability[cameraId]->is_quadracfa_sensor) {
-        LOGI("Sensor support Quadra CFA mode");
         m_bQuadraCfaSensor = true;
+
+        if (gCamCapability[cameraId]->is_quadracfa_insensor) {
+            m_bInSensorQCFA = true;
+        }
 
         char prop[PROPERTY_VALUE_MAX];
         memset(prop, 0, sizeof(prop));
-        property_get("persist.vendor.camera.quadcfa.insensor", prop, "0");
+        property_get("persist.vendor.camera.quadcfa.insensor", prop, "");
         if (strlen(prop) > 0) {
             uint8_t enabled = atoi(prop);
-            if(enabled > 0)
-                m_bInSensorQCFA = true;
+            m_bInSensorQCFA = enabled > 0 ? true : false;
         }
+        LOGI("Sensor support Quadra CFA mode in sensor cqfa %d",  m_bInSensorQCFA);
     }
 
     m_bQuadraCfaRequest = false;
@@ -10613,7 +10616,8 @@ int QCamera3HardwareInterface::initCapabilities(uint32_t cameraId)
                 sizeof(cam_capability_t));
     }
 
-    if (gCamCapability[cameraId]->is_remosaic_lib_present) {
+    if (gCamCapability[cameraId]->is_remosaic_lib_present ||
+            gCamCapability[cameraId]->is_quadracfa_insensor) {
         gCamCapability[cameraId]->is_quadracfa_sensor = TRUE;
     }
 
