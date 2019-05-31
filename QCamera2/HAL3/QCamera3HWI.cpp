@@ -4715,8 +4715,9 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 i++;
                 continue;
             } else {
-
-                mPendingLiveRequest--;
+                if (i->internalRequestList.size() == 0) {
+                    mPendingLiveRequest--;
+                }
                 CameraMetadata dummyMetadata;
                 dummyMetadata.update(ANDROID_REQUEST_ID, &(i->request_id), 1);
                 result.result = dummyMetadata.release();
@@ -4724,7 +4725,9 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 notifyError(i->frame_number, CAMERA3_MSG_ERROR_RESULT);
             }
         } else {
-            mPendingLiveRequest--;
+            if (i->internalRequestList.size() == 0) {
+                mPendingLiveRequest--;
+            }
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
@@ -5130,7 +5133,6 @@ void QCamera3HardwareInterface::handleBufferWithLock(
     }
 
     if ((buffer->stream->format == HAL_PIXEL_FORMAT_BLOB) && (frame_number == mMultiFrameCaptureNumber)) {
-        mMaxInFlightRequests -= mMultiFrameCaptureCount;
         mMultiFrameCaptureNumber = 0;
         mMultiFrameSnapshotRunning = false;
     }
@@ -5618,9 +5620,6 @@ int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
                 internallyRequestedStreams.push_back(streamRequested);
             }
         }
-
-        //Increase max inflight requests first
-        mMaxInFlightRequests += mMultiFrameCaptureCount;
 
         _orchestrationDb.allocStoreInternalFrameNumber(originalFrameNumber, internalFrameNumber);
         request->frame_number = internalFrameNumber;
@@ -7928,7 +7927,9 @@ no_error:
             }
         }
     }
-    mPendingLiveRequest++;
+    if (internallyRequestedStreams.size() == 0) {
+        mPendingLiveRequest++;
+    }
 
     LOGD("mPendingLiveRequest = %d", mPendingLiveRequest);
     mState = STARTED;
@@ -8110,7 +8111,6 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
 
     if(mMultiFrameSnapshotRunning)
     {
-        mMaxInFlightRequests -= mMultiFrameCaptureCount;
         mMultiFrameCaptureNumber = 0;
         mMultiFrameSnapshotRunning = false;
     }
