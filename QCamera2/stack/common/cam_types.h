@@ -1880,6 +1880,7 @@ typedef struct {
     cam_frame_margins_t margins[MAX_NUM_STREAMS];
     cam_dimension_t stream_sz_plus_margin[MAX_NUM_STREAMS]; /*stream sizes + margin*/
     uint8_t is_secure;
+    uint32_t topology;
 } cam_stream_size_info_t;
 
 typedef enum {
@@ -2523,6 +2524,7 @@ typedef enum {
     CAM_INTF_PARM_BOKEH_MODE,
     CAM_INTF_META_USERZOOM,
     CAM_INTF_META_TUNING_PARAMS,
+    CAM_INTF_PARM_CLOSE_HINT,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
