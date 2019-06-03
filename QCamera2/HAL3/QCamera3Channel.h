@@ -122,6 +122,7 @@ public:
 
     QCamera3Stream *getStreamByHandle(uint32_t streamHandle);
     uint32_t getMyHandle() const {return m_handle;};
+    uint32_t getMyCamHandle() const {return m_camHandle;};
     uint32_t getNumOfStreams() const {return m_numStreams;};
     uint32_t getNumBuffers() const {return mNumBuffers;};
     QCamera3Stream *getStreamByIndex(uint32_t index);

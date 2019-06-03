@@ -5113,13 +5113,16 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 int32_t QCamera3PicChannel::requestZSLBuf(uint32_t frameNumber, uint32_t numBuf)
 {
     uint32_t channel_handle = m_handle;
+    uint32_t cam_handle = m_camHandle;
     LOGH("frameNumber %d", frameNumber);
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     if((hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && hal_obj->needHALPP()) {
-        if (!mAuxPicChannel) {
+        if (mAuxPicChannel) {
             return NO_ERROR;
         } else {
-            channel_handle = mCompositeHandle;
+            //derive composite handles from metadata channel
+            channel_handle = m_pMetaChannel->getMyHandle();
+            cam_handle = m_pMetaChannel->getMyCamHandle();
         }
     }
 
@@ -5128,7 +5131,7 @@ int32_t QCamera3PicChannel::requestZSLBuf(uint32_t frameNumber, uint32_t numBuf)
     buf.type = MM_CAMERA_REQ_SUPER_BUF;
     buf.num_buf_requested = numBuf;
     buf.frame_idx = frameNumber;
-    return m_camOps->request_super_buf(m_camHandle, channel_handle, &buf);
+    return m_camOps->request_super_buf(cam_handle, channel_handle, &buf);
 }
 
 /*===========================================================================
