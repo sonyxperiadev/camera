@@ -4528,6 +4528,7 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
             stream->width, stream->height);
     mZSL = isZSL;
     mLiveShot = isLiveshot;
+    m_bStarted = false;
     mInit = false;
     LOGH("Configuring picchannel in %s mode", mZSL ? "ZSL" : "psuedo-ZSL");
     int32_t rc = m_postprocessor.initJpeg(jpegEvtHandle, mpoEvtHandle, &m_max_pic_dim, this);
@@ -4659,8 +4660,6 @@ int32_t QCamera3PicChannel::stop()
 
     QCamera3ProcessingChannel::stop();
 
-    stopChannel();
-
     if (mAuxPicChannel) {
         rc = mAuxPicChannel->stop();
     }
@@ -4669,16 +4668,41 @@ int32_t QCamera3PicChannel::stop()
 
 int32_t QCamera3PicChannel::stopChannel()
 {
+    int32_t rc = NO_ERROR;
+
     if (!mLiveShot) return NO_ERROR;
+
+    if(!m_bStarted) {
+       LOGD("Attempt to stop inactive channel");
+       return rc;
+    }
+
     LOGD("QCamera3PicChannel::stopChannel");
-    return m_camOps->stop_channel(m_camHandle, m_handle);
+
+    rc = m_camOps->stop_channel(m_camHandle, m_handle);
+    if(rc == NO_ERROR){
+       m_bStarted = false;
+    }
+    return rc;
 }
 
 int32_t QCamera3PicChannel::startChannel()
 {
+    int32_t rc = NO_ERROR;
+
+    if(m_bStarted) {
+       LOGD("Attempt to start active channel");
+       return rc;
+    }
+
     if (!mLiveShot) return NO_ERROR;
     LOGD("QCamera3PicChannel::startChannel");
-    return m_camOps->start_channel(m_camHandle, m_handle);
+
+    rc =  m_camOps->start_channel(m_camHandle, m_handle);
+    if(rc == NO_ERROR){
+       m_bStarted = true;
+    }
+    return rc;
 }
 
 void QCamera3PicChannel::setDualChannelMode(bool bMode)
