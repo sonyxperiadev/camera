@@ -6116,10 +6116,9 @@ int32_t QCamera3PicChannel::notifyDropForPendingBuffer(uint32_t frameNumber,
     bool found = false;
     for (auto &req : hal_obj->mPendingBuffersMap.mPendingBuffersInRequest) {
         if(req.frame_number == frameNumber) {
-            for (auto info = req.mPendingBufferList.begin();
-                    info != req.mPendingBufferList.end(); )
+            for (auto &info : req.mPendingBufferList)
             {
-                if(info->buffer == buf)
+                if(info.buffer == buf)
                 {
                     camera3_capture_result_t result;
                     memset(&result, 0, sizeof(camera3_capture_result_t));
