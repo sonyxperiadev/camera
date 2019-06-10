@@ -3201,7 +3201,7 @@ void QCamera3QCfaCaptureChannel::streamCbRoutine(mm_camera_super_buf_t *super_fr
 
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     if (hal_obj->m_bQuadraCfaRequest) {
-        LOGH("store quadra cfa raw frame");
+        LOGH("store quadra cfa raw frame m_bInSensorQcfa %d",m_bInSensorQcfa);
         capture_frame = *super_frame;
         capture_buf_def = *(super_frame->bufs[0]);
         capture_frame.bufs[0] = &capture_buf_def;
