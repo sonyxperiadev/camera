@@ -798,6 +798,13 @@ bool QCamera3PostProcessor::matchReprocessFrameNum(void *data, void *, void *mat
     return job->frameNumber == frame_num;
 }
 
+bool QCamera3PostProcessor::matchJpegSetting(void *data, void *, void *match_data)
+{
+    jpeg_settings_t* jpeg_setting = (jpeg_settings_t *) data;
+    uint32_t frame_num = *((uint32_t *) match_data);
+    LOGD(" Matching FrameNum :%d and %d",frame_num,jpeg_setting->frame_number);
+    return jpeg_setting->frame_number == frame_num;
+}
 
 /*===========================================================================
  * FUNCTION   : needsReprocess
@@ -971,6 +978,16 @@ qcamera_hal3_pp_buffer_t* QCamera3PostProcessor::isFrameMatched(uint32_t resultF
     return NULL;
 }
 
+void QCamera3PostProcessor::eraseJpegSetting(uint32_t resultFrameNumber)
+{
+    jpeg_settings_t* jpeg_setting =
+            (jpeg_settings_t *) m_jpegSettingsQ.dequeue(matchJpegSetting,(void*)&resultFrameNumber);
+    if(jpeg_setting != NULL) {
+        LOGH("Erasing Jpeg settings for frame number %d", resultFrameNumber);
+        free(jpeg_setting);
+        jpeg_setting = NULL;
+    }
+}
 
 /*===========================================================================
  * FUNCTION   : processJpegSettingData

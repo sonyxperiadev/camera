@@ -180,6 +180,7 @@ public:
     void setMpoMode(bool enable) {m_bMpoEnabled = enable;}
     bool isMpoEnabled() { return m_bMpoEnabled; }
     int releaseFreeJpegSessions();
+    void eraseJpegSetting(uint32_t resultFrameNumber);
 
 private:
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
@@ -208,6 +209,7 @@ private:
     static void releaseOngoingPPData(void *data, void *user_data);
     static bool matchMetaFrameNum(void *data, void *user_data, void *match_data);
     static bool matchReprocessFrameNum(void *data, void *user_data, void *match_data);
+    static bool matchJpegSetting(void *data, void *user_data, void *match_data);
     static void *dataProcessRoutine(void *data);
     qcamera_hal3_meta_pp_buffer_t * isMetaMatched(uint32_t resultFrameNumber);
     qcamera_hal3_pp_buffer_t * isFrameMatched(uint32_t resultFrameNumber);

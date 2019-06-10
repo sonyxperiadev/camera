@@ -5418,10 +5418,11 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
 
                     // Queue jpeg settings
                     if (bIsMaster) {
-                        rc = queueJpegSetting((uint32_t)index, metadata, (i==0)?
+                        rc = queueJpegSetting((uint32_t)index, frameNumber, metadata, (i==0)?
                                         CAM_HAL3_JPEG_TYPE_MAIN : CAM_HAL3_JPEG_TYPE_BOKEH);
                     } else {
-                        rc = queueJpegSetting((uint32_t)index, metadata, CAM_HAL3_JPEG_TYPE_DEPTH);
+                        rc = queueJpegSetting((uint32_t)index, frameNumber, metadata,
+                                CAM_HAL3_JPEG_TYPE_DEPTH);
                     }
                 }
                 if(bIsMaster)
@@ -5477,13 +5478,14 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
                 // Queue jpeg settings
                 if(hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_DUAL_FOV)
                 {
-                     rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
+                     rc = queueJpegSetting((uint32_t)index, frameNumber, metadata, bIsMaster ?
                                             CAM_HAL3_JPEG_TYPE_FUSION : CAM_HAL3_JPEG_TYPE_AUX);
                 } else if ((hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
                                              && bIsMaster && hal_obj->needHALPP()){
-                    rc = queueJpegSetting((uint32_t)index, metadata, CAM_HAL3_JPEG_TYPE_BOKEH);
+                    rc = queueJpegSetting((uint32_t)index, frameNumber, metadata,
+                            CAM_HAL3_JPEG_TYPE_BOKEH);
                 } else {
-                    rc = queueJpegSetting((uint32_t)index, metadata, bIsMaster ?
+                    rc = queueJpegSetting((uint32_t)index, frameNumber, metadata, bIsMaster ?
                                             CAM_HAL3_JPEG_TYPE_MAIN : CAM_HAL3_JPEG_TYPE_AUX);
                 }
             }
@@ -5909,7 +5911,8 @@ void QCamera3PicChannel::putStreamBufs()
     mOfflineMemory.clear();
 }
 
-int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *metadata,
+int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, uint32_t frame_number,
+                                                  metadata_buffer_t *metadata,
                                                   cam_hal3_JPEG_type_t imagetype)
 {
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
@@ -5925,6 +5928,7 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
 
     settings->out_buf_index = index;
     settings->image_type = imagetype;
+    settings->frame_number = frame_number;
 
     settings->jpeg_orientation = 0;
     IF_META_AVAILABLE(int32_t, orientation, CAM_INTF_META_JPEG_ORIENTATION, metadata) {
@@ -6308,6 +6312,7 @@ void QCamera3PicChannel::ZSLChannelCb(mm_camera_super_buf_t *recvd_frame)
                 for (uint32_t k = 0; k < p_cam_frame_drop->num_streams; k++) {
                     if (mStreams[0]->getMyServerID() ==
                             p_cam_frame_drop->stream_request[k].streamID) {
+                        m_postprocessor.eraseJpegSetting(frameNum);
                         returnBufferError(frameNum);
                         releaseSuperBuf(recvd_frame);
                         return;

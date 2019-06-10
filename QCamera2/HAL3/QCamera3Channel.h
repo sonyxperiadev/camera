@@ -788,8 +788,9 @@ public:
     int32_t notifyDropForPendingBuffer(uint32_t frameNumber, buffer_handle_t *buf);
 
 private:
-    int32_t queueJpegSetting(uint32_t out_buf_index, metadata_buffer_t *metadata,
-                                    cam_hal3_JPEG_type_t imagetype = CAM_HAL3_JPEG_TYPE_MAIN);
+    int32_t queueJpegSetting(uint32_t out_buf_index, uint32_t frame_number,
+                                  metadata_buffer_t *metadata,
+                                  cam_hal3_JPEG_type_t imagetype = CAM_HAL3_JPEG_TYPE_MAIN);
     void configureMpo();
     int returnBufferError(uint32_t frameNumber);
     void releaseSuperBuf(mm_camera_super_buf_t *recvd_frame);
