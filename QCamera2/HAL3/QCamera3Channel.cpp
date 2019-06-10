@@ -3055,7 +3055,13 @@ void QCamera3RawDumpChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
 QCamera3StreamMem* QCamera3RawDumpChannel::getStreamBufs(uint32_t len)
 {
     int rc;
-    mMemory = new QCamera3StreamMem(mNumBuffers, true, isSecureMode());
+    uint32_t numBufs = mNumBuffers;
+    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
+    if (hal_obj && hal_obj->isDualCamera()) {
+        //Allocate equal no. of buffers for aux session
+        numBufs += mNumBuffers;
+    }
+    mMemory = new QCamera3StreamMem(numBufs, true, isSecureMode());
 
     if (!mMemory) {
         LOGE("unable to create heap memory");

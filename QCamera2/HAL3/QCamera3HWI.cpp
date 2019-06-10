@@ -7470,6 +7470,12 @@ no_error:
         streamsArray.stream_request[streamsArray.num_streams].streamID =
             mRawDumpChannel->getStreamID(mRawDumpChannel->getStreamTypeMask());
         streamsArray.stream_request[streamsArray.num_streams++].buf_index = CAM_FREERUN_IDX;
+        if(needHALPP()){
+            streamsArraySlave.stream_request[streamsArraySlave.num_streams].streamID =
+                mRawDumpChannel->getStreamID(mRawDumpChannel->getStreamTypeMask());
+            streamsArraySlave.stream_request[streamsArraySlave.num_streams++].buf_index =
+                                                                            CAM_FREERUN_IDX;
+       }
     }
 
     //Induce HAL ZSL request for every alternate frame (max 15fps)
