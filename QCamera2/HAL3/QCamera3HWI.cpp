@@ -5068,11 +5068,6 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     }
 
 done_metadata:
-    for (pendingRequestIterator i = mPendingRequestsList.begin();
-            i != mPendingRequestsList.end() ;i++) {
-        i->pipeline_depth++;
-    }
-
     if(!meta_freed && free_and_bufdone_meta_buf)
     {
         mMetadataChannel->bufDone(metadata_buf);
@@ -7629,7 +7624,7 @@ no_error:
        pInputBuffer = NULL;
     }
 
-    pendingRequest.pipeline_depth = 0;
+    pendingRequest.pipeline_depth = MAX_PIPELINE_DEPTH;
     pendingRequest.partial_result_cnt = 0;
     extractJpegMetadata(mCurJpegMeta, request);
     pendingRequest.jpegMetadata = mCurJpegMeta;
@@ -11971,7 +11966,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       size);
 
     uint8_t max_pipeline_depth =
-        (uint8_t)(MAX_INFLIGHT_REQUESTS + EMPTY_PIPELINE_DELAY + FRAME_SKIP_DELAY);
+        (uint8_t)(MAX_PIPELINE_DEPTH + EMPTY_PIPELINE_DELAY + FRAME_SKIP_DELAY);
     staticInfo.update(ANDROID_REQUEST_PIPELINE_MAX_DEPTH,
                       &max_pipeline_depth,
                       1);
