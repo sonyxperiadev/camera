@@ -1461,7 +1461,7 @@ qcamera_hal3_jpeg_data_t *QCamera3PostProcessor::findJpegJobByJobId(uint32_t job
     }
 
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)m_parent->mUserData;
-    if(!hal_obj->needHALPP())
+    if(!hal_obj->isDualCamera())
     {
         mFreeJpegSessions.push_back(mJpegSessionId);
         mJpegSessionId = 0;
