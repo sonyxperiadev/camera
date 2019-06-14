@@ -4627,7 +4627,9 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             free(metadata_buf);
             return;
         } else {
-            if (pMetaDataAux && frame_number_valid && frame_number && this->needHALPP()) {
+            if (pMetaDataAux && frame_number_valid
+                && frame_number && this->needHALPP()
+                && !mHALZSL) {
                 LOGD("found valid metadata for aux %d", frame_number);
                 for (auto req = mPendingBuffersMap.mPendingBuffersInRequest.begin();
                           req != mPendingBuffersMap.mPendingBuffersInRequest.end();
