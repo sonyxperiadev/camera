@@ -3570,7 +3570,7 @@ mm_channel_queue_node_t* mm_channel_superbuf_dequeue_frame(
         if (!super_buf->is_drop_frame) {
             break;
         } else {
-            LOGD("Discarding superbuf frame_idx %d due to frame drop",
+            LOGH("Discarding superbuf frame_idx %d due to frame drop",
                 super_buf->frame_idx);
             for (i=0; i<super_buf->num_of_bufs; i++) {
                 if (NULL != super_buf->super_buf[i].buf) {
