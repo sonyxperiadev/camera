@@ -4930,7 +4930,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 result.result = translateFromHalMetadata(metadata,
                         i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
                         i->capture_intent, internalPproc, i->fwkCacMode,
-                        firstMetadataInBatch, i->enableZSL);
+                        firstMetadataInBatch, i->enableZSL, i->fwkFlashMode);
                 result.result = restoreHdrScene(i->scene_mode, result.result);
             }
 
@@ -7668,6 +7668,10 @@ no_error:
         pendingRequest.enableZSL = meta.find(ANDROID_CONTROL_ENABLE_ZSL).data.u8[0];
     }
 
+    if (meta.exists(ANDROID_FLASH_MODE)) {
+        pendingRequest.fwkFlashMode = (uint8_t)meta.find(ANDROID_FLASH_MODE).data.u8[0];
+    }
+
     //extract CAC info
     if(IS_MULTI_CAMERA && is_requested_on_aux )
     {
@@ -8808,7 +8812,7 @@ camera_metadata_t * QCamera3HardwareInterface::getPhysicalMeta(
      metadata_buffer_t *meta = (metadata_buffer_t *)metadata->bufs[0]->buffer;
      cam_meta = translateFromHalMetadata(meta, request->timestamp, request_id,
                     request->jpegMetadata, request->pipeline_depth, capture_intent,
-                    false, fwkCacMode, false, request->enableZSL);
+                    false, fwkCacMode, false, request->enableZSL, request->fwkFlashMode);
      resultWrapper.acquire(cam_meta);
 
     if(IS_MULTI_CAMERA)
@@ -8944,7 +8948,8 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                  bool pprocDone,
                                  uint8_t fwk_cacMode,
                                  bool firstMetadataInBatch,
-                                 bool enableZSL)
+                                 bool enableZSL,
+                                 uint8_t fwkFlashMode)
 {
     CameraMetadata camMetadata;
     camera_metadata_t *resultMetadata;
@@ -9042,10 +9047,14 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     IF_META_AVAILABLE(uint32_t, flashMode, CAM_INTF_META_FLASH_MODE, metadata) {
         int val = lookupFwkName(FLASH_MODES_MAP, METADATA_MAP_SIZE(FLASH_MODES_MAP), *flashMode);
+        uint8_t fwk_flashMode;
         if (NAME_NOT_FOUND != val) {
-            uint8_t fwk_flashMode = (uint8_t)val;
-            camMetadata.update(ANDROID_FLASH_MODE, &fwk_flashMode, 1);
+            fwk_flashMode = (uint8_t)val;
+        } else {
+            //AE overrides flash control, so get flash mode from request settings instead of meta.
+            fwk_flashMode = fwkFlashMode;
         }
+        camMetadata.update(ANDROID_FLASH_MODE, &fwk_flashMode, 1);
     }
 
     IF_META_AVAILABLE(uint32_t, hotPixelMode, CAM_INTF_META_HOTPIXEL_MODE, metadata) {
