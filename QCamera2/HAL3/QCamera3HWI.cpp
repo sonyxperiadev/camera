@@ -4867,6 +4867,12 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             if (i->internalRequestList.size() == 0) {
                 mPendingLiveRequest--;
             }
+
+            if (capture_time == 0) {
+                LOGE("Invalid timestamp in metadata, send result error");
+                notifyError(i->frame_number, CAMERA3_MSG_ERROR_RESULT);
+            }
+
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
