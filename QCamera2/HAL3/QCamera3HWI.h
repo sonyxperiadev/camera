@@ -368,6 +368,7 @@ public:
     cam_capability_t *getCamHalCapabilities();
     bool isPPMaskSetForScaling(cam_feature_mask_t pp_mask);
     bool isHALZSLEnabled() {return mHALZSL;}
+    bool isQuadraSizedDimension(cam_dimension_t &dim);
 private:
 
     // State transition conditions:
@@ -484,6 +485,7 @@ private:
     int32_t setBundleInfo();
     int32_t setAuxBundleInfo();
     int32_t setInstantAEC(const CameraMetadata &meta);
+    void setChannelQuadraMode(camera3_capture_request_t *req, bool mode);
 
     static void convertLandmarks(cam_face_landmarks_info_t face, int32_t* landmarks);
     static void setInvalidLandmarks(int32_t* landmarks);

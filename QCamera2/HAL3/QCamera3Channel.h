@@ -367,6 +367,7 @@ public:
     List<zsl_req_t>   mReqFrameNumList;
     Mutex           mReqFrameListLock;
     bool            m_bSkipConfig;
+    bool            m_bQuadraChannel;
 };
 
 /* QCamera3RegularChannel is used to handle all streams that are directly
@@ -648,6 +649,7 @@ public:
     virtual void setAuxChannel(QCamera3Channel *pAuxChannel,
                                      bool bDualChMode = true);
     virtual void setZSLMode(bool bMode);
+    void setChannelQuadraMode(bool bMode);
     int32_t queueReprocMetadata(mm_camera_super_buf_t *metadata,
             uint32_t framenum, bool dropFrame = false);
     int returnBufferError(uint32_t frameNumber);
@@ -661,6 +663,9 @@ public:
                                          QCamera3ProcessingChannel *srcZsl,
                                          zsl_stream_type_t zslType,
                                          bool skipConfig);
+    void* getQuadraOutputBuffer(uint32_t frameNumber, bool free = true);
+    void overrideStreamDim(uint32_t width, uint32_t height);
+    void stopPostProc();
 private:
     typedef struct {
         uint32_t frameNumber;
@@ -692,6 +697,8 @@ private:
     bool mNeedPPUpscale;
     uint32_t mCompositeHandle;
     uint8_t m_bCtrlAux;
+    bool m_bUpdatedDimensions;     //true if stream configured is not of framework dimension.
+    cam_dimension_t mInternalDim;
 private:
     bool needsFramePostprocessing(metadata_buffer_t* meta);
     int32_t handleOfflinePpCallback(uint32_t resultFrameNumber,
