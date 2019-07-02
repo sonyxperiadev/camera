@@ -12578,6 +12578,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     }
 
     //HFR configs for 60 and 90
+    int32_t maxHFRFps = CAM_HFR_MODE_OFF;
     Vector<int32_t> custom_hfr_configs;
     for (size_t i = 0; i < gCamCapability[cameraId]->hfr_tbl_cnt; i++) {
         int32_t fps = 0;
@@ -12600,12 +12601,16 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             custom_hfr_configs.add(
                     gCamCapability[cameraId]->hfr_tbl[i].dim[0].height);
         }
+
+        if (gCamCapability[cameraId]->hfr_tbl[i].mode > maxHFRFps) {
+            maxHFRFps = gCamCapability[cameraId]->hfr_tbl[i].mode;
+        }
     }
 
     /*HFR configs of 60 and 90fps are not supported as changes are not completely implemented
     end to end. Once changes are implemented, changes can be uncommented to support it. Define
     macro "SUPPORT_HFR_CONFIG_60_90_FPS" to enable HFR 60 and 90 fps in the app setting*/
-    if (custom_hfr_configs.size() > 0) {
+    if ((custom_hfr_configs.size() > 0) && (maxHFRFps >= CAM_HFR_MODE_120FPS)) {
         staticInfo.update(
             QCAMERA3_HFR_SIZES,
             custom_hfr_configs.array(), custom_hfr_configs.size());
