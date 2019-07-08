@@ -445,6 +445,7 @@ private:
     bool isHdrSnapshotRequest(camera3_capture_request *request);
     bool isMultiFrameSnapshotRequest(camera3_capture_request *request);
     bool isMFCRaw(camera3_capture_request *request);
+    bool isSWMFNRSnapshotRequest(camera3_capture_request *request);
     int32_t setMobicat();
 
     int32_t getSensorOutputSize(cam_sensor_config_t &sensor_dim, uint32_t cam_type = CAM_TYPE_MAIN);
@@ -700,6 +701,7 @@ public:
     QCameraFOVControl *m_pFovControl;
     PendingBuffersMap mPendingBuffersMap;
     bool m_bInSensorQCFA;
+    bool mbIsSWMFNRCapture;
     bool isSecureMode() {return m_bIsSecureMode;}
     QCamera3ProcessingChannel *mZSLChannel; //Interface ptr for actual ZSL channel.
     QCamera3MultiRawChannel *mMultiRawChannel;

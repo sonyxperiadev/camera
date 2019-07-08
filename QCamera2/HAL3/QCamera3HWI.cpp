@@ -612,6 +612,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_bQuadraSizeConfigured = false;
     memset(&mStreamList, 0, sizeof(camera3_stream_configuration_t));
     m_bLPMEnabled = false;
+    mbIsSWMFNRCapture = false;
 
     mDualCamera = is_dual_camera_by_idx(cameraId);
     memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
@@ -5596,6 +5597,47 @@ bool QCamera3HardwareInterface::isMultiFrameSnapshotRequest(camera3_capture_requ
 }
 
 
+/*===========================================================================
+ * FUNCTION   : isSWMFNRSnapshotRequest
+ *
+ * DESCRIPTION: Function to determine if the request is for a SW MFNR snapshot
+ *
+ * PARAMETERS : camera3 request structure
+ *
+ * RETURN     : boolean decision variable
+ *
+ *==========================================================================*/
+bool QCamera3HardwareInterface::isSWMFNRSnapshotRequest(camera3_capture_request *request)
+{
+    if (request == NULL) {
+        LOGE("Invalid request handle");
+        return false;
+    }
+
+    CameraMetadata frame_settings;
+    mbIsSWMFNRCapture = false;
+    frame_settings = request->settings;
+    if (frame_settings.exists(QCAMERA3_SWMFNR_ENABLE)) {
+        mbIsSWMFNRCapture = frame_settings.find(QCAMERA3_SWMFNR_ENABLE).data.u8[0];
+        LOGD("SWMFNR feature enable %d ", mbIsSWMFNRCapture)
+    }
+
+    if (mbIsSWMFNRCapture) {
+        mMultiFrameCaptureCount = gCamCapability[mCameraId]->stillmore_settings_need.burst_count;
+        LOGH("SWMFNR Frames: burst count %d min count %d max count %d",
+            gCamCapability[mCameraId]->stillmore_settings_need.burst_count,
+            gCamCapability[mCameraId]->stillmore_settings_need.min_burst_count,
+            gCamCapability[mCameraId]->stillmore_settings_need.max_burst_count);
+        for (uint32_t i = 0; i < request->num_output_buffers; i++) {
+            if (request->output_buffers[i].stream->format == HAL_PIXEL_FORMAT_BLOB) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
 int32_t QCamera3HardwareInterface::orchestrateAdvancedCapture(
         camera3_capture_request_t *request, bool &isAdvancedCapture)
 {
@@ -5622,7 +5664,8 @@ int32_t QCamera3HardwareInterface::orchestrateAdvancedCapture(
         return orchestrateHDRCapture(request);
     }
 
-    if (isMultiFrameSnapshotRequest(request)) {
+    if (isMultiFrameSnapshotRequest(request) ||
+        isSWMFNRSnapshotRequest(request)) {
         isAdvancedCapture = true;
         return orchestrateMultiFrameCapture(request);
     }
@@ -5907,7 +5950,11 @@ int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
                     == HAL_PIXEL_FORMAT_BLOB) {
                 InternalRequest streamRequested;
                 streamRequested.meteringOnly = 0;
-                streamRequested.need_metadata = 1;
+                if (IS_SNAP_ZSL) {
+                    streamRequested.need_metadata = 0;
+                } else {
+                    streamRequested.need_metadata = 1;
+                }
                 streamRequested.needPastFrame = 1;
                 streamRequested.stream = request->output_buffers[i].stream;
                 internallyRequestedStreams.push_back(streamRequested);
@@ -6431,7 +6478,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
 #ifdef ENABLE_THROTTLE
     int32_t perfLevel = 0;
 #endif
-
 
     pthread_mutex_lock(&mMutex);
 
@@ -16057,7 +16103,6 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
     // pp feature config
     cam_pp_feature_config_t pp_config;
     memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
-
     pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
     if (gCamCapability[mCameraId]->qcom_supported_feature_mask
             & CAM_QCOM_FEATURE_DSDN) {
@@ -16081,11 +16126,14 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
         pp_config.hdr_param.hdr_mode = CAM_HDR_MODE_MULTIFRAME;
     }
 
-    if (mbIsMultiFrameCapture) {
+    if (mbIsMultiFrameCapture || mbIsSWMFNRCapture) {
         char prop[PROPERTY_VALUE_MAX];
         property_get("persist.vendor.camera.multiframe.capture.precpp", prop, "1");
         bool bMultiFrameCapture_precpp = atoi(prop) ? TRUE : FALSE;
-        if(bMultiFrameCapture_precpp) {
+        if(mbIsSWMFNRCapture) {
+            LOGH("SWMFNR is enabled");
+            pp_config.feature_mask |=  CAM_QCOM_FEATURE_STILLMORE;
+        } else if(bMultiFrameCapture_precpp) {
             pp_config.feature_mask |= CAM_QTI_FEATURE_MFPROC_PRECPP;
         } else {
             pp_config.feature_mask |= CAM_QTI_FEATURE_MFPROC_POSTCPP;

@@ -6563,11 +6563,10 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, uint32_t frame_numb
     char prop[PROPERTY_VALUE_MAX];
     property_get("persist.vendor.camera.multiframe.capture.enable", prop, "0");
     bool bIsMultiFrameCapture = atoi(prop) ? TRUE : FALSE;
-
-    if(bIsMultiFrameCapture) {
+    if(bIsMultiFrameCapture || hal_obj->mbIsSWMFNRCapture) {
         settings->multiframe_snapshot = 1;
+        LOGD("multi frame snapshot is enabled");
     }
-
     // Image description
     const char *eepromVersion = hal_obj->getEepromVersionInfo();
     const uint32_t *ldafCalib = hal_obj->getLdafCalib();
@@ -8527,8 +8526,9 @@ int32_t QCamera3ReprocessChannel::addReprocStreamsFromSource(cam_pp_feature_conf
     }
 
     // meta reproc stream always appends as the last reproc stream
-    if (pp_config.feature_mask & CAM_QTI_FEATURE_MFPROC_POSTCPP) {
-        LOGH("MultiFrame Postcpp rocess mask is set, need duplicate buffers");
+    if ((pp_config.feature_mask & CAM_QTI_FEATURE_MFPROC_POSTCPP) ||
+       (pp_config.feature_mask & CAM_QCOM_FEATURE_STILLMORE )) {
+        LOGH("MultiFrame Postcpp Reprocess mask is set, need duplicate buffers");
         m_bMultiFrameCapture = TRUE;
     }
 
