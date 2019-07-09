@@ -19,7 +19,7 @@ endif
 LOCAL_SRC_FILES := fdleak.cpp memleak.cpp
 LOCAL_SHARED_LIBRARIES := libdl libcutils liblog
 LOCAL_MODULE := libhal_dbg
-LOCAL_MODULE_TAGS := optional eng
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_VENDOR_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
