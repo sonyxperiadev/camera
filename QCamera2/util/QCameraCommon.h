@@ -56,6 +56,7 @@ public:
             cam_dimension_t cur_dim);
     bool isVideoUBWCEnabled();
     static bool is_target_SDM450();
+    static bool is_target_SDM429();
     static bool is_target_SDM630();
     static bool is_target_QM215();
     static bool needHAL1Support();

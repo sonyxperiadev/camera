@@ -155,6 +155,20 @@ static int32_t perfLockParamsTakeSnapshot[] = {
     #endif
 };
 
+static int32_t perfLockParamsTakeSnapshotSDM429[] = {
+    // Set little cluster cores to 1.555 GHz
+    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0, 0x613,
+    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_1, 0x613,
+    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_2, 0x613,
+    MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_3, 0x613,
+    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0, 0x613,
+    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_1, 0x613,
+    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_2, 0x613,
+    MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_3, 0x613,
+    // Set big cluster offline
+    MPCTLV3_MAX_ONLINE_CPU_CLUSTER_BIG,     0x4
+};
+
 static int32_t perfLockParamsTakeSnapshotQM215[] = {
     // Disable power collapse
     MPCTLV3_ALL_CPUS_PWR_CLPS_DIS,          0x1,
@@ -414,6 +428,12 @@ QCameraPerfLock* QCameraPerfLock::create(
                         sizeof(perfLockParamsTakeSnapshotQM215));
                 mPerfLockInfo[perfLockType].perfLockParamsCount =
                 sizeof(perfLockParamsTakeSnapshotQM215)/sizeof(int32_t);
+           } else if ((perfLockType == PERF_LOCK_TAKE_SNAPSHOT) &&
+                       (QCameraCommon::is_target_SDM429())) {
+                memcpy (perfLockParamsTakeSnapshot,perfLockParamsTakeSnapshotSDM429,
+                        sizeof(perfLockParamsTakeSnapshotSDM429));
+                mPerfLockInfo[perfLockType].perfLockParamsCount =
+                sizeof(perfLockParamsTakeSnapshotSDM429)/sizeof(int32_t);
            }
         }
     }
