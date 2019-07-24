@@ -290,7 +290,7 @@ public:
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
                             uint8_t capture_intent, bool pprocDone, uint8_t fwk_cacMode,
-                            bool firstMetadataInBatch, bool enableZSL);
+                            bool firstMetadataInBatch, bool enableZSL, uint8_t fwkFlashMode);
     camera_metadata_t* saveRequestSettings(const CameraMetadata& jpegMetadata,
                             camera3_capture_request_t *request);
     int initParameters();
@@ -621,6 +621,7 @@ private:
         mm_camera_super_buf_t *main_meta;
         mm_camera_super_buf_t*aux_meta;
         bool enableZSL;
+        uint8_t fwkFlashMode;
     } PendingRequestInfo;
     typedef struct {
         uint32_t frame_number;

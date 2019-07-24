@@ -6155,6 +6155,7 @@ int32_t QCamera3PicChannel::notifyDropForPendingBuffer(uint32_t frameNumber,
                         }while(it != mReqFrameNumList.end());
                     }
                     found = true;
+                    m_postprocessor.eraseJpegSetting(frameNumber);
                     break;
                 }
             }

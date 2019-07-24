@@ -2192,6 +2192,8 @@ int32_t mm_muxer_frame_sync_queue_deinit(mm_frame_sync_queue_t *queue)
 {
     int32_t rc = 0;
     rc = cam_queue_deinit(&queue->que);
+    queue->expected_frame_id = 0;
+    queue->match_cnt = 0;
     return rc;
 }
 

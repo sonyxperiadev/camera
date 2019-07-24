@@ -3077,8 +3077,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                                 CAM_STREAM_TYPE_VIDEO) {
                             if (m_bEis3PropertyEnabled /* hint for EIS 3 needed here */)
                                 bufferCount = MAX_VIDEO_BUFFERS;
-                            else if (isTypeVideo == IS_TYPE_VENDOR_EIS)
-                                bufferCount = MAX_VIDEO_BUFFERS;
                         }
 
                         if (isSecureMode()) {
@@ -3117,6 +3115,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                             channel->setUBWCEnabled(true);
                         }
                         newStream->max_buffers = channel->getNumBuffers();
+                        if (isTypeVideo == IS_TYPE_VENDOR_EIS) {
+                            newStream->max_buffers = MAX_VIDEO_VENDOR_EIS_BUFFERS;
+                        }
                         newStream->priv = channel;
                     }
                     break;
@@ -4622,7 +4623,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             pMetaDataAux  = metadata;
         }
         resultMetadata = m_pFovControl->processResultMetadata(pMetaDataMain, pMetaDataAux);
-        if (frame_number == UINT32_MAX) {
+        if ((frame_number == UINT32_MAX) || (mHALZSL && (resultMetadata == NULL))) {
             mMetadataChannel->bufDone(metadata_buf);
             free(metadata_buf);
             return;
@@ -4867,6 +4868,12 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             if (i->internalRequestList.size() == 0) {
                 mPendingLiveRequest--;
             }
+
+            if (capture_time == 0) {
+                LOGE("Invalid timestamp in metadata, send result error");
+                notifyError(i->frame_number, CAMERA3_MSG_ERROR_RESULT);
+            }
+
             /* Clear notify_msg structure */
             camera3_notify_msg_t notify_msg;
             memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
@@ -4924,7 +4931,7 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 result.result = translateFromHalMetadata(metadata,
                         i->timestamp, i->request_id, i->jpegMetadata, i->pipeline_depth,
                         i->capture_intent, internalPproc, i->fwkCacMode,
-                        firstMetadataInBatch, i->enableZSL);
+                        firstMetadataInBatch, i->enableZSL, i->fwkFlashMode);
                 result.result = restoreHdrScene(i->scene_mode, result.result);
             }
 
@@ -5068,11 +5075,6 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
     }
 
 done_metadata:
-    for (pendingRequestIterator i = mPendingRequestsList.begin();
-            i != mPendingRequestsList.end() ;i++) {
-        i->pipeline_depth++;
-    }
-
     if(!meta_freed && free_and_bufdone_meta_buf)
     {
         mMetadataChannel->bufDone(metadata_buf);
@@ -7629,7 +7631,7 @@ no_error:
        pInputBuffer = NULL;
     }
 
-    pendingRequest.pipeline_depth = 0;
+    pendingRequest.pipeline_depth = MAX_PIPELINE_DEPTH;
     pendingRequest.partial_result_cnt = 0;
     extractJpegMetadata(mCurJpegMeta, request);
     pendingRequest.jpegMetadata = mCurJpegMeta;
@@ -7665,6 +7667,10 @@ no_error:
     pendingRequest.enableZSL = false;
     if (meta.exists(ANDROID_CONTROL_ENABLE_ZSL)) {
         pendingRequest.enableZSL = meta.find(ANDROID_CONTROL_ENABLE_ZSL).data.u8[0];
+    }
+
+    if (meta.exists(ANDROID_FLASH_MODE)) {
+        pendingRequest.fwkFlashMode = (uint8_t)meta.find(ANDROID_FLASH_MODE).data.u8[0];
     }
 
     //extract CAC info
@@ -8807,7 +8813,7 @@ camera_metadata_t * QCamera3HardwareInterface::getPhysicalMeta(
      metadata_buffer_t *meta = (metadata_buffer_t *)metadata->bufs[0]->buffer;
      cam_meta = translateFromHalMetadata(meta, request->timestamp, request_id,
                     request->jpegMetadata, request->pipeline_depth, capture_intent,
-                    false, fwkCacMode, false, request->enableZSL);
+                    false, fwkCacMode, false, request->enableZSL, request->fwkFlashMode);
      resultWrapper.acquire(cam_meta);
 
     if(IS_MULTI_CAMERA)
@@ -8943,7 +8949,8 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                                  bool pprocDone,
                                  uint8_t fwk_cacMode,
                                  bool firstMetadataInBatch,
-                                 bool enableZSL)
+                                 bool enableZSL,
+                                 uint8_t fwkFlashMode)
 {
     CameraMetadata camMetadata;
     camera_metadata_t *resultMetadata;
@@ -9041,10 +9048,14 @@ QCamera3HardwareInterface::translateFromHalMetadata(
 
     IF_META_AVAILABLE(uint32_t, flashMode, CAM_INTF_META_FLASH_MODE, metadata) {
         int val = lookupFwkName(FLASH_MODES_MAP, METADATA_MAP_SIZE(FLASH_MODES_MAP), *flashMode);
+        uint8_t fwk_flashMode;
         if (NAME_NOT_FOUND != val) {
-            uint8_t fwk_flashMode = (uint8_t)val;
-            camMetadata.update(ANDROID_FLASH_MODE, &fwk_flashMode, 1);
+            fwk_flashMode = (uint8_t)val;
+        } else {
+            //AE overrides flash control, so get flash mode from request settings instead of meta.
+            fwk_flashMode = fwkFlashMode;
         }
+        camMetadata.update(ANDROID_FLASH_MODE, &fwk_flashMode, 1);
     }
 
     IF_META_AVAILABLE(uint32_t, hotPixelMode, CAM_INTF_META_HOTPIXEL_MODE, metadata) {
@@ -11971,7 +11982,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
                       size);
 
     uint8_t max_pipeline_depth =
-        (uint8_t)(MAX_INFLIGHT_REQUESTS + EMPTY_PIPELINE_DELAY + FRAME_SKIP_DELAY);
+        (uint8_t)(MAX_PIPELINE_DEPTH + EMPTY_PIPELINE_DELAY + FRAME_SKIP_DELAY);
     staticInfo.update(ANDROID_REQUEST_PIPELINE_MAX_DEPTH,
                       &max_pipeline_depth,
                       1);
@@ -12577,6 +12588,7 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
     }
 
     //HFR configs for 60 and 90
+    int32_t maxHFRFps = CAM_HFR_MODE_OFF;
     Vector<int32_t> custom_hfr_configs;
     for (size_t i = 0; i < gCamCapability[cameraId]->hfr_tbl_cnt; i++) {
         int32_t fps = 0;
@@ -12599,12 +12611,16 @@ int QCamera3HardwareInterface::initStaticMetadata(uint32_t cameraId)
             custom_hfr_configs.add(
                     gCamCapability[cameraId]->hfr_tbl[i].dim[0].height);
         }
+
+        if (gCamCapability[cameraId]->hfr_tbl[i].mode > maxHFRFps) {
+            maxHFRFps = gCamCapability[cameraId]->hfr_tbl[i].mode;
+        }
     }
 
     /*HFR configs of 60 and 90fps are not supported as changes are not completely implemented
     end to end. Once changes are implemented, changes can be uncommented to support it. Define
     macro "SUPPORT_HFR_CONFIG_60_90_FPS" to enable HFR 60 and 90 fps in the app setting*/
-    if (custom_hfr_configs.size() > 0) {
+    if ((custom_hfr_configs.size() > 0) && (maxHFRFps >= CAM_HFR_MODE_120FPS)) {
         staticInfo.update(
             QCAMERA3_HFR_SIZES,
             custom_hfr_configs.array(), custom_hfr_configs.size());
