@@ -8029,6 +8029,7 @@ no_error:
 
     //if one o/p and one i/p i.e. reprocess request.
     uint8_t reproc_req = ((request->num_output_buffers == 1) && (request->input_buffer != NULL));
+    reproc_req = reproc_req && !mRawDumpChannel;
 
     if(!reproc_req || (internallyRequestedStreams.size()))
     {
