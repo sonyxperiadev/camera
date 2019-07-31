@@ -3891,7 +3891,8 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
         __unused bool internalRequest,
         __unused bool meteringOnly,
         __unused bool isZSL,
-        __unused bool dualSyncBuf)
+        __unused bool dualSyncBuf,
+        __unused bool skipRequest)
 {
     int32_t rc = NO_ERROR;
     Mutex::Autolock lock(mOfflinePpLock);
@@ -4037,7 +4038,7 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
                 camHandle = m_pMetaChannel->getMyCamHandle();
             }
             //skip request zsl buffer in yuvzsl for main if requested sync buf.
-            if(!(m_bDualChannel && m_bZSL && dualSyncBuf && mAuxYUVChannel != NULL))
+            if(!(m_bDualChannel && m_bZSL && dualSyncBuf && skipRequest))
             {
                 if (isZSL) {
                     requestZSLBuf(camHandle, handle);
@@ -4096,9 +4097,10 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
                 mStreams[0]->bufDone(bufIdx);
             }
         }
-    } else if(NULL != mAuxYUVChannel) {
+    } 
+    if (mAuxYUVChannel && (!bIsMaster || hal_obj->needHALPP())) {
         mAuxYUVChannel->request(buffer, frameNumber, pInputBuffer, metadata, needMetadata,
-                                indexUsed, dualSyncBuf);
+                                indexUsed, dualSyncBuf, !skipRequest);
     }
 
     return rc;
