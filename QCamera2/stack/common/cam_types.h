@@ -140,17 +140,14 @@
 #define EXIF_IMAGE_DESCRIPTION_SIZE 100
 
 #define MAX_INFLIGHT_REQUESTS  6
-#define MAX_INFLIGHT_BLOB      3
+#define MAX_INFLIGHT_BLOB      10
 #define MIN_INFLIGHT_REQUESTS  3
 #define MIN_INFLIGHT_60FPS_REQUESTS (6)
 #define MAX_INFLIGHT_REPROCESS_REQUESTS 1
 #define MAX_INFLIGHT_HFR_REQUESTS (48)
 #define MIN_INFLIGHT_HFR_REQUESTS (40)
 
-// Max allowed video buffer count for all cases
-#define MAX_VIDEO_BUFFERS 24
-// Max allowed video buffer count for 30fps
-#define MAX_30FPS_VIDEO_BUFFERS 18
+#define MAX_VIDEO_BUFFERS 30
 
 #define QCAMERA_DUMP_FRM_LOCATION "/data/vendor/camera/"
 #define QCAMERA_MAX_FILEPATH_LENGTH 64

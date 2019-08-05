@@ -2397,12 +2397,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         int bufferCount = MAX_INFLIGHT_REQUESTS;
                         if (mStreamConfigInfo.type[mStreamConfigInfo.num_streams] ==
                                 CAM_STREAM_TYPE_VIDEO) {
-                            if (m_bEis3PropertyEnabled /* hint for EIS 3 needed here */) {
-                                // WAR: 4K video can only run <=30fps, reduce the buffer count.
-                                bufferCount = m_bIs4KVideo ?
-                                    MAX_30FPS_VIDEO_BUFFERS : MAX_VIDEO_BUFFERS;
-                            }
-
+                            if (m_bEis3PropertyEnabled /* hint for EIS 3 needed here */)
+                                bufferCount = MAX_VIDEO_BUFFERS;
                         }
                         channel = new QCamera3RegularChannel(mCameraHandle->camera_handle,
                                 mChannelHandle, mCameraHandle->ops, captureResultCb,
