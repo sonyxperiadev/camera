@@ -28,8 +28,10 @@
 */
 
 // Camera dependencies
+#include <stdlib.h>
+#include <pthread.h>
+
 #include "QCameraTrace.h"
-#include <string.h>
 #define CAMSCOPE_MEMSTORE_SIZE 0x00100000 // 1MB
 
 volatile uint32_t kpi_camscope_flags = 0;
