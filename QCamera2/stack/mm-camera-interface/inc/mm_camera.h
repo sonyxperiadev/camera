@@ -568,7 +568,7 @@ typedef struct mm_channel {
     uint8_t num_s_cnt;
     struct mm_channel *aux_ch_obj[MM_CAMERA_MAX_AUX_CAMERA];  /*Slave channel of this channel*/
     uint8_t match_meta;
-    uint32_t snapshot_stream_id;
+    uint32_t zsl_stream_id;
 } mm_channel_t;
 
 typedef struct {
