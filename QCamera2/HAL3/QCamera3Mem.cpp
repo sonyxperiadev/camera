@@ -886,7 +886,11 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     status_t ret = NO_ERROR;
     struct ion_fd_data ion_info_fd;
     void *vaddr = NULL;
+#ifdef USE_COLOR_METADATA
+    ColorMetaData bufferMetadata   = {};
+#else
     int32_t colorSpace = ITU_R_601_FR;
+#endif
     int32_t idx = -1;
 
     LOGD("E");
@@ -914,7 +918,16 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     mBufferHandle[idx] = buffer;
     mPrivateHandle[idx] = (struct private_handle_t *)(*mBufferHandle[idx]);
 
+#ifdef USE_COLOR_METADATA
+    // default Color Metadata
+    bufferMetadata.colorPrimaries        = ColorPrimaries_BT601_6_625;
+    bufferMetadata.range                 = Range_Full;
+    bufferMetadata.transfer              = Transfer_SMPTE_170M;
+    bufferMetadata.matrixCoefficients    = MatrixCoEff_BT601_6_625;
+    setMetaData(mPrivateHandle[idx], COLOR_METADATA, &bufferMetadata);
+#else
     setMetaData(mPrivateHandle[idx], UPDATE_COLOR_SPACE, &colorSpace);
+#endif
 
 #ifndef TARGET_ION_ABI_VERSION
     mMemInfo[idx].main_ion_fd = open("/dev/ion", O_RDONLY);
