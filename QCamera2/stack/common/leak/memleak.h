@@ -31,7 +31,7 @@
 #ifndef MEMLEAK_H
 #define MEMLEAK_H
 #include <pthread.h>
-
+#include <unistd.h>
 
 #ifdef __cplusplus
 extern "C" {

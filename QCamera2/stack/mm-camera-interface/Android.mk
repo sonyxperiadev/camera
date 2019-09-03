@@ -4,6 +4,9 @@ LOCAL_PATH := $(call my-dir)
 include $(LOCAL_PATH)/../../../common.mk
 include $(CLEAR_VARS)
 
+LOCAL_HEADER_LIBRARIES := libhardware_headers
+LOCAL_HEADER_LIBRARIES += media_plugin_headers
+
 MM_CAM_FILES := \
 src/mm_camera_interface.c \
 src/mm_camera.c \
@@ -42,11 +45,10 @@ LOCAL_CFLAGS  += -DMEMLEAK_FLAG
 LOCAL_LDFLAGS += -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=socket -Wl,--wrap=pipe -Wl,--wrap=mmap -Wl,--wrap=__open_2
 LOCAL_LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=free -Wl,--wrap=realloc -Wl,--wrap=calloc
 LOCAL_C_INCLUDES := \
+system/media/camera/include \
 $(LOCAL_PATH)/inc \
 $(LOCAL_PATH)/../common \
 $(LOCAL_PATH)/../common/leak \
-hardware/libhardware/include/hardware \
-system/media/camera/include \
 
 LOCAL_CFLAGS += -DCAMERA_ION_HEAP_ID=ION_IOMMU_HEAP_ID
 LOCAL_C_INCLUDES+= $(kernel_includes)
