@@ -2830,6 +2830,11 @@ void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
                 }
             }
             break;
+        }else {
+           if(IS_BUFFER_ERROR(buf_info->buf->flags)) {
+                LOGH("buffer error for frame_idx = %d", buf_info->frame_idx);
+                node->is_drop_frame = true;
+            }
         }
     }
 }
