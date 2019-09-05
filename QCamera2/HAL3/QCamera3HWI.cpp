@@ -4716,7 +4716,9 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             pMetaDataAux  = metadata;
         }
         resultMetadata = m_pFovControl->processResultMetadata(pMetaDataMain, pMetaDataAux);
-        if ((frame_number == UINT32_MAX) || (mHALZSL && (resultMetadata == NULL))) {
+        if ((frame_number == UINT32_MAX)
+             || (!(getHalPPType() == CAM_HAL_PP_TYPE_SAT)
+             && mHALZSL && (resultMetadata == NULL))) {
             mMetadataChannel->bufDone(metadata_buf);
             free(metadata_buf);
             return;
@@ -8405,6 +8407,16 @@ no_error:
                     mAuxParameters->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
                 }
             }
+
+            if(IS_HAL_PP_TYPE_BOKEH)
+            {
+                uint32_t sync_param = 1;
+                ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                                    CAM_INTF_PARM_SYNC_DC_PARAMETERS, sync_param);
+                ADD_SET_PARAM_ENTRY_TO_BATCH(mAuxParameters,
+                                    CAM_INTF_PARM_SYNC_DC_PARAMETERS, sync_param);
+            }
+
             if(!IS_MULTI_CAMERA)
             {
                 rc = mCameraHandle->ops->set_parms(
@@ -8412,7 +8424,6 @@ no_error:
                 if (rc < 0) {
                     LOGE("set_parms failed");
                 }
-
                 if (isDualCamera() && !IS_PP_TYPE_NONE) {
                     rc = mCameraHandle->ops->set_parms(
                           get_aux_camera_handle(mCameraHandle->camera_handle), mAuxParameters);
