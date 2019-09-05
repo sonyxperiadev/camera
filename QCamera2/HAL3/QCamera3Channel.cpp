@@ -4257,6 +4257,7 @@ void QCamera3YUVChannel::streamCbRoutine(mm_camera_super_buf_t *super_frame,
         if (ppInfo == mOfflinePpInfoList.end()) {
             LOGE("Error, request for frame number is a reprocess.");
             stream->bufDone(frameIndex);
+            free(super_frame);
             return;
         }
         if(lastReturnedFrame == 0) {
@@ -4888,6 +4889,7 @@ void QCamera3YUVChannel::ZSLChannelCb(mm_camera_super_buf_t *recvd_frame)
                 }
             } else {
                 m_pMetaChannel->bufDone(meta_buf);
+                free(meta_buf);
             }
         }
     }
