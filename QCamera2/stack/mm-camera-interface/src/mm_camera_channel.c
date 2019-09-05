@@ -3537,8 +3537,9 @@ mm_channel_queue_node_t* mm_channel_superbuf_dequeue_meta_frame(
 
     super_buf = mm_channel_superbuf_dequeue_internal(queue, TRUE, ch_obj);
     while (super_buf != NULL) {
-        if (frame_idx == super_buf->meta_frame_idx) {
-            LOGH("Found requested superbuf with meta_frame_idx %d", frame_idx);
+        if (frame_idx <= super_buf->meta_frame_idx) {
+            LOGH("Found requested superbuf frame_id %d sending meta_frame_idx %d",
+                                                        frame_idx, super_buf->meta_frame_idx);
             break;
         } else {
             LOGD("Discarding unwanted superbuf meta_frame_idx %d", super_buf->meta_frame_idx);

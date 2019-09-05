@@ -464,6 +464,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mCommon(),
       mQCFACaptureChannel(NULL),
       m_pFovControl(NULL),
+      mMultiRawChannel(NULL),
+      m_bMultiRawRequest(false),
       mFirstFrameNumberInBatch(0),
       mNeedSensorRestart(false),
       mPreviewStarted(false),
@@ -714,6 +716,9 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     if (mQCFACaptureChannel) {
         mQCFACaptureChannel->stop();
     }
+    if (mMultiRawChannel) {
+        mMultiRawChannel->stop();
+    }
     // NOTE: 'camera3_stream_t *' objects are already freed at
     //        this stage by the framework
     for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
@@ -769,6 +774,10 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     if (mQCFACaptureChannel) {
         delete mQCFACaptureChannel;
         mQCFACaptureChannel = NULL;
+    }
+    if (mMultiRawChannel) {
+        delete mMultiRawChannel;
+        mMultiRawChannel = NULL;
     }
 
     mPictureChannel = NULL;
@@ -2206,6 +2215,9 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         mPictureChannel->stopChannel();
     }
 
+    if (mMultiRawChannel) {
+        mMultiRawChannel->stop();
+    }
     if (mChannelHandle) {
         mCameraHandle->ops->stop_channel(mCameraHandle->camera_handle,
                 mChannelHandle);
@@ -3526,6 +3538,33 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
         }
     }
 
+    char property[PROPERTY_VALUE_MAX];
+    property_get("persist.vendor.camera.mfc.raw", property, "0");
+    int mfcRAW = atoi(property);
+    if (mfcRAW && (!isDualCamera())) {
+        cam_dimension_t rawDumpSize;
+        rawDumpSize = getMaxRawSize(mCameraId);
+        cam_feature_mask_t rawDumpFeatureMask = CAM_QCOM_FEATURE_NONE;
+        setPAAFSupport(rawDumpFeatureMask,
+                CAM_STREAM_TYPE_RAW,
+                gCamCapability[mCameraId]->color_arrangement);
+
+        property_get("persist.vendor.camera.mfc.raw.capture.count", prop, "3");
+        mMultiFrameRAWCaptureCount = (uint8_t)atoi(prop);
+
+        mMultiRawChannel = new QCamera3MultiRawChannel(mCameraHandle->camera_handle,
+                                  mChannelHandle,
+                                  mCameraHandle->ops,
+                                  rawDumpSize,
+                                  &padding_info,
+                                  this, rawDumpFeatureMask,
+                                  mMultiFrameRAWCaptureCount);
+        if (!mMultiRawChannel) {
+            LOGE("Raw channel cannot be created");
+            pthread_mutex_unlock(&mMutex);
+            return -ENOMEM;
+        }
+    }
 
     if (mAnalysisChannel) {
         int index = CONFIG_INDEX_MAIN;
@@ -3649,6 +3688,23 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
             stream_index++;
             index++;
         }while(isDualCamera() && is_aux_configured && (index < CONFIG_INDEX_MAX));
+    }
+
+    if (mMultiRawChannel) {
+        int index = CONFIG_INDEX_MAIN;
+        uint32_t &stream_index = mStreamConfigInfo[index].num_streams;
+        cam_dimension_t rawSize;
+        rawSize = getMaxRawSize(mCameraId);
+        mStreamConfigInfo[index].stream_sizes[stream_index] =
+                rawSize;
+        mStreamConfigInfo[index].type[stream_index] =
+                CAM_STREAM_TYPE_RAW;
+        mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                CAM_QCOM_FEATURE_NONE;
+        setPAAFSupport(mStreamConfigInfo[index].postprocess_mask[stream_index],
+                mStreamConfigInfo[index].type[stream_index],
+                gCamCapability[mCameraId]->color_arrangement);
+        mStreamConfigInfo[index].num_streams++;
     }
     /* In HFR mode, if video stream is not added, create a dummy channel so that
      * ISP can create a batch mode even for preview only case. This channel is
@@ -4933,30 +4989,29 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             //TODO: for now, we don't support two streams requiring metadata at the same time.
             // (because we are not making copies, and metadata buffer is not reference counted.
             bool internalPproc = false;
-            if (!IS_SNAP_ZSL) {
-                for (pendingBufferIterator iter = i->buffers.begin();
-                        iter != i->buffers.end(); iter++) {
-                    if (iter->need_metadata) {
-                        internalPproc = true;
-                        QCamera3ProcessingChannel *channel =
-                                (QCamera3ProcessingChannel *)iter->stream->priv;
-                        channel->queueReprocMetadata(metadata_buf, i->frame_number, dropFrame);
-                        if(p_is_metabuf_queued != NULL) {
-                            *p_is_metabuf_queued = true;
-                        }
-                        meta_freed = true;
-                        break;
+
+            for (pendingBufferIterator iter = i->buffers.begin();
+                 iter != i->buffers.end(); iter++) {
+                if (iter->need_metadata) {
+                    internalPproc = true;
+                    QCamera3ProcessingChannel *channel =
+                       (QCamera3ProcessingChannel *)iter->stream->priv;
+                    channel->queueReprocMetadata(metadata_buf, i->frame_number, dropFrame);
+                    if(p_is_metabuf_queued != NULL) {
+                        *p_is_metabuf_queued = true;
                     }
+                    meta_freed = true;
+                    break;
                 }
-                for (auto itr = i->internalRequestList.begin();
-                      itr != i->internalRequestList.end(); itr++) {
-                    if (itr->need_metadata) {
-                        internalPproc = true;
-                        QCamera3ProcessingChannel *channel =
-                                (QCamera3ProcessingChannel *)itr->stream->priv;
-                        channel->queueReprocMetadata(metadata_buf, i->frame_number, dropFrame);
-                        break;
-                    }
+            }
+            for (auto itr = i->internalRequestList.begin();
+                 itr != i->internalRequestList.end(); itr++) {
+                if (itr->need_metadata) {
+                    internalPproc = true;
+                    QCamera3ProcessingChannel *channel =
+                        (QCamera3ProcessingChannel *)itr->stream->priv;
+                    channel->queueReprocMetadata(metadata_buf, i->frame_number, dropFrame);
+                    break;
                 }
             }
 
@@ -5429,6 +5484,19 @@ bool QCamera3HardwareInterface::IsQCFASelected(camera3_capture_request *request)
     return (qcfaReq && (selected > 0));
 }
 
+bool QCamera3HardwareInterface::isMFCRaw(__unused camera3_capture_request *request)
+{
+    char property[PROPERTY_VALUE_MAX];
+    property_get("persist.vendor.camera.mfc.raw.capture", property, "0");
+    int mfcRAWCapture = atoi(property);
+    if( !isDualCamera()) {
+      return (mfcRAWCapture > 0);
+    } else {
+      return 0;
+    }
+}
+
+
 /*===========================================================================
  * FUNCTION   : isHdrSnapshotRequest
  *
@@ -5559,6 +5627,13 @@ int32_t QCamera3HardwareInterface::orchestrateAdvancedCapture(
         return orchestrateMultiFrameCapture(request);
     }
 
+    if (isMFCRaw(request)) {
+        isAdvancedCapture = true;
+        m_bMultiRawRequest = true;
+        return orchestrateMFCRawCapture(request);
+    }
+
+
     return NO_ERROR;
 }
 
@@ -5592,6 +5667,39 @@ int32_t QCamera3HardwareInterface::orchestrateRequest(
         ret = processCaptureRequest(request, internallyRequestedStreams);
     }
 
+    return ret;
+}
+
+int32_t QCamera3HardwareInterface::orchestrateMFCRawCapture(
+        camera3_capture_request_t *request)
+{
+    int32_t ret = NO_ERROR;
+    int indexUsed;
+    uint32_t internalFrameNumber;
+    List<InternalRequest> internallyRequestedStreams;
+    uint32_t originalFrameNumber = request->frame_number;
+
+    for (int i = 0; i < mMultiFrameRAWCaptureCount; i++) {
+        _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
+        request->frame_number = internalFrameNumber;
+
+        cam_stream_ID_t streamsArray;
+        memset(&streamsArray, 0, sizeof(cam_stream_ID_t));
+        streamsArray.num_streams = 1;
+        streamsArray.stream_request[0].streamID =
+            mMultiRawChannel->getStreamID(mMultiRawChannel->getStreamTypeMask());
+        streamsArray.stream_request[0].buf_index = CAM_FREERUN_IDX;
+        setFrameParameters(request->settings, streamsArray, true,
+            0 /* what should we pass here?? */, mParameters, request);
+        mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
+    }
+
+    _orchestrationDb.allocStoreInternalFrameNumber(originalFrameNumber, internalFrameNumber);
+    request->frame_number = internalFrameNumber;
+    mMultiRawChannel->request(NULL, request->frame_number, indexUsed);
+    ret = processCaptureRequest(request, internallyRequestedStreams);
+
+    m_bMultiRawRequest = false;
     return ret;
 }
 
@@ -5697,8 +5805,11 @@ int32_t QCamera3HardwareInterface::orchestrateHDRCapture(
             ALOGE("Error Internally Requested Stream list is empty");
             assert(0);
         } else {
-            itr->need_metadata = 1;
-            itr->meteringOnly = 0;
+           if (!IS_SNAP_ZSL)
+              itr->need_metadata = 1;
+           else
+              itr->need_metadata = 0;
+           itr->meteringOnly = 0;
         }
 
         _orchestrationDb.generateStoreInternalFrameNumber(internalFrameNumber);
@@ -5732,7 +5843,10 @@ int32_t QCamera3HardwareInterface::orchestrateHDRCapture(
             ALOGE("Error Internally Requested Stream list is empty");
             assert(0);
         } else {
-            itr->need_metadata = 1;
+            if (!IS_SNAP_ZSL)
+               itr->need_metadata = 1;
+            else
+               itr->need_metadata = 0;
             itr->meteringOnly = 0;
         }
 
@@ -5911,6 +6025,10 @@ int32_t QCamera3HardwareInterface::switchStreamConfigInternal(__unused uint32_t 
     if (mQCFACaptureChannel) {
         delete mQCFACaptureChannel;
         mQCFACaptureChannel = NULL;
+    }
+    if (mMultiRawChannel) {
+        delete mMultiRawChannel;
+        mMultiRawChannel = NULL;
     }
 
     /* unconfigure and reset meta stream info */
@@ -7097,6 +7215,14 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 goto error_exit;
             }
         }
+        if (mMultiRawChannel) {
+            rc = mMultiRawChannel->initialize(IS_TYPE_NONE);
+            if (rc < 0) {
+                LOGE("raw channel initialization failed");
+                pthread_mutex_unlock(&mMutex);
+                goto error_exit;
+            }
+        }
 
         // Set bundle info
         rc = setBundleInfo();
@@ -7244,6 +7370,33 @@ int QCamera3HardwareInterface::processCaptureRequest(
                     mSupportChannel->stop();
                 if (mAnalysisChannel) {
                     mAnalysisChannel->stop();
+                }
+                mMetadataChannel->stop();
+                pthread_mutex_unlock(&mMutex);
+                goto error_exit;
+            }
+        }
+
+        if (mMultiRawChannel) {
+            LOGD("Starting multi raw channel");
+            rc = mMultiRawChannel->start();
+            if (rc != NO_ERROR) {
+                LOGE("Error Starting multi Raw Channel");
+                for (List<stream_info_t *>::iterator it = mStreamInfo.begin();
+                      it != mStreamInfo.end(); it++) {
+                    QCamera3Channel *channel =
+                        (QCamera3Channel *)(*it)->stream->priv;
+                    LOGH("Stopping Processing Channel mask=%d",
+                        channel->getStreamTypeMask());
+                    channel->stop();
+                }
+                if (mSupportChannel)
+                    mSupportChannel->stop();
+                if (mAnalysisChannel) {
+                    mAnalysisChannel->stop();
+                }
+                if (mRawDumpChannel) {
+                    mRawDumpChannel->stop();
                 }
                 mMetadataChannel->stop();
                 pthread_mutex_unlock(&mMutex);
@@ -7507,6 +7660,9 @@ no_error:
             } else if (m_bQuadraCfaRequest && !m_bInSensorQCFA) {
                 m_bOfflineIsp = true;
                 m_ppChannelCnt = 2;
+            } else if (m_bMultiRawRequest) {
+                m_bOfflineIsp = true;
+                m_ppChannelCnt = 1;
             } else {
                 m_bOfflineIsp = false;
                 m_ppChannelCnt = 1;
@@ -7924,9 +8080,13 @@ no_error:
                 }
                 LOGD("snapshot request with buffer %p, frame_number %d isZSLCapture %d",
                          output.buffer, frameNumber, isZSLCapture);
-                if (m_bQuadraCfaRequest) {
+                if (m_bQuadraCfaRequest || m_bMultiRawRequest) {
                     LOGH("blob request for quadra cfa raw size");
                     rc = channel->request(output.buffer, frameNumber, NULL, m_params, indexUsed);
+                    if (m_bMultiRawRequest) {
+                        pendingBufferIter->need_metadata = true;
+                        streams_need_metadata++;
+                    }
                     continue;
                 }
 
@@ -8004,8 +8164,9 @@ no_error:
                     assert(0);
                 }
             }
-
-            pendingBufferIter->need_metadata = needMetadata;
+            if (!channel->isZSLChannel()) {
+                pendingBufferIter->need_metadata = needMetadata;
+            }
             if (needMetadata)
                 streams_need_metadata += 1;
             LOGD("calling YUV channel request, need_metadata is %d",
@@ -8086,6 +8247,7 @@ no_error:
                 }
             } else {
                 LOGD("snapshot request with frame_number %d", frameNumber);
+
                 if (!request->settings) {
                     rc = channel->request(NULL, frameNumber,
                             NULL, mPrevParameters, indexUsed, true,
@@ -16278,6 +16440,9 @@ int32_t QCamera3HardwareInterface::stopAllChannels()
         /* If content of mStreamInfo is not 0, there is metadata stream */
         mMetadataChannel->stop();
     }
+    if (mMultiRawChannel) {
+        mMultiRawChannel->stop();
+    }
 
     if (m_bLPMEnabled) {
          cam_dual_camera_perf_control_t perf_value[1];
@@ -16404,6 +16569,13 @@ int32_t QCamera3HardwareInterface::startAllChannels()
                     mChannelHandle);
         if (rc < 0) {
             LOGE("start_channel failed");
+            return rc;
+        }
+    }
+    if (mMultiRawChannel) {
+        rc = mMultiRawChannel->start();
+        if (rc < 0) {
+            LOGE("RAW dump channel start failed");
             return rc;
         }
     }
@@ -16618,6 +16790,9 @@ int32_t QCamera3HardwareInterface::setBundleInfo()
          * as we call channel::destroy() but don't delete the channel obj after get qcfa raw */
         if (mQCFACaptureChannel && mQCFACaptureChannel->getStreamByIndex(0) != NULL) {
             mQCFACaptureChannel->setBundleInfo(bundleInfo);
+        }
+        if (mMultiRawChannel) {
+            mMultiRawChannel->setBundleInfo(bundleInfo);
         }
 
 
