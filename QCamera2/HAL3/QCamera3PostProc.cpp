@@ -3406,6 +3406,11 @@ int32_t QCamera3PostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
                 || ((jpeg_job->jpeg_settings == NULL)
                 || (jpeg_job->jpeg_settings->image_type == CAM_HAL3_JPEG_TYPE_AUX))) {
         LOGH("No need to encode input buffer, just release it.");
+        if(jpeg_job->src_reproc_frame)
+        {
+            QCamera3PicChannel *pChannel = (QCamera3PicChannel *)m_parent;
+            pChannel->releaseSnapshotBuffer(jpeg_job->src_reproc_frame);
+        }
         releaseJpegJobData(jpeg_job);
         free(jpeg_job);
         jpeg_job = NULL;
