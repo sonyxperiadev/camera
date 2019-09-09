@@ -2026,6 +2026,9 @@ int QCamera3HardwareInterface::cacheFwConfiguredStreams(
 {
     int rc = NO_ERROR;
     if (&mStreamList != streams_configuration) {
+        if (mStreamList.streams != NULL) {
+            free(mStreamList.streams);
+        }
         mStreamList = *streams_configuration;
         mStreamList.streams =
        (camera3_stream_t **)malloc(streams_configuration->num_streams * sizeof(camera3_stream_t*));
