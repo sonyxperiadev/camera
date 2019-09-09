@@ -5269,7 +5269,7 @@ void QCamera3HardwareInterface::handleInputBufferWithLock(uint32_t frame_number)
     while (i != mPendingRequestsList.end() && i->frame_number != frame_number){
         i++;
     }
-    if (i != mPendingRequestsList.end() && i->input_buffer) {
+    if (i != mPendingRequestsList.end() && i->input_buffer && (i->buffers.size() == 1)) {
         //found the right request
         if (!i->shutter_notified) {
             CameraMetadata settings;
@@ -7827,16 +7827,16 @@ no_error:
         if (!mBatchSize ||
            (mBatchSize && !isVidBufRequested) ||
            (mBatchSize && isVidBufRequested && !mToBeQueuedVidBufs)) {
-            cam_stream_ID_t *sArray = &streamsArray;
-            int loop = CONFIG_INDEX_MAIN;
-            metadata_buffer_t *params = mParameters;
-            const camera_metadata_t *settings = request->settings;
-            int blob = blob_request && !is_blob_on_aux;
-            uint32_t blob_stream_id = snapshotStreamId;
-            if(IS_MULTI_CAMERA)
-            {
-                if(!(is_main_configured || is_logical_configured))
-                {
+           cam_stream_ID_t *sArray = &streamsArray;
+           int loop = CONFIG_INDEX_MAIN;
+           metadata_buffer_t *params = mParameters;
+           const camera_metadata_t *settings = request->settings;
+           int blob = blob_request && !is_blob_on_aux;
+           uint32_t blob_stream_id = snapshotStreamId;
+           if(IS_MULTI_CAMERA)
+           {
+               if(!(is_main_configured || is_logical_configured))
+               {
                     if(is_aux_configured)
                     {
                         sArray = &streamsArraySlave;
@@ -7845,18 +7845,16 @@ no_error:
                         blob = is_blob_on_aux;
                         loop = CONFIG_INDEX_AUX;
                     }
-                }
-            }
-            do {
+              }
+           }
+           do {
                 rc = setFrameParameters(settings, *sArray, blob,
                     ((blob) ? blob_stream_id : 0), params, request);
-
                 if (rc < 0) {
                     LOGE("fail to set frame parameters");
                     pthread_mutex_unlock(&mMutex);
                     return rc;
-                }
-
+               }
                 if(is_aux_configured && loop != CONFIG_INDEX_AUX)
                 {
                     sArray = &streamsArraySlave;
@@ -7864,9 +7862,8 @@ no_error:
                     params = mAuxParameters;
                     blob = is_blob_on_aux;
                 }
-
                 loop ++;
-            } while(IS_MULTI_CAMERA && is_aux_configured && (loop < CONFIG_INDEX_MAX));
+           } while(IS_MULTI_CAMERA && is_aux_configured && (loop < CONFIG_INDEX_MAX));
         }
         /* For batchMode HFR, setFrameParameters is not called for every
          * request. But only frame number of the latest request is parsed.
@@ -7883,12 +7880,12 @@ no_error:
                 LOGE("Failed to set the frame number in the parameters");
                 pthread_mutex_unlock(&mMutex);
                 return BAD_VALUE;
-            }
+           }
         }
         if (mNeedSensorRestart) {
             /* Unlock the mutex as restartSensor waits on the channels to be
-             * stopped, which in turn calls stream callback functions -
-             * handleBufferWithLock and handleMetadataWithLock */
+            * stopped, which in turn calls stream callback functions -
+            * handleBufferWithLock and handleMetadataWithLock */
             pthread_mutex_unlock(&mMutex);
             rc = dynamicUpdateMetaStreamInfo();
             if (rc != NO_ERROR) {
@@ -7900,7 +7897,7 @@ no_error:
         }
         if(mResetInstantAEC) {
             ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
-                    CAM_INTF_PARM_INSTANT_AEC, (uint8_t)CAM_AEC_NORMAL_CONVERGENCE);
+                CAM_INTF_PARM_INSTANT_AEC, (uint8_t)CAM_AEC_NORMAL_CONVERGENCE);
             mResetInstantAEC = false;
         }
    } else if (request->input_buffer != NULL) {
