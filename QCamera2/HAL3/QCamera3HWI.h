@@ -520,6 +520,7 @@ private:
             cam_stream_size_info_t* streamsInfo, const cam_sync_type_t &type);
     void initDCSettings();
     void fillUBWCStats(camera3_stream_buffer_t *buffer);
+    void setColorMetadata(camera3_stream_buffer_t *buffer);
     bool needZSLCapture(const camera3_capture_request_t *request);
     int32_t addZSLChannel();
     static void zsl_channel_cb(mm_camera_super_buf_t *recvd_frame, void *userdata);

@@ -5351,6 +5351,15 @@ void QCamera3HardwareInterface::handleBufferWithLock(
         }
     }
 
+    #ifdef USE_COLOR_METADATA
+    {
+        QCamera3Channel *channel = (QCamera3Channel *)buffer->stream->priv;
+        if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
+            setColorMetadata(buffer);
+        }
+    }
+    #endif
+
     if (mFlushPerf) {
         handleBuffersDuringFlushLock(buffer);
         return;
@@ -17732,6 +17741,18 @@ void QCamera3HardwareInterface::fillUBWCStats(camera3_stream_buffer_t *buffer)
     struct private_handle_t *priv_handle =
                         (struct private_handle_t *) (*(buffer->buffer));
     setMetaData(priv_handle, SET_UBWC_CR_STATS_INFO, &stats);
+}
+
+void QCamera3HardwareInterface::setColorMetadata(camera3_stream_buffer_t *buffer)
+{
+    ColorMetaData bufferMetadata = {};
+    bufferMetadata.colorPrimaries = ColorPrimaries_BT601_6_625;
+    bufferMetadata.range = Range_Full;
+    bufferMetadata.transfer = Transfer_SMPTE_170M;
+    bufferMetadata.matrixCoefficients = MatrixCoEff_BT601_6_625;
+    struct private_handle_t *priv_handle =
+                        (struct private_handle_t *) (*(buffer->buffer));
+    setMetaData(priv_handle, COLOR_METADATA, &bufferMetadata);
 }
 
 bool QCamera3HardwareInterface::needZSLCapture(const camera3_capture_request_t *request)
