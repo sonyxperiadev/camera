@@ -2827,6 +2827,10 @@ void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
                         }
                     }
                 }
+                if(*p_frame_number_valid == FRAME_META_INCORRECT) {
+                    LOGH("meta data drop p_frame_number_valid %d", *p_frame_number_valid);
+                    node->is_drop_frame = true;
+                }
             }
             break;
         }else {

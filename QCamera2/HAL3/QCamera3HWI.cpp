@@ -4975,7 +4975,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
          if(IS_MULTI_CAMERA && checkIfMetaDropped(&(*i))) {
             allocateAndinitializeMetadata(&result, &(*i));
             notifyError(i->frame_number, CAMERA3_MSG_ERROR_RESULT);
-         }else if (!IS_MULTI_CAMERA && (i->frame_number < frame_number)) {
+         }else if (!IS_MULTI_CAMERA && ((i->frame_number < frame_number) ||
+            (frame_number_valid == FRAME_META_INCORRECT))){
             if (i->input_buffer) {
                 /* this will be handled in handleInputBufferWithLock */
                 i++;
@@ -4984,6 +4985,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 if (i->internalRequestList.size() == 0) {
                     mPendingLiveRequest--;
                 }
+                LOGI("sending error result for frame_number %d frame_number_valid %d",
+                    i->frame_number, frame_number_valid);
                 CameraMetadata dummyMetadata;
                 dummyMetadata.update(ANDROID_REQUEST_ID, &(i->request_id), 1);
                 result.result = dummyMetadata.release();

@@ -209,6 +209,9 @@
 #define IS_USAGE_HEIF(usage) (((usage) & (CAM_GRALLOC_USAGE_PRIVATE_HEIF)) \
         == (CAM_GRALLOC_USAGE_PRIVATE_HEIF))
 
+#define FRAME_META_INCORRECT 2
+
+
 typedef uint64_t cam_feature_mask_t;
 
 typedef enum {
