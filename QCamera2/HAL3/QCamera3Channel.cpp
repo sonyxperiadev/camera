@@ -5478,8 +5478,7 @@ QCamera3PicChannel::QCamera3PicChannel(uint32_t cam_handle,
         LOGE("Init Postprocessor failed");
     }
     mCompositeHandle = channel_handle;
-    if (is_dual_camera_by_handle(cam_handle)
-        && (!hal_obj->isPPMaskSetForScaling(postprocess_mask))) {
+    if (is_dual_camera_by_handle(cam_handle)) {
             m_camHandle = get_main_camera_handle(cam_handle);
             m_handle = get_main_camera_handle(channel_handle);
             mAuxPicChannel = new QCamera3PicChannel(get_aux_camera_handle(cam_handle),
