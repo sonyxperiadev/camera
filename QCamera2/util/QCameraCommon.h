@@ -59,6 +59,7 @@ public:
     static bool is_target_SDM429();
     static bool is_target_SDM630();
     static bool is_target_QM215();
+    static bool is_target_QM2150();
     static bool needHAL1Support();
     static bool skipAnalysisBundling();
     bool needAnalysisStream();
