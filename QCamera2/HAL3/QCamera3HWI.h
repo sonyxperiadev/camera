@@ -372,6 +372,7 @@ public:
     bool isQuadraSizedDimension(cam_dimension_t &dim);
     QCamera3PicChannel* getPicChannel() {return mPictureChannel;};
     cam_dimension_t getMaxRawSize(uint32_t camera_id);
+    int32_t updateFrameMetaWithParams(metadata_buffer_t *frameMeta);
 private:
 
     // State transition conditions:
@@ -847,6 +848,9 @@ private:
 
     //for multi frame raw capture
     uint8_t mMultiFrameRAWCaptureCount;
+
+    //quadra
+    camera3_capture_request_t **quad_req;
 };
 
 }; // namespace qcamera

@@ -499,7 +499,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mLPMEnable(true),
       m_bStopPicChannel(false),
       mHALZSL(CAM_HAL3_ZSL_TYPE_NONE),
-      mFlashNeeded(false)
+      mFlashNeeded(false),
+      quad_req(NULL)
 {
     getLogLevel();
     m_halPPType = CAM_HAL_PP_TYPE_NONE;
@@ -6111,6 +6112,8 @@ int32_t QCamera3HardwareInterface::deleteQCFACaptureChannel()
         mQCFACaptureChannel = NULL;
     }
 
+    quad_req = NULL;
+
     return 0;
 }
 
@@ -6208,6 +6211,8 @@ int32_t QCamera3HardwareInterface::captureQuadraCfaFrameInternal(camera3_capture
     setFrameParameters(request->settings, streamsArray, true, 0, mParameters, request);
     mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
 
+   //save request for updating result meta with frame params
+   quad_req = &request;
 
     /* 3. wait for raw capture done */
     mQCFACaptureChannel->waitCaptureDone();
@@ -8487,6 +8492,8 @@ no_error:
         mMultiFrameReqLock.unlock();
         mMultiFrameSnapshotRunning = false;
     }
+
+    quad_req = NULL;
 
     // Added a timed condition wait
     struct timespec ts;
@@ -11398,7 +11405,6 @@ cam_dimension_t QCamera3HardwareInterface::getMaxRawSize(uint32_t camera_id)
     }
     return maxRawSize;
 }
-
 
 /*===========================================================================
  * FUNCTION   : calcMaxJpegDim
@@ -17875,5 +17881,18 @@ bool QCamera3HardwareInterface::isQuadraSizedDimension(cam_dimension_t &dim)
     }
     return sizeMatched;
 }
+
+int32_t QCamera3HardwareInterface::updateFrameMetaWithParams(
+                                                   metadata_buffer_t *frameMeta)
+{
+    if(!quad_req || !(*quad_req)) return BAD_VALUE;
+    camera3_capture_request_t *req = *quad_req;
+    cam_stream_ID_t streamsArray;
+    memset(&streamsArray, 0, sizeof(streamsArray));
+    setFrameParameters(req->settings,streamsArray,0,0,frameMeta,req);
+    quad_req = NULL;
+    return NO_ERROR;
+}
+
 
 }; //end namespace qcamera

@@ -1191,6 +1191,17 @@ int32_t QCamera3ProcessingChannel::timeoutFrame(uint32_t frameNumber)
     return NO_ERROR;
 }
 
+void QCamera3ProcessingChannel::setQuadraMetaBuffer(metadata_buffer_t *meta,
+                                                      __unused metadata_buffer_t *framemeta)
+{
+   (void)meta;
+}
+
+void QCamera3ProcessingChannel::getQuadraMetaBuffer(metadata_buffer_t **meta)
+{
+    (void)meta;
+}
+
 /*===========================================================================
  * FUNCTION   : request
  *
@@ -3672,6 +3683,12 @@ QCamera3YUVChannel::~QCamera3YUVChannel()
        delete mAuxYUVChannel;
        mAuxYUVChannel = NULL;
    }
+
+   if(NULL != m_QuadraMeta)
+   {
+       free(m_QuadraMeta);
+       m_QuadraMeta = NULL;
+   }
 }
 
 void QCamera3YUVChannel::setDualChannelMode(bool bMode)
@@ -3839,6 +3856,38 @@ int32_t QCamera3YUVChannel::initialize(cam_is_type_t isType)
     return rc;
 }
 
+void QCamera3YUVChannel::setQuadraMetaBuffer(metadata_buffer_t *frameMeta,
+                                               __unused metadata_buffer_t* reproParam)
+{
+    QCamera3HardwareInterface *hal_obj = (QCamera3HardwareInterface *)mUserData;
+
+    m_QuadraMeta = (metadata_buffer_t *)calloc(sizeof(metadata_buffer_t),1);
+    if(m_QuadraMeta != NULL)
+    {
+        LOGH("cache meta buffer");
+        memcpy(m_QuadraMeta, frameMeta, sizeof(metadata_buffer_t));
+    }
+
+    if(hal_obj)
+    {
+        if(hal_obj->updateFrameMetaWithParams(m_QuadraMeta) == NO_ERROR) {
+            return;
+        }
+    }
+}
+
+void QCamera3YUVChannel::getQuadraMetaBuffer(metadata_buffer_t **meta)
+{
+    if(!(*meta)) return;
+
+    if(!(m_QuadraMeta)) return;
+
+    **meta = *m_QuadraMeta;
+
+    free(m_QuadraMeta);
+    m_QuadraMeta = NULL;
+}
+
 /*===========================================================================
  * FUNCTION   : queueReprocMetadata
  *
@@ -3993,6 +4042,8 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
                 return -1;
             }
             memcpy(super_buf, &(pChannel->meta_frame), sizeof(mm_camera_super_buf_t));
+            setQuadraMetaBuffer((metadata_buffer_t *)pChannel->meta_frame.bufs[0]->buffer,
+                                                                                       metadata);
             m_postprocessor.processPPMetadata(super_buf, frameNumber, false);
 
             super_buf = (mm_camera_super_buf_t *)malloc(sizeof(mm_camera_super_buf_t));
@@ -7192,6 +7243,7 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
 
         stream->getFrameDimension(dim);
         stream->getFrameOffset(offset);
+        obj->getQuadraMetaBuffer((metadata_buffer_t **)&m_processedMetaBuf.buffer);
 
         obj->m_postprocessor.processPPData(frame,
                 m_bOfflineIsp ? ((const metadata_buffer_t*)m_processedMetaBuf.buffer) : NULL);
