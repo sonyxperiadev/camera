@@ -822,6 +822,7 @@ private:
     bool m_bQuadraSizeConfigured;
     int8_t m_ppChannelCnt;
     camera3_stream_configuration_t mStreamList;
+    pthread_mutex_t mRemosaicLock;
 
     //UDCF
     bool mDualCamera;
