@@ -125,6 +125,8 @@ typedef enum {
 
 #define IS_HAL_PP_TYPE_BOKEH (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
 
+#define IS_HAL_PP_TYPE_SAT (getHalPPType() == CAM_HAL_PP_TYPE_SAT)
+
 #define IS_YUV_ZSL (mHALZSL == CAM_HAL3_ZSL_TYPE_CALLBACK)
 
 #define IS_SNAP_ZSL (mHALZSL == CAM_HAL3_ZSL_TYPE_SNAPSHOT)

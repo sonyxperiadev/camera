@@ -3021,6 +3021,28 @@ static int32_t mm_camera_intf_handle_frame_sync_cb(uint32_t camera_handle,
     return (int32_t)rc;
 }
 
+static int32_t mm_camera_intf_set_frame_sync (uint32_t camera_handle,
+                     uint32_t ch_id, uint32_t sync_value)
+{
+    int32_t rc = 0;
+    mm_camera_obj_t * my_obj = NULL;
+
+    uint32_t handle = get_main_camera_handle(camera_handle);
+    uint32_t m_chid = get_main_camera_handle(ch_id);
+
+    pthread_mutex_lock(&g_intf_lock);
+    my_obj = mm_camera_util_get_camera_by_handler(handle);
+    if(my_obj) {
+        pthread_mutex_lock(&my_obj->cam_lock);
+        pthread_mutex_unlock(&g_intf_lock);
+        rc = mm_camera_set_frame_sync(my_obj, m_chid, sync_value);
+    } else {
+        pthread_mutex_unlock(&g_intf_lock);
+    }
+    return (int32_t)rc;
+
+}
+
 struct camera_info *get_cam_info(uint32_t camera_id, cam_sync_type_t *pCamType)
 {
     *pCamType = g_cam_ctrl.cam_type[camera_id];
@@ -3134,7 +3156,8 @@ static mm_camera_ops_t mm_camera_ops = {
     .flush = mm_camera_intf_flush,
     .register_stream_buf_cb = mm_camera_intf_register_stream_buf_cb,
     .register_frame_sync = mm_camera_intf_reg_frame_sync,
-    .handle_frame_sync_cb = mm_camera_intf_handle_frame_sync_cb
+    .handle_frame_sync_cb = mm_camera_intf_handle_frame_sync_cb,
+    .set_frame_sync = mm_camera_intf_set_frame_sync
 };
 
 /*===========================================================================
