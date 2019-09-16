@@ -284,7 +284,18 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
         }
         m_ppChannelCnt = 0;
 
-        m_ppChannelCnt = hal_obj->getReprocChannelCnt();
+       //if YUV support quadra remosaic and 2 yuv configured/requested one with quadra size and
+       //other with offline reprocessing. then need to differentiate for how many reprocess
+       //channel required for which YUV channel.
+       if((config.reprocess_type == REPROCESS_TYPE_YUV)
+            && hal_obj->m_bQuadraCfaRequest
+            && !m_parent->m_bQuadraChannel)
+       {
+           m_ppChannelCnt = 1; //setting 1 for non-quadra YUV at remosaic requested PCR from framework.
+       } else {
+            m_ppChannelCnt = hal_obj->getReprocChannelCnt();
+       }
+
         LOGH("m_ppChannelCnt:%d", m_ppChannelCnt);
 
         reprocess_config_t local_cfg = config;
@@ -300,7 +311,8 @@ int32_t QCamera3PostProcessor::start(const reprocess_config_t &config)
 
         /*start the reprocess channel only if buffers are already allocated, thus
           only start it in an intermediate reprocess type, defer it for others*/
-        if (config.reprocess_type == REPROCESS_TYPE_JPEG) {
+        if ((config.reprocess_type == REPROCESS_TYPE_JPEG)
+            || ((config.reprocess_type == REPROCESS_TYPE_YUV) && (m_parent->m_bQuadraChannel))) {
             for (int8_t i = 0; i < m_ppChannelCnt; i++) {
                 rc = m_pReprocChannel[i]->start();
                 if (rc != 0) {
@@ -1211,7 +1223,7 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
         return BAD_VALUE;
     }
     LOGD("jpeg settings is :%p and %d",job->jpeg_settings, m_ongoingPPQ.getCurrentSize());
-    if (job->jpeg_settings == NULL )
+    if (job->jpeg_settings == NULL  && !m_parent->m_bQuadraChannel)
     {
         //If needHALPP is true, checking for ouput jpeg settings != NULL
         if(!hal_obj->needHALPP() || (job->ppOutput_jpeg_settings == NULL)) {
@@ -1328,13 +1340,11 @@ int32_t QCamera3PostProcessor::processPPData(mm_camera_super_buf_t *frame,
         return NO_ERROR;
     }
 
-    if (job->jpeg_settings->zsl_snapshot) {
+    if (job->jpeg_settings != NULL && job->jpeg_settings->zsl_snapshot) {
         m_parent->freeBufferForFrame(job->src_frame);
         job->src_frame = NULL;
     }
 
-    LOGH("pp_ch_idx:%d, total_pp_count:%d, frame number:%d", job->pp_ch_idx,
-            m_ppChannelCnt, job->frameNumber);
     if ((job->pp_ch_idx+1) < m_ppChannelCnt) {
         job->pp_ch_idx++;
         LOGH("next pp index:%d.", job->pp_ch_idx);

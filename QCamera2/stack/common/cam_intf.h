@@ -33,6 +33,7 @@
 // System dependencies
 #include <string.h>
 #include <media/msmb_isp.h>
+#include <stdbool.h>
 
 // Camera dependencies
 #include "cam_types.h"
@@ -742,6 +743,7 @@ typedef struct {
         cam_request_frames frameRequest; /*do TNR process*/
         cam_perf_mode_t perf_mode;       /*request operational mode*/
         enum msm_vfe_frame_skip_pattern skipPattern;
+        bool isflush;
     };
 } cam_stream_parm_buffer_t;
 

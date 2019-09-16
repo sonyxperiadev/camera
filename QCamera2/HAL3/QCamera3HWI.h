@@ -270,6 +270,7 @@ public:
 
     int32_t orchestrateHDRCapture(camera3_capture_request_t *request);
     int32_t orchestrateMultiFrameCapture(camera3_capture_request_t *request);
+    int32_t orchestrateMFCRawCapture(camera3_capture_request_t *request);
     int32_t orchestrateAdvancedCapture(camera3_capture_request_t *request, bool &isAdvancedCapture);
 
     void dump(int fd);
@@ -368,6 +369,9 @@ public:
     cam_capability_t *getCamHalCapabilities();
     bool isPPMaskSetForScaling(cam_feature_mask_t pp_mask);
     bool isHALZSLEnabled() {return mHALZSL;}
+    bool isQuadraSizedDimension(cam_dimension_t &dim);
+    QCamera3PicChannel* getPicChannel() {return mPictureChannel;};
+    cam_dimension_t getMaxRawSize(uint32_t camera_id);
 private:
 
     // State transition conditions:
@@ -405,7 +409,6 @@ private:
     int closeCamera();
     int flush(bool restartChannels);
     static size_t calcMaxJpegSize(uint32_t camera_id);
-    cam_dimension_t getMaxRawSize(uint32_t camera_id);
     static void addStreamConfig(Vector<int32_t> &available_stream_configs,
             int32_t scalar_format, const cam_dimension_t &dim,
             int32_t config_type);
@@ -441,6 +444,7 @@ private:
     bool IsQCFASelected(camera3_capture_request *request);
     bool isHdrSnapshotRequest(camera3_capture_request *request);
     bool isMultiFrameSnapshotRequest(camera3_capture_request *request);
+    bool isMFCRaw(camera3_capture_request *request);
     int32_t setMobicat();
 
     int32_t getSensorOutputSize(cam_sensor_config_t &sensor_dim, uint32_t cam_type = CAM_TYPE_MAIN);
@@ -484,6 +488,7 @@ private:
     int32_t setBundleInfo();
     int32_t setAuxBundleInfo();
     int32_t setInstantAEC(const CameraMetadata &meta);
+    void setChannelQuadraMode(camera3_capture_request_t *req, bool mode);
 
     static void convertLandmarks(cam_face_landmarks_info_t face, int32_t* landmarks);
     static void setInvalidLandmarks(int32_t* landmarks);
@@ -697,6 +702,8 @@ public:
     bool m_bInSensorQCFA;
     bool isSecureMode() {return m_bIsSecureMode;}
     QCamera3ProcessingChannel *mZSLChannel; //Interface ptr for actual ZSL channel.
+    QCamera3MultiRawChannel *mMultiRawChannel;
+    bool m_bMultiRawRequest;
 private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
@@ -837,6 +844,9 @@ private:
     cam_perf_info_t mSettingInfo[CONFIG_INDEX_MAX];
     uint8_t mSessionId;
     cam_hfr_mode_t mHFRMode;
+
+    //for multi frame raw capture
+    uint8_t mMultiFrameRAWCaptureCount;
 };
 
 }; // namespace qcamera

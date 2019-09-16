@@ -1390,7 +1390,7 @@ int32_t mm_channel_init(mm_channel_t *my_obj,
     if (attr && (attr->priority == MM_CAMERA_SUPER_BUF_PRIORITY_MATCH_META)) {
         my_obj->match_meta = true;
     }
-    my_obj->snapshot_stream_id = 0;
+    my_obj->zsl_stream_id = 0;
     return rc;
 }
 
@@ -2803,9 +2803,9 @@ void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
     for (i=0; i< node->num_of_bufs; i++) {
         mm_camera_buf_info_t *buf_info = &node->super_buf[i];
         stream_obj = mm_channel_util_get_stream_by_handler(ch_obj, buf_info->stream_id);
-        metadata_buffer_t *metadata;
-        metadata = (metadata_buffer_t *)buf_info->buf->buffer;
         if (CAM_STREAM_TYPE_METADATA == stream_obj->stream_info->stream_type) {
+            metadata_buffer_t *metadata;
+            metadata = (metadata_buffer_t *)buf_info->buf->buffer;
             int32_t *p_frame_number_valid =
                 POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
             uint32_t *p_frame_number =
@@ -2818,7 +2818,7 @@ void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
                 IF_META_AVAILABLE(cam_stream_ID_t, p_cam_frame_drop, CAM_INTF_META_FRAME_DROPPED,
                     metadata) {
                     for (uint32_t k = 0; k < p_cam_frame_drop->num_streams; k++) {
-                        if (ch_obj->snapshot_stream_id ==
+                        if (ch_obj->zsl_stream_id ==
                                 p_cam_frame_drop->stream_request[k].streamID) {
                             // Snapshot frame got dropped
                             LOGD("Snapshot dropped for frame_number %d frame_idx %d",
@@ -3537,8 +3537,9 @@ mm_channel_queue_node_t* mm_channel_superbuf_dequeue_meta_frame(
 
     super_buf = mm_channel_superbuf_dequeue_internal(queue, TRUE, ch_obj);
     while (super_buf != NULL) {
-        if (frame_idx == super_buf->meta_frame_idx) {
-            LOGH("Found requested superbuf with meta_frame_idx %d", frame_idx);
+        if (frame_idx <= super_buf->meta_frame_idx) {
+            LOGH("Found requested superbuf frame_id %d sending meta_frame_idx %d",
+                                                        frame_idx, super_buf->meta_frame_idx);
             break;
         } else {
             LOGD("Discarding unwanted superbuf meta_frame_idx %d", super_buf->meta_frame_idx);
