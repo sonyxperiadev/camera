@@ -536,6 +536,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     mPendingLiveRequest = 0;
     mCurrentRequestId = -1;
     pthread_mutex_init(&mMutex, NULL);
+    pthread_mutex_init(&mRemosaicLock, NULL);
 
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         mDefaultMetadata[i] = NULL;
@@ -860,6 +861,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     pthread_cond_destroy(&mHdrRequestCond);
 
     pthread_mutex_destroy(&mMutex);
+    pthread_mutex_destroy(&mRemosaicLock);
     if (mStreamList.streams != NULL) {
         free(mStreamList.streams);
     }
@@ -6156,6 +6158,8 @@ int32_t QCamera3HardwareInterface::deleteQCFACaptureChannel()
 {
     LOGD("E");
 
+    //release remosaic lock.
+    pthread_mutex_unlock(&mRemosaicLock);
     if (mQCFACaptureChannel) {
         delete mQCFACaptureChannel;
         mQCFACaptureChannel = NULL;
@@ -6288,6 +6292,8 @@ int32_t QCamera3HardwareInterface::captureQuadraCfaFrameInternal(camera3_capture
     mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
 
     mStreamInfo.clear();
+    //hold remosaic lock to avoid flush while reconfiguration.
+    pthread_mutex_lock(&mRemosaicLock);
     pthread_mutex_unlock(&mMutex);
     configureStreamsPerfLocked(&mStreamList);
     pthread_mutex_lock(&mMutex);
@@ -8697,8 +8703,17 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     Mutex::Autolock lock(mMultiFrameReqLock);
     LOGD("Unblocking Process Capture Request");
     pthread_mutex_lock(&mMutex);
-    mFlush = true;
-    pthread_mutex_unlock(&mMutex);
+    if(m_bPreSnapQuadraCfaRequest)
+    {
+        LOGD("Flush while remosaic is processing. lets wait on remosaic lock");
+        pthread_mutex_unlock(&mMutex);
+        pthread_mutex_lock(&mRemosaicLock);
+        mFlush = true;
+    } else {
+        LOGD("Unblocking Process Capture Request");
+        mFlush = true;
+        pthread_mutex_unlock(&mMutex);
+    }
 
     if (isDualCamera()) {
         setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
@@ -8745,6 +8760,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
         mStreamOnPending = restartChannels;
     }
     pthread_mutex_unlock(&mMutex);
+    pthread_mutex_unlock(&mRemosaicLock);
     mPerfLockMgr.releasePerfLock(PERF_LOCK_FLUSH);
 
     return 0;
