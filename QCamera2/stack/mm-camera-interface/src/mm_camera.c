@@ -2528,6 +2528,23 @@ int32_t mm_camera_handle_frame_sync_cb(mm_camera_obj_t *my_obj,
     return rc;
 }
 
+int32_t mm_camera_set_frame_sync(mm_camera_obj_t *my_obj, uint32_t ch_id, uint32_t sync_value)
+{
+    int rc = 0;
+    mm_channel_t *ch_obj = NULL;
+    ch_obj = mm_camera_util_get_channel_by_handler(my_obj, ch_id);
+    if(ch_obj != NULL) {
+        pthread_mutex_lock(&ch_obj->ch_lock);
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        mm_channel_set_frame_sync(ch_obj, sync_value);
+        pthread_mutex_unlock(&ch_obj->ch_lock);
+    } else {
+        pthread_mutex_unlock(&my_obj->cam_lock);
+        rc = -1;
+    }
+    return rc;
+}
+
 #ifdef QCAMERA_REDEFINE_LOG
 /*===========================================================================
  * DESCRIPTION: mm camera debug interface

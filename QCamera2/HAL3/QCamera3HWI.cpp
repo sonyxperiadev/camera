@@ -6731,6 +6731,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 }
             }
             mPerfLockMgr.acquirePerfLock(PERF_LOCK_START_PREVIEW);
+            if(isDualCamera()  && IS_HAL_PP_TYPE_SAT && mZSLChannel)
+            {
+              LOGH("Disabling channel frame sync in SAT mode");
+              rc = mCameraHandle->ops->set_frame_sync(
+                                    get_main_camera_handle(mCameraHandle->camera_handle),
+                                    mZSLChannel->getMyHandle(),0);
+            }
 
             int32_t vfe1_reserved_rdi = -1;
             if (l_meta.exists(QCAMERA3_SIMULTANEOUS_CAMERA_VFE1_RESERVED_RDI)) {
