@@ -3271,6 +3271,10 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 free(pp_buffer);
                             }
                         }
+                        if (NULL != meta_pp_buffer) {
+                            free(meta_pp_buffer);
+                            meta_pp_buffer = NULL;
+                        }
                     } else {
                         pthread_mutex_unlock(&pme->mReprocJobLock);
                     }
