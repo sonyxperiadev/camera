@@ -103,7 +103,7 @@ typedef enum {
 
 /* This setting indicates the minimum number of frames the master switch cannot take place after
  the camera starts streaming. */
-#define FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH  (0)
+#define FOVC_MIN_FRAME_WAIT_FOR_MASTER_SWITCH  (2)
 
 
 /**********************************************************************************************
