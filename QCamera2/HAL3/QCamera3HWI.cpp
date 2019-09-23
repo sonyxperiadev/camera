@@ -8036,6 +8036,7 @@ no_error:
     if(mFlush) {
         LOGI("mFlush is true");
         pthread_mutex_unlock(&mMutex);
+        pthread_mutex_unlock(&mRemosaicLock);
         return NO_ERROR;
     }
 
