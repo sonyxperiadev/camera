@@ -6646,6 +6646,34 @@ int32_t QCamera3PicChannel::timeoutFrame(uint32_t frameNumber)
     int32_t bufIdx;
     LOGH("frameNumber %d", frameNumber);
     QCamera3StreamMem *streamMemory = &this->mMemory;
+
+    if(m_bZSL)
+    {
+       //postprocess timeout if, we have received zslchannelcb
+        bufIdx = mYuvMemory->getBufferIndex(frameNumber);
+        if(bufIdx >= 0)
+        {
+            LOGE("Calling repocess channel frame timeout!!!");
+            return m_postprocessor.timeoutFrame(frameNumber);
+        }
+
+        //return output_buffer if no zslchannel callback received.
+        bufIdx = streamMemory->getBufferIndex(frameNumber);
+        if(bufIdx < 0)
+        {
+            if(mAuxPicChannel)
+            {
+                return mAuxPicChannel->timeoutFrame(frameNumber);
+            }
+            LOGE("X: Buffer not found for frame:%d", frameNumber);
+            return -1;
+        }
+        buffer_handle_t *buf = (buffer_handle_t *)streamMemory->getBufferHandle(bufIdx);
+        streamMemory->unregisterBuffer(bufIdx);
+        notifyDropForPendingBuffer(frameNumber,buf);
+        return NO_ERROR;
+    }
+
     if(IS_VALID_PTR(mSourceZSLChannel))
     {
         streamMemory = mSourceZSLChannel->getStreamBufs(0);
@@ -6658,24 +6686,17 @@ int32_t QCamera3PicChannel::timeoutFrame(uint32_t frameNumber)
     } else {
         bufIdx = mYuvMemory->getBufferIndex(frameNumber);
     }
-    if (bufIdx < 0) {
-        if(m_bZSL)
+
+    if(bufIdx < 0)
+    {
+       if(mAuxPicChannel)
         {
-            bufIdx = streamMemory->getBufferIndex(frameNumber);
-            if(bufIdx < 0)
-            {
-                LOGE("X: Buffer not found for frame:%d", frameNumber);
-                return -1;
-            }
-            buffer_handle_t *buf = (buffer_handle_t *)streamMemory->getBufferHandle(bufIdx);
-            streamMemory->unregisterBuffer(bufIdx);
-            notifyDropForPendingBuffer(frameNumber,buf);
-            return NO_ERROR;
-        } else {
-            LOGE("X: Buffer not found for frame:%d", frameNumber);
-            return -1;
+            return mAuxPicChannel->timeoutFrame(frameNumber);
         }
+        LOGE("X: Buffer not found for frame:%d", frameNumber);
+        return -1;
     }
+
     mStreams[0]->timeoutFrame(bufIdx);
     return NO_ERROR;
 }
