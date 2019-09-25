@@ -2535,6 +2535,19 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
            }
          }
     }
+
+    if (jpeg_settings->multiframe_snapshot) {
+        memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+        param.type = CAM_STREAM_PARAM_TYPE_GET_IMG_PROP;
+        ret = main_stream->getParameter(param);
+        if (ret != NO_ERROR) {
+           LOGE(" stream getParameter for reprocess failed");
+        } else {
+            main_stream->setCropInfo(param.imgProp.crop);
+            crop = param.imgProp.crop;
+        }
+    }
+
     // Set main dim job parameters and handle rotation
     if (!needJpegExifRotation && (jpeg_settings->jpeg_orientation == 90 ||
             jpeg_settings->jpeg_orientation == 270)) {
