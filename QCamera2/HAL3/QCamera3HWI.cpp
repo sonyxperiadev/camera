@@ -2831,8 +2831,22 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 /* add additional features to pp feature mask */
                 addToPPFeatureMask(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED,
                         stream_index, &mStreamConfigInfo[index]);
-
-                if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
+                if(IS_USAGE_HEIF(newStream->usage)
+                    && (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER))
+                {
+                    padding_info.width_padding = CAM_PAD_TO_512;
+                    padding_info.height_padding = CAM_PAD_TO_512;
+                    padding_info.usage = newStream->usage;
+                    mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
+                    if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)
+                        && bUseCommonFeatureMask) {
+                        mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                                                          commonFeatureMask;
+                    } else {
+                        mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                                                        CAM_QCOM_FEATURE_NONE;
+                    }
+                }else if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
                         mStreamConfigInfo[index].type[stream_index] =
                                 CAM_STREAM_TYPE_VIDEO;
                     if (m_bTnrEnabled && m_bTnrVideo) {
@@ -2849,13 +2863,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         mStreamConfigInfo[index].postprocess_mask[stream_index] |=
                             CAM_QTI_FEATURE_VENDOR_EIS;
                     }
-                    if(IS_USAGE_HEIF(newStream->usage))
-                    {
-                        padding_info.width_padding = CAM_PAD_TO_512;
-                        padding_info.height_padding = CAM_PAD_TO_512;
-                        padding_info.usage = newStream->usage;
-                    }
-
                 } else {
                         mStreamConfigInfo[index].type[stream_index] =
                             CAM_STREAM_TYPE_PREVIEW;
@@ -3111,6 +3118,29 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         /* Copy stream contents in HFR preview only case to create
                          * dummy batch channel so that sensor streaming is in
                          * HFR mode */
+                         cam_padding_info_t l_padding = gCamCapability[mCameraId]->padding_info;
+                         if(IS_USAGE_HEIF(newStream->usage))
+                         {
+                             l_padding = padding_info;
+                             channel = new QCamera3YUVChannel(camHdl,
+                                     channelHdl,
+                                     mCameraHandle->ops, captureResultCb,
+                                     setBufferErrorStatus, &l_padding,
+                                     this,
+                                     newStream,
+                                     (cam_stream_type_t)
+                                             mStreamConfigInfo[index].type[stream_index],
+                                     mStreamConfigInfo[index].postprocess_mask[stream_index],
+                                     mMetadataChannel);
+                             if (channel == NULL) {
+                                 LOGE("allocation of YUV channel failed");
+                                 pthread_mutex_unlock(&mMutex);
+                                 return -ENOMEM;
+                             }
+                             newStream->max_buffers = channel->getNumBuffers();
+                             newStream->priv = channel;
+                             break;
+                         }
                         if (!m_bIsVideo && (streamList->operation_mode ==
                                 CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE)) {
                             mDummyBatchStream = *newStream;
@@ -3126,12 +3156,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                         if (isSecureMode()) {
                             bufferCount = MAX_SECURE_BUFFERS;
                             mStreamConfigInfo[index].is_secure = SECURE;
-                        }
-
-                       cam_padding_info_t l_padding = gCamCapability[mCameraId]->padding_info;
-                       if(IS_USAGE_HEIF(newStream->usage))
-                        {
-                             l_padding = padding_info;
                         }
 
                         channel = new QCamera3RegularChannel(camHdl,
@@ -8134,7 +8158,8 @@ no_error:
                     streams_need_metadata++;
                 }
             }
-        } else if (output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+        } else if ((output.stream->format == HAL_PIXEL_FORMAT_YCbCr_420_888)
+            || (IS_USAGE_HEIF(output.stream->usage))) {
             bool needMetadata = false;
             if (channel->isZSLChannel()) {
                 isZSLCapture = needZSLCapture(request);
