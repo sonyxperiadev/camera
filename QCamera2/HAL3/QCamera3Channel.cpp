@@ -5720,6 +5720,10 @@ int32_t QCamera3PicChannel::stopChannel()
 
     if(!m_bStarted) {
        LOGD("Attempt to stop inactive channel");
+       if(mAuxPicChannel)
+       {
+           return mAuxPicChannel->stopChannel();
+       }
        return rc;
     }
 
@@ -5729,6 +5733,11 @@ int32_t QCamera3PicChannel::stopChannel()
     if(rc == NO_ERROR){
        m_bStarted = false;
     }
+
+    if(mAuxPicChannel){
+        mAuxPicChannel->stopChannel();
+    }
+
     return rc;
 }
 
@@ -5744,10 +5753,21 @@ int32_t QCamera3PicChannel::startChannel()
     if (!mLiveShot) return NO_ERROR;
     LOGD("QCamera3PicChannel::startChannel");
 
+    QCamera3HardwareInterface *hal_obj= (QCamera3HardwareInterface *)mUserData;
+    if(m_bDualChannel)
+    {
+      bool isMaster = mAuxPicChannel ?
+            (mMasterCam == CAM_TYPE_MAIN): (mMasterCam == CAM_TYPE_AUX);
+      if(mAuxPicChannel && (!isMaster || hal_obj->needHALPP())){
+          mAuxPicChannel->startChannel();
+      }
+    }
+
     rc =  m_camOps->start_channel(m_camHandle, m_handle);
     if(rc == NO_ERROR){
        m_bStarted = true;
     }
+
     return rc;
 }
 
