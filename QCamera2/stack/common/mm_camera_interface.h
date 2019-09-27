@@ -55,6 +55,9 @@
 #define MM_CAMERA_HANDLE_SHIFT_MASK       16
 #define MM_CAMERA_HANDLE_BIT_MASK         0x0000ffff
 
+#define IS_BUFFER_ERROR(x) (((x) & V4L2_BUF_FLAG_ERROR) == V4L2_BUF_FLAG_ERROR)
+
+
 typedef enum {
     MM_CAMERA_TYPE_MAIN       = CAM_TYPE_MAIN,
     MM_CAMERA_TYPE_AUX        = CAM_TYPE_AUX,
