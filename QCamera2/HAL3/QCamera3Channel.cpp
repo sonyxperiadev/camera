@@ -7284,12 +7284,6 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
             LOGE("Error %d unregistering stream buffer %d",
                      rc, frameIndex);
         }
-
-        QCamera3HardwareInterface *hw = (QCamera3HardwareInterface *)obj->mUserData;
-        if (hw->isQuadCfaSensor()) {
-            hw->deleteQCFACaptureChannel();
-        }
-
         obj->m_postprocessor.releaseOfflineBuffers(false);
         obj->reprocessCbRoutine(resultBuffer, resultFrameNumber);
         qcamera_hal3_pp_data_t *pp_job = obj->m_postprocessor.dequeuePPJob(resultFrameNumber);
@@ -7297,6 +7291,10 @@ void QCamera3ReprocessChannel::streamCbRoutine(mm_camera_super_buf_t *super_fram
             obj->m_postprocessor.releasePPJobData(pp_job);
         }
         free(pp_job);
+        QCamera3HardwareInterface *hw = (QCamera3HardwareInterface *)obj->mUserData;
+        if (hw->isQuadCfaSensor()) {
+            hw->deleteQCFACaptureChannel();
+        }
         resetToCamPerfNormal(resultFrameNumber);
     }
     free(super_frame);
@@ -7612,7 +7610,7 @@ int32_t QCamera3ReprocessChannel::unmapOfflineBuffers(bool all)
                    LOGD("Unmapped buffer with index %d", (*it).index);
                }
                if (!all) {
-                   mOfflineBuffers.erase(it);
+                   it = mOfflineBuffers.erase(it);
                    unmap_cnt--;
                    if (unmap_cnt == 0) {
                        break;
@@ -7643,7 +7641,7 @@ int32_t QCamera3ReprocessChannel::unmapOfflineBuffers(bool all)
                LOGD("Unmapped meta buffer with index %d", (*it).index);
            }
            if (!all) {
-               mOfflineMetaBuffers.erase(it);
+               it = mOfflineMetaBuffers.erase(it);
                unmap_cnt--;
                if (unmap_cnt == 0) {
                    break;
