@@ -8104,6 +8104,7 @@ no_error:
     // Call request on other streams
     uint32_t streams_need_metadata = 0;
     bool isZSLCapture = false;
+   bool skipRequest = true;
     pendingBufferIterator pendingBufferIter = latestRequest->buffers.begin();
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         metadata_buffer_t *m_params = mParameters;
@@ -8218,12 +8219,15 @@ no_error:
             QCamera3YUVChannel *yuvChannel = (QCamera3YUVChannel *)channel;
             rc = yuvChannel->request(output.buffer, frameNumber,
                     pInputBuffer, (pInputBuffer ? &mReprocMeta : m_params),
-                    needMetadata, indexUsed, false,false, isZSLCapture, needSyncFrame);
+                    needMetadata, indexUsed, false,false, isZSLCapture, needSyncFrame,skipRequest);
             if (rc < 0) {
                 LOGE("Fail to request on YUV channel");
                 pthread_mutex_unlock(&mMutex);
                 return rc;
             }
+            /*Toggle skipRequest flag to set ZSL channelcb to second request
+               when request has main and aux */
+            skipRequest = ! skipRequest;
 
             uint32_t streamId = channel->getStreamID(channel->getStreamTypeMask());
             uint32_t j = 0;

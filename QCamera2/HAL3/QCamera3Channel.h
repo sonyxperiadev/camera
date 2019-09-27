@@ -692,7 +692,8 @@ public:
             __unused bool internalRequest = false,
             __unused bool meteringOnly = false,
             __unused bool isZSL = false,
-            __unused bool DualsyncBuf = false);
+            __unused bool DualsyncBuf = false,
+            __unused bool skipRequest = false);
     virtual reprocess_type_t getReprocessType();
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
