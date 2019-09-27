@@ -7845,7 +7845,11 @@ no_error:
         }
     }
 
-    if(request->input_buffer == NULL) {
+    //if one o/p and one i/p i.e. reprocess request.
+    uint8_t is_reproc_req = ((request->num_output_buffers == 1) && (request->input_buffer != NULL));
+    is_reproc_req = is_reproc_req && !mRawDumpChannel;
+
+    if(!is_reproc_req || (internallyRequestedStreams.size())) {
         /* Parse the settings:
          * - For every request in NORMAL MODE
          * - For every request in HFR mode during preview only case
@@ -7932,7 +7936,7 @@ no_error:
                     CAM_INTF_PARM_INSTANT_AEC, (uint8_t)CAM_AEC_NORMAL_CONVERGENCE);
             mResetInstantAEC = false;
         }
-    } else if (request->input_buffer != NULL) {
+   } else if (request->input_buffer != NULL) {
 
         if (request->input_buffer->acquire_fence != -1) {
            rc = sync_wait(request->input_buffer->acquire_fence, TIMEOUT_NEVER);
