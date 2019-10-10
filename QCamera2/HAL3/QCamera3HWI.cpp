@@ -499,7 +499,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mLPMEnable(true),
       m_bStopPicChannel(false),
       mHALZSL(CAM_HAL3_ZSL_TYPE_NONE),
-      mFlashNeeded(false)
+      mFlashNeeded(false),
+      quad_req(NULL)
 {
     getLogLevel();
     m_halPPType = CAM_HAL_PP_TYPE_NONE;
@@ -535,6 +536,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     mPendingLiveRequest = 0;
     mCurrentRequestId = -1;
     pthread_mutex_init(&mMutex, NULL);
+    pthread_mutex_init(&mRemosaicLock, NULL);
 
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         mDefaultMetadata[i] = NULL;
@@ -612,6 +614,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_bQuadraSizeConfigured = false;
     memset(&mStreamList, 0, sizeof(camera3_stream_configuration_t));
     m_bLPMEnabled = false;
+    mbIsSWMFNRCapture = false;
 
     mDualCamera = is_dual_camera_by_idx(cameraId);
     memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
@@ -858,6 +861,7 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
     pthread_cond_destroy(&mHdrRequestCond);
 
     pthread_mutex_destroy(&mMutex);
+    pthread_mutex_destroy(&mRemosaicLock);
     if (mStreamList.streams != NULL) {
         free(mStreamList.streams);
     }
@@ -2026,6 +2030,9 @@ int QCamera3HardwareInterface::cacheFwConfiguredStreams(
 {
     int rc = NO_ERROR;
     if (&mStreamList != streams_configuration) {
+        if (mStreamList.streams != NULL) {
+            free(mStreamList.streams);
+        }
         mStreamList = *streams_configuration;
         mStreamList.streams =
        (camera3_stream_t **)malloc(streams_configuration->num_streams * sizeof(camera3_stream_t*));
@@ -4740,7 +4747,9 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
             pMetaDataAux  = metadata;
         }
         resultMetadata = m_pFovControl->processResultMetadata(pMetaDataMain, pMetaDataAux);
-        if ((frame_number == UINT32_MAX) || (mHALZSL && (resultMetadata == NULL))) {
+        if ((frame_number == UINT32_MAX)
+             || (!(getHalPPType() == CAM_HAL_PP_TYPE_SAT)
+             && mHALZSL && (resultMetadata == NULL))) {
             mMetadataChannel->bufDone(metadata_buf);
             free(metadata_buf);
             return;
@@ -5284,7 +5293,7 @@ void QCamera3HardwareInterface::handleInputBufferWithLock(uint32_t frame_number)
     while (i != mPendingRequestsList.end() && i->frame_number != frame_number){
         i++;
     }
-    if (i != mPendingRequestsList.end() && i->input_buffer) {
+    if (i != mPendingRequestsList.end() && i->input_buffer && (i->buffers.size() == 1)) {
         //found the right request
         if (!i->shutter_notified) {
             CameraMetadata settings;
@@ -5374,6 +5383,15 @@ void QCamera3HardwareInterface::handleBufferWithLock(
             fillUBWCStats(buffer);
         }
     }
+
+    #ifdef USE_COLOR_METADATA
+    {
+        QCamera3Channel *channel = (QCamera3Channel *)buffer->stream->priv;
+        if ((1U << CAM_STREAM_TYPE_VIDEO) == channel->getStreamTypeMask()) {
+            setColorMetadata(buffer);
+        }
+    }
+    #endif
 
     if (mFlushPerf) {
         handleBuffersDuringFlushLock(buffer);
@@ -5620,6 +5638,47 @@ bool QCamera3HardwareInterface::isMultiFrameSnapshotRequest(camera3_capture_requ
 }
 
 
+/*===========================================================================
+ * FUNCTION   : isSWMFNRSnapshotRequest
+ *
+ * DESCRIPTION: Function to determine if the request is for a SW MFNR snapshot
+ *
+ * PARAMETERS : camera3 request structure
+ *
+ * RETURN     : boolean decision variable
+ *
+ *==========================================================================*/
+bool QCamera3HardwareInterface::isSWMFNRSnapshotRequest(camera3_capture_request *request)
+{
+    if (request == NULL) {
+        LOGE("Invalid request handle");
+        return false;
+    }
+
+    CameraMetadata frame_settings;
+    mbIsSWMFNRCapture = false;
+    frame_settings = request->settings;
+    if (frame_settings.exists(QCAMERA3_SWMFNR_ENABLE)) {
+        mbIsSWMFNRCapture = frame_settings.find(QCAMERA3_SWMFNR_ENABLE).data.u8[0];
+        LOGD("SWMFNR feature enable %d ", mbIsSWMFNRCapture)
+    }
+
+    if (mbIsSWMFNRCapture) {
+        mMultiFrameCaptureCount = gCamCapability[mCameraId]->stillmore_settings_need.burst_count;
+        LOGH("SWMFNR Frames: burst count %d min count %d max count %d",
+            gCamCapability[mCameraId]->stillmore_settings_need.burst_count,
+            gCamCapability[mCameraId]->stillmore_settings_need.min_burst_count,
+            gCamCapability[mCameraId]->stillmore_settings_need.max_burst_count);
+        for (uint32_t i = 0; i < request->num_output_buffers; i++) {
+            if (request->output_buffers[i].stream->format == HAL_PIXEL_FORMAT_BLOB) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
 int32_t QCamera3HardwareInterface::orchestrateAdvancedCapture(
         camera3_capture_request_t *request, bool &isAdvancedCapture)
 {
@@ -5646,7 +5705,8 @@ int32_t QCamera3HardwareInterface::orchestrateAdvancedCapture(
         return orchestrateHDRCapture(request);
     }
 
-    if (isMultiFrameSnapshotRequest(request)) {
+    if (isMultiFrameSnapshotRequest(request) ||
+        isSWMFNRSnapshotRequest(request)) {
         isAdvancedCapture = true;
         return orchestrateMultiFrameCapture(request);
     }
@@ -5931,7 +5991,11 @@ int32_t QCamera3HardwareInterface::orchestrateMultiFrameCapture(
                     == HAL_PIXEL_FORMAT_BLOB) {
                 InternalRequest streamRequested;
                 streamRequested.meteringOnly = 0;
-                streamRequested.need_metadata = 1;
+                if (IS_SNAP_ZSL) {
+                    streamRequested.need_metadata = 0;
+                } else {
+                    streamRequested.need_metadata = 1;
+                }
                 streamRequested.needPastFrame = 1;
                 streamRequested.stream = request->output_buffers[i].stream;
                 internallyRequestedStreams.push_back(streamRequested);
@@ -6130,10 +6194,14 @@ int32_t QCamera3HardwareInterface::deleteQCFACaptureChannel()
 {
     LOGD("E");
 
+    //release remosaic lock.
+    pthread_mutex_unlock(&mRemosaicLock);
     if (mQCFACaptureChannel) {
         delete mQCFACaptureChannel;
         mQCFACaptureChannel = NULL;
     }
+
+    quad_req = NULL;
 
     return 0;
 }
@@ -6232,6 +6300,8 @@ int32_t QCamera3HardwareInterface::captureQuadraCfaFrameInternal(camera3_capture
     setFrameParameters(request->settings, streamsArray, true, 0, mParameters, request);
     mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
 
+   //save request for updating result meta with frame params
+   quad_req = &request;
 
     /* 3. wait for raw capture done */
     mQCFACaptureChannel->waitCaptureDone();
@@ -6258,6 +6328,8 @@ int32_t QCamera3HardwareInterface::captureQuadraCfaFrameInternal(camera3_capture
     mCameraHandle->ops->set_parms(mCameraHandle->camera_handle, mParameters);
 
     mStreamInfo.clear();
+    //hold remosaic lock to avoid flush while reconfiguration.
+    pthread_mutex_lock(&mRemosaicLock);
     pthread_mutex_unlock(&mMutex);
     configureStreamsPerfLocked(&mStreamList);
     pthread_mutex_lock(&mMutex);
@@ -6455,7 +6527,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
 #ifdef ENABLE_THROTTLE
     int32_t perfLevel = 0;
 #endif
-
 
     pthread_mutex_lock(&mMutex);
 
@@ -6707,6 +6778,13 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 }
             }
             mPerfLockMgr.acquirePerfLock(PERF_LOCK_START_PREVIEW);
+            if(isDualCamera()  && IS_HAL_PP_TYPE_SAT && mZSLChannel)
+            {
+              LOGH("Disabling channel frame sync in SAT mode");
+              rc = mCameraHandle->ops->set_frame_sync(
+                                    get_main_camera_handle(mCameraHandle->camera_handle),
+                                    mZSLChannel->getMyHandle(),0);
+            }
 
             int32_t vfe1_reserved_rdi = -1;
             if (l_meta.exists(QCAMERA3_SIMULTANEOUS_CAMERA_VFE1_RESERVED_RDI)) {
@@ -7767,7 +7845,11 @@ no_error:
         }
     }
 
-    if(request->input_buffer == NULL) {
+    //if one o/p and one i/p i.e. reprocess request.
+    uint8_t is_reproc_req = ((request->num_output_buffers == 1) && (request->input_buffer != NULL));
+    is_reproc_req = is_reproc_req && !mRawDumpChannel;
+
+    if(!is_reproc_req || (internallyRequestedStreams.size())) {
         /* Parse the settings:
          * - For every request in NORMAL MODE
          * - For every request in HFR mode during preview only case
@@ -7778,16 +7860,16 @@ no_error:
         if (!mBatchSize ||
            (mBatchSize && !isVidBufRequested) ||
            (mBatchSize && isVidBufRequested && !mToBeQueuedVidBufs)) {
-            cam_stream_ID_t *sArray = &streamsArray;
-            int loop = CONFIG_INDEX_MAIN;
-            metadata_buffer_t *params = mParameters;
-            const camera_metadata_t *settings = request->settings;
-            int blob = blob_request && !is_blob_on_aux;
-            uint32_t blob_stream_id = snapshotStreamId;
-            if(IS_MULTI_CAMERA)
-            {
-                if(!(is_main_configured || is_logical_configured))
-                {
+           cam_stream_ID_t *sArray = &streamsArray;
+           int loop = CONFIG_INDEX_MAIN;
+           metadata_buffer_t *params = mParameters;
+           const camera_metadata_t *settings = request->settings;
+           int blob = blob_request && !is_blob_on_aux;
+           uint32_t blob_stream_id = snapshotStreamId;
+           if(IS_MULTI_CAMERA)
+           {
+               if(!(is_main_configured || is_logical_configured))
+               {
                     if(is_aux_configured)
                     {
                         sArray = &streamsArraySlave;
@@ -7796,18 +7878,16 @@ no_error:
                         blob = is_blob_on_aux;
                         loop = CONFIG_INDEX_AUX;
                     }
-                }
-            }
-            do {
+              }
+           }
+           do {
                 rc = setFrameParameters(settings, *sArray, blob,
                     ((blob) ? blob_stream_id : 0), params, request);
-
                 if (rc < 0) {
                     LOGE("fail to set frame parameters");
                     pthread_mutex_unlock(&mMutex);
                     return rc;
-                }
-
+               }
                 if(is_aux_configured && loop != CONFIG_INDEX_AUX)
                 {
                     sArray = &streamsArraySlave;
@@ -7815,9 +7895,8 @@ no_error:
                     params = mAuxParameters;
                     blob = is_blob_on_aux;
                 }
-
                 loop ++;
-            } while(IS_MULTI_CAMERA && is_aux_configured && (loop < CONFIG_INDEX_MAX));
+           } while(IS_MULTI_CAMERA && is_aux_configured && (loop < CONFIG_INDEX_MAX));
         }
         /* For batchMode HFR, setFrameParameters is not called for every
          * request. But only frame number of the latest request is parsed.
@@ -7834,12 +7913,12 @@ no_error:
                 LOGE("Failed to set the frame number in the parameters");
                 pthread_mutex_unlock(&mMutex);
                 return BAD_VALUE;
-            }
+           }
         }
         if (mNeedSensorRestart) {
             /* Unlock the mutex as restartSensor waits on the channels to be
-             * stopped, which in turn calls stream callback functions -
-             * handleBufferWithLock and handleMetadataWithLock */
+            * stopped, which in turn calls stream callback functions -
+            * handleBufferWithLock and handleMetadataWithLock */
             pthread_mutex_unlock(&mMutex);
             rc = dynamicUpdateMetaStreamInfo();
             if (rc != NO_ERROR) {
@@ -7851,10 +7930,10 @@ no_error:
         }
         if(mResetInstantAEC) {
             ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
-                    CAM_INTF_PARM_INSTANT_AEC, (uint8_t)CAM_AEC_NORMAL_CONVERGENCE);
+                CAM_INTF_PARM_INSTANT_AEC, (uint8_t)CAM_AEC_NORMAL_CONVERGENCE);
             mResetInstantAEC = false;
         }
-    } else if (request->input_buffer != NULL) {
+   } else if (request->input_buffer != NULL) {
 
         if (request->input_buffer->acquire_fence != -1) {
            rc = sync_wait(request->input_buffer->acquire_fence, TIMEOUT_NEVER);
@@ -7998,6 +8077,7 @@ no_error:
     if(mFlush) {
         LOGI("mFlush is true");
         pthread_mutex_unlock(&mMutex);
+        pthread_mutex_unlock(&mRemosaicLock);
         return NO_ERROR;
     }
 
@@ -8053,6 +8133,7 @@ no_error:
     // Call request on other streams
     uint32_t streams_need_metadata = 0;
     bool isZSLCapture = false;
+   bool skipRequest = true;
     pendingBufferIterator pendingBufferIter = latestRequest->buffers.begin();
     for (size_t i = 0; i < request->num_output_buffers; i++) {
         metadata_buffer_t *m_params = mParameters;
@@ -8168,12 +8249,15 @@ no_error:
             QCamera3YUVChannel *yuvChannel = (QCamera3YUVChannel *)channel;
             rc = yuvChannel->request(output.buffer, frameNumber,
                     pInputBuffer, (pInputBuffer ? &mReprocMeta : m_params),
-                    needMetadata, indexUsed, false,false, isZSLCapture, needSyncFrame);
+                    needMetadata, indexUsed, false,false, isZSLCapture, needSyncFrame,skipRequest);
             if (rc < 0) {
                 LOGE("Fail to request on YUV channel");
                 pthread_mutex_unlock(&mMutex);
                 return rc;
             }
+            /*Toggle skipRequest flag to set ZSL channelcb to second request
+               when request has main and aux */
+            skipRequest = ! skipRequest;
 
             uint32_t streamId = channel->getStreamID(channel->getStreamTypeMask());
             uint32_t j = 0;
@@ -8434,6 +8518,16 @@ no_error:
                     mAuxParameters->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
                 }
             }
+
+            if(IS_HAL_PP_TYPE_BOKEH)
+            {
+                uint32_t sync_param = 1;
+                ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
+                                    CAM_INTF_PARM_SYNC_DC_PARAMETERS, sync_param);
+                ADD_SET_PARAM_ENTRY_TO_BATCH(mAuxParameters,
+                                    CAM_INTF_PARM_SYNC_DC_PARAMETERS, sync_param);
+            }
+
             if(!IS_MULTI_CAMERA)
             {
                 rc = mCameraHandle->ops->set_parms(
@@ -8441,7 +8535,6 @@ no_error:
                 if (rc < 0) {
                     LOGE("set_parms failed");
                 }
-
                 if (isDualCamera() && !IS_PP_TYPE_NONE) {
                     rc = mCameraHandle->ops->set_parms(
                           get_aux_camera_handle(mCameraHandle->camera_handle), mAuxParameters);
@@ -8516,6 +8609,8 @@ no_error:
         mMultiFrameReqLock.unlock();
         mMultiFrameSnapshotRunning = false;
     }
+
+    quad_req = NULL;
 
     // Added a timed condition wait
     struct timespec ts;
@@ -8655,8 +8750,17 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     Mutex::Autolock lock(mMultiFrameReqLock);
     LOGD("Unblocking Process Capture Request");
     pthread_mutex_lock(&mMutex);
-    mFlush = true;
-    pthread_mutex_unlock(&mMutex);
+    if(m_bPreSnapQuadraCfaRequest)
+    {
+        LOGD("Flush while remosaic is processing. lets wait on remosaic lock");
+        pthread_mutex_unlock(&mMutex);
+        pthread_mutex_lock(&mRemosaicLock);
+        mFlush = true;
+    } else {
+        LOGD("Unblocking Process Capture Request");
+        mFlush = true;
+        pthread_mutex_unlock(&mMutex);
+    }
 
     if (isDualCamera()) {
         setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
@@ -8703,6 +8807,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
         mStreamOnPending = restartChannels;
     }
     pthread_mutex_unlock(&mMutex);
+    pthread_mutex_unlock(&mRemosaicLock);
     mPerfLockMgr.releasePerfLock(PERF_LOCK_FLUSH);
 
     return 0;
@@ -11431,7 +11536,6 @@ cam_dimension_t QCamera3HardwareInterface::getMaxRawSize(uint32_t camera_id)
     }
     return maxRawSize;
 }
-
 
 /*===========================================================================
  * FUNCTION   : calcMaxJpegDim
@@ -16093,7 +16197,6 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
     // pp feature config
     cam_pp_feature_config_t pp_config;
     memset(&pp_config, 0, sizeof(cam_pp_feature_config_t));
-
     pp_config.feature_mask |= CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
     if (gCamCapability[mCameraId]->qcom_supported_feature_mask
             & CAM_QCOM_FEATURE_DSDN) {
@@ -16117,11 +16220,14 @@ QCamera3ReprocessChannel *QCamera3HardwareInterface::addOfflineReprocChannel(
         pp_config.hdr_param.hdr_mode = CAM_HDR_MODE_MULTIFRAME;
     }
 
-    if (mbIsMultiFrameCapture) {
+    if (mbIsMultiFrameCapture || mbIsSWMFNRCapture) {
         char prop[PROPERTY_VALUE_MAX];
         property_get("persist.vendor.camera.multiframe.capture.precpp", prop, "1");
         bool bMultiFrameCapture_precpp = atoi(prop) ? TRUE : FALSE;
-        if(bMultiFrameCapture_precpp) {
+        if(mbIsSWMFNRCapture) {
+            LOGH("SWMFNR is enabled");
+            pp_config.feature_mask |=  CAM_QCOM_FEATURE_STILLMORE;
+        } else if(bMultiFrameCapture_precpp) {
             pp_config.feature_mask |= CAM_QTI_FEATURE_MFPROC_PRECPP;
         } else {
             pp_config.feature_mask |= CAM_QTI_FEATURE_MFPROC_POSTCPP;
@@ -17770,6 +17876,18 @@ void QCamera3HardwareInterface::fillUBWCStats(camera3_stream_buffer_t *buffer)
     setMetaData(priv_handle, SET_UBWC_CR_STATS_INFO, &stats);
 }
 
+void QCamera3HardwareInterface::setColorMetadata(camera3_stream_buffer_t *buffer)
+{
+    ColorMetaData bufferMetadata = {};
+    bufferMetadata.colorPrimaries = ColorPrimaries_BT601_6_625;
+    bufferMetadata.range = Range_Full;
+    bufferMetadata.transfer = Transfer_SMPTE_170M;
+    bufferMetadata.matrixCoefficients = MatrixCoEff_BT601_6_625;
+    struct private_handle_t *priv_handle =
+                        (struct private_handle_t *) (*(buffer->buffer));
+    setMetaData(priv_handle, COLOR_METADATA, &bufferMetadata);
+}
+
 bool QCamera3HardwareInterface::needZSLCapture(const camera3_capture_request_t *request)
 {
     char prop[PROPERTY_VALUE_MAX];
@@ -17911,5 +18029,18 @@ bool QCamera3HardwareInterface::isQuadraSizedDimension(cam_dimension_t &dim)
     }
     return sizeMatched;
 }
+
+int32_t QCamera3HardwareInterface::updateFrameMetaWithParams(
+                                                   metadata_buffer_t *frameMeta)
+{
+    if(!quad_req || !(*quad_req)) return BAD_VALUE;
+    camera3_capture_request_t *req = *quad_req;
+    cam_stream_ID_t streamsArray;
+    memset(&streamsArray, 0, sizeof(streamsArray));
+    setFrameParameters(req->settings,streamsArray,0,0,frameMeta,req);
+    quad_req = NULL;
+    return NO_ERROR;
+}
+
 
 }; //end namespace qcamera

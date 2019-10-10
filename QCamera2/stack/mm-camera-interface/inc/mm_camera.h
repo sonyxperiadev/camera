@@ -836,6 +836,9 @@ extern int32_t mm_channel_qbuf(mm_channel_t *my_obj,
                                mm_camera_buf_def_t *buf);
 extern int32_t mm_channel_cancel_buf(mm_channel_t *my_obj,
                         uint32_t stream_id, uint32_t buf_idx);
+int32_t mm_camera_set_frame_sync(mm_camera_obj_t *my_obj, uint32_t channel_id,
+                                      uint32_t sync_value);
+void mm_channel_set_frame_sync(mm_channel_t *my_obj, uint32_t sync_value);
 /* mm_stream */
 extern int32_t mm_stream_fsm_fn(mm_stream_t *my_obj,
                                 mm_stream_evt_type_t evt,

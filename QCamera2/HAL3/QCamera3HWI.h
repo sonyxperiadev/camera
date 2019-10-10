@@ -125,6 +125,8 @@ typedef enum {
 
 #define IS_HAL_PP_TYPE_BOKEH (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
 
+#define IS_HAL_PP_TYPE_SAT (getHalPPType() == CAM_HAL_PP_TYPE_SAT)
+
 #define IS_YUV_ZSL (mHALZSL == CAM_HAL3_ZSL_TYPE_CALLBACK)
 
 #define IS_SNAP_ZSL (mHALZSL == CAM_HAL3_ZSL_TYPE_SNAPSHOT)
@@ -372,6 +374,7 @@ public:
     bool isQuadraSizedDimension(cam_dimension_t &dim);
     QCamera3PicChannel* getPicChannel() {return mPictureChannel;};
     cam_dimension_t getMaxRawSize(uint32_t camera_id);
+    int32_t updateFrameMetaWithParams(metadata_buffer_t *frameMeta);
 private:
 
     // State transition conditions:
@@ -445,6 +448,7 @@ private:
     bool isHdrSnapshotRequest(camera3_capture_request *request);
     bool isMultiFrameSnapshotRequest(camera3_capture_request *request);
     bool isMFCRaw(camera3_capture_request *request);
+    bool isSWMFNRSnapshotRequest(camera3_capture_request *request);
     int32_t setMobicat();
 
     int32_t getSensorOutputSize(cam_sensor_config_t &sensor_dim, uint32_t cam_type = CAM_TYPE_MAIN);
@@ -520,6 +524,7 @@ private:
             cam_stream_size_info_t* streamsInfo, const cam_sync_type_t &type);
     void initDCSettings();
     void fillUBWCStats(camera3_stream_buffer_t *buffer);
+    void setColorMetadata(camera3_stream_buffer_t *buffer);
     bool needZSLCapture(const camera3_capture_request_t *request);
     int32_t addZSLChannel();
     static void zsl_channel_cb(mm_camera_super_buf_t *recvd_frame, void *userdata);
@@ -701,6 +706,7 @@ public:
     QCameraFOVControl *m_pFovControl;
     PendingBuffersMap mPendingBuffersMap;
     bool m_bInSensorQCFA;
+    bool mbIsSWMFNRCapture;
     bool isSecureMode() {return m_bIsSecureMode;}
     QCamera3ProcessingChannel *mZSLChannel; //Interface ptr for actual ZSL channel.
     QCamera3MultiRawChannel *mMultiRawChannel;
@@ -823,6 +829,7 @@ private:
     bool m_bQuadraSizeConfigured;
     int8_t m_ppChannelCnt;
     camera3_stream_configuration_t mStreamList;
+    pthread_mutex_t mRemosaicLock;
 
     //UDCF
     bool mDualCamera;
@@ -848,6 +855,9 @@ private:
 
     //for multi frame raw capture
     uint8_t mMultiFrameRAWCaptureCount;
+
+    //quadra
+    camera3_capture_request_t **quad_req;
 };
 
 }; // namespace qcamera

@@ -55,6 +55,9 @@
 #define MM_CAMERA_HANDLE_SHIFT_MASK       16
 #define MM_CAMERA_HANDLE_BIT_MASK         0x0000ffff
 
+#define IS_BUFFER_ERROR(x) (((x) & V4L2_BUF_FLAG_ERROR) == V4L2_BUF_FLAG_ERROR)
+
+
 typedef enum {
     MM_CAMERA_TYPE_MAIN       = CAM_TYPE_MAIN,
     MM_CAMERA_TYPE_AUX        = CAM_TYPE_AUX,
@@ -940,6 +943,16 @@ typedef struct {
     int32_t (*handle_frame_sync_cb) (uint32_t camera_handle,
             uint32_t ch_id, uint32_t stream_id,
             mm_camera_cb_req_type req_type);
+
+   /** set_frame_sync: function to set channel frame sync
+     *    @camera_handle : camer handler
+     *    @ch_id : channel handler
+     *    @sync_value : enable/disable frame sync
+     *  Return value: 0 -- success
+     *                -1 -- failure
+     **/
+    int32_t (*set_frame_sync) (uint32_t camera_handle,
+              uint32_t ch_id, uint32_t sync_value);
 } mm_camera_ops_t;
 
 /** mm_camera_vtbl_t: virtual table for camera operations

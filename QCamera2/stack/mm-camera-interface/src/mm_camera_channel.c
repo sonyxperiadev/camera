@@ -159,7 +159,6 @@ void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
 mm_channel_queue_node_t* mm_channel_superbuf_dequeue_frame(
         mm_channel_queue_t *queue, mm_channel_t *ch_obj);
 
-
 /*===========================================================================
  * FUNCTION   : mm_channel_util_get_stream_by_handler
  *
@@ -2830,6 +2829,11 @@ void mm_channel_fill_meta_frame_id(mm_channel_t* ch_obj,
                 }
             }
             break;
+        }else {
+           if(IS_BUFFER_ERROR(buf_info->buf->flags)) {
+                LOGH("buffer error for frame_idx = %d", buf_info->frame_idx);
+                node->is_drop_frame = true;
+            }
         }
     }
 }
@@ -4192,5 +4196,11 @@ void mm_channel_node_qbuf(mm_channel_t *ch_obj, mm_channel_queue_node_t *node) {
     for (i = 0; i < node->num_of_bufs; i++) {
         mm_channel_qbuf(ch_obj, node->super_buf[i].buf);
     }
+    return;
+}
+
+void mm_channel_set_frame_sync(mm_channel_t *my_obj, uint32_t sync_value)
+{
+    my_obj->frame_sync.is_active = sync_value;
     return;
 }

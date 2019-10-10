@@ -317,6 +317,8 @@ public:
     cam_stream_type_t getMyType() {return mStreamType;}
     int32_t getFrameNumber(uint32_t frameIndex);
     virtual uint32_t getCompositeHandle() {return 0;};
+    virtual void setQuadraMetaBuffer(metadata_buffer_t *meta, metadata_buffer_t *reprocmeta);
+    virtual void getQuadraMetaBuffer(metadata_buffer_t **meta);
 
 protected:
     uint8_t mDebugFPS;
@@ -690,7 +692,8 @@ public:
             __unused bool internalRequest = false,
             __unused bool meteringOnly = false,
             __unused bool isZSL = false,
-            __unused bool DualsyncBuf = false);
+            __unused bool DualsyncBuf = false,
+            __unused bool skipRequest = false);
     virtual reprocess_type_t getReprocessType();
     virtual void streamCbRoutine(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
@@ -725,6 +728,10 @@ public:
     void overrideStreamDim(uint32_t width, uint32_t height);
     void stopPostProc();
     int32_t notifyDropForPendingBuffer(uint32_t frameNumber, buffer_handle_t *buf);
+    virtual void setQuadraMetaBuffer(metadata_buffer_t *Framemeta = NULL,
+                                                    metadata_buffer_t *Reprocmeta = NULL);
+    virtual void getQuadraMetaBuffer(metadata_buffer_t **meta);
+
 private:
     typedef struct {
         uint32_t frameNumber;
@@ -759,6 +766,7 @@ private:
     uint8_t m_bCtrlAux;
     bool m_bUpdatedDimensions;     //true if stream configured is not of framework dimension.
     cam_dimension_t mInternalDim;
+    metadata_buffer_t *m_QuadraMeta;
 private:
     bool needsFramePostprocessing(metadata_buffer_t* meta);
     int32_t handleOfflinePpCallback(uint32_t resultFrameNumber,

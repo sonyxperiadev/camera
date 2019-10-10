@@ -2535,6 +2535,19 @@ int32_t QCamera3PostProcessor::encodeData(qcamera_hal3_jpeg_data_t *jpeg_job_dat
            }
          }
     }
+
+    if (jpeg_settings->multiframe_snapshot) {
+        memset(&param, 0, sizeof(cam_stream_parm_buffer_t));
+        param.type = CAM_STREAM_PARAM_TYPE_GET_IMG_PROP;
+        ret = main_stream->getParameter(param);
+        if (ret != NO_ERROR) {
+           LOGE(" stream getParameter for reprocess failed");
+        } else {
+            main_stream->setCropInfo(param.imgProp.crop);
+            crop = param.imgProp.crop;
+        }
+    }
+
     // Set main dim job parameters and handle rotation
     if (!needJpegExifRotation && (jpeg_settings->jpeg_orientation == 90 ||
             jpeg_settings->jpeg_orientation == 270)) {
@@ -3271,6 +3284,10 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 free(pp_buffer);
                             }
                         }
+                        if (NULL != meta_pp_buffer) {
+                            free(meta_pp_buffer);
+                            meta_pp_buffer = NULL;
+                        }
                     } else {
                         pthread_mutex_unlock(&pme->mReprocJobLock);
                     }
@@ -3406,6 +3423,11 @@ int32_t QCamera3PostProcessor::processHalPPData(qcamera_hal_pp_data_t *pData)
                 || ((jpeg_job->jpeg_settings == NULL)
                 || (jpeg_job->jpeg_settings->image_type == CAM_HAL3_JPEG_TYPE_AUX))) {
         LOGH("No need to encode input buffer, just release it.");
+        if(jpeg_job->src_reproc_frame)
+        {
+            QCamera3PicChannel *pChannel = (QCamera3PicChannel *)m_parent;
+            pChannel->releaseSnapshotBuffer(jpeg_job->src_reproc_frame);
+        }
         releaseJpegJobData(jpeg_job);
         free(jpeg_job);
         jpeg_job = NULL;
