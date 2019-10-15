@@ -2177,7 +2177,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     cacheFwConfiguredStreams(streamList);
 
     if (isDualCamera() && !mFirstConfiguration) {
-        setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+      setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
     }
 
     if (mState == STARTED && mChannelHandle && isSecureMode()) {
@@ -8122,6 +8122,12 @@ no_error:
             mPendingRequestsList.end(), pendingRequest);
     if(mFlush) {
         LOGI("mFlush is true");
+        if(mParameters != NULL) {
+          clear_metadata_buffer(mParameters);
+        }
+        if(mAuxParameters != NULL) {
+          clear_metadata_buffer(mAuxParameters);
+        }
         pthread_mutex_unlock(&mMutex);
         pthread_mutex_unlock(&mRemosaicLock);
         return NO_ERROR;
@@ -8710,6 +8716,12 @@ no_error:
 
         pthread_mutex_unlock(&mMutex);
     }
+    if(mParameters != NULL) {
+      clear_metadata_buffer(mParameters);
+    }
+    if(mAuxParameters != NULL) {
+      clear_metadata_buffer(mAuxParameters);
+    }
 
     return rc;
 }
@@ -8810,6 +8822,12 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
 
     if (isDualCamera()) {
         setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+    }
+    if(mParameters != NULL) {
+      clear_metadata_buffer(mParameters);
+    }
+    if(mAuxParameters != NULL) {
+      clear_metadata_buffer(mAuxParameters);
     }
 
     rc = stopAllChannels();
