@@ -500,7 +500,8 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       m_bStopPicChannel(false),
       mHALZSL(CAM_HAL3_ZSL_TYPE_NONE),
       mFlashNeeded(false),
-      quad_req(NULL)
+      quad_req(NULL),
+      m_bRecoveryDone(false)
 {
     getLogLevel();
     m_halPPType = CAM_HAL_PP_TYPE_NONE;
@@ -537,6 +538,7 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     mCurrentRequestId = -1;
     pthread_mutex_init(&mMutex, NULL);
     pthread_mutex_init(&mRemosaicLock, NULL);
+    pthread_mutex_init(&mRecoveryLock, NULL);
 
     for (size_t i = 0; i < CAMERA3_TEMPLATE_COUNT; i++)
         mDefaultMetadata[i] = NULL;
@@ -612,9 +614,10 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
     m_bQuadraCfaRequest = false;
     m_bPreSnapQuadraCfaRequest = false;
     m_bQuadraSizeConfigured = false;
-    memset(&mStreamList, 0, sizeof(camera3_stream_configuration_t));
+    memset(&mStreamList, 0, sizeof(stream_configuration_t));
     m_bLPMEnabled = false;
     mbIsSWMFNRCapture = false;
+    mSavedParams.clear();
 
     mDualCamera = is_dual_camera_by_idx(cameraId);
     memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
@@ -862,9 +865,18 @@ QCamera3HardwareInterface::~QCamera3HardwareInterface()
 
     pthread_mutex_destroy(&mMutex);
     pthread_mutex_destroy(&mRemosaicLock);
-    if (mStreamList.streams != NULL) {
-        free(mStreamList.streams);
+    pthread_mutex_destroy(&mRecoveryLock);
+
+    if (mStreamList.streamList.streams != NULL) {
+        free(mStreamList.streamList.streams);
+        mStreamList.streamList.streams = NULL;
     }
+
+    if(mStreamList.usage != NULL) {
+        free(mStreamList.usage);
+        mStreamList.usage = NULL;
+    }
+
     LOGD("X");
 }
 
@@ -915,6 +927,10 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
                 obj->mState = ERROR;
                 pthread_mutex_unlock(&obj->mMutex);
                 LOGE("Fatal, camera daemon died");
+                if(obj->isHWRecoveryEnabled())
+                {
+                    obj->initiateRecovery();
+                }
                 break;
 
             case CAM_EVENT_TYPE_DAEMON_PULL_REQ:
@@ -2029,24 +2045,48 @@ int QCamera3HardwareInterface::cacheFwConfiguredStreams(
     camera3_stream_configuration_t *streams_configuration)
 {
     int rc = NO_ERROR;
-    if (&mStreamList != streams_configuration) {
-        if (mStreamList.streams != NULL) {
-            free(mStreamList.streams);
+    if (&mStreamList.streamList != streams_configuration) {
+        if (mStreamList.streamList.streams != NULL) {
+            free(mStreamList.streamList.streams);
+            mStreamList.streamList.streams = NULL;
         }
-        mStreamList = *streams_configuration;
-        mStreamList.streams =
+        if(mStreamList.usage != NULL) {
+            free(mStreamList.usage);
+            mStreamList.usage = NULL;
+        }
+        mStreamList.streamList = *streams_configuration;
+        mStreamList.streamList.streams =
        (camera3_stream_t **)malloc(streams_configuration->num_streams * sizeof(camera3_stream_t*));
-        if(mStreamList.streams == NULL)
+        if(mStreamList.streamList.streams == NULL)
         {
             rc =  -ENOMEM;
-        } else {
-            memcpy(mStreamList.streams, streams_configuration->streams,
+        }
+
+        if(rc == NO_ERROR)
+        {
+            mStreamList.usage = (uint32_t *)
+                                malloc(streams_configuration->num_streams* sizeof(uint32_t));
+            if(mStreamList.usage == NULL)
+            {
+                free(mStreamList.streamList.streams);
+                mStreamList.streamList.streams = NULL;
+                rc =  -ENOMEM;
+            }
+        }
+
+        if(rc == NO_ERROR) {
+            memcpy(mStreamList.streamList.streams, streams_configuration->streams,
                 (streams_configuration->num_streams * sizeof(camera3_stream_t*)));
-            mStreamList.num_streams = streams_configuration->num_streams;
+            mStreamList.streamList.num_streams = streams_configuration->num_streams;
+
+            for(size_t i = 0; i < streams_configuration->num_streams; i++)
+            {
+                mStreamList.usage[i] = streams_configuration->streams[i]->usage;
+            }
         }
     } else {
         for (size_t i = 0; i < streams_configuration->num_streams; i++) {
-            streams_configuration->streams[i]->priv = NULL;
+            streams_configuration->streams[i]->usage = mStreamList.usage[i];
         }
     }
     return rc;
@@ -2172,6 +2212,10 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     m_ppChannelCnt = 1;
     m_bOfflineIsp = false;
     mStreamOnPending = false;
+    if(!m_bRecoveryDone)
+    {
+         mSavedParams.clear();
+    }
 
     /* cache fw stream configuration, for internally reconfigure streams and then config "back" */
     cacheFwConfiguredStreams(streamList);
@@ -3855,7 +3899,7 @@ int QCamera3HardwareInterface::validateCaptureRequest(
         return BAD_VALUE;
     }
 
-    if ((request->settings == NULL) && (mState == CONFIGURED)) {
+    if ((request->settings == NULL) && (mState == CONFIGURED) && !m_bRecoveryDone) {
         /*settings cannot be null for the first request*/
         return BAD_VALUE;
     }
@@ -6370,7 +6414,7 @@ int32_t QCamera3HardwareInterface::captureQuadraCfaFrameInternal(camera3_capture
     //hold remosaic lock to avoid flush while reconfiguration.
     pthread_mutex_lock(&mRemosaicLock);
     pthread_mutex_unlock(&mMutex);
-    configureStreamsPerfLocked(&mStreamList);
+    configureStreamsPerfLocked(&mStreamList.streamList);
     pthread_mutex_lock(&mMutex);
 
 
@@ -6529,6 +6573,117 @@ void QCamera3HardwareInterface::setChannelQuadraMode(
     }
 }
 
+int32_t QCamera3HardwareInterface::createDeferredWork(DeferredTask task)
+{
+    DeferredTask *df_task = (DeferredTask *)malloc (sizeof (DeferredTask));
+    memset(df_task, 0, sizeof(*df_task));
+    *df_task = task;
+    pthread_t taskThread = 0;
+    pthread_create(&taskThread, NULL, deferredWork, df_task);
+    return NO_ERROR;
+}
+
+void *QCamera3HardwareInterface::deferredWork(void *task)
+{
+    DeferredTask *dt = (DeferredTask *)task;
+    if(dt->msg_type == INITIATE_HW_RECOVERY)
+    {
+        QCamera3HardwareInterface *hal_obj = (QCamera3HardwareInterface *)dt->owner;
+        pthread_mutex_lock(&hal_obj->mRecoveryLock);
+        hal_obj->m_bRecoveryDone = true;
+        int rc = hal_obj->doInternalRestart();
+        if(rc != NO_ERROR)
+        {
+             hal_obj->mState = ERROR;
+        }
+        pthread_mutex_unlock(&hal_obj->mRecoveryLock);
+    }
+
+    if(dt && dt->data)
+    {
+        free(dt->data);
+    }
+
+    if(dt)
+    {
+        free(dt);
+    }
+
+    return NULL;
+}
+
+int QCamera3HardwareInterface::initiateRecovery(bool defered)
+{
+    int rc = NO_ERROR;
+    LOGE("%s Start internal recovery",defered? "Defered work:":"");
+    if(defered){
+        DeferredTask task;
+        task.msg_type = INITIATE_HW_RECOVERY;
+        task.data = NULL;
+        task.owner = this;
+       rc = createDeferredWork(task);
+    } else {
+        pthread_mutex_lock(&mRecoveryLock);
+        m_bRecoveryDone = true;
+        rc = doInternalRestart();
+        if(rc != NO_ERROR)
+        {
+             mState = ERROR;
+        }
+        pthread_mutex_unlock(&mRecoveryLock);
+    }
+
+    return rc;
+}
+
+bool QCamera3HardwareInterface::isHWRecoveryEnabled()
+{
+    char prop[PROPERTY_VALUE_MAX];
+    property_get(HW_RECOVERY_PROP,prop, DEFAULT_VALUE_HW_RECOVERY_PROP);
+    if(strlen(prop) && (atoi(prop) > 0))
+    {
+        return true;
+    }
+    return false;
+}
+
+int QCamera3HardwareInterface::doInternalRestart()
+{
+    int rc = NO_ERROR;
+
+    //1)Flush the device.
+    rc = flush(false);
+    if(rc != NO_ERROR)
+    {
+       LOGE("flush failed while internal restart");
+        goto failed;
+    }
+
+    if(rc != NO_ERROR)
+    {
+        LOGE("open camera failed while internal restart");
+        goto failed;
+    }
+    //setting correct state.
+    mState = INITIALIZED;
+
+    //2)ConfigureStreams
+    rc = configureStreamsPerfLocked(&mStreamList.streamList);
+    if(rc != NO_ERROR || mState != CONFIGURED)
+    {
+        LOGE("re-configuration failed while internal restart");
+        goto failed;
+        rc = BAD_VALUE;
+    }
+
+    return rc;
+
+failed:
+
+    mState = ERROR;
+    return rc;
+}
+
 /*===========================================================================
  * FUNCTION   : processCaptureRequest
  *
@@ -6567,6 +6722,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
     int32_t perfLevel = 0;
 #endif
 
+    pthread_mutex_lock(&mRecoveryLock);
     pthread_mutex_lock(&mMutex);
 
     // Validate current state
@@ -6584,8 +6740,10 @@ int QCamera3HardwareInterface::processCaptureRequest(
         default:
             LOGE("Invalid state %d", mState);
             pthread_mutex_unlock(&mMutex);
+            pthread_mutex_unlock(&mRecoveryLock);
             return -ENODEV;
     }
+    pthread_mutex_unlock(&mRecoveryLock);
 
     rc = validateCaptureRequest(request, internallyRequestedStreams);
     if (rc != NO_ERROR) {
@@ -6597,6 +6755,15 @@ int QCamera3HardwareInterface::processCaptureRequest(
     logical_setting = request->settings;
 
     meta = request->settings;
+    if(!m_bRecoveryDone){
+        //updating saved params.
+        if(request->settings != NULL) {
+            mSavedParams.append(meta);
+        }
+    }else{
+        //using saved params if recoverd from error.
+        meta.append(mSavedParams);
+    }
 #ifdef USE_HAL_3_5
     if(IS_MULTI_CAMERA)
     {
@@ -7611,7 +7778,9 @@ no_error:
         request_id = meta.find(ANDROID_REQUEST_ID).data.i32[0];
         mCurrentRequestId = request_id;
         LOGD("Received request with id: %d", request_id);
-    } else if (mState == CONFIGURED || mCurrentRequestId == -1){
+    } else if (((mState == CONFIGURED )
+               && (!m_bRecoveryDone))
+               || (mCurrentRequestId == -1)){
         LOGE("Unable to find request id field, \
                 & no previous id available");
         pthread_mutex_unlock(&mMutex);
@@ -7619,6 +7788,7 @@ no_error:
     } else {
         LOGD("Re-using old request id");
         request_id = mCurrentRequestId;
+        m_bRecoveryDone = false;
     }
 
     LOGH("num_output_buffers = %d input_buffer = %p frame_number = %d",
@@ -8874,6 +9044,10 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     pthread_mutex_unlock(&mMutex);
     pthread_mutex_unlock(&mRemosaicLock);
     mPerfLockMgr.releasePerfLock(PERF_LOCK_FLUSH);
+    if(!m_bRecoveryDone)
+    {
+         mSavedParams.clear();
+    }
 
     return 0;
 }
