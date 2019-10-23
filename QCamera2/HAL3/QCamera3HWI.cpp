@@ -5431,9 +5431,45 @@ void QCamera3HardwareInterface::handleBufferWithLock(
         camera3_capture_result_t result;
         memset(&result, 0, sizeof(camera3_capture_result_t));
         result.result = NULL;
+        result.partial_result = 0;
+        if((i != mPendingRequestsList.end()) && i->input_buffer){
+            LOGD("sending input buffer for frame_number %d", frame_number);
+            CameraMetadata settings;
+            camera3_notify_msg_t notify_msg;
+            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+            nsecs_t capture_time = systemTime(CLOCK_MONOTONIC);
+            if(i->settings){
+                settings = i->settings;
+                if (settings.exists(ANDROID_SENSOR_TIMESTAMP)) {
+                    capture_time = settings.find(ANDROID_SENSOR_TIMESTAMP).data.i64[0];
+                } else {
+                    LOGW("No timestamp in input settings! Using current one.");
+                }
+            } else {
+                LOGE("Input settings missing!");
+            }
+            notify_msg.type = CAMERA3_MSG_SHUTTER;
+            notify_msg.message.shutter.frame_number = frame_number;
+            notify_msg.message.shutter.timestamp = (uint64_t)capture_time;
+            if (i->input_buffer->release_fence != -1) {
+                int32_t rc = sync_wait(i->input_buffer->release_fence, TIMEOUT_NEVER);
+                close(i->input_buffer->release_fence);
+                if (rc != OK) {
+                    LOGE("input buffer sync wait failed %d", rc);
+                }
+            }
+            if(i->settings){
+                result.result = i->settings;
+                result.partial_result = PARTIAL_RESULT_COUNT;
+            }
+            result.input_buffer = i->input_buffer;
+            orchestrateNotify(&notify_msg);
+            i->input_buffer = NULL;
+            erasePendingRequest(i);
+            mPendingLiveRequest--;
+        }
         result.frame_number = frame_number;
         result.num_output_buffers = 1;
-        result.partial_result = 0;
         for (List<PendingFrameDropInfo>::iterator m = mPendingFrameDropList.begin();
                 m != mPendingFrameDropList.end(); m++) {
             QCamera3Channel *channel = (QCamera3Channel *)buffer->stream->priv;
