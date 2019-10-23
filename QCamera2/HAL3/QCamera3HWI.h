@@ -467,7 +467,7 @@ private:
     Vector<uint32_t> getPhyIdListForCameraId(uint32_t cameraId);
     int validateStreamsPhyIds(camera3_stream_configuration_t *streamList);
     void setDCFeature(cam_feature_mask_t& feature_mask,
-            cam_stream_type_t stream_type);
+            cam_stream_type_t stream_type, cam_dimension_t stream_dim);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
     void updateTimeStampInPendingBuffers(uint32_t frameNumber, nsecs_t timestamp);
 
@@ -528,6 +528,8 @@ private:
     bool needZSLCapture(const camera3_capture_request_t *request);
     int32_t addZSLChannel();
     static void zsl_channel_cb(mm_camera_super_buf_t *recvd_frame, void *userdata);
+    int getConfiguredSATStreamDim(cam_dimension_t &dim);
+    bool isPreviewSATEnabled();
 
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
