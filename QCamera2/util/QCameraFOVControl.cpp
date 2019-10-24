@@ -1572,8 +1572,9 @@ void QCameraFOVControl::generateFovControlResult()
             else if ((needDualZone() && (mFovControlData.zoomDirection == ZOOM_OUT)) ||
                         (!mFovControlData.fallbackEnabled &&
                         ((mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) &&
-                        (mFovControlData.spatialAlignResult.activeCameras ==
-                            (camWide | camTele))))) {
+                        (mFovControlData.spatialAlignResult.activeCameras ==(camWide | camTele))))||
+                        (mFovControlData.fallbackEnabled &&
+                         (zoom <= mFovControlData.transitionParams.cutOverWideToTele))) {
                 mFovControlData.camState = STATE_TRANSITION;
                 mFovControlResult.activeCameras = (camWide | camTele);
             }
@@ -1773,6 +1774,10 @@ bool QCameraFOVControl::canSwitchMasterTo(
                 if (!(mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) ||
                         ((mFovControlData.spatialAlignResult.camMasterHint == 0) &&
                         mFovControlData.spatialAlignResult.fallbackComplete)) {
+                    ret = true;
+                } else if (zoom < cutOverTeleToWide) {
+                    // In case of QTI Spatial alignment solution and no spatial alignment solution,
+                    // check the fallback flag or if the zoom level has crossed the threhold.
                     ret = true;
                 }
             } else if (mFovControlData.availableSpatialAlignSolns & CAM_SPATIAL_ALIGN_OEM) {

@@ -17853,7 +17853,7 @@ int32_t QCamera3HardwareInterface::setDCDeferCamera(cam_dual_camera_defer_cmd_t 
     int32_t rc = NO_ERROR;
     char prop[PROPERTY_VALUE_MAX];
     bool deferEnable = TRUE;
-    if(IS_PP_TYPE_NONE)
+    if(IS_PP_TYPE_NONE || IS_HAL_PP_TYPE_SAT)
     {
         return rc;
     }
