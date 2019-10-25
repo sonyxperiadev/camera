@@ -8821,6 +8821,7 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     }
 
     if (isDualCamera()) {
+        mActiveCameras = MM_CAMERA_DUAL_CAM;
         setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
     }
     if(mParameters != NULL) {
