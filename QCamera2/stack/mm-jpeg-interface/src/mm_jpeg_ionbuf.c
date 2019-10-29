@@ -174,10 +174,9 @@ int buffer_deallocate(buffer_t *p_buffer)
 
   lrc = munmap(p_buffer->addr, lsize);
 
-  close(p_buffer->ion_info_fd.fd);
-
   lhandle_data.handle = p_buffer->ion_info_fd.handle;
 #ifndef TARGET_ION_ABI_VERSION
+  close(p_buffer->ion_info_fd.fd);
   ioctl(p_buffer->ion_fd, ION_IOC_FREE, &lhandle_data);
   close(p_buffer->ion_fd);
 #else
