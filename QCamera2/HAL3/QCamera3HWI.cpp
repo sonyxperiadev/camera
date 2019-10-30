@@ -4990,7 +4990,15 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 CameraMetadata dummyMetadata;
                 dummyMetadata.update(ANDROID_REQUEST_ID, &(i->request_id), 1);
                 result.result = dummyMetadata.release();
-
+                for (pendingBufferIterator iter = i->buffers.begin();
+                     iter != i->buffers.end(); iter++) {
+                    if (iter->need_metadata) {
+                        QCamera3ProcessingChannel *channel =
+                           (QCamera3ProcessingChannel *)iter->stream->priv;
+                        channel->cancelFramePProc(i->frame_number);
+                        break;
+                    }
+                }
                 notifyError(i->frame_number, CAMERA3_MSG_ERROR_RESULT);
             }
         } else {

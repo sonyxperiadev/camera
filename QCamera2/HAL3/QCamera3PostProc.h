@@ -158,6 +158,7 @@ public:
     int32_t processData(mm_camera_super_buf_t *input,
             buffer_handle_t *output, uint32_t frameNumber);
     int32_t processData(mm_camera_super_buf_t *input);
+    int32_t cancelFramePProc(uint32_t framenum);
     int32_t processPPData(mm_camera_super_buf_t *frame, const metadata_buffer_t *p_metadata = NULL);
     int32_t processPPMetadata(mm_camera_super_buf_t *reproc_meta,uint32_t framenum, bool dropFrame);
     int32_t processJpegSettingData(jpeg_settings_t *jpeg_settings);
@@ -260,6 +261,7 @@ public:
     bool mChannelStop;
     static List<qcamera_hal3_mpo_data_t> mMpoInputData;
     List<uint32_t> mFreeJpegSessions;
+    List<uint32_t> mCancelpprocReqFrameList;
 };
 
 }; // namespace qcamera

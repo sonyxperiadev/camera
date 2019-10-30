@@ -320,6 +320,7 @@ public:
     virtual uint32_t getCompositeHandle() {return 0;};
     virtual void setQuadraMetaBuffer(metadata_buffer_t *meta, metadata_buffer_t *reprocmeta);
     virtual void getQuadraMetaBuffer(metadata_buffer_t **meta);
+    virtual int32_t cancelFramePProc(uint32_t frameNumber, cam_sync_type_t cam = CAM_TYPE_MAIN);
 
 protected:
     uint8_t mDebugFPS;
@@ -733,6 +734,7 @@ public:
     virtual void setQuadraMetaBuffer(metadata_buffer_t *Framemeta = NULL,
                                                     metadata_buffer_t *Reprocmeta = NULL);
     virtual void getQuadraMetaBuffer(metadata_buffer_t **meta);
+    virtual int32_t cancelFramePProc(uint32_t framenum, cam_sync_type_t cam = CAM_TYPE_MAIN);
 
 private:
     typedef struct {
@@ -848,6 +850,9 @@ public:
     virtual void setAuxSourceZSLChannel(QCamera3ProcessingChannel *srcZsl,
                                                  zsl_stream_type_t zslType,
                                                  bool skipConfig);
+    virtual int32_t cancelFramePProc(uint32_t framenum,
+                                              cam_sync_type_t cam = CAM_TYPE_MAIN);
+    int returnBufferError(uint32_t frameNumber);
     bool isMpoEnabled() { return m_bMpoEnabled; }
     int32_t addChannel();
     int32_t deleteChannel();
@@ -870,7 +875,6 @@ private:
                                   metadata_buffer_t *metadata,
                                   cam_hal3_JPEG_type_t imagetype = CAM_HAL3_JPEG_TYPE_MAIN);
     void configureMpo();
-    int returnBufferError(uint32_t frameNumber);
     void releaseSuperBuf(mm_camera_super_buf_t *recvd_frame);
 
 public:
@@ -939,6 +943,8 @@ public:
                             QCamera3Stream *stream);
     static void dataNotifyCB(mm_camera_super_buf_t *recvd_frame,
                                        void* userdata);
+    int releaseOutputBuffer(buffer_handle_t * output_buffer,
+                                                uint32_t frame_number);
     int32_t addReprocStreamsFromSource(cam_pp_feature_config_t &pp_config,
            const reprocess_config_t &src_config,
            cam_is_type_t is_type,
