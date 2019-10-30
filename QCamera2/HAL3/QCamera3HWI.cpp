@@ -2177,7 +2177,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     cacheFwConfiguredStreams(streamList);
 
     if (isDualCamera() && !mFirstConfiguration) {
-        setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+      setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
     }
 
     if (mState == STARTED && mChannelHandle && isSecureMode()) {
@@ -4975,7 +4975,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
          if(IS_MULTI_CAMERA && checkIfMetaDropped(&(*i))) {
             allocateAndinitializeMetadata(&result, &(*i));
             notifyError(i->frame_number, CAMERA3_MSG_ERROR_RESULT);
-         }else if (!IS_MULTI_CAMERA && (i->frame_number < frame_number)) {
+         }else if (!IS_MULTI_CAMERA && ((i->frame_number < frame_number) ||
+            (frame_number_valid == FRAME_META_INCORRECT))){
             if (i->input_buffer) {
                 /* this will be handled in handleInputBufferWithLock */
                 i++;
@@ -4984,6 +4985,8 @@ void QCamera3HardwareInterface::handleMetadataWithLock(
                 if (i->internalRequestList.size() == 0) {
                     mPendingLiveRequest--;
                 }
+                LOGI("sending error result for frame_number %d frame_number_valid %d",
+                    i->frame_number, frame_number_valid);
                 CameraMetadata dummyMetadata;
                 dummyMetadata.update(ANDROID_REQUEST_ID, &(i->request_id), 1);
                 result.result = dummyMetadata.release();
@@ -5428,9 +5431,45 @@ void QCamera3HardwareInterface::handleBufferWithLock(
         camera3_capture_result_t result;
         memset(&result, 0, sizeof(camera3_capture_result_t));
         result.result = NULL;
+        result.partial_result = 0;
+        if((i != mPendingRequestsList.end()) && i->input_buffer){
+            LOGD("sending input buffer for frame_number %d", frame_number);
+            CameraMetadata settings;
+            camera3_notify_msg_t notify_msg;
+            memset(&notify_msg, 0, sizeof(camera3_notify_msg_t));
+            nsecs_t capture_time = systemTime(CLOCK_MONOTONIC);
+            if(i->settings){
+                settings = i->settings;
+                if (settings.exists(ANDROID_SENSOR_TIMESTAMP)) {
+                    capture_time = settings.find(ANDROID_SENSOR_TIMESTAMP).data.i64[0];
+                } else {
+                    LOGW("No timestamp in input settings! Using current one.");
+                }
+            } else {
+                LOGE("Input settings missing!");
+            }
+            notify_msg.type = CAMERA3_MSG_SHUTTER;
+            notify_msg.message.shutter.frame_number = frame_number;
+            notify_msg.message.shutter.timestamp = (uint64_t)capture_time;
+            if (i->input_buffer->release_fence != -1) {
+                int32_t rc = sync_wait(i->input_buffer->release_fence, TIMEOUT_NEVER);
+                close(i->input_buffer->release_fence);
+                if (rc != OK) {
+                    LOGE("input buffer sync wait failed %d", rc);
+                }
+            }
+            if(i->settings){
+                result.result = i->settings;
+                result.partial_result = PARTIAL_RESULT_COUNT;
+            }
+            result.input_buffer = i->input_buffer;
+            orchestrateNotify(&notify_msg);
+            i->input_buffer = NULL;
+            erasePendingRequest(i);
+            mPendingLiveRequest--;
+        }
         result.frame_number = frame_number;
         result.num_output_buffers = 1;
-        result.partial_result = 0;
         for (List<PendingFrameDropInfo>::iterator m = mPendingFrameDropList.begin();
                 m != mPendingFrameDropList.end(); m++) {
             QCamera3Channel *channel = (QCamera3Channel *)buffer->stream->priv;
@@ -6981,7 +7020,8 @@ int QCamera3HardwareInterface::processCaptureRequest(
             //Set feature masks based on dual cam feature enabled
             for (uint32_t i = 0; i < mStreamConfigInfo[config_index].num_streams; i++) {
                 setDCFeature(mStreamConfigInfo[config_index].postprocess_mask[i],
-                    (cam_stream_type_t) mStreamConfigInfo[config_index].type[i]);
+                    (cam_stream_type_t) mStreamConfigInfo[config_index].type[i],
+                    mStreamConfigInfo[config_index].stream_sizes[i]);
             }
 
             if (l_meta.exists(QCAMERA3_VIDEO_HDR_MODE)) {
@@ -6995,6 +7035,24 @@ int QCamera3HardwareInterface::processCaptureRequest(
 
             if(isDualCamera() && !IS_PP_TYPE_NONE)
             {
+                for (auto it = mStreamInfo.begin(); it != mStreamInfo.end(); it++) {
+                    cam_feature_mask_t pp_mask = 0;
+                    QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
+                    for (size_t i = 0; i < mStreamConfigInfo[0].num_streams; i++) {
+                        cam_dimension_t s_dim;
+                        memset(&s_dim, 0, sizeof(cam_dimension_t));
+                        channel->getStreamSize(s_dim);
+                        cam_dimension_t config_dim = mStreamConfigInfo[0].stream_sizes[i];
+                        if (((1U << mStreamConfigInfo[0].type[i]) == channel->getStreamTypeMask())
+                            && (s_dim.width == config_dim.width)
+                            && (s_dim.height == config_dim.height)) {
+                            pp_mask = mStreamConfigInfo[0].postprocess_mask[i];
+                            channel->overridePPConfig(pp_mask);
+                            break;
+                        }
+                    }
+                }
+
                 ADD_SET_PARAM_ENTRY_TO_BATCH(mParameters,
                         CAM_INTF_META_STREAM_INFO, mStreamConfigInfo[config_index]);
                 if (m_pFovControl != NULL) {
@@ -7217,19 +7275,7 @@ int QCamera3HardwareInterface::processCaptureRequest(
             }
         }
 
-        if (isDualCamera() && !IS_PP_TYPE_NONE) {
-            for (auto it = mStreamInfo.begin(); it != mStreamInfo.end(); it++) {
-                cam_feature_mask_t pp_mask = 0;
-                QCamera3Channel *channel = (QCamera3Channel *)(*it)->stream->priv;
-                for (size_t i = 0; i < mStreamConfigInfo[0].num_streams; i++) {
-                    if ( (1U << mStreamConfigInfo[0].type[i]) == channel->getStreamTypeMask() ) {
-                        pp_mask = mStreamConfigInfo[0].postprocess_mask[i];
-                        channel->overridePPConfig(pp_mask);
-                        break;
-                    }
-                }
-            }
-
+        if(isDualCamera() && !IS_PP_TYPE_NONE) {
             initDCSettings();
             //Trigger deferred job slave session
             setDCDeferCamera(CAM_DEFER_START);
@@ -8076,6 +8122,12 @@ no_error:
             mPendingRequestsList.end(), pendingRequest);
     if(mFlush) {
         LOGI("mFlush is true");
+        if(mParameters != NULL) {
+          clear_metadata_buffer(mParameters);
+        }
+        if(mAuxParameters != NULL) {
+          clear_metadata_buffer(mAuxParameters);
+        }
         pthread_mutex_unlock(&mMutex);
         pthread_mutex_unlock(&mRemosaicLock);
         return NO_ERROR;
@@ -8664,6 +8716,12 @@ no_error:
 
         pthread_mutex_unlock(&mMutex);
     }
+    if(mParameters != NULL) {
+      clear_metadata_buffer(mParameters);
+    }
+    if(mAuxParameters != NULL) {
+      clear_metadata_buffer(mAuxParameters);
+    }
 
     return rc;
 }
@@ -8763,7 +8821,14 @@ int QCamera3HardwareInterface::flush(bool restartChannels)
     }
 
     if (isDualCamera()) {
+        mActiveCameras = MM_CAMERA_DUAL_CAM;
         setDCLowPowerMode(MM_CAMERA_DUAL_CAM);
+    }
+    if(mParameters != NULL) {
+      clear_metadata_buffer(mParameters);
+    }
+    if(mAuxParameters != NULL) {
+      clear_metadata_buffer(mAuxParameters);
     }
 
     rc = stopAllChannels();
@@ -17177,7 +17242,8 @@ void QCamera3HardwareInterface::setPAAFSupport(
 
 void QCamera3HardwareInterface::setDCFeature(
         cam_feature_mask_t& feature_mask,
-        cam_stream_type_t stream_type)
+        cam_stream_type_t stream_type,
+        cam_dimension_t stream_dim)
 {
     if(isDualCamera()) {
         char prop[PROPERTY_VALUE_MAX];
@@ -17197,6 +17263,16 @@ void QCamera3HardwareInterface::setDCFeature(
                 (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
                 feature_mask |= CAM_QTI_FEATURE_SAT;
                 LOGH("SAT feature mask set");
+            }else if(!isPreviewSATEnabled()
+                     && (stream_type == CAM_STREAM_TYPE_CALLBACK)){
+                cam_dimension_t SAT_Dim;
+                memset(&SAT_Dim, 0, sizeof(SAT_Dim));
+                getConfiguredSATStreamDim(SAT_Dim);
+                if((stream_dim.width == SAT_Dim.width )
+                &&(stream_dim.height == SAT_Dim.height)){
+                    feature_mask |= CAM_QTI_FEATURE_SAT;
+                    LOGH("SAT feature mask set");
+                }
             }
         }
 
@@ -17796,7 +17872,7 @@ int32_t QCamera3HardwareInterface::setDCDeferCamera(cam_dual_camera_defer_cmd_t 
     int32_t rc = NO_ERROR;
     char prop[PROPERTY_VALUE_MAX];
     bool deferEnable = TRUE;
-    if(IS_PP_TYPE_NONE)
+    if(IS_PP_TYPE_NONE || IS_HAL_PP_TYPE_SAT)
     {
         return rc;
     }
@@ -18042,5 +18118,65 @@ int32_t QCamera3HardwareInterface::updateFrameMetaWithParams(
     return NO_ERROR;
 }
 
+/*===========================================================================
+ * FUNCTION   : getConfiguredSATStreamDim
+ *
+ * DESCRIPTION: If preview stream is not configured, this method can be called to
+ *              enable UDFC SAT if callback stream is configured by application.
+ *
+ * PARAMETERS : output dimensions
+ *
+ * RETURN     : NO_ERROR.
+ *==========================================================================*/
+int QCamera3HardwareInterface::getConfiguredSATStreamDim(cam_dimension_t &prevDim)
+{
+    int rc = NO_ERROR;
+    if(isDualCamera() && (getHalPPType() == CAM_HAL_PP_TYPE_SAT))
+    {
+        uint32_t config_index = CONFIG_INDEX_MAIN;
+        prevDim = mStreamConfigInfo[config_index].stream_sizes[0];
+        for(uint32_t i = 1; i < mStreamConfigInfo[config_index].num_streams; i++)
+        {
+            if(mStreamConfigInfo[config_index].type[i] == CAM_STREAM_TYPE_CALLBACK)
+            {
+                cam_dimension_t dim = mStreamConfigInfo[config_index].stream_sizes[i];
+                if((dim.width * dim.height) < (prevDim.width * prevDim.height))
+                {
+                    prevDim.width = dim.width;
+                    prevDim.height = dim.height;
+                }
+            }
+        }
+    }
+    return rc;
+}
+
+/*===========================================================================
+ * FUNCTION   : isPreviewSATEnabled
+ *
+ * DESCRIPTION: By default if preview stream configured SAT feature will be enabled
+ *              for preview stream.
+ *              Modify this method if SAT need be enabled for othere than preview
+ *              stream while preview is also configured.
+ *
+ * PARAMETERS : None
+ *
+ * RETURN     : True if preview stream configured as only preview will have SAT mask.
+ *==========================================================================*/
+bool QCamera3HardwareInterface::isPreviewSATEnabled()
+{
+    bool rc = false;
+    uint32_t config_index = CONFIG_INDEX_MAIN;
+    for(uint32_t i = 0; i < mStreamConfigInfo[config_index].num_streams; i++)
+    {
+        if(mStreamConfigInfo[config_index].type[i] == CAM_STREAM_TYPE_PREVIEW)
+        {
+            rc = true;
+            break;
+        }
+    }
+
+    return rc;
+}
 
 }; //end namespace qcamera

@@ -419,6 +419,27 @@ int32_t QCamera3Channel::setBundleInfo(const cam_bundle_config_t &bundleInfo, ui
 }
 
 /*===========================================================================
+ * FUNCTION   : getStreamSize
+ *
+ * DESCRIPTION: get the size from the camera3_stream_t for the channel
+ *
+ * PARAMETERS :
+ *   @dim     : Return the size of the stream
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
+int32_t QCamera3Channel::getStreamSize(cam_dimension_t &dim)
+{
+    if (mStreams[0]) {
+        return mStreams[0]->getFrameDimension(dim);
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+/*===========================================================================
  * FUNCTION   : getStreamTypeMask
  *
  * DESCRIPTION: Get bit mask of all stream types in this channel
@@ -3643,7 +3664,7 @@ QCamera3YUVChannel::QCamera3YUVChannel(uint32_t cam_handle,
     QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
     m_bCtrlAux = !appConfigAux;
     if (is_dual_camera_by_handle(cam_handle)
-        && (hal_obj->isPPMaskSetForScaling(postprocess_mask))
+        && !(hal_obj->isPPMaskSetForScaling(postprocess_mask))
         && hal_obj->isAsymetricDim(dim)
         && !appConfigAux) {
         m_camHandle = get_main_camera_handle(cam_handle);
@@ -3655,6 +3676,7 @@ QCamera3YUVChannel::QCamera3YUVChannel(uint32_t cam_handle,
                     stream, stream_type,
                     postprocess_mask,
                     metadataChannel);
+
         setDualChannelMode(true);
     }
 
@@ -4207,6 +4229,15 @@ int QCamera3YUVChannel::allocateZSLBuffers()
     }
     LOGH(": X");
     return rc;
+}
+
+uint32_t QCamera3YUVChannel::getStreamTypeMask()
+{
+    if(mStreams[0])
+    {
+        return QCamera3Channel::getStreamTypeMask();
+    }
+    return (1U << mStreamType);
 }
 
 void QCamera3YUVChannel::switchMaster(uint32_t masterCam)
@@ -5720,6 +5751,10 @@ int32_t QCamera3PicChannel::stopChannel()
 
     if(!m_bStarted) {
        LOGD("Attempt to stop inactive channel");
+       if(mAuxPicChannel)
+       {
+           return mAuxPicChannel->stopChannel();
+       }
        return rc;
     }
 
@@ -5729,6 +5764,11 @@ int32_t QCamera3PicChannel::stopChannel()
     if(rc == NO_ERROR){
        m_bStarted = false;
     }
+
+    if(mAuxPicChannel){
+        mAuxPicChannel->stopChannel();
+    }
+
     return rc;
 }
 
@@ -5744,10 +5784,21 @@ int32_t QCamera3PicChannel::startChannel()
     if (!mLiveShot) return NO_ERROR;
     LOGD("QCamera3PicChannel::startChannel");
 
+    QCamera3HardwareInterface *hal_obj= (QCamera3HardwareInterface *)mUserData;
+    if(m_bDualChannel)
+    {
+      bool isMaster = mAuxPicChannel ?
+            (mMasterCam == CAM_TYPE_MAIN): (mMasterCam == CAM_TYPE_AUX);
+      if(mAuxPicChannel && (!isMaster || hal_obj->needHALPP())){
+          mAuxPicChannel->startChannel();
+      }
+    }
+
     rc =  m_camOps->start_channel(m_camHandle, m_handle);
     if(rc == NO_ERROR){
        m_bStarted = true;
     }
+
     return rc;
 }
 

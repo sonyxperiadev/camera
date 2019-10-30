@@ -141,6 +141,7 @@ public:
     virtual QCamera3StreamMem *getStreamBufs(uint32_t len) = 0;
     virtual void putStreamBufs() = 0;
     virtual int32_t flush();
+    virtual int32_t getStreamSize(cam_dimension_t &dim);
 
     QCamera3Stream *getStreamByHandle(uint32_t streamHandle);
     uint32_t getMyHandle() const {return m_handle;};
@@ -281,7 +282,7 @@ public:
             uint32_t frameNumber);
     int32_t checkStreamCbErrors(mm_camera_super_buf_t *super_frame,
             QCamera3Stream *stream);
-    int32_t getStreamSize(cam_dimension_t &dim);
+    virtual int32_t getStreamSize(cam_dimension_t &dim);
     virtual int32_t timeoutFrame(uint32_t frameNumber);
     virtual void setAuxSourceZSLChannel(__unused QCamera3ProcessingChannel *srcZsl,
                                              __unused zsl_stream_type_t zslType,
@@ -720,6 +721,7 @@ public:
     virtual void startDeferredAllocation();
     virtual QCamera3Channel *getAuxHandle();
     virtual uint32_t getCompositeHandle() {return mCompositeHandle;};
+    virtual uint32_t getStreamTypeMask();
     virtual void setAuxSourceZSLChannel(
                                          QCamera3ProcessingChannel *srcZsl,
                                          zsl_stream_type_t zslType,
