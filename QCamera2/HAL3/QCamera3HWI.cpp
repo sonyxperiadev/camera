@@ -8548,6 +8548,7 @@ no_error:
                                                                             "main" : "aux");
                     params->is_valid[CAM_INTF_META_STREAM_ID] = 0;
                     params->is_valid[CAM_INTF_META_FRAME_NUMBER] = 0;
+                    ADD_SET_PARAM_ENTRY_TO_BATCH(params,CAM_INTF_META_SEND_IMMEDIATELY,1);
                 }
             } else if(IS_MULTI_CAMERA && is_aux_configured) {
                 /* Update stream id of all the requested buffers in Aux session */
