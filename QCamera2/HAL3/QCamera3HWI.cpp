@@ -2845,13 +2845,25 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     padding_info.height_padding = CAM_PAD_TO_512;
                     padding_info.usage = newStream->usage;
                     mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
-                    if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)
-                        && bUseCommonFeatureMask) {
+                    if ((m_bIs4KVideo && !isZsl) || (bSmallJpegSize && !isZsl)) {
                         mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                                                          commonFeatureMask;
+                                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                        /* Remove rotation if it is not supported
+                                for 4K LiveVideo snapshot case (online processing) */
+                        if (!(gCamCapability[mCameraId]->qcom_supported_feature_mask &
+                                CAM_QCOM_FEATURE_ROTATION)) {
+                            mStreamConfigInfo[index].postprocess_mask[stream_index]
+                                    &= ~CAM_QCOM_FEATURE_ROTATION;
+                        }
                     } else {
-                        mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                                                        CAM_QCOM_FEATURE_NONE;
+                        if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)
+                            && bUseCommonFeatureMask) {
+                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                                                              commonFeatureMask;
+                        } else {
+                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                                                            CAM_QCOM_FEATURE_NONE;
+                        }
                     }
                 }else if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
                         mStreamConfigInfo[index].type[stream_index] =
