@@ -13,7 +13,7 @@ else
     LOCAL_CFLAGS += -DCAMERA_CHIPSET_8937
 endif
 
-ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
+ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
 LOCAL_C_INCLUDES += \
         system/core/libion/kernel-headers \
         system/core/libion/include
@@ -44,7 +44,7 @@ LOCAL_SRC_FILES := \
 
 
 LOCAL_SHARED_LIBRARIES:= libutils liblog libcamera_metadata libcutils
-ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
+ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
 LOCAL_SHARED_LIBRARIES += libion
 endif
 
