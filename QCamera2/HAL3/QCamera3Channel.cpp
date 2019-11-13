@@ -6571,7 +6571,7 @@ int QCamera3PicChannel::allocateZSLBuffers()
     LOGH(": E numbufs %d", mCamera3Stream->max_buffers);
     int rc = NO_ERROR;
     uint32_t bufIdx;
-    if (m_bZSL) {
+    if (m_bZSL && (mYuvMemory != NULL)) {
         for (size_t i = 0; i < mCamera3Stream->max_buffers; i++) {
             rc = mYuvMemory->allocateOne(mFrameLen);
             if (rc < 0) {
