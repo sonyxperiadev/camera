@@ -7767,6 +7767,13 @@ no_error:
         }
     }
     if ((mState == STARTED)&&(mStreamOnPending)){
+
+        if(mParameters != NULL) {
+            clear_metadata_buffer(mParameters);
+        }
+        if(mAuxParameters != NULL) {
+            clear_metadata_buffer(mAuxParameters);
+        }
         rc = startAllChannels();
         if (rc < 0) {
             LOGE("startAllChannels failed");
@@ -8911,13 +8918,6 @@ no_error:
 
         pthread_mutex_unlock(&mMutex);
     }
-    if(mParameters != NULL) {
-      clear_metadata_buffer(mParameters);
-    }
-    if(mAuxParameters != NULL) {
-      clear_metadata_buffer(mAuxParameters);
-    }
-
     return rc;
 }
 
