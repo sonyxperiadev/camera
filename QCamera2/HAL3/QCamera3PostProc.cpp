@@ -100,6 +100,7 @@ QCamera3PostProcessor::QCamera3PostProcessor(QCamera3ProcessingChannel* ch_ctrl)
     pthread_mutex_init(&mHDRJobLock, NULL);
     pthread_cond_init(&mProcChStopCond, NULL);
     max_pic_size = {0,0};
+    mCancelpprocReqFrameList.clear();
 }
 
 /*===========================================================================
@@ -408,6 +409,7 @@ int32_t QCamera3PostProcessor::stop(bool isHDR)
         }
     }
     m_ppChannelCnt = 0;
+    mCancelpprocReqFrameList.clear();
 
     return NO_ERROR;
 }
@@ -699,6 +701,29 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *input,
         buffer_handle_t *output, uint32_t frameNumber)
 {
     LOGD("E");
+    if(mCancelpprocReqFrameList.size())
+    {
+       List<uint32_t>::iterator cancel_frame = mCancelpprocReqFrameList.begin();
+        while((cancel_frame != mCancelpprocReqFrameList.end()) && ((*cancel_frame) != frameNumber))
+        {
+            cancel_frame = mCancelpprocReqFrameList.erase(cancel_frame);
+        }
+
+        if(cancel_frame != mCancelpprocReqFrameList.end() && ((*cancel_frame) == frameNumber))
+        {
+            if(m_pReprocChannel[0] != NULL){
+                LOGH("Canceling pproc request for frame:%d",frameNumber);
+                m_pReprocChannel[0]->releaseOutputBuffer(output,frameNumber);
+            } else {
+                LOGE("could not find reproc channel to cancel frame :%d",frameNumber);
+            }
+            mCancelpprocReqFrameList.erase(cancel_frame);
+            if(input){
+                free(input);
+            }
+            return NO_ERROR;
+        }
+    }
     pthread_mutex_lock(&mReprocJobLock);
 
     // enqueue to post proc input queue
@@ -918,6 +943,32 @@ int32_t QCamera3PostProcessor::processData(qcamera_fwk_input_pp_data_t *frame)
 }
 
 /*===========================================================================
+ * FUNCTION   : cancelFramePProc
+ *
+ * DESCRIPTION: cancel FramePost Processing request.
+ *
+ * PARAMETERS :
+ *   @frame   : frame number for which postproc request need to be cancel.
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *
+ *==========================================================================*/
+int32_t QCamera3PostProcessor::cancelFramePProc(uint32_t framenum)
+{
+    int rc = NO_ERROR;
+    if(!m_inputPPQ.isEmpty()){
+        LOGH("pp request cancel for frame : %d", framenum);
+        m_dataProcTh.sendCmd(CAMERA_CMD_TYPE_CANCEL_PP_FRAME, FALSE, FALSE);
+    } else {
+        LOGH("PP Frame queue is empty. cache cancel frame request %d", framenum);
+        mCancelpprocReqFrameList.push_back(framenum);
+    }
+    return rc;
+}
+
+/*===========================================================================
  * FUNCTION   : processPPMetadata
  *
  * DESCRIPTION: enqueue data into dataProc thread
@@ -1022,7 +1073,8 @@ int32_t QCamera3PostProcessor::processJpegSettingData(
         return -EINVAL;
     }
     m_jpegSettingsQ.init();
-    return m_jpegSettingsQ.enqueue((void *)jpeg_settings);
+    int32_t rc = m_jpegSettingsQ.enqueue((void *)jpeg_settings);
+    return rc;
 }
 
 List<qcamera_hal3_mpo_data_t> QCamera3PostProcessor::mMpoInputData;
@@ -2937,6 +2989,35 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
             }
 
             break;
+        case CAMERA_CMD_TYPE_CANCEL_PP_FRAME:
+            {
+                if(pme->m_inputPPQ.isEmpty()){
+                    LOGH("pp queue is empty. Invalid cancel request.");
+                }else {
+                    LOGH("PP frame request cancel");
+                    qcamera_hal3_pp_buffer_t* pp_buf =
+                            (qcamera_hal3_pp_buffer_t *)pme->m_inputPPQ.dequeue();
+                    if (NULL != pp_buf) {
+                        if (pp_buf->input) {
+                            pme->releaseSuperBuf(pp_buf->input);
+                            free(pp_buf->input);
+                            pp_buf->input = NULL;
+                        }
+                        if(pme->m_pReprocChannel[0] != NULL)
+                        {
+                            int rc = NO_ERROR;
+                            rc = pme->m_pReprocChannel[0]->releaseOutputBuffer(pp_buf->output,
+                                                                               pp_buf->frameNumber);
+                            if(rc != NO_ERROR)
+                            {
+                                LOGE("failed to return o/p buffer.error = %d",rc);
+                            }
+                        }
+                        free(pp_buf);
+                    }
+                }
+            }
+            break;
         case CAMERA_CMD_TYPE_STOP_DATA_PROC:
             {
                 LOGH("stop data proc");
@@ -3175,8 +3256,13 @@ void *QCamera3PostProcessor::dataProcessRoutine(void *data)
                                 ppOutput_jpeg_settings = jpeg_settings;
                                 jpeg_settings = (jpeg_settings_t *)pme->m_jpegSettingsQ.dequeue();
                             } else {
-                                ppOutput_jpeg_settings = (jpeg_settings_t *)
+                                QCamera3HardwareInterface *hal_obj =
+                                        (QCamera3HardwareInterface *)pme->m_parent->mUserData;
+                                if(hal_obj->getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
+                                {
+                                    ppOutput_jpeg_settings = (jpeg_settings_t *)
                                                                 pme->m_jpegSettingsQ.dequeue();
+                                }
                             }
                         }
 
