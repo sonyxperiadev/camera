@@ -147,7 +147,8 @@ int32_t QCameraFlash::initFlash(const int camera_id)
         return -EINVAL;
     }
 
-    QCamera3HardwareInterface::getFlashInfo(hasFlash,
+    QCamera3HardwareInterface::getFlashInfo(camera_id,
+            hasFlash,
             flashNode);
 
     strlcat(flashPath,

@@ -294,11 +294,6 @@ int QCamera2Factory::set_torch_mode(const char* camera_id, bool on)
     return gQCamera2Factory->setTorchMode(camera_id, on);
 }
 
-int QCamera2Factory::get_device_version(int camera_id, uint32_t *version)
-{
-    return gQCamera2Factory->getDeviceVersion(camera_id, version);
-}
-
 /*===========================================================================
  * FUNCTION   : getNumberOfCameras
  *
@@ -638,13 +633,6 @@ bool QCamera2Factory::isDualCamAvailable(int hal3Enabled)
 #else
     return false;
 #endif
-}
-
-/* By default return HAL3 based device version (CAMERA_DEVICE_API_VERSION_3_X) */
-int QCamera2Factory::getDeviceVersion(int camera_id, uint32_t *version)
-{
-    (void) camera_id;
-    return QCamera3HardwareInterface::getDeviceVersion(version);
 }
 
 }; // namespace qcamera

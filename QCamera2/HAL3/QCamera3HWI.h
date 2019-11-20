@@ -241,7 +241,6 @@ public:
     } InternalRequest;
 
     static int getCamInfo(uint32_t cameraId, struct camera_info *info);
-    static int getDeviceVersion(uint32_t *version);
     static cam_capability_t *getCapabilities(mm_camera_ops_t *ops,
             uint32_t cam_handle);
     static int initCapabilities(uint32_t cameraId);
@@ -336,9 +335,6 @@ public:
     mm_jpeg_exif_params_t get3AExifParams();
     uint8_t getMobicatMask();
     static void getFlashInfo(const int cameraId,
-            bool& hasFlash,
-            char (&flashNode)[QCAMERA_MAX_FILEPATH_LENGTH]);
-    static void getFlashInfo(
             bool& hasFlash,
             char (&flashNode)[QCAMERA_MAX_FILEPATH_LENGTH]);
     const char *getEepromVersionInfo();

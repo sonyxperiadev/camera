@@ -33,17 +33,9 @@
 #include "HAL3/QCamera3VendorTags.h"
 #include "util/QCameraCommon.h"
 
-#if defined(CAMERA_MODULE_API_VERSION_2_5) && defined(HAS_LOW_RAM)
-   #define USE_LAZY_HAL
-#endif
-
 static hw_module_t camera_common = {
     .tag                    = HARDWARE_MODULE_TAG,
-#ifdef USE_LAZY_HAL
-    .module_api_version     = CAMERA_MODULE_API_VERSION_2_5,
-#else
     .module_api_version     = CAMERA_MODULE_API_VERSION_2_4,
-#endif
     .hal_api_version        = HARDWARE_HAL_API_VERSION,
     .id                     = CAMERA_HARDWARE_MODULE_ID,
     .name                   = "QCamera Module",
@@ -63,8 +55,5 @@ camera_module_t HAL_MODULE_INFO_SYM = {
                                     qcamera::QCamera2Factory::open_legacy : NULL,
     .set_torch_mode         = qcamera::QCamera2Factory::set_torch_mode,
     .init                   = NULL,
-#ifdef USE_LAZY_HAL
-    .get_camera_device_version = qcamera::QCamera2Factory::get_device_version,
-#endif
     .reserved               = {0}
 };
