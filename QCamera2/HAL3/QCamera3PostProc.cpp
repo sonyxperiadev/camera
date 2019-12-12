@@ -701,29 +701,6 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *input,
         buffer_handle_t *output, uint32_t frameNumber)
 {
     LOGD("E");
-    if(mCancelpprocReqFrameList.size())
-    {
-       List<uint32_t>::iterator cancel_frame = mCancelpprocReqFrameList.begin();
-        while((cancel_frame != mCancelpprocReqFrameList.end()) && ((*cancel_frame) != frameNumber))
-        {
-            cancel_frame = mCancelpprocReqFrameList.erase(cancel_frame);
-        }
-
-        if(cancel_frame != mCancelpprocReqFrameList.end() && ((*cancel_frame) == frameNumber))
-        {
-            if(m_pReprocChannel[0] != NULL){
-                LOGH("Canceling pproc request for frame:%d",frameNumber);
-                m_pReprocChannel[0]->releaseOutputBuffer(output,frameNumber);
-            } else {
-                LOGE("could not find reproc channel to cancel frame :%d",frameNumber);
-            }
-            mCancelpprocReqFrameList.erase(cancel_frame);
-            if(input){
-                free(input);
-            }
-            return NO_ERROR;
-        }
-    }
     pthread_mutex_lock(&mReprocJobLock);
 
     // enqueue to post proc input queue
@@ -754,6 +731,21 @@ int32_t QCamera3PostProcessor::processData(mm_camera_super_buf_t *input,
         m_inputPPQ.enqueue((void *)pp_buffer);
     }
     pthread_mutex_unlock(&mReprocJobLock);
+
+    if(mCancelpprocReqFrameList.size())
+    {
+       List<uint32_t>::iterator cancel_frame = mCancelpprocReqFrameList.begin();
+        while((cancel_frame != mCancelpprocReqFrameList.end()) && ((*cancel_frame) != frameNumber))
+        {
+            cancel_frame = mCancelpprocReqFrameList.erase(cancel_frame);
+        }
+
+        if(cancel_frame != mCancelpprocReqFrameList.end() && ((*cancel_frame) == frameNumber))
+        {
+            cancelFramePProc(frameNumber);
+            mCancelpprocReqFrameList.erase(cancel_frame);
+        }
+    }
 
     return NO_ERROR;
 }
