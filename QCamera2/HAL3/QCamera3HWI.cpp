@@ -2216,7 +2216,6 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     {
          mSavedParams.clear();
     }
-    m_fwAeMode = ANDROID_CONTROL_AE_MODE_ON;
 
     /* cache fw stream configuration, for internally reconfigure streams and then config "back" */
     cacheFwConfiguredStreams(streamList);
@@ -8257,9 +8256,6 @@ no_error:
 
     if (meta.exists(ANDROID_CONTROL_AE_MODE)) {
           pendingRequest.fwkAeMode = (uint8_t)meta.find(ANDROID_CONTROL_AE_MODE).data.u8[0];
-          m_fwAeMode = pendingRequest.fwkAeMode;
-    }else {
-         pendingRequest.fwkAeMode = m_fwAeMode;
     }
 
     //extract CAC info
