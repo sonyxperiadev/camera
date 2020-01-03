@@ -10951,6 +10951,17 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
         }
     }
 
+    IF_META_AVAILABLE(cam_awb_params_t, awb, CAM_INTF_META_AWB_INFO, metadata) {
+        float rgb[3];
+        rgb[0] = awb->rgb_gains.r_gain;
+        rgb[1] = awb->rgb_gains.g_gain;
+        rgb[2] = awb->rgb_gains.b_gain;
+        camMetadata.update(QCAMERA3_MANUAL_WB_CCT, &(awb->cct_value), 1);
+        camMetadata.update(QCAMERA3_MANUAL_WB_GAINS, rgb, 3);
+        LOGD("urgent Metadata : QCAMERA3_MANUAL_WB_CCT %d ",awb->cct_value);
+        LOGD("urgent Metadata : QCAMERA3_MANUAL_WB_GAINS %f %f %f",rgb[0], rgb[1], rgb[2]);
+    }
+
     uint8_t fwk_aeMode = ANDROID_CONTROL_AE_MODE_OFF;
     uint32_t aeMode = CAM_AE_MODE_MAX;
     int32_t flashMode = CAM_FLASH_MODE_MAX;
@@ -15723,12 +15734,15 @@ int QCamera3HardwareInterface::translateToHalMetadata
             if(CAM_MANUAL_WB_CCT == mode) {
                 manual_wb.type = CAM_MANUAL_WB_MODE_CCT;
                 manual_wb.cct = frame_settings.find(QCAMERA3_MANUAL_WB_CCT).data.i32[0];
+                LOGD("Request Metadata: CAM_MANUAL_WB_MODE_CCT %d",manual_wb.cct);
             }
             else {
                 manual_wb.type = CAM_MANUAL_WB_MODE_GAIN;
                 manual_wb.gains.r_gain = frame_settings.find(QCAMERA3_MANUAL_WB_GAINS).data.f[0];
                 manual_wb.gains.g_gain = frame_settings.find(QCAMERA3_MANUAL_WB_GAINS).data.f[1];
                 manual_wb.gains.b_gain = frame_settings.find(QCAMERA3_MANUAL_WB_GAINS).data.f[2];
+                LOGD("Request Metadata: CAM_MANUAL_WB_MODE_GAIN [%d %d %d]",manual_wb.gains.r_gain,
+                                                    manual_wb.gains.g_gain, manual_wb.gains.b_gain);
             }
 
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_WB_MANUAL, manual_wb)) {
