@@ -303,7 +303,7 @@ public:
             metadata_buffer_t *parm, uint32_t snapshotStreamId,
             const camera3_capture_request_t *request);
     camera_metadata_t* translateCbUrgentMetadataToResultMetadata (
-                             metadata_buffer_t *metadata, uint8_t fwkAeMode);
+                             metadata_buffer_t *metadata);
     camera_metadata_t* translateFromHalMetadata(metadata_buffer_t *metadata,
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
@@ -651,7 +651,6 @@ private:
         mm_camera_super_buf_t*aux_meta;
         bool enableZSL;
         uint8_t fwkFlashMode;
-        uint8_t fwkAeMode;
     } PendingRequestInfo;
     typedef struct {
         uint32_t frame_number;
