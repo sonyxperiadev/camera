@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -16006,6 +16006,7 @@ int QCamera3HardwareInterface::flush(
         return -EINVAL;
     }
 
+    pthread_mutex_lock(&hw->mRecoveryLock);
     pthread_mutex_lock(&hw->mMutex);
     // Validate current state
     switch (hw->mState) {
@@ -16016,16 +16017,20 @@ int QCamera3HardwareInterface::flush(
         case ERROR:
             pthread_mutex_unlock(&hw->mMutex);
             hw->handleCameraDeviceError();
+            pthread_mutex_unlock(&hw->mRecoveryLock);
             return -ENODEV;
 
         default:
             LOGI("Flush returned during state %d", hw->mState);
             pthread_mutex_unlock(&hw->mMutex);
+            pthread_mutex_unlock(&hw->mRecoveryLock);
             return 0;
     }
     pthread_mutex_unlock(&hw->mMutex);
 
     rc = hw->flush(true /* restart channels */ );
+    pthread_mutex_unlock(&hw->mRecoveryLock);
+
     LOGD("X");
     return rc;
 }
