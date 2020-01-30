@@ -482,7 +482,16 @@ typedef enum {
     QCAMERA3_VENDOR_STREAM_CONFIGURATION_DISABLE_SUPPORT_STREAMS = 0x8001,
 
     /*YUV ZSL*/
-    QCAMERA3_VENDOR_STREAM_CONFIGURATION_YUV_ZSL_MODE = 0x8002
+    QCAMERA3_VENDOR_STREAM_CONFIGURATION_YUV_ZSL_MODE = 0x8002,
+    /* Controlling Postprocessing of YUV stream from App. This is required to
+     * reduce the performance overhead while multiple callback streams are running
+     * by disabling postprocessing which improves power, performance.
+     * When App notifies this mode to HAL, HAL doesnt link CPP with any stream
+     * This mode has following limitations:
+     *    - All YUV stream under this mode wont be connecting CPP
+     *    - Postprocessing cant be done.
+     */
+    QCAMERA3_VENDOR_STREAM_CONFIGURATION_PP_DISABLED_MODE = 0x8004
 } QCamera3VendorStreamConfiguration;
 
 class QCamera3VendorTags {

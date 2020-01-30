@@ -2980,19 +2980,24 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
                 } else {
                     mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
-                    if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
-                        if (bUseCommonFeatureMask && !is_qcfa_stream)
-                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                    commonFeatureMask;
-                        else
-                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                    CAM_QCOM_FEATURE_NONE;
-                    }else {
+                    if(mOpMode == QCAMERA3_VENDOR_STREAM_CONFIGURATION_PP_DISABLED_MODE) {
                         mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-                    }
-                    if ((isZsl) && (zslStream == newStream)) {
-                        zsl_ppmask = mStreamConfigInfo[index].postprocess_mask[stream_index];
+                                    CAM_QCOM_FEATURE_NONE;
+                    } else {
+                        if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
+                            if (bUseCommonFeatureMask && !is_qcfa_stream)
+                                mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                        commonFeatureMask;
+                            else
+                                mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                        CAM_QCOM_FEATURE_NONE;
+                        }else {
+                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                    CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                        }
+                        if ((isZsl) && (zslStream == newStream)) {
+                            zsl_ppmask = mStreamConfigInfo[index].postprocess_mask[stream_index];
+                        }
                     }
                 }
             break;
@@ -3546,7 +3551,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     // Only create analysis and callback streams if either the disable flag has
     // been set or if only RAW streams are present.
     bool createAnalysisAndCallbackStreams = true;
-    if (onlyRaw || disableSupportStreams || isDepth) {
+    if (onlyRaw || disableSupportStreams || isDepth ||
+        (mOpMode == QCAMERA3_VENDOR_STREAM_CONFIGURATION_PP_DISABLED_MODE)) {
         createAnalysisAndCallbackStreams = false;
     }
     if (createAnalysisAndCallbackStreams && (mCommon.needAnalysisStream() || isDualCamera())) {
