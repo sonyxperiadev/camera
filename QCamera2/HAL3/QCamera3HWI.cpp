@@ -2912,7 +2912,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 }else if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
                         mStreamConfigInfo[index].type[stream_index] =
                                 CAM_STREAM_TYPE_VIDEO;
-                    if (m_bTnrEnabled && m_bTnrVideo) {
+                    if (m_bTnrEnabled && m_bTnrVideo && !isSecureMode()) {
                         mStreamConfigInfo[index].postprocess_mask[stream_index] |=
                             CAM_QCOM_FEATURE_CPP_TNR;
                         //TNR and CDS are mutually exclusive. So reset CDS from feature mask
@@ -2929,7 +2929,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 } else {
                         mStreamConfigInfo[index].type[stream_index] =
                             CAM_STREAM_TYPE_PREVIEW;
-                    if (m_bTnrEnabled && m_bTnrPreview) {
+                    if (m_bTnrEnabled && m_bTnrPreview && !isSecureMode()) {
                         mStreamConfigInfo[index].postprocess_mask[stream_index] |=
                                 CAM_QCOM_FEATURE_CPP_TNR;
                         //TNR and CDS are mutually exclusive. So reset CDS from feature mask
