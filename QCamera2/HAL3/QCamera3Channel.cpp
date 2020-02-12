@@ -4027,7 +4027,14 @@ int32_t QCamera3YUVChannel::request(buffer_handle_t *buffer,
         ppInfo.offlinePpFlag = false;
         if ((mBypass) && !pInputBuffer &&
             !(hal_obj->m_bQuadraCfaRequest && m_bQuadraChannel)) {
-            ppInfo.offlinePpFlag = needsFramePostprocessing(metadata) || m_bZSL;
+            if (QCAMERA3_VENDOR_STREAM_CONFIGURATION_PP_DISABLED_MODE == hal_obj->mOpMode)
+            {
+                ppInfo.offlinePpFlag = false;
+            }
+            else
+            {
+                ppInfo.offlinePpFlag = needsFramePostprocessing(metadata) || m_bZSL;
+            }
             ppInfo.output = buffer;
             mOfflinePpInfoList.push_back(ppInfo);
         }

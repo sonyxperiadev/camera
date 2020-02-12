@@ -46,7 +46,6 @@
 #include "mm_camera_interface.h"
 #include "mm_camera.h"
 #include "mm_camera_muxer.h"
-
 /* internal function decalre */
 int32_t mm_stream_qbuf(mm_stream_t *my_obj,
                        mm_camera_buf_def_t *buf);
@@ -1648,20 +1647,21 @@ int32_t mm_stream_read_user_buf(mm_stream_t * my_obj,
 
     timeStamp = (nsecs_t)(buf_info->buf->ts.tv_sec) *
             1000000000LL + buf_info->buf->ts.tv_nsec;
-
-    if (timeStamp <= my_obj->prev_timestamp) {
-        LOGE("TimeStamp received less than expected");
-        mm_stream_qbuf(my_obj, buf_info->buf);
-        return rc;
-    } else if (my_obj->prev_timestamp == 0
-            || (my_obj->prev_frameID != buf_info->buf->frame_idx + 1)) {
-        /* For first frame or incase batch is droped */
-        interval_nsec = ((my_obj->stream_info->user_buf_info.frameInterval) * 1000000);
-        my_obj->prev_timestamp = (timeStamp - (nsecs_t)(user_buf->buf_cnt * interval_nsec));
-    } else {
-        ts_delta = timeStamp - my_obj->prev_timestamp;
-        interval_nsec = (nsecs_t)(ts_delta / user_buf->buf_cnt);
-        LOGD("Timestamp delta = %d timestamp = %lld", ts_delta, timeStamp);
+    if(!IS_BUFFER_ERROR(buf_info->buf->flags)) {
+        if (timeStamp <= my_obj->prev_timestamp) {
+            LOGE("TimeStamp received less than expected");
+            mm_stream_qbuf(my_obj, buf_info->buf);
+            return rc;
+        } else if (my_obj->prev_timestamp == 0
+               || (my_obj->prev_frameID != buf_info->buf->frame_idx + 1)) {
+            /* For first frame or incase batch is droped */
+            interval_nsec = ((my_obj->stream_info->user_buf_info.frameInterval) * 1000000);
+            my_obj->prev_timestamp = (timeStamp - (nsecs_t)(user_buf->buf_cnt * interval_nsec));
+        } else {
+             ts_delta = timeStamp - my_obj->prev_timestamp;
+             interval_nsec = (nsecs_t)(ts_delta / user_buf->buf_cnt);
+             LOGD("Timestamp delta = %d timestamp = %lld", ts_delta, timeStamp);
+        }
     }
 
     for (i = 0; i < (int32_t)user_buf->buf_cnt; i++) {

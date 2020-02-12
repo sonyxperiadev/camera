@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -2912,7 +2912,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 }else if (stream_usage & private_handle_t::PRIV_FLAGS_VIDEO_ENCODER) {
                         mStreamConfigInfo[index].type[stream_index] =
                                 CAM_STREAM_TYPE_VIDEO;
-                    if (m_bTnrEnabled && m_bTnrVideo) {
+                    if (m_bTnrEnabled && m_bTnrVideo && !isSecureMode()) {
                         mStreamConfigInfo[index].postprocess_mask[stream_index] |=
                             CAM_QCOM_FEATURE_CPP_TNR;
                         //TNR and CDS are mutually exclusive. So reset CDS from feature mask
@@ -2929,7 +2929,7 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                 } else {
                         mStreamConfigInfo[index].type[stream_index] =
                             CAM_STREAM_TYPE_PREVIEW;
-                    if (m_bTnrEnabled && m_bTnrPreview) {
+                    if (m_bTnrEnabled && m_bTnrPreview && !isSecureMode()) {
                         mStreamConfigInfo[index].postprocess_mask[stream_index] |=
                                 CAM_QCOM_FEATURE_CPP_TNR;
                         //TNR and CDS are mutually exclusive. So reset CDS from feature mask
@@ -2980,19 +2980,24 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
                     mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
                 } else {
                     mStreamConfigInfo[index].type[stream_index] = CAM_STREAM_TYPE_CALLBACK;
-                    if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
-                        if (bUseCommonFeatureMask && !is_qcfa_stream)
-                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                    commonFeatureMask;
-                        else
-                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                    CAM_QCOM_FEATURE_NONE;
-                    }else {
+                    if(mOpMode == QCAMERA3_VENDOR_STREAM_CONFIGURATION_PP_DISABLED_MODE) {
                         mStreamConfigInfo[index].postprocess_mask[stream_index] =
-                                CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
-                    }
-                    if ((isZsl) && (zslStream == newStream)) {
-                        zsl_ppmask = mStreamConfigInfo[index].postprocess_mask[stream_index];
+                                    CAM_QCOM_FEATURE_NONE;
+                    } else {
+                        if (isOnEncoder(maxViewfinderSize, newStream->width, newStream->height)) {
+                            if (bUseCommonFeatureMask && !is_qcfa_stream)
+                                mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                        commonFeatureMask;
+                            else
+                                mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                        CAM_QCOM_FEATURE_NONE;
+                        }else {
+                            mStreamConfigInfo[index].postprocess_mask[stream_index] =
+                                    CAM_QCOM_FEATURE_PP_SUPERSET_HAL3;
+                        }
+                        if ((isZsl) && (zslStream == newStream)) {
+                            zsl_ppmask = mStreamConfigInfo[index].postprocess_mask[stream_index];
+                        }
                     }
                 }
             break;
@@ -3546,7 +3551,8 @@ int QCamera3HardwareInterface::configureStreamsPerfLocked(
     // Only create analysis and callback streams if either the disable flag has
     // been set or if only RAW streams are present.
     bool createAnalysisAndCallbackStreams = true;
-    if (onlyRaw || disableSupportStreams || isDepth) {
+    if (onlyRaw || disableSupportStreams || isDepth ||
+        (mOpMode == QCAMERA3_VENDOR_STREAM_CONFIGURATION_PP_DISABLED_MODE)) {
         createAnalysisAndCallbackStreams = false;
     }
     if (createAnalysisAndCallbackStreams && (mCommon.needAnalysisStream() || isDualCamera())) {
@@ -16000,6 +16006,7 @@ int QCamera3HardwareInterface::flush(
         return -EINVAL;
     }
 
+    pthread_mutex_lock(&hw->mRecoveryLock);
     pthread_mutex_lock(&hw->mMutex);
     // Validate current state
     switch (hw->mState) {
@@ -16010,16 +16017,20 @@ int QCamera3HardwareInterface::flush(
         case ERROR:
             pthread_mutex_unlock(&hw->mMutex);
             hw->handleCameraDeviceError();
+            pthread_mutex_unlock(&hw->mRecoveryLock);
             return -ENODEV;
 
         default:
             LOGI("Flush returned during state %d", hw->mState);
             pthread_mutex_unlock(&hw->mMutex);
+            pthread_mutex_unlock(&hw->mRecoveryLock);
             return 0;
     }
     pthread_mutex_unlock(&hw->mMutex);
 
     rc = hw->flush(true /* restart channels */ );
+    pthread_mutex_unlock(&hw->mRecoveryLock);
+
     LOGD("X");
     return rc;
 }
