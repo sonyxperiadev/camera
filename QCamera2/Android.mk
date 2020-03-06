@@ -123,7 +123,7 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/util \
         $(LOCAL_PATH)/HAL3 \
         $(SRC_MEDIA_HAL_DIR)/libstagefrighthw \
-        $(SRC_MEDIA_HAL_DIR))/mm-core/inc \
+        $(SRC_MEDIA_HAL_DIR)/mm-core/inc \
         $(TARGET_OUT_HEADERS)/mm-camera-lib/cp/prebuilt
 
 ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
