@@ -969,13 +969,6 @@ int QCamera3HardwareInterface::thermalEvtHandle(
     LOGH(" level = %d, userdata = %p, data = %p",
          *level, userdata, data);
 
-    if (*level == QCAMERA_THERMAL_SHUTDOWN) {
-        pthread_mutex_lock(&mMutex);
-        mState = ERROR;
-        pthread_mutex_unlock(&mMutex);
-        handleCameraDeviceError();
-    }
-
     return NO_ERROR;
 }
 
