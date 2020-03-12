@@ -433,7 +433,7 @@ static paramPtr get_param_type(char *type, int32_t *streamno,int32_t *loop){
     int32_t no_of_tokens=0;
     char paramToken[10];
     *streamno=MAX_FROM_STREAMS;
-    strlcpy(stream_check,type,6);
+    strncpy(stream_check,type,6);
     if((!strcmp(stream_check,"stream")) || (!strcmp(stream_check,"sensor"))){
         /* Stream specific command */
         while ((token = strtok_r(rest, "_", &rest))) {
@@ -441,7 +441,7 @@ static paramPtr get_param_type(char *type, int32_t *streamno,int32_t *loop){
                 /* First token is stream */
             } else if (no_of_tokens == 1){
                 /* Second token is the command */
-                strlcpy(paramToken,token,sizeof(paramToken));
+                strcpy(paramToken,token);
             } else if (no_of_tokens == 2){
                 /* Final token is the stream no */
                 *streamno=atoi(token);
