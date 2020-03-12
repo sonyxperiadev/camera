@@ -426,7 +426,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mRawDumpChannel(NULL),
       mDummyBatchChannel(NULL),
       mPerfLockMgr(),
-      m_thermalAdapter(QCameraThermalAdapter::getInstance()),
       mChannelHandle(0),
       mFirstConfiguration(true),
       mFlush(false),
@@ -939,32 +938,6 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
 }
 
 /*===========================================================================
- * FUNCTION   : thermalEvtHandle
- *
- * DESCRIPTION: routine to handle thermal event notification
- *
- * PARAMETERS :
- *   @level      : thermal level
- *   @userdata   : userdata passed in during registration
- *   @data       : opaque data from thermal client
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int QCamera3HardwareInterface::thermalEvtHandle(
-        qcamera_thermal_level_enum_t *level, void *userdata, void *data)
-{
-    /* TODO: implementation for thermal events handling */
-
-    // Make sure thermal events are logged
-    LOGH(" level = %d, userdata = %p, data = %p",
-         *level, userdata, data);
-
-    return NO_ERROR;
-}
-
-/*===========================================================================
  * FUNCTION   : openCamera
  *
  * DESCRIPTION: open camera
@@ -1009,9 +982,6 @@ int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
     rc = openCamera();
     if (rc == 0) {
         *hw_device = &mCameraDevice.common;
-        if (m_thermalAdapter.init(this) != 0) {
-           LOGW("Init thermal adapter failed");
-        }
     } else {
         *hw_device = NULL;
     }
@@ -1206,7 +1176,6 @@ int QCamera3HardwareInterface::closeCamera()
         m_pDualCamCmdHeap = NULL;
         memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
     }
-    m_thermalAdapter.deinit();
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
