@@ -49,7 +49,7 @@
 #include "QCameraDualCamSettings.h"
 #include "QCameraFOVControl.h"
 #include "QCameraThermalAdapter.h"
-#include "QCameraPerfTranslator.h"
+
 
 extern "C" {
 #include "mm_camera_interface.h"
@@ -422,7 +422,7 @@ private:
         ERROR,
         DEINIT
     } State;
-    FSMDB_t *FSM;
+
     int openCamera();
     int closeCamera();
     int flush(bool restartChannels);
@@ -874,9 +874,6 @@ private:
 
     zsl_stream_type_t mHALZSL;
     bool mFlashNeeded;
-    cam_perf_info_t mSettingInfo[CONFIG_INDEX_MAX];
-    uint8_t mSessionId;
-    cam_hfr_mode_t mHFRMode;
 
     //for multi frame raw capture
     uint8_t mMultiFrameRAWCaptureCount;

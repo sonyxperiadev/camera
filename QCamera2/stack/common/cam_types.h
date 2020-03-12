@@ -3180,15 +3180,6 @@ typedef struct {
     int32_t opClock;
 } cam_sensor_config_t;
 
-typedef struct {
-    uint32_t sensorW;
-    uint32_t sensorH;
-    uint32_t sensorClk;
-    uint8_t hfr;
-    uint8_t fd;
-    uint8_t tnr;
-} cam_perf_info_t;
-
 typedef enum {
     CAM_HAL3_ZSL_TYPE_NONE,
     CAM_HAL3_ZSL_TYPE_SNAPSHOT,
