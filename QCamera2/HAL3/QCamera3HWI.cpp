@@ -64,7 +64,7 @@ extern "C" {
 // Camera Augmented Sensing Helper
 #ifdef TARGET_HAS_CASH
 extern "C" {
-#include <cashsvr/cash_ext.h>
+#include "cash_ext.h"
 }
 #endif
 
