@@ -30,7 +30,6 @@ LOCAL_SRC_FILES := \
         util/QCameraCommon.cpp \
         util/QCameraTrace.cpp \
         util/camscope_packet_type.cpp \
-        util/QCameraPerfTranslator.cpp \
         QCamera2Hal.cpp \
         QCamera2Factory.cpp
 
@@ -64,7 +63,7 @@ LOCAL_SRC_FILES += \
         HAL/QCameraPostProc.cpp \
         HAL/QCamera2HWICallbacks.cpp \
         HAL/QCameraParameters.cpp \
-	HAL/CameraParameters.cpp \
+        HAL/CameraParameters.cpp \
         HAL/QCameraParametersIntf.cpp \
         HAL/QCameraThermalAdapter.cpp \
         util/QCameraFOVControl.cpp \
@@ -122,8 +121,8 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/stack/mm-camera-interface/inc \
         $(LOCAL_PATH)/util \
         $(LOCAL_PATH)/HAL3 \
-        hardware/qcom/media/libstagefrighthw \
-        hardware/qcom/media/mm-core/inc \
+        $(SRC_MEDIA_HAL_DIR)/libstagefrighthw \
+        $(SRC_MEDIA_HAL_DIR)/mm-core/inc \
         $(TARGET_OUT_HEADERS)/mm-camera-lib/cp/prebuilt
 
 ifneq (,$(filter $(TRINKET),$(TARGET_BOARD_PLATFORM)))
@@ -144,10 +143,11 @@ LOCAL_HEADER_LIBRARIES += libhardware_headers
 
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \
-        hardware/qcom/camera/QCamera2/HAL
+        $(LOCAL_PATH)/HAL
 
 ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include/media
 LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 endif
 ifeq ($(TARGET_TS_MAKEUP),true)
@@ -162,9 +162,7 @@ ifneq (,$(filter msm8996 sdm660 msm8998 apq8098_latv $(TRINKET),$(TARGET_BOARD_P
     LOCAL_CFLAGS += -DUBWC_PRESENT
 endif
 
-ifneq (,$(filter msm8996,$(TARGET_BOARD_PLATFORM)))
-    LOCAL_CFLAGS += -DTARGET_MSM8996
-endif
+LOCAL_CFLAGS += -DTARGET_MSM8996
 
 LOCAL_CFLAGS += -DUSE_CAMERA_METABUFFER_UTILS
 
@@ -172,7 +170,7 @@ LOCAL_CFLAGS += -DUSE_CAMERA_METABUFFER_UTILS
 LOCAL_C_INCLUDES += \
         $(TARGET_OUT_HEADERS)/qcom/display
 LOCAL_C_INCLUDES += \
-        hardware/qcom/display/libqservice
+        $(SRC_DISPLAY_HAL_DIR)/libqservice
 LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
@@ -186,7 +184,7 @@ LOCAL_SHARED_LIBRARIES += libdualcameraddm
 LOCAL_CFLAGS += -DENABLE_QC_BOKEH
 endif
 ifeq ($(USE_DISPLAY_SERVICE),true)
-LOCAL_SHARED_LIBRARIES += android.frameworks.displayservice@1.0 android.hidl.base@1.0 libhidlbase libhidltransport
+LOCAL_SHARED_LIBRARIES += android.frameworks.displayservice@1.0 libhidlbase libhidltransport
 else
 LOCAL_SHARED_LIBRARIES += libgui
 endif

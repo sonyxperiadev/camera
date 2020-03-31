@@ -53,7 +53,6 @@
 // Camera dependencies
 #include "android/QCamera3External.h"
 #include "util/QCameraFlash.h"
-#include "QCameraPerfTranslator.h"
 #include "QCamera3HWI.h"
 #include "QCamera3VendorTags.h"
 #include "QCameraTrace.h"
@@ -135,7 +134,6 @@ namespace qcamera {
 #define TOTAL_LANDMARK_INDICES 6
 
 #define UBWC_COMP_RATIO 1.26
-#define PERF_CONFIG_PATH "/vendor/etc/camera/cameraconfig.txt"
 
 cam_capability_t *gCamCapability[MM_CAMERA_MAX_NUM_SENSORS];
 const camera_metadata_t *gStaticMetadata[MM_CAMERA_MAX_NUM_SENSORS];
@@ -428,7 +426,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
       mRawDumpChannel(NULL),
       mDummyBatchChannel(NULL),
       mPerfLockMgr(),
-      m_thermalAdapter(QCameraThermalAdapter::getInstance()),
       mChannelHandle(0),
       mFirstConfiguration(true),
       mFlush(false),
@@ -621,12 +618,6 @@ QCamera3HardwareInterface::QCamera3HardwareInterface(uint32_t cameraId,
 
     mDualCamera = is_dual_camera_by_idx(cameraId);
     memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
-#ifdef ENABLE_THROTTLE
-    FSM=setupFSM((char*)PERF_CONFIG_PATH);
-    memset(&mSettingInfo, 0, sizeof(mSettingInfo));
-    mSessionId = 0;
-    mHFRMode = CAM_HFR_MODE_OFF;
-#endif
 }
 
 /*===========================================================================
@@ -947,39 +938,6 @@ void QCamera3HardwareInterface::camEvtHandle(uint32_t /*camera_handle*/,
 }
 
 /*===========================================================================
- * FUNCTION   : thermalEvtHandle
- *
- * DESCRIPTION: routine to handle thermal event notification
- *
- * PARAMETERS :
- *   @level      : thermal level
- *   @userdata   : userdata passed in during registration
- *   @data       : opaque data from thermal client
- *
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int QCamera3HardwareInterface::thermalEvtHandle(
-        qcamera_thermal_level_enum_t *level, void *userdata, void *data)
-{
-    /* TODO: implementation for thermal events handling */
-
-    // Make sure thermal events are logged
-    LOGH(" level = %d, userdata = %p, data = %p",
-         *level, userdata, data);
-
-    if (*level == QCAMERA_THERMAL_SHUTDOWN) {
-        pthread_mutex_lock(&mMutex);
-        mState = ERROR;
-        pthread_mutex_unlock(&mMutex);
-        handleCameraDeviceError();
-    }
-
-    return NO_ERROR;
-}
-
-/*===========================================================================
  * FUNCTION   : openCamera
  *
  * DESCRIPTION: open camera
@@ -1024,9 +982,6 @@ int QCamera3HardwareInterface::openCamera(struct hw_device_t **hw_device)
     rc = openCamera();
     if (rc == 0) {
         *hw_device = &mCameraDevice.common;
-        if (m_thermalAdapter.init(this) != 0) {
-           LOGW("Init thermal adapter failed");
-        }
     } else {
         *hw_device = NULL;
     }
@@ -1112,10 +1067,6 @@ int QCamera3HardwareInterface::openCamera()
         if (gNumCameraSessions++ == 0) {
             setCameraLaunchStatus(true);
         }
-        #ifdef ENABLE_THROTTLE
-        //session id starts from 0
-        mSessionId = gNumCameraSessions - 1;
-        #endif
         pthread_mutex_unlock(&gCamLock);
     }
 
@@ -1212,9 +1163,7 @@ int QCamera3HardwareInterface::closeCamera()
     KPI_ATRACE_CAMSCOPE_CALL(CAMSCOPE_HAL3_CLOSECAMERA);
     int rc = NO_ERROR;
     char value[PROPERTY_VALUE_MAX];
-#ifdef ENABLE_THROTTLE
-    int perfLevel;
-#endif
+
     LOGI("[KPI Perf]: E PROFILE_CLOSE_CAMERA camera id %d",
              mCameraId);
 
@@ -1227,14 +1176,6 @@ int QCamera3HardwareInterface::closeCamera()
         m_pDualCamCmdHeap = NULL;
         memset(m_pDualCamCmdPtr, 0, sizeof(m_pDualCamCmdPtr));
     }
-#ifdef ENABLE_THROTTLE
-    perfLevel = predictFSM(FSM, NULL, NULL, mSessionId);
-    if (isDualCamera()) {
-        perfLevel = predictFSM(FSM, NULL, NULL, CONFIG_INDEX_AUX);
-    }
-    m_thermalAdapter.SetPerfLevel(perfLevel);
-#endif
-    m_thermalAdapter.deinit();
 
     rc = mCameraHandle->ops->close_camera(mCameraHandle->camera_handle);
     mCameraHandle = NULL;
@@ -1253,12 +1194,6 @@ int QCamera3HardwareInterface::closeCamera()
         if (--gNumCameraSessions == 0) {
             setCameraLaunchStatus(false);
         }
-#ifdef ENABLE_THROTTLE
-        if ((gNumCameraSessions == 0) && (FSM != NULL)) {
-            closeFSM();
-            FSM = NULL;
-        }
-#endif
         pthread_mutex_unlock(&gCamLock);
     }
 
@@ -6744,9 +6679,6 @@ int QCamera3HardwareInterface::processCaptureRequest(
     bool setEis = false;
 
     char prop[PROPERTY_VALUE_MAX];
-#ifdef ENABLE_THROTTLE
-    int32_t perfLevel = 0;
-#endif
 
     pthread_mutex_lock(&mRecoveryLock);
     pthread_mutex_lock(&mMutex);
@@ -7350,28 +7282,18 @@ int QCamera3HardwareInterface::processCaptureRequest(
                 rc = getSensorOutputSize(sensor_dim, CAM_TYPE_AUX);
             } else {
                 rc = getSensorOutputSize(sensor_dim);
+
                 mCropRegionMapper.update(gCamCapability[mCameraId]->active_array_size.width,
                                          gCamCapability[mCameraId]->active_array_size.height,
                                          sensor_dim.width, sensor_dim.height);
             }
+
             if (rc != NO_ERROR) {
                 LOGE("Failed to get sensor output size");
                 pthread_mutex_unlock(&mMutex);
                 goto error_exit;
             }
-#ifdef ENABLE_THROTTLE
-            mSettingInfo[0].sensorW = sensor_dim.width;
-            mSettingInfo[0].sensorH = sensor_dim.height;
-            mSettingInfo[0].sensorClk = sensor_dim.opClock;
-            mSettingInfo[0].hfr = mHFRMode;
-            mSettingInfo[0].tnr = m_bTnrEnabled;
-            mSettingInfo[0].fd = false;
-            if (meta.exists(ANDROID_STATISTICS_FACE_DETECT_MODE)) {
-                mSettingInfo[0].fd =
-                        meta.find(ANDROID_STATISTICS_FACE_DETECT_MODE).data.u8[0];
-            }
-            perfLevel = predictFSM(FSM, &mStreamConfigInfo, &mSettingInfo[0], mSessionId);
-#endif
+
             if(isDualCamera()  && !IS_PP_TYPE_NONE) {
                 cam_sensor_config_t sensor_dim_aux;
                 memset(&sensor_dim_aux, 0, sizeof(sensor_dim_aux));
@@ -7389,34 +7311,24 @@ int QCamera3HardwareInterface::processCaptureRequest(
                         mParameters, CAM_INTF_META_STREAM_INFO, mStreamConfigInfo[CONFIG_INDEX_MAIN]);
                 ADD_SET_PARAM_ENTRY_TO_BATCH(
                         mAuxParameters, CAM_INTF_META_STREAM_INFO, mAuxStreamConfigInfo);
-                // Update FOV-control config settings due to the change in the configuration
-                rc = m_pFovControl->updateConfigSettings(mParameters, mAuxParameters);
-                if (rc != NO_ERROR) {
-                    LOGE("Failed to update FOV config settings");
-                    pthread_mutex_unlock(&mMutex);
-                    goto error_exit;
-                } else if (isDualCamera())
-                {
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(
-                            params, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(
-                            params, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim_aux);
-                    ADD_SET_PARAM_ENTRY_TO_BATCH(
-                            params, CAM_INTF_META_STREAM_INFO, mStreamConfigInfo[config_index]);
-                }
-#ifdef ENABLE_THROTTLE
-                mSettingInfo[1].sensorW = sensor_dim_aux.width;
-                mSettingInfo[1].sensorH = sensor_dim_aux.height;
-                mSettingInfo[1].sensorClk = sensor_dim_aux.opClock;
-                mSettingInfo[1].hfr = mSettingInfo[0].hfr;
-                mSettingInfo[1].tnr = mSettingInfo[0].tnr;
-                mSettingInfo[1].fd = mSettingInfo[0].fd;
-                perfLevel = predictFSM(FSM, &mAuxStreamConfigInfo, &mSettingInfo[1], CONFIG_INDEX_AUX);
-#endif
+
+                    // Update FOV-control config settings due to the change in the configuration
+                    rc = m_pFovControl->updateConfigSettings(mParameters, mAuxParameters);
+                    if (rc != NO_ERROR) {
+                        LOGE("Failed to update FOV config settings");
+                        pthread_mutex_unlock(&mMutex);
+                        goto error_exit;
+                    } else if (isDualCamera())
+                    {
+                        ADD_SET_PARAM_ENTRY_TO_BATCH(
+                                params, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim);
+                        ADD_SET_PARAM_ENTRY_TO_BATCH(
+                                params, CAM_INTF_PARM_RAW_DIMENSION, sensor_dim_aux);
+                        ADD_SET_PARAM_ENTRY_TO_BATCH(
+                                params, CAM_INTF_META_STREAM_INFO, mStreamConfigInfo[config_index]);
+                    }
             }
-#ifdef ENABLE_THROTTLE
-            m_thermalAdapter.SetPerfLevel(perfLevel);
-#endif
+
 
             if(config_index == CONFIG_INDEX_MAIN) {
                 mCaptureIntent = l_captureIntent;
@@ -14631,15 +14543,14 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
      * capture request
      */
     mBatchSize = 0;
-    mHFRMode = CAM_HFR_MODE_OFF;
     if (CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE == mOpMode) {
         fps_range.min_fps = fps_range.video_max_fps;
         fps_range.video_min_fps = fps_range.video_max_fps;
         int val = lookupHalName(HFR_MODE_MAP, METADATA_MAP_SIZE(HFR_MODE_MAP),
                 fps_range.max_fps);
         if (NAME_NOT_FOUND != val) {
-            mHFRMode = (cam_hfr_mode_t)val;
-            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, mHFRMode)) {
+            cam_hfr_mode_t hfrMode = (cam_hfr_mode_t)val;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, hfrMode)) {
                 return BAD_VALUE;
             }
 
@@ -14656,14 +14567,14 @@ int32_t QCamera3HardwareInterface::setHalFpsRange(const CameraMetadata &settings
                     mBatchSize = MAX_HFR_BATCH_SIZE;
                 }
              }
-            LOGD("hfrMode: %d batchSize: %d", mHFRMode, mBatchSize);
+            LOGD("hfrMode: %d batchSize: %d", hfrMode, mBatchSize);
 
          }
     } else {
         /* HFR mode is session param in backend/ISP. This should be reset when
          * in non-HFR mode  */
-        mHFRMode = CAM_HFR_MODE_OFF;
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, mHFRMode)) {
+        cam_hfr_mode_t hfrMode = CAM_HFR_MODE_OFF;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_HFR, hfrMode)) {
             return BAD_VALUE;
         }
     }
@@ -15213,16 +15124,6 @@ int QCamera3HardwareInterface::translateToHalMetadata
                     facedetectMode)) {
                 rc = BAD_VALUE;
             }
-#ifdef ENABLE_THROTTLE
-            if (facedetectMode != mSettingInfo[0].fd) {
-                mSettingInfo[0].fd = mSettingInfo[1].fd = facedetectMode;
-                int perfLevel = predictFSM(FSM, &mStreamConfigInfo, &mSettingInfo[0], mSessionId);
-                if (isDualCamera()) {
-                    perfLevel = predictFSM(FSM, &mStreamConfigInfo, &mSettingInfo[1], CONFIG_INDEX_AUX);
-                }
-                m_thermalAdapter.SetPerfLevel(perfLevel);
-            }
-#endif
         }
     }
 

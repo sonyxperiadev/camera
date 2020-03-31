@@ -1,6 +1,7 @@
+ifeq ($(PRODUCT_PLATFORM_SOD),true)
+
 MM_V4L2_DRIVER_LIST += msm8960
 MM_V4L2_DRIVER_LIST += msm8974
-MM_V4L2_DRIVER_LIST += msm8916
 MM_V4L2_DRIVER_LIST += msm8226
 MM_V4L2_DRIVER_LIST += msm8610
 MM_V4L2_DRIVER_LIST += apq8084
@@ -26,4 +27,6 @@ ifneq (,$(filter $(MM_V4L2_DRIVER_LIST),$(TARGET_BOARD_PLATFORM)))
       include $(call all-subdir-makefiles)
     endif
   endif
+endif
+
 endif
