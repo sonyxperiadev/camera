@@ -7,9 +7,6 @@ include $(CLEAR_VARS)
 SDCLANG_COMMON_DEFS := $(LOCAL_PATH)/sdllvm-common-defs.mk
 SDCLANG_FLAG_DEFS := $(LOCAL_PATH)/sdllvm-flag-defs.mk
 
-LOCAL_COPY_HEADERS_TO := qcom/camera
-LOCAL_COPY_HEADERS := QCameraFormat.h
-
 LOCAL_SRC_FILES := \
         util/QCameraBufferMaps.cpp \
         util/QCameraCmdThread.cpp \
@@ -120,6 +117,8 @@ LOCAL_HEADER_LIBRARIES += libandroid_sensor_headers
 LOCAL_HEADER_LIBRARIES += libcutils_headers
 LOCAL_HEADER_LIBRARIES += libsystem_headers
 LOCAL_HEADER_LIBRARIES += libhardware_headers
+# gralloc_priv.h
+LOCAL_HEADER_LIBRARIES += display_headers
 
 #HAL 1.0 Include paths
 LOCAL_C_INCLUDES += \
@@ -147,10 +146,10 @@ LOCAL_CFLAGS += -DTARGET_MSM8996
 LOCAL_CFLAGS += -DUSE_CAMERA_METABUFFER_UTILS
 
 #LOCAL_STATIC_LIBRARIES := libqcamera2_util
-LOCAL_C_INCLUDES += \
-        $(TARGET_OUT_HEADERS)/qcom/display
+
 LOCAL_C_INCLUDES += \
         $(SRC_DISPLAY_HAL_DIR)/libqservice
+
 LOCAL_SHARED_LIBRARIES := liblog libhardware libutils libcutils libdl libsync
 LOCAL_SHARED_LIBRARIES += libmmcamera_interface libmmjpeg_interface libui libcamera_metadata
 LOCAL_SHARED_LIBRARIES += libqdMetaData libqservice libbinder
