@@ -1033,7 +1033,26 @@ void QCamera3ProcessingChannel::streamCbRoutine(mm_camera_super_buf_t *super_fra
            if (mOutOfSequenceBuffers.empty()) {
               stream->cancelBuffer(oldestBufIndex);
            }
-           mOutOfSequenceBuffers.push_back(super_frame);
+
+           //push in order!
+           auto itr = mOutOfSequenceBuffers.begin();
+           for (; itr != mOutOfSequenceBuffers.end(); itr++) {
+               mm_camera_super_buf_t *super_buf = *itr;
+               uint32_t buf_idx = super_buf->bufs[0]->buf_idx;
+               int32_t frame_num = mMemory.getFrameNumber(buf_idx);
+               if (resultFrameNumber < frame_num) {
+                   LOGE("Out of order frame!! set buffer status error flag!");
+                   mOutOfSequenceBuffers.insert(itr, super_frame);
+                   super_buf->bufs[0]->flags |= V4L2_BUF_FLAG_ERROR;
+                   break;
+               }
+           }
+
+           if (itr == mOutOfSequenceBuffers.end()) {
+               LOGE("Add the frame to the end of mOutOfSequenceBuffers");
+               // add the buffer
+               mOutOfSequenceBuffers.push_back(super_frame);
+           }
            return;
        }
 
@@ -2920,6 +2939,8 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
 
         uint32_t raw16_stride = ((uint32_t)dim.width + 15U) & ~15U;
         uint16_t* raw16_buffer = (uint16_t *)frame->buffer;
+        uint8_t first_quintuple[5];
+        memcpy(first_quintuple, raw16_buffer, sizeof(first_quintuple));
 
         // In-place format conversion.
         // Raw16 format always occupy more memory than opaque raw10.
@@ -2935,13 +2956,19 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
             for (int32_t xs = dim.width - 1; xs >= 0; xs--) {
                 uint32_t x = (uint32_t)xs;
                 uint8_t upper_8bit = row_start[5*(x/4)+x%4];
-                uint8_t lower_2bit = ((row_start[5*(x/4)+4] >> (x%4)) & 0x3);
+                uint8_t lower_2bit = ((row_start[5*(x/4)+4] >> ((x%4) << 1)) & 0x3);
                 uint16_t raw16_pixel =
                         (uint16_t)(((uint16_t)upper_8bit)<<2 |
                         (uint16_t)lower_2bit);
                 raw16_buffer[y*raw16_stride+x] = raw16_pixel;
             }
         }
+
+        // Re-convert the first 2 pixels of the buffer because the loop above messes
+        // them up by reading the first quintuple while modifying it.
+        raw16_buffer[0] = ((uint16_t)first_quintuple[0]<<2) | (first_quintuple[4] & 0x3);
+        raw16_buffer[1] = ((uint16_t)first_quintuple[1]<<2) | ((first_quintuple[4] >> 2) & 0x3);
+
     } else {
         LOGE("Could not find stream");
     }

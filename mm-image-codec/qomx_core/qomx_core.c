@@ -33,7 +33,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include <dlfcn.h>
 #include <malloc.h>
 #include <string.h>
-#include <utils/Log.h>
+#include <log/log.h>
 
 // OpenMAX dependencies
 #include "qomx_core.h"
