@@ -201,6 +201,11 @@ ifneq (,$(filter $(TRINKET) sdm660 msm8952 msm8996 msm8998 msm8937_32go-userdebu
 LOCAL_CFLAGS += -DSUPPORT_ONLY_HAL3
 endif
 
+ifeq ($(TARGET_USES_CASH_EXTENSION), true)
+LOCAL_SHARED_LIBRARIES += libcashctl
+LOCAL_CFLAGS += -DTARGET_HAS_CASH
+endif
+
 LOCAL_STATIC_LIBRARIES := android.hardware.camera.common@1.0-helper
 
 

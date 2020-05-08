@@ -61,6 +61,13 @@ extern "C" {
 #include "mm_camera_dbg.h"
 }
 
+// Camera Augmented Sensing Helper
+#ifdef TARGET_HAS_CASH
+extern "C" {
+#include <cashsvr/cash_ext.h>
+}
+#endif
+
 using namespace android;
 
 namespace qcamera {
@@ -403,6 +410,9 @@ camera3_device_ops_t QCamera3HardwareInterface::mCameraOps = {
 
 // initialise to some default value
 uint32_t QCamera3HardwareInterface::sessionId[] = {0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF};
+
+uint8_t QCamera3HardwareInterface::tofAfState = 0;
+bool QCamera3HardwareInterface::tof_focusing = false;
 
 /*===========================================================================
  * FUNCTION   : QCamera3HardwareInterface
@@ -1149,6 +1159,13 @@ int QCamera3HardwareInterface::openCamera()
 
     LOGH("mCameraId=%d",mCameraId);
 
+#ifdef TARGET_HAS_CASH
+    if (mCameraId == 0) {
+        cash_tof_start(true);
+        cash_rgbc_start(true);
+    }
+#endif
+
     return NO_ERROR;
 }
 
@@ -1171,6 +1188,13 @@ int QCamera3HardwareInterface::closeCamera()
 
     LOGI("[KPI Perf]: E PROFILE_CLOSE_CAMERA camera id %d",
              mCameraId);
+
+#ifdef TARGET_HAS_CASH
+    if (mCameraId == 0) {
+        cash_tof_start(false);
+        cash_rgbc_start(false);
+    }
+#endif
 
     // unmap memory for related cam sync buffer
     mCameraHandle->ops->unmap_buf(mCameraHandle->camera_handle,
@@ -10322,6 +10346,18 @@ QCamera3HardwareInterface::translateFromHalMetadata(
                 hAeRegions->rect.height);
     }
 
+    IF_META_AVAILABLE(uint32_t, afState, CAM_INTF_META_AF_STATE, metadata) {
+        if (!tof_focusing) {
+            uint8_t fwk_afState = (uint8_t) *afState;
+            camMetadata.update(ANDROID_CONTROL_AF_STATE, &fwk_afState, 1);
+            LOGD("urgent Metadata : ANDROID_CONTROL_AF_STATE %u", *afState);
+        } else {
+            camMetadata.update(ANDROID_CONTROL_AF_STATE, &tofAfState, 1);
+            ALOGE("urgent Metadata : ANDROID_CONTROL_AF_STATE %u", tofAfState);
+            tofAfState = tofAfState == 0 ? 4 : 0;
+        }
+    }
+
     IF_META_AVAILABLE(float, focusDistance, CAM_INTF_META_LENS_FOCUS_DISTANCE, metadata) {
         camMetadata.update(ANDROID_LENS_FOCUS_DISTANCE , focusDistance, 1);
     }
@@ -10824,8 +10860,10 @@ QCamera3HardwareInterface::translateCbUrgentMetadataToResultMetadata
 
     IF_META_AVAILABLE(uint32_t, ae_state, CAM_INTF_META_AEC_STATE, metadata) {
         uint8_t fwk_ae_state = (uint8_t) *ae_state;
+        if (fwk_ae_state != 2 && fwk_ae_state != 4 && tof_focusing)
+            fwk_ae_state = 2;
         camMetadata.update(ANDROID_CONTROL_AE_STATE, &fwk_ae_state, 1);
-        LOGD("urgent Metadata : ANDROID_CONTROL_AE_STATE %u", *ae_state);
+        LOGD("urgent Metadata : ANDROID_CONTROL_AE_STATE %u", fwk_ae_state);
     }
 
     IF_META_AVAILABLE(cam_3a_params_t,ae_debug, CAM_INTF_META_AEC_INFO,metadata) {
@@ -14641,6 +14679,10 @@ int QCamera3HardwareInterface::translateToHalMetadata
         }
     }
 
+    bool use_rgbc = false;
+#ifdef TARGET_HAS_CASH
+    struct exptime_iso_tpl exptime_iso = { -1, -1};
+#endif
     if (frame_settings.exists(ANDROID_CONTROL_AE_MODE)) {
         uint8_t fwk_aeMode =
             frame_settings.find(ANDROID_CONTROL_AE_MODE).data.u8[0];
@@ -14648,7 +14690,18 @@ int QCamera3HardwareInterface::translateToHalMetadata
         uint8_t aeMode;
         int32_t redeye;
 
-        if (fwk_aeMode == ANDROID_CONTROL_AE_MODE_OFF ) {
+#ifdef TARGET_HAS_CASH
+        /*
+         * Only consider RGBC when there is no flash accompanying AE
+         * When that is the case, disable AE to use RGBC instead
+         */
+        if (fwk_aeMode == ANDROID_CONTROL_AE_MODE_ON && cash_is_rgbc_in_range())
+            exptime_iso = cash_get_exptime_iso();
+        if (exptime_iso.iso > 0 && exptime_iso.exptime > 0)
+            use_rgbc = true;
+        ALOGI("RGBC: use_rgbc = %d", use_rgbc);
+#endif
+        if (fwk_aeMode == ANDROID_CONTROL_AE_MODE_OFF || use_rgbc ) {
             aeMode = CAM_AE_MODE_OFF;
         } else {
             aeMode = CAM_AE_MODE_ON;
@@ -14734,7 +14787,34 @@ int QCamera3HardwareInterface::translateToHalMetadata
     property_get("persist.vendor.camera.af.infinity", af_value, "0");
 
     uint8_t fwk_focusMode = 0;
-    if (atoi(af_value) == 0) {
+    bool use_tof = false;
+#ifdef TARGET_HAS_CASH
+    tof_focusing = false;
+    if (atoi(af_value) == 0 && mCameraId == 0) {
+        if (frame_settings.exists(ANDROID_CONTROL_AF_MODE)) {
+            /* Don't use ToF if we are in manual focus mode */
+            fwk_focusMode =
+                    frame_settings.find(ANDROID_CONTROL_AF_MODE).data.u8[0];
+            if (fwk_focusMode != ANDROID_CONTROL_AF_MODE_OFF)
+                use_tof = ((cash_is_tof_in_range() > 0) ? true : false);
+            else
+                use_tof = false;
+            ALOGI("ToF: use_tof = %d", use_tof);
+            if (use_tof) {
+                float focalDistance = (float)(
+                                (float)cash_get_focus() / 1000000.0f);
+                ALOGI("Setting focal distance %f from ToF", focalDistance);
+                ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                                CAM_INTF_PARM_FOCUS_MODE, CAM_FOCUS_MODE_OFF);
+                ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata,
+                                CAM_INTF_META_LENS_FOCUS_DISTANCE,
+                                focalDistance);
+                tof_focusing = true;
+            }
+        }
+    }
+#endif
+    if (atoi(af_value) == 0 && !use_tof) {
         if (frame_settings.exists(ANDROID_CONTROL_AF_MODE)) {
             fwk_focusMode = frame_settings.find(ANDROID_CONTROL_AF_MODE).data.u8[0];
             int val = lookupHalName(FOCUS_MODES_MAP, METADATA_MAP_SIZE(FOCUS_MODES_MAP),
@@ -14748,7 +14828,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 }
             }
         }
-    } else {
+    } else if (!use_tof) {
         uint8_t focusMode = (uint8_t)CAM_FOCUS_MODE_INFINITY;
         LOGE("Focus forced to infinity %d", focusMode);
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_PARM_FOCUS_MODE, focusMode)) {
@@ -14763,7 +14843,9 @@ int QCamera3HardwareInterface::translateToHalMetadata
         if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_LENS_FOCUS_DISTANCE,
                 focalDistance)) {
             rc = BAD_VALUE;
-        }
+        } else {
+            LOGD("MF focalDistance = %f", focalDistance);
+	}
     }
 
     if (frame_settings.exists(ANDROID_CONTROL_AE_ANTIBANDING_MODE)) {
@@ -15079,7 +15161,22 @@ int QCamera3HardwareInterface::translateToHalMetadata
         scalerCropSet = true;
     }
 
-    if (frame_settings.exists(ANDROID_SENSOR_FRAME_DURATION)) {
+#ifdef TARGET_HAS_CASH
+    if (use_rgbc) {
+        ALOGI("Setting frame duration to %lld", exptime_iso.exptime);
+        int64_t sensorFrameDuration = exptime_iso.exptime;
+        int64_t minFrameDuration = getMinFrameDuration(request);
+        sensorFrameDuration = MAX(sensorFrameDuration, minFrameDuration);
+        if (sensorFrameDuration > gCamCapability[mCameraId]->max_frame_duration)
+            sensorFrameDuration = gCamCapability[mCameraId]->max_frame_duration;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_FRAME_DURATION,
+                sensorFrameDuration)) {
+            rc = BAD_VALUE;
+        }
+    }
+#endif
+
+    if (!use_rgbc && frame_settings.exists(ANDROID_SENSOR_FRAME_DURATION)) {
         int64_t sensorFrameDuration =
                 frame_settings.find(ANDROID_SENSOR_FRAME_DURATION).data.i64[0];
         int64_t minFrameDuration = getMinFrameDuration(request);
@@ -15560,7 +15657,26 @@ int QCamera3HardwareInterface::translateToHalMetadata
             }
         }
     } else {
-        if (frame_settings.exists(ANDROID_SENSOR_EXPOSURE_TIME)) {
+#ifdef TARGET_HAS_CASH
+        if (use_rgbc) {
+            ALOGI("Setting ISO to %d and exposure time to %lld", exptime_iso.iso, exptime_iso.exptime);
+            int64_t sensorExpTime = exptime_iso.exptime;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_EXPOSURE_TIME,
+                        sensorExpTime)) {
+                rc = BAD_VALUE;
+            }
+            int32_t sensorSensitivity = exptime_iso.iso;
+            if (sensorSensitivity < gCamCapability[mCameraId]->sensitivity_range.min_sensitivity)
+                sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.min_sensitivity;
+            if (sensorSensitivity > gCamCapability[mCameraId]->sensitivity_range.max_sensitivity)
+                sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.max_sensitivity;
+            if (ADD_SET_PARAM_ENTRY_TO_BATCH(hal_metadata, CAM_INTF_META_SENSOR_SENSITIVITY,
+                        sensorSensitivity)) {
+                rc = BAD_VALUE;
+            }
+        }
+#endif
+        if (!use_rgbc && frame_settings.exists(ANDROID_SENSOR_EXPOSURE_TIME)) {
             int64_t sensorExpTime =
                 frame_settings.find(ANDROID_SENSOR_EXPOSURE_TIME).data.i64[0];
             LOGD("setting sensorExpTime %lld", sensorExpTime);
@@ -15569,7 +15685,7 @@ int QCamera3HardwareInterface::translateToHalMetadata
                 rc = BAD_VALUE;
             }
         }
-        if (frame_settings.exists(ANDROID_SENSOR_SENSITIVITY)) {
+        if (!use_rgbc && frame_settings.exists(ANDROID_SENSOR_SENSITIVITY)) {
             int32_t sensorSensitivity = frame_settings.find(ANDROID_SENSOR_SENSITIVITY).data.i32[0];
             if (sensorSensitivity < gCamCapability[mCameraId]->sensitivity_range.min_sensitivity)
                 sensorSensitivity = gCamCapability[mCameraId]->sensitivity_range.min_sensitivity;
