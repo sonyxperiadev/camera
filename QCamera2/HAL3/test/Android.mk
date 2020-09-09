@@ -57,6 +57,4 @@ include $(SDCLANG_COMMON_DEFS)
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
-LOCAL_CFLAGS += -std=c++11 -std=gnu++0x
-
 include $(BUILD_EXECUTABLE)
