@@ -1,0 +1,7 @@
+cc_library_headers {
+    name: "camera_intf_headers",
+    vendor_available: true,
+    export_include_dirs: [
+         "QCamera2/stack/common",
+    ],
+}
