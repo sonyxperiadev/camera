@@ -191,7 +191,7 @@ ifeq ($(TARGET_HAS_LOW_RAM), true)
 LOCAL_CFLAGS += -DHAS_LOW_RAM
 endif
 
-ifneq (,$(filter $(TRINKET) sdm660 msm8952 msm8996 msm8998 msm8937_32go-userdebug, $(TARGET_BOARD_PLATFORM)))
+ifneq (,$(filter msm8952 msm8996 msm8998 msm8937_32go-userdebug, $(TARGET_BOARD_PLATFORM)))
 LOCAL_CFLAGS += -DSUPPORT_ONLY_HAL3
 endif
 
