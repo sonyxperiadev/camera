@@ -2500,7 +2500,7 @@ void sort_camera_info(int num_cam)
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
             b_prime_idx = idx;
-            LOGH("Found Back Main Camera: i: %d idx: %d", i, idx);
+            LOGI("Found Back Main Camera: i: %d idx: %d", i, idx);
             memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
             idx++;
@@ -2516,7 +2516,7 @@ void sort_camera_info(int num_cam)
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
             f_prime_idx = idx;
-            LOGH("Found Front Main Camera: i: %d idx: %d", i, idx);
+            LOGI("Found Front Main Camera: i: %d idx: %d", i, idx);
             memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
             idx++;
@@ -2533,7 +2533,7 @@ void sort_camera_info(int num_cam)
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
             b_aux_idx = idx;
-            LOGH("Found Back Aux Camera: i: %d idx: %d", i, idx);
+            LOGI("Found Back Aux Camera: i: %d idx: %d", i, idx);
             memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
             idx++;
@@ -2550,7 +2550,7 @@ void sort_camera_info(int num_cam)
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = idx;
             f_aux_idx = idx;
-            LOGH("Found front Aux Camera: i: %d idx: %d", i, idx);
+            LOGI("Found front Aux Camera: i: %d idx: %d", i, idx);
             memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
             idx++;
@@ -2566,7 +2566,7 @@ void sort_camera_info(int num_cam)
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = (b_aux_idx << MM_CAMERA_HANDLE_SHIFT_MASK) | b_prime_idx;
-            LOGH("Found Back Main+AUX Camera: i: %d idx: %d", i, idx);
+            LOGI("Found Back Main+AUX Camera: i: %d idx: %d", i, idx);
             memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
             idx++;
@@ -2582,7 +2582,7 @@ void sort_camera_info(int num_cam)
             temp_mode[idx] = g_cam_ctrl.cam_mode[i];
             temp_is_yuv[idx] = g_cam_ctrl.is_yuv[i];
             cam_idx[idx] = (f_aux_idx << MM_CAMERA_HANDLE_SHIFT_MASK) | f_prime_idx;
-            LOGH("Found Back Main Camera: i: %d idx: %d", i, idx);
+            LOGI("Found Front Main+AUX Camera: i: %d idx: %d", i, idx);
             memcpy(temp_dev_name[idx],g_cam_ctrl.video_dev_name[i],
                 MM_CAMERA_DEV_NAME_LEN);
             idx++;
