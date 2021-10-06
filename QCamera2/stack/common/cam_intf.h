@@ -855,8 +855,8 @@ typedef struct cam_stream_info {
     ((NULL != TABLE_PTR) ? \
     ((TABLE_PTR->data.member_variable_##META_ID[ 0 ] = DATA), \
     (TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
-    ((LOGE("Unable to set metadata TABLE_PTR:%p META_ID:%d", \
-            TABLE_PTR, META_ID)), (-1))) \
+    (({LOGE("Unable to set metadata TABLE_PTR:%p META_ID:%d", \
+            TABLE_PTR, META_ID)}), (-1))) \
 
 #define ADD_SET_PARAM_ENTRY_TO_BATCH_FOR_AUX(TABLE_PTR, AUX_TABLE_PTR, META_ID) \
     ((NULL != TABLE_PTR || (NULL != AUX_TABLE_PTR)) ? \
