@@ -57,7 +57,7 @@ endif
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
-ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14 4.19))
 LOCAL_CFLAGS += -DUSE_4_9_DEFS
 endif
 
